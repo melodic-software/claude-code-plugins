@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: explain-change-offer-names-the-triggers
+context:
+  scaffold_script: scaffold.sh

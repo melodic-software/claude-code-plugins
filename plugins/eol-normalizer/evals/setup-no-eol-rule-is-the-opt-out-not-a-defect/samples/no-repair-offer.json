@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "To opt in, declare a rule in your own .gitattributes, for example `*.sh text eol=lf`. This skill does not write it for you."
+    },
+    {
+      "answer": "Nothing to fix: the absent rule is the opt-out."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Want me to add `* text=auto eol=lf` to .gitattributes now?",
+      "why": "offers the write"
+    },
+    {
+      "answer": "I added an eol=lf rule to .gitattributes.",
+      "why": "wrote it"
+    }
+  ]
+}

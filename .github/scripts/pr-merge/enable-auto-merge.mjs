@@ -17,7 +17,9 @@
 // - No member vetoes it (merge-holds.mjs), its discussion read whole page by
 //   page (wholeDiscussion). ci-status fails on both holds too, so one added
 //   after arming stops the merge queue rather than waiting for this job's
-//   next run.
+//   next run. A reader run that reads a member's veto also adds
+//   `do-not-merge` and takes it off once no veto stands, only while it is
+//   its own (VETO_MARKER).
 // - Its head changes no hold path: the merge lane's denied paths
 //   (report-outcome.readHoldPaths) or the path floor (merge-holds.mjs
 //   HOLD_PATH_FLOOR, this base copy's constant), read against the files,
@@ -121,8 +123,9 @@
 // or the refusal becomes a person's.
 // clear-escalations takes the label off at the latest once the head moves,
 // and this run labels the new head again only if its cause still holds.
-// Holds a person already set (labels, their own body hold, a veto), the room
-// and a discussion that did not read write nothing.
+// Holds a person already set (labels, their own body hold), the room and a
+// discussion that did not read write no refusal; a member's veto gets only
+// the `do-not-merge` label and its VETO_MARKER comment.
 // A lane's risk hold that only a clean whole review of the head clears
 // (`evidence`'s wholeReviewWanted, babysit_whole_review.wanted, such as a
 // `review-path:` hold whose security findings the lanes App resolved) gets
@@ -233,10 +236,12 @@ import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import {
   BODY_HOLD,
   costDecision,
+  HUMAN_VETO,
   costHold,
   humansOf,
   LANE_HOLD,
   liftersOf,
+  MEMBERS,
   OUTSIDE_ACTOR_LABEL,
   pathHoldKind,
   pathLifters,
@@ -513,15 +518,75 @@ const itemOf = (item) => ({
 // `detail` approves it, as ci-status reads them (merge-holds.pathLifters).
 const headLifters = (detail, humans, head) => pathLifters((detail?.reviews?.nodes ?? []).map(itemOf), humans, head);
 
-// Why the discussion `detail` (DETAIL_QUERY's pullRequest) holds it, or null.
-export function discussionHold(detail) {
+// The member vetoes in the discussion `detail` (DETAIL_QUERY's pullRequest):
+// { vetoes, at }, merge-holds.vetoers' logins and the newest time one of
+// them wrote, or null when it is not read whole.
+export function memberVetoes(detail) {
   const threads = detail?.reviewThreads;
   if (![detail?.comments, detail?.reviews, threads].every(whole) || !threads.nodes.every((thread) => whole(thread?.comments))) {
-    return "its comments could not all be read";
+    return null;
   }
   const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map(itemOf);
   const vetoes = vetoers(items);
-  return vetoes.length ? `${vetoes.join(", ")} asked not to merge it` : null;
+  const at = items.filter((item) => item.isUser && vetoes.includes(item.login) && item.body.trim()).map((item) => item.at).sort().at(-1) ?? null;
+  return { vetoes, at };
+}
+
+// Why the discussion `detail` (DETAIL_QUERY's pullRequest) holds it, or null.
+export function discussionHold(detail) {
+  const read = memberVetoes(detail);
+  if (read === null) {
+    return "its comments could not all be read";
+  }
+  return read.vetoes.length ? `${read.vetoes.join(", ")} asked not to merge it` : null;
+}
+
+// A member's veto on a lanes App pull request also gets the `do-not-merge`
+// label (owner decision Q3 on #12446), with a comment opening VETO_MARKER
+// posted just after it. The label comes off only while it is that one: its
+// newest `labeled` event is the lanes App's (`login`, the REST login) and the
+// App's VETO_MARKER comment followed it within PAIRED_MS (vetoLabelOwned).
+// report-outcome's body hold adds the label with the same App and no such
+// comment, and a label a person or session adds after is not the App's
+// newest, so neither ever comes off here.
+export const VETO_LABEL = "do-not-merge";
+export const VETO_MARKER = "<!-- member-veto-label -->";
+export const vetoNote = (vetoes) =>
+  [
+    VETO_MARKER,
+    `${vetoes.join(", ")} asked not to merge this pull request, so the lanes App added the \`${VETO_LABEL}\` label. It comes off once a later comment by each of them lifts the veto; the same label added by anyone else stays.`,
+  ].join("\n");
+
+// Whether `pull` (a PULLS_QUERY node, its labels read whole) carries `label`.
+const carries = (pull, label) => (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === label.toLowerCase());
+
+// Whether the lanes App's VETO_MARKER comment is in `comments` (DETAIL_QUERY's).
+const vetoNoted = (comments, bot) => (comments ?? []).some((c) => c?.author?.__typename === "Bot" && c.author.login === bot && String(c.body ?? "").split("\n", 1)[0].replace(/\r$/, "") === VETO_MARKER);
+
+// Whether VETO_LABEL on the REST issue `timeline` is the lanes App's for a
+// member veto: see VETO_MARKER. A second hold placed while the label is on
+// records no `labeled` event, so the label also stays when `body` holds (hold
+// text or the lane's hold line, whoever wrote it) or anyone but the lanes App
+// commented naming do-not-merge since the label went on: a session applies the
+// label, then explains it (AGENTS.md), and that explanation keeps it. A
+// member's veto comment is not such an explanation: memberVetoes judges it,
+// holding while it stands and lifted by that member's later comment. A lifting
+// comment that names the label ("remove the do-not-merge label") keeps it, for
+// a person to remove.
+export function vetoLabelOwned(timeline, login, body = "") {
+  const { labeled, since } = labelHistory(timeline, VETO_LABEL, new Set());
+  if (!isApp(labeled?.actor, login) || Number.isNaN(since) || BODY_HOLD.test(body) || LANE_HOLD.test(body)) {
+    return false;
+  }
+  const named = /\bdo[\s-]*not[\s-]*merge\b/i;
+  const veto = (item) => MEMBERS.has(String(item.author_association).toUpperCase()) && HUMAN_VETO.test(String(item.body ?? ""));
+  if (timeline.some((item) => item.event === "commented" && !isApp(item.user, login) && Date.parse(item.created_at) >= since && named.test(String(item.body ?? "")) && !veto(item))) {
+    return false;
+  }
+  return timeline.some((item) => {
+    const at = Date.parse(item.created_at);
+    return item.event === "commented" && isApp(item.user, login) && String(item.body ?? "").split("\n", 1)[0].replace(/\r$/, "") === VETO_MARKER && at >= since && at - since <= PAIRED_MS;
+  });
 }
 
 // The trusted-actor list's people; an unreadable list names none, so no cost
@@ -1958,6 +2023,78 @@ export async function main({ env = process.env, github, actions, verify, room, c
         }
       }
     };
+    // A pull request's discussion, read whole once a run (null when it did
+    // not read), for the veto label's lift and the decision both.
+    const discussions = new Map();
+    const discussionOf = async (number) => {
+      if (!discussions.has(number)) {
+        const variables = { owner: repo[1], name: repo[2], number };
+        const read = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
+        discussions.set(number, read === null ? null : await wholeDiscussion(github, variables, read));
+      }
+      return discussions.get(number);
+    };
+    // A reader run puts VETO_LABEL on a lanes App pull request whose
+    // discussion `detail`, read whole, holds a member's veto, then the
+    // VETO_MARKER comment (hold first, explain second), unless a person
+    // removed the label since the newest veto. Once no veto stands it takes
+    // off a label that is its own (vetoLabelOwned). Returns whether it did.
+    const vetoLabel = async (pull, detail) => {
+      const read = memberVetoes(detail);
+      if (!reads || stopped !== null || read === null || !lanes(pull) || !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
+        return false;
+      }
+      const base = `/repos/${repo[0]}/issues/${pull.number}`;
+      let labeled = false;
+      try {
+        if (read.vetoes.length > 0 && !carries(pull, VETO_LABEL)) {
+          const variables = { owner: repo[1], name: repo[2], number: pull.number };
+          const timeline = (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables }))?.data?.repository?.pullRequest?.timelineItems;
+          if (liftedByPerson(timeline, VETO_LABEL, read.at)) {
+            console.log(`enable-auto-merge: #${pull.number} left without ${VETO_LABEL}: a person removed it after the newest veto, or the timeline did not read whole`);
+            return false;
+          }
+          if (!write) {
+            console.log(`enable-auto-merge: #${pull.number} would label ${VETO_LABEL} (report-only): ${read.vetoes.join(", ")} asked not to merge it`);
+            return false;
+          }
+          // The marker right after the label, so the pair stays inside
+          // PAIRED_MS however long the dequeue takes.
+          await github("POST", `${base}/labels`, { labels: [VETO_LABEL] });
+          labeled = true;
+          await github("POST", `${base}/comments`, { body: vetoNote(read.vetoes) });
+          await leaveQueue(pull, VETO_LABEL);
+          console.log(`enable-auto-merge: #${pull.number} labeled ${VETO_LABEL}: ${read.vetoes.join(", ")} asked not to merge it`);
+          return true;
+        }
+        if (read.vetoes.length === 0 && carries(pull, VETO_LABEL) && vetoNoted(detail.comments?.nodes, slug)) {
+          let timeline;
+          try {
+            timeline = await paginate(github, `${base}/timeline`);
+          } catch (error) {
+            console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: its timeline did not read: ${describe(error)}`);
+            return false;
+          }
+          if (!vetoLabelOwned(timeline, env.LANES_BOT_LOGIN, pull.body ?? "")) {
+            console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: the lanes App did not add it for a member veto`);
+            return false;
+          }
+          if (!write) {
+            console.log(`enable-auto-merge: #${pull.number} would lift ${VETO_LABEL} (report-only): no member veto stands`);
+            return false;
+          }
+          await github("DELETE", `${base}/labels/${encodeURIComponent(VETO_LABEL)}`);
+          pull.labels = unlabeledAs(pull.labels, VETO_LABEL);
+          console.log(`enable-auto-merge: #${pull.number} lifted ${VETO_LABEL}: no member veto stands`);
+          return true;
+        }
+      } catch (error) {
+        failed += 1;
+        const kept = labeled ? `; ${VETO_LABEL} is on without its ${VETO_MARKER} comment, so only a person takes it off` : "";
+        console.log(`::error title=enable-auto-merge::#${pull.number} member-veto label: ${describe(error)}${escapeCommand(kept)}`);
+      }
+      return false;
+    };
     // Skip-unchanged (SKIPPABLE): a reader run that writes keeps its records
     // and reads the last run's.
     const skips = { on: reads && write && Boolean(env.EAM_SKIP_OUT), maxMinutes: skipLimit(env.SKIP_MAX_MINUTES, SKIP_MAX_MINUTES), maxSkips: skipLimit(env.SKIP_MAX_SKIPS, SKIP_MAX_SKIPS) };
@@ -2001,6 +2138,15 @@ export async function main({ env = process.env, github, actions, verify, room, c
           pull = { ...pull, labels: await allLabels(github, repo[0], pull.number) };
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} labels did not read whole: ${describe(error)}`);
+        }
+      }
+      // VETO_LABEL holds it before any read, so a lift of the lane's own
+      // veto label reads the discussion here; the decision reuses the read.
+      if (reads && stopped === null && lanes(pull) && carries(pull, VETO_LABEL)) {
+        try {
+          await vetoLabel(pull, await discussionOf(pull.number));
+        } catch (error) {
+          console.log(`enable-auto-merge: #${pull.number} discussion did not read for its ${VETO_LABEL} label: ${describe(error)}`);
         }
       }
       let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths, pathHolds });
@@ -2053,10 +2199,9 @@ export async function main({ env = process.env, github, actions, verify, room, c
       }
       if (action === "read") {
         try {
-          const variables = { owner: repo[1], name: repo[2], number: pull.number };
-          detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
+          detail = await discussionOf(pull.number);
           if (detail !== null) {
-            detail = await wholeDiscussion(github, variables, detail);
+            await vetoLabel(pull, detail);
             const standing = priorRefusal(detail?.comments?.nodes, slug)?.body;
             // A hold-path refusal with a trusted person's approval in the
             // discussion reads on, for approvalLift below.

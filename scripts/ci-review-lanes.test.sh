@@ -172,7 +172,12 @@ printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
 */actions/workflows/pr-review-hosted.yml/runs*)
   [[ "$(grep -c '/runs?' "$STUB_LOG")" -gt "${STUB_RUNS_FAILS:-0}" ]] || { echo '{"message":"Server Error"}'; exit 1; }
-  printf '%s\n' "$RUNS_CODE"
+  # RUNS_CODE_LATER answers once a poll has read a run by id (the wait).
+  if [[ -n "${RUNS_CODE_LATER:-}" ]] && grep -qE '/actions/runs/[0-9]+$' "$STUB_LOG"; then
+    printf '%s\n' "$RUNS_CODE_LATER"
+  else
+    printf '%s\n' "$RUNS_CODE"
+  fi
   ;;
 */actions/workflows/pr-review-security-hosted.yml/runs*)
   printf '%s\n' "$RUNS_SEC"
@@ -184,6 +189,14 @@ case "$*" in
   id="${id%%/*}"
   var="JOBS_$id"
   printf '%s\n' "${!var:-}"
+  ;;
+*/actions/runs/*)
+  # One run by id, as the review wait polls it: RUN_<id>, else a failed read.
+  id="$*"
+  id="${id##*actions/runs/}"
+  var="RUN_$id"
+  [[ -n "${!var:-}" ]] || exit 1
+  printf '%s\n' "${!var}"
   ;;
 */pulls/*/files*)
   [[ -z "${STUB_FILES_FAIL:-}" ]] || exit 1
@@ -299,6 +312,25 @@ JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progres
 expect "a newer run still reviewing is pending" 1 "::error::'$CODE_CHECK' has not finished on $HEAD (https://github.com/o/r/actions/runs/11)."
 RUNS_CODE="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")" JOBS_11="$(jobs "$(kill_job success skipped)")"
 expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_CHECK' has not finished"
+# The wait (#12447): a run not completed is polled by id until it completes,
+# then judged as before; one still running at the cap fails as before, saying
+# no manual re-run is needed.
+export RUN_11 RUNS_CODE_LATER
+RUN_11="$(run 11 $CODE in_progress)"
+expect "a review still running at the cap fails pending, naming the automatic re-run" 1 \
+  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 480s for it; pr-feedback-dispatch re-runs ci-status"
+if [[ "$(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 8 ]]; then
+  ok "the wait reads the waiting run once a poll, 8 polls at most"
+else
+  fail "the wait read run 11 $(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log") times: '$(sort "$TMP_ROOT/log" | uniq -c)'"
+fi
+RUN_11="$(run 11 $CODE)" RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"
+expect "a review that finishes during the wait passes without a re-run" 0 "Waited 60s for the review lanes on $HEAD." "::error::"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progress '')")"
+REVIEW_WAIT_SECONDS=0 expect "a contract-only run (no wait) fails a running review at once" 1 "ci-status waited 0s for it" "Waited"
+if grep -qE '/actions/runs/[0-9]+$' "$TMP_ROOT/log"; then fail "a run with no wait polled a run"; else ok "a run with no wait polls nothing"; fi
+RUNS_CODE_LATER='' RUN_11=''
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 11 $CODE completed "${HEAD//0/f}")" "$(run 12 pr-review-shadow.yml)" "$(run 13 $CODE completed "$HEAD" push)")"
 expect "runs on another head, of another file or event do not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
 # A fork's run on the same commit is newest; only this repository's head counts.
@@ -316,7 +348,8 @@ if grep -q '/actions/' "$TMP_ROOT/log"; then fail "a fork pull request's run rea
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 RUNS_CODE="$(runs)"
-expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
+expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet. ci-status does not wait for a lane with no run" "Waited"
+if [[ "$(grep -c "/workflows/$CODE/runs?" "$TMP_ROOT/log")" == 2 ]]; then ok "a lane with no run is not waited for"; else fail "a lane with no run was polled: $(grep -c "/workflows/$CODE/runs?" "$TMP_ROOT/log") run-list reads"; fi
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 for c in failure cancelled timed_out; do
@@ -853,7 +886,8 @@ STUB_FILES='[]' STUB_CHANGED=0 STUB_AUTHOR=
 
 export STUB_RUNS_FAILS=1
 expect "a transient run-list failure is retried" 0 "'$CODE_CHECK' passed"
-export STUB_RUNS_FAILS=3
+# Three failed reads end the review wait; three more fail the judgment closed.
+export STUB_RUNS_FAILS=6
 expect "an unreadable run list fails closed" 1 "::error::could not read the $CODE runs on $HEAD; re-run this run."
 unset STUB_RUNS_FAILS
 export STUB_JOBS_FAIL=1

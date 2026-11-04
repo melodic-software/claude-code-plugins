@@ -311,8 +311,14 @@ say(ssteps.length > 0 && ssteps.every((s) => s["continue-on-error"] === true),
   "every summary job step is continue-on-error, so a failed pass turns no job red");
 say(summaryIds.every((id) => sById(id).id === id) && !/lane-token/.test(JSON.stringify(sjob)),
   "the summary job has every summary step and reads no lane token");
+// The tip arrives as the SHA the job's tip step resolved, which saves
+// checkout's REST call for a branch ref; an empty SHA skips the checkout.
 const sBase = ssteps.find((s) => /actions\/checkout/.test(s.uses ?? "")) ?? {};
-say(sBase.with?.ref === "${{ github.event.repository.default_branch }}" && sBase.with?.["persist-credentials"] === false
+const sTip = sById("tip");
+say(sBase.with?.ref === "${{ steps.tip.outputs.sha }}" && sBase.if === "steps.tip.outputs.sha != ''"
+  && sTip.env?.TIP_BRANCH === "${{ github.event.repository.default_branch }}" && sTip.uses === undefined
+  && ssteps.indexOf(sTip) !== -1 && ssteps.indexOf(sTip) < ssteps.indexOf(sBase)
+  && sBase.with?.["persist-credentials"] === false
   && ssteps.filter((s) => /actions\/checkout/.test(s.uses ?? "")).length === 1,
   "the summary job takes its code only from the default branch tip, without persisted credentials");
 const summaryData = sById("summary-data");

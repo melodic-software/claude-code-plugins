@@ -4098,7 +4098,9 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     # 9 s p95 and 42 s max in full mode, about 10 s contract-only, up to 10
-    # minutes more while a contract-only run holds. The cap covers that hold
+    # minutes more while a contract-only run holds, and up to 8 more while the
+    # review-lane step waits for a review (REVIEW_WAIT_SECONDS, ending 120 s
+    # before gh_read's deadline, so inside its margin). The cap covers that hold
     # plus the worst case of the pinned composites' waits: two 60 s rate-limit waits
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
@@ -5074,6 +5076,17 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      - name: Resolve main's tip
+        id: tip
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # The cost-hold and lanes-hold steps below run node; pin it to main's
       # .node-version, as every other Node job is, rather than the runner
       # image's default. The same checkout of the default branch holds the
@@ -5084,10 +5097,10 @@ jobs:
       # module they import (scripts/ci-lanes-pr-hold.test.sh checks the list).
       # No pull request code is checked out and no credential is kept.
       - name: Check out main's Node pin and verdict reader
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.tip.outputs.sha != '' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
           sparse-checkout: |
@@ -6778,6 +6791,11 @@ jobs:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+          # A contract-only run (a label flip or body edit) does not wait: it
+          # holds no review the full run's wait would not, and each would keep
+          # a runner.
+          REVIEW_WAIT_SECONDS: ${{ (github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
+          REVIEW_POLL_SECONDS: 60
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
@@ -7022,13 +7040,18 @@ jobs:
           # pull_request run of $file on <sha> from this repository's head,
           # with <pr> only one GitHub lists for that pull request; run is empty
           # when there is none.
-          lane_at() {
+          # lane_run <sha> [pr]: prints that newest run, or nothing.
+          lane_run() {
+            local runs
             runs=$(read_api "the $file runs on $1" \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || exit 1
-            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$1" --arg repo "$GITHUB_REPOSITORY" --arg pr "${2:-}" \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || return 1
+            jq -c --arg path ".github/workflows/$file" --arg sha "$1" --arg repo "$GITHUB_REPOSITORY" --arg pr "${2:-}" \
               '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request"
                 and .head_repository.full_name == $repo
-                and ($pr == "" or any(.pull_requests[]?; .number == ($pr | tonumber))))] | max_by(.id) // empty' <<<"$runs")
+                and ($pr == "" or any(.pull_requests[]?; .number == ($pr | tonumber))))] | max_by(.id) // empty' <<<"$runs"
+          }
+          lane_at() {
+            run=$(lane_run "$@") || exit 1
             [ -n "$run" ] || return 0
             id=$(jq -r .id <<<"$run")
             url=$(jq -r .html_url <<<"$run")
@@ -7088,11 +7111,44 @@ jobs:
             echo "::warning::'$check' carries a review back more than $hop heads; ci-status stops there." >&2
             return 1
           }
+          # WAIT FOR A REVIEW STILL RUNNING. A review usually finishes after
+          # this step first reads it, so rather than fail red and wait for
+          # pr-feedback-dispatch's rerun-ci-status (2 to 6 minutes later, #12447),
+          # the step polls each lane whose run on the head has not completed,
+          # every REVIEW_POLL_SECONDS for at most REVIEW_WAIT_SECONDS, ending
+          # 120 s before gh_read's deadline, reading that run once a poll. A
+          # lane with no run is not waited for: the push that made the head
+          # creates its review runs before this job starts, so one missing now
+          # rarely comes. The wait decides nothing: the loop after it reads every lane
+          # as before, and a read that fails ends the wait for that loop to fail
+          # closed. A review still running at the cap fails as before, and
+          # rerun-ci-status re-runs ci-status when it finishes.
+          poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
+          stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
+          declare -A waiting=()
+          while [ "$polls" -gt 0 ] && read -r file lane check; do
+            run=$(lane_run "$HEAD_SHA") || { waiting=(); break; }
+            if [ -n "$run" ] && [ "$(jq -r .status <<<"$run")" != completed ]; then
+              waiting[$file]=$(jq -r .id <<<"$run")
+            fi
+          done <<<"$lanes"
+          waited=0
+          while [ "${#waiting[@]}" -gt 0 ] && [ "$polls" -gt 0 ] && [ $(($(date +%s) + poll)) -le "$stop_at" ]; do
+            sleep "$poll"
+            polls=$((polls - 1)) waited=$((waited + poll))
+            for file in "${!waiting[@]}"; do
+              run=$(read_api "run ${waiting[$file]}" "repos/$GITHUB_REPOSITORY/actions/runs/${waiting[$file]}") || { waiting=(); break 2; }
+              [ "$(jq -r .status <<<"$run")" != completed ] || unset "waiting[$file]"
+            done
+          done
+          [ "$waited" -eq 0 ] || echo "Waited ${waited}s for the review lanes on $HEAD_SHA."
+          rerun_note="ci-status waited ${waited}s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
+          missing_note="ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
           while read -r file lane check; do
             run='' verdict=''
             lane_at "$HEAD_SHA"
             if [ -z "$run" ]; then
-              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
+              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. $missing_note"
               failed=1
               continue
             fi
@@ -7160,7 +7216,7 @@ jobs:
               failed=1
               ;;
             pending)
-              echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
+              echo "::error::'$check' has not finished on $HEAD_SHA ($url). $rerun_note"
               failed=1
               ;;
             uncounted)

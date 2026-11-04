@@ -83,10 +83,16 @@ for want in 'id: kill' 'continue-on-error: true' 'uses: ./.base/.github/actions/
 done
 if [[ "$job" == *"- name: Check the kill switch"*"- name: Find the ci-status to re-run"* ]]; then ok "the switch is read before the find step"; else fail "the kill-switch step is not before the find step"; fi
 # The trusted-actors list comes from the default branch, never the PR head,
-# and a failed checkout leaves no list rather than failing the re-run.
+# and a failed checkout leaves no list rather than failing the re-run. main's
+# tip arrives as the SHA the job's first step resolves, which saves checkout's
+# REST call for a branch ref; an empty SHA skips the checkout.
 list_step="$(step_of 'Check out the trusted-actors list')"
+tip_step="$(awk -v name="      - name: Resolve main's tip" '$0 == name { on = 1; print; next } on && /^      - / { exit } on { print }' <<<"$job")"
+for want in 'id: tip' 'continue-on-error: true' 'TIP_BRANCH: main'; do
+  if [[ "$tip_step" == *"$want"* ]]; then ok "the tip step carries '$want'"; else fail "the tip step lacks '$want'"; fi
+done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
-for want in 'continue-on-error: true' 'uses: actions/checkout@' 'ref: refs/heads/main' 'path: .base' 'persist-credentials: false' \
+for want in 'continue-on-error: true' 'uses: actions/checkout@' "if: steps.tip.outputs.sha != ''" 'ref: ${{ steps.tip.outputs.sha }}' 'path: .base' 'persist-credentials: false' \
   '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' '/.github/actions/check-trusted-trigger/' \
   '/.github/actions/check-kill-switch/' '/.github/actions/setup-pinned-node/' '/.github/actions/scan-upload/' '/lib/publish-gate.mjs' \
   '/.node-version' 'sparse-checkout-cone-mode: false'; do
@@ -96,7 +102,7 @@ done
 # each later step runs only on the find step's outputs. The job ends by
 # logging its readings.
 order="$(grep -nE '^      - name: ' <<<"$job" | cut -d: -f3- | paste -sd'|')"
-if [[ "$order" == ' Check out the trusted-actors list| Set up Node| Check the kill switch| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
+if [[ "$order" == " Resolve main's tip| Check out the trusted-actors list| Set up Node| Check the kill switch| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end" ]]; then
   ok "the job reads the switch, finds, scans, records, re-runs, then logs the API budget"
 else
   fail "step order: '$order'"
@@ -190,7 +196,10 @@ case "$*" in
   [[ -z "${STUB_RUNS_FAIL:-}" ]] || exit 1
   ok200 "$STUB_RUNS"
   ;;
-*/actions/runs/*/jobs*) ok200 "$STUB_JOBS" ;;
+*/actions/runs/*/jobs*)
+  # STUB_JOBS_LATER answers once a poll has read the run by id.
+  if [[ -n "${STUB_JOBS_LATER:-}" ]] && grep -qE '^api -i repos/o/r/actions/runs/[0-9]+($| -H)' "$STUB_LOG"; then ok200 "$STUB_JOBS_LATER"; else ok200 "$STUB_JOBS"; fi
+  ;;
 "api -i repos/o/r/actions/runs/"[0-9]*)
   n=$(grep -c '^api -i repos/o/r/actions/runs/[0-9]*$' "$STUB_LOG")
   total=$(wc -l <<<"$STUB_RUN_SEQ")
@@ -234,10 +243,11 @@ runs() {
 }
 # cijob <status> [started_at] [conclusion] [review-lanes step started_at]
 cijob() {
-  jq -cn --arg st "$1" --arg at "${2:-$EARLY}" --arg c "${3:-}" --arg step "${4:-}" '{jobs: [{id: 7, name: "lint-repo", status: "completed"},
+  jq -cn --arg st "$1" --arg at "${2:-$EARLY}" --arg c "${3:-}" --arg step "${4:-}" --arg judged "${5:-}" '{jobs: [{id: 7, name: "lint-repo", status: "completed"},
     {id: 77, name: "ci-status", status: $st, started_at: $at}
     + (if $c == "" then {} else {conclusion: $c} end)
-    + (if $step == "" then {} else {steps: [{name: "Aggregate lane results", started_at: $at}, {name: "Require both review lanes on this head", started_at: $step}]} end)]}'
+    + (if $step == "" then {} else {steps: [{name: "Aggregate lane results", started_at: $at}, {name: "Require both review lanes on this head", started_at: $step}
+      + (if $judged == "" then {} else {completed_at: $judged} end)]} end)]}'
 }
 
 # The reconciler-record check's stand-in logs the run it was asked about and
@@ -251,7 +261,7 @@ STUB
 KYLE=153232337 LANES_APP=337595936 STRANGER=9999001
 jq -n --argjson h "$KYLE" --argjson b "$LANES_APP" '{version: 1, actors: [{id: $h, login: "kyle-sexton", kind: "human"},
   {id: $b, login: "melodic-automation-lanes[bot]", kind: "bot"}]}' >"$TMP_ROOT/trusted-actors.json"
-export STUB_PR STUB_LANE_RUNS STUB_RUNS STUB_JOBS STUB_RUN_SEQ
+export STUB_PR STUB_LANE_RUNS STUB_RUNS STUB_JOBS STUB_RUN_SEQ STUB_JOBS_LATER
 expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
@@ -454,8 +464,25 @@ $(run 9)"
 expect "a ci-status in progress is polled, then re-run once its run finishes" 0 "Re-running ci-status (job 77) of run 9"
 check_reran 1 "the polled run's ci-status is re-run once"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 2 ]]; then ok "it polled every 60 s"; else fail "polls: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
-check_calls 7 "each poll reads the run only"
-if [[ "$(grep -c '/jobs?' "$TMP_ROOT/log")" == 1 ]]; then ok "the job list is read once"; else fail "job list reads: $(grep -c '/jobs?' "$TMP_ROOT/log")"; fi
+check_calls 8 "each poll reads the run only, and the job list once more after the polls"
+if [[ "$(grep -c '/jobs?' "$TMP_ROOT/log")" == 2 ]]; then ok "the job list is read before and after the polls"; else fail "job list reads: $(grep -c '/jobs?' "$TMP_ROOT/log")"; fi
+# ci-status's review step waits for a running review (#12447): polled to its
+# end, a pass whose review step ended after both lanes finished is left alone;
+# one whose step ended before them is re-run.
+STUB_JOBS_LATER="$(cijob completed "$EARLY" success "$EARLY" "$AFTER")"
+expect "a polled ci-status that waited for the reviews and passed is left alone" 0 "a re-run can only pass again" "Re-running"
+check_reran 0 "a waited pass is not re-run"
+STUB_JOBS_LATER="$(cijob completed "$EARLY" success "$EARLY" "$EARLY")"
+expect "a polled pass that judged before the lanes finished is re-run" 0 "Re-running ci-status (job 77) of run 9"
+STUB_JOBS_LATER=''
+# The common case: ci-status waited, passed and completed before this job ran,
+# so its first jobs read already shows the pass, with no poll.
+SAVED_RUNS=$STUB_RUNS SAVED_JOBS=$STUB_JOBS SAVED_SEQ=$STUB_RUN_SEQ
+STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed "$EARLY" success "$EARLY" "$AFTER")" STUB_RUN_SEQ=''
+expect "a completed ci-status that waited for the reviews and passed is left alone, unpolled" 0 "a re-run can only pass again" "Re-running"
+check_reran 0 "a completed waited pass is not re-run"
+if grep -q '^sleep' "$TMP_ROOT/log"; then fail "a completed waited pass was polled"; else ok "a completed waited pass is not polled"; fi
+STUB_RUNS=$SAVED_RUNS STUB_JOBS=$SAVED_JOBS STUB_RUN_SEQ=$SAVED_SEQ
 # A poll read again is a conditional GET: a 304 stands for the last 200's
 # body, so the run still reads in progress, and the polls keep their 60 s pace.
 echo 2 >"$TMP_ROOT/not-modified"
@@ -463,7 +490,7 @@ STUB_ETAG='W/"e1"' STUB_NOT_MODIFIED_FILE="$TMP_ROOT/not-modified" \
   expect "a poll answered 304 reads the run as last read, then re-runs once it finishes" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
 check_reran 1 "the conditionally polled run's ci-status is re-run once"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 4 && "$(grep -c '^sleep' "$TMP_ROOT/log")" == 4 ]]; then ok "two 304s cost two 60 s polls and no retry"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
-check_calls 9 "each poll still sends one read"
+check_calls 10 "each poll still sends one read"
 if [[ "$(grep -c "If-None-Match: W/\"e1\"" "$TMP_ROOT/log")" == 3 && "$(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")" == 2 ]]; then
   ok "every repeat poll is conditional, and each 304 keeps its reading"
 else

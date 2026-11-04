@@ -139,10 +139,20 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
@@ -342,10 +352,20 @@ jobs:
       # notice (.github/actions/log-api-budget).
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
@@ -563,6 +583,17 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        continue-on-error: true
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # The list the record check reads, from the default branch, never the
       # PR head, the reconciler-record check, the api-budget library and the
       # upload scanner. A failed checkout leaves no list and no scanner:
@@ -570,10 +601,11 @@ jobs:
       # attempt, and no reading is logged; a lanes App PR's is not re-run, as
       # its kill switch reads as on.
       - name: Check out the trusted-actors list
+        if: steps.tip.outputs.sha != ''
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
           sparse-checkout: |
@@ -819,9 +851,23 @@ jobs:
               exit 1
             fi
             sleep "$POLL_SECONDS"
-            waited=$((waited + POLL_SECONDS))
+            waited=$((waited + POLL_SECONDS)) polled=1
             read_api run "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id"
           done
+          # ci-status's review-lanes step waits for a review still running
+          # (pr-require-checks.yml REVIEW_WAIT_SECONDS), so one that began
+          # reading before both lanes finished can still judge them after.
+          # Polled to its end, it is read again. Passed, with that step ended
+          # after both lanes finished, a re-run can only pass again.
+          if [ -n "${polled:-}" ]; then
+            read_api jobs "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100"
+            job=$(jq -c '[.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty' <<<"$jobs")
+          fi
+          judged_at=$(jq -r 'first((.steps // [])[] | select(.name == "Require both review lanes on this head") | .completed_at | strings) // ""' <<<"${job:-null}")
+          if jq -e --arg s "$judged_at" --arg d "$done_at" 'try (.conclusion == "success" and ($s | fromdateiso8601) >= ($d | fromdateiso8601)) catch false' <<<"${job:-null}" >/dev/null; then
+            echo "ci-status of run $id passed, judging the reviews by $judged_at, after both lanes finished ($done_at); a re-run can only pass again."
+            exit 0
+          fi
           job_id=$(jq -r '.id // empty' <<<"${job:-null}")
           if [[ ! $job_id =~ ^[1-9][0-9]{0,14}$ ]]; then
             echo "::error::run $id on $HEAD_SHA has no ci-status job to re-run."

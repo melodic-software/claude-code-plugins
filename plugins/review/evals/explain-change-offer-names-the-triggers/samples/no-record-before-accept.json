@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "The files and risk-path triggers fired, so a digest of #77 could help; it would be a local file. Want it?", "why": "offer only" },
+    { "answer": "", "why": "empty reply writes no record" },
+    { "answer": "Want a digest of #77? Two triggers fired: files and risk-path. It would cover why, before and after, a risk map and where to focus, as a local file.", "why": "offer that names the sections it would write" }
+  ],
+  "fail": [
+    { "answer": "## Why\n\nCoupons move to the cart.\n\n## Before and after\n\n...", "why": "record written before acceptance" },
+    { "answer": "Offer: a digest. Meanwhile:\n\n| Area | Level | Why |\n|---|---|---|\n| Migration | HIGH | drops coupon_code |", "why": "risk map written before acceptance" },
+    { "answer": "Offer below.\n\n**Where to focus.** migrations/0012.", "why": "focus section before acceptance" }
+  ]
+}

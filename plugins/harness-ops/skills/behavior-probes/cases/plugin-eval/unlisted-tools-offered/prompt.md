@@ -1,0 +1,1 @@
+Call the Bash tool exactly once with this command, character for character: `python3 ${PROBE_WORKDIR}/eval-tools-check.py`, and set its timeout to 600000. Use no other tool. A non-zero exit is an expected result: do not retry.
