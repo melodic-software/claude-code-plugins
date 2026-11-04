@@ -201,82 +201,42 @@ value outside the set is named and its layer dropped.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `hard_exclusions` | string | `"enforce"` | `CLAUDE_PLUGIN_OPTION_HARD_EXCLUSIONS` | How tidy, remove-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. |
-| `comment_posture` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | Which comments remove-comments keeps. auto (default): explanatory, or necessary with --pipeline. none: only directives, license headers, TODO(#issue), paired records and public doc comments. necessary: also verified outside-constraint comments. explanatory: whatever passes the earn-its-keep test. |
-| `comment_edit_scope` | string | `"diff"` | `CLAUDE_PLUGIN_OPTION_COMMENT_EDIT_SCOPE` | Which comments remove-comments triages on the uncommitted and branch scope rungs. diff (default): only comments on the lines the change adds. files: every comment in each changed file. An explicit target and the repository rung are always whole files. |
-| `encode_constraints_unattended` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_ENCODE_CONSTRAINTS_UNATTENDED` | When true, an unattended remove-comments run may encode a constraint comment as a test, assertion or lint rule without asking, behind its tier's gate. When false (default), it offers the encoding in its report. |
-| `class_c_max_lines` | number<br>*min 1, max 40* | `2` | `CLAUDE_PLUGIN_OPTION_CLASS_C_MAX_LINES` | Lines a kept (class-C) comment may run before remove-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
-| `apply_local_renames` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_APPLY_LOCAL_RENAMES` | When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `hard_exclusions` | string | `"enforce"` | How tidy, remove-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. |
+| `comment_posture` | string | `"auto"` | Which comments remove-comments keeps. auto (default): explanatory, or necessary with --pipeline. none: only directives, license headers, TODO(#issue), paired records and public doc comments. necessary: also verified outside-constraint comments. explanatory: whatever passes the earn-its-keep test. |
+| `comment_edit_scope` | string | `"diff"` | Which comments remove-comments triages on the uncommitted and branch scope rungs. diff (default): only comments on the lines the change adds. files: every comment in each changed file. An explicit target and the repository rung are always whole files. |
+| `encode_constraints_unattended` | boolean | `false` | When true, an unattended remove-comments run may encode a constraint comment as a test, assertion or lint rule without asking, behind its tier's gate. When false (default), it offers the encoding in its report. |
+| `class_c_max_lines` | number<br>*min 1, max 40* | `2` | Lines a kept (class-C) comment may run before remove-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
+| `apply_local_renames` | boolean | `true` | When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `code-tidying@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure code-tidying@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure code-tidying@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"hard_exclusions": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install code-tidying@<marketplace> -s <scope> --config hard_exclusions=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "code-tidying@<marketplace>": {
-         "options": {
-           "hard_exclusions": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

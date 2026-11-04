@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Effective values: `bash_format_enabled` true and `bash_format_lint_gitignored` false (the manifest defaults)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`bash_format_lint_gitignored` controls this.",
+      "why": "near miss: names the option, gives no value"
+    },
+    {
+      "answer": "`bash_format_lint_gitignored` is false.",
+      "why": "near miss: no bash_format_enabled value"
+    }
+  ]
+}

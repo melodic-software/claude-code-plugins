@@ -290,84 +290,44 @@ a transition; no cell anywhere names it as authority.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `lane_stop_gate_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED` | Opts an autonomous lane into the deterministic Stop-hook completion gate. Off by default, because a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only; the harness-ops lane launcher arms per-session lanes instead. |
-| `lane_stop_gate_sentinel` | string | `"LANE-STOP-OK"` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL` | The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop; default LANE-STOP-OK. Matched only when alone on its own line. Honored from user or managed settings or the launcher's arm record, never the bare environment. |
-| `lane_stop_gate_marker` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER` | Path to a completion-marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Empty, the default, disables the file signal. Honored from user or managed settings or the launcher's arm record, never the bare environment. |
-| `lane_stop_gate_arm_id` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID` | Written by the lane launcher at launch, not set by hand: names this session's arm record in the plugin's own data directory. A capability pointer, never authority by itself: the gate validates it, honors only a record in its own store, and binds it to the first presenting session. |
-| `lane_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED` | Fires an operator alert when a lane stops without signaling completion. On by default; off mutes both channels below. |
-| `lane_notify_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED` | OS-native desktop toast for the lane-stop alert: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert. |
-| `lane_notify_terminal_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_TERMINAL_ENABLED` | Audible bell plus an OSC 9 notification written to the controlling terminal for the lane-stop alert. On by default. |
-| `verification_lens_pool` | string | `"specification,adversarial,contract,regression,evidence"` | `CLAUDE_PLUGIN_OPTION_VERIFICATION_LENS_POOL` | Ordered, comma-separated lenses the model-adjudicated checker slots draw from, one distinct lens per slot, in pool order. Tokens come from the verification-topology contract leaf's closed vocabulary; an unknown token draws no lens. Default specification,adversarial,contract,regression,evidence. |
-| `visual_narration_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VISUAL_NARRATION_ENABLED` | Runs the advisory visual narration lane: a plain-language account of a difference deterministic detection already found, attached to the run record for the human gate. Off by default: it is inert without an upstream deterministic comparator, and each narrated artifact is a metered vision-model call. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `lane_stop_gate_enabled` | boolean | `false` | Opts an autonomous lane into the deterministic Stop-hook completion gate. Off by default, because a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only; the harness-ops lane launcher arms per-session lanes instead. |
+| `lane_stop_gate_sentinel` | string | `"LANE-STOP-OK"` | The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop; default LANE-STOP-OK. Matched only when alone on its own line. Honored from user or managed settings or the launcher's arm record, never the bare environment. |
+| `lane_stop_gate_marker` | string | *(none)* | Path to a completion-marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Empty, the default, disables the file signal. Honored from user or managed settings or the launcher's arm record, never the bare environment. |
+| `lane_stop_gate_arm_id` | string | *(none)* | Written by the lane launcher at launch, not set by hand: names this session's arm record in the plugin's own data directory. A capability pointer, never authority by itself: the gate validates it, honors only a record in its own store, and binds it to the first presenting session. |
+| `lane_notify_enabled` | boolean | `true` | Fires an operator alert when a lane stops without signaling completion. On by default; off mutes both channels below. |
+| `lane_notify_os_toast_enabled` | boolean | `true` | OS-native desktop toast for the lane-stop alert: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert. |
+| `lane_notify_terminal_enabled` | boolean | `true` | Audible bell plus an OSC 9 notification written to the controlling terminal for the lane-stop alert. On by default. |
+| `verification_lens_pool` | string | `"specification,adversarial,contract,regression,evidence"` | Ordered, comma-separated lenses the model-adjudicated checker slots draw from, one distinct lens per slot, in pool order. Tokens come from the verification-topology contract leaf's closed vocabulary; an unknown token draws no lens. Default specification,adversarial,contract,regression,evidence. |
+| `visual_narration_enabled` | boolean | `false` | Runs the advisory visual narration lane: a plain-language account of a difference deterministic detection already found, attached to the run record for the human gate. Off by default: it is inert without an upstream deterministic comparator, and each narrated artifact is a metered vision-model call. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `autonomy@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure autonomy@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in this marketplace's plugin-reconfiguration convention (`docs/contracts/plugin-reconfiguration/README.md`), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure autonomy@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"lane_stop_gate_enabled": "<value>"}
-   ```
-
-   This is the preferred headless route in this marketplace's plugin-reconfiguration convention (`docs/contracts/plugin-reconfiguration/README.md`), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install autonomy@<marketplace> -s <scope> --config lane_stop_gate_enabled=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "autonomy@<marketplace>": {
-         "options": {
-           "lane_stop_gate_enabled": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->

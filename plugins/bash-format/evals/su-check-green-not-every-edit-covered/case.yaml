@@ -1,0 +1,64 @@
+schema_version: "1.1"
+name: su-check-green-not-every-edit-covered
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'verify-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?node(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\'']|\\\\)*install\.mjs(?:\\\"|'')?(?:\s|\\\\\\n)+verify\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'no-unqualified-green'
+    type: 'llm'
+    criteria: 'The reply refuses the unqualified reading: green does not mean every shell edit anywhere is covered, and it does not call the plugin fully operational without the scope caveat attached.'
+    focus: 'last_message'
+  - name: 'out-of-project-silent'
+    type: 'llm'
+    criteria: 'The reply says a shell file written outside the project while CLAUDE_PROJECT_DIR is set is skipped silently, with no notice of any kind.'
+    focus: 'last_message'
+  - name: 'temp-tree-outside'
+    type: 'llm'
+    criteria: 'The reply says the OS temp tree counts as outside the project even when it sits under CLAUDE_PROJECT_DIR, unless the project root itself lives under temp.'
+    focus: 'last_message'
+  - name: 'gitignored-caveat'
+    type: 'llm'
+    criteria: 'The reply says a file the repository gitignores is also skipped silently unless bash_format_lint_gitignored is true.'
+    focus: 'last_message'
+  - name: 'unset-guard-skipped'
+    type: 'llm'
+    criteria: 'The reply says that when CLAUDE_PROJECT_DIR is unset the membership guard is skipped and any existing edited file is processed.'
+    focus: 'last_message'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\.exe)?(?:\\"|'')?(?:(?:\s|\\t|\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\b)(?:(?!\\t|\\\\\\n)[^\s"&;|])+)*?(?:\s|\\t|\\\\\\n)+)?(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\.\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\b|pacman(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+-S\w*|(?:mise|asdf|rtx|aqua)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+up\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:npx|uvx)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\b)|Install-(?:Module|PSResource)\b|(?:pwsh|powershell)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?:(?:[^"\\]|\\.)*?(?:[{(;|=&]|\\n|(?<![\w-])-[Cc]\w*(?:\s|\\t|\\\\\\n)))?(?:\s|(?:\\"|''))*(?:[\w.]+\\\\)?Install-(?:Module|PSResource)\b|curl(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;|\'']|\\(?!["n])[\s\S]))*?(?:\s|\\t|\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\b|--remote-name(?:-all)?\b)(?!=?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|[02-9]>>?(?:\s|\\t|\\\\\\n)*[^\s"\\;&|>]+|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|\|(?!\|)|\\(?!["n])[\s\S]|[^"\\&;|''>])*?(?<![02-9&])&?>{1,2}(?!>|&[\d-])(?!&?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;\'']|\\(?!["n])[\s\S]))*?(?<!\|)\|(?!\|)(?:\s|\\t|\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\b)[^\s|]|wget(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?!(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:--spider\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\s|\\t|\\\\\\n)*)(?:\\"|'')?(?:-|/dev/null|NUL)(?=\\"|''|[\s"|;&>]|\\[nt])))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:\\"|'')?https?://|(?:bash|dash|zsh|sh|source|\.)(?:\s+-\S+)*\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\"|'')?\$\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-formatter-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:shfmt|shellcheck)(?:\.exe)?(?:\\\"|'')?(?![\w.-])(?!(?:\s|\\\\\\n)+(?:--?version|-V|--help|-h)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-apply-step'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?node(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\'']|\\\\)*install\.mjs(?:\\\"|'')?(?:\s|\\\\\\n)+(?:plan|copy|decline|config-hook)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

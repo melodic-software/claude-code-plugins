@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A path-only section like `[scripts/**]` does not count either; use an explicit shell glob."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`[scripts/**]` would work, since it covers your scripts folder.",
+      "why": "wrong"
+    },
+    {
+      "answer": "You need an explicit shell glob.",
+      "why": "near miss: does not answer for the path-only section"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "With `CLAUDE_PROJECT_DIR` unset the guard is skipped and any existing edited file is processed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "When `CLAUDE_PROJECT_DIR` is unset, the behavior differs.",
+      "why": "near miss: does not say how"
+    },
+    {
+      "answer": "With `CLAUDE_PROJECT_DIR` unset, every file is skipped.",
+      "why": "the opposite"
+    }
+  ]
+}

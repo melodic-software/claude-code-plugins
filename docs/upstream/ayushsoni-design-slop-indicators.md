@@ -20,6 +20,6 @@ only, and judge whether anyone chose the element rather than ban it.
 | Dividers | Already have | Section 2 |
 | Multiple color shades and opacities | Reject | The `color` concern owns palette building; a count of shades says nothing about whether they were chosen |
 | Containers with borders | Already have | Section 6 "One depth cue per surface" |
-| Diagrams, the more detailed the worse | Take | Section 6 "Costume details", limited to diagrams that answer no visitor question |
+| Diagrams, worse as they gain detail | Take | Section 6 "Costume details", limited to diagrams that answer no visitor question |
 | Code breadcrumbs | Adapt | Section 6 "Costume details". The post does not define the term; read here as code-styled labels on non-code content |
 | Section numbering | Take | Section 6 "Costume details", except where the order is real |
