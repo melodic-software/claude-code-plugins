@@ -6,11 +6,11 @@
       "name": "check-is-read-only",
       "prompt": "/multi-agent:setup check. This session runs on Opus.",
       "narration": true,
-      "expected_output": "Runs scripts/setup.sh check session=opus and shows one line per role with the layer behind each value, the layers rows, every note, and the personal override gitignore row. Recommends the `.claude/**/*.local.*` line when the row is WARN. Writes no file.",
+      "expected_output": "Runs scripts/setup.sh check session=opus and shows one line per role with the layer behind each value, the layers rows, every note, and the personal-override gitignore row. Recommends the `.claude/**/*.local.*` line when the row is WARN. Writes no file.",
       "expectations": [
         "The bundled setup.sh is run with check and session=opus",
         "Each role line names the single and fan-out model and effort, with inherit written as `inherit: omit the model option`",
-        "The personal override gitignore row is reported, and .gitignore is not edited",
+        "The personal-override gitignore row is reported, and .gitignore is not edited",
         "No configuration file is written"
       ]
     },

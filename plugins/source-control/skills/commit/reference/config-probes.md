@@ -14,7 +14,7 @@ are ordinary body Bash calls, not pre-compute, so the one-invocation composition
 ## Why probes 2 and 3 omit `--exclude-standard`
 
 Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
-personal overlay is expected to be gitignored, and an untracked team file has to be *seen* before it
+personal override is expected to be gitignored, and an untracked team file has to be *seen* before it
 can be reported as untracked.
 
 ## Why probe 2 exists, and what a nonzero exit means

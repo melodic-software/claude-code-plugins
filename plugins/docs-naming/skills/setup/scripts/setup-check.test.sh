@@ -166,15 +166,15 @@ out="$(check "$root")"
 assert_eq "a gitignored team layer exits 1" "1" "$(status "$root")"
 assert_contains "a gitignored team layer is named" "$out" "FAIL  team layer tracked"
 
-# 11. An overlay that is not gitignored warns but does not fail.
+# 11. A personal override that is not gitignored warns but does not fail.
 root="$(new_repo)"
 printf '# nothing of my own yet\n' >"$root/docs/conventions/docs-naming.local.yaml"
 out="$(check "$root")"
-assert_eq "an un-ignored overlay does not fail the run" "0" "$(status "$root")"
-assert_contains "an un-ignored overlay warns with the recommended line" "$out" "WARN  overlay ignored"
-assert_contains "the recommended line sits beside the overlay" "$out" "docs/conventions/*.local.*"
+assert_eq "an un-ignored personal override does not fail the run" "0" "$(status "$root")"
+assert_contains "an un-ignored personal override warns with the recommended line" "$out" "WARN  personal override ignored"
+assert_contains "the recommended line sits beside the personal override" "$out" "docs/conventions/*.local.*"
 
-# 12. An overlay declaring a team-only key is reported as overridden.
+# 12. A personal override declaring a team-only key is reported as overridden.
 root="$(new_repo)"
 printf 'generated:\n  - path: "x"\n    regenerate: "true"\n' >"$root/docs/conventions/docs-naming.local.yaml"
 out="$(check "$root")"
@@ -207,15 +207,15 @@ out="$(check "$root")"
 assert_contains "the YAML stays the team layer" "$out" "PASS  layer team"
 assert_contains "the retired-name team file is a manual copy" "$out" "$root/.claude/docs-hygiene.json is no longer read; copy any key still wanted into $root/$TEAM_REL by hand, then delete it"
 
-# 13d. An old overlay file, at either name, is named with its manual step.
+# 13d. An old personal override file, at either name, is named with its manual step.
 root="$(new_repo)"
 mkdir -p "$root/.claude"
 printf '{"schema": 1, "file_names": {}}\n' >"$root/.claude/docs-naming.local.json"
 printf '{"schema": 1, "file_names": {}}\n' >"$root/.claude/docs-hygiene.local.json"
 out="$(check "$root")"
-assert_contains "the old overlay file is a WARN row" "$out" "WARN  old overlay file"
-assert_contains "the old overlay is named" "$out" "$root/.claude/docs-naming.local.json is no longer read; move its keys to $root/docs/conventions/docs-naming.local.yaml by hand, then delete it"
-assert_contains "the retired-name overlay is named" "$out" "$root/.claude/docs-hygiene.local.json is no longer read; move its keys to"
+assert_contains "the old personal override file is a WARN row" "$out" "WARN  old personal override file"
+assert_contains "the old personal override is named" "$out" "$root/.claude/docs-naming.local.json is no longer read; move its keys to $root/docs/conventions/docs-naming.local.yaml by hand, then delete it"
+assert_contains "the retired-name personal override is named" "$out" "$root/.claude/docs-hygiene.local.json is no longer read; move its keys to"
 
 # 13e. No old file, no row.
 root="$(new_repo)"

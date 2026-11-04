@@ -22,6 +22,6 @@ kind: file
 path: .claude/docs-hygiene.local.json
 content_match: '"file_names"'
 action: migrate
-successor: "the personal overlay is now docs-naming.local.yaml under the convention home, its keys the old file_names keys at top level: write the keys it lacks into it so the new file wins; have the operator confirm the result, then clean"
-note: "retired personal overlay name; the file-name skills moved to docs-naming, which reads this file for one release and warns"
+successor: "the personal override is now docs-naming.local.yaml under the convention home, its keys the old file_names keys at top level: write the keys it lacks into it so the new file wins; have the operator confirm the result, then clean"
+note: "retired personal override name; the file-name skills moved to docs-naming, which reads this file for one release and warns"
 status: report-only

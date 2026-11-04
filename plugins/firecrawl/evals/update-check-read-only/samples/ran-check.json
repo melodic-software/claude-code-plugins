@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/skills/update/scripts/update.sh --check"}}], "why": "explicit --check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/tmp/p/skills/update/scripts/update.sh\" --check 2>&1"}}], "why": "quoted path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "/tmp/p/skills/update/scripts/update.sh"}}], "why": "bare run defaults to --check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cd /tmp/p && bash '/tmp/p/skills/update/scripts/update.sh' 2>&1"}}], "why": "chained, single-quoted, no flag"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "/tmp/p/skills/update/scripts/update.sh --apply"}}], "why": "apply mode"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat /tmp/p/skills/update/scripts/update.sh"}}], "why": "reads the script without running it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "head -40 /tmp/p/skills/update/scripts/update.sh | grep check"}}], "why": "reads part of the script"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npm view firecrawl-cli version"}}], "why": "no helper run"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

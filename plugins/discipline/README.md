@@ -337,7 +337,7 @@ fabricated corrections to the working tree. Membership
 is resolved by reading each corrector's colocated `metadata.discipline-batch`
 tier (`core` / `situational` / `never`) and `discipline-batch-rank`. The
 runbook names no members. Layered with an optional `batch_exclude` /
-`batch_promote` / `batch_demote` user overlay. It files no outward artifact and
+`batch_promote` / `batch_demote` user override. It files no outward artifact and
 preserves every member's human gate.
 
 ```shell
@@ -452,7 +452,7 @@ standards source when the consumer declares one and no local checkout exists.
 
 The correctors themselves are zero-config. Three skills expose optional
 `userConfig` scalars. The `sweep-all` runbook adds three that
-overlay batch membership without editing any corrector, each a comma-separated
+override batch membership without editing any corrector, each a comma-separated
 list of corrector names, empty by default (tiers run exactly as declared). And
 `do-your-research` adds one that sets its fan-out tier's verification depth, and
 `script-the-deterministic-work` adds `lever_scope`, which a repository can also

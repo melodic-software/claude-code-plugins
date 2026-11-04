@@ -6,7 +6,7 @@ guide helps you recognize claims you might otherwise skip.
 
 The four bundled dimensions (documentation / configuration / code-quality / architecture) are
 universal. Per-dimension `primary-sources`, `verification-sources`, and `example-claims` for THIS
-repo come from the resolved audit config (`.claude/codebase-health.md` and its other layers).
+repo come from the resolved audit config (`.claude/codebase-health.md` and its personal override).
 
 ## Documentation Claims to Verify
 

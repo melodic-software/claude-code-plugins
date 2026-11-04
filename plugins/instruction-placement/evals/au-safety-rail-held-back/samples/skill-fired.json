@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "instruction-placement:audit"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "audit", "args": "core"}}], "why": "unqualified name with an argument"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "harness-memory:audit-claude-md"}}], "why": "a different audit skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "instruction-placement:realign"}}], "why": "the apply lane, not the sweep"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

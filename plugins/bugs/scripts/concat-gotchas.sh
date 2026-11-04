@@ -77,7 +77,7 @@ if [[ -z "$root" ]]; then
 fi
 
 # Config-cascade 1.3 special-root classification: a root that is $HOME or an
-# ancestor of it, or is not inside a git working tree, has no team or personal override
+# ancestor of it, or is not inside a git working tree, has no team layer or personal override
 # layer. Otherwise ~/.claude/bugs.md would be read again as the team layer.
 if [[ -n "$root" && -n "${HOME:-}" ]]; then
   # Fold slashes, trailing slash, and case, as config-cascade step 2 and

@@ -34,10 +34,10 @@ Implements the tracked-rich-config extensibility contract in
 ([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)).
 The retired team file `.claude/source-control.md` is not read; `/source-control:setup check` names
 it when it is still tracked. A YAML the shared reader rejects stops the lookup for that key instead
-of falling back to a lower layer. The personal overlay and the user-global file stay
+of falling back to a lower layer. The personal override and the user-global file stay
 markdown and keep their place in
 [The three layers](#the-three-layers). Every resolver reports the layer that supplied a value:
-`docs/conventions/source-control.yaml`, the overlay, the
+`docs/conventions/source-control.yaml`, the personal override, the
 user-global file, `userConfig`, or the default. `lib/convention-key.sh` is the reader
 (`layer ROOT KEY` prints `yaml` or `none`; `value` and `list` print the YAML value), and
 `parse-branch-issue.sh --explain` prints the layer for `branch_issue_pattern`.
@@ -58,10 +58,10 @@ branch_issue_pattern: '^[^/]+/([0-9]+)-'
 ```
 
 The sections below describe each key's value grammar; read "H2" there as "the key in the YAML, or
-its `## <key>` H2 in the overlay or user-global file". A list value is a YAML sequence in the YAML
+its `## <key>` H2 in the personal override or user-global file". A list value is a YAML sequence in the YAML
 and a bullet list in the H2.
 
-The overlay and the user-global file are Markdown: one `## <key>` H2 per key,
+The personal override and the user-global file are Markdown: one `## <key>` H2 per key,
 the value as the section body. Seven babysit-prs
 repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
@@ -106,7 +106,7 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
   never unioned or ordered against an earlier layer's list (per-key override applies to the entire
   value, per "Merge semantics" below). `none` is a **resolved value, not an absence**, exactly like
   `trailer_policy` and `pr_body_attribution`: a layer declaring `none` replaces a lower layer's list
-  (a team file requiring `Summary`/`Test plan` is overridden to zero sections by a local overlay's
+  (a team file requiring `Summary`/`Test plan` is overridden to zero sections by a personal override's
   `none`), while a key absent from every layer still falls through to `briefing`. `briefing` and
   `summary-test-plan` are resolved values too: a layer declaring one replaces a lower layer's list
   or keyword whole.
@@ -331,7 +331,7 @@ lane with a per-domain `--settings` file. Which keys stay in
 [0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
-In the overlay and the user-global file, one `## <key>` H2 per key, exactly
+In the personal override and the user-global file, one `## <key>` H2 per key, exactly
 like the convention keys above. Every value is a scalar except
 `babysit_loop_trusted_internal_bot_logins`, a closed list like `pr_body_required_sections` (a YAML
 sequence in the team YAML, a bullet list in an H2), so the per-key override semantics below apply
@@ -397,7 +397,7 @@ section below owns the full rule). `babysit_loop_merge` is the other policy-floo
 surface (the consumer-config layering convention's sanctioned policy-floor class, declared here next
 to its key): **raises bind from the team-tracked layer only**. Every increase in *standing* merge
 authority is a reviewable, versioned config change, per the loop-lane convention's "Merge-rung
-raises are seam-only" rule. The user-global layer, the local overlay, and an invocation argument may
+raises are seam-only" rule. The user-global layer, the personal override, and an invocation argument may
 each select a *lower* (safer) rung than the effective team-tracked value, never a higher one; a
 raise supplied by any of them is ignored and reported.
 
@@ -484,7 +484,7 @@ the two, and every rule below is fail-closed:
   checkout's current branch, and a checkout on a bot-authored branch would let the very PR under
   classification supply its own trust grant. Never read this key from any working tree. A trust
   grant is a recorded, reviewable, versioned config change, like every other trust grant on this
-  surface; an appearance in the user-global layer, the local overlay, or an invocation argument is
+  surface; an appearance in the user-global layer, the personal override, or an invocation argument is
   ignored and reported (see the precedence exception above), and a PR branch editing the tracked
   file can never self-grant, because resolution reads no branch but the default.
 - **Unset is the empty set.** Absent, unreadable, or malformed → no trusted internal bots → the
@@ -522,7 +522,7 @@ and the CI and review gate contexts. `/source-control:babysit-prs` resolves them
 **per target repository, on every fleet cycle**, from that repository's tracked
 `docs/conventions/source-control.yaml` on its **default branch**, read through the contents API
 (`gh api repos/<owner>/<repo>/contents/docs/conventions/source-control.yaml`) with no `ref`. It
-never reads the launching checkout's working tree, the user-global layer, or the local overlay, so
+never reads the launching checkout's working tree, the user-global layer, or the personal override, so
 the layers of "The three layers" below do not apply to these keys: the repository's default-branch
 YAML is the one repository layer, and the plugin's `userConfig` value (the matching `babysit-prs`
 CLI flag) is a deprecated fallback merged per key as below. In the YAML, a list value is a sequence
@@ -592,18 +592,18 @@ Resolve every read from the repo root: `${CLAUDE_PROJECT_DIR}` when set, otherwi
 `<subdir>/docs/conventions/source-control.yaml`, misses the repo-root config, and silently degrades.
 
 When that root is `$HOME` or an ancestor of `$HOME`, or is not inside a git working
-tree, team and overlay are **not applicable** (config-cascade #4672): report both with
+tree, team and personal override are **not applicable** (config-cascade #4672): report both with
 that reason and resolve user-global only. `parse-branch-issue.sh`
-skips both layers and prints `team and overlay not applicable: project root is the
+skips both layers and prints `team and personal override not applicable: project root is the
 home directory (or an ancestor of it)` or `... project root is not inside a git
-repository` on stderr. A team or overlay path that physically equals the user-global file
+repository` on stderr. A team or personal override path that physically equals the user-global file
 is skipped even when the root is not home. `/source-control:setup apply layer=team`
 and `layer=local` refuse in that state; `layer=user` still writes.
 
 `lib/config-root.sh` is the resolver for the scripts and skills that call it: `resolve`, `classify`
 (`repo`, `non-repo`, or `home`), and `same` (physical path equality). `parse-branch-issue.sh`
 sources it, and `commit` and `pull-request` (`create.md`) run `classify` before reading the team
-or overlay layer. `setup` does not call it: its `check` and `apply` steps apply the same rule
+or personal override layer. `setup` does not call it: its `check` and `apply` steps apply the same rule
 inline (`skills/setup/reference/apply-convention.md`).
 
 Layers, in resolution order, where a later layer refines an earlier one:
@@ -613,7 +613,7 @@ Layers, in resolution order, where a later layer refines an earlier one:
 2. **`${REPO_ROOT}/docs/conventions/source-control.yaml`**: team, tracked. The shared convention
    for the seven convention keys, the layer `/source-control:setup apply` writes by default, and for
    the `babysit_loop_*` keys. The retired `${REPO_ROOT}/.claude/source-control.md` is not read.
-3. **`${REPO_ROOT}/.claude/source-control.local.md`**: personal overlay, gitignored. A per-machine
+3. **`${REPO_ROOT}/.claude/source-control.local.md`**: personal override, gitignored. A per-machine
    or per-operator deviation from team policy, never committed.
 
 Each layer is optional, and **fall-through is per key, not per file**. A key absent from every layer
@@ -634,7 +634,7 @@ third valid regex, and a concatenated `trailer_policy` would emit two trailers. 
 convention's sanctioned per-key case.
 
 Worked example: user-global sets `trailer_policy: none`, team sets `subject_pattern` to a
-ticket-prefix regex and leaves `trailer_policy` unset, local overlay sets nothing. The effective
+ticket-prefix regex and leaves `trailer_policy` unset, personal override sets nothing. The effective
 config is the team `subject_pattern` with the user-global `trailer_policy: none`.
 
 **`type_list` is bound to the effective `subject_pattern`, not merged independently.** It belongs to
@@ -669,7 +669,7 @@ normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in th
 
 ## Consumer `.gitignore`
 
-The overlay convention needs one line in the consuming repo:
+The personal override convention needs one line in the consuming repo:
 
 ```gitignore
 .claude/**/*.local.*
@@ -677,15 +677,15 @@ The overlay convention needs one line in the consuming repo:
 
 `/source-control:setup apply layer=team` appends the line when it is missing and announces the
 edit; it is the only write this plugin makes to the consumer's root `.gitignore`. `layer=local`
-never edits it and fails with a recommendation when the overlay is exposed.
+never edits it and fails with a recommendation when the personal override is exposed.
 
 ## Failure modes
 
 - **Team layer gitignored → hard STOP.** Teammates would never receive the shared convention.
   Surface the matching rule and stop; do not degrade silently.
-- **Local overlay not ignored, or already tracked → FAIL, with different remediations.** The overlay
+- **Personal override not ignored, or already tracked → FAIL, with different remediations.** The personal override
   is personal by contract; a committed one leaks a per-operator deviation into team history. Fix a
-  missing ignore rule with the `.gitignore` line, and an already-tracked overlay by untracking it,
+  missing ignore rule with the `.gitignore` line, and an already-tracked personal override by untracking it,
   since an ignore rule never applies to a file already in the index.
 - **A layer is malformed** (a non-machine-checkable `subject_pattern`, an unparsable section) →
   surface the error, name the layer, and resolve as if that layer were absent. Unknown H2 sections

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Start with **Big Picture** EventStorming: it covers the whole business with every stakeholder.", "why": "bold name"},
+    {"answer": "Format: Big-Picture. Then zoom in with Process Modeling.", "why": "hyphenated"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Start with Design-Level EventStorming so you find the aggregates early.", "why": "wrong format"},
+    {"answer": "Unknown skill: event-storming:methodology", "why": "skill missing"}
+  ]
+}

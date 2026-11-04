@@ -3,6 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.3.6] - 2026-11-04
+
+### Changed
+
+- Seven more revert eval cases ship their text fixtures (revert-4923, 4960, 4961, 4963, 4964,
+  6500 and 8254), so `revert-cases.sh scaffold` can build them.
+
+## [7.3.5] - 2026-11-04
+
+### Changed
+
+- The revert eval cases keep their fixtures as plain-text `.txt` byte copies under each case's
+  `fixtures/` directory instead of a `fixtures.tar.gz` archive, so no binary is committed and
+  reviewers can read every file. `revert-cases.sh build` writes that directory and `scaffold`
+  rebuilds the workspace from it, refusing a case with no `fixtures/` directory.
+
 ## [7.3.4] - 2026-11-04
 
 ### Fixed

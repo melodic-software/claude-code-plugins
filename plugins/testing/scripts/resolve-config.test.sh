@@ -65,10 +65,10 @@ EOF
 printf "adapters:\r\n  disable: [bash-bats]\r\nrules:\r\n  rule-zero-assertion: warn\r\n" >"$REPO/.claude/testing.local.yaml"
 run
 assert_eq "resolves with three layers" 0 "$rc"
-assert_eq "layers print in cascade order: user, team, overlay" \
+assert_eq "layers print in cascade order: user, team, personal override" \
   "$HOME/.claude/testing.yaml $REPO/.claude/testing.yaml $REPO/.claude/testing.local.yaml" "$(records layer)"
 assert_eq "lists concatenate across layers, first occurrence kept" "**/*.snap.ts gen/** legacy/**" "$(records paths.exclude)"
-assert_eq "adapter lists concatenate too (the CRLF overlay loads)" "py-unittest bash-bats" "$(records adapters.disable)"
+assert_eq "adapter lists concatenate too (the CRLF personal override loads)" "py-unittest bash-bats" "$(records adapters.disable)"
 assert_eq "a later layer's scalar overrides" "warn" "$(records rules.zero-assertion)"
 assert_eq "the full rule id resolves to its slug" "off" "$(records rules.weak-oracle)"
 mkdir -p "$T/proj/.claude"
@@ -243,7 +243,7 @@ run
 assert_eq "with both, the docs block is the team layer and the .claude file is skipped" \
   "$DOCS $REPO/.claude/testing.local.yaml" "$(records layer)"
 assert_eq "no key from the ignored .claude file merges in" "py-unittest" "$(records adapters.disable)"
-assert_eq "the overlay still merges over the docs block" "warn" "$(records rules.zero-assertion)"
+assert_eq "the personal override still merges over the docs block" "warn" "$(records rules.zero-assertion)"
 assert_contains "both present: one warning names both paths" "$(errs)" "$DOCS and $REPO/.claude/testing.yaml both exist; using the docs block"
 assert_eq "and it is one line" 1 "$(errs | wc -l | tr -d ' ')"
 rm -f "$REPO/.claude/testing.local.yaml"
@@ -365,7 +365,7 @@ run
 assert_eq "testing.yaml wins over the docs block and the .claude file" \
   "$TY $REPO/.claude/testing.local.yaml" "$(records layer)"
 assert_eq "no key from either ignored file merges in" "yaml-team/**" "$(records paths.exclude)"
-assert_eq "the overlay still merges over testing.yaml" "warn" "$(records rules.zero-assertion)"
+assert_eq "the personal override still merges over testing.yaml" "warn" "$(records rules.zero-assertion)"
 assert_contains "one warning names testing.yaml and the docs file" "$(errs)" "$TY and $DOCS both exist; using $TY"
 assert_contains "one warning names testing.yaml and the .claude file" "$(errs)" "$TY and $REPO/.claude/testing.yaml both exist; using $TY"
 assert_eq "two warnings, one line each" 2 "$(errs | wc -l | tr -d ' ')"
@@ -425,7 +425,7 @@ erun --user e2e_driver=playwright
 assert_eq "testing.yaml wins over the user-global file" "e2e_driver	harness	$TY" "$(head -1 <<<"$out")"
 printf 'e2e_driver: chrome\r\n' >"$REPO/.claude/testing.local.yaml"
 erun
-assert_eq "the overlay wins over testing.yaml (CRLF loads)" "e2e_driver	chrome	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
+assert_eq "the personal override wins over testing.yaml (CRLF loads)" "e2e_driver	chrome	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
 assert_eq "with nothing on stderr" "" "$err"
 rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
 
@@ -462,8 +462,8 @@ assert_contains "naming the file and key" "$err" "$TY: e2e_driver: no scalar val
 printf "e2e_driver: chrome\n" >"$TY"
 printf "e2e_driver: 'run\n" >"$REPO/.claude/testing.local.yaml"
 erun
-assert_eq "an unclosed quote in the overlay resolves the default" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
-assert_contains "naming the overlay" "$err" "$REPO/.claude/testing.local.yaml: e2e_driver: unknown value ''run'"
+assert_eq "an unclosed quote in the personal override resolves the default" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
+assert_contains "naming the personal override" "$err" "$REPO/.claude/testing.local.yaml: e2e_driver: unknown value ''run'"
 rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
 
 # The keys are read only where no older release reads them: never from the
@@ -480,10 +480,10 @@ printf 'e2e_driver: playwright\nadapters:\n  enable: [js-vitset]\nrules:\n  test
 erun
 assert_eq "an invalid scan config still resolves the run-e2e keys" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
 mkdir -p "$T/elsewhere"
-printf 'e2e_driver: chrome\n' >"$T/elsewhere/overlay.yaml"
-ln -s "$T/elsewhere/overlay.yaml" "$REPO/.claude/testing.local.yaml"
+printf 'e2e_driver: chrome\n' >"$T/elsewhere/personal.yaml"
+ln -s "$T/elsewhere/personal.yaml" "$REPO/.claude/testing.local.yaml"
 erun
-assert_eq "a symlinked overlay is skipped, not followed" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
+assert_eq "a symlinked personal override is skipped, not followed" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
 assert_contains "with a warning naming it" "$err" "skipping a layer that is a symlink or under a symlinked directory: $REPO/.claude/testing.local.yaml"
 rm -f "$REPO/.claude/testing.local.yaml"
 
@@ -568,7 +568,7 @@ assert_eq "testing.yaml sets both keys and is the source" \
 first_test	unit	$TY" "$rc:$out"
 printf "tdd_refactor_step: 'on'\n" >"$REPO/.claude/testing.local.yaml"
 wrun
-assert_eq "the overlay wins over testing.yaml, a quoted value as plain" \
+assert_eq "the personal override wins over testing.yaml, a quoted value as plain" \
   "tdd_refactor_step	on	$REPO/.claude/testing.local.yaml
 first_test	unit	$TY" "$out"
 rm -f "$REPO/.claude/testing.local.yaml" "$TY"

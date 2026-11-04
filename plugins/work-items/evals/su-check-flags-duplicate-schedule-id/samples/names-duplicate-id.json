@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| jq entry gate | PASS |\n| Tracker binding | PASS: local-markdown, lease_ttl_hours 24 |\n| Schedule presence | PASS |\n| Schedule validity | FAIL: duplicate id `dependency-review` (rows 1 and 2) |\n\nRemediation: rename one of the two rows so every id is unique, then re-run `/work-items:setup check`.",
+      "why": "table row names the duplicate id"
+    },
+    {
+      "answer": "Schedule validity FAILs: the id dependency-review appears twice, so `recheck dependency-review` cannot tell which row it means.",
+      "why": "id first, then the repetition"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Tracker binding | PASS |\n| Schedule validity | PASS: 2 rows, ids and titles unique |\n\nEverything is configured.",
+      "why": "misses the collision"
+    },
+    {
+      "answer": "Schedule validity FAIL: a duplicate id in .github/recurring-schedule.json.",
+      "why": "does not name which id collides"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Tracker binding | PASS |\n| Schedule validity | INFO: duplicate id dependency-review (rows 1 and 2) |",
+      "why": "names the duplicate but reports it as INFO, not FAIL"
+    },
+    {
+      "answer": "| Probe | Result (PASS/FAIL/INFO) |\n|---|---|\n| Schedule validity | INFO: duplicate id dependency-review (rows 1 and 2) |",
+      "why": "FAIL appears only in the column legend, not on the duplicate's row"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| jq entry gate | FAIL: jq not found |\n| Schedule validity | INFO: duplicate id dependency-review (rows 1 and 2) |",
+      "why": "FAIL belongs to another probe's row; the duplicate is reported as INFO"
+    }
+  ]
+}

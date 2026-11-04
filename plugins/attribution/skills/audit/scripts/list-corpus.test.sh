@@ -192,11 +192,11 @@ assert_contains "legacy returns once the config no longer excludes it" \
   "$(echo "$FIX_OUT" | jq -r '.files[]')" "legacy/old.md"
 
 printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.local.json"
-OVERLAY_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
+OVERRIDE_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_not_contains "the personal override's exclusion applies" \
-  "$(echo "$OVERLAY_OUT" | jq -r '.files[]')" "docs/guide.md"
+  "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "docs/guide.md"
 assert_contains "the personal override replaces the team value per key" \
-  "$(echo "$OVERLAY_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
+  "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
 # Per-key override means a later layer REPLACES the value, and an explicit empty
 # array is a value.
 printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.json"

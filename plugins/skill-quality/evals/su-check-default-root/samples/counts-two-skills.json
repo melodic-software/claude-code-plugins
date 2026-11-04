@@ -1,0 +1,1 @@
+{"pass":[{"answer":"That folder holds **2** skills, release-notes and tidy-imports.","why":"count before noun"},{"answer":"Skills found: 2","why":"count after noun"}],"fail":[{"answer":"The root exists.","why":"no count"},{"answer":"Found 3 skills.","why":"wrong count"}]}

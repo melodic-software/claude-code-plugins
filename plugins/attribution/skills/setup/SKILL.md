@@ -22,10 +22,9 @@ invocation:
   Its `Config layers` list names every layer file the detectors read. A `.claude/` JSON file in
   that list is a layer still on its fallback. The list does not decide absence: a YAML layer that
   does not parse is left out of it, named on stderr, and shadows its JSON fallback, which is left
-  out too. A team layer or personal override is absent only when
-  `test -f "<root>/<home>/attribution.yaml"` (or `attribution.local.yaml`) fails. A YAML layer
-  that exists but is not listed is unparsable: report it, and never overwrite it or carry its JSON
-  fallback over it without the operator's choice.
+  out too. A team layer or personal override is absent only when `test -f "<root>/<home>/attribution.yaml"`
+  (or `attribution.local.yaml`) fails. A YAML layer that exists but is not listed is unparsable:
+  report it, and never overwrite it or carry its JSON fallback over it without the operator's choice.
 
 Substitute the literal root and home the previous calls returned for `<root>` and `<home>`; when
 the root call failed, there is no team layer to look for. `apply` creates `<home>` when it is
@@ -96,10 +95,9 @@ an earlier one:
 | 2 | team | `<repo>/<home>/attribution.yaml` | the repository, tracked |
 | 3 | personal override | `<repo>/<home>/attribution.local.yaml` | one operator in one repo, gitignored |
 
-`apply` writes only the team layer and the personal override, never the user-global file. Before
-it writes the personal override, `git check-ignore -q "<root>/<home>/attribution.local.yaml"` must
-exit 0; when it does not, say the file would be tracked and get the operator's choice before
-writing.
+`apply` writes only the team layer and the personal override, never the user-global file. Before it
+writes the personal override, `git check-ignore -q "<root>/<home>/attribution.local.yaml"` must exit 0; when
+it does not, say the file would be tracked and get the operator's choice before writing.
 
 All three absent is a valid state: the bundled defaults apply. Merge is **per-key override**.
 A later layer replaces a value key by key, and a key absent from a later layer keeps the earlier

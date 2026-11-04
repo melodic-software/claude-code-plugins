@@ -23,7 +23,7 @@ The audit config resolves as an additive merge of the documented layers. User-gl
 (`.claude/codebase-health.local.md`), where a later layer's globs union with (not replace) the
 earlier layer's and example-claims concatenate, **except** that a later layer declaring a dimension
 with empty source lists is an explicit opt-out that *removes* that inherited dimension. This skill
-writes only the **team** file; changes to a higher layer are the user's to make.
+writes only the **team** file; changes to the user-global layer or the personal override are the user's to make.
 
 ## `check` (read-only)
 
@@ -38,12 +38,12 @@ FAIL. Modify nothing, and do NOT run an audit. That is `/codebase-health:audit`.
    than presenting the team file alone as the effective config.
 2. **Dimension source lists**. For each dimension present in the team file, its declared source lists
    parse and name real paths/globs. A dimension whose source list is malformed or fails to parse is
-   FAIL, naming it. A dimension deliberately zeroed (empty source lists) by a personal override or user-global layer is INFO (an opt-out),
+   FAIL, naming it. A dimension deliberately zeroed (empty source lists) by the local or user-global layer is INFO (an opt-out),
    reported as removed, not broken.
 3. **Tracked, not ignored**, a present team file must be committed to be team-shared: run
    `git check-ignore -v .claude/codebase-health.md`; a non-empty result is FAIL with the matching
    pattern. The `.local.md` personal override is expected to be ignored. INFO, not FAIL.
-4. **Personal override divergence**. INFO: when a personal override or user-global layer changes the team file's effect
+4. **Other-layer divergence**. INFO: when a local or user-global layer changes the team file's effect
    (adds globs, or opts a dimension out with empty source lists), say so explicitly, since `apply`
    writes only the team file.
 
@@ -53,7 +53,7 @@ Run `check`, then interview and write the config. Proceed non-interactively wher
 the repo make the values unambiguous; ask only where a dimension's targets genuinely need the user.
 
 1. **Start from the effective config `check` just reported.** This step writes only the *team* file,
-   so name what a higher layer contributes. When a local or user-global opt-out zeroes a dimension,
+   so name what the local or user-global layer contributes. When a local or user-global opt-out zeroes a dimension,
    a team-scope re-enable will not restore it on this machine, because that layer keeps removing it;
    prompt the user to remove or update the opt-out in that layer too. The interview proposes
    changes against that baseline, and nothing is dropped without the user confirming.

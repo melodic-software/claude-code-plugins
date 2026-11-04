@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/probe-notes.md", "content": "duplicate id"}}
+      ],
+      "why": "scratch file outside the checked files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/w/.github/recurring-schedule.json", "content": "{\"items\": []}"}}
+      ],
+      "why": "rewrote the schedule during a read-only check"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/w/docs/conventions/work-items.yaml", "content": "tracker:\n  provider: github\n"}}
+      ],
+      "why": "rewrote the binding"
+    }
+  ]
+}

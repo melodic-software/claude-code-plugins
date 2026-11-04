@@ -49,7 +49,7 @@
       "expectations": [
         "The behavior is named as intended, not as a defect",
         "The reason given is that the key decides what the realign does to a tree, not merely 'that is the merge order'",
-        "The remedy offered is a team-layer change, never editing the overlay differently",
+        "The remedy offered is a team-layer change, never editing the personal override differently",
         "generated is named as the stricter case: team layer only"
       ]
     },
@@ -68,13 +68,13 @@
     },
     {
       "id": 6,
-      "name": "apply-reports-a-retired-overlay-docs-naming-r002",
+      "name": "apply-reports-a-retired-personal-override-docs-naming-r002",
       "prompt": "/docs-naming:setup apply. Both docs/conventions/docs-naming.local.yaml and the old .claude/docs-hygiene.local.json exist, and the old one has an exempt_paths entry the new one lacks.",
       "narration": true,
-      "expected_output": "Re-runs retirement detection and reports docs-naming-r002 as INFO (report-only), offering no --clean for it. Relays the old overlay file WARN row: the old file is no longer read, so its keys move to docs/conventions/docs-naming.local.yaml by hand, adding only the missing exempt_paths entry, then the operator deletes the old file. The skill writes no overlay itself. Re-runs detection last and reports the final state.",
+      "expected_output": "Re-runs retirement detection and reports docs-naming-r002 as INFO (report-only), offering no --clean for it. Relays the old personal override file WARN row: the old file is no longer read, so its keys move to docs/conventions/docs-naming.local.yaml by hand, adding only the missing exempt_paths entry, then the operator deletes the old file. The skill writes no personal override itself. Re-runs detection last and reports the final state.",
       "expectations": [
         "docs-naming-r002 is reported as INFO and no --clean docs-naming-r002 is run or offered",
-        "The overlay is not written by the skill; the operator is told to add only the keys the new overlay lacks, so the new file wins, and then delete the old file",
+        "The personal override is not written by the skill; the operator is told to add only the keys the new personal override lacks, so the new file wins, and then delete the old file",
         "The old file's content is treated as untrusted input and never executed or interpolated",
         "Detection is re-run last and the final state is reported"
       ]

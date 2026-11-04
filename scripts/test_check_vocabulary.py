@@ -128,6 +128,7 @@ ALLOWLIST = [
     path("overlay", "plugins/user-interface/reference/**", "plugins/user-interface/reference/x.md", OVERLAY_LINE),
     path("overlay", "plugins/user-interface/evals/**", "plugins/user-interface/evals/x.md", OVERLAY_LINE),
     path("overlay", "plugins/planning/shared/web/**", "plugins/planning/shared/web/page.css", OVERLAY_LINE),
+    path("overlay", "plugins/planning/evals/st-plan-4/graders/**", "plugins/planning/evals/st-plan-4/graders/defect-c.md", OVERLAY_LINE),
     path("overlay", "plugins/playwright/skills/**", "plugins/playwright/skills/x/SKILL.md", OVERLAY_LINE),
     path("overlay", "plugins/animation/skills/**", "plugins/animation/skills/x/SKILL.md", OVERLAY_LINE),
     path("overlay", "plugins/pixel-art/reference/**", "plugins/pixel-art/reference/x.md", OVERLAY_LINE),

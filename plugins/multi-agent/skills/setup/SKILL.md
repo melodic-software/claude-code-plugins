@@ -37,7 +37,7 @@ Show:
 2. the `layers` rows (read, absent, skipped, or not applicable at a home or
    non-repository root) and every entry of `notes` as written; each note (a
    skipped layer, a rejected value, an ignored key) is a finding to report;
-3. the `personal-override` row: PASS when `.claude/multi-agent.local.yaml` is gitignored,
+3. the personal-override row: PASS when `.claude/multi-agent.local.yaml` is gitignored,
    else WARN with the recommended line `.claude/**/*.local.*`. Recommend the
    line; do not edit `.gitignore`;
 4. each `WARN team:` row: a retired team file (the config block in

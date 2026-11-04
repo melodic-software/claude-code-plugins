@@ -51,14 +51,14 @@
     },
     {
       "id": 5,
-      "name": "userconfig-overlay-changes-resolved-set",
+      "name": "userconfig-override-changes-resolved-set",
       "prompt": "sweep all disciplines (batch_exclude includes point-dont-copy; batch_promote includes pick-for-the-problem)",
-      "expected_output": "After resolving tiers from metadata, the skill applies the userConfig overlay: it drops point-dont-copy from the run (exclude) and treats pick-for-the-problem as always-run rather than relevance-gated (promote of a situational corrector). It reports the net effect of the overlay on the resolved member set.",
+      "expected_output": "After resolving tiers from metadata, the skill applies the userConfig override: it drops point-dont-copy from the run (exclude) and treats pick-for-the-problem as always-run rather than relevance-gated (promote of a situational corrector). It reports the net effect of the override on the resolved member set.",
       "files": [],
       "expectations": [
-        "Applies the userConfig exclude/promote/demote overlay after tier resolution",
+        "Applies the userConfig exclude/promote/demote override after tier resolution",
         "Drops an excluded corrector and always-runs a promoted situational corrector",
-        "Reports how the overlay changed the resolved set"
+        "Reports how the override changed the resolved set"
       ]
     },
     {
@@ -70,7 +70,7 @@
       "expectations": [
         "Warns visibly for promote entries whose tier is never or core, and for unknown names",
         "Does not promote never-tier or core correctors into always-run situational promotion",
-        "Reports those warnings in the overlay net-effect section rather than silently dropping them"
+        "Reports those warnings in the override net-effect section rather than silently dropping them"
       ]
     },
     {

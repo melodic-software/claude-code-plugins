@@ -194,7 +194,7 @@ layer "$HOME/.claude/bugs.local.md" '## Gotchas
 - Personal override under home: not a layer here.
 '
 # shellcheck disable=SC2016  # backticks are literal markdown in the expected output
-run_case "home-rooted session reads user-global once, no team or personal override" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: read once.\n' "$HOME/.claude/bugs.md")"
+run_case "home-rooted session reads user-global once, no team layer or personal override" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: read once.\n' "$HOME/.claude/bugs.md")"
 
 HOME="${FIXTURES}/home-i"
 CLAUDE_PROJECT_DIR="${FIXTURES}/not-a-repo"

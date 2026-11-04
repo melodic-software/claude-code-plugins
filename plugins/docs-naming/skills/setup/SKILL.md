@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the docs-naming file-name skills for this repository: `check` resolves all three configuration layers, reports which layer supplied each key, and verifies that the casing regex compiles, every tier names a known form, every generated file's regenerator resolves, the team layer is tracked, and the personal overlay is ignored; `apply` writes the tracked `docs/conventions/docs-naming.yaml` team layer per key, idempotently, and edits no other file. Use when: 'set up docs-naming', 'configure the file-name rule', 'is docs-naming configured', 'which casing rule is in effect', 'change the docs naming regex', 'add a frozen tier', 'docs-naming setup', or an audit reports a configuration layer it could not read."
+description: "Verify or configure the docs-naming file-name skills for this repository: `check` resolves all three configuration layers, reports which layer supplied each key, and verifies that the casing regex compiles, every tier names a known form, every generated file's regenerator resolves, the team layer is tracked, and the personal override is ignored; `apply` writes the tracked `docs/conventions/docs-naming.yaml` team layer per key, idempotently, and edits no other file. Use when: 'set up docs-naming', 'configure the file-name rule', 'is docs-naming configured', 'which casing rule is in effect', 'change the docs naming regex', 'add a frozen tier', 'docs-naming setup', or an audit reports a configuration layer it could not read."
 argument-hint: "[check|apply] [--defaults] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -12,12 +12,12 @@ shell: bash
 Every value the file-name skills act on comes from one consumer surface,
 layered as user-global (`docs-naming.json` under `~/.claude/`), team
 (`docs/conventions/docs-naming.yaml`, tracked, validated by
-`${CLAUDE_PLUGIN_ROOT}/schemas/docs-naming.schema.json`), and personal overlay
+`${CLAUDE_PLUGIN_ROOT}/schemas/docs-naming.schema.json`), and personal override
 (`docs/conventions/docs-naming.local.yaml`). The convention home is
 `docs/conventions` unless the repository's `AGENTS.md` or `CLAUDE.md` binds
 another. All three absent is a valid state: every key has a bundled default, and
 the defaults are this marketplace's own values, except `generated`, which is empty.
-The old team and overlay JSON files under `.claude/` are not read; `check` names
+The old team and personal override JSON files under `.claude/` are not read; `check` names
 each, and `apply` seeds an absent team YAML from the old team file.
 
 This skill is the check-centric setup for that surface: `check` inspects and
@@ -43,12 +43,12 @@ Rows, each PASS, FAIL, WARN, or INFO:
 
 1. **jq**, **git**: the prerequisites. A missing `jq` is FAIL and stops the
    table, because every skill in this plugin reads the concern file with it.
-2. **layer user-global / team / overlay**: absent (INFO), or present with its
+2. **layer user-global / team / personal-override**: absent (INFO), or present with its
    path, or WARN when the user-global file still carries the retired
    `docs-hygiene` name (it is read, and the row names it). A present file that
    does not parse, or a user-global layer that declares an unknown schema,
    surfaces at the **resolve** row with the file named. **old team file** and
-   **old overlay file**: WARN per unread JSON file under `.claude/`, naming the
+   **old personal override file**: WARN per unread JSON file under `.claude/`, naming the
    next step (`apply` seeds an absent team YAML, else copy by hand; then delete).
 3. **key shape**: every key carries the type the contract declares.
 4. **rule**, **regex**, **regex quoting**: the casing rule is one this version
@@ -62,7 +62,7 @@ Rows, each PASS, FAIL, WARN, or INFO:
 7. **team layer tracked**: the team file is committed (PASS), written but
    uncommitted (WARN, it has reached nobody else yet), or gitignored (FAIL, an
    ignored team layer never reaches the team).
-8. **overlay ignored**: the personal overlay is gitignored, else WARN naming the
+8. **personal override ignored**: the personal override is gitignored, else WARN naming the
    recommended line, `<home>/*.local.*` (the row prints it). Recommend it; never
    edit the consumer's `.gitignore`.
 9. **policy floor**: a personal layer that declared a key only the team layer
@@ -141,7 +141,7 @@ supplied any value differing from the bundled default.
 
 ## What this skill does NOT do
 
-- Write the user-global or overlay layers. Those are the operator's own files.
+- Write the user-global layer or the personal override. Those are the operator's own files.
 - Edit the consumer's `.gitignore`. It recommends one line.
 - Install anything, or fetch a regenerator a `generated` entry names.
 - Run an audit, a rename, or a gate emission. Those skills read the same
@@ -165,6 +165,6 @@ supplied any value differing from the bundled default.
 - A regex carrying a single quote passes every check here except `regex
   quoting`, then breaks the emitted gate, which inlines the value into a shell
   script.
-- `check` resolves the team and overlay layers against the repository root of
+- `check` resolves the team layer and personal override against the repository root of
   the working directory. Inside a second worktree, run it from that worktree, or
   pass `--root`.

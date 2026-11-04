@@ -312,7 +312,7 @@ describe("cascade layers resolve through the CLI", () => {
     writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "offer"}');
     result = run(facts);
     assert.equal(result.action, "offer");
-    assert.match(result.policy.source, /^personal override /);
+    assert.match(result.policy.source, /^personal-override /);
     assert.deepEqual(result.warnings, []);
   });
   test("the argument beats every layer", () => {
@@ -325,7 +325,7 @@ describe("cascade layers resolve through the CLI", () => {
     writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": -1, "palette": "red"}');
     const result = run(facts);
     const warnings = result.warnings.join("\n");
-    assert.match(warnings, /personal override .*layer ignored/);
+    assert.match(warnings, /personal-override .*layer ignored/);
     assert.match(warnings, /invalid max_files/);
     assert.match(warnings, /unknown key palette is inert/);
     assert.equal(result.config.max_files.value, 2);
@@ -428,7 +428,7 @@ describe("personal override guards", () => {
     mkdirSync(join(repo, ".claude"));
     writeFileSync(join(repo, ".claude/review-digest.local.json"), personalOverride);
     const result = run(facts);
-    assert.match(result.config.max_files.source, /^personal override /);
+    assert.match(result.config.max_files.source, /^personal-override /);
     assert.match(result.warnings.join("\n"), /not gitignored, so it can reach team history$/m);
   });
   test("a symlinked personal override file is refused", () => {

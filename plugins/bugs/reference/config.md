@@ -27,7 +27,7 @@ name the layer, resolve as if that layer were absent. Unknown keys are inert. Wh
 config is surfaced to a human, report which layer supplied each value. `/bugs:scan` and `/bugs:write`
 also concatenate each layer's `## Gotchas` section (see below) via
 `scripts/concat-gotchas.sh`, which applies the special-root rule: a root that is home (or an
-ancestor of it) or outside a git work tree has no team or personal override layer.
+ancestor of it) or outside a git work tree has no team layer or personal override.
 
 ## Merge semantics
 

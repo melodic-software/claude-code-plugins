@@ -262,10 +262,9 @@ export function resolveDigestConfig(baseOid) {
       const team = readTeamDigest(base, TEAM_YAML, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
       if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
     }
-    const personal = paths.personalOverride;
-    if (personal && existsSync(personal) && personalOverrideApplies(paths.root, personal, warnings)) {
-      const value = readJsonLayer(personal, "personal override", warnings);
-      if (value) layers.push({ label: "personal override", path: personal, value });
+    if (paths.personalOverride && existsSync(paths.personalOverride) && personalOverrideApplies(paths.root, paths.personalOverride, warnings)) {
+      const value = readJsonLayer(paths.personalOverride, "personal-override", warnings);
+      if (value) layers.push({ label: "personal-override", path: paths.personalOverride, value });
     }
   }
   for (const layer of layers) {

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no edit"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/case/src/total.ts"}}], "why": "an edit to no instruction file"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/case/CLAUDE.md"}}], "why": "reduced CLAUDE.md before acceptance"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "AGENTS.md"}}], "why": "edited AGENTS.md before acceptance"}
+  ]
+}

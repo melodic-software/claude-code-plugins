@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: update-check-read-only
+graders:
+  - name: ran-check
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|\\n|\$\())?\s*(?:(?:bash|sh|exec|time)\s+(?:-\S+\s+)*)?(?:\\"|'')?(?:[^\s"\\;&|()'']*/)?update\.sh(?:\\"|'')?(?:\s+--check\b|\s+2>&1|\s*(?:[;|&)]|\\n|"))'
+    min: 1
+    arm: 'with-only'
+  - name: states-drift-verdict
+    type: 'regex'
+    pattern: '\b(?:no drift|drift (?:detected|found)|unverifiable|could not (?:be )?(?:verified|reach(?:ed)?|read|fetch(?:ed)?)|upgrade available|at latest|upstream (?:unchanged|content changed))\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-npm-install
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:if|elif|while|until|then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?(?:p?npm|yarn)\s+(?:(?:global\s+)?(?:install|i|add)|update|up|upgrade)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-apply-mode
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?update\.sh(?:\\"|'')?\s+(?:[^"\\;&|]*\s)?--(?:apply|record-upstream)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-firecrawl-auth
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:if|elif|while|until|then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+(?:login|config|init)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

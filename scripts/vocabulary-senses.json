@@ -59,6 +59,7 @@
         {"path": "plugins/user-interface/reference/**", "reason": "visual overlays (CSS, UI) in user-interface"},
         {"path": "plugins/user-interface/evals/**", "reason": "visual overlays (CSS, UI) in user-interface"},
         {"path": "plugins/planning/shared/web/**", "reason": "visual overlays in planning's page styles"},
+        {"path": "plugins/planning/evals/st-plan-4/graders/**", "reason": "the st-plan-4 graders match a reply about an ASP.NET production settings overlay, not the config cascade's personal layer"},
         {"path": "plugins/playwright/skills/**", "reason": "visual overlays (video, image) in playwright"},
         {"path": "plugins/animation/skills/**", "reason": "visual overlays in animation"},
         {"path": "plugins/pixel-art/reference/**", "reason": "visual overlays (image) in pixel-art"},

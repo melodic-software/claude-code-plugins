@@ -157,7 +157,7 @@ Plugin-side notes on top of the binding's procedure:
 
 ## Output
 
-A written (or confirmed-healthy) standards index and its `.gitignore` for personal overrides, a one-line summary
+A written (or confirmed-healthy) standards index and its personal override `.gitignore`, a one-line summary
 of the effective standards root, the row-validation result, and how to re-run this setup to
 reconfigure or migrate. When repository settings were written: the diff shown, the written path,
 the value `check` reads back, and whether the file is tracked.

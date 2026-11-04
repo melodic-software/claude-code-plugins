@@ -2,14 +2,13 @@
 # resolve-roles.sh: resolve the multi-agent role map through the config cascade.
 #
 # LAYERS, bottom to top, each overriding per key:
-#   bundled            reference/defaults.yaml
-#   user-global        <home>/.claude/multi-agent.yaml
-#   team               <home>/multi-agent.yaml (<home> is the convention home
-#                      the repository binds, else docs/conventions)
-#   personal-override  <root>/.claude/multi-agent.local.yaml
-# Team and personal override apply only when lib/config-root.sh classifies
-# <root> as `repo`; a team or personal override path that is the user-global
-# file is read once.
+#   bundled      reference/defaults.yaml
+#   user-global  <home>/.claude/multi-agent.yaml
+#   team         <home>/multi-agent.yaml (<home> is the convention home the
+#                repository binds, else docs/conventions)
+#   personal-override <root>/.claude/multi-agent.local.yaml
+# Team and personal-override apply only when lib/config-root.sh classifies <root> as
+# `repo`; a team or personal-override path that is the user-global file is read once.
 # A layer that does not parse, or declares a schema other than 1, is skipped
 # and named in `notes`. A key with a value outside its allowed set is rejected
 # and named; the layer below keeps the key. Keys and values: reference/config.md.

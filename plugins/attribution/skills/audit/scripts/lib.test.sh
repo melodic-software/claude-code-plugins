@@ -94,7 +94,7 @@ cfg_list list excluded_paths
 assert_eq "a YAML block list is read" "$(printf '%s|' "${list[@]}")" "y/**|"
 assert_eq "a YAML list names its layer" "$CFG_SOURCE" "$YAML_TEAM"
 
-# --- Personal overrides, the user-global layer, and per-file fallback per layer --
+# --- Personal overrides, the user-global layer, and per-file fallback per layer ------------
 
 printf '%s\n' '{"stamp_expiry_days": 75}' >"$JSON_LOCAL"
 cfg_layers_init "$ROOT"

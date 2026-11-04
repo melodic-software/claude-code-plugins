@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: su-check-default-root
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-default-root'
+    type: 'regex'
+    pattern: '\.claude/skills'
+    target: 'last_message'
+  - name: 'counts-two-skills'
+    type: 'regex'
+    pattern: '\b(?:2|two)\b[^\n]{0,40}\bskills?\b|\bskills?\b[^\n]{0,40}\b(?:2|two)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'reports-pass'
+    type: 'regex'
+    pattern: '\b(?:PASS(?:ED|ES)?|Pass(?:ed|es)?|[Aa]lready configured)\b|✅'
+    target: 'last_message'
+  - name: 'skill-body-loaded'
+    type: 'regex'
+    pattern: 'CHECK_SKILL_SKILLS_ROOT'
+    target: 'last_message'
+    arm: 'with-only'
