@@ -25,7 +25,7 @@ Action routing: no argument or `check` runs the check; `apply` runs the check, t
 repository file and nothing else. With complete `<key>=<value>` arguments nothing asks a question;
 the one confirmation is a diff to an existing file (`apply` step 4).
 
-Official contract for `userConfig`: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract for `userConfig`: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## `check` (read-only)
 
@@ -34,9 +34,19 @@ Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify no
 1. **Resolve `markdownlint-cli2`** the way `compress` does: first `command -v markdownlint-cli2`
    (on `PATH`), then `node_modules/.bin/markdownlint-cli2` under the repository root. Report which
    one resolved. FAIL when neither does.
-2. **Run it.** Execute the resolved binary with `--version`. A shim can resolve and still be broken
-   (a missing Node interpreter, a dangling target), so resolution without a clean exit is FAIL, with
-   the error text in the remediation line.
+2. **Run it.** Execute the resolved binary with `--help` and no other argument. The probe must
+   read no markdownlint configuration and touch no file, so never pass `--version` or any argument
+   but `--help`. Judge the output, never the exit code: PASS when the first line of stdout is the
+   tool's version banner, naming `markdownlint-cli2` and its version. A shim can resolve and still
+   be broken (a missing Node interpreter, a dangling target), so resolution without the banner is
+   FAIL, with the stderr text in the remediation line.
+   - **Pointer**: when the probe's argument handling, help output or exit code is in question,
+     fetch [markdownlint-cli2: Command Line](https://github.com/DavidAnson/markdownlint-cli2#command-line)
+     and the argument parsing in
+     [`markdownlint-cli2.mjs` at v0.24.0](https://github.com/DavidAnson/markdownlint-cli2/blob/v0.24.0/markdownlint-cli2.mjs)
+     live; this decision was derived for markdownlint-cli2 v0.12.0 and later. **As of**:
+     2026-11-04. **Recheck trigger**: a markdownlint-cli2 release changes its argument parsing,
+     its help banner or the exit code of `--help`.
 3. **Repository settings.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
    project root and report each line it prints under its own INFO, PASS or WARN prefix: INFO when
    `docs/conventions/docs-hygiene.yaml` is absent; a WARN for each problem in the file (a value
@@ -166,7 +176,7 @@ To set the value for the whole repository instead, use `apply`.
 
 ## What this skill does NOT do
 
-- Run `markdownlint-cli2` over repository files. The only execution is the `--version` liveness probe.
+- Run `markdownlint-cli2` over repository files. The only execution is the `--help` liveness probe.
 - Check the consuming repository's markdownlint configuration. Which rules a repository adopts is its
   own decision.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

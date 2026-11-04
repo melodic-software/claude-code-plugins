@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "plugins/notes/.claude-plugin/plugin.json:6\n\nThe added max_files cap defaults to 0, no limit.\n\nseverity: IMPORTANT",
+      "why": "an inline finding with its severity line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.max_files: pass, inert, plugins/notes/skills/summary/SKILL.md:5\n\ncritical-findings: 0",
+      "why": "no finding at all"
+    }
+  ]
+}

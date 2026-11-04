@@ -567,8 +567,8 @@
       "readers": [
         ".github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate counts the start records of the last 24 hours against the per-day cap"
       ],
-      "reason": "The cap counts runs started in the last 24 hours, so a record must outlive one day; 2 days keeps the newest day whole. It holds only the release number the gate chose, never model text, so it is not scanned.",
-      "scan": "none"
+      "reason": "The cap counts runs started in the last 24 hours, so a record must outlive one day; 2 days keeps the newest day whole. The model job writes it after the leg, so it is rewritten and scanned before upload, as the credit-stop marker is.",
+      "scan": "upload"
     },
     "upstream-apply-changelog-plan-*": {
       "retention-days": 1,

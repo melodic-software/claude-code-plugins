@@ -5,11 +5,13 @@
       "id": 1,
       "name": "resolves-and-runs-the-binary",
       "prompt": "Set up docs-hygiene for this repo. /docs-hygiene:setup",
-      "expected_output": "Resolves markdownlint-cli2 from PATH or the repository's node_modules/.bin, runs it with --version, and reports a PASS row naming which one resolved. Installs nothing and writes nothing.",
+      "expected_output": "Resolves markdownlint-cli2 from PATH or the repository's node_modules/.bin, runs it with --help, and reports a PASS row naming which one resolved when the first line of stdout is the version banner, even though --help exits 2. Installs nothing and writes nothing.",
       "files": [],
       "expectations": [
         "Probes PATH first and node_modules/.bin under the repository root second",
-        "Runs the resolved binary with --version rather than treating resolution alone as a pass",
+        "Runs the resolved binary with --help rather than treating resolution alone as a pass",
+        "Never runs markdownlint-cli2 with --version",
+        "Reads PASS from the version banner on the first line of stdout, not from the exit code, which is 2 for --help",
         "Writes no file and runs no install command"
       ]
     },
@@ -29,10 +31,10 @@
       "id": 3,
       "name": "broken-shim-is-a-fail",
       "prompt": "/docs-hygiene:setup check. node_modules/.bin/markdownlint-cli2 exists but our Node install was removed.",
-      "expected_output": "Reports FAIL because the resolved shim exits non-zero under --version, carries the execution error in the remediation line, and does not claim the prerequisite is met.",
+      "expected_output": "Reports FAIL because the resolved shim prints an execution error instead of the version banner under --help, carries that error in the remediation line, and does not claim the prerequisite is met.",
       "files": [],
       "expectations": [
-        "Treats a resolved shim that fails --version as FAIL",
+        "Treats a resolved shim whose --help output does not start with the version banner as FAIL",
         "Includes the execution error text in the remediation line",
         "Does not claim success from resolution alone"
       ]
@@ -41,8 +43,8 @@
       "id": 4,
       "name": "check-reports-effective-compress-articles",
       "narration": true,
-      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and prints its version. The repository has no docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so the skill's userConfig line substitutes to cut.]",
-      "expected_output": "PASS rows for markdownlint-cli2 resolution and its --version run. setup-apply.mjs --check prints an INFO line that docs/conventions/docs-hygiene.yaml is absent. The effective compress_articles is cut, supplied by userConfig. Nothing is written.",
+      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and its --help output starts with the version banner. The repository has no docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so the skill's userConfig line substitutes to cut.]",
+      "expected_output": "PASS rows for markdownlint-cli2 resolution and its --help run. setup-apply.mjs --check prints an INFO line that docs/conventions/docs-hygiene.yaml is absent. The effective compress_articles is cut, supplied by userConfig. Nothing is written.",
       "files": [],
       "expectations": [
         "Runs setup-apply.mjs --check and reports the absent repository file as INFO, not WARN or FAIL",
@@ -80,7 +82,7 @@
       "id": 7,
       "name": "check-invalid-repo-value-resolves-to-default-not-userconfig",
       "narration": true,
-      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and prints its version. docs/conventions/docs-hygiene.yaml holds compress_articles: drop. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
+      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and its --help output starts with the version banner. docs/conventions/docs-hygiene.yaml holds compress_articles: drop. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
       "expected_output": "setup-apply.mjs --check prints a WARN naming docs/conventions/docs-hygiene.yaml, compress_articles and drop, then WARN compress_articles: dropped. The repository layer is the highest, so with it dropped no valid layer sits above it, and the effective compress_articles is keep from the default, the value /docs-hygiene:compress resolves for the same files. The userConfig value cut is not used. Nothing is written.",
       "files": [],
       "expectations": [

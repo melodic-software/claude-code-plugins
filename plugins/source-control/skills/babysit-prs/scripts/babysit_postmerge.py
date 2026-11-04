@@ -394,6 +394,11 @@ class PostMergeVerdict:
     # it can still turn red and fail a merge judged verified, so a later tick
     # lists runs back to it before it reuses the report (`idle_refusal`).
     outstanding_since: datetime | None = None
+    # Each full and canary run the verdict's run listing read as completed,
+    # by id, at the `updated_at` it read: a later tick counts such a run as
+    # moved only when it reads another `updated_at` (`_verifying_runs_unchanged`).
+    # None when no runs were listed; the report then leaves the field out.
+    judged_runs: Mapping[int, str] | None = None
 
     @property
     def ok(self) -> bool:
@@ -417,6 +422,13 @@ class PostMergeVerdict:
         )
 
     def report(self) -> dict[str, Any]:
+        judged = (
+            {}
+            if self.judged_runs is None
+            else {
+                "judgedRuns": {str(n): at for n, at in sorted(self.judged_runs.items())}
+            }
+        )
         return {
             "ok": self.ok,
             "readable": self.readable,
@@ -475,6 +487,7 @@ class PostMergeVerdict:
             "outstandingSince": (
                 self.outstanding_since.isoformat() if self.outstanding_since else None
             ),
+            **judged,
         }
 
 
@@ -831,6 +844,9 @@ class Run:
     url: str
     actor: str
     triggering_actor: str
+    # The listing's `updated_at` as read, or None when the payload has none;
+    # left out of equality so two reads of one run still compare equal.
+    updated_at: str | None = field(default=None, compare=False)
 
     @classmethod
     def from_api(cls, payload: Any) -> Run:
@@ -857,6 +873,9 @@ class Run:
             triggering_actor=_login_key(
                 json_object(item.get("triggering_actor")).get("login")
             ),
+            updated_at=updated
+            if isinstance(updated := item.get("updated_at"), str)
+            else None,
         )
 
 
@@ -1314,6 +1333,9 @@ class _Context:
     # The full runs the check already listed, which `superseded` reads
     # instead of a listing of its own.
     held_full_runs: dict[int, tuple[str, Run]] = field(default_factory=dict)
+    # The verdict's first run listing's completed runs, by id, at the
+    # `updated_at` read (`_listed_runs` with `record`); None until listed.
+    judged_runs: dict[int, str] | None = None
     settle_compares_left: int = SETTLE_COMPARE_BUDGET
     compare_reads: int = 0
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
@@ -2749,12 +2771,14 @@ def _lane_reruns(
 
 
 def _listed_runs(
-    ctx: _Context, floor: datetime, now: datetime
+    ctx: _Context, floor: datetime, now: datetime, *, record: bool = False
 ) -> tuple[list[tuple[str, Run]], list[Run]]:
     """The full runs (by signal) and canary runs on the branch since `floor`,
-    oldest first; the full runs are held for `_Context.superseded`."""
+    oldest first; the full runs are held for `_Context.superseded`. With
+    `record`, each listed run that had completed is kept in
+    `_Context.judged_runs` at the `updated_at` read."""
     owner, name, branch = ctx.owner, ctx.name, ctx.branch
-    full_runs = [
+    listed = [
         (SIGNAL_SCHEDULE, r)
         for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
     ] + [
@@ -2769,18 +2793,21 @@ def _listed_runs(
     full_runs = sorted(
         (
             item
-            for item in full_runs
+            for item in listed
             if ctx.on_branch(item[1]) and not ctx.replaced(item[1])
         ),
         key=lambda item: item[1].created_at,
     )
     ctx.held_full_runs.update((r.id, (signal, r)) for signal, r in full_runs)
+    canaries = _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
+    if record:
+        ctx.judged_runs = {
+            r.id: r.updated_at
+            for r in [r for _, r in listed] + canaries
+            if r.status == "completed" and r.updated_at is not None
+        }
     canary_runs = sorted(
-        (
-            r
-            for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
-            if ctx.on_branch(r)
-        ),
+        (r for r in canaries if ctx.on_branch(r)),
         key=lambda r: r.created_at,
     )
     return full_runs, canary_runs
@@ -2960,7 +2987,7 @@ def check(
             if any(m.merged_at for m in judged)
             else merged_since
         )
-        full_runs, canary_runs = _listed_runs(ctx, floor, now)
+        full_runs, canary_runs = _listed_runs(ctx, floor, now, record=True)
         states = tuple(
             _settled_state(merge)
             if merge.number in done
@@ -3004,6 +3031,7 @@ def check(
         excuses_expire_at=ctx.excuses_expire_at,
         pins=pins,
         outstanding_since=min(tally.outstanding, default=None),
+        judged_runs=ctx.judged_runs,
     )
 
 
@@ -4387,6 +4415,7 @@ def _verifying_runs_unchanged(
     created: datetime,
     since: datetime,
     running: bool = False,
+    judged: Mapping[int, datetime] | None = None,
 ) -> bool:
     """Whether no full or canary run on `branch` created at or after
     `created` completed, or was re-run, at or after `since`, from one listing
@@ -4394,8 +4423,28 @@ def _verifying_runs_unchanged(
     than one page in an hour or two. A run started since and still running
     changes nothing yet, unless `running`: then any run created, started
     again or updated since counts, whatever its status, since a fresh check
-    reads a red run re-run since as pending. A listing that is not whole
-    raises `PostMergeReadError`."""
+    reads a red run re-run since as pending. A completed run `judged` holds
+    at the `updated_at` it reads now (`_judged_runs`) is one the check
+    already read finished, so it counts for nothing; a re-run moves its
+    `updated_at`. A listing that is not whole raises `PostMergeReadError`."""
+
+    def moved(run: dict[str, Any]) -> bool:
+        if run.get("path") not in VERIFYING_WORKFLOWS:
+            return False
+        completed = run.get("status") == "completed"
+        if not (running or completed):
+            return False
+        updated = _time(run.get("updated_at"))
+        if updated < since:
+            return False
+        run_id = run.get("id")
+        return not (
+            completed
+            and judged is not None
+            and isinstance(run_id, int)
+            and judged.get(run_id) == updated
+        )
+
     owner, name = _split_repo(repo)
     floor = quote(
         f">={created.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
@@ -4414,14 +4463,22 @@ def _verifying_runs_unchanged(
         runs = json_array(payload.get("workflow_runs"))
         if payload.get("total_count") != len(runs):
             raise PostMergeReadError(f"{workflow} runs: the listing is not whole")
-        if any(
-            run.get("path") in VERIFYING_WORKFLOWS
-            and (running or run.get("status") == "completed")
-            and _time(run.get("updated_at")) >= since
-            for run in map(json_object, runs)
-        ):
+        if any(moved(run) for run in map(json_object, runs)):
             return False
     return True
+
+
+def _judged_runs(report: Mapping[str, Any]) -> dict[int, datetime] | None:
+    """The report's `judgedRuns` by run id, or None when it has none or one
+    that does not parse: such a report counts every run completed since as
+    moved."""
+    record = report.get("judgedRuns")
+    if not is_json_object(record):
+        return None
+    try:
+        return {int(n): _time(at) for n, at in record.items()}
+    except (ValueError, PostMergeReadError):
+        return None
 
 
 def _pending_merges(report: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -4443,8 +4500,9 @@ def pending_runs_unchanged(
     canary run on `branch` created since the earliest of them, verified or
     not (`_judge` reads a verified merge's runs from its `mergedAt`, and a
     re-run keeps its creation time), completed or was re-run since
-    `computed_at` (less `policy.SINCE_CLOCK_MARGIN`;
-    `_verifying_runs_unchanged`), no unverified merge has passed
+    `computed_at` (less `policy.SINCE_CLOCK_MARGIN`), other than one the
+    check read finished (`judgedRuns`; `_verifying_runs_unchanged`), no
+    unverified merge has passed
     `DISPATCH_DEADLINE`, after which a missing dispatch or pin is a
     failure, and no quarantine that excused a failing suite has expired
     (`excusesExpireAt`; an answer without the field is False). Those are
@@ -4477,6 +4535,7 @@ def pending_runs_unchanged(
             if outstanding is None
             else min(created, _time(outstanding)),
             since=shared.computed_at - policy.SINCE_CLOCK_MARGIN,
+            judged=_judged_runs(report),
         )
     except PostMergeReadError:
         return False
@@ -4536,7 +4595,8 @@ def idle_refusal(
       `computedAt` of the check that made it, never re-stamped;
     - an unverified merge past `DISPATCH_DEADLINE`;
     - verifying runs: none completed since `computedAt` (less
-      `SINCE_CLOCK_MARGIN`) among those created since the earliest unverified
+      `SINCE_CLOCK_MARGIN`), other than one the check read finished at the
+      same `updated_at` (`judgedRuns`), among those created since the earliest unverified
       merge, the earliest canary still running in a merge's window
       (`outstandingSince`), or the `_lane_reruns` lookback
       (`red-main.confirm-wait-minutes` plus `FULL_RUN_ALLOWANCE`, once more
@@ -4624,7 +4684,12 @@ def idle_runs_refusal(
             created = min(created, _time(report["outstandingSince"]))
         since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
         if not _verifying_runs_unchanged(
-            repo, branch, created=created, since=since, running=running
+            repo,
+            branch,
+            created=created,
+            since=since,
+            running=running,
+            judged=_judged_runs(report),
         ):
             return "runs-changed"
     except (PostMergeReadError, ValueError, KeyError) as exc:

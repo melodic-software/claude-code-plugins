@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No security issues.\n\nmanifest userConfig.wrap_column: pass, inert, plugins/notes/skills/summary/SKILL.md:6\n\ncritical-findings: 0",
+      "why": "no inline finding, so no severity line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "plugins/notes/.claude-plugin/plugin.json:6\n\nseverity: IMPORTANT\n\ncritical-findings: 0",
+      "why": "an inline finding on the inert key"
+    },
+    {
+      "answer": "severity: `SUGGESTION`",
+      "why": "a backticked SUGGESTION line still opens a thread"
+    }
+  ]
+}

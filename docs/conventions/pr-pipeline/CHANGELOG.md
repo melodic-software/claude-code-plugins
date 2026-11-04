@@ -1,5 +1,61 @@
 # Changelog for the PR pipeline convention
 
+## [8.51.2] - 2026-11-04
+
+### Fixed
+
+- A size-split sub-issue whose run's patch the scan job refused for its size
+  (`scan-refused-patch`) is no longer re-admitted unchanged into the same stop. A sub-issue never
+  splits again (owner Q93), so admission skipped the split park and admitted it, and the triage
+  sweep looped it until its run limit handed it to a maintainer. Admission now refuses it with
+  no hold, at `status: confirmed`, for a builder session.
+
+- Admission now refuses an issue whose fix section names a workflow or other path the issue lane
+  cannot push, even when the path is cited at a line: a section headed Fix, Proposed fix,
+  Outcome, Done when, Desired behavior, Expected behavior or Acceptance criteria, or a
+  `Suggested fix location` line. Before, a line citation was read as evidence everywhere, so the
+  issue was admitted and its run failed at the patch scan. A path named only under Evidence,
+  Steps to reproduce, Actual behavior, Current behavior or Environment no longer refuses the
+  issue, unless it is on a `Suggested fix location` line. A deeper heading with no section of
+  its own (`### Option A` under `## Proposed fix`) stays inside the section above it.
+
+## [8.51.1] - 2026-11-04
+
+### Fixed
+
+- The lane room keeps an unverified-stale post-merge answer when the only verifying run that
+  reached a conclusion since is one its check already read finished (`judgedRuns` in the
+  post-merge report), instead of running the post-merge check again.
+
+- `limits.upstream-apply-changelog-per-day` no longer counts a run whose key credit-stopped. The
+  model job now writes the start record after the leg, scanned, and skips it when the leg ended
+  in a credit stop and its credit-stop marker uploaded; a setup failure before the leg and a
+  credit stop with no marker still count. The job summary of a credit-stopped run, and of a run the credit window skips, says
+  so (#13233).
+
+## [8.51.0] - 2026-11-04
+
+### Added
+
+- The monitoring lane's signal 13, `lane holds`, counts the green runs that held on a fault with
+  only a notice: work-resolve-issue's fault stops whose retries were all faults, work-unblock's
+  unreadable listings, and pr-refine's failed `fix-docs` reads. A lane with
+  `monitor.lane-holds.threshold` held runs or more (default 4) in the last
+  `monitor.lane-holds.window-hours` (default 24) raises the signal's rolling issue, which only
+  notifies. The new optional `monitor` section of `pr-pipeline.yaml` holds both values, and the
+  lane carries its held runs from one hourly run to the next in its job reads artifact.
+
+## [8.50.11] - 2026-11-04
+
+### Added
+
+- upstream-apply-changelog gets a `scrub-probe` job: on each Claude Code release the gate takes, it
+  runs `capture-probe.mjs` as a Bash child of a `run-claude-cli` leg on that release's CLI. A release
+  that lets the child read the key, the job token or the runtime token fails the job with an error
+  naming the release and hit names; a pass records the release in a notice and the job summary. No
+  job needs it, so a red probe blocks no publishing. `capture-probe.mjs` takes further credential
+  names from `CAPTURE_PROBE_EXTRA_NAMES` and lists the names it probed in its result.
+
 ## [8.50.10] - 2026-11-04
 
 ### Changed

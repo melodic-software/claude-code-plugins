@@ -113,7 +113,7 @@ Example: inline bash cats `config.json` from the skill directory. If absent, out
 
 ### 7. Help Claude Remember
 
-Skills can store data across runs. Use `CLAUDE_PLUGIN_DATA` (referenced in your skill content as a dollar-brace `${...}` placeholder) as a stable folder. It is kept across plugin updates, while the plugin root changes on each update, so state written beside the skill does not carry over. Basis: [Plugin manifest reference: Environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables), the `CLAUDE_PLUGIN_DATA` row and the paragraph after the table. As of: 2026-10-31. Recheck: that row or paragraph changes what an update keeps.
+Skills can store data across runs. Use `CLAUDE_PLUGIN_DATA` (referenced in your skill content as a dollar-brace `${...}` placeholder) as a stable folder. It is kept across plugin updates, while the plugin root changes on each update, so state written beside the skill does not carry over. Basis: [Plugin manifest reference: Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), the `CLAUDE_PLUGIN_DATA` row and the paragraph after the table. As of: 2026-11-04. Recheck: that row or paragraph changes what an update keeps.
 
 Options: append-only text logs, JSON files, SQLite databases. A standup-post skill might keep `standups.log` so Claude can diff against yesterday.
 

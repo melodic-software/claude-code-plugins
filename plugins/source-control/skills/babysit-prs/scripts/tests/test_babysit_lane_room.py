@@ -115,15 +115,23 @@ class Recheck:
 
 
 def run(
-    workflow: str, *, status: str, updated: datetime, created: datetime = FLOOR
+    workflow: str,
+    *,
+    status: str,
+    updated: datetime,
+    created: datetime = FLOOR,
+    run_id: int | None = None,
 ) -> dict[str, object]:
     """One row of the actions runs listing."""
-    return {
+    row: dict[str, object] = {
         "path": f".github/workflows/{workflow}",
         "status": status,
         "created_at": created.isoformat(),
         "updated_at": updated.isoformat(),
     }
+    if run_id is not None:
+        row["id"] = run_id
+    return row
 
 
 class LaneRoom(unittest.TestCase):
@@ -880,6 +888,51 @@ class PendingRunsUnchanged(unittest.TestCase):
         self.assertEqual(self.unchanged([], report=unsaid), (False, []))
 
 
+class JudgedRuns(unittest.TestCase):
+    """`judgedRuns`: a completed run the check that made the report already
+    read finished, at the same `updated_at`, is not a move. The case is pr-merge
+    sweep 41831769667: canary 41831560079 completed 53 s before the report's
+    computedAt, inside the 60 s clock margin, and the merge job ran the whole
+    check again for it. `2026-09-30T23:59:07Z` is FLOOR less 53 s, written
+    in the API's `Z` form while the rows carry `+00:00`."""
+
+    CANARY = 41831560079
+    FINISHED = FLOOR - timedelta(seconds=53)
+    RECORDED = {**PENDING, "judgedRuns": {str(CANARY): "2026-09-30T23:59:07Z"}}
+
+    unchanged = PendingRunsUnchanged.unchanged
+
+    def canary(
+        self, updated: datetime = FINISHED, run_id: int = CANARY
+    ) -> dict[str, object]:
+        return run(
+            "post-merge-detect-silent-revert.yml",
+            status="completed",
+            updated=updated,
+            run_id=run_id,
+        )
+
+    def test_a_run_recorded_at_the_same_updated_at_is_not_moved(self) -> None:
+        self.assertTrue(self.unchanged([self.canary()], report=self.RECORDED)[0])
+
+    def test_the_same_run_re_run_since_is_moved(self) -> None:
+        rerun = self.canary(updated=FLOOR + timedelta(minutes=1))
+        self.assertFalse(self.unchanged([rerun], report=self.RECORDED)[0])
+
+    def test_a_completed_run_the_record_lacks_is_moved(self) -> None:
+        other = self.canary(run_id=self.CANARY + 1)
+        self.assertFalse(self.unchanged([other], report=self.RECORDED)[0])
+
+    def test_a_report_without_a_readable_record_moves_as_before(self) -> None:
+        # The measured instance with no record: in the margin, so moved.
+        self.assertFalse(self.unchanged([self.canary()])[0])
+        malformed = {**PENDING, "judgedRuns": {str(self.CANARY): "not a time"}}
+        self.assertFalse(self.unchanged([self.canary()], report=malformed)[0])
+        self.assertFalse(
+            self.unchanged([self.canary()], report={**PENDING, "judgedRuns": []})[0]
+        )
+
+
 class SettleShared(unittest.TestCase):
     """`settle_shared`: the one reuse rule the room and the merge job's
     `settle` read a run's post-merge answer by. The expected reasons are
@@ -1439,6 +1492,29 @@ class RefusalStands(unittest.TestCase):
         for why, row in cases.items():
             with self.subTest(why):
                 self.assertEqual(self.moved(runs=[row]), "runs-moved")
+
+    def test_a_run_the_check_read_finished_moves_nothing(self) -> None:
+        # In the clock margin, so moved without the record; with the report
+        # holding it at the same updated_at (FLOOR less 30 s), nothing moved.
+        done = run(
+            "pr-require-checks.yml",
+            status="completed",
+            updated=FLOOR - timedelta(seconds=30),
+            created=MERGED,
+            run_id=77,
+        )
+        self.assertEqual(self.moved(runs=[done]), "runs-moved")
+        recorded = {**REFUSING, "judgedRuns": {"77": "2026-09-30T23:59:30Z"}}
+        self.assertIsNone(self.moved(recorded, runs=[done]))
+        # Still running when listed now: the record holds completed runs only.
+        rerun = run(
+            "pr-require-checks.yml",
+            status="in_progress",
+            updated=FLOOR - timedelta(seconds=30),
+            created=MERGED,
+            run_id=77,
+        )
+        self.assertEqual(self.moved(recorded, runs=[rerun]), "runs-moved")
 
     def test_marks_or_demotion_that_changed_run_the_check(self) -> None:
         marked = {"number": 3, "body": "<!-- post-merge-quarantine suite=x -->"}
