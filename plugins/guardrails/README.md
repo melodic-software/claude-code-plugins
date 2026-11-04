@@ -495,7 +495,8 @@ blocks), the `rm -rf ./build` control, which this arm does not change, went from
 `bash` heredoc from 257.4 to 648.1: +359 to +428 ms, about 11 to 13 S at the harness's median, roughly
 what a recursive `rm` pays. That is overage against the row's k × S, held as guardrails spawn-reduction
 work under the hook-budget contract's Rule 2. `eval` and `wsl`, which the earlier arm already judged,
-went from 808.4 to 729.0 and from 787.0 to 634.4 ms, within this run's noise or close to it.
+went from 808.4 to 729.0 and from 787.0 to 634.4 ms, within this run's noise or close to it. #9770
+added no judged shape, since it left an unresolved expansion alone, so it has no entry here.
 
 **block-root-delete-target moves and content destroyers (#9767).** The arm starts no process of its
 own: it reads the argv of `mv`, `truncate`, `shred` and `dd` from the parse the guard already makes,
