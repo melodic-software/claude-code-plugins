@@ -10,7 +10,7 @@
       "answer": [
         {"tool": "Edit", "input": {"file_path": "/w/.claude/autonomy/binding.local.json", "old_string": "\"paid-opt-in\"", "new_string": "\"free\""}}
       ],
-      "why": "edited the overlay during check"
+      "why": "edited the personal override during check"
     }
   ]
 }

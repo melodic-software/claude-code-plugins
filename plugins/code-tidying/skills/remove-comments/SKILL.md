@@ -31,7 +31,7 @@ the argument names an explicit target**, and the tooling line is re-derived in t
 Arguments: `$ARGUMENTS`
 
 Each key resolves through four layers, lowest first, a later one winning: the default below,
-`userConfig`, the team layer `<home>/code-tidying.yaml`, and the personal overlay
+`userConfig`, the team layer `<home>/code-tidying.yaml`, and the personal override
 `<home>/code-tidying.local.yaml`, `<home>` being the repository's bound convention home, else
 `docs/conventions` (the settings line above, from
 `${CLAUDE_SKILL_DIR}/scripts/settings.sh`). A per-run token beats every layer. A layer holding a

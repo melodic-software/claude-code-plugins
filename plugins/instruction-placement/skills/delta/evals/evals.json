@@ -81,7 +81,7 @@
       "name": "personal-only-entry-does-not-suppress",
       "prompt": "/instruction-placement:delta — I put an entry in .claude/instruction-placement.local.md for the CLAUDE.md testing-conventions finding, so it should be quiet now.",
       "narration": true,
-      "expected_output": "Reports the finding rather than suppressing it, and explains why: the overlay is a personal layer, and on this policy-floor surface a personal-layer entry for a finding_id the team layer does not carry is read, reported as 'personal-only, not applied', and does not take effect — absence from the team layer is the team's unsuppressed state. It names the contributing layer, points at promotion to the tracked team file as what makes the entry effective, and does not silently honor it or silently drop it.",
+      "expected_output": "Reports the finding rather than suppressing it, and explains why: the personal override is a personal layer, and on this policy-floor surface a personal-layer entry for a finding_id the team layer does not carry is read, reported as 'personal-only, not applied', and does not take effect — absence from the team layer is the team's unsuppressed state. It names the contributing layer, points at promotion to the tracked team file as what makes the entry effective, and does not silently honor it or silently drop it.",
       "expectations": [
         "Does not suppress on a personal-only entry",
         "Reports it as personal-only, not applied, naming its layer",

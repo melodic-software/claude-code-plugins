@@ -70,8 +70,8 @@ against that contract rather than restating it.
    unavailable → report the step UNKNOWN with remediation, never green.
    In this plugin's manifest that yields: `plugin-quality-r001` FAIL while the retired tracked
    `.claude/plugin-quality.md` persists (the dual-read window: the file is read as authority while
-   it exists), and `plugin-quality-r002` WARN while the retired overlay
-   `.claude/plugin-quality.local.md` exists (it has no effect; the WARN is the point,
+   it exists), and `plugin-quality-r002` WARN while the retired personal
+   override `.claude/plugin-quality.local.md` exists (it has no effect; the WARN is the point,
    never silence).
 5. **Retired user-global layer (machine scope, prose-only)**. The audit does not read
    `~/.claude/plugin-quality.md`. When that file exists, WARN that it is inert: anything the
@@ -113,7 +113,7 @@ Converge, in order, each write individually gated on operator confirmation:
 `apply` never edits the root instruction file outside the marked region, never edits
 `settings.json`, never touches `~/.claude/plugin-quality.md`, and never writes any dedicated
 `.claude/plugin-quality*` file (that surface is retired; the convention-doc surface has no
-overlay channel).
+personal override channel).
 
 ## What this skill does NOT do
 
