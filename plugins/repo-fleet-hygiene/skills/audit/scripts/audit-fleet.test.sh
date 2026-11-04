@@ -1116,7 +1116,11 @@ assert_contains_file "null any-state payload is an evidence gap, never never-pr"
   "returned no PR count for one or more remote heads" "$unmerged_out"
 assert_contains_file "remote-branch handoff names the gated apply path" \
   "apply-plan.sh gets --apply --remote-branches in an interactive terminal, one confirmation per branch" "$unmerged_out"
-if python3 - "$unmerged_plan" "$TMP/canonical-a" <<'PY'; then
+# MSYS_NO_PATHCONV keeps Git Bash from rewriting the expected canonical path, which the plan holds as
+# bash sees it, so a native python on Windows is handed the plan file in native form instead.
+unmerged_plan_arg="$unmerged_plan"
+if [[ "$(uname -s)" =~ ^(MINGW|MSYS|CYGWIN) ]]; then unmerged_plan_arg="$(cygpath -m -- "$unmerged_plan")"; fi
+if MSYS_NO_PATHCONV=1 python3 - "$unmerged_plan_arg" "$TMP/canonical-a" <<'PY'; then
 import json, sys
 plan, canonical = json.load(open(sys.argv[1])), sys.argv[2]
 remote = [a for a in plan["actions"] if a["operation"] == "delete-remote-branches"]
