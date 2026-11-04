@@ -7,7 +7,9 @@
 #                                     direct commit), revert commit; then "pairs<TAB><n>". Each
 #                                     revert it skips goes to stderr as "skip<TAB><sha><TAB><why>".
 #   build <original> <revert> <slug>  Writes the case revert-<pr>-<slug> beside this script and
-#                                     its fixtures under fixtures/.
+#                                     its fixtures as fixtures/<case>.tar.gz, an archive because
+#                                     they are byte copies of history that repository lints must
+#                                     not judge.
 #   scaffold <case>                   A case's scaffold: rebuilds its files in the empty
 #                                     workspace, main at the base and the branch at the merge.
 #                                     Refuses a case whose confirmed-by line is still pending.
@@ -183,7 +185,7 @@ build() {
   name="revert-$pr-$3"
   case_dir="$EVALS/$name"
   fixtures="$EVALS/fixtures/$name"
-  [[ ! -e "$case_dir" && ! -e "$fixtures" ]] || die "$name already exists"
+  [[ ! -e "$case_dir" && ! -e "$fixtures.tar.gz" ]] || die "$name already exists"
   rpr="$(pr_number "$rev")"
   subject="$(git log -1 --format=%s "$orig" | sed -E 's/ \(#[0-9]+\)$//')"
   mkdir -p "$case_dir/graders" "$fixtures"
@@ -252,6 +254,8 @@ This run has no GitHub access, so post nothing. Put every finding in your final 
 MD
 
   printf -- "---\ntype: regex\npattern: '%s'\nflags: i\n---\n" "${alt//$q/$q$q}" >"$case_dir/graders/caught.md"
+  tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$fixtures" -c . | gzip -n >"$fixtures.tar.gz"
+  rm -rf "${fixtures:?}"
   echo "$case_dir"
 }
 
@@ -268,13 +272,15 @@ place() { # <fixture dir>: copy each <path>.txt under it to <path> in the worksp
 
 scaffold() {
   [[ $# -eq 1 ]] || die "usage: scaffold <case>"
-  local fixtures="$EVALS/fixtures/$1" subject
-  [[ -f "$fixtures/pr-context.md" ]] || die "no fixtures for $1"
+  local archive="$EVALS/fixtures/$1.tar.gz" fixtures subject
+  [[ -f "$archive" ]] || die "no fixtures for $1"
   if grep -q '^# confirmed-by: pending' "$EVALS/$1/case.yaml"; then
     die "$1 is unconfirmed: a verifier agent checks its lines and names itself on the confirmed-by line"
   fi
-  subject="$(sed -nE 's/^## Pull request #[0-9]+: //p' "$fixtures/pr-context.md")"
   set -e
+  fixtures="$(mktemp -d)"
+  tar -xzf "$archive" -C "$fixtures"
+  subject="$(sed -nE 's/^## Pull request #[0-9]+: //p' "$fixtures/pr-context.md")"
   git init -q -b main
   git config user.name eval
   git config user.email eval@example.invalid
@@ -290,6 +296,7 @@ scaffold() {
   mkdir -p .claude-lane
   git diff main...HEAD >.claude-lane/pr.diff
   cp "$fixtures/pr-context.md" .claude-lane/pr-context.md
+  rm -rf "${fixtures:?}"
 }
 
 report() {
