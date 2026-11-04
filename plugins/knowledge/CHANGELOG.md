@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.2.2] - 2026-11-04
+
+### Fixed
+
+- `/knowledge:setup` points at "Reference a saved value" for where `${user_config.*}` resolves.
+
 ## [1.2.1] - 2026-11-04
 
 ### Fixed

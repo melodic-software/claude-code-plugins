@@ -5,6 +5,21 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.4] - 2026-11-04
+
+### Changed
+
+- The setup skill's eval suite moved from `skills/setup/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`: four `su-*` cases converted from the four legacy cases ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
+### Fixed
+
+- Capture reference: hook stdin's main-session `context_tokens` on a resume, a fork or a model
+  switch is recorded, and why it is no running occupancy reading. Reader contract:
+  `CLAUDE_CODE_AUTO_COMPACT_WINDOW` wins only when Claude Code accepts its value, and the default
+  auto-compact thresholds are cited as the section they are.
+
+- The setup skill's `check` now says that `context_guard_hooks_enabled` off also stops the module's toasts and crossing notice, not only its lines, as `plugin.json` already said.
+
 ## [3.0.3] - 2026-11-04
 
 ### Fixed

@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.3.4] - 2026-11-04
+
+### Fixed
+
+- `/review:fanout` run-everything mode no longer says a leaf with no `effort:` key ran at the
+  session's level: that holds only on the main conversation's model. The `@session` label is
+  unchanged.
+
 ## [7.3.3] - 2026-11-04
 
 ### Changed
