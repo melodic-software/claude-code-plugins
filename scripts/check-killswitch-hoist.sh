@@ -122,7 +122,9 @@ fi
 #                        lives in destructive_guard.py
 #   prerequisites.sh   - the shared SessionStart node notice; reads a plugin's switch
 #                        from its argument and guards nothing
-LAUNCHERS=("run-guards.sh" "run-python-hook.sh" "prerequisites.sh")
+#   node-or-skip.sh    - the shared SessionStart node launcher; runs node with the
+#                        row's arguments, or exits 0 when node is missing
+LAUNCHERS=("run-guards.sh" "run-python-hook.sh" "prerequisites.sh" "node-or-skip.sh")
 
 is_launcher() {
   local candidate="$1" known
@@ -168,8 +170,8 @@ for hooks_json in plugins/*/hooks/hooks.json; do
     # not reach — a Python or node handler behind a launcher, or a bare
     # interpreter. Reported, never silently passed.
     ((saw_guard)) || unscanned+=("$hooks_json")
-  # Exec form keeps the script path in `args`, not in `command` (`command` is
-  # `node`). Join both so a converted row is still scanned.
+    # Exec form keeps the script path in `args`, not in `command` (`command` is
+    # `node`). Join both so a converted row is still scanned.
   done < <(jq -r '
     (.hooks.PreToolUse[]?, .hooks.PostToolUse[]?) | .hooks[]?
     | select(.command | type == "string")
