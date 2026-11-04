@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Turn one guard back on and the jq row returns to FAIL."
+    },
+    {
+      "answer": "Re-enabling restores the FAIL semantics for jq."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Re-enabling changes nothing for jq.",
+      "why": "wrong"
+    },
+    {
+      "answer": "Re-enabling makes jq WARN.",
+      "why": "near miss: wrong verdict"
+    }
+  ]
+}

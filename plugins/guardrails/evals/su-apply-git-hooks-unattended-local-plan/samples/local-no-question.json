@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "With nobody to ask, it uses local scope: this clone only, nothing committed."
+    },
+    {
+      "answer": "Scope: local, because no one can answer the scope question."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which scope do you want, local or shared?",
+      "why": "asks"
+    },
+    {
+      "answer": "It would use shared scope.",
+      "why": "wrong scope"
+    },
+    {
+      "answer": "It uses local scope. Or would you prefer shared?",
+      "why": "near miss: asks anyway"
+    }
+  ]
+}

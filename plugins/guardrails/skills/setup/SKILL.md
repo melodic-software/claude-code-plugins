@@ -50,18 +50,18 @@ source of truth for the guard inventory and each guard's runtime needs.
 pre-computed `jq` and `node` rows, run the remaining probes via Bash, and report a
 PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
-When every guard's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. Each guard exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When every guard's toggle is disabled, every prerequisite absence but `node` (step 3) downgrades
+from FAIL to INFO. Each guard exits through its enabled-gate before probing anything, so a
+deliberately disabled plugin is not broken. Report the probes informationally and note that
+re-enabling restores the FAIL semantics.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
    Probe the bash the hooks run: the one `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` resolves
    (its header lists the candidate order), which can differ from the Bash tool's own bash.
    FAIL below the floor with the README Requirements remediation.
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent: per the README, every guard then fails
-   OPEN (disabled) with a one-line stderr notice. The machine is unguarded, which is
-   exactly what this check exists to surface.
+2. **`jq`.** The pre-computed `jq` row. FAIL if absent: per the README, the blocking guards
+   then deny every Bash and PowerShell call and the others skip their work after one notice
+   per session, which is exactly what this check exists to surface.
 3. **`node`.** The pre-computed `node` row. FAIL if absent, with the README Requirements
    remediation: every guard row starts through `hooks/exec-bash.mjs`, so no guard starts
    without it. The README records what Claude Code documents about a hook that cannot start.

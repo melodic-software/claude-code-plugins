@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify"
+          }
+        }
+      ],
+      "why": "quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status && node /p/guardrails/lib/git-hooks/install.mjs verify"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs plan --scope local"
+          }
+        }
+      ],
+      "why": "another verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'install.mjs verify' SKILL.md"
+          }
+        }
+      ],
+      "why": "a search term"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Next, run `/guardrails:setup apply install-git-hooks` to install the pre-commit-content entry."
+    },
+    {
+      "answer": "The replacement comes from apply install-git-hooks.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the installer later.",
+      "why": "names no action"
+    },
+    {
+      "answer": "Run install-git-hooks.",
+      "why": "near miss: no apply"
+    }
+  ]
+}
