@@ -18,6 +18,10 @@ person's or company's published web corpus into concept-organized, author-attrib
 | `video-digest` | `/knowledge:video-digest` | Watches a single public video from YouTube or X (Twitter), transcript + visual frames, harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
 | `setup` | `/knowledge:setup` | `check` (default) verifies `library_dir` against the repository's artifact convention, reports `absorb-upstream`'s record directory, and probes the extraction prerequisites read-only; `apply` routes personal option changes through Claude Code's plugin configuration prompt; `apply install-deps` provisions the video pipelines' node dependencies and Chromium. |
 
+| Workflow | Launched by | What it does |
+|---|---|---|
+| `/knowledge:docpage-digest-batch` (`workflows/docpage-digest-batch.js`) | `/knowledge:docpage-digest` Batch path, `/knowledge:map-corpus` | Digests several pages, each into its own slice: per page one setup agent (Phases 1-2), one digest agent per unit, a pin-and-gates agent, verifier A and a same-vendor verifier B as separate agents, and a close agent that records `Verification status` and writes the handoff. `args`: `pages`, `workRoot`, `skillDir` and `date` (all required; without them nothing runs), `roles`, `maxConcurrent` (default 4). Every stage runs as `knowledge:digest-worker`, which has file and shell tools and cannot spawn agents. |
+
 ## What distill produces
 
 - **Concept-organized reference files** (60-160 lines each), named by what they
