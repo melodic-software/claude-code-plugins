@@ -259,6 +259,30 @@ test("a head the kill switch stopped dispatches again, and is not recorded as ha
   }
 });
 
+// The gate stopped the review head-lag: report-check-run posts a superseded-sha
+// skip on the head the run read. On the head the dispatcher reads, the PR's
+// current one, it did no work, so it is sent again once and not recorded,
+// unlike the select job's superseded-sha, which lands on a head the PR left.
+const lagged = (started) => roundRun("review-dependency", "neutral", "Skipped: superseded-sha", started);
+
+test("a review the gate stopped head-lag on the current head is sent again once, under the cap, and not recorded", async () => {
+  const node = pr(62);
+  const record = emptyRecord();
+  const lines = [];
+  const once = await run(fakeApi({ nodes: [node], checks: headOf(node, [lagged("2026-10-17T10:00:00Z")]) }), { record, log: (line) => lines.push(line) });
+  assert.deepEqual(once.dispatched, [{ number: 62, workflowRunId: "7062" }]);
+  assert.equal(record.handled.get(CHECK), undefined);
+  assert.ok(lines.includes(`refire: #62: head ${node.headRefOid}'s ${CHECK} was stopped head-lag; sending it again`), lines.join("\n"));
+  for (const [label, checks] of [
+    ["a newer review passed", [lagged("2026-10-17T10:00:00Z"), roundRun("review-dependency", "success", "Passed", "2026-10-17T10:30:00Z")]],
+    ["a newer review is still going", [lagged("2026-10-17T10:00:00Z"), { ...roundRun("review-dependency", null, "", "2026-10-17T10:30:00Z"), status: "in_progress" }]],
+    ["the head is at the cap", [lagged("2026-10-17T10:00:00Z"), lagged("2026-10-17T10:30:00Z"), lagged("2026-10-17T11:00:00Z")]],
+  ]) {
+    const { dispatched } = await run(fakeApi({ nodes: [node], checks: headOf(node, checks) }));
+    assert.deepEqual(dispatched, [], label);
+  }
+});
+
 // A review-dependency run the usage limit stopped at `started`, its lane record
 // naming a reset an hour later.
 const limitStop = (started) => {

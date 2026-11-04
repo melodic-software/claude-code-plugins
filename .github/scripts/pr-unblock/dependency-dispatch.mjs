@@ -26,7 +26,7 @@
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
-import { anyHandles, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
+import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -46,7 +46,11 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 
 // The neutral titles review-dependency-not-run posts from the select job's
 // skip reasons (review-dependency.mjs select): no verdict job follows them,
-// so no no-model-turn verdict can release the head.
+// so no no-model-turn verdict can release the head. The select job's
+// superseded-sha lands on the head it was sent for, which the PR has left;
+// the same title on the head read here, the PR's current one, is the gate's
+// head-lag stop, which did no work, so lagStopsRelease sends it again
+// (limit-stop.mjs) and it is not recorded.
 const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: not-applicable", "Skipped: superseded-sha"]);
 
 // NaN for a run with no readable start: it compares false either way.
@@ -141,7 +145,7 @@ export async function dispatchDependencyReviews({
       // not released that way, though its round's verdict also finds no model
       // turn: it holds the head until its limit resets.
       let verdicts = [];
-      if (anyHandles(existing, { now, limits })) {
+      if (anyHandles(existing, { now, limits, lagStopsRelease: true })) {
         verdicts = await api.listCheckRuns({ sha: node.headRefOid, checkName: verdictCheckName, appId });
         const newest = verdicts.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), verdicts[0]);
         if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
@@ -163,7 +167,7 @@ export async function dispatchDependencyReviews({
       const newestCheck = Math.max(...existing.map(startOf));
       const last = existing.find((run) => startOf(run) === newestCheck);
       const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title);
-      if (permanentlyHandles(existing, { limits }) && (terminal || verdicts.some((run) => startOf(run) > newestCheck))) {
+      if (permanentlyHandles(existing, { limits, lagStopsRelease: true }) && (terminal || verdicts.some((run) => startOf(run) > newestCheck))) {
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
@@ -171,9 +175,12 @@ export async function dispatchDependencyReviews({
       log(`::warning::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
       continue;
     }
-    if (anyHandles(existing, { now, limits })) {
+    if (anyHandles(existing, { now, limits, lagStopsRelease: true })) {
       log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
       continue;
+    }
+    if (existing.some(headLagStop)) {
+      log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
     }
     sent += 1;
     try {

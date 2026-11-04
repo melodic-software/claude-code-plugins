@@ -1696,6 +1696,48 @@ test("sync-shared-copies: a failed select job's failure is retried until limit-s
   assert.deepEqual(next.calls.checkReads, [], "recorded at the cap: nothing read again");
 });
 
+// The gate stopped the run head-lag (GET /pulls and the branch ref never
+// agreed): report-check-run posts a superseded-sha skip on the head the run
+// read. On the head the dispatcher reads, the PR's current one, the run did
+// no work there, so it is sent again once, under limit-stops-per-head.
+const lagStop = (time) => ({ status: "completed", conclusion: "neutral", output: { title: "Skipped: superseded-sha" }, started_at: at(time), completed_at: at(time) });
+
+test("resolve-conflicts: a head-lag stop on the current head is sent again once, under the cap", async () => {
+  const head = pr(1).headRefOid;
+  const cap = LIMIT_DEFAULTS["limit-stops-per-head"];
+  const once = harness({ pages: [[pr(1)]], checked: new Map([[head, [lagStop("10:00")]]]) });
+  await once.run();
+  assert.deepEqual(dispatchedNumbers(once.api), ["1"]);
+  assert.ok(once.lines.includes(`refire: #1: head ${head}'s ${CHECK_NAME} was stopped head-lag; sending it again`), once.lines.join("\n"));
+  for (const [label, options] of [
+    ["the round it sent is still going", { checked: new Map([[head, [lagStop("10:00")]]]), workflowRuns: [{ id: 1, status: "queued", display_title: pr_unblockTitle("resolve-conflicts", 1) }] }],
+    ["a newer round resolved it", { checked: new Map([[head, [lagStop("10:00"), { status: "completed", conclusion: "success", output: { title: "Passed" }, started_at: at("10:30") }]]]) }],
+    ["the head is at the cap", { checked: new Map([[head, Array.from({ length: cap }, (_, i) => lagStop(`1${i}:00`))]]) }],
+    ["the stop is on a head the PR left", { pages: [[pr(1)]], checked: new Map([["e".repeat(40), [lagStop("10:00")]], [head, [{ status: "completed", conclusion: "success", output: { title: "Passed" } }]]]) }],
+  ]) {
+    const { api, run } = harness({ pages: [[pr(1)]], ...options });
+    await run();
+    assert.deepEqual(dispatchedNumbers(api), [], label);
+  }
+});
+
+test("sync-shared-copies: a head-lag stop on the current head is sent again once, under the cap", async () => {
+  const node = copyPr(45);
+  const timelines = new Map([[45, copyRefusal(node.headRefOid)]]);
+  const cap = LIMIT_DEFAULTS["limit-stops-per-head"];
+  const lines = [];
+  const once = copyApi({ timelines, checks: new Map([[node.headRefOid, [lagStop("10:00")]]]) });
+  assert.equal((await copyDispatch(once, [node], { log: (line) => lines.push(line) })).dispatched.length, 1);
+  assert.ok(lines.includes(`refire: #45: head ${node.headRefOid}'s pr-unblock / sync-shared-copies was stopped head-lag; sending it again`), lines.join("\n"));
+  for (const [label, api] of [
+    ["the round it sent is still going", copyApi({ timelines, checks: new Map([[node.headRefOid, [lagStop("10:00")]]]), runs: [{ id: 9, status: "queued", display_title: pr_unblockTitle("sync-shared-copies", 45) }] })],
+    ["a newer round passed", copyApi({ timelines, checks: new Map([[node.headRefOid, [lagStop("10:00"), { status: "completed", conclusion: "success", output: { title: "Passed" } }]]]) })],
+    ["the head is at the cap", copyApi({ timelines, checks: new Map([[node.headRefOid, Array.from({ length: cap }, () => lagStop("10:00"))]]) })],
+  ]) {
+    assert.equal((await copyDispatch(api, [node])).dispatched.length, 0, label);
+  }
+});
+
 // A select job's own stop (pr-unblock.yml resolve-conflicts-not-run) judged
 // the base it merged: once main moves, the same conflicting head is tried
 // again, and an unchanged head and base stay skipped.
