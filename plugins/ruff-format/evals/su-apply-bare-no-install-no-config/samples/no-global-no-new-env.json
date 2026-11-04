@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "No global install, ever, and it never creates a virtual environment. Even install-ruff only installs into a managed environment the repo already uses, and this repo has none."}
+  ],
+  "fail": [
+    {"answer": "Sure: `pipx install ruff` puts it on PATH globally.", "why": "offers a global install"},
+    {"answer": "It can't install Ruff globally.", "why": "near miss: says nothing about creating an environment or where install-ruff installs"}
+  ]
+}

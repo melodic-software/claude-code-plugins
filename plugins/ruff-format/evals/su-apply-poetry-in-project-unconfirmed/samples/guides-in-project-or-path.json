@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "I won't install here. Either run `poetry config virtualenvs.in-project true --local`, recreate the environment so it lands in .venv, then rerun apply install-ruff; or put ruff on PATH."}
+  ],
+  "fail": [
+    {"answer": "I'll run `poetry add --group dev ruff` now.", "why": "installs into the cache environment"},
+    {"answer": "Turn on in-project mode.", "why": "near miss: no recreate step and no PATH alternative"}
+  ]
+}

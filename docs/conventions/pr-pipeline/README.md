@@ -1963,7 +1963,8 @@ the body must still close, or with no closing issue name by a plain `Refs:` line
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
 edited after arming to drop its link or name another issue does not merge on that pass. A pass
 or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
-dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
+reads the pull request once and, for a lanes App one that is not already armed and carries no
+`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
 and skips the merge job, `post-merge-dispatch` and every other sweep job. That report stands only
 while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the

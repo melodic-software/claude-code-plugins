@@ -33,6 +33,16 @@
         ".github/workflows/pr-verify.yml#check-intent-fallback"
       ]
     },
+    "pr-capture-*": {
+      "retention-days": 30,
+      "readers": [
+        ".github/scripts/pr-verify/find-capture.mjs reads it by exact name from the pr-verify-capture.yml run its judge jobs wait for, at most 35 minutes after the capture starts",
+        "docs/conventions/pr-pipeline.yaml merge.verify-capture.retention-days sets how long a reviewer can open it"
+      ],
+      "reason": "The judges read it within the hour; the rest is the review round's window, which merge.verify-capture.retention-days sets (30, its default, judgment). computed-by: the capture workflow's Read the capture config step; a config value over 30 needs this row raised with it.",
+      "scan": "upload",
+      "computed-by": ".github/workflows/pr-verify-capture.yml"
+    },
     "key-credit-stop-pr-verify.yml-check-intent": {
       "retention-days": 1,
       "readers": [
@@ -535,6 +545,14 @@
       ],
       "reason": "Read by its own run; 1 day is the minimum. The scan job uploads it only after its scans of the plan, the branch diffs and the publish text are clean.",
       "scan": "plaintext"
+    },
+    "key-credit-stop-upstream-apply-changelog.yml-model": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/upstream-apply-changelog.yml gate's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention), and its \"Report the credit skip\" step reads the marker's upload time"
+      ],
+      "reason": "The marker only says the model's key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
     },
     "upstream-apply-changelog-done-*": {
       "retention-days": "max",

@@ -18,9 +18,15 @@ name: pr-verify
 # request event red for anything but such a hold stops this workflow from running
 # (docs/conventions/pr-pipeline/README.md, "Native auto-merge").
 #
-# No pull request code runs here. The diff, the trusted PR text, the linked
+# No pull request code runs here. The app capture, which does run it, is
+# pr-verify-capture.yml, its own workflow on the same trigger, so this run's
+# uploads stay this file's alone; each judge job finds that run's
+# pr-capture-<pr>-<head-sha> artifact (find-capture.mjs: check-intent waits
+# at most 35 minutes for it, the later jobs find it done) and downloads it into
+# pr-verify-data/capture as untrusted data. A missing, unfinished or blocked
+# capture never fails a verdict. The diff, the trusted PR text, the linked
 # issues and the upstream run's jobs (upstream-jobs.mjs) are data files in
-# pr-verify-data under the working directory, and the
+# pr-verify-data under the working directory too, and the
 # model reads them with the Read tool alone: its rules allow that directory
 # and deny .base and every other tool. The judgment runs on ci-workflows'
 # run-claude-cli as the pr-verify role, on one credential per job. The
@@ -44,7 +50,8 @@ name: pr-verify
 # (2 reads), whose head the agree step compares with the carried one, and
 # reads everything again when the bundle is missing, malformed, too large or
 # from another run attempt (resolve-pr.mjs takeReads). None of them is written
-# into a `run:` script, and it takes no artifact or cache. run-claude-cli sets
+# into a `run:` script, and it takes no cache and no artifact but the capture,
+# which each job downloads for itself. run-claude-cli sets
 # handoff and lane-class after it restores the step files, so the model cannot
 # set them.
 # A diff over one judgment's read budget is judged in chunks, each its own
@@ -98,7 +105,7 @@ jobs:
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 301
+    timeout-minutes: 346
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
@@ -114,6 +121,8 @@ jobs:
       # For wake-pr-merge: the pull request, and the verdict once it uploaded.
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
+      # For the later judge jobs: the capture this job found (find-capture.mjs).
+      capture: ${{ steps.capture.outputs.carry }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -408,6 +417,46 @@ jobs:
         with:
           install-subprocess-isolation: true
 
+      # The capture pr-verify-capture.yml took of this head, in its own run
+      # since it runs pull request code (find-capture.mjs). Both runs start
+      # on the same event, so check-intent waits while the capture runs, at
+      # most 35 minutes; the later jobs find it done. With
+      # merge.verify-capture.app unset it reads nothing and waits for
+      # nothing. Any miss leaves no artifact id, and the judgment goes on.
+      # The job's timeout holds this step's and the download's on top of the
+      # judge steps' (workflow.test.mjs).
+      - name: Find the capture
+        id: capture
+        if: steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 40
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+        run: |
+          CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export CAPTURE_APP
+          node .base/.github/scripts/pr-verify/find-capture.mjs
+
+      # Into the directory the model reads, as untrusted data (prompt.md). A
+      # failed download leaves it empty and the judgment goes on.
+      - name: Download the capture
+        if: steps.capture.outputs.artifact-id != ''
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ steps.capture.outputs.artifact-id }}
+          run-id: ${{ steps.capture.outputs.run-id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: ${{ github.workspace }}/pr-verify-data/capture
+          merge-multiple: true
+
       # Files, not step outputs: run-claude-cli reads both. A `default` model
       # resolves to an empty model, which the launcher cannot pass. started-at
       # lets the outcome step tell a step timeout from other failures.
@@ -440,6 +489,7 @@ jobs:
             prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
             prompt=${prompt//SPEC_FILE/$DATA/spec.json}
             prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
+            prompt=${prompt//CAPTURE_DIR/$DATA/capture}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
@@ -1952,6 +2002,10 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          # The evidence block's capture (buildEvidence): the downloaded
+          # e2e-summary.json, no-app when there is none.
+          CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
@@ -2080,7 +2134,7 @@ jobs:
       || needs.check-intent.outputs.credential-present == 'false'
       || needs.check-intent.outputs.skip-key == 'true')))
     runs-on: ubuntu-24.04
-    timeout-minutes: 301
+    timeout-minutes: 346
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
@@ -2093,6 +2147,8 @@ jobs:
       # For wake-pr-merge: the pull request, and the verdict once it uploaded.
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
+      # For check-intent-fallback: the capture this job found (find-capture.mjs).
+      capture: ${{ steps.capture.outputs.carry }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -2310,6 +2366,48 @@ jobs:
         with:
           install-subprocess-isolation: true
 
+      # The capture pr-verify-capture.yml took of this head, in its own run
+      # since it runs pull request code (find-capture.mjs). Both runs start
+      # on the same event, so check-intent waits while the capture runs, at
+      # most 35 minutes; the later jobs find it done. With
+      # merge.verify-capture.app unset it reads nothing and waits for
+      # nothing. Any miss leaves no artifact id, and the judgment goes on.
+      # The job's timeout holds this step's and the download's on top of the
+      # judge steps' (workflow.test.mjs).
+      - name: Find the capture
+        id: capture
+        if: steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 40
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          # The ids check-intent found, so this job reads none.
+          FOUND_CAPTURE: ${{ needs.check-intent.outputs.capture }}
+        run: |
+          CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export CAPTURE_APP
+          node .base/.github/scripts/pr-verify/find-capture.mjs
+
+      # Into the directory the model reads, as untrusted data (prompt.md). A
+      # failed download leaves it empty and the judgment goes on.
+      - name: Download the capture
+        if: steps.capture.outputs.artifact-id != ''
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ steps.capture.outputs.artifact-id }}
+          run-id: ${{ steps.capture.outputs.run-id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: ${{ github.workspace }}/pr-verify-data/capture
+          merge-multiple: true
+
       # Files, not step outputs: run-claude-cli reads both. A `default` model
       # resolves to an empty model, which the launcher cannot pass. started-at
       # lets the outcome step tell a step timeout from other failures.
@@ -2342,6 +2440,7 @@ jobs:
             prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
             prompt=${prompt//SPEC_FILE/$DATA/spec.json}
             prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
+            prompt=${prompt//CAPTURE_DIR/$DATA/capture}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
@@ -3829,6 +3928,10 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          # The evidence block's capture (buildEvidence): the downloaded
+          # e2e-summary.json, no-app when there is none.
+          CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
@@ -3919,7 +4022,7 @@ jobs:
       && needs.check-intent-subscription.outputs.handoff == 'true'
       && needs.check-intent-subscription.outputs.leg-clean == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 301
+    timeout-minutes: 346
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
@@ -4142,6 +4245,48 @@ jobs:
         with:
           install-subprocess-isolation: true
 
+      # The capture pr-verify-capture.yml took of this head, in its own run
+      # since it runs pull request code (find-capture.mjs). Both runs start
+      # on the same event, so check-intent waits while the capture runs, at
+      # most 35 minutes; the later jobs find it done. With
+      # merge.verify-capture.app unset it reads nothing and waits for
+      # nothing. Any miss leaves no artifact id, and the judgment goes on.
+      # The job's timeout holds this step's and the download's on top of the
+      # judge steps' (workflow.test.mjs).
+      - name: Find the capture
+        id: capture
+        if: steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 40
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          # The ids the subscription job found, so this job reads none.
+          FOUND_CAPTURE: ${{ needs.check-intent-subscription.outputs.capture }}
+        run: |
+          CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export CAPTURE_APP
+          node .base/.github/scripts/pr-verify/find-capture.mjs
+
+      # Into the directory the model reads, as untrusted data (prompt.md). A
+      # failed download leaves it empty and the judgment goes on.
+      - name: Download the capture
+        if: steps.capture.outputs.artifact-id != ''
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ steps.capture.outputs.artifact-id }}
+          run-id: ${{ steps.capture.outputs.run-id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: ${{ github.workspace }}/pr-verify-data/capture
+          merge-multiple: true
+
       # Files, not step outputs: run-claude-cli reads both. A `default` model
       # resolves to an empty model, which the launcher cannot pass. started-at
       # lets the outcome step tell a step timeout from other failures.
@@ -4174,6 +4319,7 @@ jobs:
             prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
             prompt=${prompt//SPEC_FILE/$DATA/spec.json}
             prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
+            prompt=${prompt//CAPTURE_DIR/$DATA/capture}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
@@ -5404,6 +5550,10 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          # The evidence block's capture (buildEvidence): the downloaded
+          # e2e-summary.json, no-app when there is none.
+          CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
@@ -5562,13 +5712,27 @@ jobs:
             echo "::warning::wake-pr-merge: the passing job named no pull request number; nothing woken"
             exit 0
           fi
-          # pr-merge arms only lanes App pull requests, so one author read here
-          # spares every other pass a whole pr-merge run. A failed read, or no
-          # lanes App id, dispatches anyway: pr-merge filters by author itself.
+          # pr-merge arms only lanes App pull requests, and the token broker
+          # mints for this wake only on one, so one read here spares every
+          # other pass a whole pr-merge run. One already armed or held by
+          # do-not-merge needs no wake: the scheduled sweep runs the same
+          # decision on it, disarms included, and ci-status holds do-not-merge
+          # in the merge queue. A failed read, or no lanes App id, dispatches
+          # anyway: pr-merge decides all of this itself.
           if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
-            author=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '"\(.user.id) \(.user.type)"'); then
-            if [ "$author" != "$LANES_APP_ID Bot" ]; then
+            answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
+              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null)"') &&
+            read -r id type armed held <<<"$answer"; then
+            if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
               echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict not a lanes App pull request; nothing woken"
+              exit 0
+            fi
+            if [ "$armed" = true ]; then
+              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict already armed; nothing woken"
+              exit 0
+            fi
+            if [ "$held" = true ]; then
+              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict held (do-not-merge); nothing woken"
               exit 0
             fi
           fi
