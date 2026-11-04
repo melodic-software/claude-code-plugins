@@ -150,11 +150,12 @@ roles, never aliases. When `/multi-agent:route` resolves in this session, run
 `/multi-agent:route all session=<this session's model alias>` once per run. Pass the role's `fanout`
 variant model when the stage dispatches more than one agent and its `single` variant when it
 dispatches one (a one-lens run, a one-candidate wave); omit the model when `omit_model` is true.
-Hunters pass no `effort`, so they run at the session level. Gates are non-fork spawns of a generic
-subagent with no pin of their own, so each gate passes its variant's `effort`. A gate never runs on a
-weaker model than the hunters it checks: when its resolved model (the session's, if omitted) is
-weaker, pass the hunters' model instead. A gate never runs below the session effort either: when its
-resolved effort is lower, pass no `effort`.
+Hunters pass no `effort`: any level passed would lower some run's hunters, a cut to recall with no
+eval behind it, so the [Effort](#effort) row scales their breadth instead. This skill claims no
+level for a hunter. Gates are non-fork spawns of a generic subagent with no pin of their own, so each gate always passes an
+`effort`: its variant's, or the session's level (the caller effort in [Effort](#effort)) when its
+variant's is lower. A gate never runs on a weaker model than the hunters it checks: when its model as
+dispatched (the main conversation's, if omitted) is weaker, pass the hunters' model instead.
 
 | Stage | Role |
 |---|---|
@@ -162,21 +163,28 @@ resolved effort is lower, pass no `effort`.
 | Gates (Step 4) | `verifier` |
 | Main thread | the session's model, nothing passed; orchestration, triage, and the person-approved checks of Step 4 only |
 
-When `/multi-agent:route` does not resolve, omit the model for both stages so they inherit the
-session's, except when the session model is frontier or unknown, where pass `opus`; say once in the
+This skill cannot see which model a spawn lands on, so no effort rule here depends on it. The model
+pointer below says what can move a spawn.
+
+When `/multi-agent:route` does not resolve, omit the model for both stages, except when the session
+model is frontier or unknown, where pass `opus`; say once in the
 report that enabling the multi-agent plugin makes this routing configurable. The `opus` fallback is
 this skill's stand-in for the fan-out guard `/multi-agent:route` applies: it keeps a wide fan-out
 off the frontier tier; which model the alias then runs on is the harness's call (model pointer
-below). With no role map, gates pass no `effort` either. Pointer: for the per-spawn
-`effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
-As of: 2026-10-10. Recheck trigger: that section changes precedence or which spawns honor `effort`.
+below). With no role map, each gate passes the session's level. Pointer: for the per-spawn
+`effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>;
+for which model the session's level reaches, see
+<https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates>.
+As of: 2026-11-04. Recheck trigger: either section changes precedence, which spawns honor `effort`,
+or which model the session's level reaches.
 
 Name the model and effort each stage was dispatched with in the run metadata: the level passed, or
-`session` when none was. A dispatch the harness rejects means the role map names an alias this
+`unset` when none was. A dispatch the harness rejects means the role map names an alias this
 session cannot use: report it rather than substitute one. The metadata names the model asked for,
-not proof of the model that ran. Pointer: for how a spawn's `model` alias resolves and what happens to a blocked
-one, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of: 2026-10-31. Recheck
-trigger: that section changes how an alias resolves or how a blocked value is handled.
+not proof of the model that ran. Pointer: for the model order, how a spawn's `model` alias resolves
+and what happens to a blocked one, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
+As of: 2026-11-04. Recheck trigger: that section changes the order, what can replace a passed model,
+how an alias resolves or how a blocked value is handled.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope:
 
