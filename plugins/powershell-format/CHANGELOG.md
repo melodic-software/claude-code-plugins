@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-11-04
+
+### Changed
+
+- The setup skill's eval suite moved from `skills/setup/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`: six `su-*` cases, five with scaffolded repositories, converted from the six legacy cases ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
 ## [1.0.1] - 2026-11-03
 
 ### Changed

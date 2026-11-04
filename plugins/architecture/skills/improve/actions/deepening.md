@@ -82,12 +82,7 @@ The report is one self-contained HTML file under the OS temp directory, one per 
 
 **Another repository's files are not rendered to HTML until this lane is wired through the rendered-views escape helper.** When the scanned repository is not the user's own work (a freshly cloned third-party checkout, a vendored or fetched tree), skip the HTML report: the durable candidate artifact below is the deliverable, and say in one line why no page was produced. This is the baseline's third bullet applied to this skill; it overrides the report step above, not the scan.
 
-**Resolve `medium` before writing the report.** The `rendered-views` preference is one of `auto`, `terminal`, `file`, `artifact` or `hosted`. A `--medium` argument naming one decides. Otherwise read whichever layers exist, in order: user-global `~/.claude/rendered-views.md`, team `<root>/.claude/rendered-views.md`, overlay `<root>/.claude/rendered-views.local.md`. `<root>` is `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`; outside a work tree, read only the user-global layer. The last layer that sets `medium` wins. Count the overlay only when `git ls-files` does not list it and `git check-ignore` matches it; otherwise report it and ignore it. This plugin has no `medium` option, so no rung sits between the argument and the layers. `auto`, an empty value or no value leaves the shipped default, the local report above; any other value is reported and read as `auto`. Then:
-
-- `terminal` skips the HTML report: the durable candidate artifact and the reply are the deliverable.
-- `file` writes the local report, as does `artifact` or `hosted`: this lane publishes nothing, so say that the value was read as `file`.
-
-Name the source of `medium` in the reply: the argument, the layer's path, or "shipped default".
+**Resolve `medium` before writing the report.** The shared medium resolver decides, with this plugin's `medium` option as the skill's Arguments line states it and the `--medium` argument when given; print its report line and notices in the reply. Procedure, and what each resolved medium does to this report: [../../../reference/rendered-view.md](../../../reference/rendered-view.md) "The deepening report".
 
 Each candidate gets a card with: files involved, problem (one sentence), solution (one sentence), before/after diagram, benefits in terms of **leverage** and **locality**, recommendation badge (`Strong` / `Worth exploring` / `Speculative`), dependency category badge.
 

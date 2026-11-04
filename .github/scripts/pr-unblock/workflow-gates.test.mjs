@@ -5,7 +5,7 @@
 // skipped subscription call or a forged model-call output must not turn.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -1198,12 +1198,14 @@ for (const [job, written] of [
   const dir = mkdtempSync(join(tmpdir(), "pr-head-"));
   try {
     writeFileSync(join(dir, "gh"), '#!/usr/bin/env bash\nexec jq -r "$4 | . // \\"\\"" "$PR_PAYLOAD"\n', { mode: 0o755 });
+    placeReader(dir);
     const read = (name, headRepo) => {
       const payload = join(dir, `${name}.json`);
       const output = join(dir, `${name}.output`);
       writeFileSync(payload, JSON.stringify({ head: { sha, repo: headRepo }, base: { ref: "main" } }));
       writeFileSync(output, "");
       const run = spawnSync("bash", ["-e", "-c", script], {
+        cwd: dir,
         env: { PATH: `${dir}:${process.env.PATH}`, PR_PAYLOAD: payload, PR_NUMBER: "7", DEFAULT_BRANCH: "main", GITHUB_REPOSITORY: repo, GITHUB_OUTPUT: output },
         encoding: "utf8",
       });
@@ -1218,6 +1220,103 @@ for (const [job, written] of [
       assert.match(refused.stdout, /^::error::the PR's head is not in this repository$/m, name);
       assert.equal(refused.written, "", `${name} writes no output`);
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The default branch checkout's copy of the shared PR read, as the steps source it.
+function placeReader(dir) {
+  const target = join(dir, ".base/.github/scripts/pr-unblock");
+  mkdirSync(target, { recursive: true });
+  copyFileSync(new URL("./read-pr-head.bash", import.meta.url), join(target, "read-pr-head.bash"));
+}
+
+for (const job of ["resolve-conflicts-select", "sync-shared-copies-select", "address-feedback-select", "review-dependency-select"]) {
+  test(`pr-unblock.yml: ${job} reads the PR head through the shared helper from the default branch checkout`, () => {
+    const script = stepScript(stepBlock(UNBLOCK, job, "Read the PR head"));
+    assert.match(script, /^\. \.base\/\.github\/scripts\/pr-unblock\/read-pr-head\.bash$/m);
+    assert.match(script, /^read_pr_fields "\$PR_NUMBER" '[^']+' \|\| exit 1$/m);
+    assert.doesNotMatch(script, /^ *\{ read .*< <\(gh api/m);
+  });
+}
+
+// A failed read of the PR reports its error text and class. The stub gh answers
+// from a script of one spec per call (ok, empty, or fail:<stderr>); the stub
+// sleep records its argument.
+test("pr-unblock.yml: resolve-conflicts-select classifies a failed PR read and retries only a transient one", () => {
+  const script = stepScript(stepBlock(UNBLOCK, "resolve-conflicts-select", "Read the PR head"));
+  const repo = "melodic-software/claude-code-plugins";
+  const sha = "a".repeat(40);
+  const dir = mkdtempSync(join(tmpdir(), "pr-read-"));
+  try {
+    writeFileSync(
+      join(dir, "gh"),
+      `#!/usr/bin/env bash
+n=$(( $(cat "$STUB_DIR/calls" 2>/dev/null || echo 0) + 1 ))
+echo "$n" >"$STUB_DIR/calls"
+spec=$(sed -n "\${n}p" "$STUB_DIR/script")
+case $spec in
+  ok) printf '%s\\n' "${sha}" main "${repo}" ;;
+  empty) ;;
+  *) printf '%s\\n' "\${spec#fail:}" >&2; exit 1 ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+    writeFileSync(join(dir, "sleep"), '#!/usr/bin/env bash\necho "$1" >>"$STUB_DIR/sleeps"\n', { mode: 0o755 });
+    placeReader(dir);
+    const read = (specs) => {
+      for (const file of ["calls", "sleeps", "output"]) writeFileSync(join(dir, file), "");
+      writeFileSync(join(dir, "script"), specs.join("\n") + "\n");
+      const run = spawnSync("bash", ["-e", "-c", script], {
+        cwd: dir,
+        env: { PATH: `${dir}:${process.env.PATH}`, STUB_DIR: dir, PR_NUMBER: "7", DEFAULT_BRANCH: "main", GITHUB_REPOSITORY: repo, GITHUB_OUTPUT: join(dir, "output"), TMPDIR: dir },
+        encoding: "utf8",
+      });
+      const lines = (file) => readFileSync(join(dir, file), "utf8").split("\n").filter(Boolean);
+      return { status: run.status, stdout: run.stdout, calls: lines("calls").length ? Number(lines("calls")[0]) : 0, sleeps: lines("sleeps"), written: readFileSync(join(dir, "output"), "utf8") };
+    };
+
+    for (const text of ["HTTP 502: Bad Gateway", "unexpected end of JSON input", "invalid character 'b' looking for beginning of value", "error connecting to api.github.com"]) {
+      const run = read([`fail:${text}`, "ok"]);
+      assert.equal(run.status, 0, `${text}: ${run.stdout}`);
+      assert.equal(run.calls, 2, text);
+      assert.equal(run.sleeps.length, 1, text);
+      assert.ok(run.sleeps[0] >= 5 && run.sleeps[0] <= 10, `${text}: waited ${run.sleeps[0]}`);
+      assert.match(run.stdout, /^::warning::reading #7 failed \(transient\): /m, text);
+      assert.equal(run.written, `sha=${sha}\ndefault-base=true\n`, text);
+    }
+
+    const twice = read(["fail:HTTP 503: unavailable", "fail:HTTP 503: unavailable", "ok"]);
+    assert.equal(twice.status, 1);
+    assert.equal(twice.calls, 2, "a transient failure is read once more, not twice");
+    assert.match(twice.stdout, /^::error::the PR could not be read \(transient\): HTTP 503: unavailable$/m);
+    assert.equal(twice.written, "");
+
+    const other = read(["fail:gh: Not Found (HTTP 404)\r::error::forged%", "ok"]);
+    assert.equal(other.status, 1);
+    assert.equal(other.calls, 1);
+    assert.deepEqual(other.sleeps, []);
+    assert.match(other.stdout, /^::error::the PR could not be read \(other\): gh: Not Found \(HTTP 404\) ::error::forged%25$/m);
+    assert.doesNotMatch(other.stdout, /names no head SHA/);
+
+    for (const text of ["gh: API rate limit exceeded for installation (HTTP 403)", "gh: secondary rate limit (HTTP 403)", "gh: too many requests (HTTP 429)", "'gh api x' was not sent: GitHub's core API rate limit holds until 2026-11-04T05:00:00Z"]) {
+      const limited = read([`fail:${text}`, "ok"]);
+      assert.equal(limited.status, 1, text);
+      assert.equal(limited.calls, 1, `${text}: a rate limit is never read again`);
+      assert.deepEqual(limited.sleeps, [], text);
+      assert.match(limited.stdout, /^::error::the PR could not be read \(rate-limit\): /m, text);
+    }
+
+    const bare = read(["fail:"]);
+    assert.equal(bare.status, 1);
+    assert.match(bare.stdout, /^::error::the PR could not be read \(other\): no error text$/m);
+
+    const empty = read(["empty"]);
+    assert.equal(empty.status, 1);
+    assert.equal(empty.calls, 1);
+    assert.match(empty.stdout, /^::error::the PR names no head SHA$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
