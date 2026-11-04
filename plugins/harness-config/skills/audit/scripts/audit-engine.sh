@@ -924,6 +924,14 @@ fi
 # reads another page adds its slug here. A page settings-reference does not link
 # is not requested. One more fetcher call reads those --docs-dir does not hold.
 LINKED_PAGES=(hooks)
+# The fallbackModel chain cap is stated on model-config, which settings-reference's
+# fallbackModel section links; the page is requested only when a file sets the key.
+for f in "$SETTINGS:$PROJECT_OK" "$LOCAL:$LOCAL_OK" "$USER_SETTINGS:$USER_OK"; do
+  if [[ "${f##*:}" == 1 && "$(jqf "${f%:*}" -r 'has("fallbackModel")')" == "true" ]]; then
+    LINKED_PAGES+=(model-config)
+    break
+  fi
+done
 linked=()
 if [[ -n "$SR" ]]; then
   for slug in "${LINKED_PAGES[@]}"; do
@@ -2256,14 +2264,34 @@ documented_value() {
   fi
 }
 
-# fallback_cap: how many distinct models the fallbackModel section says the
-# chain keeps ("at most three distinct allowed models"), as digits, from a digit
-# string or a number word up to ten. Nothing when the section states none.
+# The "Fallback model chains" section of model-config, fenced code left out, or
+# nothing when the page was not read or has no such heading.
+MC="${PAGE_FILE[model-config]:-}"
+MC_CHAINS=""
+[[ -n "$MC" ]] && MC_CHAINS="$(awk '
+  /^[[:space:]]*```/ { fence = !fence; next }
+  fence { next }
+  /^#+ / { if (on && length($1) <= lvl) exit; if ($0 ~ /^#+ Fallback model chains$/) { on = 1; lvl = length($1) } next }
+  on { print }
+' "$MC")"
+if [[ -z "$MC" ]]; then
+  MC_UNREAD_WHY="model-config was not read this run"
+  [[ -z "$SR" ]] && MC_UNREAD_WHY="$SR_UNREAD_WHY, so model-config was not requested"
+elif [[ -z "$MC_CHAINS" ]]; then
+  MC_UNREAD_WHY="model-config was read but has no Fallback model chains section"
+else
+  MC_UNREAD_WHY=""
+fi
+
+# fallback_cap: how many distinct models model-config's Fallback model chains
+# section says a chain keeps ("caps chains at three models after duplicate
+# removal"), as digits, from a digit string or a number word up to ten. Nothing
+# when the section states none.
 fallback_cap() {
   local t
-  t="$(sr_section fallbackModel | tr '\n' ' ')"
+  t="$(tr '\n' ' ' <<<"$MC_CHAINS")"
   t="${t,,}"
-  [[ "$t" =~ (at\ most|up\ to|no\ more\ than)\ ([0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)(\ [a-z]+){0,2}\ models ]] || return 0
+  [[ "$t" =~ (at\ most|up\ to|no\ more\ than|caps\ chains\ at)\ ([0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)(\ [a-z]+){0,2}\ models ]] || return 0
   case "${BASH_REMATCH[2]}" in
   one) echo 1 ;; two) echo 2 ;; three) echo 3 ;; four) echo 4 ;; five) echo 5 ;;
   six) echo 6 ;; seven) echo 7 ;; eight) echo 8 ;; nine) echo 9 ;; ten) echo 10 ;;
@@ -2295,16 +2323,16 @@ check_h() {
     raw="$(jqf "$file" -r '.fallbackModel | if type=="array" then length else 1 end')"
     dedup="$(jqf "$file" -r '.fallbackModel | if type=="array" then (reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) else 1 end')"
     cap="$(fallback_cap)"
-    if [[ -z "$SR" ]]; then
-      row H fallback-chain not-inspectable none "$surface" "fallbackModel-cap" "$SR_UNREAD_WHY; how many fallback models the chain keeps is not known" -
+    if [[ -n "$MC_UNREAD_WHY" ]]; then
+      row H fallback-chain not-inspectable none "$surface" "fallbackModel-cap" "$MC_UNREAD_WHY; how many fallback models the chain keeps is not known" -
     elif [[ -z "$cap" ]]; then
-      row H fallback-chain skip none "$surface" "fallbackModel-cap" "the fallbackModel section on settings-reference states no chain length; not decided" -
+      row H fallback-chain skip none "$surface" "fallbackModel-cap" "the Fallback model chains section on model-config states no chain length; not decided" -
     else
       if [[ "$dedup" -gt "$cap" ]]; then
-        row H fallback-chain finding warning "$surface" "fallbackModel-dedup-length:$dedup" "fallbackModel keeps $dedup distinct entries; settings-reference keeps at most $cap distinct models, so later entries may be ignored" /fallbackModel
+        row H fallback-chain finding warning "$surface" "fallbackModel-dedup-length:$dedup" "fallbackModel keeps $dedup distinct entries; model-config caps a chain at most $cap distinct models, so later entries may be ignored" /fallbackModel
       fi
       if [[ "$raw" -gt "$cap" ]]; then
-        row H fallback-chain skip none "$surface" "fallbackModel-raw-length:$raw" "fallbackModel has $raw entries against the $cap settings-reference keeps; a limit on the raw array belongs to the declared schema, which this run does not read; not decided" -
+        row H fallback-chain skip none "$surface" "fallbackModel-raw-length:$raw" "fallbackModel has $raw entries against the $cap model-config keeps; a limit on the raw array belongs to the declared schema, which this run does not read; not decided" -
       fi
     fi
   fi

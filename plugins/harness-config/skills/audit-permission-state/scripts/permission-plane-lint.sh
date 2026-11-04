@@ -143,14 +143,16 @@ function specifier_body(text,   i, n, depth, ch, start) {
   return substr(text, start + 1)
 }
 
+# The name the file of a record goes by in findings. The reader may report two project
+# files, and neither value replaces the other, so the root file is its own entry.
+# A managed drop-in does replace an earlier value, so every other scope stays
+# last-wins.
+function scope_of(s, surface) { return (s == "project" && surface == "toplevel") ? "project:toplevel" : s }
 $1 == "rule" {
-  rules[++n_rules] = $2 SUBSEP $4 SUBSEP text_of(5)
+  rules[++n_rules] = scope_of($2, $3) SUBSEP $4 SUBSEP text_of(5)
   next
 }
-# The reader may report two project files, and neither value replaces the other,
-# so the root file is its own entry. A managed drop-in does replace an earlier
-# value, so every other scope stays last-wins.
-$1 == "conf" { conf[($2 == "project" && $3 == "toplevel" ? "project:toplevel" : $2) SUBSEP $4] = text_of(5); next }
+$1 == "conf" { conf[scope_of($2, $3) SUBSEP $4] = text_of(5); next }
 $1 == "NOTE:" { next }
 NF >= 3 {
   n_surfaces++

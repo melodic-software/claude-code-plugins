@@ -113,6 +113,28 @@ cat >"$DOCS/llms.txt" <<'EOF'
 - [All settings](https://code.claude.com/docs/en/settings-reference.md): Complete reference for every Claude Code settings.json key.
 - [Environment variables](https://code.claude.com/docs/en/env-vars.md): Reference for environment variables that control Claude Code behavior.
 - [Mods overview](https://code.claude.com/docs/en/plugins/mods/overview.md): Add panes, commands, and tool call rules to Claude Code with a mod.
+- [Model configuration](https://code.claude.com/docs/en/model-config.md): Configure which model Claude Code uses.
+EOF
+# The model-config section the fallbackModel cap is read from, in the published
+# page's shape (https://code.claude.com/docs/en/model-config.md#fallback-model-chains,
+# read 2026-11-04), then a later section carrying a decoy cap.
+cat >"$DOCS/model-config.md" <<'EOF'
+# Model configuration
+
+## Fallback
+
+### Fallback model chains
+
+Configure one or more fallback models and Claude Code tries them in order.
+Claude Code caps chains at three models after duplicate removal and ignores extra entries.
+
+```text
+Claude Code caps chains at one model inside a fence, which is not prose.
+```
+
+### Automatic model fallback
+
+A decoy: Claude Code caps chains at one model in this section.
 EOF
 # The mods overview, holding the two sentences the mod rows quote, copied from
 # the published page (https://code.claude.com/docs/en/plugins/mods/overview.md,
@@ -151,7 +173,7 @@ section() {
   printf '### `enforceAvailableModels`\n\nThis key closes that gap. Requires Claude Code v2.1.175 or later.\n\n'
   printf '* **Scope**: [`Any file`](#scopes)\n* **Type**: Boolean\n  * `true`: Default resolves to the first available model\n* **Default**: `false`\n\n'
   printf 'This key has no effect when `availableModels` is unset or empty. Requires Claude Code v2.1.999 or later.\n\n'
-  section fallbackModel '* **Type**: array of strings' 'Claude Code keeps at most three distinct allowed models from the list and ignores the rest.'
+  section fallbackModel '* **Type**: array of strings' 'Name [backup models](https://code.claude.com/docs/en/model-config.md#fallback-model-chains) for when the primary is overloaded.'
   printf '### `editorMode`\n\nSet the prompt input key bindings.\n\n* **Scope**: [`Any file`](#scopes)\n* **Type**: string, one of:\n'
   printf '  * `"normal"`: standard key bindings\n  * `"vim"`: vim-style editing\n* **Default**: `"normal"`\n\n'
   printf '### `theme`\n\nPick the color theme.\n\n* **Scope**: [`Any file`](#scopes)\n* **Type**: string, one of:\n'
@@ -1797,31 +1819,62 @@ out=$(run "$m" --json --docs-dir "$m/nolink" 2>&1) || true
 assert_eq "case 51: a page settings-reference does not link is not acquired" "settings-reference env-vars plugins/mods/overview" "$(pages "$out")"
 
 # --- Case 52: the fallbackModel cap and enum values come from the page ----------
+# The cap is read from model-config's "Fallback model chains" section, which
+# settings-reference's fallbackModel section links; settings-reference states none.
 m="$(make_machine caps)"
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {fallbackModel:["a","b","c"]}' >"$m/project/.claude/settings.json"
 fb_rows() { jq -r --arg c "$2" '[.rows[] | select(.claim | startswith($c)) | "\(.status) \(.claim)"] | join(",")' <<<"$1"; }
+# mc_dir <dir> <sed script>: a docs directory whose model-config is the fixture's run through <sed script>.
+mc_dir() {
+  mkdir -p "$1"
+  cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$DOCS/settings-reference.md" "$1/"
+  sed -e "$2" "$DOCS/model-config.md" >"$1/model-config.md"
+  cmp -s "$DOCS/model-config.md" "$1/model-config.md" && fail "case 52: $1 edits the page" "the sed script changed nothing"
+}
 # A page stating a cap of two, as a word and as a digit: three distinct is above it.
-mkdir -p "$m/two" "$m/nine"
-cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/two/"
-cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/nine/"
-sed 's/at most three distinct/at most two distinct/' "$DOCS/settings-reference.md" >"$m/two/settings-reference.md"
-sed 's/at most three distinct/up to 9 distinct/' "$DOCS/settings-reference.md" >"$m/nine/settings-reference.md"
+mc_dir "$m/two" 's/caps chains at three models/caps chains at two models/'
+mc_dir "$m/nine" 's/caps chains at three models/caps chains at 9 models/'
 out=$(run "$m" --json --docs-dir "$m/two" 2>&1) || true
 assert_eq "case 52: three distinct entries above a stated cap of two are flagged" "finding fallbackModel-dedup-length:3" "$(fb_rows "$out" fallbackModel-dedup)"
 assert_contains "case 52: the finding names the page's cap" "$(jq -r '.findings[] | select(.identity.claim=="fallbackModel-dedup-length:3") | .detail' <<<"$out")" "at most 2 distinct"
+assert_contains "case 52: the finding names model-config as the source" "$(jq -r '.findings[] | select(.identity.claim=="fallbackModel-dedup-length:3") | .detail' <<<"$out")" "model-config"
 out=$(run "$m" --json --docs-dir "$m/nine" 2>&1) || true
 assert_eq "case 52: a digit cap of nine leaves three distinct entries clean" "" "$(fb_rows "$out" fallbackModel)"
 # A page stating three: at the cap, not above it.
 out=$(run "$m" --json 2>&1) || true
 assert_eq "case 52: three distinct entries at a stated cap of three are clean" "" "$(fb_rows "$out" fallbackModel)"
+assert_eq "case 52: model-config is read" "read" "$(jq -r '.docs.pages[] | select(.slug=="model-config") | .state' <<<"$out")"
+# A cap of one in another section of the same page is not the chain's cap.
+mc_dir "$m/decoy" 's/caps chains at three models/keeps a chain/'
+out=$(run "$m" --json --docs-dir "$m/decoy" 2>&1) || true
+assert_eq "case 52: a cap outside the Fallback model chains section is not read" "skip fallbackModel-cap" "$(fb_rows "$out" fallbackModel)"
+# A cap of one on settings-reference is no longer the source.
+mkdir -p "$m/srcap"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$DOCS/model-config.md" "$m/srcap/"
+sed 's/^What fallbackModel does\.$/Claude Code keeps at most one distinct allowed model from the list./' "$DOCS/settings-reference.md" >"$m/srcap/settings-reference.md"
+cmp -s "$DOCS/settings-reference.md" "$m/srcap/settings-reference.md" && fail "case 52: srcap edits settings-reference" "the sed script changed nothing"
+out=$(run "$m" --json --docs-dir "$m/srcap" 2>&1) || true
+assert_eq "case 52: a cap stated on settings-reference is not read" "" "$(fb_rows "$out" fallbackModel)"
 # A page that states no cap: one skip row, and no finding is invented from a number.
-mkdir -p "$m/nocap"
-cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/nocap/"
-grep -v 'keeps at most three distinct' "$DOCS/settings-reference.md" >"$m/nocap/settings-reference.md"
+mc_dir "$m/nocap" '/caps chains at three models/d'
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {fallbackModel:["a","b","c","d","e","f"]}' >"$m/project/.claude/settings.json"
 out=$(run "$m" --json --docs-dir "$m/nocap" 2>&1) || true
 assert_eq "case 52: a page with no cap gives one skip row" "skip fallbackModel-cap" "$(fb_rows "$out" fallbackModel)"
 assert_eq "case 52: and no fallbackModel finding" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("fallbackModel"))] | length' <<<"$out")"
+# A page without the section, or not read at all: not inspectable, never clean.
+mc_dir "$m/nosection" 's/^### Fallback model chains$/### Backup models/'
+out=$(run "$m" --json --docs-dir "$m/nosection" 2>&1) || true
+assert_eq "case 52: a page without the section is not inspectable" "not-inspectable fallbackModel-cap" "$(fb_rows "$out" fallbackModel)"
+mkdir -p "$m/nomc"
+cp "$DOCS/env-vars.md" "$DOCS/settings-reference.md" "$m/nomc/"
+grep -v 'model-config' "$DOCS/llms.txt" >"$m/nomc/llms.txt"
+out=$(DOCS_FIXTURE="$m/nomc" run "$m" --json --docs-dir "$m/nomc" 2>&1) || true
+assert_eq "case 52: an unread model-config is not inspectable" "not-inspectable fallbackModel-cap" "$(fb_rows "$out" fallbackModel)"
+# A file with no fallbackModel requests no model-config page.
+printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: no fallbackModel, no model-config request" "0" "$(jq '[.docs.pages[] | select(.slug=="model-config")] | length' <<<"$out")"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {fallbackModel:["a","b","c","d","e","f"]}' >"$m/project/.claude/settings.json"
 out=$(run "$m" --json 2>&1) || true
 assert_eq "case 52: six distinct entries above the cap are flagged" "finding fallbackModel-dedup-length:6" "$(fb_rows "$out" fallbackModel-dedup)"
 assert_eq "case 52: six raw entries above the cap are not decided from the page" "skip fallbackModel-raw-length:6" "$(fb_rows "$out" fallbackModel-raw)"

@@ -180,8 +180,10 @@ fi
 # the session's primary one, and nothing here can tell that from a session started
 # in this directory. So below the repository root both shared files are candidates.
 # Taking either one alone could drop the deny rules of the file in force: this
-# directory's when the session started here, the root's after a `cd`. Both are read,
-# which can over-report one file's rules and never omits them. The root's is
+# directory's when the session started here, the root's after a `cd` from the root.
+# Both are read, which can over-report one of them. A session that started in
+# another subdirectory and then ran `cd` has its own file read by neither, which is
+# why the skill says to run this from the start directory. The root's is
 # `toplevel`, a surface of the project scope, so the merge and lint stages treat it
 # as project settings.
 TOPLEVEL_SHARED=""
@@ -584,7 +586,7 @@ emit_file_scope() {
 emit_file_scope project "$PRIMARY_DIR/.claude/settings.json"
 if [[ -n "$TOPLEVEL_SHARED" ]]; then
   emit_file_scope project "$TOPLEVEL_SHARED" toplevel
-  note "$PRIMARY_DIR is below the repository root $REPO_ROOT. A Bash cd inside the project moves this reader without moving the session, so this directory may or may not be the session's primary working directory, and the reader reads both shared files: 'project settings' from here and 'project toplevel' from the root. Only the file in the directory the session started in, or last moved to with /cd, is in force, so the merged set can over-report the other file's rules and omits neither's. https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository"
+  note "$PRIMARY_DIR is below the repository root $REPO_ROOT. A Bash cd inside the project moves this reader without moving the session, so this directory may or may not be the session's primary working directory, and the reader reads both shared files: 'project settings' from here and 'project toplevel' from the root. Only the file in the directory the session started in, or last moved to with /cd, is in force, so the merged set can over-report one of these two files. If the session started in neither directory, its file is not read here: run this reader from the session's start directory. https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository"
 else
   emit project toplevel not-applicable "-"
   note "project scope read from $PRIMARY_DIR, the reader's working directory, taken as the session's primary working directory. A repository root's .claude/settings.json does not apply to a session whose primary working directory is elsewhere."

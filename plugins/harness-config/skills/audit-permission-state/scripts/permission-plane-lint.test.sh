@@ -176,6 +176,16 @@ assert_contains "two project files: the root's ignored mode survives this direct
 assert_contains "two project files: the root's dead autoMode is named as the root's" "$OUT" "[C2-autoMode] project:toplevel an autoMode section here is never read"
 assert_not_contains "two project files: it carries no local-settings history" "$(grep -F '[C2-autoMode]' <<<"$OUT")" "before v2.1.207"
 assert_contains "two project files: the root's plan key is named as the root's" "$OUT" "[C2-planMode] project:toplevel"
+# A rule finding names the root file the same way.
+ROOT_RULE=$(
+  printf '%s\n' "$SURFACES"
+  printf 'rule project toplevel allow Bash(git:* push)\n'
+  printf 'rule project settings allow Bash(npm:* test)\n'
+)
+OUT=$(lint "$ROOT_RULE")
+assert_contains "two project files: a root rule finding is named as the root's" "$OUT" "[C6-colonStar] project:toplevel"
+assert_contains "two project files: this directory's rule finding stays project" "$OUT" "[C6-colonStar] project "
+assert_eq "two project files: one finding each" 2 "$(count_matching "$OUT" '\[C6-colonStar\]')"
 # A later managed drop-in replaces an earlier value, so that scope stays last-wins.
 LAST_WINS=$(
   printf '%s\n' "$SURFACES"
