@@ -3,6 +3,7 @@ description: "One online documentation page turned into a verified knowledge sli
 argument-hint: "[url]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Workflow(knowledge:docpage-digest-batch)"]
 ---
 
 **Arguments.** `[url]`. e.g., /knowledge:docpage-digest https://platform.claude.com/docs/en/build-with-claude/effort
@@ -39,7 +40,11 @@ another page's checklist. The canonical URL is the post-redirect page URL with n
 trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop only known tracking-only
 query parameters (`utm_*`, `gclid`, `fbclid`); KEEP content-selecting ones (`?version=v2` is a
 different document). Keep `ref`, which often selects a branch or revision, unless the matched
-publisher profile marks it tracking-only for that host. Equivalent spellings then resume the same
+publisher profile marks it tracking-only for that host. Before any shell command carries the
+canonical URL, it must pass `isPublicUrl` in
+[`../../workflows/docpage-digest-batch.js`](../../workflows/docpage-digest-batch.js) and hold no
+single quote, backslash, whitespace or control character, since every command here single-quotes
+it; a URL that fails stops the run with that reason. Equivalent spellings then resume the same
 root, and different resources never share one:
 
 1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
@@ -56,6 +61,10 @@ root, and different resources never share one:
 - **As of**: 2026-11-03
 - **Recheck trigger**: that section changes which command prints a SHA-256 digest, or its output
   format.
+
+For a case these steps leave open (host case, `_ . ~ %`, a slash before a query, a port), `slugFor`
+in [`../../workflows/docpage-digest-batch.js`](../../workflows/docpage-digest-batch.js) is the
+reference.
 
 Never build a path from raw URL text (a crafted URL could steer a filename toward path
 traversal), and confirm the resolved work root is still inside `<resolved-root>/.work/` before
@@ -228,9 +237,14 @@ longer exist, and its verdict comes back BLOCKED. The freeze covers only the pin
 (`scripts/pin-manifest.py`), so an arm may write under `<work-root>/scratch/` during
 verification.
 
+Record the outcome on the checklist's `Verification status` line: `verified` once both arms pass,
+`unverified: <reason>` when an arm or digest agent could not run, `failed: <reason>` when an
+open `high` finding goes to the operator.
+
 ## Phase 5. Interview handoff
 
-Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact. It opens
+Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact. Its first
+line copies the checklist's `Verification status` line. It opens
 with a de-duplicated **Decisions** section holding the questions the user must decide, one entry
 each with a recommendation. Every other open question or candidate artifact surfaced by the
 digests (route-elsewhere, data to confirm) goes in an **Appendix ledger**, one entry each. Every
@@ -270,6 +284,17 @@ next phase's first action. Pause only when a phase needs the human or the sessio
 Emit a continuation prompt (sibling convention) when the run pauses mid-pipeline: a short
 self-contained prompt naming the slug, the first unticked checklist phase, and the work root.
 
+## Batch path
+
+Several pages from one session run through the `knowledge:docpage-digest-batch` workflow. Our rule:
+the workflow script itself dispatches each Phase 3 digest agent and both Phase 4 arms as separate
+agents, and no stage spawns its own, and every stage is pointed at this file and its `context/`
+spokes. Pointer: [When to use a workflow](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow).
+As-of: 2026-11-04. Recheck trigger: that section changes who holds the plan in a workflow. It runs no correction rounds and no resume: a page whose verifiers fail is
+rerun here, one page at a time. Each page keeps its own slice, checklist and handoff.
+Read [context/batch-path.md](context/batch-path.md) before launching it: it owns the launch steps,
+the `args`, and what to do with each page's returned `verification`.
+
 ## Publisher profiles
 
 A profile is a separable context file under `context/` owning everything publisher-specific:
@@ -281,7 +306,7 @@ only when a THIRD profile lands (Rule of Three). Two points make a line, not an 
 ## What this skill does NOT do
 
 - **Does not crawl.** One page per run; a queue of pages is N runs, and N parallel runs share
-  one session's subagent slots (see Phase 3).
+  one session's subagent slots (see Phase 3), or one Batch path run.
 - **Does not commit or graduate.** Slices live under the untracked work root; moving one into a
   tracked corpus repo is a separate human-gated decision.
 - **Does not build artifacts from findings.** It ends at the interview handoff.
