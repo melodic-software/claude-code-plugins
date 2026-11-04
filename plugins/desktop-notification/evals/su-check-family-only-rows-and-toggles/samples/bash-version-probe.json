@@ -1,0 +1,120 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"$BASH_VERSION\""
+          }
+        }
+      ],
+      "why": "the variable step 1 names"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"${BASH_VERSION}\""
+          }
+        }
+      ],
+      "why": "braced"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash --version"
+          }
+        }
+      ],
+      "why": "the version flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'echo $BASH_VERSION'"
+          }
+        }
+      ],
+      "why": "under bash -c, because the tool's shell may be another"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf \"%s\" \"$BASH_VERSION\""
+          }
+        }
+      ],
+      "why": "printf"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq && echo \"bash=$BASH_VERSION\""
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n BASH_VERSION /plugins/desktop-notification/skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n '$BASH_VERSION' notes.txt"
+          }
+        }
+      ],
+      "why": "quoted search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo bash is fine"
+          }
+        }
+      ],
+      "why": "no version read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v bash"
+          }
+        }
+      ],
+      "why": "resolves bash, reads no version"
+    }
+  ]
+}

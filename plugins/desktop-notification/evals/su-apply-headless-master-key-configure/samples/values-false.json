@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "{\"desktop_notification_enabled\": \"false\"}"
+    },
+    {
+      "answer": "{\"desktop_notification_enabled\":\"false\"}",
+      "why": "no space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"desktop_notification_enabled\": false}",
+      "why": "a bare boolean: every value is a string"
+    },
+    {
+      "answer": "{\"desktop_notification_bell_enabled\": \"false\"}",
+      "why": "a channel key"
+    },
+    {
+      "answer": "{\"<key>\": \"false\"}",
+      "why": "a placeholder"
+    }
+  ]
+}

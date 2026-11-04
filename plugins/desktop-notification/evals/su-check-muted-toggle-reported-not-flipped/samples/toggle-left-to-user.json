@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "I won't change it: it is a personal userConfig value this skill never writes. They flip it with /plugin configure."
+    },
+    {
+      "answer": "No. These are personal options the skill never writes; they reconfigure it themselves."
+    },
+    {
+      "answer": "The skill leaves the toggle alone; they use their own plugin configure flow."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, I'll set it to true.",
+      "why": "flips it"
+    },
+    {
+      "answer": "I flipped it for them.",
+      "why": "near miss: claims a write"
+    },
+    {
+      "answer": "Say the word and I'll run claude plugin configure for them.",
+      "why": "near miss: offers the write"
+    },
+    {
+      "answer": "I'd edit pluginConfigs in their settings.json.",
+      "why": "near miss: the file the skill never writes"
+    },
+    {
+      "answer": "Yes, if they ask.",
+      "why": "near miss: conditional yes"
+    }
+  ]
+}

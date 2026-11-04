@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "The hook has no OS toast branch on Windows: a fire-and-forget process leaves no live activator host for a WinRT toast."
+    },
+    {
+      "answer": "No os_toast on Windows, because a WinRT toast needs a live activator host and the hook's process is gone at once."
+    },
+    {
+      "answer": "The case statement has no Windows arm, since a fire-and-forget process cannot host the activator a WinRT toast needs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is no toast on Windows.",
+      "why": "near miss: no reason"
+    },
+    {
+      "answer": "Windows has no toast because BurntToast is not installed.",
+      "why": "near miss: wrong reason"
+    },
+    {
+      "answer": "Windows has no toast because notify-send does not exist there.",
+      "why": "near miss: wrong reason"
+    },
+    {
+      "answer": "The hook has no branch because Windows does not support notifications.",
+      "why": "near miss: false reason"
+    },
+    {
+      "answer": "A Windows toast branch exists, but the toggle is off by default there.",
+      "why": "false"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Node.js: FAIL. Every hook row launches through node, so without it the hook does not launch and no notification fires."
+    },
+    {
+      "answer": "node missing means FAIL: the hook cannot even start, so they get no notifications."
+    },
+    {
+      "answer": "| node | FAIL | absent: the hook starts via `node hooks/exec-bash.mjs`, so nothing launches and no alerts fire |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Node.js is INFO there; the hook just skips telemetry.",
+      "why": "wrong grade and consequence"
+    },
+    {
+      "answer": "Node.js is FAIL.",
+      "why": "near miss: no consequence"
+    },
+    {
+      "answer": "Node.js is FAIL because the mod needs it for toasts; the terminal channels still fire.",
+      "why": "near miss: wrong consequence"
+    },
+    {
+      "answer": "A missing node is harmless: Claude Code ships its own Node, so notifications still fire.",
+      "why": "false"
+    },
+    {
+      "answer": "Without node the hook does not launch and nothing fires, but check reports that as INFO.",
+      "why": "near miss: right consequence, wrong grade"
+    }
+  ]
+}
