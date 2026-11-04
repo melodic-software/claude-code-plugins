@@ -2055,7 +2055,8 @@ jobs:
       # alone. A PR that changed since the listing, or whose branch a fresh
       # read shows moved or gone after a 409 or 422 on the ref update, is a
       # warning counted in the closing `outcome` line and fails nothing; any
-      # other failure fails the step.
+      # other failure fails the step. An address-feedback run refused that
+      # way is left to the feedback sweep, which dispatches it again on main.
       # Rules:
       # .github/scripts/pr-merge/refire-refused.mjs.
       - name: Re-fire lane runs refused as workflow-modified
