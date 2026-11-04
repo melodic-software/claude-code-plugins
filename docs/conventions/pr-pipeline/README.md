@@ -874,7 +874,7 @@ own push never lifts its own stop), the newest one landed the current head, and 
 read that fails keeps the label. Every other reason waits for a person: the security, intent and
 decision stops (`feedback-uncertain`, `feedback-disputed`, `feedback-unadjudicated`,
 `feedback-question-*`, `feedback-round-cap`, `feedback-not-converging`, `dependency-security-close`,
-`dependency-escalate`), the protected-path and own-patch stops (`ci-fix-protected-path`,
+`dependency-escalate` and `dependency-escalate-<owner reason>`), the protected-path and own-patch stops (`ci-fix-protected-path`,
 `unexpected-path-staged`, `conflict-patch-*`), and those with no cause-gone evidence yet (`repeat-cap`,
 `feedback-invalid`, `feedback-partial`, `feedback-incomplete`, and the other
 `dependency-*` stops). Removing the label this way approves nothing: `ci-status` still fails a
