@@ -297,6 +297,16 @@ def _send(
             f"{' '.join(['gh', *args[:2]])} not sent: the {limits_pool} pool "
             "is below its writer-pause share"
         )
+    if (
+        guarded
+        and not _is_write(args)
+        and os.environ.get(READ_FLOOR_STOP_ENV) == "1"
+        and low_headroom(limits_pool)
+    ):
+        raise ReadsFloored(
+            f"{' '.join(['gh', *args[:2]])} not sent: the {limits_pool} pool "
+            "is below its read-floor share"
+        )
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
     include = not binary and _includes_headers(args)
@@ -429,6 +439,18 @@ class RateLimitExhausted(BaseException):
 class WritesPaused(RuntimeError):
     """A write was not sent: its pool is below the `writer-pause` share. A
     RuntimeError, so each write path reports it as a write that did not land."""
+
+
+# Set to 1, a read is not sent once its pool is below its `read-floor` share
+# (`low_headroom`), so a process that no estimate bounds, such as ci-status's
+# verdict reader, never spends the floor. Unset, only report-only reads skip.
+READ_FLOOR_STOP_ENV = "BABYSIT_READ_FLOOR_STOP"
+
+
+class ReadsFloored(RuntimeError):
+    """A read was not sent: `READ_FLOOR_STOP_ENV` is set and its pool is below
+    the `read-floor` share. A RuntimeError, so each read path reports it as a
+    read that failed and the caller fails closed."""
 
 
 _tripped: dict[str, RateLimitExhausted] = {}

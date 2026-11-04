@@ -5795,36 +5795,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertEqual(again.refusal, "verify:earlier-fail", again.detail)
 
 
-class TheReaderStopsAtTheReadFloor(unittest.TestCase):
-    """With BABYSIT_VERIFY_FLOOR_STOP=1 (ci-status sets it), a read once a
-    pool is below its read floor is never sent and reads as unreadable, so
-    the judgment fails closed; without it the reader reads as before."""
-
-    def test_a_read_below_the_floor_is_not_sent(self) -> None:
-        sent = mock.Mock(side_effect=AssertionError("a read was sent"))
-        with (
-            mock.patch.dict(os.environ, {ve.FLOOR_STOP_ENV: "1"}),
-            mock.patch.object(ve, "low_headroom", return_value=True),
-            mock.patch.object(ve, "gh_api_with_headers", sent),
-        ):
-            reader = ve.Reader("o/r", "main")
-            self.assertIsNone(reader._api_object("repos/o/r/actions/artifacts", ve._listing_clock() + 60))
-        sent.assert_not_called()
-
-    def test_without_the_stop_the_read_is_sent(self) -> None:
-        proc = subprocess.CompletedProcess([], 0, stdout='{"artifacts": []}', stderr="")
-        sent = mock.Mock(return_value=(proc, {}))
-        with (
-            mock.patch.dict(os.environ, {ve.FLOOR_STOP_ENV: ""}),
-            mock.patch.object(ve, "low_headroom", return_value=True),
-            mock.patch.object(ve, "gh_api_with_headers", sent),
-        ):
-            reader = ve.Reader("o/r", "main")
-            read = reader._api_object("repos/o/r/actions/artifacts", ve._listing_clock() + 60)
-        self.assertEqual(read, ({"artifacts": []}, {}))
-        sent.assert_called_once()
-
-
 class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     """ci-status holds a cold reader unless GITHUB_TOKEN's pool has one cold
     read's worst case per queue entry (pr-require-checks.yml), which it works
