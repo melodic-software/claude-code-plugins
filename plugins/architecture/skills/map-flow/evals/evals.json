@@ -151,12 +151,12 @@
       "id": 11,
       "name": "offers-built-interactive-view",
       "prompt": "/architecture:map-flow GET /orders/{id}\n\nflow.json and flow.md are written. I would like to open each hop and its citation rather than read the sequence diagram.",
-      "expected_output": "After the report, offers an interactive view of flow.json in one sentence, builds it only with scripts/build-view.mjs flow from the record, and resolves the publish destination from the medium cascade key.",
+      "expected_output": "After the report, offers an interactive view of flow.json in one sentence, builds it only with scripts/build-view.mjs flow from the record, and resolves the destination through the shared medium resolver, printing its report line.",
       "expectations": [
         "flow.md and flow.json are written first and stay the record",
         "Offers the view in one sentence and builds only after the reader accepts",
         "Builds with scripts/build-view.mjs flow --record flow.json and writes no HTML or script itself",
-        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+        "The destination comes from the shared medium resolver run for the architecture lane, and its report line is printed"
       ]
     }
   ]
