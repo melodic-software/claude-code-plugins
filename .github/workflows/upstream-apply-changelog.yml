@@ -23,7 +23,9 @@ name: upstream-apply-changelog
 # A release is skipped only when this workflow's
 # upstream-apply-changelog-done-<release> artifact exists, since --ci never
 # moves the read marker; existing branches and PRs are skipped per item. At most limits.upstream-apply-changelog-per-day
-# runs start in any 24 hours (docs/conventions/pr-pipeline.yaml).
+# runs start in any 24 hours (docs/conventions/pr-pipeline.yaml). After the
+# model's key ends in a credit stop, runs inside the key-credit window start
+# no model and leave the release for a later run.
 #
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false"; every job checks it first and the broker
@@ -31,8 +33,10 @@ name: upstream-apply-changelog
 
 on:
   # Every ten minutes, at minutes no other schedule here uses. A tick makes
-  # at most eleven GITHUB_TOKEN REST calls (ten done-marker reads and the cap
-  # read), at most 66 an hour of the token's 1,000.
+  # at most thirteen GITHUB_TOKEN REST calls (ten done-marker reads, the cap
+  # read, the key's credit-history read once a release is picked, and one
+  # artifact read when that history skips the model), at most 78 an hour of
+  # the token's 1,000.
   schedule:
     - cron: "5-59/10 * * * *"
   workflow_dispatch:
@@ -71,6 +75,8 @@ jobs:
       proceed: ${{ steps.gate.outputs.proceed }}
       release: ${{ steps.gate.outputs.release }}
       base-sha: ${{ github.sha }}
+      skip-key: ${{ steps.credit.outputs.skip-key }}
+      credit-marker: ${{ steps.credit.outputs.marker }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -137,9 +143,50 @@ jobs:
           export DAILY_CAP
           node .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate
 
+      # Whether the key is still out of credit: a credit stop of the model job
+      # in this workflow inside the window (vars.KEY_CREDIT_WINDOW_HOURS, 1
+      # hour unset) skips the model this run, since the lane has no
+      # subscription leg to hand to (ci-workflows check-key-credit, gate.cjs:
+      # one artifact-list call for the `marker` the model job uploads after a
+      # credit stop). It runs only once a release is picked, so a tick with
+      # nothing to take spends no call. Probing is off: the concurrency group
+      # runs one run at a time, so no second run can reach the key while the
+      # first run after the window tries it. Every failure runs the key:
+      # skip-key is then empty.
+      - name: Read the key's credit history
+        id: credit
+        if: steps.gate.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
+        with:
+          key-job: model
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # One artifact read dates the window's end from the marker's upload;
+      # a failed read still names the run.
+      - name: Report the credit skip
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ORIGIN_RUN: ${{ steps.credit.outputs.origin-run }}
+          MARKER: ${{ steps.credit.outputs.marker }}
+          WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          RELEASE: ${{ steps.gate.outputs.release }}
+        run: |
+          created=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN/artifacts?name=$MARKER" --jq '.artifacts[0].created_at // empty' || true)
+          ends=""
+          if [ -n "$created" ] && [[ $WINDOW_HOURS =~ ^[0-9]+$ ]] && start=$(date -u -d "$created" +%s); then
+            ends=$(date -u -d "@$((start + WINDOW_HOURS * 3600))" +%Y-%m-%dT%H:%MZ) || ends=""
+          fi
+          echo "::notice::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN; release $RELEASE waits and the model does not run until the ${WINDOW_HOURS}-hour window ends at ${ends:-an unread time}"
+
       # The per-day cap counts these, so it counts runs that reached the model.
       - name: Record the start
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && steps.credit.outputs.skip-key != 'true'
         env:
           DIR: ${{ runner.temp }}/started
           RELEASE: ${{ steps.gate.outputs.release }}
@@ -148,7 +195,7 @@ jobs:
           printf '%s\n' "$RELEASE" >"$DIR/release.txt"
 
       - name: Upload the start record
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && steps.credit.outputs.skip-key != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: upstream-apply-changelog-started
@@ -174,8 +221,9 @@ jobs:
   # removed from the working tree first (R13).
   model:
     needs: gate
-    # The first attempt only: a re-run never runs the model again.
-    if: needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+    # The first attempt only: a re-run never runs the model again. A key the
+    # credit gate skipped runs nothing.
+    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -365,6 +413,44 @@ jobs:
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      # Read by the next runs' credit gate: the artifact its `marker` output
+      # names (check-key-credit gate.cjs markerName), uploaded only after the
+      # leg's credit-stop handoff, which on this key leg means the key is out
+      # of credit. The name is written out so its retention row
+      # (.github/artifact-retention.json) claims it; a gate that names another
+      # marker writes none. Its upload time starts the window; one day's
+      # retention covers windows up to 24 hours. The file is rewritten after
+      # the leg and scanned with the trusted checkout's action.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: always() && needs.gate.outputs.credit-marker == 'key-credit-stop-upstream-apply-changelog.yml-model' && steps.run.outputs.handoff-reason == 'credit-stop'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Scan the key's credit-stop marker for credentials
+        id: credit-marker-scan
+        if: always() && steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+
+      - name: Upload the key's credit-stop marker
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-upstream-apply-changelog.yml-model
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
