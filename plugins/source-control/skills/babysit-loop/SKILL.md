@@ -66,7 +66,7 @@ Everything else resolves in order:
 1. **Invocation arguments**, the tier keyword (babysit-prs vocabulary) and any per-dimension or
    loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge human-only`).
 2. **The layered config seam**, the `babysit_loop_*` keys on the source-control config
-   surface (user-global → team-tracked → local overlay, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml` only. Key table, defaults, and layering semantics:
+   surface (user-global → team-tracked → personal override, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml` only. Key table, defaults, and layering semantics:
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
 3. **Tier defaults**, the resolved tier's own dimension values (`safe` when nothing resolves a tier).
 
@@ -100,7 +100,7 @@ layer bound the merge rung.
 **Interactive ambiguity**: an interactive launch with absent or ambiguous config (no stop mode,
 no tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
 unresolved keys, then offers to persist the answers: repo policy (stop mode, tier, merge rung) to
-the team-tracked layer, `docs/conventions/source-control.yaml`; personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only; that write is the recorded ratification.
+the team-tracked layer, `docs/conventions/source-control.yaml`; personal deviations to the personal override. A merge-rung raise persists to the team-tracked layer only; that write is the recorded ratification.
 
 **Headless never blocks** (headless-config floor, per the convention): take explicit or persisted
 config, else tier defaults, and log the assumption.

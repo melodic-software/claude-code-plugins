@@ -245,12 +245,12 @@
     {
       "id": 20,
       "name": "pr-body-required-sections-none-overrides-lower-layer",
-      "prompt": "/pull-request create from branch feat/512-add-widget. The user-global ~/.claude/source-control.md declares pr_body_required_sections as the bullet list Summary, Test plan, Related. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. The gitignored local overlay .claude/source-control.local.md exists but does not set pr_body_required_sections. Resolve the effective section scaffold.",
-      "expected_output": "Per config-resolution.md's per-key override across the three layers, the team layer's `none` REPLACES the user-global list wholesale — the effective value is zero required sections, and the overlay's silence on the key changes nothing (an absent key in a later layer keeps the earlier winner; it never resets or re-imports a lower layer's list). The skill distinguishes `none` (a resolved value that wins the per-key override like any list would) from absence (which would have fallen through to the user-global list here). A local overlay declaring `none` over a team list would win the same way — the semantics are per-key precedence, identical to trailer_policy / pr_body_attribution.",
+      "prompt": "/pull-request create from branch feat/512-add-widget. The user-global ~/.claude/source-control.md declares pr_body_required_sections as the bullet list Summary, Test plan, Related. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. The gitignored personal override .claude/source-control.local.md exists but does not set pr_body_required_sections. Resolve the effective section scaffold.",
+      "expected_output": "Per config-resolution.md's per-key override across the three layers, the team layer's `none` REPLACES the user-global list wholesale — the effective value is zero required sections, and the personal override's silence on the key changes nothing (an absent key in a later layer keeps the earlier winner; it never resets or re-imports a lower layer's list). The skill distinguishes `none` (a resolved value that wins the per-key override like any list would) from absence (which would have fallen through to the user-global list here). A personal override declaring `none` over a team list would win the same way — the semantics are per-key precedence, identical to trailer_policy / pr_body_attribution.",
       "files": [],
       "expectations": [
         "The team layer's `none` overrides the user-global layer's Summary/Test plan/Related list — the effective resolution is zero required sections",
-        "The local overlay omitting the key does not disturb the team layer's `none` — per-key fallthrough keeps the later layer's resolved value",
+        "The personal override omitting the key does not disturb the team layer's `none` — per-key fallthrough keeps the later layer's resolved value",
         "`none` wins the per-key override as a resolved value exactly like a list would, with the same precedence semantics as trailer_policy and pr_body_attribution",
         "Absence and `none` are distinguished: had the team layer omitted the key, the user-global list would have won instead"
       ]
@@ -385,14 +385,14 @@
     {
       "id": 30,
       "name": "pr-body-briefing-keyword-overrides-lower-list",
-      "prompt": "/pull-request create from branch feat/733-retry-uploads. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the bullet list Summary, Test plan. The gitignored local overlay .claude/source-control.local.md declares pr_body_required_sections as the keyword briefing. Resolve the effective section scaffold.",
-      "expected_output": "The local overlay wins the per-key override, and its keyword briefing replaces the team layer's list whole. The effective required sections are Why, What changed, Scope and Verification; Summary and Test plan are not required and are not merged in. The reported source is the local overlay with the briefing keyword.",
+      "prompt": "/pull-request create from branch feat/733-retry-uploads. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the bullet list Summary, Test plan. The gitignored personal override .claude/source-control.local.md declares pr_body_required_sections as the keyword briefing. Resolve the effective section scaffold.",
+      "expected_output": "The personal override wins the per-key override, and its keyword briefing replaces the team layer's list whole. The effective required sections are Why, What changed, Scope and Verification; Summary and Test plan are not required and are not merged in. The reported source is the personal override with the briefing keyword.",
       "files": [],
       "narration": true,
       "expectations": [
-        "The local overlay's briefing keyword replaces the team layer's Summary, Test plan list, with no union of the two",
+        "The personal override's briefing keyword replaces the team layer's Summary, Test plan list, with no union of the two",
         "The required sections are Why, What changed, Scope and Verification",
-        "The reported source names the local overlay and the briefing keyword, not the plugin default"
+        "The reported source names the personal override and the briefing keyword, not the plugin default"
       ]
     },
     {
