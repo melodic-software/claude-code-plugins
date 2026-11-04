@@ -102,6 +102,18 @@
         }
       ],
       "why": "probes for a config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/tools/typos/1.52.0/typos --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a version read through a path with a typos directory"
     }
   ],
   "fail": [
@@ -203,6 +215,18 @@
         }
       ],
       "why": "the bundled check, directly"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/tools/typos/1.52.0/typos notes.txt",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the checker through a path with a typos directory"
     }
   ]
 }
