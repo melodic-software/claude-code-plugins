@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The hook would run `.venv/bin/ruff` from the repository root.", "why": "relative path"},
+    {"answer": "| Ruff binary | PASS | /tmp/eval/.venv/bin/ruff |", "why": "absolute path in a table"}
+  ],
+  "fail": [
+    {"answer": "Ruff resolves on PATH at /usr/local/bin/ruff.", "why": "PATH, not the venv"},
+    {"answer": "Ruff would come from venv/bin/ruff.", "why": "not the .venv the hook tests"},
+    {"answer": "Ruff resolves from the repository's virtual environment.", "why": "near miss: no path"}
+  ]
+}

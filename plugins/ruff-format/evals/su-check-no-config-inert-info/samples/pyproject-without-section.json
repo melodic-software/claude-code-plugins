@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Your pyproject.toml has no [tool.ruff] section or [tool.ruff.*] subtable, so it does not opt in."}
+  ],
+  "fail": [
+    {"answer": "pyproject.toml is present, so Ruff's config is there.", "why": "counts any pyproject.toml"},
+    {"answer": "There is a pyproject.toml at the root.", "why": "near miss: does not say whether it counts"}
+  ]
+}

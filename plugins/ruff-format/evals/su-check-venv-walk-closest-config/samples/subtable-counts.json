@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "scripts/run.py has no config of its own, so the walk reaches the root pyproject.toml, which counts: its [tool.ruff.lint] subtable opts it in even without a bare [tool.ruff] table."}
+  ],
+  "fail": [
+    {"answer": "scripts/run.py has no governing config: the root pyproject.toml has no [tool.ruff] section, so the hook skips it.", "why": "misses the subtable rule"},
+    {"answer": "The root pyproject.toml governs scripts/run.py.", "why": "near miss: no reason the subtable counts"}
+  ]
+}

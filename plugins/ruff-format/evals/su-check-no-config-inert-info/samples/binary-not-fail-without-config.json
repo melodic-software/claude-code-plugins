@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "| Ruff binary | INFO | not needed while no Ruff config governs the repo |"},
+    {"answer": "Ruff resolves on PATH, so that row passes.", "why": "found"}
+  ],
+  "fail": [
+    {"answer": "| Ruff binary | FAIL | not on PATH or in .venv |", "why": "FAIL with no governing config"},
+    {"answer": "Ruff is missing, which is a FAIL you should fix first, though it only matters with a config.", "why": "near miss: still grades it FAIL"}
+  ]
+}
