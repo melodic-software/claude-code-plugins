@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.15.12] - 2026-11-04
+
+### Changed
+
+- `max_cost_usd` option description points at the CLI's command options instead of restating what the flag bounds.
+
 ## [0.15.11] - 2026-11-04
 
 ### Changed
