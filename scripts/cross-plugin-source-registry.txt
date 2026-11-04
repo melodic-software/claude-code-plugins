@@ -150,12 +150,16 @@ lib/setup-apply.mjs -> plugins/*/lib/setup-apply.mjs
 # plugins' context/ to fix a drift failure.
 context/recommendation-basis.md
 
-# No dedicated check: the rendered-views shared chrome reference, carried by
-# every plugin whose HTML view adopts it, because only the plugin directory
-# installs (docs/contracts/rendered-views/README.md, "The shared chrome
-# reference"). Canonical copy: plugins/visualization/reference/html-chrome.html;
-# copy it into the other plugins' reference/ to fix a drift failure.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/html-chrome.html, the rendered-views shared chrome
+# (docs/contracts/rendered-views/README.md, "The shared chrome reference").
+# The visualization, adhd and planning plugins carry the generated copies,
+# which stay byte-identical to each other.
 reference/html-chrome.html
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/html-chrome.html -> plugins/*/reference/html-chrome.html
 
 # No dedicated check: the telemetry-sink test helper each carrying plugin
 # ships, because only the plugin directory installs. Canonical copy:

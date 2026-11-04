@@ -158,6 +158,34 @@ for (const [kind, fixture] of Object.entries(fixtures)) {
   }
 }
 
+// Every view carries the canonical chrome (the plugin's synced reference/html-chrome.html):
+// its theme toggle, its comment box and its rv-chrome rules, compared line by line with
+// leading whitespace dropped, and no other theme control.
+{
+  const chrome = readFileSync(`${dir}/../reference/html-chrome.html`, "utf8");
+  const blocks = {
+    toggle: /<div class="rv-theme"[^\n]*?<\/div>/,
+    comment: /<section class="rv-comment".*?<\/section>/s,
+    rules: /\/\* rv-chrome:begin \*\/.*?\/\* rv-chrome:end \*\//s,
+  };
+  const flat = (text) => (text ?? "").replace(/^[ \t]+/gm, "");
+  const views = { ...Object.fromEntries(Object.entries(fixtures).map(([k, f]) => [k, f.template])), design: "../skills/design/templates/design-view.html" };
+  for (const [name, re] of Object.entries(blocks)) {
+    check(`chrome: the reference carries the ${name}`, re.test(chrome));
+  }
+  for (const [kind, template] of Object.entries(views)) {
+    const html = readFileSync(`${dir}/${template}`, "utf8");
+    for (const [name, re] of Object.entries(blocks)) {
+      check(`${kind}: the template carries the chrome's ${name} verbatim`, flat(re.exec(html)?.[0]) === flat(re.exec(chrome)?.[0]));
+    }
+    check(`${kind}: the toggle opens on system`, /data-rv-theme="system" aria-pressed="true"/.test(html));
+    check(`${kind}: no other theme control`, !/data-accent|data-palette|accent picker|palette picker/i.test(html));
+  }
+  const plan = readFileSync(`${dir}/${fixtures.plan.template}`, "utf8");
+  const shows = keysOf(plan, "data-rv-shows");
+  check("plan: every verdict option names an example block", shows.length === 3 && shows.every((key) => keysOf(plan, "data-rv-example").includes(key)));
+}
+
 for (const kind of Object.keys(fixtures)) {
   const html = readFileSync(`${dir}/${fixtures[kind].template}`, "utf8");
   check(`${kind}: the template carries the send control and the session replies`, ["data-rv-send=", "data-rv-session=", "data-rv-replies="].every((marker) => html.includes(marker)));

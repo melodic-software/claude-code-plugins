@@ -71,11 +71,26 @@ button + button { background: transparent; color: var(--accent); }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .status { margin: 0; min-height: 1.5em; color: var(--muted); }
 .out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+.example { margin: 0; padding: 0.6rem 0.75rem; border-left: 3px solid var(--accent); background: var(--surface); }
+.example[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+  /* rv-chrome:begin */
+  .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+  .rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+  .rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+  .rv-theme button + button { border-left: 1px solid var(--muted); }
+  .rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+  .rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+  .rv-comment { display: grid; gap: 0.4rem; }
+  .rv-comment h2 { margin: 0; }
+  .rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+  .rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  /* rv-chrome:end */
 </style>
 </head>
 <body>
 <main class="page">
+<div class="rv-bar"><div class="rv-theme" role="group" aria-label="Theme"><button type="button" data-rv-theme="system" aria-pressed="true">System</button><button type="button" data-rv-theme="light" aria-pressed="false">Light</button><button type="button" data-rv-theme="dark" aria-pressed="false">Dark</button></div></div>
 <header>
 <p class="eyebrow">Plan view. PLAN.md is the record.</p>
 <h1 data-rv-text="title">Plan</h1>
@@ -102,9 +117,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 <h2>Send your reply back</h2>
 <p class="meta">Tick the phases you want changed and say what to change. The ids name phases by their position in PLAN.md.</p>
 <label for="verdict">Verdict</label>
-<select id="verdict" data-rv-choice="verdict"><option value="change">Change the ticked phases</option><option value="question">Ask about the ticked phases</option><option value="approve">Ready to approve</option></select>
-<label for="note">Note for the session</label>
-<textarea id="note" data-rv-note="note" placeholder="What should change before this plan is approved"></textarea>
+<select id="verdict" data-rv-choice="verdict"><option value="change" data-rv-shows="ex-change">Change the ticked phases</option><option value="question" data-rv-shows="ex-question">Ask about the ticked phases</option><option value="approve" data-rv-shows="ex-approve">Ready to approve</option></select>
+<p class="example" data-rv-example="ex-change">Example: tick phase 2 and write: wait for the cache metrics from phase 1 before wiring the handlers.</p>
+<p class="example" data-rv-example="ex-question" hidden>Example: tick phase 1 and write: what happens to a cached result when its source row changes?</p>
+<p class="example" data-rv-example="ex-approve" hidden>Example: tick nothing. The session reads approval only from what you say in the conversation; this marks the plan as ready for that.</p>
+<section class="rv-comment" aria-labelledby="rv-comment-h">
+<h2 id="rv-comment-h">Comment</h2>
+<label for="rv-comment-text">Your comment for the session</label>
+<textarea id="rv-comment-text" data-rv-note="comment" placeholder="Say what should change, or ask a question"></textarea>
+</section>
 <div class="actions">
 <button type="button" data-rv-send="plan-reply">Send to the session</button>
 <button type="button" data-rv-copy="plan-reply">Copy reply</button>

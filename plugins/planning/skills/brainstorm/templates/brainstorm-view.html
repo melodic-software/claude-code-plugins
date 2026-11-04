@@ -71,10 +71,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .status { margin: 0; min-height: 1.5em; color: var(--muted); }
 .out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
 @media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+  /* rv-chrome:begin */
+  .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+  .rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+  .rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+  .rv-theme button + button { border-left: 1px solid var(--muted); }
+  .rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+  .rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+  .rv-comment { display: grid; gap: 0.4rem; }
+  .rv-comment h2 { margin: 0; }
+  .rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+  .rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  /* rv-chrome:end */
 </style>
 </head>
 <body>
 <main class="page">
+<div class="rv-bar"><div class="rv-theme" role="group" aria-label="Theme"><button type="button" data-rv-theme="system" aria-pressed="true">System</button><button type="button" data-rv-theme="light" aria-pressed="false">Light</button><button type="button" data-rv-theme="dark" aria-pressed="false">Dark</button></div></div>
 <header>
 <p class="eyebrow">Brainstorm view. The conversation record is authoritative.</p>
 <h1 data-rv-text="title">Brainstorm</h1>
@@ -99,8 +112,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 <section class="reply">
 <h2>Send your reaction back</h2>
 <p class="meta">Tick what resonates and say why. The ids name candidates by their position in the list.</p>
-<label for="note">Note for the session</label>
-<textarea id="note" data-rv-note="note" placeholder="What you would combine, drop, or change"></textarea>
+<section class="rv-comment" aria-labelledby="rv-comment-h">
+<h2 id="rv-comment-h">Comment</h2>
+<label for="rv-comment-text">Your comment for the session</label>
+<textarea id="rv-comment-text" data-rv-note="comment" placeholder="Say what should change, or ask a question"></textarea>
+</section>
 <div class="actions">
 <button type="button" data-rv-send="brainstorm-reply">Send to the session</button>
 <button type="button" data-rv-copy="brainstorm-reply">Copy reply</button>

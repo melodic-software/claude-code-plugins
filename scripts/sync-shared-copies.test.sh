@@ -287,6 +287,27 @@ fi
 out="$(run --check)"
 expect "--check passes on generated Markdown copies" 0 $? "$out"
 
+# --- an HTML copy takes an HTML-comment header, after any doctype ---------------
+fixture
+printf '<!doctype html>\n<html lang="en">\n</html>\n' >"$root/lib/page.html"
+printf '<html lang="en">\n</html>\n' >"$root/lib/bare.html"
+printf 'lib/page.html plugins/alpha/ref/page.html\nlib/bare.html plugins/alpha/ref/bare.html\n' >"$root/scripts/shared-copies.txt"
+run >/dev/null
+want=$'<!doctype html>\n<!-- GENERATED from lib/page.html by scripts/sync-shared-copies.sh. Do not edit this copy:\nedit the canonical source, then rerun the script. -->\n<html lang="en">\n</html>'
+if [[ "$(cat "$root/plugins/alpha/ref/page.html")" == "$want" ]]; then
+  pass "an HTML copy keeps its doctype first and takes the header after it"
+else
+  bad "an HTML copy keeps its doctype first and takes the header after it" "got: $(cat "$root/plugins/alpha/ref/page.html")"
+fi
+want=$'<!-- GENERATED from lib/bare.html by scripts/sync-shared-copies.sh. Do not edit this copy:\nedit the canonical source, then rerun the script. -->\n<html lang="en">\n</html>'
+if [[ "$(cat "$root/plugins/alpha/ref/bare.html")" == "$want" ]]; then
+  pass "an HTML copy without a doctype opens with the header comment"
+else
+  bad "an HTML copy without a doctype opens with the header comment" "got: $(cat "$root/plugins/alpha/ref/bare.html")"
+fi
+out="$(run --check)"
+expect "--check passes on generated HTML copies" 0 $? "$out"
+
 # --- --print-manifest publishes one block per canonical ------------------------
 fixture
 printf 'lib/b.sh plugins/beta/hooks/b.sh\n' >>"$root/scripts/shared-copies.txt"
