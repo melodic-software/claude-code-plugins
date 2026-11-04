@@ -26,7 +26,7 @@
 //   PR_MERGE_READS_PATH  the job's shared GET answers (sharedReads), if set
 //   GITHUB_API_URL
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, mkdtempSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -72,10 +72,10 @@ const API_BUDGET_LIB = fileURLToPath(new URL("../../actions/log-api-budget/api-b
 // the rate guard refuses it while a stop holds. Plain gh when that file cannot
 // be read. The wrapper keeps the stderr it starts with as its error copy, so
 // only the source line's stderr is silenced.
-export function countedGh(args, { token, env = process.env } = {}) {
+export function countedGh(args, { token, env = process.env, stdout = "ignore" } = {}) {
   execFileSync("bash", ["-c", '. "$0" 2>/dev/null && api_budget_wrap_gh "${API_BUDGET_TOKEN:-}"; gh "$@"', API_BUDGET_LIB, ...args], {
     env: { ...env, GH_TOKEN: token },
-    stdio: ["ignore", "ignore", "inherit"],
+    stdio: ["ignore", stdout, "inherit"],
   });
 }
 
@@ -91,6 +91,27 @@ export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "c
       targets.set(String(runId), target);
     }
     return readFileSync(join(targets.get(String(runId)), other), "utf8");
+  };
+}
+
+// An artifact's file `file`, fetched once per artifact id from its archive
+// endpoint. Unlike `gh run download -n`, it lists none of the run's artifacts
+// again, so a caller that already holds the id spends one request, not two.
+export function ghDownloadArtifact({ repo, token, dir, name, file, env }) {
+  const archives = new Map();
+  return (artifactId) => {
+    const key = String(artifactId);
+    if (!archives.has(key)) {
+      const archive = join(mkdtempSync(join(dir, `${name}-`)), "artifact.zip");
+      const fd = openSync(archive, "w");
+      try {
+        countedGh(["api", `repos/${repo}/actions/artifacts/${key}/zip`], { token, env, stdout: fd });
+      } finally {
+        closeSync(fd);
+      }
+      archives.set(key, archive);
+    }
+    return execFileSync("unzip", ["-p", archives.get(key), file], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   };
 }
 
@@ -139,7 +160,14 @@ async function artifactsNamed({ repo, actions, runId, name }) {
 // `accept`, or undefined when there is none.
 const runOrder = (run) => (Number.isSafeInteger(run?.id) ? run.id : -1);
 
-export async function newestTrustedRun({ repo, runId, actions, name, accept = async () => true, workflow = WORKFLOW_PATH }) {
+export async function newestTrustedRun(options) {
+  return (await newestTrustedArtifact(options))?.runId;
+}
+
+// newestTrustedRun's run as {runId, artifactId}: artifactId is the newest
+// (highest id) unexpired artifact named `name` from the listing already read,
+// undefined when that listing gives it no id.
+export async function newestTrustedArtifact({ repo, runId, actions, name, accept = async () => true, workflow = WORKFLOW_PATH }) {
   const file = workflow.slice(workflow.lastIndexOf("/") + 1);
   let asked = 0;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -162,9 +190,10 @@ export async function newestTrustedRun({ repo, runId, actions, name, accept = as
         return undefined;
       }
       asked += 1;
-      const found = await artifactsNamed({ repo, actions, runId: run.id, name });
-      if (found.some((a) => a?.expired === false) && (await accept(run))) {
-        return run.id;
+      const live = (await artifactsNamed({ repo, actions, runId: run.id, name })).filter((a) => a?.expired === false);
+      if (live.length > 0 && (await accept(run))) {
+        const newest = live.reduce((a, b) => (runOrder(b) > runOrder(a) ? b : a));
+        return { runId: run.id, artifactId: Number.isSafeInteger(newest?.id) ? newest.id : undefined };
       }
     }
     if (listing.workflow_runs.length < 100) {
