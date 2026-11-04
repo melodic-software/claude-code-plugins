@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: pr-commit-text-stays-in-strings-json
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: strings-json-holds-commits
+    type: regex
+    pattern: 'Retry webhook delivery after a 429'
+    target: { source: file, path: video/strings.json }
+    arm: both
+  - name: scene-loads-strings-json
+    type: regex
+    pattern: '^(?=[\s\S]*strings\.json)(?=[\s\S]*json\.loads?\()'
+    target: { source: file, path: video/scene.py }
+    arm: both
+  - name: scene-shows-through-text
+    type: regex
+    pattern: '\bText\('
+    target: { source: file, path: video/scene.py }
+    arm: both
+  - name: no-markup-in-scene
+    type: regex
+    pattern: '\b(?:MarkupText|MathTypst|(?:Math)?Tex)\('
+    match: not_contains
+    target: { source: file, path: video/scene.py }
+    arm: both
+  - name: no-commit-text-in-scene
+    type: regex
+    pattern: 'Retry webhook delivery|Drop the legacy cache|Escape <b> tags|Rename .{0,2}owner'
+    flags: 'i'
+    match: not_contains
+    target: { source: file, path: video/scene.py }
+    arm: both

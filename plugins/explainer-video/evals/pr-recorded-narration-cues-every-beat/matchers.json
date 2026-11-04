@@ -1,0 +1,12 @@
+{
+  "render-passes-narration": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?pydeps\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--narration(?:\\s|=|\\\\\\\\\\\\n)+(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|=']*narration\\b"
+  ]
+}

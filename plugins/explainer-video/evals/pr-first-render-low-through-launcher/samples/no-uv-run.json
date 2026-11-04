@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ./uv/run"
+          }
+        }
+      ],
+      "why": "a path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./uv/run --help"
+          }
+        }
+      ],
+      "why": "a directory named uv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"uv run\" notes.txt"
+          }
+        }
+      ],
+      "why": "quoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "uv run manim -ql video/scene.py Odd"
+          }
+        }
+      ],
+      "why": "bare"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd video && uv run --with manim manim scene.py"
+          }
+        }
+      ],
+      "why": "after cd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/local/bin/uv run python x.py"
+          }
+        }
+      ],
+      "why": "path"
+    }
+  ]
+}
