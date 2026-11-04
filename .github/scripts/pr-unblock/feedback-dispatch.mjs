@@ -1442,9 +1442,14 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  // A network error names no call; the annotation needs which one failed.
+  // A network error names no call; the annotation needs which one failed. A
+  // token that is no legal header value comes back quoted in the error, whose
+  // message the warnings log too.
   const send = (url, init) =>
     fetch(url, init).catch((error) => {
+      if (String(error.message).includes(headers.Authorization)) {
+        error.message = error.message.split(headers.Authorization).join("Bearer [redacted]");
+      }
       throw Object.assign(error, { call: `${init.method ?? "GET"} ${url}` });
     });
 
@@ -1810,8 +1815,11 @@ const causeLabel = (error) => {
   const name = typeof cause.code !== "string" && typeof cause.name === "string" ? ` cause ${cause.name}` : "";
   return ` (${errorLabel(error)}${name})`;
 };
-export const failureAnnotation = (error) =>
-  `::error::pr-feedback dispatch failed: ${error.message}${error.call ? ` on ${error.call}` : ""}${causeLabel(error)}${detailSuffix(error)}`;
+// The line holds no token and no line break, whichever client threw.
+export const failureAnnotation = (error, token) => {
+  const line = `::error::pr-feedback dispatch failed: ${error.message}${error.call ? ` on ${error.call}` : ""}${causeLabel(error)}${detailSuffix(error)}`;
+  return (token ? line.split(token).join("[redacted]") : line).replace(/[\x00-\x1f\x7f]+/g, " ");
+};
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.env).then(
@@ -1819,7 +1827,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exitCode = code;
     },
     (error) => {
-      console.log(failureAnnotation(error));
+      console.log(failureAnnotation(error, process.env.GITHUB_TOKEN));
       process.exitCode = 1;
     },
   );

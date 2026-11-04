@@ -1249,6 +1249,21 @@ test("a permission read whose fetch fails names the call, and a 404 is still non
   assert.equal(await api.getPermission("someone"), "none");
 });
 
+test("a token real fetch refuses as a header value never reaches the annotation or a logged message", async () => {
+  const secret = "ghs_" + "T".repeat(36);
+  const token = `${secret}\nx`;
+  const api = createGitHubApi({ token, repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: globalThis.fetch });
+  const error = await api.getPermission("someone").then(() => assert.fail("the read resolved"), (thrown) => thrown);
+  assert.equal(error.message, 'Headers.append: "Bearer [redacted]" is an invalid header value.');
+  assert.equal(failureAnnotation(error, token), `::error::pr-feedback dispatch failed: Headers.append: "Bearer [redacted]" is an invalid header value. on GET https://api.example/repos/${REPOSITORY}/collaborators/someone/permission`);
+});
+
+test("the annotation redacts the token from any error's message and stays one line", () => {
+  const secret = "ghs_" + "T".repeat(36);
+  const error = new Error(`bad ${secret}\n::set-output name=x::y`);
+  assert.equal(failureAnnotation(error, secret), "::error::pr-feedback dispatch failed: bad [redacted] ::set-output name=x::y");
+});
+
 // The GraphQL fallback is a read: it is aborted at the attempt timeout (5 ms
 // here) instead of hanging the step. Without it the test times out.
 test("pullsForCommit aborts a hung GraphQL fallback at the attempt timeout", { timeout: 5000 }, async () => {
