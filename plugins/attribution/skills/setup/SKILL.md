@@ -140,8 +140,8 @@ reads as a setting and behaves as nothing.
   so regenerating the file from the default schema converts every key the user never mentioned
   into a choice they did not make. Edit in place.
 - **The fixture exclusion belongs in config, and moving it into the script breaks the harness.**
-  An unconditional exclusion would decline the fixtures under the eval harness's own config
-  isolation, leaving the eval author reading prose instead of results.
+  An unconditional exclusion would decline the fixtures under every eval harness run, leaving the
+  eval author reading prose instead of results; the harness can lift the config default.
 
 ## What this skill does NOT do
 

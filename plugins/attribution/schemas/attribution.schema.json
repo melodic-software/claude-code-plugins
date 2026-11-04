@@ -9,7 +9,7 @@
     "$schema": { "type": "string" },
     "excluded_paths": {
       "type": "array",
-      "description": "Globs, matched against repo-relative paths, whose files the audit does not scan: a whole class of surface, never one passage. Replaces the lower layer's list whole; an empty list clears it.",
+      "description": "Globs, matched against repo-relative paths, whose files the audit does not scan: a whole class of surface, never one passage. Replaces the lower layer's list whole; an empty list clears it. With no layer setting it, the bundled default declines test-fixture trees (**/fixtures/**, **/__fixtures__/**, **/testdata/**) below the scan target.",
       "items": { "type": "string", "minLength": 1 }
     },
     "budgets": {
