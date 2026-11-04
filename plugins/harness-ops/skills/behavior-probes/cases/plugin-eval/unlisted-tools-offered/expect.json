@@ -1,0 +1,20 @@
+{
+  "claim": "A claude plugin eval case whose allowed_tools lists only Read, Glob and Grep, run with no --allow-tools grant, is still offered Skill, and its Skill call runs with no denial. The checker's line also records the run's init tools and what became of a call to Task, TaskStop and ToolSearch.",
+  "tags": ["plugin eval", "allowed_tools", "--allow-tools", "Skill tool", "TaskStop", "ToolSearch", "read-only tools"],
+  "permission_mode": "dontAsk",
+  "allowed_tools": ["Bash(python3 ${PROBE_WORKDIR}/eval-tools-check.py)"],
+  "disallowed_tools": ["Read", "Grep", "Glob"],
+  "explicit": true,
+  "requires": ["python3", "claude"],
+  "max_turns": 3,
+  "max_budget_usd": 0.5,
+  "timeout": 900,
+  "target": {
+    "tool": "Bash",
+    "input_match": "eval-tools-check\\.py",
+    "example": { "command": "python3 eval-tools-check.py" },
+    "result_match": "Skill=(absent|denied|refused|ran)"
+  },
+  "outcome": "ran",
+  "match": "Skill=ran"
+}

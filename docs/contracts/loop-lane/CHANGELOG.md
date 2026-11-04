@@ -5,6 +5,22 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [17.0.0] - 2026-11-03
+
+Major: the escalation contract changes (§2).
+
+- **Escalation classes route to a lane (§2).** Gate failure, verification divergence and
+  demotion each go to the lane that owns the follow-up, an audited admission rejection stays
+  final, and each carries the `needs-human` role label only for a reason or kept control "When
+  work stops for the owner" names. Structural-plan approval stops only when the plan changes
+  intent or the primary design, as the guardrail escalation contract now says (owner decision on
+  #10517, #11024). §2 states the post-merge demotion alert's record rules as #11022 set them: a
+  canary, revert or read-back record keeps `needs-human` only until it lifts, and an issue intake
+  did not receive gets it because no lane retries that delivery.
+- **Kept intake injection hold (§2).** "When work stops for the owner" names intake triage's hold
+  on text addressed to the triage run as a kept trust control, with its reason, and an
+  `apply-verdict` test shows the hold still stops for the owner (#11024).
+
 ## [16.0.0] - 2026-11-03
 
 Major: the autonomy ladder's merge authority changes (§1).

@@ -849,9 +849,23 @@ jobs:
               exit 1
             fi
             sleep "$POLL_SECONDS"
-            waited=$((waited + POLL_SECONDS))
+            waited=$((waited + POLL_SECONDS)) polled=1
             read_api run "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id"
           done
+          # ci-status's review-lanes step waits for a review still running
+          # (pr-require-checks.yml REVIEW_WAIT_SECONDS), so one that began
+          # reading before both lanes finished can still judge them after.
+          # Polled to its end, it is read again. Passed, with that step ended
+          # after both lanes finished, a re-run can only pass again.
+          if [ -n "${polled:-}" ]; then
+            read_api jobs "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100"
+            job=$(jq -c '[.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty' <<<"$jobs")
+          fi
+          judged_at=$(jq -r 'first((.steps // [])[] | select(.name == "Require both review lanes on this head") | .completed_at | strings) // ""' <<<"${job:-null}")
+          if jq -e --arg s "$judged_at" --arg d "$done_at" 'try (.conclusion == "success" and ($s | fromdateiso8601) >= ($d | fromdateiso8601)) catch false' <<<"${job:-null}" >/dev/null; then
+            echo "ci-status of run $id passed, judging the reviews by $judged_at, after both lanes finished ($done_at); a re-run can only pass again."
+            exit 0
+          fi
           job_id=$(jq -r '.id // empty' <<<"${job:-null}")
           if [[ ! $job_id =~ ^[1-9][0-9]{0,14}$ ]]; then
             echo "::error::run $id on $HEAD_SHA has no ci-status job to re-run."

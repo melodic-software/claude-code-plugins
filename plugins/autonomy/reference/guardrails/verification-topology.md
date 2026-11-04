@@ -247,8 +247,8 @@ reading as if it meant more.
 
 **Unanimous checker agreement for anything auto-proceeding.** Every transition a run takes without a
 human, not merge alone, requires every checker the class declares to agree. One dissent withholds
-the automatic transition and hands the item to the human gate; divergence routing is owned by the
-matrix's escalation contract.
+the automatic transition and raises `verification-divergence`, which the matrix's escalation
+contract routes: to the lane doing the work, or to a person only under its stop rule.
 
 ## How unanimity is enforced today
 
