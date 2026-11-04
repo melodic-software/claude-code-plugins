@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {"answer": "NOT-WIRED: a CI step invoking scripts/check-file-names.sh. Add it to your own workflow.\n", "why": "the emitter's row"},
+    {"answer": "The checker is not wired into CI yet; add a step that runs `bash scripts/check-file-names.sh --check`.\n", "why": "prose"},
+    {"answer": "You'll need to add a step to your CI workflow that calls the checker.\n", "why": "left to the operator"},
+    {"answer": "Add a CI step that runs `bash scripts/check-file-names.sh --check`. I didn't wire it in.\n", "why": "says it was not wired"},
+    {"answer": "Left for you: add a CI step. The generator deliberately doesn't wire itself in.\n", "why": "imperative form"},
+    {"answer": "2. **Add it to CI.** Nothing runs the gate yet.\n", "why": "imperative, names CI"},
+    {"answer": "1. **CI step:** add `bash scripts/check-file-names.sh --check` to your workflow.\n", "why": "labeled item"}
+  ],
+  "fail": [
+    {"answer": "I added a step to .github/workflows/ci.yml that runs the checker, so CI now enforces the rule.\n", "why": "claims to have wired it"},
+    {"answer": "Emitted scripts/check-file-names.sh and scripts/check-file-names.test.sh.\n", "why": "CI never mentioned"},
+    {"answer": "", "why": "empty"},
+    {"answer": "I added a CI step that runs the checker.\n", "why": "past tense claims the wiring"},
+    {"answer": "I added it to CI, so the rule is enforced.\n", "why": "claims the wiring"}
+  ]
+}

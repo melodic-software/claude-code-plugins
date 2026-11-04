@@ -78,8 +78,27 @@ fail() {
   exit 2
 }
 
+# ASCII only, like tr in the locales this runs under; no fork, and no ${var,,} for bash 3.2.
 lower() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+  local text="$1" i upper=ABCDEFGHIJKLMNOPQRSTUVWXYZ letters=abcdefghijklmnopqrstuvwxyz
+  for ((i = 0; i < 26; i++)); do
+    text="${text//${upper:i:1}/${letters:i:1}}"
+  done
+  printf '%s' "$text"
+}
+
+# Sets the variable named $1 to the stdout of the command in $2..., with CRs removed and stderr
+# dropped, and returns the command's status. A pipe through tr would cost two more forks per call.
+capture_text() { # <out-var> <command> [args]...
+  local __capture_out __capture_status
+  __capture_out="$("${@:2}" 2>/dev/null)"
+  __capture_status=$?
+  __capture_out="${__capture_out//$'\r'/}"
+  while [[ "$__capture_out" == *$'\n' ]]; do
+    __capture_out="${__capture_out%$'\n'}"
+  done
+  printf -v "$1" '%s' "$__capture_out"
+  return "$__capture_status"
 }
 
 # True when $1 equals one of the remaining arguments. Collapses the report's
@@ -374,8 +393,8 @@ run_ls_remote_probe() {
     printf 'Rejected non-allowlisted Git probe\n' >&2
     return 126
   }
-  pinned_url="$(run_git_probe -C "$repo" remote get-url "$remote" 2>/dev/null | tr -d '\r')" &&
-    transport_url="$(run_transport_git -C "$repo" remote get-url "$remote" 2>/dev/null | tr -d '\r')" &&
+  capture_text pinned_url run_git_probe -C "$repo" remote get-url "$remote" &&
+    capture_text transport_url run_transport_git -C "$repo" remote get-url "$remote" &&
     parse_github_url "$pinned_url" || return 1
   pinned_key="$PARSED_KEY"
   parse_github_url "$transport_url" && [[ "$PARSED_KEY" == "$pinned_key" ]] || return 1
@@ -1793,7 +1812,7 @@ count_worktree_registrations() {
 # worktrees, print evidence and return 0. Otherwise return non-zero. Does not mutate state.
 classify_bare_live_tree() {
   local dir="$1" bare wt_count=0 has_content="false" detail=""
-  bare="$(run_git_probe -C "$dir" rev-parse --is-bare-repository 2>/dev/null | tr -d '\r')" || return 1
+  capture_text bare run_git_probe -C "$dir" rev-parse --is-bare-repository || return 1
   [[ "$bare" == "true" ]] || return 1
   wt_count="$(count_worktree_registrations "$dir")"
   directory_has_non_git_entries "$dir" && has_content="true"
@@ -1970,11 +1989,11 @@ add_target() {
       "$(discovery_skip_reason "$candidate" "discovered path is not a directory")"
     return 0
   fi
-  top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
+  capture_text top run_git_probe -C "$candidate" rev-parse --show-toplevel || {
     # Git repository that is not a work tree: classify the bare+live-tree anomaly before treating
     # the path as an ordinary rejection. Common-dir still resolves on these repositories.
     if bare_live_evidence="$(classify_bare_live_tree "$candidate")" &&
-      common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" &&
+      capture_text common run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir &&
       [[ -n "$common" ]]; then
       record_bare_live_tree "$candidate" "$bare_live_evidence" "$(path_key "$common")"
       return 0
@@ -1985,7 +2004,7 @@ add_target() {
       "$(discovery_skip_reason "$candidate" "discovered path is not a Git working tree")"
     return 0
   }
-  common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" || {
+  capture_text common run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir || {
     reject_target "$origin" "cannot resolve Git common directory: $candidate"
     record_rejected_target "$origin" "$candidate" \
       "cannot resolve the Git common directory for the configured path" \
@@ -2007,7 +2026,7 @@ add_target() {
     # different checkout: bare and separate-git-dir fail this probe and are skipped, a submodule
     # resolves back to the path we already had and self-cancels, and a real linked worktree resolves
     # to its main worktree and retargets.
-    main_resolved="$(run_git_probe -C "$main_top" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || main_resolved=""
+    capture_text main_resolved run_git_probe -C "$main_top" rev-parse --show-toplevel || main_resolved=""
     if [[ -n "$main_resolved" && "$(path_key "$main_resolved")" != "$(path_key "$top")" ]]; then
       # Disclose the retarget. The operator supplied or discovered one path and the report is about
       # another, so substituting it silently would be the same class of defect as a header asserting
@@ -2134,13 +2153,14 @@ if [[ "$GH_READY" == "true" ]]; then
   GH_ACCOUNT="$(run_bounded_gh api user --hostname github.com --method GET --template '{{.login}}' 2>/dev/null | tr -d '\r\n')" || GH_ACCOUNT=""
 fi
 
+SELECTED_URL=""
 select_remote() {
   local repo="$1" remotes name
   local -a remote_names=()
   if run_git_probe -C "$repo" remote get-url origin >/dev/null 2>&1; then
     SELECTED_REMOTE="origin"
   else
-    remotes="$(run_git_probe -C "$repo" remote 2>/dev/null | tr -d '\r')"
+    capture_text remotes run_git_probe -C "$repo" remote
     # Sole-remote fallback. Collecting the non-empty lines answers both "how many" and
     # "which one" from one pass, in place of two sed/wc/tr pipelines over the same text.
     while IFS= read -r name; do
@@ -2155,7 +2175,7 @@ select_remote() {
       return 1
     fi
   fi
-  SELECTED_URL="$(run_git_probe -C "$repo" remote get-url "$SELECTED_REMOTE" 2>/dev/null | tr -d '\r')" || return 1
+  capture_text SELECTED_URL run_git_probe -C "$repo" remote get-url "$SELECTED_REMOTE" || return 1
 }
 
 parse_github_url() {
@@ -2604,7 +2624,7 @@ analyze_repo() {
         "override for $discovered_key is not a directory" "Correct the override and rerun"
       return
     }
-    canonical="$(run_git_probe -C "$OVERRIDE_VALUE" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
+    capture_text canonical run_git_probe -C "$OVERRIDE_VALUE" rev-parse --show-toplevel || {
       begin_repo_record "$discovered" "unresolved" "${discovered_key:-unknown}" "$override_source"
       emit_finding canonical-override-invalid "$OVERRIDE_VALUE" \
         "override for $discovered_key is not a Git working tree" "Correct the override and rerun"
@@ -2697,7 +2717,7 @@ analyze_repo() {
     fi
   fi
 
-  expected_common="$(run_git_probe -C "$canonical" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+  capture_text expected_common run_git_probe -C "$canonical" rev-parse --path-format=absolute --git-common-dir
   [[ -n "$expected_common" ]] || {
     emit_finding git-common-dir-unavailable "$canonical" "git could not resolve the canonical common directory" \
       "Repair/replace the canonical override, then rerun"
@@ -2714,10 +2734,10 @@ analyze_repo() {
   # rather than a silent skip: every sibling probe in this function reports when
   # it cannot answer, and a placement check that quietly did not run reads
   # identically to one that ran and found nothing.
-  local canonical_top canonical_bare="false"
-  [[ "$(run_git_probe -C "$canonical" rev-parse --is-bare-repository 2>/dev/null | tr -d '\r')" == "true" ]] &&
-    canonical_bare="true"
-  canonical_top="$(run_git_probe -C "$canonical" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  local canonical_top canonical_bare="false" canonical_bare_text
+  capture_text canonical_bare_text run_git_probe -C "$canonical" rev-parse --is-bare-repository
+  [[ "$canonical_bare_text" == "true" ]] && canonical_bare="true"
+  capture_text canonical_top run_git_probe -C "$canonical" rev-parse --show-toplevel
   if [[ -z "$canonical_top" && "$canonical_bare" != "true" ]]; then
     emit_finding worktree-placement-unverifiable "$canonical" \
       "git rev-parse --show-toplevel gave no working-tree root for a non-bare canonical checkout" \
@@ -2763,7 +2783,7 @@ analyze_repo() {
   # which is one answer for every registration, so it is resolved once here rather than per
   # worktree. select_remote's sole-GitHub fallback (e.g. upstream) is deliberately not used: it
   # would falsely flag creator-compliant trees.
-  if origin_url="$(run_git_probe -C "$canonical" remote get-url origin 2>/dev/null | tr -d '\r')" &&
+  if capture_text origin_url run_git_probe -C "$canonical" remote get-url origin &&
     [[ -n "$origin_url" ]] && parse_github_url "$origin_url"; then
     WT_ORIGIN_OWNER="${PARSED_SLUG%%/*}"
     WT_ORIGIN_REPO="${PARSED_SLUG#*/}"
@@ -2779,14 +2799,14 @@ analyze_repo() {
       # `--show-prefix` discriminates a work-tree ROOT from a leftover directory below one: empty
       # exactly at a root, non-empty anywhere beneath it. `--is-inside-work-tree` cannot, because a
       # leftover directory inside a repository genuinely IS inside that work tree.
-      if wt_prefix="$(run_git_probe -C "$wt_path" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"; then
+      if capture_text wt_prefix run_git_probe -C "$wt_path" rev-parse --show-prefix; then
         wt_prefix_status="ok"
       else
         wt_prefix_status="failed"
         wt_prefix=""
       fi
       if [[ "$wt_prefix_status" == "ok" && -z "$wt_prefix" ]]; then
-        if wt_common="$(run_git_probe -C "$wt_path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"; then
+        if capture_text wt_common run_git_probe -C "$wt_path" rev-parse --path-format=absolute --git-common-dir; then
           wt_common_status="ok"
         else
           wt_common_status="failed"
@@ -2812,7 +2832,7 @@ analyze_repo() {
   if [[ -z "$default_branch" && -n "$canonical_remote" ]]; then
     default_branch="$(run_git_probe -C "$canonical" symbolic-ref "refs/remotes/$canonical_remote/HEAD" 2>/dev/null | sed "s|^refs/remotes/$canonical_remote/||" | tr -d '\r')"
   fi
-  if ! current_branch="$(run_git_probe -C "$canonical" branch --show-current 2>/dev/null | tr -d '\r')"; then
+  if ! capture_text current_branch run_git_probe -C "$canonical" branch --show-current; then
     emit_finding current-branch-unavailable "$canonical" \
       "git branch --show-current failed" \
       "Repair Git metadata or correct the canonical checkout, then rerun"

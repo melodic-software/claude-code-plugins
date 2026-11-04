@@ -8,14 +8,13 @@ the question is who can run it.
 
 ## The gate, read off the shipping binary
 
-```js
-var canLoadBuiltinHooksModules = () => !kS() && !Vr("hooks") && !mg();
-var HOOKS_MODULES_FLAG          = "tengu_plugin_hooks_modules";
-var hooksModulesFlagDefault     = () => !1;                                  // false
-var hooksModulesRolloutOn       = () => a.CLAUDE_CODE_ENABLE_FUNCTION_HOOKS
-                                        ?? x(HOOKS_MODULES_FLAG, hooksModulesFlagDefault());
-var canLoadUserHooksModules     = () => hooksModulesRolloutOn() && canLoadBuiltinHooksModules();
-```
+- `canLoadBuiltinHooksModules` is true when `kS()`, `Vr("hooks")` and `mg()` are all false.
+- `HOOKS_MODULES_FLAG` holds the name `tengu_plugin_hooks_modules`, and
+  `hooksModulesFlagDefault` returns `false`.
+- `hooksModulesRolloutOn` uses `a.CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` when set; a `??` falls back
+  to `x(HOOKS_MODULES_FLAG, hooksModulesFlagDefault())` otherwise.
+- `canLoadUserHooksModules` needs both `hooksModulesRolloutOn()` and
+  `canLoadBuiltinHooksModules()`.
 
 `BINARY` · HIGH · names bound in the module's own export map;
 `repo-primary/RESEARCH-enablement-and-limits.md`, reproduced independently in
@@ -29,13 +28,13 @@ Reading it:
    The `??` short-circuits before the gate is consulted. It is settable from
    `settings.json`'s `env` block, not only the shell. `BINARY` · HIGH
 3. **Otherwise a server-side GrowthBook gate named `tengu_plugin_hooks_modules`
-   decides.** The binary's own provenance strings: *"from a local override"* /
-   *"from GrowthBook (this session's payload)"* / *"from GrowthBook (the disk
-   cache of an earlier session)"* / *"from the default (GrowthBook is off for
-   this session: a third-party provider, or telemetry opted out)"*. The binary
+   decides.** The binary's own provenance strings name four sources: a local
+   override, this session's GrowthBook payload, a payload a prior session
+   cached to disk, and the default, used when GrowthBook is off for the
+   session because of a non-Anthropic provider or a telemetry opt-out. The binary
    caches an earlier session's payload to disk, so the gate can stay on across
    restarts. `BINARY` · HIGH
-4. Where GrowthBook is off (**"a third-party provider"** or telemetry opted out),
+4. Where GrowthBook is off (the string's **"a third-party provider"** case, or a telemetry opt-out),
    the gate falls to `false` and only the env var can enable it.
    `BINARY` · HIGH. **Naming that trio Bedrock / Vertex / Foundry is `INFERRED`**,
    interpolated from the 2.1.277 CHANGELOG entry about AGENTS.md, not read from
@@ -66,32 +65,26 @@ user-authored hooks module did not. Confirmed directly by the live-session probe
 flag-unset arms. `OBSERVED` · HIGH · `official-docs-changelog/VERIFICATION.md`.
 
 **What turns a built-in off** is the one part still unresolved. `agents-md`'s
-README states *"No hooks setting or CLI mode turns it off (`disableAllHooks`,
-`allowManagedHooksOnly` and `--bare` govern settings hooks and installed plugins,
-not built-ins)"*, and the supported off-switch is `/plugin`. An earlier inference
-mapping the `claude plugin test` refusal string
-(*"disableAllHooks, allowManagedHooksOnly or a policy"*) onto
+README says none of the hooks settings or CLI modes can disable it
+(`disableAllHooks`, `allowManagedHooksOnly` and `--bare` apply only to hooks from
+settings and to installed plugins), and that `/plugin` is the supported off-switch.
+An earlier inference mapping the `claude plugin test` refusal string (which names
+`disableAllHooks`, `allowManagedHooksOnly` or a policy as the cause) onto
 `canLoadBuiltinHooksModules` was **withdrawn**: that string sits on the
 user-module path. `SOURCE` · HIGH for the off-switch; the predicate identities
 remain unresolved. `repo-primary/RESEARCH-enablement-and-limits.md` (Conflict C4,
 Gap G3).
 
-A partial narrowing: the 2.1.277 CHANGELOG parenthetical *"(not yet on Bedrock,
-Vertex or Foundry)"* about AGENTS.md is evidence that **a provider predicate sits
+A partial narrowing: the 2.1.277 CHANGELOG note that AGENTS.md support leaves out
+Foundry, Bedrock and Vertex for now is evidence that **a provider predicate sits
 inside `canLoadBuiltinHooksModules`**, since that mod does not ride the rollout
 gate. `INFERRED` · MEDIUM · `repo-primary/VERIFICATION.md` row 8.8.
 
 ## Observed on this machine
 
-```
-$ claude plugin test
-error: unknown command 'test'
-(Did you mean list?)
-
-$ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test --help
-Usage: claude plugin test [dir]
-…
-```
+Without the flag, `claude plugin test` fails as an unknown command and suggests
+`list`. With `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`, `claude plugin test --help`
+prints a usage line that takes an optional directory.
 
 Three arms, run with `env -u` as a real control: unset → unknown command;
 `=0` → unknown command; `=1` → runs, exit 0. `OBSERVED` · HIGH ·
@@ -106,25 +99,25 @@ A fresh-context verifier loaded a locally authored, non-marketplace hooks module
 via `--plugin-dir` in a real headless session, with three independent evidence
 channels. `OBSERVED` · HIGH · `official-docs-changelog/VERIFICATION.md`.
 
-**Flag set →** LOADS:
+**Flag set →** LOADS. The debug log, in our words:
 
-```
-[DEBUG] hooks module verify-probe@inline loaded (worker, environment 1, tier user); events: session.start
-[DEBUG] plugin.register: verify-probe (user, verify-probe@inline), judged by core alone: admitted
-[DEBUG] $.fs.write (verify-probe): …\markers\marker-fs.txt (48 bytes)
-```
+- `verify-probe@inline` loaded as a hooks module in a worker (environment 1,
+  `user` tier), registered for `session.start`;
+- `plugin.register` admitted `verify-probe`, with core the only judge;
+- `$.fs.write` from `verify-probe` wrote the 48-byte marker file.
 
 A `node:fs` channel in module scope left **no** marker; a hooks module cannot
 reach raw `node:fs`; `$` was the only channel that worked.
 
-**Flag unset →** DOES NOT LOAD:
+**Flag unset →** DOES NOT LOAD. The debug log, in our words:
 
-```
-[DEBUG] installed plugins' hooks modules not loaded: rollout flag (tengu_plugin_hooks_modules) is off,
-        from the default (a cold GrowthBook cache, no payload yet); built-in plugins load regardless
-[DEBUG] hooks module verify-probe@inline not loaded: the rollout flag … governs installed plugins
-[DEBUG] sec-default@builtin not seated: installed plugins' hooks modules are off in this process
-```
+- hooks modules of installed plugins were skipped because
+  `tengu_plugin_hooks_modules` was off, decided by the default (the GrowthBook
+  cache was cold and held no payload), while built-in plugins loaded anyway;
+- `verify-probe@inline` was skipped, the rollout flag being what controls
+  installed plugins;
+- `sec-default@builtin` took no seat, since installed plugins' hooks modules
+  were disabled for the process.
 
 exit 0, stdout normal, **stderr carries nothing about plugins**. The plugin is
 still discovered and its `hooks.json` still read.
@@ -136,15 +129,15 @@ These are the two operational failure modes, and they are different.
 **Silent-inert.** A mod can be installed, enabled, listed by `claude plugin list`
 and yet never invoked, with no signal anywhere but `--debug`. The one substantial
 independent migration report (Practical Systems, 2026-09-17, Windows,
-2.1.273/2.1.274) puts it plainly: *"Claude Code never calls `register()`. No
-handlers, no commands, nothing"* and *"`claude plugin list` is telling the truth
-and the truth is useless, because nothing in that output distinguishes a plugin
-that ran from a plugin that was never invoked."* Cause in that case: the env var
+2.1.273/2.1.274) is blunt about it: `register()` was never called, so no handler
+or command existed at all, and `claude plugin list` was accurate yet worthless,
+since its output looks the same for a plugin that ran and one never invoked.
+Cause in that case: the env var
 was exported in one terminal only. `COMMUNITY` · HIGH, corroborated `OBSERVED` ·
 `community-falsification/RESEARCH-field-evidence.md`.
 
 The same report carries two secondary lessons worth copying: an exact-match
-version canary *"red most of the time is one you learn to scroll past"*, and a
+version canary that is red on most runs teaches readers to ignore it, and a
 guard silently disarmed when `\b` became a literal backspace, caught only by a
 test suite asserting **denials**. `COMMUNITY` · HIGH.
 
@@ -154,10 +147,10 @@ path nobody tested. `BINARY` · HIGH · `community-falsification/VERIFICATION.md
 
 Two independent third-party adopters already defend against exactly this:
 `kunchenguid/firstmate` and `kunchenguid/compact-adviser` both state in their own
-`hooks.json` that the module *"may load through CLAUDE_CODE_ENABLE_FUNCTION_HOOKS
-or tengu_plugin_hooks_modules, but activates only when
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is exactly 1 and is otherwise a complete
-no-op."* `COMMUNITY` · HIGH.
+`hooks.json` description that the module can be loaded by either
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` or `tengu_plugin_hooks_modules`, but does
+nothing at all unless `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` equals `1`.
+`COMMUNITY` · HIGH.
 
 **Ship-blocking recommendation carried from that lane:** any mod published from
 this repo should be inert unless the env var is exactly `1`, and should emit a
@@ -167,9 +160,9 @@ decided (`hooksModulesRolloutSource`). `COMMUNITY` `BINARY` · HIGH.
 ## Versions
 
 - **No minimum version is stated by any official source.** `OBSERVED` · HIGH
-- Staff named versions only as snapshots: *"a cheat sheet reference that
-  enumerates some affordances on v267/v268 (today / tomorrow)"*, and a `mods/`
-  commit message *"the declarations are 2.1.273's"*. Neither is a floor.
+- Staff named versions only as snapshots: a cheat sheet covering some
+  affordances of v267 and v268, and a `mods/` commit message dating the
+  declarations to 2.1.273. Neither is a floor.
   `STAFF` · HIGH
 - Community floors, all third-party and uncorroborated: aitmpl.com `>= 2.1.259`;
   `halluton/Mindful-Claude` "2.1.269 or later"; wavect.io names 2.1.273 as the
@@ -186,9 +179,9 @@ decided (`hooksModulesRolloutSource`). `COMMUNITY` `BINARY` · HIGH.
 
 ## Distribution
 
-- **Anthropic's own mods are not marketplace-listed:** *"They are not listed in
-  this repository's marketplace; the copies that matter are the ones already in
-  your Claude Code."* `SOURCE` · HIGH
+- **Anthropic's own mods are not marketplace-listed:** the README says the
+  repository's marketplace omits them and that the copies that count are the
+  ones built into each Claude Code install. `SOURCE` · HIGH
 - A working third-party mod installs through the **existing** commands:
   `claude plugin marketplace add`, `claude plugin install`. **This install path
   comes from one community source (`halluton/Mindful-Claude`'s README), not from
@@ -196,9 +189,8 @@ decided (`hooksModulesRolloutSource`). `COMMUNITY` `BINARY` · HIGH.
   `marketplace | plugin install | plugin add | --plugin-dir` returned one false
   positive. `COMMUNITY` · HIGH · `x-threads/VERIFICATION.md` row 3.
 - Staff corroborate only the hedged **intent** that packaging is unchanged:
-  *"To the extent possible, we are intending function hooks to cleanly integrate
-  with plugins as they exist today, as a new type of hook. Therefore
-  dependencies, versions, etc. will all go unchanged."* `STAFF` · HIGH
+  function hooks are meant, as far as possible, to fit existing plugins as one
+  more hook type, so dependencies and versioning stay as they are. `STAFF` · HIGH
 - **No signing, no version pinning change, no new review gate.** The question was
   asked directly and answered with "unchanged". `STAFF` · HIGH ·
   `community-falsification/RESEARCH-security-supply-chain.md`

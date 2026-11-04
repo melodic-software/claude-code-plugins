@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: pr-no-speech-renders-silent-says-why
+graders:
+  - name: scene-written
+    type: file_exists
+    path: 'video/scene.py'
+    arm: both
+  - name: renders-silent
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?pydeps\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?render\.py\b'
+    arm: with-only
+  - name: no-narration-flag
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:pydeps|render)\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--narration\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: says-narration-unavailable
+    type: llm
+    criteria: 'The reply says narration is unavailable, so this video has no narration.'
+    focus: last_message
+    arm: both
+  - name: says-why-unavailable
+    type: llm
+    criteria: 'The reply gives as the reason that the speech plugin or /speech:narrate is not available in this session.'
+    focus: last_message
+    arm: both

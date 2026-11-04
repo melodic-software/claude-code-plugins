@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root ."}}], "why": "gate only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root . --rule"}}], "why": "opted into the rule file unasked"},
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root \"$(git rev-parse --show-toplevel)\" --rule"}}], "why": "flag after a quoted argument"}
+  ]
+}

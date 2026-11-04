@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.load(open('video/strings.json'))\n        for s in strings:\n            self.play(FadeIn(Text(s)))\n"
+    },
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.loads(Path('strings.json').read_text())\n        for s in strings:\n            self.play(FadeIn(Text(s)))\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        for s in ['Retry webhook delivery after a 429', 'Drop the legacy cache key']:\n            self.play(FadeIn(Text(s)))\n",
+      "why": "pasted"
+    },
+    {
+      "answer": "title = Text('Escape <b> tags in release notes')\n",
+      "why": "one subject"
+    },
+    {
+      "answer": "x = 'rename \"owner\" field'\n",
+      "why": "quoted subject"
+    },
+    {
+      "answer": "# retry webhook delivery after a 429\n",
+      "why": "in a comment"
+    }
+  ]
+}

@@ -18,13 +18,13 @@
       "id": 2,
       "name": "optional-branding-and-lens-skipped-cleanly",
       "prompt": "/ai-briefing:setup",
-      "expected_output": "Offers declarative brand.json and audience.md as optional profile files, creates only accepted files, and leaves the neutral defaults intact when declined. Does not recommend a .claude/ai-briefing/**/*.local.* gitignore line or any *.local.* overlay.",
+      "expected_output": "Offers declarative brand.json and audience.md as optional profile files, creates only accepted files, and leaves the neutral defaults intact when declined. Does not recommend a .claude/ai-briefing/**/*.local.* gitignore line or any *.local.* personal override.",
       "files": [],
       "expectations": [
         "Offers brand.json and audience.md rather than forcing them",
         "Writes accepted optional files only to the tracked profile directory",
         "Skips declined optional files without writing machine-local configuration",
-        "Does not recommend a .claude/ai-briefing/**/*.local.* gitignore line or any *.local.* overlay"
+        "Does not recommend a .claude/ai-briefing/**/*.local.* gitignore line or any *.local.* personal override"
       ]
     },
     {

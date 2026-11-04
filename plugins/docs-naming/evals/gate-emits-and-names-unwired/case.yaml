@@ -1,0 +1,79 @@
+schema_version: "1.1"
+name: gate-emits-and-names-unwired
+description: "Happy path. The bundled emitter writes the checker and its suite, both are run, the checker's exit 1 on the seeded offender is reported as a finding rather than a failed run, and the three unwired items (CI step, registry row, decision record) are said out loud with no CI file edited and no rule file emitted. Source: case 1 of the skill's legacy evals.json, rewritten for this format. Hard because the checker exits 1 on docs/Release_Notes.md, which a run can misread as its own failure, and because the unwired items are easy to drop once the files exist."
+tags: [generate-file-name-gate, docs-naming, hard]
+expected_outcome: "emit-gate.sh runs without --rule and creates scripts/check-file-names.sh and scripts/check-file-names.test.sh; both are run; the reply reports docs/Release_Notes.md as an offender of the lower-kebab rule, says the CI step invoking the checker is not wired, and names the registry row and the architecture decision record as left to the operator; no Write or Edit touches .github/workflows."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:docs-naming:)?generate-file-name-gate"'
+    arm: with-only
+  - name: ran-emitter
+    type: tool_used
+    tool: Bash
+    input_match: 'emit-gate\.sh'
+    min: 1
+    arm: with-only
+  - name: checker-created
+    type: file_exists
+    path: scripts/check-file-names.sh
+    arm: both
+  - name: suite-created
+    type: file_exists
+    path: scripts/check-file-names.test.sh
+    arm: both
+  - name: ran-checker
+    type: tool_used
+    tool: Bash
+    input_match: '(?:"command"\s*:\s*"|&&\s*|;\s*)(?:bash\s+)?(?:\\")?[\w./-]*check-file-names\.sh(?![\w.])'
+    min: 1
+    arm: both
+  - name: ran-suite
+    type: tool_used
+    tool: Bash
+    input_match: '(?:"command"\s*:\s*"|&&\s*|;\s*)(?:bash\s+)?(?:\\")?[\w./-]*check-file-names\.test\.sh(?![\w.])'
+    min: 1
+    arm: both
+  - name: offender-reported
+    type: regex
+    pattern: 'Release_Notes\.md(?:[^\n]|\n(?!\n)){0,200}?(?:offend|violat|renam|lower-kebab|not conform|non-conform|\bfail|\bflag)|(?:offend|violat|renam|lower-kebab|non-conform|\bflag)(?:[^\n]|\n(?!\n)){0,200}?Release_Notes\.md'
+    flags: i
+    arm: both
+  - name: names-ci-unwired
+    type: regex
+    pattern: '\b(?:CI|workflow)\b[^\n]{0,200}?(?:NOT-WIRED|not (?:yet )?(?:wired|hooked up|added|connected|invoked)|isn''t (?:yet )?(?:wired|hooked up|added|invoked)|(?:didn''t|did not|doesn''t|does not) (?:wire|hook)|left (?:to you|for you|unwired)|you(?:''ll)? (?:need|have) to (?:add|wire|hook))|\badd (?:a|the) CI step\b|\badd (?:it|the gate|the checker) to (?:your )?CI\b|\bCI step:(?:\*\*)?\s*add\b|(?:NOT-WIRED|not (?:yet )?(?:wired|hooked up)|isn''t (?:yet )?(?:wired|hooked up)|(?:didn''t|did not|doesn''t|does not) (?:wire|hook)|left (?:to you|for you|unwired)|you(?:''ll)? (?:need|have) to (?:add|wire|hook))[^\n]{0,200}?\b(?:CI|workflow)\b'
+    flags: i
+    arm: both
+  - name: names-registry-and-adr
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bregistry\b|\bgate list\b|\bother (?:gates|checks)\b|\b(?:list|table|index) of\b[^\n]{0,40}\b(?:gates|checks)\b))(?=[\s\S]*(?:decision record|\bADR\b|record-decision))'
+    flags: i
+    arm: both
+  - name: no-rule-file
+    type: tool_used
+    tool: Bash
+    input_match: 'emit-gate\.sh(?:[^"\\;&|]|\\.)*?--rule'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-workflow-write
+    type: tool_used
+    tool: Write
+    input_match: '\.github/workflows'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-workflow-edit
+    type: tool_used
+    tool: Edit
+    input_match: '\.github/workflows'
+    min: 0
+    max: 0
+    arm: both

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": ["audio/boom.wav"]},
+    {"answer": ["audio/boom.json", "audio/boom.wav"], "why": "a parameter file beside it"}
+  ],
+  "fail": [
+    {"answer": [], "why": "nothing written, for example a run that only asked questions"},
+    {"answer": ["boom.wav"], "why": "outside audio/"},
+    {"answer": ["audio/boom.json"], "why": "the parameters only"}
+  ]
+}

@@ -16,7 +16,7 @@ Decision 8):
 | 1 | per user | the plugin's `userConfig` option of the same name |
 | 2 | repository | `docs/conventions/education.yaml` at the repository root, tracked, validated by [`schemas/education.schema.json`](../schemas/education.schema.json) |
 
-No `~/.claude` file, `.claude/` file or local overlay sets these keys. The reading skill reads the
+No `~/.claude` file, `.claude/` file or personal override sets these keys. The reading skill reads the
 repository file through its bundled copy of the shared reader, `parse-concern-value.sh`. A missing
 file or key leaves that layer unset, and the layer does not apply outside a git working tree or
 when the working tree's root is `$HOME` or an ancestor of it. Every run that reads a key reports

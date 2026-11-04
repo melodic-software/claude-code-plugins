@@ -86,7 +86,7 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 
 Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `gates` and `notes` per the ladder:
 
-1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` overlay, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
+1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
 2. Absent → infer from the repo's build files and offer to persist via `/toolchain:setup`.
 3. Cannot infer → ask; offer to persist.
 4. Otherwise → the bundled default at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/<ecosystem>.yaml`.
