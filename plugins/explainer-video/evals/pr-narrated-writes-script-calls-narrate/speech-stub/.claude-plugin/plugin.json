@@ -1,0 +1,5 @@
+{
+  "name": "speech",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the speech plugin: the narrate skill's name and contract, in a sandbox with no voice model, with no scripts or hooks."
+}

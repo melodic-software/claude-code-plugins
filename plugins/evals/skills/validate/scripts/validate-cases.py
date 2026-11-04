@@ -886,28 +886,46 @@ def containment_root(eval_dir):
 
 
 def check_plugins(case_dir, root, value, case, path, findings):
-    """FAIL a `plugins` entry outside the containment root: the binary refuses
-    the case at load. Rule source: the "Run the plugin eval" step log of
+    """FAIL a `plugins` entry the binary refuses at load: one outside the
+    containment root, or one inside it that is neither the root itself nor a
+    subdirectory of the case. Containment rule source: the "Run the plugin eval" step log of
     https://github.com/melodic-software/claude-code-plugins/actions/runs/41894661524
     (as of 2026-11-04); recheck when the CLI's containment-root message changes."""
     if not isinstance(value, list):
         return
     real_root = os.path.realpath(root)
+    real_case = os.path.realpath(case_dir)
     for entry in value:
         if not isinstance(entry, str):
             continue
         target = os.path.realpath(os.path.join(case_dir, entry))
         if os.path.commonpath([real_root, target]) != real_root:
-            findings.append(
-                Finding(
-                    "FAIL",
-                    case,
-                    path,
-                    'plugins entry "%s" is not loadable: it resolves outside the '
-                    "plugin under evaluation, and only plugins under it load from "
-                    "a case" % entry,
-                )
+            message = (
+                "it resolves outside the plugin under evaluation, and only "
+                "plugins under it load from a case"
             )
+        elif target == real_root or (
+            target != real_case and os.path.commonpath([real_case, target]) == real_case
+        ):
+            continue
+        else:
+            # The CLI refuses a second plugin anywhere else, such as a stub
+            # shared under evals/fixtures/: "a plugin shipped with a case must
+            # sit in its own subdirectory". Pointer: the Fix section of
+            # https://github.com/melodic-software/claude-code-plugins/pull/13376
+            # (as of 2026-11-04); recheck when that refusal message changes.
+            message = (
+                "a second plugin must sit in a subdirectory of the case's own "
+                "directory; only the plugin under evaluation loads from elsewhere"
+            )
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                path,
+                'plugins entry "%s" is not loadable: %s' % (entry, message),
+            )
+        )
 
 
 def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):

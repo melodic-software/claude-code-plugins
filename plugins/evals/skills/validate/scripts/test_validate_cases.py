@@ -1057,6 +1057,23 @@ class PluginsContainment(ValidatorTestCase):
     def test_entries_inside_the_plugin_pass(self):
         self.assert_clean(self.plugins_case('["../..", "stub"]'))
 
+    def test_shared_stub_outside_the_case_fails(self):
+        result = self.plugins_case('["../..", "../fixtures/stub"]')
+        self.assert_fail(
+            result,
+            'FAIL two-plugins/case.yaml: plugins entry "../fixtures/stub" is not '
+            "loadable: a second plugin must sit in a subdirectory",
+        )
+
+    def test_case_directory_itself_fails(self):
+        self.assert_fail(
+            self.plugins_case('["../..", "."]'),
+            'plugins entry "." is not loadable: a second plugin must sit',
+        )
+
+    def test_nested_stub_inside_the_case_passes(self):
+        self.assert_clean(self.plugins_case('["../..", "stubs/speech"]'))
+
     def test_manifest_sets_the_root(self):
         write(Path(self._tmp) / ".claude-plugin" / "plugin.json", '{"name": "x"}')
         self.eval_dir = Path(self._tmp) / "evals" / "nested"
