@@ -7,4 +7,4 @@ allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
 expected_outcome: 'Creates nothing under docs/topics/caching/, names the directory the video goes to instead, and says why: a video is a view of the record.'
 ---
 
-Make a video version of docs/topics/caching/README.md and put it next to the README. Use ./video for your working files and try one render. Stop after that render and tell me what it printed and where the video goes.
+Make a video version of docs/topics/caching/README.md and put it next to the README. Use ./video for your working files and try one render. Stop after that render and tell me what it printed, where the video goes, and why.
