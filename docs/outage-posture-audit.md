@@ -359,12 +359,34 @@ of the lane workflow files and then on the stranded backoff (`refireRefusal` in
   open a PR from whatever its checks said; `limits.stop-retries: 0`; and a stop the run itself caused,
   such as `outcome-invalid` or `patch-invalid`, which a retry can repeat for a reason in the issue.
 
-The other script rows below are still open. Part 2 also found two rows that are not script-only
-fixes. Holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
-start its window after this run (`sweepSince` in `.github/scripts/work-unblock/label-unblocked.mjs`),
-so the closes this run missed would never be read. That fix also changes how the window is chosen.
-Holding intake-triage green on a read error (element 2) needs something to start the lane again,
-since it has no cron.
+An eighth part 2 change fixed work-unblock's listing gap, with tests
+(`.github/scripts/work-unblock/label-unblocked.mjs`):
+
+- **work-unblock, element 2.** A sweep whose closed-issue listing fails prints a `::notice::`, reads
+  and writes nothing more and ends green. A held run looks like a full one in the run and step
+  conclusions, so a sweep now logs `label-unblocked: read the closed-issue listing` once it has read
+  that listing, and `sweepSince` starts its window from the last run only when that run's job log
+  holds the line. Otherwise the window is the full `LOOKBACK_HOURS`, so the next sweep reads the
+  closes the held one missed. That is one more read per sweep on the job token, and three holds or
+  more in a row still lose closes older than the 3 hours, as red runs did. A failed
+  listing of the deferred, open or `agent-ready` issues holds with a notice and the sweep goes on:
+  each is read whole every sweep. A read or write that fails for one issue still ends the run red,
+  and a rate limit past the guard's budget does too until the workflow sets `API_BUDGET_HOLD=1`.
+  Either red run is left out of `sweepSince`, so the window stays back.
+
+Two parts of the work-unblock rows stay open, for the reasons in the table:
+
+- **Element 3.** The breaker records are not redundant state. The sweep counts them to back a
+  kill-switch re-fire off past `limit-stops-per-issue`, which bounds re-fires that start a lane run
+  and, at a mint, run the model again. `isRestart` reads them so the App's removal counts as a
+  restart, and `backoff` uses them to keep a trip from raising another cause's wait.
+- **Element 6.** Nothing in the `label-unblocked` job keeps an `etag` between runs. The one cache is
+  in the `wip-state` job, and `work-unblock.yml` says a cache must not reach a job that mints. The
+  closed listing's URL also changes every run with its `since`, so its `etag` could not match.
+
+The other script rows below are still open. Part 2 also found one row that is not a script-only
+fix: holding intake-triage green on a read error (element 2) needs something to start the lane
+again, since it has no cron.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
@@ -372,8 +394,9 @@ since it has no cron.
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
 | intake-triage | 2 | script | `.github/scripts/intake-triage/apply-verdict.mjs` (holding green needs a re-trigger, since the lane has no cron); part 2 fixed `admit.mjs`'s visibility read |
 | intake-triage | 5 | workflow | `.github/workflows/intake-triage.yml` |
-| work-unblock | 2, 3, 6 | script | `.github/scripts/work-unblock/label-unblocked.mjs` |
-| work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`) |
+| work-unblock | 2 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (a failed read for one issue still ends the run red); part 2 fixed the failed listings |
+| work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |
+| work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`, somewhere to keep an `etag` between runs) |
 | pr-refine | 1, 2, 3, 4 | script | `.github/scripts/lib/handoff-evidence.sh`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs`, `.github/actions/report-check-run/decide.mjs` |
 | pr-refine | 1, 2, 4, 5 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
 | pr-review, pr-review-security, pr-verify | 3, 5 | script | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` |
