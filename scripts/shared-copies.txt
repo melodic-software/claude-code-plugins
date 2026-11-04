@@ -647,3 +647,17 @@ lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/skill-quality/lib/resolve-convention-home.sh
 lib/one-way-doors.md plugins/planning/reference/one-way-doors.md
 lib/one-way-doors.md plugins/review/reference/one-way-doors.md
+lib/node-or-skip.sh plugins/animation/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/animation/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/disk-hygiene/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/disk-hygiene/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/explainer-video/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/explainer-video/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/harness-ops/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/harness-ops/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/playwright/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/playwright/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/session-flow/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/session-flow/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/speech/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/speech/lib/node-or-skip.ps1

@@ -835,10 +835,15 @@ lane. A skill runs its `resolve` command and never reads the files itself.
 - **Team file from a git ref.** A lane that must not let a checked-out branch configure it
   (`/review:explain-change`) reads the team file from a named commit (`--team-ref`), never the
   working tree. A ref that names no commit reads no team file and says so.
-- **Retired files.** `~/.claude/rendered-views.md`, `.claude/rendered-views.md` and
-  `.claude/rendered-views.local.md` are no longer read. Each gives one notice per lane plugin per
-  project, naming its value and where to set it instead: the plugin's `medium` option, the team
-  file, or the personal override. A notice repeats only when the file changes. The shown-once
+- **Retired files.** `~/.claude/rendered-views.md`, `.claude/rendered-views.md`,
+  `.claude/rendered-views.local.md` and a fenced config block in
+  `docs/conventions/rendered-views.md` never give a publishing value. A retired file's `terminal`
+  or `file` value keeps the view local only when no scope sets one, naming that file; when several
+  retired files set one, `.claude/rendered-views.local.md`, then `.claude/rendered-views.md`, then
+  the fenced block, then `~/.claude/rendered-views.md` names the one used. Each gives one notice
+  per lane plugin per project, naming its value and where to set it instead: the team file or the
+  personal override, and for the user file the personal override, else the plugin's `medium`
+  option. A notice repeats only when the file changes. The shown-once
   state lives in each plugin's data directory, keyed by project identity
   ([plugin-data report keying](../plugin-data-report-keying/README.md), rule 1), and is written
   atomically.
