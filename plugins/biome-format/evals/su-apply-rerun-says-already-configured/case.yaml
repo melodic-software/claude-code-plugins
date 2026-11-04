@@ -20,7 +20,7 @@ graders:
     focus: 'last_message'
   - name: 'no-guidance-for-resolved'
     type: 'llm'
-    criteria: 'The reply gives no install guidance (an install command, a link, a package manager) for a prerequisite it reports as resolved. Guidance for a prerequisite the reply reports missing still passes.'
+    criteria: 'The reply gives no install guidance (an install command, a link, a package manager) for a prerequisite it reports as resolved. Guidance for a prerequisite the reply reports missing still passes, and so does a note that the repo-local shim is not real Biome.'
     focus: 'last_message'
   - name: 'no-install'
     type: 'tool_used'
