@@ -167,10 +167,20 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -958,13 +968,24 @@ jobs:
           echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
           exit 1
 
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       # Everything below runs from main as it is right now, never from a PR.
       # Full history: the gate reads the pipeline config's history from this
       # clone with git instead of one contents-API call per commit.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -2282,10 +2303,21 @@ jobs:
           echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
           exit 1
 
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -2529,10 +2561,14 @@ jobs:
       # and runs the sweep's post-merge check fresh, as post-merge-dispatch
       # does when its idle tick refuses, with this job's read-only token (the
       # check writes nothing without --remediate). The fresh report stands
-      # only when the check passed (exit 0 or 5) and `settle --idle-tick`
-      # keeps it too: the wake starts no full run or re-run and files
-      # nothing, so it arms only on a report that needs none of those
-      # (idle_report_refusal: no hold, no needsDispatch, no reruns). Any
+      # only when the check passed (exit 0 or 5) and `settle --idle-tick
+      # --fresh` keeps it too: the wake starts no full run or re-run and
+      # files nothing, so it arms only on a report that needs none of those
+      # (idle_report_refusal: no hold, no needsDispatch, no reruns), with the
+      # quarantine and pin reads as well. `--fresh` skips only the verifying
+      # runs test (idle_runs_refusal): the check just read those runs, and a
+      # sweep arms on the report post-merge-dispatch just made with no idle
+      # rule. Any
       # other result removes it and skips the arm step: a wake with no
       # standing report decides nothing, so it neither arms nor disarms (an
       # unreadable room would disarm every armed lane pull request), and the
@@ -2558,7 +2594,7 @@ jobs:
           kept=false fresh='' reason=''
           settle() {
             python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
-              --postmerge-result "$last/post-merge.json" --code-sha "$1"
+              --postmerge-result "$last/post-merge.json" --code-sha "$@"
           }
           if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
             last_code=$(cat "$last/post-merge-code")
@@ -2588,13 +2624,13 @@ jobs:
             sha=$(git -C .base rev-parse HEAD) || sha=''
             echo "$sha" >"$last/post-merge-code-sha"
             if [[ $fresh =~ ^[05]$ ]]; then
-              settled=$(settle "$sha") && kept=true
+              settled=$(settle "$sha" --fresh) && kept=true
               echo "$settled"
               # Why the idle tick refused the fresh report, for the outcome line.
               reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || reason=''
             fi
             if [ "$kept" = true ]; then
-              echo "the fresh post-merge check (exit $fresh) passed and settle --idle-tick keeps it"
+              echo "the fresh post-merge check (exit $fresh) passed and settle --idle-tick --fresh keeps it"
             else
               rm -rf "${last:?}"
               echo "::notice::the fresh post-merge check (exit $fresh) does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"
@@ -2863,10 +2899,20 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
@@ -2911,16 +2957,28 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        continue-on-error: true
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # The api-budget library and the upload scanner, from the default
       # branch. A failed checkout leaves neither: the steps below call GitHub
       # as they would without the library, and no reading is logged, but the
       # dispatched-run record's scan fails the job, as a failed upload of
       # that record does, so the unrecorded run shows red.
       - name: Check out the api-budget library
+        if: steps.tip.outputs.sha != ''
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
           sparse-checkout: |
@@ -3160,10 +3218,20 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 

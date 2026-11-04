@@ -282,6 +282,9 @@ lib/prerequisites.ps1 plugins/harness-ops/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/visualization/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/visualization/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/visualization/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/adhd/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/adhd/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/adhd/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/machine-health/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/machine-health/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/machine-health/lib/prerequisites.ps1
@@ -470,6 +473,7 @@ lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/work-items/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/harness-ops/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/source-control/lib/publish-gate.mjs
+lib/publish-gate.mjs plugins/planning/lib/publish-gate.mjs
 lib/view-settings.mjs plugins/review/lib/view-settings.mjs
 lib/view-settings.mjs plugins/visualization/lib/view-settings.mjs
 lib/view-settings.mjs plugins/work-items/lib/view-settings.mjs
@@ -482,6 +486,7 @@ lib/view-registry.mjs plugins/work-items/lib/view-registry.mjs
 lib/view-registry.mjs plugins/harness-ops/lib/view-registry.mjs
 lib/view-registry.mjs plugins/source-control/lib/view-registry.mjs
 lib/view-registry.mjs plugins/planning/lib/view-registry.mjs
+lib/view-registry.mjs plugins/machine-health/lib/view-registry.mjs
 lib/config-cascade.mjs plugins/review/lib/config-cascade.mjs
 lib/config-cascade.mjs plugins/visualization/lib/config-cascade.mjs
 lib/config-cascade.mjs plugins/work-items/lib/config-cascade.mjs
@@ -645,6 +650,8 @@ lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention
 lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/skill-quality/lib/resolve-convention-home.sh
+lib/one-way-doors.md plugins/planning/reference/one-way-doors.md
+lib/one-way-doors.md plugins/review/reference/one-way-doors.md
 lib/node-or-skip.sh plugins/animation/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/animation/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/disk-hygiene/lib/node-or-skip.sh

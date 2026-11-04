@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| `git` | PASS | /usr/bin/git. Without git, `git check-attr` fails silently and the hook does nothing, with no notice, so this probe is the only way you would find out. |"
+    },
+    {
+      "answer": "If git were missing you would get no warning at all: check-attr just fails and the hook no-ops. This check is the only visibility into that."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| git | PASS | /usr/bin/git |",
+      "why": "near miss: the row without the silence"
+    },
+    {
+      "answer": "A missing git makes the hook print an error on every edit, so you would notice quickly.",
+      "why": "wrong: claims a notice"
+    }
+  ]
+}

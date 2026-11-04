@@ -33,6 +33,7 @@ const { DEFAULTS, MAX_GLOB_LENGTH, MAX_RISK_PATHS, configBlock, decide, findSecr
 );
 const { buildDigest, shapeDigest } = await import(pathToFileURL(BUILDER).href);
 const { validateView } = await import(pathToFileURL(join(PLUGIN, "lib/view-builder.mjs")).href);
+const { MEDIUMS } = await import(pathToFileURL(join(PLUGIN, "lib/view-registry.mjs")).href);
 
 const scratch = mkdtempSync(join(tmpdir(), "explain-change-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -356,6 +357,12 @@ describe("cascade layers resolve through the CLI", () => {
     assert.equal(result.report[0], "view: terminal (personal override)");
     rmSync(personal);
   });
+  test("the medium names its destination and whether it publishes, from the medium registry", () => {
+    const local = run(facts, ["--option", "file"]).medium;
+    assert.deepEqual({ where: local.where, publishes: local.publishes }, { where: MEDIUMS.file.reportName, publishes: false });
+    const shipped = run(facts).medium;
+    assert.deepEqual({ where: shipped.where, publishes: shipped.publishes }, { where: MEDIUMS.artifact.reportName, publishes: true });
+  });
   test("bad usage exits 2", () => {
     const out = spawnSync(process.execPath, [POLICY, "--policy", "sometimes"], { input: "{}", encoding: "utf8" });
     assert.equal(out.status, 2);
@@ -646,8 +653,8 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     assert.match(skill, /--publish-gate --facts <dir>\/facts\.json \[--explicit\] < <dir>\/pr\.diff/);
     assert.doesNotMatch(skill, /--publish-gate --repo/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
-    assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
-    assert.match(skill, /the review plugin's `medium` option to `artifact` publishes such pages anyway/);
+    assert.match(skill, /`offer`:.*`medium\.where`/);
+    assert.match(skill, /its `opt_in` as it stands/);
     assert.match(skill, /exits non-zero or its result is unclear, keep the page as a file/);
   });
 });
@@ -1266,12 +1273,8 @@ describe("read-only boundary", () => {
       assert.ok(!tools.includes(verb), verb);
     }
   });
-  test("the risk-map checker is the read-only brief-reviewer agent", () => {
-    assert.match(skill, /## 3\. Check the risk map[\s\S]*?read-only `review:brief-reviewer` agent/);
-  });
-  test("the risk-map checker's brief carries only the pull request number, repository, and the saved reads' directory", () => {
-    const brief = /## 3\. Check the risk map[\s\S]*?```text\n([\s\S]*?)```/.exec(skill)[1];
-    assert.deepEqual([...new Set(brief.match(/<[^>]+>/g))].sort(), ["<dir>", "<n>", "<owner/repo>"]);
+  test("the risk map comes from /review:merge-risk on the saved reads", () => {
+    assert.match(skill, /## 3\. Rate the risk[\s\S]*?`\/review:merge-risk <url> --dir <dir>`/);
   });
   test("the scripts never call gh", () => {
     for (const script of [POLICY, BUILDER]) {

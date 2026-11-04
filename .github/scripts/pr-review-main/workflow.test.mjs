@@ -787,7 +787,7 @@ test("it checks out main only, and runs local actions from that checkout", () =>
   assert.equal(text.match(/uses: actions\/checkout@/g).length, LEGS.length + 1);
   const triggerCheckout = jobText("trigger").split(/\n(?=      - name: )/).filter((s) => /uses: actions\/checkout@/.test(s));
   assert.equal(triggerCheckout.length, 1);
-  assert.match(triggerCheckout[0], /^ {10}ref: refs\/heads\/main$/m);
+  assert.match(triggerCheckout[0], /^ {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}$/m);
   assert.match(triggerCheckout[0], /^ {10}path: \.base$/m);
   assert.match(triggerCheckout[0], /^ {10}persist-credentials: false$/m);
   for (const job of LEGS) {
@@ -797,7 +797,7 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     // a re-run of an old run would bring back; a later leg checks out the
     // commit its lane's key leg recorded, which the route passed on.
     const ref = /^ {10}ref: (.*)$/m.exec(checkouts[0].block)[1];
-    assert.equal(ref, job === KEY ? "refs/heads/main" : "${{ matrix.base }}", job);
+    assert.equal(ref, job === KEY ? "${{ steps.tip.outputs.sha }}" : "${{ matrix.base }}", job);
     // Right after it, the leg records the commit under the lane's name.
     assert.equal(index("Record the main commit", job), index(checkouts[0].name, job) + 1, job);
     assert.match(step("Record the main commit", job), /^ {8}run: echo "\$LANE-base-sha=\$\(git -C \.base rev-parse --verify HEAD\)" >>"\$GITHUB_OUTPUT"$/m);
@@ -1654,7 +1654,8 @@ test("every later leg repeats the key leg's steps but for its credential and why
       // The handoff input, pinned per leg in the handoff test.
       .replace(/^ {10}handoff: \$\{\{ steps\.review-\d\.outputs\.handoff \}\}\n/m, "")
       .replace(/ && steps\.handoff\.outcome != 'success'|and handed nothing on\n {6}# fails here,|fails here,/g, "");
-  const keyNames = STEPS[KEY].map((s) => s.name);
+  // Only the key leg reads main's tip; a later leg checks out the commit it recorded.
+  const keyNames = STEPS[KEY].map((s) => s.name).filter((name) => name !== "Resolve main's tip");
   assert.deepEqual(STEPS[SUB].map((s) => s.name), keyNames);
   assert.deepEqual(STEPS[FB].map((s) => s.name), keyNames.filter((name) => name !== "Hand the lane on"));
   for (const job of [SUB, FB]) {

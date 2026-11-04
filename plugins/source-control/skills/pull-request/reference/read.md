@@ -16,7 +16,7 @@ a character outside `A-Za-z0-9._/-`, except a `<pr>` that is a whole
 output to that file and prints nothing, so a caller that needs the bytes whole (a diff a later
 gate scans) reads them from the file, not from a copy of tool output.
 
-- **`view`** prints one object: `number`, `url`, `state`, `isDraft`, `title`, `baseRefName`,
+- **`view`** prints one object: `number`, `url`, `state`, `isDraft`, `title`, `body`, `baseRefName`,
   `headRefName`, `baseRefOid`, `headRefOid`, `mergeCommit` (`null` until merged), `additions`,
   `deletions`, `files`, `labels`, and the repository's `visibility` (`PUBLIC`, `PRIVATE`,
   `INTERNAL`, or `UNKNOWN` when the lookup fails or the forge CLI is not logged in to the PR's

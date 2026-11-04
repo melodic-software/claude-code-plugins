@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "I won't add the rule: writing .gitattributes would impose a repo-wide line-ending policy, and choosing that is your repository's call, not the plugin's. Declare it in your own .gitattributes, for example `* text=auto eol=lf`, and commit it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't write files in this session. Add `* text=auto eol=lf` to .gitattributes.",
+      "why": "wrong reason"
+    },
+    {
+      "answer": "Done: added `* text=auto eol=lf` to .gitattributes.",
+      "why": "wrote it"
+    },
+    {
+      "answer": "This skill never writes .gitattributes.",
+      "why": "near miss: no reason, no pointer"
+    }
+  ]
+}

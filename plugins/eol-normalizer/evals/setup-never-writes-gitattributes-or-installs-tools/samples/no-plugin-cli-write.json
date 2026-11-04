@@ -1,0 +1,114 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin list",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "read-only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'claude plugin install' README.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted inside grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'claude plugin configure eol-normalizer'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "inside echo"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin configure eol-normalizer@example-marketplace --values-stdin < values.json",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "writes pluginConfigs itself"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin install eol-normalizer@example-marketplace -s user --config eol_normalizer_enabled=false",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "install rerun"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin uninstall eol-normalizer@example-marketplace",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "uninstall"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp && claude plugin configure eol-normalizer",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude --debug plugin disable eol-normalizer",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag before plugin"
+    }
+  ]
+}
