@@ -1641,6 +1641,31 @@ if [[ "$on_disk" == "$listed" ]]; then
 else
   fail "corpus list matches disk" "$(diff <(printf '%s\n' "$listed") <(printf '%s\n' "$on_disk"))"
 fi
+# set_of <word>...: the words de-duplicated, in sort(1)'s collation order, and
+# comma-joined, in SET_OF: what `sort -u | paste -sd, -` prints, with no process.
+set_of() {
+  local w i j words=()
+  for w; do
+    for i in "${!words[@]}"; do [[ "${words[i]}" == "$w" ]] && continue 2; done
+    words+=("$w")
+  done
+  for ((i = 1; i < ${#words[@]}; i++)); do
+    w="${words[i]}"
+    for ((j = i - 1; j >= 0; j--)); do
+      [[ "${words[j]}" > "$w" ]] || break
+      words[j + 1]="${words[j]}"
+    done
+    words[j + 1]="$w"
+  done
+  local IFS=,
+  SET_OF="${words[*]}"
+}
+# One sed pass reads every corpus header a fixture carries, tagged: R reads:,
+# A adapter:, E expect:, X an exempt: line. Each expression sees the whole line.
+CORPUS_HEADERS=(-e h -e 's/.*reads: \([^ ]*\).*/R\1/p' -e g
+  -e 's/.*adapter: \([a-z-]*\).*/A\1/p' -e g
+  -e 's/.*expect: \(rule-[a-z-]*\).*/E\1/p' -e g
+  -e '/exempt: rule-/s/.*/X/p')
 # A `reads: <path>` file reads a source file by a static path: its copy sits in
 # test/ under a fresh git repository that tracks a stub at <path>, so the
 # driver's tracked-file check can keep the read. planted/ is no adapter's
@@ -1649,7 +1674,17 @@ reads_n=0
 for rel in "${corpus_files[@]}"; do
   base="${rel##*/}"
   copy="$TMP_ROOT/corpus/${rel%/*}/${base%.fixture}"
-  reads="$(sed -n 's/.*reads: \([^ ]*\).*/\1/p' "$CORPUS/$rel")"
+  reads="" claim="" exempt="" expects=()
+  mapfile -t headers < <(sed -n "${CORPUS_HEADERS[@]}" "$CORPUS/$rel")
+  for h in ${headers[@]+"${headers[@]}"}; do
+    case "$h" in
+    R*) reads+="${reads:+$'\n'}${h#R}" ;;
+    A*) claim+="${claim:+$'\n'}${h#A}" ;;
+    E*) expects+=("${h#E}") ;;
+    X) exempt=1 ;;
+    *) ;;
+    esac
+  done
   if [[ -n "$reads" ]]; then
     reads_n=$((reads_n + 1))
     repo="$TMP_ROOT/corpus-reads/$reads_n"
@@ -1662,11 +1697,16 @@ for rel in "${corpus_files[@]}"; do
   mkdir -p "${copy%/*}"
   cp "$CORPUS/$rel" "$copy"
   run_file --file "$copy"
-  claim="$(sed -n 's/.*adapter: \([a-z-]*\).*/\1/p' "$CORPUS/$rel")"
   [[ -n "$claim" ]] || claim="${rel%%/*}"
   assert_contains "corpus $rel: claimed by $claim" "$out" "adapter: $claim"
-  want="$(sed -n 's/.*expect: \(rule-[a-z-]*\).*/\1/p' "$copy" | sort -u | paste -sd, -)"
-  got="$(printf '%s\n' "$out" | sed -n 's|^finding \[testing/audit/\(rule-[a-z-]*\)\].*|\1|p' | sort -u | paste -sd, -)"
+  set_of ${expects[@]+"${expects[@]}"}
+  want="$SET_OF"
+  fired=()
+  while IFS= read -r h; do
+    [[ "$h" =~ ^finding\ \[testing/audit/(rule-[a-z-]*)\] ]] && fired+=("${BASH_REMATCH[1]}")
+  done <<<"$out"
+  set_of ${fired[@]+"${fired[@]}"}
+  got="$SET_OF"
   if [[ "$got" == "$want" ]]; then
     pass "corpus $rel: reports exactly [${want}]"
   else
@@ -1674,7 +1714,7 @@ for rel in "${corpus_files[@]}"; do
   fi
   # An `exempt: <rule>` file fires that rule under cant-fail-ok:, which the
   # scan counts rather than drops.
-  if grep -q 'exempt: rule-' "$copy"; then
+  if [[ -n "$exempt" ]]; then
     assert_contains "corpus $rel: the annotated finding is counted as exempt" "$out" "exempted findings (cant-fail-ok): 1"
   fi
 done
