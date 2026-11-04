@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/p/skills/update/upstream.md", "content": "- Last sync: 2026-11-04"}}], "why": "writes the sync record"}
+  ]
+}

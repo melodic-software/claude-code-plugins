@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: methodology-format-choice
+description: "A team that wants to map a whole business before any software design asks which EventStorming format to start with. methodology SKILL.md 'Interactive Discovery' Step 2 maps 'Explore a whole business/domain' to Big Picture, and Step 4 adds 'almost always start with Big Picture'; its Notation Quick Reference gives Orange for a Domain Event and Magenta/Hot Pink for a Hot Spot. The prompt is in natural language so the Skill call is visible."
+tags: [event-storming, methodology, outcome, routing]
+expected_outcome: "The model loads the event-storming methodology skill. The reply recommends Big Picture as the starting format, names orange as the domain-event sticky color, and names magenta or pink as the hot-spot color."
+execution:
+  prompt: "Use the EventStorming facilitation reference from the event-storming plugin. My team wants to map how our whole freight-forwarding business works, end to end, before we design any software. Which EventStorming format should we start with, and which sticky-note colors do we use for domain events and for hot spots? Answer in a few lines; no workshop plan yet."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:event-storming:)?methodology"'
+    arm: with-only
+  - name: recommends-big-picture
+    type: regex
+    pattern: '\bbig[- ]picture\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: event-orange
+    type: regex
+    pattern: '\b(?:domain )?events?\b[^\n]{0,60}\borange\b|\borange\b[^\n]{0,60}\b(?:domain )?events?\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: hot-spot-magenta
+    type: regex
+    pattern: '\bhot[- ]?spots?\b[^\n]{0,60}\b(?:magenta|(?:hot )?pink)\b|\b(?:magenta|(?:hot )?pink)\b[^\n]{0,60}\bhot[- ]?spots?\b'
+    flags: 'i'
+    target: 'last_message'
