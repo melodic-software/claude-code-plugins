@@ -146,8 +146,10 @@ function historyHasRun(pullRequest) {
 
 // Whether a run held on a failed handoff read (handoff-evidence.sh's hold, which
 // ends the run green): a leg handed off, read from job conclusions as that script
-// reads them, and the next leg never started, as pr-refine.yml's start of it does
-// on any handoff a read settled. No run job can write these.
+// reads them, its handoff job succeeded, and the next leg never started, which
+// pr-refine.yml starts on a handoff that read settled. A scan job skips on the run
+// job's handed-off output, which head code can forge, so the handoff job's own
+// conclusion is what shows a read ran: a leg with no fallback token has none.
 export function heldHandoff(run, activity = DEFAULTS.activity) {
   const jobs = run?.jobs ?? [];
   const conclusion = (name) => jobs.find((job) => job?.name === name)?.conclusion;
@@ -158,6 +160,7 @@ export function heldHandoff(run, activity = DEFAULTS.activity) {
       conclusion(`${leg} / broker-allowed`) === "success" &&
       conclusion(`${leg} / run`) === "success" &&
       (scan === undefined || scan === "skipped") &&
+      conclusion(`${leg}-handoff`) === "success" &&
       !jobs.some((job) => job?.name?.startsWith(`${legs[index + 1]} / `) && job.conclusion !== "skipped")
     );
   });

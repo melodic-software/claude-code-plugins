@@ -579,8 +579,8 @@ lost run gets another dispatch. So do fewer than `limits.limit-stops-per-head` r
 held on a failed `handoff-evidence.sh` read, the next tick being the probe: red alone cannot tell a
 read that failed from a broker that refused, so the count is what ends a refusal, and an outage
 past that many runs still ends the PR. A held run ends green, so the dispatcher reads the jobs of
-each green run it finds for a candidate, and a leg that handed off with no next leg is a held run. A
-run whose jobs cannot be read holds the PR for a later run.
+each green run it finds for a candidate: a leg that handed off, whose handoff job succeeded, with no
+next leg started, is a held run. A run whose jobs cannot be read holds the PR for a later run.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).

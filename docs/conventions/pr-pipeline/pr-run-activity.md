@@ -749,8 +749,8 @@ A `fix-docs` read that stays unsettled, or fails 3 times, holds instead of faili
 output and a green job. `fix-docs-dispatch.mjs` dispatches no PR again once a run for it completed,
 check or not, unless each such run says nothing about the PR: one lost run (`cancelled`, `timed_out`
 or `startup_failure`), or fewer than `limits.limit-stops-per-head` runs that went red or held on that
-read. It tells a held run from a decline by the job conclusions: a leg that handed off with no next
-leg started. These fallback calls
+read. It tells a held run from a decline by the job conclusions: a leg that handed off, whose handoff
+job succeeded, with no next leg started. These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
 job, which head code can forge, knows whether it was a credit stop or an empty key.
 

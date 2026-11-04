@@ -389,8 +389,8 @@ A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
 - **pr-refine, element 3.** `fix-docs-dispatch.mjs` no longer ends a PR on a red run with no check. It
   dispatches again until `limit-stops-per-head` runs went red or held, which bounds a broker refusal,
   since red names no cause. A held run ends green, so the dispatcher reads a green run's jobs: a leg
-  that handed off with no next leg held. That is up to two more REST reads for each candidate head
-  with a green run. An outage past that many runs still ends the PR.
+  that handed off, whose handoff job succeeded, with no next leg held. That is two more REST reads
+  for each green run a candidate head has, until one ends the PR. An outage past that many runs still ends the PR.
 
 Element 4 stays open: `decide.mjs` needs a kind that posts nothing, and the posting code in
 `report-check-run.mjs` needs to honor it (the Remaining row). A neutral check is not the fix, since

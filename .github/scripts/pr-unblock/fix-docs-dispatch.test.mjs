@@ -359,22 +359,28 @@ test("a red fix-docs run does not outlive a run that ended, or the check run it 
 });
 
 // handoff-evidence.sh's hold ends the run green with no check. Job conclusions
-// tell it from a decline: pr-refine.yml starts the next leg on any handoff a read
-// settled, so a leg that handed off with no next leg is a read that held.
+// tell it from a decline: the leg's handoff job succeeded, yet the next leg never
+// started, which pr-refine.yml starts on a handoff that read settled. The run
+// job's handed-off output alone skips a scan job (head code can forge it, #8890),
+// so a skipped scan with no handoff job read is no hold.
 const leg = (name, scan) => [job(`${name} / broker-allowed`, "success"), job(`${name} / run`, "success"), job(`${name} / scan`, scan)];
-const HANDED_OFF = ended(job("fix-docs-head", "success"), ...leg("fix-docs", "skipped"), job("fix-docs-handoff", "success"), job("fix-docs-subscription", "skipped"));
+const read = (name) => job(`${name}-handoff`, "success");
+const HANDED_OFF = ended(job("fix-docs-head", "success"), ...leg("fix-docs", "skipped"), read("fix-docs"), job("fix-docs-subscription", "skipped"));
 
-test("heldHandoff: a leg that handed off with no next leg held; a scan that ran, a next leg that ran or a leg never allowed did not", () => {
+test("heldHandoff: a leg that handed off, whose handoff job succeeded, with no next leg held; anything else did not", () => {
   assert.equal(heldHandoff(HANDED_OFF), true);
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), job("fix-docs-subscription / run", "skipped"))), true, "a next leg all skipped never ran");
-  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "success"))), true, "a handoff's scan job may be unlisted");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "skipped"), job("fix-docs-fallback", "skipped"))), true, "the second leg's read held");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "success"), job("fix-docs-subscription", "skipped"))), false, "a decline or a supersede scans");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "success"))), false, "the next leg ran and scanned");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "skipped"), ...leg("fix-docs-fallback", "success"))), false, "the third leg ran");
-  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "skipped"), job("fix-docs / run", "success"))), false, "no broker allow");
-  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "failure"))), false, "a run job that failed");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "skipped"), ...leg("fix-docs-fallback", "skipped"))), false, "the last leg has no next one to hold back");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), read("fix-docs"), job("fix-docs-subscription / run", "skipped"))), true, "a next leg all skipped never ran");
+  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "success"), read("fix-docs"))), true, "a handoff's scan job may be unlisted");
+  const second = [...leg("fix-docs", "skipped"), read("fix-docs"), ...leg("fix-docs-subscription", "skipped")];
+  assert.equal(heldHandoff(ended(...second, read("fix-docs-subscription"), job("fix-docs-fallback", "skipped"))), true, "the second leg's read held");
+  assert.equal(heldHandoff(ended(...second, job("fix-docs-subscription-handoff", "skipped"), job("fix-docs-fallback", "skipped"))), false, "no fallback token: no read ran, so a skipped scan is a forged handoff");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), job("fix-docs-handoff", "failure"), job("fix-docs-subscription", "skipped"))), false, "a handoff job that went red is the red run's count");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "success"), read("fix-docs"), job("fix-docs-subscription", "skipped"))), false, "a decline or a supersede scans");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), read("fix-docs"), ...leg("fix-docs-subscription", "success"))), false, "the next leg ran and scanned");
+  assert.equal(heldHandoff(ended(...second, read("fix-docs-subscription"), ...leg("fix-docs-fallback", "success"))), false, "the third leg ran");
+  assert.equal(heldHandoff(ended(...second, read("fix-docs-subscription"), ...leg("fix-docs-fallback", "skipped"), read("fix-docs-fallback"))), false, "the last leg has no next one to hold back");
+  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "skipped"), job("fix-docs / run", "success"), read("fix-docs"))), false, "no broker allow");
+  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "failure"), read("fix-docs"))), false, "a run job that failed");
   assert.equal(heldHandoff(HELD), false, "a person's hold never started the call");
   assert.equal(heldHandoff(null), false, "a run that is gone");
 });
