@@ -79,9 +79,9 @@ local HTML file** instead.
 - **Recheck trigger**: the Availability table adds, drops or changes a row, or the
   section stops naming a local HTML file as the fallback.
 
-**Delivery tiers**, ascending richness and descending availability:
-**inline terminal → local HTML file → published Artifact.** The local HTML file is
-the always-available rich tier and the one that never leaves the machine.
+**Delivery tiers** are the medium registry's fallback chain (`lib/view-registry.mjs`), richest
+first, each step down more available. The local HTML file is the always-available rich tier and
+the one that never leaves the machine.
 
 The local HTML file is **not** under the artifact CSP (it is a file, not a
 published page), so it *can* embed scripts inline, but it gets **no runtime for
@@ -163,7 +163,7 @@ lives in `code-shapes.md` beside this file.
 
 A rich page can carry a composite dashboard, an interactive view, a large
 multi-part layout, or a truly graphical result the terminal cannot represent. It is
-delivered per the delivery tiers above (local HTML file or published Artifact).
+delivered on whichever page medium the resolver settles, per the delivery tiers above.
 
 ### Design canvas (bundled `design` skill, presence-gated preview)
 

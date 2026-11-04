@@ -1,6 +1,6 @@
 ---
-description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for rendering its own output. Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), and asks only when the target is ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
-argument-hint: "[terminal|file|artifact] [--unattended]"
+description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for rendering its own output. Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium through the shared medium resolver, and asks only when the target is ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+argument-hint: "[<medium>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -91,14 +91,14 @@ unavailable.
 When the form hand-authors CSS or SVG styling outside the page chrome (Step 3) and `/user-interface:write-css` is installed, use it to write that CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The page chrome stays governed by the bundled chrome reference either way.
 
 When the form is a hand-tweakable visual layout, render this skill's rich page
-(or the local file or terminal form Step 3's medium pins) and offer the person the
+(or the form Step 3's resolved medium calls for) and offer the person the
 design canvas. The canvas is the bundled `design` skill, which is reserved for the
 person to run: the model never invokes it. It exists only on the published-Artifact
-tier, so the offer is also gated on Step 3's medium selection: when an explicit
-`terminal`/`file` argument or the configured preference pins delivery on-machine
-("never published"), do not offer it. Where the medium permits publishing, offer
-it as an explicit alternative, never a silent default: the canvas is a published,
-persistent Artifact the person edits and shares (how, per the pointer in
+tier, so the offer is also gated on Step 3's medium selection: when the resolved
+medium keeps delivery on the machine (its `publishes` is false), do not offer it.
+Where the medium permits publishing, offer it as an explicit alternative, never a
+silent default: the canvas is a published, persistent Artifact the person edits
+and shares (how, per the pointer in
 [the catalog's design canvas section](context/decision-matrix.md#design-canvas-bundled-design-skill-presence-gated-preview),
 as of 2026-10-11; recheck when that heading is renamed or its pointer moves), where
 this skill's page paths are throwaway or plain-static. The Boundary section below carries the sentence to offer and its gate
@@ -107,26 +107,31 @@ catalog spoke.
 
 ## Step 3: Pick the medium
 
-There are three delivery tiers, in ascending richness: **inline terminal → local
-HTML file → published Artifact**. Selection layers, first hit wins:
+The delivery tiers are the medium registry's fallback chain (`lib/view-registry.mjs`), richest
+first; the resolver steps a medium down that chain until this session can reach it. Selection
+layers, first hit wins:
 
-1. **Explicit argument**. A `terminal` / `file` / `artifact` argument forces the tier. With
-   no argument, the rungs below decide. The argument picks only the medium; name a form in the
-   request itself. `--unattended`, anywhere in the arguments, is neither a tier nor part of the target: it is the
+1. **Explicit argument**. A medium named as the argument forces it. With no argument, the rungs
+   below decide. The argument picks only the medium; name a form in the request itself.
+   `--unattended`, anywhere in the arguments, is neither a medium nor part of the target: it is the
    caller declaring that nobody is present. Take it out first, then read the rest.
-2. **Resolved preference**. Run the shared medium resolver, passing the argument when there is one:
+2. **Resolved preference**. Run the shared medium resolver, adding `--argument <medium>`,
+   `<medium>` being the argument's word, when there is one:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane visualization:visualize --option "${user_config.medium}" [--argument terminal|file|artifact]
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane visualization:visualize --option "${user_config.medium}" [--argument <medium>]
    ```
 
    It prints one JSON line, then the report line naming the medium and what decided it, then any
    notice; print those lines as they stand. It weighs the argument, this plugin's `medium` option
    and the repository's rendered-views convention files, and never publishes on a team file's
-   say-so; do not read or weigh those files yourself. The JSON's `medium` forces that tier
-   (`hosted` is already read as `artifact` for this lane). A `medium` of `null` means no setting
-   decided, so rung 3 resolves. When `node` is missing, say so in one line and let rung 3 decide.
-3. **Auto**. Decide by the form and its weight: terminal for small, static,
+   say-so; do not read or weigh those files yourself. Exit 2 means the argument named no medium:
+   say so in one line and run it again without `--argument`. With a `medium` set, deliver by the
+   JSON's `page` and `publishes`: `page` false renders in the terminal; `publishes` true publishes
+   the page, under the surface gate below; otherwise the page is a local HTML file. A `medium` of
+   `null` means no setting decided, so rung 3 resolves. When `node` is missing, say so in one line
+   and let rung 3 decide.
+3. **Auto**. Decide by the form and its weight: no page for small, static,
    text-representable output (tables, ASCII, short code, a `mermaid` source fence);
    a rich page for a composite, interactive, large, or truly graphical result
    (rendered diagrams, real charts, dashboards).
@@ -142,14 +147,13 @@ or its pointer moves). So when a page is warranted:
 publish an Artifact only if that surface is available; otherwise write a
 self-contained local HTML file and open it; if neither page surface is available,
 degrade **visibly** to the best terminal form with a one-line notice. Never assume
-the Artifact surface exists. The `file` preference deliberately stays on the
-machine (never published); `artifact` prefers publishing but degrades the same way.
+the Artifact surface exists. A medium that does not publish keeps the page on the
+machine; a publishing one prefers publishing but degrades the same way.
 
-**Code-shape sketches take this same ladder** (under auto they stay in the
-terminal, per rung 3; `file`, `artifact`, and the resolved preference are
-honored for them as for any form), with one exception: a pull-request diff,
-fetched content, or another repository's files are never rendered to HTML until
-this lane is wired through the rendered-views escape helper. That exception overrides rung 1 and the
+**Code-shape sketches take this same ladder** (under auto they build no page, per
+rung 3; an argument or resolved medium is honored for them as for any form), with
+one exception: a pull-request diff, fetched content, or another repository's files
+are never rendered to HTML until this lane is wired through the rendered-views escape helper. That exception overrides rung 1 and the
 preference; when a page was asked for, say in one line why it was not produced.
 
 **Page chrome.** When authoring a rich page, take the palette, type stacks,
@@ -182,7 +186,7 @@ A **mermaid diagram** is the sharp case. A local HTML file renders it only if th
 page **embeds** a mermaid renderer inline. What a published Artifact page may load
 is in [Artifacts: Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
 (as of 2026-11-03; recheck when that table changes what a page may load). Keep
-the file self-contained; never load a renderer from the network, which breaks offline use and, for `file` or otherwise sensitive output,
+the file self-contained; never load a renderer from the network, which breaks offline use and, for output kept local or otherwise sensitive,
 would expose the page to a third party. A plain file with a bare `mermaid` block
 does not render. So if no mermaid-capable surface is reachable and no trusted
 renderer can be embedded, deliver the mermaid **source** fence in the terminal and
@@ -216,9 +220,9 @@ renders mermaid natively and needs the parse only.
 - Check the prerequisites with
   `node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
 
-Honor a preference without overproducing: `artifact` still renders a trivial
-three-row table inline, and `terminal` degrades a rich form to its best terminal
-approximation with a visible note rather than dropping detail silently.
+Honor a preference without overproducing: a publishing medium still renders a trivial
+three-row table inline, and a medium with no page degrades a rich form to its best
+terminal approximation with a visible note rather than dropping detail silently.
 
 ## Step 4: Ask only on genuine ambiguity
 
@@ -249,7 +253,7 @@ When neither is ambiguous, meaning a dominant target and a clear best form, proc
 the matrix's pick: good defaults, no nagging. A specified form or medium is honored
 and simply removes that axis from any question, with one carve-out: Step 3's
 terminal-only exception for a pull-request diff, fetched content, or another
-repository's files overrides a requested `file` or `artifact` medium. Never
+repository's files overrides a requested medium that shows a page. Never
 interrogate form by form; one question, then render.
 
 ## Step 5: Render
@@ -278,7 +282,7 @@ It turns the material into a slide deck when the request is for slides rather th
 - **Do not overproduce a page.** A three-row comparison is a table; forcing it into
   an Artifact is worse, not richer. Match richness to the content.
 - **The Artifact surface is often unavailable.** Gate on it; never let a missing
-  surface become a silent failure. Degrade visibly to a local file or terminal.
+  surface become a silent failure. Degrade visibly down the fallback chain.
 - **Craft is not this skill's job.** If you find yourself writing palette or axis
   guidance, stop and route to the chart-craft capability instead.
 - **Prefer a mermaid family known to render** on an Artifact page, or verify a
@@ -367,4 +371,4 @@ cases are probed behavior recorded in
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
 - **Does not explain a topic from scratch**. A one-idea-per-diagram picture explainer of a concept or codebase topic, ELI5 included, is `education:illustrate` (if enabled). This skill picks a form for what is already in the conversation.
 - **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
-- **Does not publish an Artifact when that surface is absent or when the preference is `file`**. It degrades to a local file or terminal.
+- **Does not publish an Artifact when that surface is absent or the resolved medium does not publish**. It steps down the fallback chain.

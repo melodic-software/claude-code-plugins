@@ -263,7 +263,17 @@ describe("check-deck", () => {
     assert.equal(JSON.parse(run([root, "public", "--class", "K0"]).stdout).medium, "artifact");
     assert.equal(JSON.parse(run([root, "PRIVATE", "--class", "K0", "--option", "${user_config.medium}"]).stdout).medium, "file");
     assert.equal(JSON.parse(run([root, "PRIVATE", "--class", "K0", "--argument", "artifact"]).stdout).medium, "artifact");
+    assert.equal(run([root, "PUBLIC", "--class", "K0", "--argument", "auto"]).status, 2);
     assert.equal(run([join(scratch, "missing"), "PUBLIC", "--class", "K0"]).status, 2);
+  });
+
+  test("the output says whether the deck publishes, so the skill names no medium", () => {
+    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PLUGIN_DATA: "", CLAUDE_PROJECT_DIR: join(scratch, "no-project") };
+    const run = (args) => JSON.parse(spawnSync(process.execPath, [CHECK, ...args], { encoding: "utf8", env }).stdout);
+    const root = deck(plain);
+    assert.equal(run([root, "PUBLIC", "--class", "K0"]).publishes, true);
+    assert.equal(run([root, "PRIVATE", "--class", "K0"]).publishes, false);
+    assert.equal(run([root, "PUBLIC", "--class", "K0", "--argument", "terminal"]).publishes, false);
   });
 });
 
@@ -282,6 +292,11 @@ describe("skill contract", () => {
     assert.match(skill, /--option "\$\{user_config\.medium\}"/);
     assert.doesNotMatch(skill, /--explicit/);
     assert.match(skill, /never publishes from the\s+team/);
+  });
+  test("delivers by the gate's publishes field and lists no medium values", () => {
+    assert.match(skill, /`publishes` true/);
+    assert.doesNotMatch(skill, /\b(?:terminal|file|artifact|hosted)\|/);
+    assert.doesNotMatch(skill, /`(?:terminal|file)` or `/);
   });
   test("the create call's title is the gated one", () => {
     assert.match(skill, /`title` the gate printed/);
