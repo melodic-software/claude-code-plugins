@@ -92,6 +92,8 @@ run_in "$opts_sens" python3 "$SELF_DIR/sync-plugin-options-docs.py"
 block="$(cat "$opts_sens/plugins/p/README.md")"
 check "plugin-options-docs withholds the install fallback when every option is sensitive" \
   '[[ $block != *"see [Plugin install]"* && $block == *"the install fallback for a release without \`plugin configure\` does not apply"* ]]'
+check "plugin-options-docs offers no by-hand route when every option is sensitive" \
+  '[[ $block != *"**By hand:**"* ]]'
 
 # Every file this generator and its options touch passes the stamp check's trigger-less rule:
 # READMEs with the block, plugin manifests, changelog fragments, the generator and this test. Only

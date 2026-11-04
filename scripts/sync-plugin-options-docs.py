@@ -142,7 +142,11 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         f"- **In a session or headless:** [`/plugin` in a session]({SESSION_DOCS}) or",
         f"  [`claude plugin configure`]({CONFIGURE_DOCS}). The configure command is the preferred",
         f"  headless route in {cite}, which records its limits.",
-        f"- **By hand:** under [`pluginConfigs`]({PLUGIN_CONFIGS_DOCS}) in your **user** settings.",
+        *(
+            [f"- **By hand:** under [`pluginConfigs`]({PLUGIN_CONFIGS_DOCS}) in your **user** settings."]
+            if len(sensitive) < len(options)
+            else []
+        ),
         *sensitive_note,
         "",
         f"Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps]({UNINSTALL_DOCS}).",
