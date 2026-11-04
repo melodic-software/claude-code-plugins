@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "If the off channel is the only one that would fire on their OS, nothing fires, which explains the silence."
+    },
+    {
+      "answer": "Turn off the only channel that can fire there and the result is the same as muting: no alert."
+    },
+    {
+      "answer": "check calls that out: the only channel able to fire on that OS is disabled, so nothing notifies."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A channel off mutes that channel; the others still fire.",
+      "why": "near miss: skips the only-channel question"
+    },
+    {
+      "answer": "It does not matter: another channel always fires.",
+      "why": "false"
+    },
+    {
+      "answer": "The hook falls back to another channel.",
+      "why": "near miss: no fallback exists"
+    },
+    {
+      "answer": "check reports FAIL on that channel toggle.",
+      "why": "near miss: a toggle is not a FAIL"
+    },
+    {
+      "answer": "Turn it back on.",
+      "why": "near miss: no explanation"
+    }
+  ]
+}

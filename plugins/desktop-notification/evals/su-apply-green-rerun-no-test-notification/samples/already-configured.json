@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Check found no FAIL. Already configured: nothing changed."
+    },
+    {
+      "answer": "**Already configured.**",
+      "why": "bold, capitalized"
+    },
+    {
+      "answer": "This machine is already configured.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything passes; nothing to do.",
+      "why": "near miss: not the reported phrase"
+    },
+    {
+      "answer": "desktop-notification is not configured yet.",
+      "why": "not configured"
+    },
+    {
+      "answer": "It is not already configured: notify-send is missing.",
+      "why": "negated"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

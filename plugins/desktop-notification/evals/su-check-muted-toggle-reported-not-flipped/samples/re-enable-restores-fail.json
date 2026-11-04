@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Re-enabling restores FAIL for the missing jq."
+    },
+    {
+      "answer": "Turn it on again and it is a FAIL again."
+    },
+    {
+      "answer": "Once the hook is back on, jq is a FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It stays INFO after re-enabling.",
+      "why": "no restore"
+    },
+    {
+      "answer": "Turning it on installs jq.",
+      "why": "false"
+    },
+    {
+      "answer": "It becomes PASS.",
+      "why": "near miss: wrong grade"
+    },
+    {
+      "answer": "Nothing changes for that row.",
+      "why": "near miss: no restore"
+    },
+    {
+      "answer": "It becomes a WARN until the next session.",
+      "why": "near miss: not a verdict check has"
+    }
+  ]
+}

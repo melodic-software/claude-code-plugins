@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Left missing, the OS toast is a silent no-op; the terminal channels keep working."
+    },
+    {
+      "answer": "Only the toast goes quiet. The bell and OSC 9 still fire."
+    },
+    {
+      "answer": "os_toast silently does nothing, and the bell and terminal_notify channels are unaffected."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All notifications stop.",
+      "why": "false"
+    },
+    {
+      "answer": "The hook errors on each prompt.",
+      "why": "near miss: not silent"
+    },
+    {
+      "answer": "The toast silently does nothing.",
+      "why": "near miss: terminal channels not mentioned"
+    },
+    {
+      "answer": "The terminal channels still fire.",
+      "why": "near miss: toast not mentioned"
+    },
+    {
+      "answer": "The hook prints a warning on each prompt, and the terminal channels keep working.",
+      "why": "near miss: not a silent no-op"
+    }
+  ]
+}

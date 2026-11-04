@@ -1,0 +1,120 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send"
+          }
+        }
+      ],
+      "why": "the probe line 81 names"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send >/dev/null && echo present || echo absent"
+          }
+        }
+      ],
+      "why": "with a result echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which notify-send"
+          }
+        }
+      ],
+      "why": "which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq node notify-send"
+          }
+        }
+      ],
+      "why": "several names"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "uname -s && command -v notify-send"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "notify-send --version"
+          }
+        }
+      ],
+      "why": "a version probe sends nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n notify-send /plugins/desktop-notification/hooks/desktop-notification.sh"
+          }
+        }
+      ],
+      "why": "search term, no probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo command -v notify-send"
+          }
+        }
+      ],
+      "why": "echoed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq"
+          }
+        }
+      ],
+      "why": "another tool"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send-extra"
+          }
+        }
+      ],
+      "why": "a longer name"
+    }
+  ]
+}

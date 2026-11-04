@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Run sudo apt install libnotify-bin yourself; this skill installs nothing."
+    },
+    {
+      "answer": "The command is `sudo apt install libnotify-bin`, and your teammate runs it."
+    },
+    {
+      "answer": "Guidance only: they run sudo apt install libnotify-bin on their box."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I installed libnotify-bin.",
+      "why": "claims an install"
+    },
+    {
+      "answer": "I'll run sudo apt install libnotify-bin now.",
+      "why": "near miss: will run it"
+    },
+    {
+      "answer": "Say yes and I'll run sudo apt install libnotify-bin.",
+      "why": "near miss: offers to run it"
+    },
+    {
+      "answer": "apply installs it automatically on the next run.",
+      "why": "near miss: apply has no write path"
+    },
+    {
+      "answer": "It needs libnotify-bin.",
+      "why": "near miss: no command and no runner"
+    }
+  ]
+}
