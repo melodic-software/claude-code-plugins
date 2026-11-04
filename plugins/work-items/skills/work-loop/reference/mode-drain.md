@@ -53,7 +53,7 @@ neither the exit condition nor the drain-terminal test. Those names live only in
 `.github/actions/resolve-config/admission-rules.json` on the target's default branch
 ([snapshot-reads.md](snapshot-reads.md), "The reads"); no such file means no cordoned milestones.
 A row whose `milestone` is `null` or absent counts. Only the GitHub adapter reads a milestone today
-([`CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md), "JSON output contract"),
+([`CONTRACT.md`](../../../tools/work-item-tracker/CONTRACT.md), "JSON output contract"),
 so on another adapter nothing is cordoned.
 
 ## Post-snapshot intake report (every drain exit)
