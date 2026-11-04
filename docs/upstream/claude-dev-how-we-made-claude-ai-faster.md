@@ -29,7 +29,7 @@ plugin. Each row below names the file a decision landed in.
   digested and dual-verified 2026-09-29, its Steering section re-read 2026-10-02). It is never the
   pointer where a docs section covers the topic.
 - Figures the post reports, each vendor-reported and none carried elsewhere in this repository:
-  claude.ai and the desktop app about 3x faster after a two-week August sprint (vendor-reported:
+  claude.ai and the desktop app sped up about 3x after a two-week August sprint (vendor-reported:
   the title and intro); about 3,000 changes shipped (vendor-reported: the page's meta description).
 - The digest tags every claim only this post makes as vendor-claimed; the Anthropic publisher
   profile now carries the rule for its outcome counts (row F21).
