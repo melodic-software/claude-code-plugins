@@ -59,10 +59,11 @@ from what it does not.
    - **Recheck trigger**: the row leaves the table, as it did between earlier fetches, or changes
      which surface it hides.
 
-**Suppression channels: two documented.** We treat a `skillOverrides` entry for `/doctor` as a
-second documented way to hide the handoff, and name it as a suspected cause alongside the variable.
+**Suppression channels.** When the handoff is missing, we also check a `skillOverrides` entry for
+`/doctor`, and name it as a suspected cause only when the pages below say an override reaches a
+bundled skill.
 
-- **Pointer**: when naming `skillOverrides` as a cause, fetch
+- **Pointer**: before naming `skillOverrides` as a cause, fetch
   [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and
   [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
   live.
