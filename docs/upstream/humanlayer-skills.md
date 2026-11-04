@@ -1,8 +1,8 @@
 # Upstream source — humanlayer/skills (show-me, rpi)
 
 Single source of truth for everything in this marketplace derived from
-[humanlayer/skills](https://github.com/humanlayer/skills) — "Claude Code skills from HumanLayer",
-MIT — and specifically its `plugins/show-me/skills/show-me/SKILL.md` and its `rpi` research step
+[humanlayer/skills](https://github.com/humanlayer/skills), HumanLayer's collection of Claude Code
+skills, MIT, and specifically its `plugins/show-me/skills/show-me/SKILL.md` and its `rpi` research step
 ([below](#rpi-create-research)). The `visualization` plugin's
 code-shape sketch family is inspired by and adapted from that skill. The rest of the `rpi` plugin is
 evaluated below for program [#6917](https://github.com/melodic-software/claude-code-plugins/issues/6917)
@@ -48,26 +48,26 @@ is accounted for.
 
 | Upstream element | Ours | Relation | What was taken / rejected |
 |---|---|---|---|
-| Frontmatter description ("… concise diagrams, code-shape sketches, and focused HTML artifacts") | [`visualize` description](../../plugins/visualization/skills/visualize/SKILL.md) | Adapted | **Taken:** the phrase "code-shape sketches" as the family's name in the form list. **Rejected:** the rest; our description carries quoted triggers and the router's own contract. |
-| Intro 1: "Help the user understand the current topic of conversation visually." | none | Not taken | **Rejected — comprehension framing:** `visualize` declares itself a form-and-medium router that is not comprehension-driven, and an earlier audit (the cursor-pstack `teach` row) already moved a comprehension rule out of it. The operative half ("the current topic of conversation") is Step 1's target inference, which predates this absorb. |
-| Intro 2: "Skip the preamble and keep prose brief." | `visualize` Step 2 paragraph | Adapted | **Taken:** "place it beside the short text it supports"; the marketplace's own output posture already keeps prose brief. |
-| Intro 3: "Pick the smallest view that makes the key point clear." | `visualize` Step 2 paragraph; [`code-shapes.md`](../../plugins/visualization/skills/visualize/context/code-shapes.md) "Selecting a view" | Taken verbatim | The family's selection heuristic. |
+| Frontmatter description: the three output kinds the skill offers (small diagrams, code-shape sketches, single HTML pages) | [`visualize` description](../../plugins/visualization/skills/visualize/SKILL.md) | Adapted | **Taken:** code-shape sketches as the family's name in the form list. **Rejected:** the rest; our description carries quoted triggers and the router's own contract. |
+| Intro 1: the skill's purpose, visual explanation of whatever the conversation is about | none | Not taken | **Rejected — comprehension framing:** `visualize` declares itself a form-and-medium router that is not comprehension-driven, and an earlier audit (the cursor-pstack `teach` row) already moved a comprehension rule out of it. The operative half, picking the subject from the conversation, is Step 1's target inference, which predates this absorb. |
+| Intro 2: no opening remarks and little prose | `visualize` Step 2 paragraph | Adapted | **Taken:** each visual sits next to the prose it backs; the marketplace's own output posture already keeps prose brief. |
+| Intro 3: choose the least elaborate view that still carries the main point | `visualize` Step 2 paragraph; [`code-shapes.md`](../../plugins/visualization/skills/visualize/context/code-shapes.md) "Selecting a view" | Taken verbatim | The family's selection heuristic. |
 | Bullet: pseudocode for logic or an algorithm | Step 2 row; `code-shapes.md` "Pseudocode" | Taken verbatim | **Taken:** the `on(save)` example. **Narrowed:** the row reads "logic described in prose, or an algorithm before it is written", and Step 2 says pseudocode never paraphrases pasted code when a structural form answers the question, so the row cannot become a comprehension digest. |
 | Bullet: a call tree for runtime control flow | Step 2 row; `code-shapes.md` "Call tree" | Taken verbatim | **Taken:** the `submitForm` example. The row is worded "a call path through named functions" so it does not overlap the mermaid row's domain flows. |
 | Bullet: a component tree for UI structure, with state and module boundaries | Step 2 row; `code-shapes.md` "Component tree" | Taken verbatim | **Taken:** the `<SessionPage>` example with its file paths. The spoke states that every path and identifier is a placeholder. |
 | Bullet: a shallow file tree for which file owns what, or for the reach of a broad refactor | Step 2 row; `code-shapes.md` "Shallow file tree" | Taken verbatim | **Taken:** the `src/` example with box-drawing glyphs (upstream's own later correction, commit `4d8d644`: examples teach the glyphs agents emit). The catalog distinguishes it from the ASCII row's structure-only directory tree. |
 | Bullet: Mermaid for how components interact and for control or data flow | existing Step 2 mermaid row | Not taken | **Rejected — already owned:** `visualize` has carried every mermaid family since 0.1.0; the upstream `sequenceDiagram` example adds nothing to the catalog. |
-| Bullet: `diff` when the change itself is the point and the shape around it is already in place | Step 2 row; `code-shapes.md` "Diff-shaped delta" | Taken verbatim (rule) | **Taken:** the rule and the phrase "match the diff shape to the topic". The four sub-fences are rowed separately below. |
+| Bullet: `diff` when the change itself is the point and the shape around it is already in place | Step 2 row; `code-shapes.md` "Diff-shaped delta" | Taken verbatim (rule) | **Taken:** the rule and its wording on fitting the diff's form to the topic. The four sub-fences are rowed separately below. |
 | Diff sub-fence: component change | `code-shapes.md` "A component change" | Taken verbatim | |
 | Diff sub-fence: file-layout change | `code-shapes.md` "A file-layout change" | Adapted | **Changed:** `show-me.ts # expands the slash command` became `search.ts # parses the query`; the upstream line names the upstream command and would be provenance inside the skill. |
 | Diff sub-fence: call-tree or call-stack change | `code-shapes.md` "A call-tree or call-stack change" | Adapted | **Changed:** the added `expandSkillMention` line became `validateInput`; the rest of the fence is verbatim. |
 | Diff sub-fence: state or control-flow change | `code-shapes.md` "A state or control-flow change" | Taken verbatim | |
 | Bullet: the full block when it is mostly new, when trimmed context would obscure ownership or ordering, or when the user wants a target shape to copy | Step 2 row; `code-shapes.md` "The whole block" | Adapted | **Taken:** the three conditions, verbatim. **Changed:** the `expandSkill` example (which implements the upstream command) became a neutral `slugify` function. **Re-postured:** presented as the fallback among the sketches ("when no sketch is smaller than the code itself"), since a visual-form router emitting plain code needs a stated reason. |
 | Bullet: one focused HTML file (diagram, infographic, short slide deck; matching the look of the product, meaning its palette, type, spacing and components; real labels and data; desktop and mobile), then `Bash(open …)` | existing Step 2 rich-page row; Step 5 page bullet; existing Step 3 ladder | Adapted | **Taken:** infographic and short slide deck as page genres on the rich-page row; product-matching, real data, desktop-and-mobile on the Step 5 page bullet. **Rejected — already owned:** the `Bash(open …)` step; the Step 3 ladder (Artifact, else local HTML file with placement and open rules, else terminal) predates this absorb and degrades where upstream cannot. |
-| Guidance 1: "Place each visual next to the short text it supports." | `code-shapes.md` "Selecting a view"; Step 2 paragraph | Taken verbatim | |
-| Guidance 2: "Keep only the calls, files, props, states, and boundaries needed to answer the user's current question or the options to resolve the current discussion point." | `code-shapes.md` "Selecting a view"; Step 2 paragraph (shortened) | Taken verbatim | |
-| Guidance 3: "You may use one of these, you may use several, it is unlikely you will use all of them." | `code-shapes.md` "Selecting a view"; Step 2 paragraph ("one form, sometimes several, rarely all") | Taken verbatim | |
-| Guidance 4: "Use your judgment and don't overwhelm the user." | `code-shapes.md` "Selecting a view" | Adapted | **Changed:** "don't" to "do not" (house style). |
+| Guidance 1: where each visual goes relative to its prose | `code-shapes.md` "Selecting a view"; Step 2 paragraph | Taken verbatim | |
+| Guidance 2: trim each sketch to the elements the open question or decision needs | `code-shapes.md` "Selecting a view"; Step 2 paragraph (shortened) | Taken verbatim | |
+| Guidance 3: how many of the forms one answer should use | `code-shapes.md` "Selecting a view"; Step 2 paragraph (ours: "one form, sometimes several, rarely all") | Taken verbatim | |
+| Guidance 4: judgment over volume, so the reader is not swamped | `code-shapes.md` "Selecting a view" | Adapted | **Changed:** the contraction spelled out (house style). |
 
 Beyond the pinned file, two behaviors were added that upstream leaves implicit: a thin-context
 prompt (one ranked question when pasted code fits several forms about equally, tunable through the
@@ -133,32 +133,32 @@ version 1.0.0, license MIT. Files read in full: `skills/rpi/SKILL.md`, `referenc
 `references/show-me.md`, the create and iterate `structure-outline` and `design-discussion` processes
 and templates, `references/implement-outline/process.md` and `agents/outline-implementer-agent.md`.
 
-**What it is.** One user-invoked skill (`/rpi`, "Only use when the user explicitly invokes this skill
-by name") that routes to one `process.md` per phase: research questions, research, then a design
+**What it is.** One user-invoked skill (`/rpi`, whose description limits it to explicit invocation
+by name) that routes to one `process.md` per phase: research questions, research, then a design
 discussion, or a PRD followed by a TDD, or a TDD alone, then an optional structure outline, then
 implementation. Each phase writes a numbered markdown document (`NN-<phase>-<slug>.md`) into a task
 directory under `.agents/artifacts/`, runs in its own context window by default, and ends by printing
 the next command with the task directory and the chosen flow. Five subagents (locator, analyzer,
 pattern finder, web researcher, outline implementer) ship as agents and as reference copies for
 hosts without them, so the same skill runs in Claude Code and Codex. `scripts/test-rpi-workflows.ts`
-holds 52 live workflow tests run against fixture repositories.
+holds 52 live workflow tests, which drive the Codex CLI against fixture repositories.
 
-**The structure-outline phase.** It breaks the design the user and the agent settled on into a sequence of phases. Upstream text:
-"Prefer small end-to-end results that cross the relevant module or service boundaries. Each phase
-should work and be verifiable when it ends." Each phase holds what it delivers and why it follows the one before, a
+**The structure-outline phase.** It breaks the design the user and the agent settled on into a sequence of phases. The
+process prefers phases that are thin slices across the module or service boundaries they touch,
+each of which should run and be checkable once it is done. Each phase holds what it delivers and why it follows the one before, a
 **Change Outline** drawn with the show-me views (file tree, contracts, call trees, pseudocode, focused
 `diff` blocks), and **Validation** split into **Automated Verification** and **Manual Verification**
 checkboxes. An **Implementation Overview** lists one unchecked item per phase, and **Open Questions**
 holds unsettled scope. Frontmatter records `repos` with an `identifier` and `sha` for each
-repository. Loading `show-me.md` is the "planning language" Dex Horthy refers to when he compares
+repository. Loading `show-me.md` is the planning language Dex Horthy refers to when he compares
 html-plan to this phase ([post](https://x.com/dexhorthy/status/2107267652628672855), 2026-10-06; see
 [`html-plan.md`](html-plan.md)).
 
 **Design questions resolved with rationale.** The design discussion holds **Design Questions** (each
 listing the choices, what each one gains and costs, and a recommended choice backed by the code) and **Resolved Design
-Questions**. Upstream text: "Present one decision at a time with its options and recommendation, then
-wait for the user's answer." On a decision it moves the choice to the resolved section and records
-"the chosen approach, rationale, and why the alternatives were set aside."
+Questions**. The agent raises the questions singly, each with its choices and a recommendation, and
+does not go on until the user answers. Once a question is settled, it moves to the resolved section
+with the pick, the reason for it, and the reason each other choice lost.
 
 Relation vocabulary as in the [`mattpocock-skills.md` Map](mattpocock-skills.md#map) (DERIVED,
 PARTIAL, CONVERGENT, NONE). "Why upstream" is **stated** when the author says it (skill text, a test
@@ -168,19 +168,19 @@ workstream that decides the row, or says none does.
 
 | Upstream element | Why upstream (problem it removes) | Ours | Relation | Disposition |
 |---|---|---|---|---|
-| A phase chain with one document per phase, each phase in a fresh context, the next command printed with task directory and flow | The context window is "the ONLY lever you have"; compaction is "distilling them into structured artifacts" ([essay](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents/blob/main/ace-fca.md)). **Stated** | `/planning:interview` → `/planning:prd` → `/planning:design` → `/planning:plan` → `/work-items:decompose` → `/implementation:implement`; PLAN.md must let a cleared session execute from the file alone | CONVERGENT | **Already present.** W3 checks that every chain skill's `## Next` agrees with `/session-flow:workflow`. |
-| Research questions written separately from the request; research does not load the request or design documents ("keep the desired change in the separate request document so research stays objective") | Facts bent by the intended change. Test `research-isolation` plants decoy request and PRD files. **Stated** ([process](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/rpi/skills/rpi/references/create-research-questions/process.md), [test](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/scripts/test-rpi-workflows.ts)) | None in the planning chain; `/discovery:research` was not checked | NONE | **Not assigned** to a #6917 workstream. |
+| A phase chain with one document per phase, each phase in a fresh context, the next command printed with task directory and flow | What the context window holds is the one thing that sets output quality, and compacting means turning the session's work into written documents ([essay](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents/blob/main/ace-fca.md)). **Stated** | `/planning:interview` → `/planning:prd` → `/planning:design` → `/planning:plan` → `/work-items:decompose` → `/implementation:implement`; PLAN.md must let a cleared session execute from the file alone | CONVERGENT | **Already present.** W3 checks that every chain skill's `## Next` agrees with `/session-flow:workflow`. |
+| Research questions written separately from the request; research does not load the request or design documents, so the wanted change cannot steer what research reports | Facts bent by the intended change. Test `research-isolation` plants decoy request and PRD files. **Stated** ([process](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/rpi/skills/rpi/references/create-research-questions/process.md), [test](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/scripts/test-rpi-workflows.ts)) | None in the planning chain; `/discovery:research` was not checked | NONE | **Not assigned** to a #6917 workstream. |
 | Phase 4 of the outline: small end-to-end phases that cross module boundaries, each working and verifiable when it ends | Horizontal plans whose errors surface late. **Inference** | `/planning:plan` tracer-bullet and integration-first ordering with a sanity check per phase; `/work-items:decompose` thin vertical slices | CONVERGENT | **Already present.** |
 | Change Outline per phase drawn with the show-me views and focused diffs | Prose or file-by-file changelogs hide the structure under review. **Inference** | `/visualization:visualize` code shapes (PARTIAL from show-me, table above); not used in PLAN.md | CONVERGENT | **Under evaluation, W6:** plans use the code-shape views with `@ path:line`. |
 | Validation split into Automated and Manual Verification checkboxes; the implementer pauses for manual checks and marks a phase `✅` only after human confirmation | Running ahead on unverified work. Test `phase-pause-and-resume`. **Stated** ([test](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/scripts/test-rpi-workflows.ts)) | PLAN.md phase status tags and a mechanically verifiable sanity check per phase; no manual-check split | CONVERGENT | **Not assigned.** |
 | `repos` frontmatter with `identifier` and `sha` per document | A reader cannot tell which code a document described. **Inference** | `EXPLORE.md` `repos:` ([above](#rpi-create-research)); none for plans | PARTIAL | **Under evaluation, W5:** plans stamp the commit they were checked at. |
 | Design Questions moved to Resolved Design Questions with the selected approach, its rationale and the rejected alternatives | Settled choices re-argued in later sessions. **Inference** | `/planning:design` tracks resolved, directional and deferred decisions with a `Basis:` line; PLAN.md "Decisions made" table | CONVERGENT | **Already present** in shape. Recording why each alternative was set aside is not required by ours and is not assigned. |
-| One decision per message, then wait | Users had to type "magic words" before the agent exposed its assumptions. Reported only in a [secondary write-up](https://www.zenml.io/llmops-database/evolution-from-rpi-to-crispy-multi-stage-workflow-for-production-coding-agents) of Dex Horthy's talk, not a primary quote | `/planning:interview` asks the whole frontier as a numbered round, each with a recommendation | CONVERGENT | **Kept different:** rounds are ours by design (Pocock `grilling` rows). |
+| One decision per message, then wait | Users had to know a particular prompt before the agent exposed its assumptions. Reported only in a [secondary write-up](https://www.zenml.io/llmops-database/evolution-from-rpi-to-crispy-multi-stage-workflow-for-production-coding-agents) of Dex Horthy's talk, not a primary quote | `/planning:interview` asks the whole frontier as a numbered round, each with a recommendation | CONVERGENT | **Kept different:** rounds are ours by design (Pocock `grilling` rows). |
 | Document precedence for implementation: outline > TDD > PRD > design discussion > research > request, with the user's latest instruction winning | Conflicting documents with no tie-break. Test `document-precedence`. **Inference** | No stated precedence across Brief, PRD, design and PLAN.md | NONE | **Under evaluation, W4:** one artifact is declared the spec. |
-| Outline implementer stops on a mismatch with "Expected / Found / Why this matters / How should I proceed?" | Silent deviation from the plan. **Inference** from the mismatch report in [`outline-implementer-agent.md`](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/rpi/agents/outline-implementer-agent.md), which gives no reason | `/implementation:implement` divergence detection routes back to planning; dispatched workers carry a divergence-escalation clause | CONVERGENT | **Already present.** |
-| Task directory `.agents/artifacts/<slug>`, numbered documents, "recommend not committing the artifacts" | Writing into another task's documents. Tests `ambiguous-task-directory` and `main-branch`. **Stated** ([test](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/scripts/test-rpi-workflows.ts)) | Memory slice under `.work/` | CONVERGENT | **Already present.** |
-| Portable across Claude Code and Codex: subagent reference copies, `<rpi-invocation>` placeholders checked by `scripts/sync-rpi-references.ts` | One skill text for several hosts. **Inference** from commit `04ecf04` | Claude Code only | NONE | **Not adopted:** this marketplace targets Claude Code. |
-| Live workflow tests that drive a host on fixture repositories, each assertion naming a failure | Behavioral drift across models and hosts. **Inference** | Plugin eval suites for `plan` and `interview` | CONVERGENT | **Already present** in shape. |
+| Outline implementer stops on a mismatch and reports what the outline expected, what the code holds, why the gap matters, and a question on how to go on | Silent deviation from the plan. **Inference** from the mismatch report in [`outline-implementer-agent.md`](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/rpi/agents/outline-implementer-agent.md), which gives no reason | `/implementation:implement` divergence detection routes back to planning; dispatched workers carry a divergence-escalation clause | CONVERGENT | **Already present.** |
+| Task directory `.agents/artifacts/<slug>`, numbered documents, advice to keep the artifacts out of commits | Writing into another task's documents. Tests `ambiguous-task-directory` and `main-branch`. **Stated** ([test](https://github.com/humanlayer/skills/blob/653b6411c1f70c275a18e37673b042ff99f67ceb/scripts/test-rpi-workflows.ts)) | Memory slice under `.work/` | CONVERGENT | **Already present.** |
+| Portable across Claude Code and Codex: `scripts/sync-rpi-references.ts` copies the five agents into reference copies, writes `<rpi-invocation>` over the host-specific `/rpi` command in final-answer files, and with `--check` fails on a final-answer file that still holds the `/rpi` command | One skill text for several hosts. **Inference** from commit `04ecf04`, whose message names portability across coding agents as the goal but no problem | Claude Code only | NONE | **Not adopted:** this marketplace targets Claude Code. |
+| Live workflow tests that drive the Codex CLI on fixture repositories, many of their assertions carrying a failure message | Behavioral drift across models and hosts. **Inference** | Plugin eval suites for `plan` and `interview` | CONVERGENT | **Already present** in shape. |
 
 **License.** `plugins/rpi/.claude-plugin/plugin.json` says MIT and the repository LICENSE is the MIT
 notice recorded under [License notice](#license-notice). Nothing from `rpi` is copied into this marketplace; if text is, the same
