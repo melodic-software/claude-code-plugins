@@ -213,6 +213,12 @@ describe("the build-view CLI", () => {
     assert.match(report, /^view: terminal \(fell back: /);
   });
 
+  test("an empty --option is unset, as the resolver reads it", () => {
+    const run = spawnSync("node", [CLI, "plan", "--option", ""], { input: PLAN_RECORD, encoding: "utf8", env: env(tempDir(), { CI: "true" }) });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout.trim().split("\n")[1], /^view: terminal \(fell back: artifact unreachable/);
+  });
+
   test("--argument naming no medium exits 2", () => {
     const run = spawnSync("node", [CLI, "plan", "--option", "auto", "--argument", "paper"], { input: PLAN_RECORD, encoding: "utf8", env: env(tempDir()) });
     assert.equal(run.status, 2);

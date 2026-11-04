@@ -116,7 +116,7 @@ function main(argv, env = process.env) {
   const has = (key) => key in flags;
   const flagsOk =
     Object.keys(flags).every((key) => FLAGS.includes(key)) &&
-    Object.values(flags).every((value) => typeof value === "string" && value !== "") &&
+    Object.entries(flags).every(([key, value]) => typeof value === "string" && (value !== "" || key === "--option")) &&
     has("--connect") === has("--out") &&
     !(has("--option") && has("--connect")) &&
     (has("--option") || !(has("--argument") || has("--visibility"))) &&

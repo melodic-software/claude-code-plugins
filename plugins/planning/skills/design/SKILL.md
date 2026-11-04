@@ -268,8 +268,8 @@ Rules:
 [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 Resolve `medium` first per
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md)
-"Other optional views", with this plugin's `medium` option `${user_config.medium}`, print the report line
-it prints, and follow its result.
+"Other optional views", with this plugin's `medium` option `${user_config.medium}`, and follow its
+result, which names the report line to print.
 
 ### Phase 5: Discussion Rounds
 
