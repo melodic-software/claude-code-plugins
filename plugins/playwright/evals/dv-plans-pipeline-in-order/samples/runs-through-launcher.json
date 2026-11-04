@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "```bash\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"${CLAUDE_SKILL_DIR}/scripts/quality_control.py\" work/edl.json work/demo.mp4 work/quality-control\n```", "why": "quality control through the launcher"},
+    {"answer": "python3 scripts/pydeps.py run -- scripts/quality_control.py edl.json demo.mp4 qc", "why": "short form of the launcher"},
+    {"answer": "```bash\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \\\n  \"${CLAUDE_SKILL_DIR}/scripts/quality_control.py\" work/edl.json work/demo.mp4 work/quality-control\n```", "why": "launcher split over two lines with a backslash continuation"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "```bash\npython3 scripts/quality_control.py edl.json demo.mp4 qc\n```", "why": "bare python3 with ambient packages"},
+    {"answer": "```bash\npip install numpy pillow\npython3 scripts/quality_control.py edl.json demo.mp4 qc\n```", "why": "installs packages itself instead of using the launcher"},
+    {"answer": "```bash\npython3 scripts/pydeps.py run -- scripts/produce.py edl.json demo.mp4\n```", "why": "launcher used, but quality control never runs"}
+  ]
+}
