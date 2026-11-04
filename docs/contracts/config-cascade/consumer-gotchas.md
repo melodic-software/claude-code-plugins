@@ -1,4 +1,4 @@
-# Consumer-contributed gotchas (config-cascade layer)
+# Consumer-contributed gotchas (config-cascade scope)
 
 Ratified by #3547. Extends the [config-cascade contract](README.md) with a **concatenating prose**
 surface for skill-specific gotchas that consumers add without forking shipped plugin files.
@@ -11,13 +11,13 @@ without parking them in root `CLAUDE.md` (wrong scope: every session pays for ev
 
 ## Pattern
 
-| Layer | Where | Merge | Promotion |
+| Scope | Where | Merge | Promotion |
 |---|---|---|---|
 | **Bundled** | Shipped `SKILL.md` `## Gotchas` or `context/gotchas.md` | baseline | generalizable lines → issue this marketplace |
 | **Local (cascade)** | Participating plugin's config file | **concatenate** after bundled gotchas at invocation | repo-specific only |
 | **Upstream** | Shipped skill after curation | replaces/extends bundled | file an issue here when not repo-specific |
 
-### Local layer resolution
+### Local scope resolution
 
 A participating plugin reads consumer gotchas from a `## Gotchas` section in its existing cascade
 file (for example `docs/conventions/bugs.md`).
@@ -52,4 +52,4 @@ in their owner docs when wired.
 ## Authoring
 
 `playbooks:skill-authoring` documents the bundled gotchas discipline and points here for the
-cascade layer and promotion path.
+cascade scope and promotion path.
