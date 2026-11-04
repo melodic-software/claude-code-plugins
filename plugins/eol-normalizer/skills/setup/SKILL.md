@@ -47,6 +47,7 @@ alone will not tell you what runs.
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed `jq` and `node` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Option values are rendered into this text at load: read them here, and never put a `${user_config.*}` string in a shell command.
 
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
 FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -55,7 +56,7 @@ restores the FAIL semantics. A missing `node` stays FAIL whatever the toggle say
 launches `node` before `exec-bash.mjs` can evaluate the gate, so every tool-call batch still tries an
 unavailable command until `node` is installed or the plugin registration is disabled.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements).
+1. **Bash version.** Check against the floor, Bash 3.2 or newer (README Requirements).
 2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row runs through
    `node hooks/exec-bash.mjs`, so the hook never launches and emits no notice. This probe is the
    only visibility, and it runs through the Bash tool, so it works without the launcher.
