@@ -1,0 +1,12 @@
+# Revert case: a merged pull request that a later revert undid, rebuilt offline.
+# pr: melodic-software/claude-code-plugins#4923 (merged as cfd540e963af0b749aad05c48f93a4ce305949e4)
+# base: 1ccc27796c7868f4fab6811f5c621072efe5a188
+# revert: #5044 7e3a5c3dab5c7308bfb3f42fb52e9df3a85851f7
+# lines: at the merge, the lines the pull request added that the revert removed:
+#   docs/out-of-scope/doc-fetcher-fleet-adoption.md lines 1,3-6,8,10,12-17,19-31,33,35-40,42,44-46,48,50
+# confirmed-by: verifier agent, every listed line blamed over PR^..revert^ to this PR; the revert deletes the whole ledger file
+# rebuilt: only the files above, at base and merge.
+schema_version: "1.1"
+name: revert-4923-park-ledger-c
+context:
+  scaffold_script: scaffold.sh

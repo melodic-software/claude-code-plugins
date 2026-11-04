@@ -1,0 +1,12 @@
+# Revert case: a merged pull request that a later revert undid, rebuilt offline.
+# pr: melodic-software/claude-code-plugins#4964 (merged as 656a77abdcf2ea107d27959def95b27c3064b7cf)
+# base: 145e81ccd66e1fb5798db70059d016cd45be00e9
+# revert: #5044 7e3a5c3dab5c7308bfb3f42fb52e9df3a85851f7
+# lines: at the merge, the lines the pull request added that the revert removed:
+#   docs/out-of-scope/audit-enforceability-unicode-normalization.md lines 1,3,5-9,11-19,21,23-26,28-29,31-34,36-37,39,41-44,46,48-53,55,57-59,61,63-64
+# confirmed-by: verifier agent, every listed line blamed over PR^..revert^ to this PR; the revert deletes the whole ledger file
+# rebuilt: only the files above, at base and merge.
+schema_version: "1.1"
+name: revert-4964-park-ledger-g
+context:
+  scaffold_script: scaffold.sh

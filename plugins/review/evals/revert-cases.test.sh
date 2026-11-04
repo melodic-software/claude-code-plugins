@@ -53,12 +53,24 @@ J="$(commit app.sh 'a\nb\nc\n' "revert: refactor: drop c (#8)")"
 commit app.sh 'a\nb\nc\nz=3\nw=1\n' "feat: add z (#9)" >/dev/null
 commit app.sh 'a\nb\nc\nz=3\nw=2\n' "chore: bump w (#10)" >/dev/null
 M="$(commit app.sh 'a\nb\nc\n' "revert: feat: add z (#11)")"
+P="$(commit named.txt 'one\ntwo\n' "feat: add named (#12)")"
+Q="$(commit named.txt 'one\n' "revert(docs): drop the second line (#13)" -m "Undoes #12 and mentions #999, which is not in this history.")"
+R="$(commit named.txt 'three\n' "revert: rewrite named, naming nothing (#14)")"
+V="$(commit named.txt 'four\n' "revert: rewrite named again (#15)" -m "Builds on #14, which was itself a revert.")"
+commit extra.txt 'a\n' "feat: add a (#16)" >/dev/null
+X="$(commit extra.txt 'a\nc\n' "revert: edit extra (#17)" -m "Undoes #16.")"
 
 out="$(cd "$REPO" && bash "$CASES" list 2>"$WORK/err")"
 expect "$?" "list exits 0"
 err="$(cat "$WORK/err")"
-expect "$(same "$out" "#5${T}${F}${T}-${T}${G}"$'\n'"#2${T}${B}${T}#4${T}${D}"$'\n'"pairs${T}2")" \
-  "list prints the subject-form and body-form pairs, newest first, and the count"
+expect "$(same "$out" "#12${T}${P}${T}#13${T}${Q}"$'\n'"#5${T}${F}${T}-${T}${G}"$'\n'"#2${T}${B}${T}#4${T}${D}"$'\n'"pairs${T}3")" \
+  "list prints the pull-request-number, subject-form and body-form pairs, newest first, and the count"
+expect "$(has "skip${T}${R}${T}its original commit is not in this history" "$err")" \
+  "list skips a revert that names no pull request and no matching subject"
+expect "$(has "skip${T}${V}${T}its original commit is not in this history" "$err")" \
+  "list does not pair a revert with an earlier revert it names"
+expect "$(has "skip${T}${X}${T}removes no line #16 added" "$err")" \
+  "list gives the real reason when a pull request a revert names fails a check"
 expect "$(has "skip${T}${J}${T}removes no line #7 added" "$err")" "list skips a revert that only restores deleted lines"
 expect "$(has "skip${T}${M}${T}#9 does not reverse cleanly" "$err")" "list skips a pair that no longer reverses cleanly"
 
@@ -69,7 +81,7 @@ expect "$(same "$case_out" "$case_dir")" "build prints the case directory"
 yaml="$(cat "$case_dir/case.yaml")"
 expect "$(has "# revert: #4 $D" "$yaml")" "case.yaml records the revert"
 expect "$(has "# pr: melodic-software/claude-code-plugins#2 (merged as $B)" "$yaml")" "case.yaml records the original"
-expect "$(has "app.sh:2-3" "$yaml")" "case.yaml records the reverted lines"
+expect "$(has "app.sh lines 2-3" "$yaml")" "case.yaml records the reverted lines"
 expect "$(has "confirmed-by: pending" "$yaml")" "case.yaml leaves the confirmation pending"
 expect "$(has "PR NUMBER: 2" "$(cat "$case_dir/prompt.md")")" "prompt names the original pull request"
 
@@ -89,6 +101,9 @@ expect "$?" "scaffold exits 0 once the case is confirmed"
 expect "$(has "+x=1" "$(cat "$WORK/ws/.claude-lane/pr.diff")")" "scaffold writes the pull request's diff"
 expect "$(has "feat: add x" "$(git -C "$WORK/ws" log -1 --format=%s)")" "scaffold commits the change under its subject"
 expect "$(has "## Pull request #2: feat: add x" "$(cat "$WORK/ws/.claude-lane/pr-context.md")")" "scaffold writes the context"
+(cd "$WORK/ws" && bash "$case_dir/scaffold.sh" 2>/dev/null)
+code=$?
+expect "$((code != 2))" "scaffold refuses a directory that is already a repository"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "SKIP: node is not installed; grader and report not tested"

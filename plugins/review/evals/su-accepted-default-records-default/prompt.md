@@ -13,5 +13,6 @@ My answers to the settings, so you need not ask:
 
 - downstream_probe: report. The team decided this; keep it.
 - fanout_diversity: I take the plugin's default, whatever it is now. If a later plugin version changes that default, I want the new one.
+- fanout_act_on_cap: leave it out of the file; we do not set it here.
 
 If setup asks about a convention home, skip that for now.

@@ -10,6 +10,7 @@ file or local overlay sets these keys. `/review:setup apply` writes the reposito
 |---|---|---|---|
 | `downstream_probe` | `run`, `report` | `run` | `/review:quality-gate` downstream mode (Step 2): `run` writes the safety-fact probe in a temporary directory outside the tree and runs it; `report` states the probe without running it. Level rule: policy floor, `report` in any layer wins; the repository value is read from the default branch |
 | `fanout_diversity` | `lens`, `model`, `codex` | `lens` | `/review:fanout` run-everything steps 3 and 5 and its fallback: `lens` runs one reviewer agent per concern; `model` sends one review prompt to each distinct fan-out model tier of the role map; `codex` runs the surfaces `lens` runs, with no model tiers, and reports the Codex reviewer as the model-diversity panel in a `panel:` line, `skipped` when Codex is absent. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
+| `fanout_act_on_cap` | a whole number, at least `1` | `2` | `/review:fanout` Step 2, both review modes: the report's `## By axis` marks the first this many rows under `### Spec`, and separately the first this many under `### Standards`, `yes` in their `Act on` cell, and every later row `no`; a row listed under `## Dismissed` reads `no` and is not counted; no row is dropped. The default `2` is the smallest cap that kept both planted defects of the two-defect fixtures inside act on in 12 of 12 runs, where a cap of `1` left the second outside it in all 12 (#12505). A user option that is not a whole number of at least 1 is an invalid layer. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 
 ## Resolution
 
@@ -59,6 +60,7 @@ ancestor of it. Otherwise the repository layer is skipped and the report line sa
 **Older releases.** A plugin release without a key has no option for it, and its schema does not
 list the key, so its reader reports the repository key as unknown. A reader that ignores an
 unknown key keeps the file's other keys; an older reader drops the whole repository layer, and
-each key then resolves as it does for an invalid layer: `fanout_diversity` takes its default,
+each key then resolves as it does for an invalid layer: `fanout_diversity` and
+`fanout_act_on_cap` take their defaults,
 never the lower userConfig value, and `downstream_probe` still takes `report` from userConfig. A
 repository shared with users on an older release should add a key only once they have updated.

@@ -1,0 +1,5 @@
+---
+type: regex
+pattern: '(?<![\w.-])docs-lookup-procedure\.md`?(?::L?|#L|,? \(?lines? )(?:61|62|63|64)(?!\d)|(?<![\w.-])docs-lookup-procedure\.md`?(?::L?|#L|,? \(?lines? )(?:64|65|66|67)(?!\d)|(?<![\w.-])docs-lookup-procedure\.md`?(?::L?|#L|,? \(?lines? )(?:64|65|66|67)(?!\d)|(?<![\w.-])docs-lookup-procedure\.md`?(?::L?|#L|,? \(?lines? )(?:64|65|66|67)(?!\d)|(?<![\w.-])docs-lookup-procedure\.md`?(?::L?|#L|,? \(?lines? )(?:64|65|66|67)(?!\d)|(?<![\w.-])docs-lookup-procedure\.md`?(?::L?|#L|,? \(?lines? )(?:64|65|66|67)(?!\d)|(?<![\w.-])docs-lookup-procedure\.md`?(?::L?|#L|,? \(?lines? )(?:64|65|66|67)(?!\d)'
+flags: i
+---
