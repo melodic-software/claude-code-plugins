@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "jq -r '.items | group_by(.id) | map(select(length > 1) | .[0].id) | .[]' .github/recurring-schedule.json"}},
+        {"tool": "Bash", "input": {"command": "git check-ignore -v docs/conventions/work-items.local.yaml; git ls-files --error-unmatch .github/recurring-schedule.json"}}
+      ],
+      "why": "read-only probes"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "jq -e . .github/recurring-schedule.json >/dev/null && echo valid"}}
+      ],
+      "why": "redirects to /dev/null, not into a checked file"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git check-ignore -v docs/conventions/work-items.local.yaml 2>/dev/null\ngit ls-files --error-unmatch docs/conventions/work-items.yaml .github/recurring-schedule.json"}}
+      ],
+      "why": "a /dev/null redirect on one line does not reach a path on the next"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "jq '[.items[].id] | group_by(.) | map(select(length > 1))' .github/recurring-schedule.json"}}
+      ],
+      "why": "a comparison inside the jq filter is not a redirect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "jq '.items |= unique_by(.id)' .github/recurring-schedule.json > /tmp/s && mv /tmp/s .github/recurring-schedule.json"}}
+      ],
+      "why": "rewrote the schedule through the shell"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "printf 'docs/conventions/work-items.local.yaml\\n' >> .gitignore"}}
+      ],
+      "why": "appended to .gitignore"
+    }
+  ]
+}
