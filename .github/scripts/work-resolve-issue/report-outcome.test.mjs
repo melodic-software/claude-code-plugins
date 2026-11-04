@@ -2701,7 +2701,7 @@ test("a verified tip is the lane's work only with the bot as author and web-flow
 // The sha goes into a request path, so anything but a full commit id fails
 // the step rather than being passed over: matching-refs only ever answers
 // full ids, so another shape means the answer itself is wrong.
-test("--find-prior fails on a lane ref whose sha is not a full commit id", async () => {
+test("--find-prior holds on a lane ref whose sha is not a full commit id", async () => {
   for (const sha of ["abc", "../../x", "A".repeat(40), undefined]) {
     await failsClosed(String(sha), { refs: [{ ref: `refs/heads/${lane(400)}`, object: { sha } }] });
   }
@@ -3142,22 +3142,52 @@ test("--find-prior does not take another account's copy of a marker as a report"
   assert.equal(output, `proceed=false\nskip-reason=not-applicable\nreuse-branch=${lane(400)}\n`);
 });
 
-test("--find-prior fails and writes no output when a read fails, so the mint never follows", async () => {
-  await withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
-    const { fetch } = fakeFetch([["GET", /\/issues\/77\/comments$/, 200, []]]);
-    const code = await findPriorMain({
-      env: {
-        ISSUE_NUMBER: "77",
-        GITHUB_REPOSITORY: "o/r",
-        GITHUB_API_URL: "https://api.example",
-        TRUSTED_ACTORS_PATH: join(dir, "trusted.json"),
-        GITHUB_OUTPUT: join(dir, "output"),
-      },
-      fetch,
+// The read runner's `go` step stops the activity only on proceed=false, so the
+// hold writes exactly that: no reuse branch to report and no branch to prune.
+const HELD = "proceed=false\n";
+
+test("--find-prior holds when a read fails: green with a notice and proceed=false, and it writes nothing to GitHub", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  for (const status of [404, 502]) {
+    await withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
+      const { fetch, calls } = fakeFetch([["GET", /\/issues\/77\/comments$/, status, { message: "boom" }]]);
+      const code = await findPriorMain({
+        env: {
+          ISSUE_NUMBER: "77",
+          GITHUB_REPOSITORY: "o/r",
+          GITHUB_API_URL: "https://api.example",
+          TRUSTED_ACTORS_PATH: join(dir, "trusted.json"),
+          GITHUB_OUTPUT: join(dir, "output"),
+        },
+        fetch,
+        sleep: async () => {},
+      });
+      assert.equal(code, 0, status);
+      assert.equal(readFileSync(join(dir, "output"), "utf8"), HELD, status);
+      assert.deepEqual(writesToGitHub(calls), [], status);
     });
-    assert.equal(code, 1);
-    assert.equal(readFileSync(join(dir, "output"), "utf8"), "");
-  });
+  }
+  const logged = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(logged.some((line) => line.startsWith("::notice")), logged.join("\n"));
+  assert.ok(!logged.some((line) => line.startsWith("::error")), logged.join("\n"));
+});
+
+// The issue-fields job's re-derive publishes a branch claim only on this
+// step's success (pr-run-activity-read.yml), so a read it could not make still
+// fails, and its job continues on the error.
+test("--find-prior re-deriving a claim (FIND_PRIOR_KEEP_BEHIND) still fails on a failed read, with no output", async () => {
+  const { code, output } = await runPrior({ refs: { message: "odd" }, env: { FIND_PRIOR_KEEP_BEHIND: "true" } });
+  assert.equal(code, 1);
+  assert.equal(output, "");
+});
+
+// What no read can fix is a fault in the step, not an outage.
+test("--find-prior still fails on a bad issue number, a bad repository or an unreadable trust list", async () => {
+  for (const env of [{ ISSUE_NUMBER: "x" }, { GITHUB_REPOSITORY: "nope" }, { TRUSTED_ACTORS_PATH: "/nonexistent/trusted.json" }]) {
+    const { code, output } = await runPrior({ env });
+    assert.equal(code, 1, JSON.stringify(env));
+    assert.equal(output, "", JSON.stringify(env));
+  }
 });
 
 test("--find-prior reads every page of closing PRs, so outsiders' PRs cannot hide a trusted one", async () => {
@@ -3168,83 +3198,83 @@ test("--find-prior reads every page of closing PRs, so outsiders' PRs cannot hid
   assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
 });
 
-test("--find-prior fails on a pull request listing that is not a list", async () => {
+test("--find-prior holds on a pull request listing that is not a list", async () => {
   for (const pulls of [{ message: "odd" }, "x"]) {
     const { code, output } = await runPrior({ refs: [refOf(lane(400))], pulls });
-    assert.equal(code, 1, JSON.stringify(pulls));
-    assert.equal(output, "");
+    assert.equal(code, 0, JSON.stringify(pulls));
+    assert.equal(output, HELD);
   }
 });
 
-// Each answer of the wrong shape fails the step with no outputs written.
+// Each answer of the wrong shape is an incomplete read: the step holds.
 const failsClosed = async (label, facts) => {
   const { code, output } = await runPrior(facts);
-  assert.equal(code, 1, label);
-  assert.equal(output, "", label);
+  assert.equal(code, 0, label);
+  assert.equal(output, HELD, label);
 };
 
-test("--find-prior fails past the 50-page cap of closing PRs", async () => {
+test("--find-prior holds past the 50-page cap of closing PRs", async () => {
   const pages = Array.from({ length: 51 }, (_, i) => [{ ...closer("User", `stranger${i}`, 1000 + i), number: 600 + i }]);
   await failsClosed("51 pages", { graphqlPages: pages });
 });
 
-test("--find-prior fails on a closing PR with no state", async () => {
+test("--find-prior holds on a closing PR with no state", async () => {
   for (const state of [undefined, null, 1]) {
     await failsClosed(String(state), { nodes: [{ ...closer("User", "stranger", 42), state }] });
   }
 });
 
-test("--find-prior fails on a closing-PR page with no page information", async () => {
+test("--find-prior holds on a closing-PR page with no page information", async () => {
   const page = (pageInfo) => ({ data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo } } } } });
   for (const pageInfo of [undefined, {}, { hasNextPage: "false" }]) {
     await failsClosed(JSON.stringify(pageInfo) ?? "no pageInfo", { closingAnswer: page(pageInfo) });
   }
 });
 
-test("--find-prior fails at once on a next page with no cursor, after one closing-PR read", async () => {
+test("--find-prior holds at once on a next page with no cursor, after one closing-PR read", async () => {
   for (const endCursor of [null, ""]) {
     const { code, calls, output } = await runPrior({ closingAnswer: graphql([], { hasNextPage: true, endCursor }) });
-    assert.equal(code, 1, String(endCursor));
-    assert.equal(output, "", String(endCursor));
+    assert.equal(code, 0, String(endCursor));
+    assert.equal(output, HELD, String(endCursor));
     assert.equal(calls.filter((c) => c.path === "/graphql").length, 1, String(endCursor));
   }
 });
 
-test("--find-prior fails on a lanes-App marker naming no run whose time cannot be read", async () => {
+test("--find-prior holds on a lanes-App marker naming no run whose time cannot be read", async () => {
   for (const created_at of [undefined, "not a date"]) {
     const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped -->", created_at }];
     await failsClosed(String(created_at), { comments });
   }
 });
 
-test("--find-prior fails on a lane-branch listing that is not a list", async () => {
+test("--find-prior holds on a lane-branch listing that is not a list", async () => {
   await failsClosed("matching-refs object", { refs: { message: "odd" } });
 });
 
-test("--find-prior fails on a repository answer with no default branch", async () => {
+test("--find-prior holds on a repository answer with no default branch", async () => {
   for (const repoAnswer of [{}, { default_branch: "" }, { default_branch: 5 }]) {
     await failsClosed(JSON.stringify(repoAnswer), { refs: [refOf(lane(400))], repoAnswer });
   }
 });
 
-test("--find-prior fails on a tip commit with no readable time when a marker names no run", async () => {
+test("--find-prior holds on a tip commit with no readable time when a marker names no run", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped -->", created_at: "2026-10-16T11:00:00Z" }];
   for (const commitAnswer of [{}, { ...LANE_TIP, commit: { ...LANE_TIP.commit, committer: { date: "not a date" } } }]) {
     await failsClosed(JSON.stringify(commitAnswer), { comments, refs: [refOf(lane(400))], commitAnswer });
   }
 });
 
-test("--find-prior fails on a comparison with no whole-number behind_by", async () => {
+test("--find-prior holds on a comparison with no whole-number behind_by", async () => {
   for (const behind of [undefined, "3", null, 1.5, -1]) {
     await failsClosed(String(behind), { refs: [refOf(lane(400))], comparison: { ahead_by: 1, behind_by: behind } });
   }
 });
 
-test("--find-prior fails on a comparison with no whole-number ahead_by", async () => {
+test("--find-prior holds on a comparison with no whole-number ahead_by", async () => {
   for (const comparison of [{}, { ahead_by: "3" }, { ahead_by: null }, { ahead_by: 1.5 }, { ahead_by: -1 }]) {
     const { code, output } = await runPrior({ refs: [refOf(lane(400))], comparison });
-    assert.equal(code, 1, JSON.stringify(comparison));
-    assert.equal(output, "");
+    assert.equal(code, 0, JSON.stringify(comparison));
+    assert.equal(output, HELD);
   }
 });
 
@@ -3580,9 +3610,36 @@ test("main ignores merge: human from a labeler who is not a listed human or the 
   assert.ok(!holds(body), body);
 });
 
-test("main holds the PR when merge: human's labeler cannot be read", async () => {
-  assert.ok(holds((await runHumanMerge({ labels: MERGE_HUMAN, eventsStatus: 500, events: { message: "boom" } })).body));
+test("main holds the PR when the trusted list that judges merge: human's labeler cannot be read", async () => {
   assert.ok(holds((await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)], trusted: null })).body));
+});
+
+// A label whose adder is unknown is neither ignored, which would drop a listed
+// human's hold, nor taken as one, which would hold the PR for a person on no
+// evidence. No marker goes up, so the branch stays unreported and the next run
+// reuses it.
+test("main opens no PR and writes nothing when merge: human's labeler cannot be read, and ends green", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code, calls } = await runHumanMerge({ labels: MERGE_HUMAN, eventsStatus: 500, events: { message: "boom" } });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
+  assert.ok(log.mock.calls.some((call) => String(call.arguments[0]).startsWith("::notice")));
+});
+
+test("main still reports a stop that opens no PR when merge: human's labeler cannot be read", async () => {
+  await withAsyncDir({ "work-outcome.json": JSON.stringify({ exit: "stopped", reason: "host-only: this needs a desktop", title: "", summary: "" }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, 200, { number: 77, labels: MERGE_HUMAN.map((name) => ({ name })) }],
+      ["GET", /\/issues\/77\/events$/, 500, { message: "boom" }],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), 0);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.equal(parseOutcomeMarker(comment).outcome, "host-run");
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
+  });
 });
 
 // The funding stop (ci-workflows#781): a run that exits 1 with
@@ -4789,6 +4846,85 @@ test("main fails a crashed run whose retries are spent: agent-ready off, no labe
   });
 });
 
+// Element 4 of docs/outage-posture-audit.md: a fault is no evidence about the
+// issue, so retries that were all faults do not fail it. The earlier retries'
+// comments here are the ones main itself posts, for the crash below.
+const crashRetryComment = async () =>
+  withAsyncDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ...HISTORY,
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    return calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+  });
+const earlierRetry = (body, run) => ({ user: { login: "melodic-automation-lanes[bot]" }, body: body.replace("run=123", `run=${run}`), created_at: `2026-10-17T0${run}:00:00Z` });
+const spentStop = (comments, files = {}, runEnv = () => ({})) =>
+  withAsyncDir(files, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, comments],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const code = await main({ env: { ...env(dir), ...runEnv(dir) }, fetch });
+    return { code, writes: calls.filter((c) => c.method !== "GET"), comment: calls.find((c) => c.method === "POST" && c.path.endsWith("/comments"))?.body.body };
+  });
+
+test("main holds a crash past the cap when every retry was a fault: green with a notice, agent-ready kept, nothing posted", async (t) => {
+  const body = await crashRetryComment();
+  assert.equal(parseOutcomeMarker(body).outcome, "retry");
+  const log = t.mock.method(console, "log", () => {});
+  const { code, writes } = await spentStop([earlierRetry(body, 1), earlierRetry(body, 2)]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.ok(log.mock.calls.some((call) => String(call.arguments[0]).startsWith("::notice")));
+});
+
+test("main fails a crash past the cap when one retry was not a fault", async () => {
+  const body = await crashRetryComment();
+  const named = body.replace("`outcome-unread`", "`stopped`");
+  assert.notEqual(named, body);
+  const { comment } = await spentStop([earlierRetry(body, 1), earlierRetry(named, 2)]);
+  assert.equal(parseOutcomeMarker(comment).outcome, "failed");
+});
+
+test("main fails a stop past the cap that is itself no fault, even after retries that all were", async () => {
+  const body = await crashRetryComment();
+  const { comment } = await spentStop([earlierRetry(body, 1), earlierRetry(body, 2)], {
+    "work-outcome.json": JSON.stringify({ exit: "stopped", reason: "No code here", title: "", summary: "" }),
+  });
+  assert.equal(parseOutcomeMarker(comment).outcome, "failed");
+});
+
+// A hold posts no marker, so a branch this run made would read as unreported
+// work, and the next run would open a PR from it (findPrior's reuse).
+test("main fails a fault past the cap that left a branch of this run's own, and holds on one the run only resumed", async () => {
+  const body = await crashRetryComment();
+  const earlier = [earlierRetry(body, 1), earlierRetry(body, 2)];
+  const own = await spentStop(earlier, { "lane.json": JSON.stringify({ branch: "work-resolve-issue/issue-77-123-1" }) });
+  assert.equal(parseOutcomeMarker(own.comment).outcome, "failed");
+  // patch-apply-failed names the resumed branch on the stop, so this reaches the run-id check.
+  const resumed = await spentStop(
+    earlier,
+    {
+      "lane.json": JSON.stringify({ resume: "work-resolve-issue/issue-77-1-1" }),
+      "work-outcome.json": JSON.stringify({ exit: "done", title: "t", summary: "s" }),
+    },
+    () => ({ ESCALATION_REASON: "patch-apply-failed" }),
+  );
+  assert.deepEqual(resumed.writes, []);
+});
+
+// limits.stop-retries 0 means no retries: nothing has been tried, so no retry
+// was a fault.
+test("main fails a fault at once under a cap of 0", async () => {
+  const { comment } = await spentStop([], { "resolved.json": JSON.stringify({ limits: { "stop-retries": 0 } }) }, (dir) => ({ RESOLVED_CONFIG: join(dir, "resolved.json") }));
+  assert.equal(parseOutcomeMarker(comment).outcome, "failed");
+});
+
 test("main hands a run to a person when COLLECT_REFUSED is exactly true, and retries it otherwise", async () => {
   for (const [value, held] of [["true", true], ["TRUE", false], ["", false]]) {
     await withAsyncDir({}, async (dir) => {
@@ -5060,7 +5196,7 @@ async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "wo
     ]);
     const code = await main({ env: { ...reuseEnv(dir), RESOLVED_CONFIG: join(dir, "resolved.json"), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch });
     assert.equal(code, 0);
-    return { calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body.body };
+    return { calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body.body };
   });
 }
 
@@ -5084,11 +5220,12 @@ test("main holds a reuse PR on a denied path or a failed compare, and opens a cl
   assert.ok(holds((await runReuse({ compareStatus: 500 })).body), "a failed compare");
 });
 
-test("main reads merge: human on a reuse too, and holds when its labeler cannot be read", async () => {
+test("main reads merge: human on a reuse too, and opens no PR when its labeler cannot be read", async () => {
   const labels = ["agent-ready", "work-class: scoped", "merge: human"];
   assert.ok(!holds((await runReuse({ labels, events: [labeled("merge: human", "stranger", 42)] })).body), "an untrusted labeler");
   assert.ok(holds((await runReuse({ labels, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] })).body), "the owner");
-  assert.ok(holds((await runReuse({ labels, eventsStatus: 500, events: { message: "boom" } })).body), "unreadable events");
+  const unread = await runReuse({ labels, eventsStatus: 404, events: { message: "boom" } });
+  assert.deepEqual(unread.calls.filter((c) => c.method !== "GET"), [], "unreadable events");
 });
 
 // The run-checks step puts the reuse scan's word in the record only on a
