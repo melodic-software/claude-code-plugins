@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [8.49.1] - 2026-11-04
+
+### Changed
+
+- No workflow looks for the artifact listing pr-merge's last run saved any more. The verdict
+  reader reads the FAIL index by exact name and saves a listing only for a pull request past
+  `INDEX_NAMES_CAP` index names, so each search cost one run listing and up to ten runs'
+  artifact listings and almost always found nothing. Past that cap a dispatcher's FAIL-cap
+  read now lists in full. The address-feedback and
+  pr-unblock dispatchers' FAIL-cap reads (`verify-cap.mjs`), pr-merge's `merge` and
+  `enable-auto-merge` jobs, and ci-status's merge-queue reader no longer run it; the run cache
+  and head-ref map are still carried. `BABYSIT_VERIFY_LISTING_CARRY` is gone from every job.
+
+### Removed
+
+- `.github/scripts/pr-merge/listing-carry.mjs` and its floor row, and pr-merge's
+  `pr-merge-verify-listing` upload with its credential scan.
+
+### Fixed
+
+- A pr-verify pass that lands while an address-feedback round for the same lanes App PR is in progress now still sends its pass-only round, so the fail-note threads from earlier heads get resolved ([#13038](https://github.com/melodic-software/claude-code-plugins/issues/13038)). Before, `feedback-dispatch.mjs` skipped the dispatch as "not done yet", and nothing sent the pass again, so the threads blocked the merge until a person resolved them. The pass-only round now waits in `pr-unblock.yml`'s per-PR concurrency group behind that round, and resolves nothing if that round moves the head. A round waiting to start still holds it, because sending would cancel that round. A review run's round still skips while another round is going. `publish-feedback` also writes how many fail-note threads a pass-only round resolved to the run's step summary.
+
 ## [8.49.0] - 2026-11-04
 
 ### Added
