@@ -1155,8 +1155,10 @@ the rules that only tighten in
   full run on main cleared by the merge gate's own rule (`_recovered_at`: attempt 1, a schedule or
   a github-actions[bot] dispatch, created after the record, at a commit ahead of its SHA and on
   main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
-  `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
-  outside the charset, or not filed; a fix issue reopened on a
+  a hidden marker comment, on it and on its record, and a check whose fix issue could not be filed or
+  reopened gets one on the record; each alert run retries what a marker names until it succeeds, with
+  the failing run staying red, and adds no label. A record gets `needs-human` when a failing check got
+  no fix issue because it was over the cap or outside the charset; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
   It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in

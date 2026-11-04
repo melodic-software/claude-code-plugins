@@ -7,7 +7,7 @@
 # merge-policy reader also use: an issue by github-actions[bot] whose body's
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
 # one per (signal, SHA), labeled needs-human for a canary record, or a full-run
-# one with a failing check that got no fix issue. When no
+# one with a failing check over the cap or outside the name charset. When no
 # merge in the failing range was enqueued by merge.agent-identity, it files the
 # post-merge-failure record instead (`<!-- post-merge-failure sha=<S>
 # signal=<name> -->`, labeled the same way, no demotion); anything unproven
@@ -20,7 +20,7 @@
 # the push brought, and no record lists, reverts a pull request the lanes App
 # enqueued.
 # test-scope: .github/workflows/post-merge-demotion-alert.yml
-# test-scope: .github/scripts/post-merge-demotion-alert/failing-checks.mjs .github/scripts/post-merge-demotion-alert/red-main.mjs
+# test-scope: .github/scripts/post-merge-demotion-alert/failing-checks.mjs .github/scripts/post-merge-demotion-alert/red-main.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -140,7 +140,13 @@ fi
 [[ "${STUB_FAIL_READ:-}" != 1 ]] || exit 1
 [[ "${STUB_FAIL_LANE_READ:-}" != 1 || "$endpoint" != *creator=melodic-automation-lanes* ]] || exit 1
 case "$endpoint" in
-  */comments*) fixture="$STUB_DIR/comments.json" ;;
+  */comments*)
+    # comments.<n>.json serves issue <n> alone (ISSUE_COMMENTS).
+    fixture="$STUB_DIR/comments.json"
+    if [[ "$endpoint" =~ /issues/([0-9]+)/comments && -f "$STUB_DIR/comments.${BASH_REMATCH[1]}.json" ]]; then
+      fixture="$STUB_DIR/comments.${BASH_REMATCH[1]}.json"
+    fi
+    ;;
   */jobs*)
     fixture="$(sed -E 's#.*/runs/([0-9]+)/attempts/([0-9]+)/jobs.*#jobs.\1.\2.json#' <<<"$endpoint")"
     fixture="$STUB_DIR/$fixture"
@@ -306,6 +312,8 @@ green_run() {
 # 4141 attempt 1), RUNS (the baseline listing), ANNOTATIONS_<id>, GREEN (the
 # last green full run listing; default one at OTHER), COMPARE (commits from
 # the green SHA to the failing one; default SHA alone).
+# ISSUE_COMMENTS[<n>]: the comments of issue <n> alone, as JSON.
+declare -A ISSUE_COMMENTS=()
 # lift_tool <work-dir>: a stub babysit_lift.py in main's checkout that logs its
 # arguments to stub/lift and prints LIFT_OUT, exiting LIFT_RC (default 0).
 lift_tool() {
@@ -359,6 +367,10 @@ PY
   fi
   printf '%s\n' "$7" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${8:-[]}" >"$TMP_ROOT/stub/comments.json"
+  local on
+  for on in "${!ISSUE_COMMENTS[@]}"; do
+    printf '%s\n' "${ISSUE_COMMENTS[$on]}" >"$TMP_ROOT/stub/comments.$on.json"
+  done
   printf '{"jobs": [%s]}\n' "$(job 1 test-bash 'Run the bash tests')" >"$TMP_ROOT/stub/jobs.default.json"
   printf '{"jobs": [%s]}\n' "${JOBS-$(job 1 test-bash 'Run the bash tests')}" >"$TMP_ROOT/stub/jobs.4242.${ATTEMPT:-2}.json"
   printf '{"jobs": [%s]}\n' "${BASE_JOBS:-}" >"$TMP_ROOT/stub/jobs.4141.1.json"
@@ -377,13 +389,13 @@ PY
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_FIX_POST_FAIL="${FIX_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
-    STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
+    RETRY_OUTCOME="${RETRY_OUTCOME:-}" STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
-    bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "$TMP_ROOT/body.sh" 2>&1)" && RC=0 || RC=$?
+    bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "${STEP_BODY:-$TMP_ROOT/body.sh}" 2>&1)" && RC=0 || RC=$?
   LOG="$(cat "$TMP_ROOT/stub/log")"
 }
 
@@ -403,6 +415,16 @@ post_fields() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST ' <<<"$LOG" | head -1 
 # fixes: the fix issues filed; dispatches: the intake dispatches sent.
 fixes() { grep -c '^POST repos/o/r/issues$' <<<"$LOG" | awk '{ print $1 - 1 < 0 ? 0 : $1 - 1 }'; }
 dispatches() { grep -c '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG"; }
+# marked <issue> <issue=N|check=name>: this run posted that hand-off marker on <issue>.
+marked() {
+  local n
+  while read -r n; do
+    if grep -qx "body=<!-- post-merge-undelivered $2 -->" "$TMP_ROOT/stub/post.$n"; then
+      return 0
+    fi
+  done < <(grep -nx "POST repos/o/r/issues/$1/comments" <<<"$LOG" | cut -d: -f1)
+  return 1
+}
 # fix_post <k>: the fields of the k-th fix issue filed.
 fix_post() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | sed -n "$(($1 + 1))p" | cut -d: -f1)"; }
 
@@ -1399,9 +1421,9 @@ else
   fail "quarantine intake: rc=$RC sent='$sent' log='$LOG'"
 fi
 JUDGE=0 JUDGE_QUARANTINE='[77]' DISPATCH_FAIL=1 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -ne 0 && "$(posts)" -eq 0 && "$OUT" == *"::error::quarantine issue #77 was not sent to intake triage: labeled needs-human"* ]] &&
-  grep -qx 'POST repos/o/r/issues/77/labels' <<<"$LOG" && grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx 'POST repos/o/r/issues/77/labels' <<<"$LOG" | cut -d: -f1)"; then
-  ok "a quarantine issue not sent to intake fails the job"
+if [[ "$RC" -ne 0 && "$OUT" == *"::error::quarantine issue #77 was not sent to intake triage: the next alert run retries it"* ]] &&
+  ! grep -qx 'POST repos/o/r/issues' <<<"$LOG" && ! grep -q '/labels$' <<<"$LOG" && marked 77 issue=77; then
+  ok "a quarantine issue not sent to intake fails the job, is marked for the retry and takes no label"
 else
   fail "quarantine intake failure: rc=$RC out='$OUT'"
 fi
@@ -1605,8 +1627,8 @@ JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" P
   "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 1 && "$(dispatches)" -eq 1 && "$OUT" == *"::error::could not reopen fix issue #60 for test-bash"* ]] &&
   grep -qF -- "- #60 (\`test-bash\`) could not be reopened" "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues/9[0-9]*/comments$' <<<"$LOG" | tail -1 | cut -d: -f1)" &&
-  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx 'POST repos/o/r/issues/60/labels' <<<"$LOG" | cut -d: -f1)"; then
-  ok "a failed reopen fails the job, names the issue on the record, and the other checks still file"
+  marked "$(record_number)" check=test-bash && ! grep -q '/labels$' <<<"$LOG"; then
+  ok "a failed reopen fails the job, marks the check on the record with no label, and the other checks still file"
 else
   fail "reopen failure: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -1632,13 +1654,13 @@ fi
 JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" DISPATCH_FAIL=1 \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
-note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
+note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 2 && "$(dispatches)" -eq 2 && "$OUT" == *"::error::could not dispatch intake triage for #$(fix_number 2)"* &&
-  -n "$note_line" ]] && grep -q "labeled needs-human for a person" "$TMP_ROOT/stub/post.$note_line" &&
+  -n "$note_line" ]] && grep -q "The hand-off failed and the next alert run retries it" "$TMP_ROOT/stub/post.$note_line" &&
   grep -q -- "- #$(fix_number 2) was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line" &&
-  grep -qx "POST repos/o/r/issues/$(fix_number 2)/labels" <<<"$LOG" &&
-  ! grep -qx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG"; then
-  ok "a failed dispatch fails the job after every fix issue is filed, and names the issue on the record"
+  marked "$(fix_number 2)" "issue=$(fix_number 2)" && marked "$record_n" "issue=$(fix_number 2)" &&
+  ! grep -q '/labels$' <<<"$LOG"; then
+  ok "a failed dispatch fails the job after every fix issue is filed, marks the issue and the record, and adds no label"
 else
   fail "dispatch failure: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -1655,23 +1677,22 @@ else
 fi
 JOBS="$(job 1 test-bash 'Run the bash tests')" LOCK_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
-note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
+note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
 if [[ "$RC" -ne 0 && "$(dispatches)" -eq 0 && -n "$note_line" ]] &&
   grep -q -- "could not be locked, so it was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line" &&
-  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx "POST repos/o/r/issues/$(fix_number 1)/labels" <<<"$LOG" | cut -d: -f1)" &&
-  ! grep -qx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG"; then
-  ok "a failed lock sends nothing to intake, labels the fix issue needs-human and names it on the record"
+  marked "$(fix_number 1)" "issue=$(fix_number 1)" && marked "$record_n" "issue=$(fix_number 1)" &&
+  ! grep -q '/labels$' <<<"$LOG"; then
+  ok "a failed lock sends nothing to intake, marks the fix issue and the record, and adds no label"
 else
   fail "lock failure: rc=$RC log='$LOG' out='$OUT'"
 fi
 JOBS="$(job 1 test-bash 'Run the bash tests')" FIX_POST_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
-note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
-label_line="$(grep -nx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG" | cut -d: -f1)"
-if [[ "$RC" -ne 0 && "$(dispatches)" -eq 0 && -n "$note_line" && -n "$label_line" ]] &&
+note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
+if [[ "$RC" -ne 0 && "$(dispatches)" -eq 0 && -n "$note_line" ]] &&
   grep -qF -- "- no fix issue could be filed for \`test-bash\`" "$TMP_ROOT/stub/post.$note_line" &&
-  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$label_line"; then
-  ok "a fix issue that could not be filed labels the record needs-human and names the check on it"
+  marked "$record_n" check=test-bash && ! grep -q '/labels$' <<<"$LOG"; then
+  ok "a fix issue that could not be filed marks the check on the record and adds no label"
 else
   fail "fix file failure: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -1711,6 +1732,269 @@ if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -qx 'POST repos/o/r/issu
 else
   fail "existing record filed fix work: log='$LOG'"
 fi
+
+# --- A failed hand-off, retried by the next alert run -------------------------
+# Each case's second run reads the marker the first run really posted, so the
+# writer and the reader cannot drift apart. The second run is the retry step,
+# which comes before the filing step of every alert run.
+retry_step="$(awk -v name="      - name: Retry undelivered hand-offs to intake triage" '$0 == name { on = 1; print; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW")"
+awk '/^        run: \|$/ { on = 1; next }
+  on && /^          / { print substr($0, 11); next }
+  on && /^[[:blank:]]*$/ { print ""; next }
+  on { exit }' <<<"$retry_step" >"$TMP_ROOT/retry.sh"
+file_step_env="$(awk -v name="      - name: $NAME" '$0 == name { on = 1 } on && /^        run: / { exit } on' "$WORKFLOW")"
+steps_in_order="$(sed -n 's/^      - name: //p' <<<"$alert_job" | paste -sd '|')"
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+if [[ -s "$TMP_ROOT/retry.sh" && "$steps_in_order" == *"Read the failed run|Retry undelivered hand-offs to intake triage|$NAME"* &&
+  "$retry_step" == *"continue-on-error: true"* && "$file_step_env" == *'RETRY_OUTCOME: ${{ steps.retry.outcome }}'* ]]; then
+  ok "the retry step runs after the run is read and before filing, never stops filing, and its outcome reaches the filing step"
+else
+  fail "retry step wiring: steps='$steps_in_order' retry='$retry_step'"
+fi
+QUARANTINE_BODY="<!-- post-merge-quarantine suite=test-bash -->"$'\n\nbody'
+# from <login> <id> <body> -> one comment of the REST API
+from() { jq -n --arg login "$1" --argjson id "$2" --arg body "$3" '{id: $id, user: {login: $login}, body: $body}'; }
+BOT='github-actions[bot]'
+# open_with_comments <issue-json>: the issue as the list shows one with comments.
+open_with_comments() { jq -c '. + {comments: 1}' <<<"$1"; }
+# posted_mark <issue>: the marker comment this run posted on <issue>.
+posted_mark() {
+  local n
+  while read -r n; do
+    if grep -q '^body=<!-- post-merge-undelivered ' "$TMP_ROOT/stub/post.$n"; then
+      sed -n 's/^body=//p' "$TMP_ROOT/stub/post.$n"
+      return
+    fi
+  done < <(grep -nx "POST repos/o/r/issues/$1/comments" <<<"$LOG" | cut -d: -f1)
+}
+# next_run <issues-json>: the retry step of a later run over those issues.
+next_run() { STEP_BODY="$TMP_ROOT/retry.sh" run_step "$CANARY" push success main o/r "$SHA" "$1"; }
+sent_numbers() {
+  grep -n '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG" | cut -d: -f1 |
+    while read -r n; do sed -n 's/^inputs\[issue-number\]=//p' "$TMP_ROOT/stub/post.$n"; done | paste -sd ' '
+}
+line_of() { grep -nx "$1" <<<"$LOG" | head -1 | cut -d: -f1; }
+# untouched <label>: the run sent nothing, cleared nothing and filed nothing.
+untouched() {
+  if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -qE '/lock$|^DELETE |^POST repos/o/r/issues$' <<<"$LOG"; then
+    ok "$1"
+  else
+    fail "$1: rc=$RC log='$LOG' out='$OUT'"
+  fi
+}
+
+# A quarantine issue's marker, end to end.
+JUDGE=0 JUDGE_QUARANTINE='[77]' DISPATCH_FAIL=1 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+quarantine_mark="$(posted_mark 77)"
+QUARANTINE_ISSUE="$(open_with_comments "$(issue 77 "$QUARANTINE_BODY")")"
+ISSUE_COMMENTS=([77]="[$(from "$BOT" 5001 "$quarantine_mark")]")
+next_run "[$QUARANTINE_ISSUE]"
+lock_at="$(line_of 'PUT repos/o/r/issues/77/lock')"
+send_at="$(line_of 'POST repos/o/r/actions/workflows/intake-triage.yml/dispatches')"
+if [[ "$RC" -eq 0 && "$(sent_numbers)" == 77 && -n "$lock_at" && -n "$send_at" && "$lock_at" -lt "$send_at" && -n "$quarantine_mark" ]] &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5001' <<<"$LOG" && ! grep -q '/labels$' <<<"$LOG" &&
+  [[ "$(line_of 'DELETE repos/o/r/issues/comments/5001')" -gt "$send_at" ]]; then
+  ok "the next run locks and re-sends a marked quarantine issue, then clears its marker, with no label"
+else
+  fail "quarantine retry: rc=$RC mark='$quarantine_mark' log='$LOG' out='$OUT'"
+fi
+
+DISPATCH_FAIL=1 next_run "[$QUARANTINE_ISSUE]"
+if [[ "$RC" -eq 1 && "$(dispatches)" -eq 1 && "$OUT" == *"::error::could not dispatch intake triage for #77"* ]] &&
+  ! grep -q '^DELETE \|/labels$' <<<"$LOG"; then
+  ok "a retry that fails again keeps the marker, adds no label and fails the job"
+else
+  fail "failed retry: rc=$RC log='$LOG' out='$OUT'"
+fi
+LOCK_FAIL=1 next_run "[$QUARANTINE_ISSUE]"
+if [[ "$RC" -eq 1 && "$(dispatches)" -eq 0 ]] && ! grep -q '^DELETE \|/labels$' <<<"$LOG"; then
+  ok "a retry whose lock fails sends nothing and keeps the marker"
+else
+  fail "failed retry lock: rc=$RC log='$LOG' out='$OUT'"
+fi
+# A retry that failed still files, and fails the job at the filing step's end,
+# whichever way that step ends. The excused path replaces its EXIT trap.
+RETRY_OUTCOME=failure run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 1 && "$(grep -c '^POST repos/o/r/issues$' <<<"$LOG")" -eq 2 && "$(dispatches)" -eq 1 ]] && ! grep -q '/labels$' <<<"$LOG"; then
+  ok "a failed retry does not stop the run's own record and fix issue, and the job fails at the end"
+else
+  fail "failed retry then filing: rc=$RC log='$LOG' out='$OUT'"
+fi
+RETRY_OUTCOME=failure JUDGE=0 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 1 ]] && grep -qx 'excused=true' "$TMP_ROOT/stub/output"; then
+  ok "a failed retry fails a run the judge excuses too"
+else
+  fail "failed retry on an excused run: rc=$RC out='$OUT'"
+fi
+RETRY_OUTCOME=failure ATTEMPT=1 run_step "$CANARY" push success main o/r "$SHA" '[]'
+if [[ "$RC" -eq 1 ]]; then
+  ok "a failed retry fails a run that files nothing too"
+else
+  fail "failed retry on a quiet run: rc=$RC out='$OUT'"
+fi
+RETRY_OUTCOME=success ATTEMPT=1 run_step "$CANARY" push success main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 ]]; then
+  ok "a retry that succeeded leaves the job's result alone"
+else
+  fail "passed retry: rc=$RC out='$OUT'"
+fi
+
+# Only the workflow's own comment on its own open issue counts. Each absence
+# below has its presence in the end-to-end case above.
+ISSUE_COMMENTS=([77]="[$(from someone 5001 "$quarantine_mark")]")
+next_run "[$QUARANTINE_ISSUE]"
+untouched "a marker in another author's comment triggers no re-send"
+ISSUE_COMMENTS=([77]="[$(from 'melodic-automation-lanes[bot]' 5001 "$quarantine_mark")]")
+next_run "[$QUARANTINE_ISSUE]"
+untouched "a marker in the lanes App's comment triggers no re-send"
+ISSUE_COMMENTS=([77]='[]')
+next_run "[$(open_with_comments "$(issue 77 "$QUARANTINE_BODY"$'\n'"$quarantine_mark")")]"
+untouched "a marker in an issue body triggers no re-send"
+ISSUE_COMMENTS=([77]="[$(from "$BOT" 5001 "quoting $quarantine_mark")]")
+next_run "[$QUARANTINE_ISSUE]"
+untouched "a marker that is not the whole first line of the comment triggers no re-send"
+ISSUE_COMMENTS=([77]="[$(from "$BOT" 5001 "<!-- post-merge-undelivered issue=78 -->")]")
+next_run "[$QUARANTINE_ISSUE, $(open_with_comments "$(issue 78 "$QUARANTINE_BODY")")]"
+untouched "a marker on an issue naming another issue triggers no re-send"
+ISSUE_COMMENTS=([77]="[$(from "$BOT" 5001 "$quarantine_mark")]")
+next_run "[$(jq -c '.user.login = "someone"' <<<"$QUARANTINE_ISSUE")]"
+untouched "another author's issue is no alert issue, whatever its comments"
+next_run "[$(open_with_comments "$(issue 77 "<!-- lane-sweep-digest -->")")]"
+untouched "a bot issue of no alert kind is not read"
+next_run "[$(jq -c '.state = "closed"' <<<"$QUARANTINE_ISSUE")]"
+untouched "a closed issue is not re-sent"
+
+# A fix issue's marker, end to end: on it and on its record, one send, both cleared.
+JOBS="$(job 1 test-bash 'Run the bash tests')" DISPATCH_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+record_n="$(record_number)"
+fix_n="$(fix_number 1)"
+fields="$(post_fields)"
+RECORD_BODY="${fields#*body=}"
+ISSUE_COMMENTS=([$record_n]="[$(from "$BOT" 5002 "$(posted_mark "$record_n")")]" [$fix_n]="[$(from "$BOT" 5003 "$(posted_mark "$fix_n")")]")
+RECORD_ISSUE="$(open_with_comments "$(issue "$record_n" "$RECORD_BODY")")"
+next_run "[$RECORD_ISSUE, $(open_with_comments "$(issue "$fix_n" "<!-- post-merge-fix check=test-bash -->")")]"
+if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$fix_n" ]] && grep -qx 'DELETE repos/o/r/issues/comments/5002' <<<"$LOG" &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5003' <<<"$LOG" && ! grep -q '/labels$' <<<"$LOG" &&
+  ! grep -qx 'POST repos/o/r/issues' <<<"$LOG"; then
+  ok "the next run sends a marked fix issue once and clears the marker on it and on its record"
+else
+  fail "fix retry: rc=$RC log='$LOG' out='$OUT'"
+fi
+# The record's marker holds when the issue's own could not be written.
+ISSUE_COMMENTS=([$record_n]="[$(from "$BOT" 5002 "<!-- post-merge-undelivered issue=$fix_n -->")]")
+next_run "[$RECORD_ISSUE, $(issue "$fix_n" "<!-- post-merge-fix check=test-bash -->")]"
+if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$fix_n" ]] && grep -qx 'DELETE repos/o/r/issues/comments/5002' <<<"$LOG"; then
+  ok "a record's marker alone re-sends the fix issue it names"
+else
+  fail "record marker alone: rc=$RC log='$LOG' out='$OUT'"
+fi
+# A record's marker names only an open alert fix or quarantine issue.
+next_run "[$RECORD_ISSUE]"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -q '/lock$' <<<"$LOG" &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5002' <<<"$LOG"; then
+  ok "a record's marker naming an issue no longer open sends nothing and is cleared"
+else
+  fail "stale record marker: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+# A fix issue that could not be filed: the retry files it, unless one exists.
+JOBS="$(job 1 test-bash 'Run the bash tests')" FIX_POST_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+record_n="$(record_number)"
+check_mark="$(posted_mark "$record_n")"
+fields="$(post_fields)"
+RECORD_BODY="${fields#*body=}"
+RECORD_ISSUE="$(open_with_comments "$(issue "$record_n" "$RECORD_BODY")")"
+ISSUE_COMMENTS=([$record_n]="[$(from "$BOT" 5004 "$check_mark")]")
+next_run "[$RECORD_ISSUE]"
+expected="title=Fix main: test-bash fails since 0123456789ab
+body=<!-- post-merge-fix check=test-bash -->
+
+The check \`test-bash\` started failing on main in a \`schedule\` run of pr-require-checks.
+
+- Main at the failing run: \`$SHA\`
+- Run: https://github.com/o/r/actions/runs/4242/attempts/2
+- Merge range: see demotion record #$record_n
+
+Fix the check on main. Closing this issue changes nothing on demotion record #$record_n."
+filed_at="$(line_of 'POST repos/o/r/issues')"
+filed_n=$((900 + filed_at))
+lock_at="$(line_of "PUT repos/o/r/issues/$filed_n/lock")"
+send_at="$(line_of 'POST repos/o/r/actions/workflows/intake-triage.yml/dispatches')"
+if [[ "$RC" -eq 0 && "$(cat "$TMP_ROOT/stub/post.$filed_at")" == "$expected" && "$(sent_numbers)" == "$filed_n" &&
+  -n "$lock_at" && "$lock_at" -lt "$send_at" && "$(grep -c '^POST repos/o/r/issues$' <<<"$LOG")" -eq 1 ]] &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG" && ! grep -q '/labels$' <<<"$LOG"; then
+  ok "the next run files the missing fix issue from its record, locks and sends it, and clears the marker"
+else
+  fail "missing fix issue retry: rc=$RC mark='$check_mark' log='$LOG' out='$OUT' filed='$(cat "$TMP_ROOT/stub/post.$filed_at" 2>/dev/null)'"
+fi
+
+next_run "[$RECORD_ISSUE, $FIX_OPEN]"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -qx 'POST repos/o/r/issues' <<<"$LOG" && ! grep -q 'issues/60' <<<"$LOG" &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
+  ok "an open fix issue for the check stops the retry from filing a duplicate, and clears the marker"
+else
+  fail "open fix issue on retry: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+ISSUE_COMMENTS+=([70]="[$(from "$BOT" 5005 "$check_mark")]")
+next_run "[$RECORD_ISSUE, $(open_with_comments "$(issue 70 "$RECORD_BODY")")]"
+if [[ "$RC" -eq 0 && "$(grep -c '^POST repos/o/r/issues$' <<<"$LOG")" -eq 1 ]] &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG" && grep -qx 'DELETE repos/o/r/issues/comments/5005' <<<"$LOG"; then
+  ok "two records marking one check file one fix issue"
+else
+  fail "two records one check: rc=$RC log='$LOG' out='$OUT'"
+fi
+unset 'ISSUE_COMMENTS[70]'
+
+
+FIX_POST_FAIL=1 next_run "[$RECORD_ISSUE]"
+if [[ "$RC" -eq 1 ]] && ! grep -q '^DELETE \|/labels$' <<<"$LOG"; then
+  ok "a retry that still cannot file keeps the marker, adds no label and fails the job"
+else
+  fail "failed file retry: rc=$RC log='$LOG' out='$OUT'"
+fi
+DISPATCH_FAIL=1 next_run "[$RECORD_ISSUE]"
+filed_n=$((900 + $(line_of 'POST repos/o/r/issues')))
+if [[ "$RC" -eq 1 ]] && marked "$filed_n" "issue=$filed_n" && marked "$record_n" "issue=$filed_n" &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG" && ! grep -q '/labels$' <<<"$LOG"; then
+  ok "a retry that files but cannot send moves the marker to the filed issue and its record"
+else
+  fail "file then failed send: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+# A fix issue that could not be reopened: the retry reopens it, sending nothing.
+next_run "[$RECORD_ISSUE, $(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
+note_at="$(line_of 'POST repos/o/r/issues/60/comments')"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 && -n "$note_at" &&
+  "$(cat "$TMP_ROOT/stub/post.$note_at")" == "body=This check failed on main again at \`$SHA\`. Merge range: see demotion record #$record_n. Run: https://github.com/o/r/actions/runs/4242/attempts/2" ]] &&
+  grep -qx 'PATCH repos/o/r/issues/60' <<<"$LOG" &&
+  ! grep -qx 'POST repos/o/r/issues' <<<"$LOG" && grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
+  ok "the next run reopens a fix issue the check marker covers and sends it nowhere"
+else
+  fail "reopen retry: rc=$RC log='$LOG' out='$OUT'"
+fi
+next_run "[$RECORD_ISSUE, $(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed not_planned)]"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -qE 'PATCH|^POST repos/o/r/issues$' <<<"$LOG" &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
+  ok "a muted fix issue stays closed on retry and the marker clears"
+else
+  fail "muted retry: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+# A check marker counts only from the workflow's own comment, on a record, with
+# a name a fix issue may carry.
+ISSUE_COMMENTS=([$record_n]="[$(from someone 5004 "$check_mark")]")
+next_run "[$RECORD_ISSUE]"
+untouched "a check marker in another author's comment files nothing"
+ISSUE_COMMENTS=([$record_n]="[$(from "$BOT" 5004 '<!-- post-merge-undelivered check=bad`tick -->')]")
+next_run "[$RECORD_ISSUE]"
+untouched "a check marker with a name outside the charset files nothing"
+ISSUE_COMMENTS=([77]="[$(from "$BOT" 5004 "$check_mark")]")
+next_run "[$QUARANTINE_ISSUE]"
+untouched "a check marker on an issue that is no record files nothing"
+ISSUE_COMMENTS=()
 
 # --- A per-merge full run sent by workflow_dispatch (#8896) -------------------
 # pr-merge.yml starts a full run after each merge with GITHUB_TOKEN, so its
