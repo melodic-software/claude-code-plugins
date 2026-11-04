@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for codify-settings.mjs: the default, the team value, the overlay over the team value, and
+# Tests for codify-settings.mjs: the default, the team value, the personal override over the team value, and
 # invalid values falling back with a note on stderr, and the per-layer cap on those notes.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
@@ -72,19 +72,19 @@ run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "team: 3 from the team file" test "$(got '"\(.min_occurrences) \(.layer) \(.path)"')" == "3 team docs/conventions/corrections.yaml"
 
-# 3. The personal overlay wins over the team file.
+# 3. The personal override wins over the team file.
 setting "$R/docs/conventions/corrections.local.yaml" 5
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
-check "overlay: 5 from the overlay over the team 3" test "$(got '"\(.min_occurrences) \(.layer) \(.path)"')" == "5 local docs/conventions/corrections.local.yaml"
+check "personal override: 5 from the personal override over the team 3" test "$(got '"\(.min_occurrences) \(.layer) \(.path)"')" == "5 local docs/conventions/corrections.local.yaml"
 
-# 4. An invalid overlay value leaves the team value standing and says why on stderr.
+# 4. An invalid personal override value leaves the team value standing and says why on stderr.
 setting "$R/docs/conventions/corrections.local.yaml" 0
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
-check "invalid overlay: exits 0" test "$RC" -eq 0
-check "invalid overlay: the team 3 stands" test "$(got '"\(.min_occurrences) \(.layer)"')" == "3 team"
-check "invalid overlay: stderr names the key and the overlay" grep -q 'local (.*corrections.local.yaml).*recurrence.min_occurrences' <<<"$ERR"
+check "invalid personal override: exits 0" test "$RC" -eq 0
+check "invalid personal override: the team 3 stands" test "$(got '"\(.min_occurrences) \(.layer)"')" == "3 team"
+check "invalid personal override: stderr names the key and the personal override" grep -q 'local (.*corrections.local.yaml).*recurrence.min_occurrences' <<<"$ERR"
 
 # 5. An invalid team value falls to the default and says why on stderr.
 new_repo

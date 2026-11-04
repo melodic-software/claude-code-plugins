@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/skill-quality/schemas/skill-quality.schema.json",
   "title": "skill-quality team config",
-  "description": "Schema for a repository's <home>/skill-quality.yaml, the team layer of the skill-quality plugin's settings, and its personal overlay <home>/skill-quality.local.yaml. Read by scripts/check-skill.sh check 30. Contract: docs/contracts/config-cascade/README.md.",
+  "description": "Schema for a repository's <home>/skill-quality.yaml, the team layer of the skill-quality plugin's settings, and its personal override <home>/skill-quality.local.yaml. Read by scripts/check-skill.sh check 30. Contract: docs/contracts/config-cascade/README.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

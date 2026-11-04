@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Prints the effective glossary file names as JSON, resolved through the config cascade
 // (lib/config-cascade.mjs, ADR 0075): the plugin default, userConfig, the team file
-// <home>/domain-driven-design.yaml and the personal overlay <home>/domain-driven-design.local.yaml.
+// <home>/domain-driven-design.yaml and the personal override <home>/domain-driven-design.local.yaml.
 //   {"values": {"glossary_file", "glossary_map_file"},
 //    "provenance": {key: "default" | "userConfig" | "team" | "local"},
 //    "layers": [{name, path, state, errors}], "legacy": [...], "home": dir | null,
@@ -95,7 +95,7 @@ try {
   }
   if (home === null) for (const name of ["team", "local"]) layer(name).path = null;
 
-  // The cascade without the personal overlay: the team file alone, copied only when the cascade read
+  // The cascade without the personal override: the team file alone, copied only when the cascade read
   // it (a regular file in a home inside the project), so each team value can be checked on its own.
   let withoutLocal = out;
   if (home !== null) {

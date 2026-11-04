@@ -25,7 +25,7 @@
       "answer": [
         {"tool": "Bash", "input": {"command": "echo '{\"budget_posture\": \"free\"}' > .claude/autonomy/binding.local.json"}}
       ],
-      "why": "overwrote the overlay"
+      "why": "overwrote the personal override"
     },
     {
       "answer": [

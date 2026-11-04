@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Prints codify's settings and the layer that set each, resolved through the config cascade
 // (lib/config-cascade.mjs, ADR 0075): the schema default, the user option (two of the keys), the team
-// file <home>/corrections.yaml and the personal overlay <home>/corrections.local.yaml, <home> from the
+// file <home>/corrections.yaml and the personal override <home>/corrections.local.yaml, <home> from the
 // convention-home pointer line.
 //   {"min_occurrences": N, "layer": "defaults" | "team" | "local", "path": file relative to the project | null,
 //    "ratchet_offer": {"value", "layer", "path"}, "review_mining_prs": {"value", "layer", "path"}}
