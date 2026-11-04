@@ -117,10 +117,15 @@ that states a page's content as product behavior, fails row 12 for that claim; n
 line. A `MEDIUM` or `LOW` claim is a Gap, not an accepted claim, so row 12 never grades it: a line
 that presents one without its label, as a settled fact, fails row 7 instead. The parent's
 restatement check has already passed: every pointer carries its label, no index pointer
-carries a sweep word, and every sidecar line that names a claim quotes its `claim:` text byte for
-byte. It matches ID tokens and quotes, not meaning, so what it cannot see is yours: the words a
+carries a sweep word, every sidecar line that names a claim quotes its `claim:` text byte for
+byte, and every abstract of a sidecar that declares a claim with an `id:` quotes one of its claims
+and is mirrored into the index unchanged.
+It matches ID tokens and quotes, not meaning, so what it cannot see is yours: the words a
 sidecar line adds outside its quote, a pointer that cites the wrong claim for what its line says,
-or a decision that leans on a claim past a recorded qualifier. The rule is in
+or a decision that leans on a claim past a recorded qualifier. Two cases are graded by you, not by
+the check: a table row that restates a claim with no ID and no quote, which the check cannot tie to
+a claim, and an index lead-in whose scope outruns its pointers, where a cited claim's qualifier
+rules the sentence out though its labels pass and it carries no sweep word. The rule is in
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md),
 "Restatements cite; they do not restate". At a slice root the parent ran that check with
 `--sub-slice` over every sub-slice, so it covered the root's pointers to sub-slice claims as well,

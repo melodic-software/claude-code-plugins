@@ -1436,6 +1436,16 @@ assert_present 'the checker fails a sidecar line that cites a claim unquoted' \
   'scripts/check-restatement-labels.py' '<id> cited without its claim quoted verbatim$'
 assert_present 'the researcher quotes claims in sidecar lines' \
   'agents/researcher.md' 'A sidecar line that names a claim.s ID quotes its `claim:` text'
+# A seed abstract that named no ID dropped its claim's exception in both the
+# sidecar and its index copy, and no rule reached it (#13200).
+assert_present 'the checker fails an abstract that quotes none of its claims' \
+  'scripts/check-restatement-labels.py' '<sidecar>:<line>: abstract quotes none of its claims$'
+assert_present 'the checker fails an index abstract line that differs from its sidecar' \
+  'scripts/check-restatement-labels.py' "<index>:<line>: abstract line differs from <sidecar name>'s abstract$"
+assert_present 'artifact-shape gives the index abstract bullet form' \
+  'skills/research/context/artifact-shape.md' 'as one bullet per sidecar: `- <section>: <abstract>`'
+assert_present 'the verifier grades ID-less table rows and lead-in scope' \
+  'agents/research-verifier.md' 'Two cases are graded by you, not by'
 assert_absent 'no file exempts sidecar bodies from the restatement check' \
   'Sidecar bodies are where a claim is said in full'
 
