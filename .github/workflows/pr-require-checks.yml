@@ -6783,7 +6783,7 @@ jobs:
           # A contract-only run (a label flip or body edit) does not wait: it
           # holds no review the full run's wait would not, and each would keep
           # a runner.
-          REVIEW_WAIT_SECONDS: ${{ (contains(fromJSON('["labeled","unlabeled","edited"]'), github.event.action)) && '0' || '480' }}
+          REVIEW_WAIT_SECONDS: ${{ (github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
           REVIEW_POLL_SECONDS: 60
         run: |
           . "$RUNNER_TEMP/gh-read.sh"

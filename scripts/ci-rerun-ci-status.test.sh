@@ -469,6 +469,14 @@ check_reran 0 "a waited pass is not re-run"
 STUB_JOBS_LATER="$(cijob completed "$EARLY" success "$EARLY" "$EARLY")"
 expect "a polled pass that judged before the lanes finished is re-run" 0 "Re-running ci-status (job 77) of run 9"
 STUB_JOBS_LATER=''
+# The common case: ci-status waited, passed and completed before this job ran,
+# so its first jobs read already shows the pass, with no poll.
+SAVED_RUNS=$STUB_RUNS SAVED_JOBS=$STUB_JOBS SAVED_SEQ=$STUB_RUN_SEQ
+STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed "$EARLY" success "$EARLY" "$AFTER")" STUB_RUN_SEQ=''
+expect "a completed ci-status that waited for the reviews and passed is left alone, unpolled" 0 "a re-run can only pass again" "Re-running"
+check_reran 0 "a completed waited pass is not re-run"
+if grep -q '^sleep' "$TMP_ROOT/log"; then fail "a completed waited pass was polled"; else ok "a completed waited pass is not polled"; fi
+STUB_RUNS=$SAVED_RUNS STUB_JOBS=$SAVED_JOBS STUB_RUN_SEQ=$SAVED_SEQ
 # A poll read again is a conditional GET: a 304 stands for the last 200's
 # body, so the run still reads in progress, and the polls keep their 60 s pace.
 echo 2 >"$TMP_ROOT/not-modified"
