@@ -23,6 +23,14 @@
       "why": "negation after the name"
     },
     {
+      "answer": "- phase-verifier: no (the phase carries no review tag).\n- `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "checklist reply declining the verifier"
+    },
+    {
+      "answer": "The phase-verifier is no longer needed for an untagged phase, so commit directly.",
+      "why": "a no right after the name declines the verifier"
+    },
+    {
       "answer": "1. Mark Phase 3 `[DONE]`.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
       "why": "no verifier"
     }
