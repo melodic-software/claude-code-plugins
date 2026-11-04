@@ -3,6 +3,10 @@
     {
       "answer": "1. Dispatch `implementation:phase-verifier` with Phase 3's criteria and the diff from 4b1d9e07.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
       "why": "verifier dispatched"
+    },
+    {
+      "answer": "2. Call: `Agent(subagent_type: \"implementation:phase-verifier\", run_in_background: false)`. Pass no `model` unless the implementer ran above its binding.",
+      "why": "a no later in the line is about the model, not the verifier"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": "1. Mark Phase 3 `[DONE]`; no phase-verifier is needed without a review tag.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
       "why": "verifier skipped"
+    },
+    {
+      "answer": "1. The phase-verifier is skipped here.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "negation after the name"
     },
     {
       "answer": "1. Mark Phase 3 `[DONE]`.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",

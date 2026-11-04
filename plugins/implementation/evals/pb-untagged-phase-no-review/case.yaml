@@ -9,6 +9,6 @@ graders:
     target: last_message
   - name: verifier-runs
     type: regex
-    pattern: '^(?![^\n]*(?:\b(?:no|not|never|skip|skips|skipped|without)\b|n''t\b))[^\n]*\bphase-verifier\b'
+    pattern: '^(?![^\n]*(?:\b(?:no|not|never|skip|skips|skipped|without)\b|n''t\b)[^\n]*\bphase-verifier\b)(?![^\n]*\bphase-verifier\b[^.\n]{0,40}(?:\b(?:not|never|skip|skips|skipped)\b|n''t\b))[^\n]*\bphase-verifier\b'
     flags: 'mi'
     target: last_message
