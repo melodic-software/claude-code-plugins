@@ -333,6 +333,8 @@ out="$(nested_rule_run 'src/*.ts' packages/foo/src/a.ts)"
 assert_eq "a base-relative glob is not reported broken" "ok" "$(row_field "$out" 'src/*.ts' 6)"
 out="$(nested_rule_run 'src/*.ts' src/a.ts)"
 assert_eq "and a same-named path at the repository root does not satisfy it" "zero-match" "$(row_field "$out" 'src/*.ts' 6)"
+out="$(nested_rule_run '**/*' packages/foo/a.ts packages/foo/b.ts o/1 o/2 o/3 o/4 o/5 o/6 o/7 o/8)"
+assert_eq "a nested rule's breadth is measured against its base, not the repository" "over-broad" "$(row_field "$out" '**/*' 6)"
 
 # A base directory is a literal path, so its name holds no regex or glob meaning.
 meta_repo="$(fixture_repo "pkg+[1]/a.ts" "pkgg1/b.ts")"

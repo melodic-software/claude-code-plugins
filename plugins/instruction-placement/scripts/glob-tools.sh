@@ -428,12 +428,14 @@ for idx in "${!PATTERNS[@]}"; do
     #   As of: 2026-11-04.
     #   Recheck trigger: that section changes a project rule's base directory.
     UNIVERSE="$TRACKED_FILE"
+    UNIVERSE_TOTAL="$TRACKED_TOTAL"
     case "$source" in
     */.claude/rules/*)
       UNIVERSE="$BASE_TRACKED_FILE"
       IP_BASE="${source%%/.claude/rules/*}/" awk '
         index($0, ENVIRON["IP_BASE"]) == 1 { print substr($0, length(ENVIRON["IP_BASE"]) + 1) }
       ' "$TRACKED_FILE" >"$BASE_TRACKED_FILE"
+      UNIVERSE_TOTAL=$(($(wc -l <"$BASE_TRACKED_FILE")))
       ;;
     *) ;;
     esac
@@ -473,7 +475,7 @@ for idx in "${!PATTERNS[@]}"; do
 
       if ((match_count == 0)); then
         status="zero-match"
-      elif ((TRACKED_TOTAL > 0)) && ((match_count * 100 >= TRACKED_TOTAL * BREADTH_MAX)); then
+      elif ((UNIVERSE_TOTAL > 0)) && ((match_count * 100 >= UNIVERSE_TOTAL * BREADTH_MAX)); then
         status="over-broad"
       fi
     fi
