@@ -241,15 +241,16 @@
     {
       "id": 20,
       "name": "file-medium-drops-design-canvas-offer",
-      "prompt": "Our web app already has a /settings page. Show me a few options for what that settings page could look like. (Fixture: the bundled design skill and the Artifact tool are available; ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no --medium argument was given.)",
-      "expected_output": "Takes the HTML mockup host, resolves medium from the rendered-views layers, reads medium: file from the user-global layer, and builds the local file:// mockup without offering the design canvas, since the canvas is published. The handover names ~/.claude/rendered-views.md as the source of the medium.",
+      "prompt": "Our web app already has a /settings page. Show me a few options for what that settings page could look like. (Fixture: the bundled design skill and the Artifact tool are available; the untracked, gitignored personal override docs/conventions/rendered-views.local.yaml contains only 'medium: file'; no other rendered-views scope or retired file exists; no --medium argument was given.)",
+      "expected_output": "Takes the HTML mockup host and runs the shared resolver (lib/view-settings.mjs resolve --lane prototype:explore-directions --option \"\") before any design-canvas offer. Its JSON reports a medium that does not publish, so it builds the local file:// mockup without offering the design canvas, since the canvas is published. The handover prints the resolver's report line as the source of the medium, and the skill reads no rendered-views file itself.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves medium from the rendered-views layers before making any design-canvas offer",
+        "Runs lib/view-settings.mjs resolve with --lane prototype:explore-directions before making any design-canvas offer",
         "Builds the self-contained file:// mockup in a temp location",
         "Does not offer the design canvas or any other published surface",
-        "Names ~/.claude/rendered-views.md as the source of the medium"
+        "Prints the resolver's report line in the handover as the source of the medium",
+        "Does not read the rendered-views convention files itself"
       ]
     }
   ]

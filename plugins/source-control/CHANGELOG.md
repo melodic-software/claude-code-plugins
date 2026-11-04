@@ -3,6 +3,48 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.0] - 2026-11-04
+
+### Removed
+
+- The one-release reads of the repository team file `.claude/source-control.md`, kept since the keys moved to `docs/conventions/source-control.yaml`. The team layer is that YAML alone for the commit and PR convention keys (`lib/convention-key.sh layer` prints `yaml` or `none`, never `legacy-md`), for `parse-branch-issue.sh`, for the seven babysit repository-policy keys and the `babysit_loop_*` keys `babysit_repo_config.py` reads from a target repository's default branch, and for the unattended merge gate's `babysit_loop_merge`. Two effects reach a repository that still keeps keys only in `.claude/source-control.md`: a lower `babysit_loop_merge` there no longer caps the gate's rung, and hold lists set only there (`babysit_merge_block_labels`, `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`) stop applying. Move every key it still carries into `docs/conventions/source-control.yaml`, then delete the file. The user-global `~/.claude/source-control.md` and the personal overlay `.claude/source-control.local.md` are still read ([#9737](https://github.com/melodic-software/claude-code-plugins/issues/9737), [#12287](https://github.com/melodic-software/claude-code-plugins/issues/12287)).
+
+## [6.7.0] - 2026-11-04
+
+### Changed
+
+- The shared `hook-utils.sh` reads Bash commands from `shfmt --to-json` (`hook::bash_parse_segments`
+  keeps its callback and `HOOK_SEG_*` contract), and the hand-written segmenter is removed. It
+  refuses the call when shfmt or jq is missing, fails, runs past 5 seconds, or rejects the text
+  (an unclosed here-doc, for one, which bash runs with a warning), and the refusal names which of
+  those happened, quoting shfmt's syntax error. It uses a shfmt in `~/.local/bin` when PATH has
+  none. The 5-second bound is the `read -t` builtin, so a parse forks the same processes on every
+  run and needs no `sleep` or `timeout` command.
+
+## [6.6.1] - 2026-11-04
+
+### Changed
+
+- `babysit_verify_evidence.py` documents that no workflow names `BABYSIT_VERIFY_LISTING_CARRY`
+  now that index mode saves no listing to carry; the reader still takes one when named. The
+  floor-path pins drop the removed `listing-carry.mjs` row.
+
+### Fixed
+
+- `pull-request` `ci --ci` (fix-ci) now states that every context-file `path` and every edited file is relative to the pull request's checkout, never this skill's own directory, so an agent no longer aims a fix at the loaded plugin copy when the same relative path exists in both.
+
+## [6.6.0] - 2026-11-04
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650); no other change to this plugin.
+
+- `/source-control:pull-request view` now includes the pull request's `body`, so a caller can read its closing-issue line without a second forge read.
+
+### Fixed
+
+- `babysit_verify_evidence.py settle --idle-tick --fresh` settles a post-merge report its caller's own check just made without the idle tick's verifying-runs test, so a run that completed while the check ran no longer refuses it; the report checks, the lane room's rule and the quarantine and pin reads still apply.
+
 ## [6.5.3] - 2026-11-04
 
 ### Fixed

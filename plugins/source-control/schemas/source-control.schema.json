@@ -65,106 +65,106 @@
     "babysit_loop_stop_mode": {
       "enum": ["standing", "drain"],
       "default": "standing",
-      "description": "The /source-control:babysit-loop lane's stop shape: standing keeps watching, drain stops once the target repository has no open pull requests and no open issues (exclusions: the babysit-loop skill's Stop modes). An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_stop_mode section of .claude/source-control.md."
+      "description": "The /source-control:babysit-loop lane's stop shape: standing keeps watching, drain stops once the target repository has no open pull requests and no open issues (exclusions: the babysit-loop skill's Stop modes). An invocation argument overrides it."
     },
     "babysit_loop_tier": {
       "enum": ["safe", "worker", "autopilot"],
       "default": "safe",
-      "description": "The babysit-prs tier the loop lane runs, the named preset over the autonomy dimensions. Never widens the merge dimension. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_tier section of .claude/source-control.md."
+      "description": "The babysit-prs tier the loop lane runs, the named preset over the autonomy dimensions. Never widens the merge dimension. An invocation argument overrides it."
     },
     "babysit_loop_merge": {
       "enum": ["human-only", "c2-mechanical", "c3-autonomous", "full-autonomy"],
-      "description": "The loop lane's standing merge rung, ordered human-only < c2-mechanical < c3-autonomous < full-autonomy. A raise binds from this team layer only; every other source may only lower it. Absent, it is human-only while the team layer carries no babysit_loop_* key and c2-mechanical once it does. For one release a key absent here is read from the ## babysit_loop_merge section of .claude/source-control.md. The unattended merge gate reads both and takes the lower, so a raise needs both files while the legacy file exists; with no legacy file this value sets the gate's rung by itself."
+      "description": "The loop lane's standing merge rung, ordered human-only < c2-mechanical < c3-autonomous < full-autonomy. A raise binds from this team layer only; every other source may only lower it. Absent, it is human-only while the team layer carries no babysit_loop_* key and c2-mechanical once it does. The unattended merge gate reads this value alone; it sets the gate's rung by itself."
     },
     "babysit_loop_grace_window_minutes": {
       "type": "integer",
       "minimum": 1,
       "default": 30,
-      "description": "The loop lane's concurrency-safety activity grace window, in minutes. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_grace_window_minutes section of .claude/source-control.md."
+      "description": "The loop lane's concurrency-safety activity grace window, in minutes. An invocation argument overrides it."
     },
     "babysit_loop_discovery_scope": {
       "enum": ["safe", "worker", "autopilot"],
-      "description": "A babysit-prs tier name overriding autonomy dimension 1 (which pull requests enter the queue) out of the babysit_loop_tier preset. Unset takes the preset's value. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_discovery_scope section of .claude/source-control.md."
+      "description": "A babysit-prs tier name overriding autonomy dimension 1 (which pull requests enter the queue) out of the babysit_loop_tier preset. Unset takes the preset's value. An invocation argument overrides it."
     },
     "babysit_loop_fixing": {
       "enum": ["safe", "worker", "autopilot"],
-      "description": "A babysit-prs tier name overriding autonomy dimension 2 (branch-owned CI and review fix authority). Unset takes the preset's value. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_fixing section of .claude/source-control.md."
+      "description": "A babysit-prs tier name overriding autonomy dimension 2 (branch-owned CI and review fix authority). Unset takes the preset's value. An invocation argument overrides it."
     },
     "babysit_loop_thread_resolution": {
       "enum": ["safe", "worker", "autopilot"],
-      "description": "A babysit-prs tier name overriding autonomy dimension 3 (review-thread resolution). Unset takes the preset's value. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_thread_resolution section of .claude/source-control.md."
+      "description": "A babysit-prs tier name overriding autonomy dimension 3 (review-thread resolution). Unset takes the preset's value. An invocation argument overrides it."
     },
     "babysit_loop_draft_elevation": {
       "enum": ["safe", "worker", "autopilot"],
-      "description": "A babysit-prs tier name overriding autonomy dimension 4 (draft handling and ready-marking). Unset takes the preset's value. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_draft_elevation section of .claude/source-control.md."
+      "description": "A babysit-prs tier name overriding autonomy dimension 4 (draft handling and ready-marking). Unset takes the preset's value. An invocation argument overrides it."
     },
     "babysit_loop_barrier_overrides": {
       "enum": ["safe", "worker", "autopilot"],
-      "description": "A babysit-prs tier name overriding autonomy dimension 5 (blocker handling: escalate, or attempt with research). Unset takes the preset's value. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_barrier_overrides section of .claude/source-control.md."
+      "description": "A babysit-prs tier name overriding autonomy dimension 5 (blocker handling: escalate, or attempt with research). Unset takes the preset's value. An invocation argument overrides it."
     },
     "babysit_loop_escalation": {
       "enum": ["safe", "worker", "autopilot"],
-      "description": "A babysit-prs tier name overriding autonomy dimension 7 (escalation posture). The escalation surface is fixed by the loop-lane convention, never by config. Unset takes the preset's value. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_escalation section of .claude/source-control.md."
+      "description": "A babysit-prs tier name overriding autonomy dimension 7 (escalation posture). The escalation surface is fixed by the loop-lane convention, never by config. Unset takes the preset's value. An invocation argument overrides it."
     },
     "babysit_loop_cycle_budget": {
       "type": "integer",
       "minimum": 1,
-      "description": "Cycles per loop-lane session before the budget-hit stop. Unset means no per-session budget. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_cycle_budget section of .claude/source-control.md."
+      "description": "Cycles per loop-lane session before the budget-hit stop. Unset means no per-session budget. An invocation argument overrides it."
     },
     "babysit_loop_no_progress_threshold": {
       "type": "integer",
       "minimum": 1,
       "default": 3,
-      "description": "Consecutive no-progress cycles before the loop lane raises its stall escalation; it escalates and keeps looping. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_no_progress_threshold section of .claude/source-control.md."
+      "description": "Consecutive no-progress cycles before the loop lane raises its stall escalation; it escalates and keeps looping. An invocation argument overrides it."
     },
     "babysit_loop_trusted_internal_bot_logins": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Exact GitHub App bot logins the repository attests as its own internal automation, the C5 trust test's one reviewed widening. Honored only from the target repository's team files on its default branch, never an invocation argument or a personal layer. A closed list, taken whole. Unset is the empty set. For one release a key absent here is read from the ## babysit_loop_trusted_internal_bot_logins section of .claude/source-control.md."
+      "description": "Exact GitHub App bot logins the repository attests as its own internal automation, the C5 trust test's one reviewed widening. Honored only from the target repository's team files on its default branch, never an invocation argument or a personal layer. A closed list, taken whole. Unset is the empty set."
     },
     "babysit_merge_method": {
       "enum": ["squash", "merge", "rebase"],
-      "description": "The merge method /source-control:babysit-prs uses on this repository. Wins over the deprecated userConfig value. For one release a key absent here is read from the ## babysit_merge_method section of .claude/source-control.md."
+      "description": "The merge method /source-control:babysit-prs uses on this repository. Wins over the deprecated userConfig value."
     },
     "babysit_merge_block_labels": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Labels that veto a babysit-prs autopilot-tier merge, for example do-not-merge. A hold list: the add-only union with the userConfig list, so neither side drops an entry. For one release a key absent here is read from the ## babysit_merge_block_labels section of .claude/source-control.md."
+      "description": "Labels that veto a babysit-prs autopilot-tier merge, for example do-not-merge. A hold list: the add-only union with the userConfig list, so neither side drops an entry."
     },
     "babysit_extra_dependency_manager_logins": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Dependency-manager bot logins beyond the built-in dependabot and renovate set whose pull requests the babysit-prs merge gate holds, the same as the built-ins. A hold list: the add-only union with the userConfig list. For one release a key absent here is read from the ## babysit_extra_dependency_manager_logins section of .claude/source-control.md."
+      "description": "Dependency-manager bot logins beyond the built-in dependabot and renovate set whose pull requests the babysit-prs merge gate holds, the same as the built-ins. A hold list: the add-only union with the userConfig list."
     },
     "babysit_approval_downgrade_logins": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "AI reviewer logins whose approval carrying blocking-looking prose babysit-prs surfaces as a material finding instead of ignoring it. A hold list: the add-only union with the userConfig list. For one release a key absent here is read from the ## babysit_approval_downgrade_logins section of .claude/source-control.md."
+      "description": "AI reviewer logins whose approval carrying blocking-looking prose babysit-prs surfaces as a material finding instead of ignoring it. A hold list: the add-only union with the userConfig list."
     },
     "babysit_skip_downgrade_logins": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "AI reviewer logins whose skip or no-op review babysit-prs does not treat as an approval. Remove-only: it narrows the userConfig set to the logins listed here and never adds one. For one release a key absent here is read from the ## babysit_skip_downgrade_logins section of .claude/source-control.md."
+      "description": "AI reviewer logins whose skip or no-op review babysit-prs does not treat as an approval. Remove-only: it narrows the userConfig set to the logins listed here and never adds one."
     },
     "babysit_review_gate_context": {
       "type": "string",
       "minLength": 1,
-      "description": "The check or status context name of the AI-review gate, which must pass before /source-control:babysit-prs posts the review trigger. Wins over the deprecated userConfig value. For one release a key absent here is read from the ## babysit_review_gate_context section of .claude/source-control.md."
+      "description": "The check or status context name of the AI-review gate, which must pass before /source-control:babysit-prs posts the review trigger. Wins over the deprecated userConfig value."
     },
     "babysit_ci_gateway_context": {
       "type": "string",
       "minLength": 1,
-      "description": "The check or status context name of a CI gateway check /source-control:babysit-prs classifies, which must pass before it posts the review trigger. Wins over the deprecated userConfig value. For one release a key absent here is read from the ## babysit_ci_gateway_context section of .claude/source-control.md."
+      "description": "The check or status context name of a CI gateway check /source-control:babysit-prs classifies, which must pass before it posts the review trigger. Wins over the deprecated userConfig value."
     },
     "branch_issue_pattern": {
       "type": "string",

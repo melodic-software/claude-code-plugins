@@ -7,7 +7,7 @@ login or logins), `<review-gate-context>` (the commit-status context that report
 engagement), and `<ci-gateway-context>` (the aggregate CI gateway context, where the repo has
 one). Slots are filled from the effective-configuration block in this skill's `SKILL.md`, which
 renders every key's `userConfig` value and its unset fallback; a target repository's default-branch
-`docs/conventions/source-control.yaml` (for one release, its `.claude/source-control.md`) can
+`docs/conventions/source-control.yaml` can
 declare `<review-gate-context>` and `<ci-gateway-context>` itself,
 and the snapshot reads that value first (see
 [config-resolution.md](../../../reference/config-resolution.md#babysit-prs-repository-policy-keys)).

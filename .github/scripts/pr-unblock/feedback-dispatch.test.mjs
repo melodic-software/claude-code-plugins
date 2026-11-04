@@ -1252,6 +1252,44 @@ test("a second dispatcher for one head skips while the first one's run is queued
   }
 });
 
+// #12974: pr-verify passed a head while a round was in progress there, the
+// dispatch skipped, and nothing sent the pass again, so the earlier head's
+// fail-note threads stayed open. The pass-only round queues behind that round
+// instead; it names the passing head superseded only on the reader's word.
+test("a pass-only dispatch is sent while a round for the PR is in progress, listed or recorded", async () => {
+  const going = { id: 1, status: "in_progress", display_title: TITLE_42 };
+  for (const recorded of [false, true]) {
+    const record = emptyRecord();
+    if (recorded) {
+      record.dispatched.set(HEAD, { number: 42, runId: "1" });
+    }
+    const api = { ...fakeApi({ workflowRuns: [going] }), getWorkflowRun: async () => going };
+    const { result } = await decide(api, resolvedLane(), { passOnly: true, record, verifyCapped: () => ({ cap: null, supersededAtHead: false }) });
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, `recorded: ${recorded}`);
+    assert.deepEqual(
+      api.calls.dispatch.map((call) => call.inputs),
+      [{ "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD }],
+      `recorded: ${recorded}`,
+    );
+    const round = { ...fakeApi({ workflowRuns: [going] }), getWorkflowRun: async () => going };
+    assert.equal((await decide(round, resolvedLane(), { record })).result, null, `a review run's round, recorded: ${recorded}`);
+    assert.deepEqual(round.calls.dispatch, []);
+  }
+});
+
+// pr-unblock.yml's concurrency group keeps one waiting run, so a pass-only
+// dispatch would cancel a round waiting to start, however old.
+test("a pass-only dispatch skips while a round for the PR waits to start", async () => {
+  for (const status of ["queued", "waiting", "pending"]) {
+    const waiting = { id: 2, status, display_title: TITLE_42, created_at: "2026-10-17T09:00:00Z" };
+    const api = fakeApi({ workflowRuns: [{ id: 1, status: "in_progress", display_title: TITLE_42 }, waiting] });
+    const { result, lines } = await decide(api, resolvedLane(), { passOnly: true });
+    assert.equal(result, null, status);
+    assert.deepEqual(api.calls.dispatch, [], status);
+    assert.match(lines.at(-1), /run 2 for address-feedback is not done yet/, status);
+  }
+});
+
 test("a rate-limited run listing defers the dispatch with a warning; any other listing error fails the run", async () => {
   const limited = fakeApi();
   limited.listWorkflowRuns = async () => Promise.reject(Object.assign(new Error("GET runs returned 403"), { rateLimited: true }));
@@ -2525,13 +2563,13 @@ test("a pr-verify pass with stale fail notes sends a pass-only round through the
   assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
 });
 
-test("a pass-only round waits like any round: not while a run for the PR is going, nor on a held PR", async (t) => {
+test("a pass-only round queues behind a run for the PR still going, but not on a held PR", async (t) => {
   const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const going = { id: 7, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:30:00Z" };
   const busy = verifyApi({ workflowRuns: [going] });
   await passMain(dir, busy);
-  assert.deepEqual(busy.calls.dispatch, []);
+  assert.deepEqual(busy.calls.dispatch.map((request) => request.inputs["verify-pass-head"]), [HEAD]);
   const held = verifyApi({
     pulls: [{ number: 42, state: "open", draft: false, user: { id: APP_ID }, labels: [{ name: "do-not-merge" }], head: { sha: HEAD, repo: { full_name: REPOSITORY } }, base: { ref: "main" } }],
   });

@@ -1,10 +1,10 @@
 """A fake `gh` for the per-repository config read, shared by the engine tests.
 
 Every script that resolves the policy keys reads the target repository's
-`docs/conventions/source-control.yaml`, then its `.claude/source-control.md`,
-through `babysit_repo_config`, and so does the loop-key read. A test that reaches
-that read installs `RepoConfigFake` so no real gh process runs and the
-per-process cache never carries one test's view into the next.
+`docs/conventions/source-control.yaml` through `babysit_repo_config`, and so
+does the loop-key read. A test that reaches that read installs `RepoConfigFake`
+so no real gh process runs and the per-process cache never carries one test's
+view into the next.
 """
 
 from __future__ import annotations
@@ -38,34 +38,31 @@ def http_error(status: int) -> subprocess.CompletedProcess[str]:
 
 
 class RepoConfigFake:
-    """Maps `owner/repo` to file text, or to an HTTP status int for a failure.
+    """Maps `owner/repo` to its `docs/conventions/source-control.yaml` text, or
+    to an HTTP status int for a failure.
 
-    `files` answers for `.claude/source-control.md` and `yaml` for
-    `docs/conventions/source-control.yaml`. A repository absent from a map has
-    no such file (404 on the file, a readable root), so a test that does not
-    care about repository config sees only its `userConfig` flags. A repository
-    mapped to 404 in `files` is hidden from the token: the root listing answers
-    404 as well.
+    A repository absent from the map has no such file (404 on the file, a
+    readable root), so a test that does not care about repository config sees
+    only its `userConfig` flags. A repository mapped to 404 is hidden from the
+    token: the root listing answers 404 as well. A request for any other
+    contents path (the retired `.claude/source-control.md` included) fails the
+    test, so a regression that reads it is visible.
     """
 
-    def __init__(
-        self,
-        files: dict[str, str | int] | None = None,
-        yaml: dict[str, str | int] | None = None,
-    ) -> None:
-        self.files = {repo.casefold(): value for repo, value in (files or {}).items()}
+    def __init__(self, yaml: dict[str, str | int] | None = None) -> None:
         self.yaml = {repo.casefold(): value for repo, value in (yaml or {}).items()}
         self.calls: list[list[str]] = []
 
     def __call__(self, args: list[str]) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
         repo = "/".join(args[1].split("/")[1:3]).casefold()
+        value = self.yaml.get(repo, NOT_FOUND)
         if args[1].endswith("/contents"):
-            if self.files.get(repo) == NOT_FOUND:
+            if value == NOT_FOUND and repo in self.yaml:
                 return http_error(NOT_FOUND)
             return subprocess.CompletedProcess([], 0, "[]", "")
-        layer = self.yaml if args[1].endswith(rc.YAML_CONFIG_PATH) else self.files
-        value = layer.get(repo, NOT_FOUND)
+        if not args[1].endswith(f"/contents/{rc.YAML_CONFIG_PATH}"):
+            raise AssertionError(f"unexpected repository config read: {args}")
         if isinstance(value, int):
             return http_error(value)
         return file_response(value)

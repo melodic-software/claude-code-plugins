@@ -1,0 +1,3 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml that keeps the two-section
+# Summary and Test plan body instead of the briefing default. A generic example.
+pr_body_required_sections: summary-test-plan

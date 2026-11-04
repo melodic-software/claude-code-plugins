@@ -81,9 +81,10 @@ merge:
     denied-paths: [".github/**", "docs/conventions/pr-pipeline.yaml"]
     max-changed-lines: 200
 """
-SOURCE_CONTROL = "## babysit_loop_merge\n\nc2-mechanical\n"
-LEGACY_WITHOUT_KEY = "## babysit_loop_tier\n\nworker\n"
+SOURCE_CONTROL = "babysit_loop_merge: c2-mechanical\n"
 TEAM_YAML = "docs/conventions/source-control.yaml"
+# The retired legacy file the gate no longer reads.
+RETIRED_SOURCE_CONTROL = ".claude/source-control.md"
 TRACKER_LEGACY = policy.tracker_binding.LEGACY_PATH
 # The YAML files `GhFake` answers absent when a test sets none.
 UNSET_YAML = (TEAM_YAML, policy.tracker_binding.YAML_PATH)
@@ -115,8 +116,7 @@ class GhFake:
     `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
     an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
     the query's string variables, which may return a whole gh result. Any other call fails the test,
-    except a read of a `UNSET_YAML` file no test set: that file is absent from a readable tree, so
-    a fixture written before it existed stays a legacy-only repo.
+    except a read of a `UNSET_YAML` file no test set: that file is absent from a readable tree.
     """
 
     def __init__(self) -> None:
@@ -248,17 +248,12 @@ class ResolveBash(unittest.TestCase):
 def config_fake(
     case: unittest.TestCase,
     pipeline: str | int | None,
-    source: str | int | None = SOURCE_CONTROL,
-    team: str | int | None = None,
+    team: str | int | None = SOURCE_CONTROL,
 ) -> GhFake:
     """Contents reads at SHA: text, an HTTP status, or None for an absent file."""
     gh = GhFake().install(case)
     gh.rest[f"repos/{REPO}/contents?ref={SHA}"] = []
-    for path, value in (
-        (policy.CONFIG_PATH, pipeline),
-        (policy.SOURCE_CONTROL_PATH, source),
-        (TEAM_YAML, team),
-    ):
+    for path, value in ((policy.CONFIG_PATH, pipeline), (TEAM_YAML, team)):
         endpoint = f"repos/{REPO}/contents/{path}?ref={SHA}"
         gh.rest[endpoint] = (
             404
@@ -546,51 +541,63 @@ class ReadConfigAt(unittest.TestCase):
             policy.read_config_at(REPO, "main")
         self.assertEqual(gh.calls, [])
 
-    def test_a_malformed_source_control_file_leaves_loop_merge_unknown(self) -> None:
-        duplicate = SOURCE_CONTROL + "\n## babysit_loop_merge\n\nfull-autonomy\n"
-        config_fake(self, PIPELINE, duplicate)
-        self.assertIsNone(policy.read_config_at(REPO, SHA).loop_merge)
+    def serve_retired_file(self, gh: GhFake, text: str | int) -> list[str]:
+        """Serve `text` at the retired `.claude/source-control.md`; the call
+        a read of it would make."""
+        endpoint = f"repos/{REPO}/contents/{RETIRED_SOURCE_CONTROL}?ref={SHA}"
+        gh.rest[endpoint] = text if isinstance(text, int) else file_payload(text)
+        return ["api", endpoint]
 
-    def test_the_lower_of_the_team_yaml_and_the_legacy_file_reaches_the_gate(
-        self,
-    ) -> None:
-        loose = "## babysit_loop_merge\n\nc3-autonomous\n"
-        for team, source, expected in (
-            # A demotion written only to the YAML holds the gate.
-            ("babysit_loop_merge: human-only\n", SOURCE_CONTROL, "human-only"),
-            # A demotion written only to the legacy file still holds it.
-            ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "c2-mechanical"),
-            ("babysit_loop_merge: c2-mechanical\n", loose, "c2-mechanical"),
-            # With no legacy file the YAML sets the rung by itself.
-            ("babysit_loop_merge: c2-mechanical\n", None, "c2-mechanical"),
-            ("babysit_loop_merge: c3-autonomous\n", None, "c3-autonomous"),
-            ("babysit_loop_stop_mode: standing\n", None, None),
-            # A YAML without the key falls back to the legacy value.
-            (None, SOURCE_CONTROL, "c2-mechanical"),
-            ("babysit_loop_stop_mode: standing\n", SOURCE_CONTROL, "c2-mechanical"),
-            # A legacy file without the key holds the gate off: a raise
-            # needs both files while the legacy file exists.
-            ("babysit_loop_merge: c3-autonomous\n", LEGACY_WITHOUT_KEY, None),
-            ("babysit_loop_merge: c2-mechanical\n", LEGACY_WITHOUT_KEY, None),
-            (None, None, None),
+    def test_the_team_yaml_sets_the_rung_by_itself(self) -> None:
+        for team, expected in (
+            ("babysit_loop_merge: human-only\n", "human-only"),
+            ("babysit_loop_merge: c2-mechanical\n", "c2-mechanical"),
+            ("babysit_loop_merge: c3-autonomous\n", "c3-autonomous"),
+            ("babysit_loop_stop_mode: standing\n", None),
+            (None, None),
         ):
-            with self.subTest(team=team, source=source):
-                config_fake(self, PIPELINE, source, team)
+            with self.subTest(team=team):
+                config_fake(self, PIPELINE, team)
                 config = policy.read_config_at(REPO, SHA)
                 self.assertEqual(config.loop_merge, expected)
                 self.assertEqual(config.notes, ())
 
-    def test_the_effective_rung_from_the_yaml_alone_both_files_or_neither(
-        self,
-    ) -> None:
-        for team, source, expected in (
-            ("babysit_loop_merge: c2-mechanical\n", None, "C2"),
-            ("babysit_loop_merge: human-only\n", SOURCE_CONTROL, "off"),
-            ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "C2"),
-            (None, None, "off"),
+    def test_the_retired_legacy_file_changes_nothing(self) -> None:
+        for team, expected in (
+            ("babysit_loop_merge: c3-autonomous\n", "c3-autonomous"),
+            ("babysit_loop_merge: human-only\n", "human-only"),
+            ("babysit_loop_stop_mode: standing\n", None),
+            (None, None),
         ):
-            with self.subTest(team=team, source=source):
-                config_fake(self, "merge:\n  rung: C3\n", source, team)
+            for legacy in (
+                # A lower value no longer demotes the gate.
+                "## babysit_loop_merge\n\nhuman-only\n",
+                # A higher value no longer raises it.
+                "## babysit_loop_merge\n\nfull-autonomy\n",
+                # A malformed or unreadable file no longer holds it off.
+                "## babysit_loop_merge\n\nc2-mechanical\n\n"
+                "## babysit_loop_merge\n\nfull-autonomy\n",
+                "## babysit_loop_merge\n\n## next\n",
+                502,
+            ):
+                with self.subTest(team=team, legacy=legacy):
+                    gh = config_fake(self, PIPELINE, team)
+                    retired_call = self.serve_retired_file(gh, legacy)
+                    config = policy.read_config_at(REPO, SHA)
+                    self.assertEqual(config.loop_merge, expected)
+                    self.assertEqual(config.notes, ())
+                    self.assertNotIn(retired_call, gh.calls)
+
+    def test_the_effective_rung_follows_the_team_yaml_alone(self) -> None:
+        for team, expected in (
+            ("babysit_loop_merge: c2-mechanical\n", "C2"),
+            ("babysit_loop_merge: human-only\n", "off"),
+            ("babysit_loop_merge: c3-autonomous\n", "C3"),
+            (None, "off"),
+        ):
+            with self.subTest(team=team):
+                gh = config_fake(self, "merge:\n  rung: C3\n", team)
+                self.serve_retired_file(gh, "## babysit_loop_merge\n\nhuman-only\n")
                 config = policy.read_config_at(REPO, SHA)
                 effective = policy.effective_rung(
                     config_rung=config.rung,
@@ -600,9 +607,7 @@ class ReadConfigAt(unittest.TestCase):
                 )
                 self.assertEqual(effective.rung, expected)
 
-    def test_an_untrustworthy_team_yaml_holds_the_gate_over_the_legacy_value(
-        self,
-    ) -> None:
+    def test_an_untrustworthy_team_yaml_holds_the_gate(self) -> None:
         for team, noted in (
             ("babysit_loop_merge: {a: b}\n", "rejects it"),
             ("babysit_loop_merge:\n  - human-only\n", "not a scalar value"),
@@ -610,23 +615,11 @@ class ReadConfigAt(unittest.TestCase):
             (502, "unreadable"),
         ):
             with self.subTest(team=team):
-                config_fake(self, PIPELINE, SOURCE_CONTROL, team)
+                gh = config_fake(self, PIPELINE, team)
+                self.serve_retired_file(gh, "## babysit_loop_merge\n\nc2-mechanical\n")
                 config = policy.read_config_at(REPO, SHA)
                 self.assertIsNone(config.loop_merge)
                 self.assertTrue(any(noted in n for n in config.notes), config.notes)
-
-    def test_an_untrustworthy_legacy_file_holds_the_gate_over_the_team_value(
-        self,
-    ) -> None:
-        team = "babysit_loop_merge: c3-autonomous\n"
-        for source in (
-            502,
-            SOURCE_CONTROL + "\n## babysit_loop_merge\n\nhuman-only\n",
-            "## babysit_loop_merge\n\n## next\n",
-        ):
-            with self.subTest(source=source):
-                config_fake(self, PIPELINE, source, team)
-                self.assertIsNone(policy.read_config_at(REPO, SHA).loop_merge)
 
 
 class EffectiveRung(unittest.TestCase):
@@ -4670,8 +4663,8 @@ class EnabledSince(unittest.TestCase):
             gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
                 file_payload(text)
             )
-            gh.rest[f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"] = (
-                file_payload(SOURCE_CONTROL)
+            gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={sha}"] = file_payload(
+                SOURCE_CONTROL
             )
         return gh
 
@@ -4891,7 +4884,7 @@ class LocalEnabledSince(unittest.TestCase):
 
     def test_the_base_config_comes_from_the_clone(self) -> None:
         # Before the clone read: two contents-API calls per candidate.
-        self.commit(policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        self.commit(TEAM_YAML, SOURCE_CONTROL, "2026-10-01T00:00:00Z")
         base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
         gh = self.local()
         config = policy.read_config_at(REPO, base)
@@ -4904,15 +4897,13 @@ class LocalEnabledSince(unittest.TestCase):
     def test_a_symlinked_config_reads_the_api_as_before(self) -> None:
         # The contents API follows an in-repository symlink to a file; the
         # clone read hands such a path to it rather than refusing it.
-        self.commit("docs/source-control.md", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
-        (self.clone / policy.SOURCE_CONTROL_PATH).parent.mkdir(exist_ok=True)
-        (self.clone / policy.SOURCE_CONTROL_PATH).symlink_to(
-            "../docs/source-control.md"
-        )
-        self.git(self.clone, "add", policy.SOURCE_CONTROL_PATH)
+        self.commit("docs/source-control.yaml", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        (self.clone / TEAM_YAML).parent.mkdir(parents=True, exist_ok=True)
+        (self.clone / TEAM_YAML).symlink_to("../source-control.yaml")
+        self.git(self.clone, "add", TEAM_YAML)
         base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
         gh = self.local()
-        api = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={base}"
+        api = f"repos/{REPO}/contents/{TEAM_YAML}?ref={base}"
         gh.rest[api] = file_payload(SOURCE_CONTROL)
         config = policy.read_config_at(REPO, base)
         self.assertEqual(config.loop_merge, "c2-mechanical")
@@ -7542,9 +7533,9 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
         gh = self.readable()
         gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": MAIN_SHA}}
         gh.rest[self.HEAD_CONFIG] = head_config
-        gh.rest[
-            f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={MAIN_SHA}"
-        ] = file_payload(SOURCE_CONTROL)
+        gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={MAIN_SHA}"] = file_payload(
+            SOURCE_CONTROL
+        )
         return gh
 
     def cap(self) -> tuple[int, dict[str, Any]]:
@@ -7664,7 +7655,7 @@ merge:
     max-changed-lines: 100
     max-changed-files: 0
 """
-LOOSE_SOURCE = "## babysit_loop_merge\n\nc3-autonomous\n"
+LOOSE_SOURCE = "babysit_loop_merge: c3-autonomous\n"
 
 
 class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
@@ -7697,8 +7688,8 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
             base
         )
-        gh.rest[f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={SHA}"] = (
-            file_payload(base_source)
+        gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(
+            base_source
         )
         gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": MAIN_SHA}}
         gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
@@ -7707,9 +7698,9 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             if main is None
             else (main if isinstance(main, int) else file_payload(main))
         )
-        gh.rest[
-            f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={MAIN_SHA}"
-        ] = file_payload(main_source)
+        gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={MAIN_SHA}"] = file_payload(
+            main_source
+        )
         return gh
 
     def config(self) -> Any:
@@ -7977,7 +7968,7 @@ class TheStricterConfigEdges(unittest.TestCase):
                 gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
                 for path, text in (
                     (policy.CONFIG_PATH, PIPELINE.replace("local-babysit", "pr-merge")),
-                    (policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL),
+                    (TEAM_YAML, SOURCE_CONTROL),
                 ):
                     gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = (
                         file_payload(text)
@@ -8022,14 +8013,14 @@ class ConfigAtIsSharedByCommit(unittest.TestCase):
         gh.rest[f"repos/{REPO}/contents?ref={other}"] = []
         for path, text in (
             (policy.CONFIG_PATH, PIPELINE.replace("rung: C2", "rung: C3")),
-            (policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL),
+            (TEAM_YAML, SOURCE_CONTROL),
         ):
             gh.rest[f"repos/{REPO}/contents/{path}?ref={other}"] = file_payload(text)
         self.assertEqual(policy.config_at(REPO, other).rung, "C3")
         self.assertEqual(self.reads(gh, other), 1)
 
     def test_a_read_with_a_note_is_not_saved(self) -> None:
-        gh = config_fake(self, PIPELINE, source=502)
+        gh = config_fake(self, PIPELINE, 502)
         self.assertIsNone(policy.config_at(REPO, SHA).loop_merge)
         policy.config_at(REPO, SHA)
         self.assertEqual(self.reads(gh, SHA), 2)
@@ -8103,8 +8094,8 @@ class SharedPostMergeAnswer(unittest.TestCase):
             gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
                 file_payload(LANE_PIPELINE)
             )
-            gh.rest[f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"] = (
-                file_payload(SOURCE_CONTROL)
+            gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={sha}"] = file_payload(
+                SOURCE_CONTROL
             )
         gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
         self.computed_at = policy.datetime.now(policy.UTC)
@@ -9116,7 +9107,7 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
             gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
             for path, text in (
                 (policy.CONFIG_PATH, pipeline.replace(IDENTITY, main_identity)),
-                (policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL),
+                (TEAM_YAML, SOURCE_CONTROL),
             ):
                 gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = file_payload(
                     text
@@ -10660,9 +10651,7 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         return self.git(self.checkout, "rev-parse", "HEAD")
 
     def test_the_config_reads_from_the_checkout_with_no_contents_read(self) -> None:
-        sha = self.commit(
-            {policy.CONFIG_PATH: PIPELINE, policy.SOURCE_CONTROL_PATH: SOURCE_CONTROL}
-        )
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE, TEAM_YAML: SOURCE_CONTROL})
         gh = GhFake().install(self)
         config = policy.read_config_at(REPO, sha)
         self.assertEqual(
@@ -10670,7 +10659,7 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
             (sha, "C2", IDENTITY, "c2-mechanical"),
         )
         self.assertIsNone(config.error)
-        # The team YAML is absent from the commit's tree: absent, not read.
+        # Every file the gate reads is in the commit's tree or absent from it.
         self.assertEqual(gh.calls, [])
 
     def test_another_commit_reads_the_contents_api(self) -> None:
@@ -10683,15 +10672,15 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         )
 
     def test_a_symlink_in_the_checkout_reads_that_file_through_the_api(self) -> None:
-        self.commit({policy.CONFIG_PATH: PIPELINE, "elsewhere.md": "x\n"})
-        link = self.checkout / policy.SOURCE_CONTROL_PATH
+        self.commit({policy.CONFIG_PATH: PIPELINE, "elsewhere.yaml": "x\n"})
+        link = self.checkout / TEAM_YAML
         link.parent.mkdir(parents=True, exist_ok=True)
-        link.symlink_to("../elsewhere.md")
+        link.symlink_to("../../elsewhere.yaml")
         self.git(self.checkout, "add", "-A")
         self.git(self.checkout, "commit", "-q", "-m", "link")
         sha = self.git(self.checkout, "rev-parse", "HEAD")
         gh = GhFake().install(self)
-        endpoint = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"
+        endpoint = f"repos/{REPO}/contents/{TEAM_YAML}?ref={sha}"
         gh.rest[endpoint] = file_payload(SOURCE_CONTROL)
         config = policy.read_config_at(REPO, sha)
         self.assertEqual((config.rung, config.loop_merge), ("C2", "c2-mechanical"))
@@ -10700,9 +10689,7 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
     def test_a_shallow_sparse_partial_clone_reads_only_its_sparse_files(self) -> None:
         # As actions/checkout makes base-config: depth 1, no blobs fetched
         # but the sparse paths'. A file outside them reads through the API.
-        sha = self.commit(
-            {policy.CONFIG_PATH: PIPELINE, policy.SOURCE_CONTROL_PATH: SOURCE_CONTROL}
-        )
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE, TEAM_YAML: SOURCE_CONTROL})
         self.git(self.checkout, "config", "uploadpack.allowFilter", "true")
         clone = self.checkout.parent / "sparse"
         self.git(
@@ -10711,7 +10698,7 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         )  # fmt: skip
         self.git(clone, "sparse-checkout", "set", "--no-cone", f"/{policy.CONFIG_PATH}")
         gh = GhFake().install(self)
-        endpoint = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"
+        endpoint = f"repos/{REPO}/contents/{TEAM_YAML}?ref={sha}"
         gh.rest[endpoint] = file_payload(SOURCE_CONTROL)
         with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(clone)}):
             config = policy.read_config_at(REPO, sha)

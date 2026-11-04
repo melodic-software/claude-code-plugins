@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.medium: flag, resolver changed in this diff\n\nseverity: IMPORTANT",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.medium: pass, advisory, a view medium",
+      "why": "an advisory pass while the diff changes the resolver"
+    }
+  ]
+}

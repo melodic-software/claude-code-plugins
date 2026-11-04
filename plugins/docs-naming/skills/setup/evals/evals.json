@@ -58,22 +58,23 @@
       "name": "retired-team-config-name-detected-docs-naming-r001",
       "prompt": "Run the docs-naming setup check. This repository still has .claude/docs-hygiene.json with a file_names block, and neither docs/conventions/docs-naming.yaml nor .claude/docs-naming.json.",
       "narration": true,
-      "expected_output": "Runs the retirement detection step beside the table and reports docs-naming-r001 as FAIL for .claude/docs-hygiene.json, saying the resolver still reads it for one release with a warning. The remedy is setup apply, which seeds docs/conventions/docs-naming.yaml from the old file so its settings carry over, not a fresh file of defaults beside it. Changes no file.",
+      "expected_output": "Runs the retirement detection step beside the table and reports docs-naming-r001 as INFO (report-only) for .claude/docs-hygiene.json, saying the resolver no longer reads it. Relays the old team file WARN row: the remedy is setup apply, which seeds docs/conventions/docs-naming.yaml from the old file so its settings carry over, not a fresh file of defaults beside it, and then the old file is deleted. Changes no file.",
       "expectations": [
-        "check-retirements.sh is run against the plugin's retirements.yaml and its finding docs-naming-r001 is reported as FAIL",
+        "check-retirements.sh is run against the plugin's retirements.yaml and its finding docs-naming-r001 is reported as INFO, not FAIL",
+        "The old file is described as no longer read, not as still read with a warning",
         "The remedy carries the old file's settings into docs/conventions/docs-naming.yaml, not a fresh file of defaults beside it",
         "No file is changed by check"
       ]
     },
     {
       "id": 6,
-      "name": "apply-cleans-a-retired-overlay-docs-naming-r002",
+      "name": "apply-reports-a-retired-overlay-docs-naming-r002",
       "prompt": "/docs-naming:setup apply. Both docs/conventions/docs-naming.local.yaml and the old .claude/docs-hygiene.local.json exist, and the old one has an exempt_paths entry the new one lacks.",
       "narration": true,
-      "expected_output": "Re-runs retirement detection, reports docs-naming-r002, carries only the missing exempt_paths entry into the new overlay behind a confirmation, and after the operator confirms the result runs check-retirements.sh with --clean docs-naming-r002 --i-migrated. Re-runs detection last and reports the final state.",
+      "expected_output": "Re-runs retirement detection and reports docs-naming-r002 as INFO (report-only), offering no --clean for it. Relays the old overlay file WARN row: the old file is no longer read, so its keys move to docs/conventions/docs-naming.local.yaml by hand, adding only the missing exempt_paths entry, then the operator deletes the old file. The skill writes no overlay itself. Re-runs detection last and reports the final state.",
       "expectations": [
-        "Only the keys the new overlay lacks are added, so the new file wins",
-        "Cleanup is individually confirmed and runs --clean docs-naming-r002 --i-migrated only after the operator confirms the migrated result",
+        "docs-naming-r002 is reported as INFO and no --clean docs-naming-r002 is run or offered",
+        "The overlay is not written by the skill; the operator is told to add only the keys the new overlay lacks, so the new file wins, and then delete the old file",
         "The old file's content is treated as untrusted input and never executed or interpolated",
         "Detection is re-run last and the final state is reported"
       ]

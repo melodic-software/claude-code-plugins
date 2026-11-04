@@ -79,7 +79,8 @@ trace_counts() {
   local log="$WORK/trace.$$"
   strace -f -qq -o "$log" -e trace=clone,clone3,fork,vfork,execve \
     "$@" >/dev/null 2>/dev/null
-  CLONES=$(grep -cE '^[0-9]+ +(clone|clone3|fork|vfork)\(' "$log" 2>/dev/null)
+  # CLONE_THREAD clones are threads (shfmt is Go), not processes.
+  CLONES=$(grep -E '^[0-9]+ +(clone|clone3|fork|vfork)\(' "$log" 2>/dev/null | grep -vc CLONE_THREAD)
   EXECS=$(grep -cE '^[0-9]+ +execve\(' "$log" 2>/dev/null)
   EXECS=$((EXECS - 1))
   rm -f "$log"
@@ -180,8 +181,20 @@ budget() {
 # The lib floor inside each number: one `jq -e .` from hook::buffer_stdin, plus
 # one `git rev-parse` from hook::repo_root once a path reaches repo resolution.
 budget "bash gate / non-PR gh call" "$BASH_GATE" "$WORK/p-nonpr.json" 7 2
-budget "bash gate / compliant body (ALLOW)" "$BASH_GATE" "$WORK/p-allow.json" 11 3
-budget "bash gate / failing body (BLOCK)" "$BASH_GATE" "$WORK/p-block.json" 11 3
+# A PR command the bash gate reads costs one shfmt parse (lib/hook-utils.sh
+# hook::_bps_shfmt_to): 7 processes and 2 execs (shfmt, jq). Those rows are
+# exact: the parse forks the same processes on every run, so any change is one
+# to argue for. Of the 9 and 3, the parse is 7 and 2; the rest is the gate's own.
+exact() { # <label> <hook> <payload> <clones> <execs>
+  run_hook "$2" "$3"
+  if ((CLONES == $4 && EXECS == $5)); then
+    ok "$1: exactly $CLONES clone-family calls and $EXECS execve"
+  else
+    fail "$1: $CLONES clone-family calls and $EXECS execve, want exactly $4 and $5"
+  fi
+}
+exact "bash gate / compliant body (ALLOW)" "$BASH_GATE" "$WORK/p-allow.json" 9 3
+exact "bash gate / failing body (BLOCK)" "$BASH_GATE" "$WORK/p-block.json" 9 3
 budget "mcp gate / unrelated tool" "$MCP_GATE" "$WORK/p-mcp-other.json" 7 2
 budget "mcp gate / compliant body (ALLOW)" "$MCP_GATE" "$WORK/p-mcp-allow.json" 11 4
 budget "mcp gate / failing body (BLOCK)" "$MCP_GATE" "$WORK/p-mcp-block.json" 11 4

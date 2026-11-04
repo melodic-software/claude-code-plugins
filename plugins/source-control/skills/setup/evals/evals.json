@@ -224,13 +224,13 @@
       "id": 18,
       "name": "apply-neutral-ssot-well-known-default-retires-duplicates",
       "prompt": "/source-control:setup apply\n\nThe team .claude/source-control.md already declares subject_pattern as a ticket-prefix regex. The user says: our commit-msg hook and CI also need to read this convention — move it to a tool-agnostic single source of truth.",
-      "expected_output": "The skill recommends the neutral convention SSOT (a second consumer exists) and materializes it at the WELL-KNOWN DEFAULT path docs/conventions/source-control/commit-convention.yml WITHOUT declaring a `## convention_source` pointer — the resolver probes the well-known path, so nothing needs to live in agent-rewritable markdown. It writes a flat-scalar YAML file (subject_pattern, pr_title_pattern, dialect: posix-ere) with a 1-2 line self-describing header, and — critically — RETIRES the now-duplicated subject_pattern from the markdown file in the same apply rather than leaving both authoritative. Verification round-trips the neutral file through the enforcement resolver, confirms it is staged/tracked, and reports the effective merge. Plugin-only keys (trailer_policy, pr_body_attribution) stay in the markdown file. A `## convention_source` pointer is written ONLY if the user asks to place the file at a non-default location.",
+      "expected_output": "The skill recommends the neutral convention SSOT (a second consumer exists) and materializes it at the WELL-KNOWN DEFAULT path docs/conventions/source-control/commit-convention.yml WITHOUT declaring a `## convention_source` pointer — the resolver probes the well-known path, so nothing needs to live in agent-rewritable markdown. It writes a flat-scalar YAML file (subject_pattern, pr_title_pattern, dialect: posix-ere) with a 1-2 line self-describing header, and — critically — RETIRES the now-duplicated subject_pattern from the markdown file in the same apply rather than leaving both authoritative. Verification round-trips the neutral file through the enforcement resolver, confirms it is staged/tracked, and reports the effective merge. Plugin-only keys (trailer_policy, pr_body_attribution) go to the team YAML docs/conventions/source-control.yaml, since the retired markdown file is no longer read when drafting. A `## convention_source` pointer is written ONLY if the user asks to place the file at a non-default location.",
       "files": [],
       "expectations": [
         "Writes the neutral file at the well-known default path docs/conventions/source-control/commit-convention.yml and does NOT declare a convention_source pointer for the default location (the pointer is written only for a non-default relocation, repo-relative with forward slashes)",
         "Writes flat-scalar YAML with the machine keys and dialect, plus a 1-2 line header rather than a multi-line preamble",
         "Retires the duplicated subject_pattern from the markdown file in the same apply — both surfaces are never left authoritative for the same key",
-        "Verifies the neutral file round-trips through the enforcement resolver (broken file fails closed), is staged/tracked so a fresh checkout resolves it, and keeps plugin-only keys markdown-side"
+        "Verifies the neutral file round-trips through the enforcement resolver (broken file fails closed), is staged/tracked so a fresh checkout resolves it, and keeps plugin-only keys in the team YAML"
       ]
     },
     {
@@ -278,7 +278,7 @@
       "id": 22,
       "name": "check-at-home-root-reports-team-and-overlay-not-applicable",
       "prompt": "/source-control:setup check\n\nThe session's project root is the operator's home directory, which contains ~/.claude/source-control.md and no repository of its own.",
-      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal overlay as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves user-global only and never presents ~/.claude/source-control.md as the team layer, since at home the two paths are the same file. The effective-configuration table shows user-global as the only winning layer, and the git tracked/ignored probes are not run.",
+      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal overlay as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves user-global only and never presents ~/.claude/source-control.md as the team layer. The effective-configuration table shows user-global as the only winning layer, and the git tracked/ignored probes are not run.",
       "files": [],
       "expectations": [
         "Reports team and overlay as not applicable and names the reason: project root is the home directory (or an ancestor of it)",
@@ -291,7 +291,7 @@
       "id": 23,
       "name": "apply-at-home-root-refuses-team-and-local-but-writes-user",
       "prompt": "/source-control:setup apply layer=team subject_pattern=Conventional Commits\n\nThe session's project root is the operator's home directory. Afterwards the operator re-runs with layer=user.",
-      "expected_output": "layer=team refuses before writing anything: at home the team path and ~/.claude/source-control.md are the same file, so a team write would edit the operator's personal config under a team label. The refusal names the reason (`project root is the home directory (or an ancestor of it)`) and offers layer=user. layer=local refuses for the same reason. The re-run with layer=user writes ~/.claude/source-control.md, runs no git command against it, and reports the resulting effective merge.",
+      "expected_output": "layer=team refuses before writing anything: at home the team path sits in the operator's home directory, so a team write would edit the operator's personal config under a team label. The refusal names the reason (`project root is the home directory (or an ancestor of it)`) and offers layer=user. layer=local refuses for the same reason. The re-run with layer=user writes ~/.claude/source-control.md, runs no git command against it, and reports the resulting effective merge.",
       "files": [],
       "expectations": [
         "Refuses layer=team at a home project root without writing any file",

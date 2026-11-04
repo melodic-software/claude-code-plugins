@@ -3,6 +3,30 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-11-04
+
+### Changed
+
+- The shared `hook-utils.sh` reads Bash commands from `shfmt --to-json` (`hook::bash_parse_segments`
+  keeps its callback and `HOOK_SEG_*` contract), and the hand-written segmenter is removed. It
+  refuses the call when shfmt or jq is missing, fails, runs past 5 seconds, or rejects the text
+  (an unclosed here-doc, for one, which bash runs with a warning), and the refusal names which of
+  those happened, quoting shfmt's syntax error. It uses a shfmt in `~/.local/bin` when PATH has
+  none. The 5-second bound is the `read -t` builtin, so a parse forks the same processes on every
+  run and needs no `sleep` or `timeout` command.
+
+## [1.0.1] - 2026-11-04
+
+### Changed
+
+- The README no longer spells out Go's generated-code marker or what `goimports` knows about
+  it; the skip-generated-files rule and the header-before-marker case stay, with a pointer to the
+  `go generate` section.
+- The `goimports` requirement no longer carries the install command or the toolchain and
+  `GOPATH` notes. It keeps that `goimports` must be on `PATH`, is never downloaded, and that the
+  batch row skips and the SessionStart probe reports when it is absent, with a pointer to the
+  `goimports` docs.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

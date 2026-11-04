@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Check | Result | Detail |\n|---|---|---|---|\n| 1 | Bash version | PASS | 5.2 |\n| 2 | `node` | PASS | /usr/bin/node |\n| 3 | `actionlint` | PASS | /usr/local/bin/actionlint |\n| 4 | actionlint config | INFO | no `.github/actionlint.yaml`; built-in defaults |\n| 5 | `actionlint_enabled` | INFO | default true |\n| 6 | Hook registration | INFO | confirm in /plugin |\n| 7 | Git pre-commit entry | FAIL | missing; run /actionlint:setup apply install-git-hooks |"
+    },
+    {
+      "answer": "Check | Status\n--- | ---\nbash | ✅\n.github/actionlint.yml | INFO\nHook toggles | INFO\nPlugin enabled for this project | INFO\ngit-hooks verify | ❌ FAIL",
+      "why": "no outer pipes, emoji, other row labels"
+    },
+    {
+      "answer": "| Status | Probe |\n|---|---|\n| PASS | Bash 5.2 |\n| INFO | Config |\n| INFO | Toggle |\n| INFO | Registration |\n| INFO | install.mjs verify: declined |",
+      "why": "verdict before item name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| actionlint | PASS |",
+      "why": "only the two tool rows"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Bash | PASS |\n| Config | INFO |\n| Toggle | INFO |\n| Registration | INFO |",
+      "why": "no pre-commit entry row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Bash | PASS |\n| Config | INFO |\n| Registration | INFO |\n| Pre-commit entry | FAIL |",
+      "why": "no toggle row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Bash | PASS |\n| Toggle | INFO |\n| Registration | INFO |\n| Pre-commit entry | FAIL |",
+      "why": "no config row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Bash | present |\n| Config | absent |\n| Toggle | true |\n| Registration | enabled |\n| Pre-commit entry | missing |",
+      "why": "no verdict cells"
+    },
+    {
+      "answer": "Bash: PASS. Config: INFO. Toggle: INFO. Registration: INFO. Pre-commit entry: FAIL.",
+      "why": "no table"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -13,8 +13,9 @@ The convention's team values live in the consumer's tracked `docs/conventions/so
 the source-control plugin's team file ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)),
 validated by
 [`plugins/source-control/schemas/source-control.schema.json`](../../../plugins/source-control/schemas/source-control.schema.json).
-For one release, a key that file lacks is read from the legacy surfaces: the neutral file below,
-then the `## <key>` H2 of `.claude/source-control.md`. The model resolves them across the layers in
+For one release, enforcement reads a key that file lacks from the legacy surfaces: the neutral
+file below, then the `## <key>` H2 of `.claude/source-control.md`. Drafting reads neither: the
+model resolves the YAML and the personal markdown layers in
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
 That document owns **drafting** resolution: how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title. This seam owns the **enforcement** resolution: how a
@@ -119,7 +120,7 @@ Contract points:
   is honored from the team-tracked file only (same policy floor: a gitignored overlay must not
   redirect the gate).
 - **Three-rung neutral-file precedence (V2, reopening V1's "no well-known search").** The neutral
-  file is resolved in a fixed order, identical on the enforcement resolver and the drafting read:
+  file is resolved by the enforcement resolver in a fixed order:
   1. an **explicit `convention_source` pointer**, the relocation override; the path stays
      repo-owned, so a repo that keeps its convention elsewhere is unaffected;
   2. absent a pointer, the **well-known default path**
@@ -128,13 +129,12 @@ Contract points:
      markdown pointer-parse and no pointer to sever;
   3. absent both, the **team markdown-H2** sections (legacy).
 
-  **Rung 2 requires the file to be git-TRACKED, a policy floor both surfaces enforce identically.**
+  **Rung 2 requires the file to be git-TRACKED, a policy floor.**
   An untracked or gitignored file at the default path is a generated/local artifact, not team
   convention; honoring it would let a personal/local file pose as team convention and drive the gate
-  ahead of every team pattern, and would let drafting diverge from enforcement. Enforcement checks this with
+  ahead of every team pattern. Enforcement checks this with
   `git ls-files --error-unmatch` (git-absent or untracked → skip rung 2, fall through to the markdown
-  H2); the drafting read (`config-resolution.md`) applies the identical requirement, so both surfaces
-  resolve the same file. Once a neutral file resolves via rung 1 or 2 it is authoritative and the
+  H2). Once a neutral file resolves via rung 1 or 2 it is authoritative and the
   fail-closed broken-file contract applies; a key it omits still falls back per key to the markdown H2.
 
   **Both V1 reasons for shipping no well-known search are engaged, not overridden by fiat** (#163434
@@ -160,8 +160,7 @@ Contract points:
   disables this seam's enforcement with a diagnostic, exactly like a PCRE-ism in the pattern.
 - **Per-key precedence, fail-closed pointer.** When the pointer is declared, the neutral file is
   authoritative for the machine keys it carries; a key it omits falls back to the team markdown H2
-  (plugin-only keys `trailer_policy` and `pr_body_attribution` stay `.claude/`-side; the drafting
-  side may also read a flat `pr_body_required_sections:` list from the neutral file). A
+  (plugin-only keys `trailer_policy` and `pr_body_attribution` stay `.claude/`-side). A
   declared-but-broken pointer disables enforcement with a diagnostic rather than falling back: an
   absolute, backslash, or `..` path; a missing file; or a symlinked file or symlinked path segment
   whose physical target leaves the repository root (the target must be a regular file physically
@@ -211,6 +210,6 @@ purposes without it.
   `scripts/shared-copies.txt`, the commit-msg entry installs both as assets, and a change to either
   canonical carries a guardrails release so consumers receive it.
 
-Naming coincidence recorded per the seam rules: the convention file is `.claude/source-control.md`
+Naming coincidence recorded per the seam rules: the convention file is `docs/conventions/source-control.yaml`, named
 after the concern (delivery workflow), not the plugin. The plugin-name collision is incidental; the
 file is not renamed.

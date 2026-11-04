@@ -665,7 +665,21 @@ else
     done
     _bupm_text="$out${COMMAND:at}"
   }
-  hook::bash_parse_segments "$COMMAND" _bupm_segment
+  # PowerShell's escape character is the backtick, which Bash would read as an
+  # unclosed substitution and the reader refuses. PowerShell passes the escaped
+  # character on, so the PowerShell text is parsed with every backtick dropped,
+  # and with the `&` call operator and empty `;` statements that open a
+  # PowerShell statement and no bash one dropped as the git guards' reduction
+  # drops them (ps::_bash_ready_to).
+  if [[ "$TOOL_NAME" == PowerShell ]]; then
+    declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
+    guard::require_libs
+    _bupm_ps=""
+    ps::_bash_ready_to _bupm_ps "${COMMAND//\`/}"
+    hook::bash_parse_segments "$_bupm_ps" _bupm_segment
+  else
+    hook::bash_parse_segments "$COMMAND" _bupm_segment
+  fi
   _bupm_text="$COMMAND"
   hook::_c_locale _bupm_strip_bodies
   _bupm_joined="${_bupm_text,,}"

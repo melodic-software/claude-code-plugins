@@ -7,11 +7,11 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-mkdir -p .claude src
+mkdir -p docs/conventions src
 printf 'export const me = () => null;\n' > src/app.ts
 printf '# demo\n' > README.md
-printf '# source-control configuration\n\n## pr_body_required_sections\n\n- Summary\n- Verification\n- Related\n' > .claude/source-control.md
-git add .claude src README.md
+printf 'pr_body_required_sections:\n  - Summary\n  - Verification\n  - Related\n' > docs/conventions/source-control.yaml
+git add docs src README.md
 git commit -q -m "chore: seed"
 
 git checkout -q -b fix/null-user

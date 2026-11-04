@@ -325,8 +325,15 @@ assert_block "--body \$(cat <<EOF) substitution is read" "$GATED" \
   "$(printf "gh pr create -t T --body \"\$(cat <<'EOF'\n%s\nEOF\n)\"\n" "$BAD")"
 assert_allow "two heredocs are undeterminable" "$GATED" \
   "$(printf "cat <<'A' >x\njunk\nA\ngh pr create -t T --body-file - <<'EOF'\n%s\nEOF\n" "$BAD")"
-assert_allow "an unterminated heredoc is undeterminable" "$GATED" \
-  "$(printf "gh pr create -t T --body-file - <<'EOF'\n%s\n" "$BAD")"
+# An unterminated here-doc is a syntax error to shfmt, so the command reader
+# refuses the call (exit 2) before the gate judges any body.
+assert_block "an unterminated heredoc is refused by the reader" "$GATED" \
+  "$(printf "gh pr create -t T --body-file - <<'EOF'\n%s\n" "$GOOD")"
+if [[ "$ERR" == *'got no parse'*'unclosed here-document'* ]]; then
+  ok "the refusal names the unclosed here-doc"
+else
+  fail "the refusal for an unterminated heredoc: [$ERR]"
+fi
 # shellcheck disable=SC2016  # the literal, unexpanded $BODY is the fixture under test
 assert_allow "a variable body is undeterminable" "$GATED" 'gh pr create -t T --body "$BODY"'
 assert_allow "--fill carries no body flag" "$GATED" "gh pr create -t T --fill"

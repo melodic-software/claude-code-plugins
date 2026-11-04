@@ -299,7 +299,9 @@ dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads th
 unresolved fail-note thread is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
-check-run room. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
+check-run room, and not held by a round for the PR in progress: `pr-unblock.yml`'s per-PR
+concurrency group queues it behind that round. A round waiting to start still holds it, since the
+group keeps one waiting run and sending would cancel that round. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
 at that head superseded (`babysit_verify_evidence.py` `supersededAtHead`, the gate's own
 `_superseded` judgment), the dispatch also names the head in `verify-superseded-head`.
 `address-feedback-select` lists in `run.json`'s `stale_notes` the threads from another head, and
@@ -1126,11 +1128,9 @@ the rules that only tighten in
   claude-review or a lower security one, is listed in the reasons and does not hold.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
-- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (with no
-  `.claude/source-control.md`, the value in `docs/conventions/source-control.yaml`, `off` when it
-  sets none; while the legacy file exists, the lower of the two files, a legacy file without the key
-  means `off` and a YAML without it leaves the legacy value; either file the wrapper cannot read or
-  trust means `off`), the cap variable, and `off` while any demotion issue holds.
+- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (the value in
+  `docs/conventions/source-control.yaml`, `off` when it sets none or the wrapper cannot read or
+  trust the file), the cap variable, and `off` while any demotion issue holds.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
   aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
@@ -1285,7 +1285,7 @@ the rules that only tighten in
     `**/.claude-lane/**` whole (settings, hooks and the scripts settings registers, skills, agents,
     commands, rules, output styles and memory, under owner decision Q11, which supersedes the
     2026-10-22 direction for rules), `docs/conventions/source-control.yaml` (the babysit loop's
-    team layer, trusted bot logins included, read before `.claude/source-control.md`),
+    team layer, trusted bot logins included),
     `docs/conventions/instruction-exception-register/**` and
     `docs/conventions/untrusted-content/**` (the security review's criteria), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
     `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull
@@ -2808,9 +2808,8 @@ head and commits, its head branch, its live issues and their other closing pull 
 run they name and the pass names at each FAILed head; the file holds every FAIL from before the
 index. The module docstring's "Index mode" states the rule. Until then the listing below applies.
 A listing read from the API builds on the newest whole listing begun within three hours (the
-reader's own, the run's saved one, or the `pr-merge-verify-listing` artifact the last scheduled or
-hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merge/listing-carry.mjs`
-fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
+reader's own, or the run's saved one; no run carries a listing to the next, since in index mode no
+gate saves one): it reads pages newest id first down past that listing's
 highest id until an artifact created two hours before that listing was read, keeps that listing's
 entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
 kept only when it holds exactly that page's `total_count`. A count above it first reads again the pages

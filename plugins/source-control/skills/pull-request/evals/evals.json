@@ -117,8 +117,8 @@
     {
       "id": 9,
       "name": "pr-body-attribution-default-present",
-      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config file exists in this repo. Assemble and create the PR.",
-      "expected_output": "With no source-control.md config declaring pr_body_attribution, the skill resolves the key as absent across all three layers and keeps the current default behavior: the assembled PR body ends with the `🤖 Generated with [Claude Code](https://claude.com/claude-code)` attribution line (§2.4.1). Existing consumers see no change. The line is appended to the body file as literal text after the §2.4.2 gates pass, never written into the body before them.",
+      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control config file exists in this repo. Assemble and create the PR.",
+      "expected_output": "With no source-control config declaring pr_body_attribution, the skill resolves the key as absent across all three layers and keeps the current default behavior: the assembled PR body ends with the `🤖 Generated with [Claude Code](https://claude.com/claude-code)` attribution line (§2.4.1). Existing consumers see no change. The line is appended to the body file as literal text after the §2.4.2 gates pass, never written into the body before them.",
       "files": [],
       "expectations": [
         "The assembled PR body includes the default `🤖 Generated with [Claude Code](https://claude.com/claude-code)` attribution line when no pr_body_attribution key is configured",
@@ -142,11 +142,11 @@
     {
       "id": 12,
       "name": "pr-body-required-sections-portable-default",
-      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config file exists in this repo. Assemble and create the PR.",
-      "expected_output": "With no source-control.md layer setting pr_body_required_sections, the skill resolves the `briefing` default. The assembled body carries `## Why`, `## What changed`, `## Scope` and `## Verification` in that order, each with real content, and no `## Related` section (the default excludes it, see docs/contracts/pr-body-convention/README.md) unless the branch/prompt flow produced genuine Refs references, in which case an ad hoc `## Related` section carries them without being treated as required. The §2.4.2.2 gate requires those four sections and passes; it does not fail because `## Related`, `## Tradeoffs` or `## Risk` is absent. The report names the source as the plugin default (briefing).",
+      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control config file exists in this repo. Assemble and create the PR.",
+      "expected_output": "With no source-control config layer setting pr_body_required_sections, the skill resolves the `briefing` default. The assembled body carries `## Why`, `## What changed`, `## Scope` and `## Verification` in that order, each with real content, and no `## Related` section (the default excludes it, see docs/contracts/pr-body-convention/README.md) unless the branch/prompt flow produced genuine Refs references, in which case an ad hoc `## Related` section carries them without being treated as required. The §2.4.2.2 gate requires those four sections and passes; it does not fail because `## Related`, `## Tradeoffs` or `## Risk` is absent. The report names the source as the plugin default (briefing).",
       "files": [],
       "expectations": [
-        "No source-control.md layer sets pr_body_required_sections, so the `briefing` preset governs and the reported source is the plugin default",
+        "No source-control config layer sets pr_body_required_sections, so the `briefing` preset governs and the reported source is the plugin default",
         "The body carries `## Why`, `## What changed`, `## Scope` and `## Verification`, in that order, with no `## Summary` or `## Test plan`",
         "The assembled body does not include a `## Related` section unless genuine Refs references exist to carry",
         "The §2.4.2.2 required-section gate passes without requiring `## Related`, `## Tradeoffs` or `## Risk`",
@@ -156,9 +156,9 @@
     {
       "id": 13,
       "name": "pr-body-required-sections-gate-blocks-missing-section",
-      "prompt": "/pull-request create from branch feat/900-add-endpoint. The team's source-control.md config is captured in evals/fixtures/source-control-required-related.md relative to the skill directory (declares pr_body_required_sections: Summary, Test plan, Related). Assemble the PR body but the drafted body is missing a `## Related` section.",
-      "expected_output": "The §2.4.2.2 pre-create gate blocks `gh pr create` because the resolved pr_body_required_sections list (team layer) includes Related and the assembled body has no `## Related` section. The failure message names `Related` as the exact missing section and cites the resolved config source (the team-layer source-control.md file and the pr_body_required_sections key) so the actor knows where to add the section or where the convention is declared. PR creation does not proceed until the section is added.",
-      "files": ["evals/fixtures/source-control-required-related.md"],
+      "prompt": "/pull-request create from branch feat/900-add-endpoint. The team's docs/conventions/source-control.yaml is captured in evals/fixtures/source-control-required-related.yaml relative to the skill directory (declares pr_body_required_sections: Summary, Test plan, Related). Assemble the PR body but the drafted body is missing a `## Related` section.",
+      "expected_output": "The §2.4.2.2 pre-create gate blocks `gh pr create` because the resolved pr_body_required_sections list (team layer) includes Related and the assembled body has no `## Related` section. The failure message names `Related` as the exact missing section and cites the resolved config source (the team-layer docs/conventions/source-control.yaml and the pr_body_required_sections key) so the actor knows where to add the section or where the convention is declared. PR creation does not proceed until the section is added.",
+      "files": ["evals/fixtures/source-control-required-related.yaml"],
       "expectations": [
         "The gate blocks PR creation rather than proceeding with a body missing a required section",
         "The failure message names Related as the exact missing section, not a generic 'PR body invalid' message",
@@ -169,7 +169,7 @@
     {
       "id": 14,
       "name": "pr-body-required-sections-gate-not-fooled-by-attribution-footer",
-      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config exists (the briefing default: Why, What changed, Scope and Verification required; pr_body_attribution unset, so the default attribution line applies). The drafted body has real content under `## Why`, `## What changed` and `## Scope` but leaves `## Verification` (the last required section) empty.",
+      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control config exists (the briefing default: Why, What changed, Scope and Verification required; pr_body_attribution unset, so the default attribution line applies). The drafted body has real content under `## Why`, `## What changed` and `## Scope` but leaves `## Verification` (the last required section) empty.",
       "expected_output": "The §2.4.2.2 gate still blocks PR creation for the empty `## Verification` section even though the default attribution line follows it in the final PR body. The gate evaluates the required-section scan against the body BEFORE the attribution line is appended (§2.4.1/§2.4.3), so an empty last section is never masked by non-whitespace footer text that has no `## ` heading of its own. If the gate ran against the attribution-inclusive body instead, the empty Verification section would incorrectly read as non-empty and the gate would wrongly pass.",
       "files": [],
       "expectations": [
@@ -232,9 +232,9 @@
     {
       "id": 19,
       "name": "pr-body-required-sections-none-resolves-empty",
-      "prompt": "/pull-request create from branch feat/512-add-widget. The team's source-control.md config is captured in evals/fixtures/source-control-required-none.md relative to the skill directory (declares pr_body_required_sections: none). No other layer sets the key. Assemble and create the PR.",
+      "prompt": "/pull-request create from branch feat/512-add-widget. The team's docs/conventions/source-control.yaml is captured in evals/fixtures/source-control-required-none.yaml relative to the skill directory (declares pr_body_required_sections: none). No other layer sets the key. Assemble and create the PR.",
       "expected_output": "The skill resolves pr_body_required_sections to the literal keyword `none` from the team layer: zero required sections. The assembled body carries the `${CLOSES_LINE}` closing-keyword line and the attribution line but NO section scaffold (no `## Why`, `## Verification`, `## Summary` or `## Test plan`) — `none` is a resolved value, not an absence, so the `briefing` default does not apply. The §2.4.2.2 required-section gate passes with nothing to verify; the §2.4.2.1 closing-keyword check is independent and still runs and must still pass.",
-      "files": ["evals/fixtures/source-control-required-none.md"],
+      "files": ["evals/fixtures/source-control-required-none.yaml"],
       "expectations": [
         "pr_body_required_sections resolving to the literal keyword `none` yields zero required sections — the assembled body carries no section scaffold",
         "`none` is treated as a resolved value, not as an unset key — the `briefing` default is NOT applied",
@@ -356,10 +356,10 @@
     {
       "id": 28,
       "name": "pr-body-required-sections-summary-test-plan-keyword",
-      "prompt": "/pull-request create from branch feat/733-retry-uploads. The team's source-control.md config is captured in evals/fixtures/source-control-required-summary-test-plan.md relative to the skill directory. No other layer sets pr_body_required_sections. Assemble and create the PR.",
+      "prompt": "/pull-request create from branch feat/733-retry-uploads. The team's docs/conventions/source-control.yaml is captured in evals/fixtures/source-control-required-summary-test-plan.yaml relative to the skill directory. No other layer sets pr_body_required_sections. Assemble and create the PR.",
       "expected_output": "The team layer's keyword summary-test-plan resolves to two required sections, Summary and Test plan. The assembled body carries `## Summary` and `## Test plan` with real content and none of the briefing headings (Why, What changed, Scope, Tradeoffs, Risk, Verification). The §2.4.2.2 gate requires exactly those two sections, and the source it reports is the team-layer file with the summary-test-plan keyword.",
       "files": [
-        "evals/fixtures/source-control-required-summary-test-plan.md"
+        "evals/fixtures/source-control-required-summary-test-plan.yaml"
       ],
       "expectations": [
         "summary-test-plan is read as a keyword, not as a one-heading list named 'summary-test-plan'",
@@ -371,7 +371,7 @@
     {
       "id": 29,
       "name": "pr-body-briefing-optional-sections-only-with-content",
-      "prompt": "/pull-request create from branch fix/481-clock-skew. No source-control.md layer sets pr_body_required_sections. The change swaps a hand-rolled time parser for the standard library's; no other approach was considered. It changes how three scheduled jobs read timestamps from the jobs table. Assemble and create the PR.",
+      "prompt": "/pull-request create from branch fix/481-clock-skew. No source-control config layer sets pr_body_required_sections. The change swaps a hand-rolled time parser for the standard library's; no other approach was considered. It changes how three scheduled jobs read timestamps from the jobs table. Assemble and create the PR.",
       "expected_output": "The briefing default applies. The body carries `## Why`, `## What changed`, `## Scope`, `## Risk` and `## Verification`, in that order. `## Risk` is present because the change reaches the three scheduled jobs and the timestamps they read, and says whether that reach is safe. `## Tradeoffs` is left out entirely, not filled with N/A or None, because no alternative was weighed. The §2.4.2.2 gate requires Why, What changed, Scope and Verification and passes; it neither requires nor blocks on Tradeoffs or Risk.",
       "files": [],
       "expectations": [

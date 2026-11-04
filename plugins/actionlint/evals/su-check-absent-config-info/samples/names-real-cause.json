@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The real gap: verify reports the git pre-commit entry as missing in this repository, so nothing lints at commit. Run /actionlint:setup apply install-git-hooks."
+    },
+    {
+      "answer": "actionlint_end_of_turn is off by default, so only the pre-commit entry lints, and that entry is not installed here.",
+      "why": "end-of-turn default plus the entry"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, add .github/actionlint.yaml and lint will start.",
+      "why": "accepts the config as the cause"
+    },
+    {
+      "answer": "The config is optional, so that's not it.",
+      "why": "near miss: names no real cause"
+    }
+  ]
+}

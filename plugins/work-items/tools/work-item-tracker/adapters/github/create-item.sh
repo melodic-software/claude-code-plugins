@@ -88,6 +88,38 @@ fi
 label_list=()
 [[ -z "$labels" ]] || IFS=',' read -ra label_list <<<"$labels"
 
+# Sibling dedupe (CONTRACT.md "Verbs"): a child of the parent in the target repo with the
+# same trimmed title, open or closed within 24 hours, is returned instead of a new issue.
+# One GraphQL read, since the subIssues projection list-sub-items reads has no closedAt.
+# A proxy refusal drops to the REST branch, which refuses --parent.
+if ((native)) && [[ -n "$parent" ]]; then
+  wit_require_github_id "$parent" || wit_usage_error "malformed or non-github --parent id: $parent"
+  # shellcheck disable=SC2016  # GraphQL query: $o/$r/$n are GraphQL variables
+  wit_run_gh_native read api graphql \
+    -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){subIssues(first:100){nodes{number title state closedAt repository{nameWithOwner}}}}}}' \
+    -f o="$WIT_ID_OWNER" -f r="$WIT_ID_REPO" -F n="$WIT_ID_NUMBER"
+  if (($? == 10)); then
+    native=0
+  else
+    sibling="$(jq -r --arg title "$title" --arg repo "$target_repo" '
+      def trimmed: gsub("^[[:space:]]+|[[:space:]]+$"; "");
+      ($title | trimmed) as $t
+      | [(.data.repository.issue.subIssues.nodes // [])[]
+          | select(((.repository.nameWithOwner // "") | ascii_downcase) == ($repo | ascii_downcase))
+          | select(((.title // "") | trimmed) == $t)
+          | select(.state == "OPEN" or (.closedAt != null
+              and ((.closedAt | sub("\\.[0-9]+"; "") | fromdateiso8601) > now - 86400)))]
+      | (map(select(.state == "OPEN")) + map(select(.state != "OPEN")))[0] // empty
+      | "\(.number) \(.state | ascii_downcase)"' <<<"$WIT_GH_OUT")" || exit "$EX_INTERNAL"
+    if [[ -n "$sibling" ]]; then
+      printf 'create-item: %s already has %s child github:%s#%s titled "%s"; created nothing\n' \
+        "$parent" "${sibling#* }" "$target_repo" "${sibling%% *}" "$title" >&2
+      wit_emit_item "${target_repo%%/*}" "${target_repo##*/}" "${sibling%% *}"
+      exit 0
+    fi
+  fi
+fi
+
 if ((native)); then
   args=(issue create -R "$target_repo" --title "$title" --body "$body")
   [[ -z "$type" ]] || args+=(--type "$type")

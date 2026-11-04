@@ -3,6 +3,35 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.1] - 2026-11-04
+
+### Changed
+
+- The shared `hook-utils.sh` reads Bash commands from `shfmt --to-json` (`hook::bash_parse_segments`
+  keeps its callback and `HOOK_SEG_*` contract), and the hand-written segmenter is removed. It
+  refuses the call when shfmt or jq is missing, fails, runs past 5 seconds, or rejects the text
+  (an unclosed here-doc, for one, which bash runs with a warning), and the refusal names which of
+  those happened, quoting shfmt's syntax error. It uses a shfmt in `~/.local/bin` when PATH has
+  none. The 5-second bound is the `read -t` builtin, so a parse forks the same processes on every
+  run and needs no `sleep` or `timeout` command.
+
+## [4.1.0] - 2026-11-04
+
+### Changed
+
+- **Escalation routes to the owning lane unless the stop rule applies.** The guardrail escalation
+  contract (`reference/guardrails.md#escalation`) adds a "Stops for a person" column and a stop
+  rule: `gate-failure`, `verification-divergence` and `demotion` go to the lane that owns the
+  follow-up, an `admission-rejection` stays final on the audit trail, and each stops for a person
+  only for an intent or vision change, a finding that alters intent or the primary design, or a
+  HIGH or CRITICAL security or cost risk. `structural-plan-approval` stops only when the plan
+  changes intent or the primary design, and `untrusted-provenance` still always stops. The
+  matrix's escalation cells, the unanimity rule (here and in `guardrails/verification-topology.md`)
+  and the runner's `gate-failed` outcome (`runner/escalation.md`) no longer send a dissent or
+  failed gate to the human gate by default. An item on a lane's route that no lane claims within
+  the staleness window re-escalates once to intake, one severity level up, so a stopped lane
+  cannot hold it unseen. The binding schema is unchanged (#11024).
+
 ## [4.0.3] - 2026-11-03
 
 ### Fixed

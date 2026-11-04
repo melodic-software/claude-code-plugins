@@ -66,7 +66,7 @@
       "id": 6,
       "name": "pr-comment-gate-opt-in",
       "prompt": "Fan out a full review on this branch — it has an open PR.",
-      "expected_output": "The skill withholds every surface that would post to the PR — the `code-review` plugin (which always ends by commenting on the PR), `/code-review --comment`, and the managed Code Review GitHub App service — unless the user explicitly opts in, naming each skip in the surfaces list instead.",
+      "expected_output": "The skill withholds every surface that would post to the PR — the `code-review` plugin in its `--comment` form (the only form that comments on the PR, and the only form fanout dispatches), `/code-review --comment`, and the managed Code Review GitHub App service — unless the user explicitly opts in, naming each skip in the surfaces list instead.",
       "files": [],
       "expectations": [
         "Output does NOT dispatch `/code-review:code-review`, invoke `/code-review --comment`, or trigger the managed Code Review service without explicit user opt-in",
@@ -126,12 +126,12 @@
     {
       "id": 11,
       "name": "unscored-surface-severity-derived-not-invented",
-      "prompt": "[Scenario: a dispatched surface returns confidence-filtered issues with no native severity label.] Fan out a review where one dispatched surface returns confidence-filtered issues with no native severity.",
-      "expected_output": "The severity crosswalk derives a tier from finding content for surfaces with no native severity; a high confidence score is never treated as a severity tier.",
+      "prompt": "[Scenario: the `code-review` plugin surface returns its validated issues as a flat list with no native severity label.] Fan out a review where the `code-review` plugin surface returns validated issues with no native severity.",
+      "expected_output": "The severity crosswalk derives a tier from finding content for surfaces with no native severity; passing a confidence filter is never treated as a severity tier.",
       "files": [],
       "expectations": [
         "Findings from a surface with no native severity get a tier DERIVED from content (bug/correctness vs. convention-adherence), not copied from its confidence score",
-        "A high (>=80) confidence-filtered score maps to the confidence enum 'high', NOT to a high severity tier",
+        "A `code-review` plugin validated issue maps to the confidence enum 'high', NOT to a high severity tier",
         "Ambiguous derived-severity findings are tagged pending: human-tier rather than silently assigned a guessed tier"
       ]
     },

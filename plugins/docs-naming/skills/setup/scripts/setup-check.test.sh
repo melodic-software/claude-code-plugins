@@ -123,13 +123,13 @@ for bad in '"../x"' '{"path":"../x"}' '{"path":"/abs"}' '{"path":".","exempt_pat
   assert_contains "a root the emitter cannot carry is refused ($bad)" "$out" "must stay inside the repository"
 done
 # A newline or a non-string extension cannot be written in the YAML subset, which
-# reads every scalar as text, so those shapes arrive only from a pre-YAML JSON layer.
+# reads every scalar as text, so those shapes arrive only from the user-global JSON layer.
 root="$(new_repo)"
-rm "$root/$TEAM_REL"
-mkdir -p "$root/.claude"
-printf '{"schema":1,"file_names":{"roots":["docs",{"path":".","extensions":[5]}]}}\n' >"$root/.claude/docs-naming.json"
+user_layer="${root%/repo}/home/.claude/docs-naming.json"
+mkdir -p "${user_layer%/*}"
+printf '{"schema":1,"file_names":{"roots":["docs",{"path":".","extensions":[5]}]}}\n' >"$user_layer"
 assert_contains "a non-string root extension is refused" "$(check "$root")" "FAIL  key shape"
-printf '{"schema":1,"file_names":{"roots":["docs",{"path":"a\\nb"}]}}\n' >"$root/.claude/docs-naming.json"
+printf '{"schema":1,"file_names":{"roots":["docs",{"path":"a\\nb"}]}}\n' >"$user_layer"
 assert_contains "a root path with a newline is refused" "$(check "$root")" "must stay inside the repository"
 
 # 6. An unknown tier form fails.
@@ -185,32 +185,49 @@ root="$(new_repo)"
 set_key "$root" rule '"SCREAMING_SNAKE"'
 assert_contains "an unimplemented rule is refused" "$(check "$root")" "FAIL  rule"
 
-# 13b. A team layer still at the retired docs-hygiene name is read and named.
-root="$(new_repo)"
-rm "$root/$TEAM_REL"
-mkdir -p "$root/.claude"
-printf '{"schema": 1, "file_names": {"rule": "lower-kebab"}}\n' >"$root/.claude/docs-hygiene.json"
-out="$(check "$root")"
-assert_contains "a retired-name team layer is named" "$out" "WARN  layer team"
-assert_contains "the retired-name row says which file" "$out" "$root/.claude/docs-hygiene.json is the retired docs-hygiene name"
-assert_contains "the resolve row still passes" "$out" "PASS  resolve"
-assert_contains "the retired-name row points at the YAML" "$out" "move its settings to the docs-naming YAML"
-assert_contains "the tracked row points at apply, which seeds the YAML" "$out" "run setup apply to seed the docs-naming YAML from it"
-
-# 13c. A team layer still in the pre-YAML JSON file is read and named as such; the
-#      YAML wins over it once both exist.
+# 13b. An old team JSON file is no longer read: with the YAML absent, the row
+#      names the file and says apply copies its keys into the YAML.
 root="$(new_repo)"
 rm "$root/$TEAM_REL"
 mkdir -p "$root/.claude"
 printf '{"schema": 1, "file_names": {"rule": "lower-kebab"}}\n' >"$root/.claude/docs-naming.json"
+printf '{"schema": 1, "file_names": {"rule": "lower-kebab"}}\n' >"$root/.claude/docs-hygiene.json"
 out="$(check "$root")"
-assert_eq "a pre-YAML team layer still passes" "0" "$(status "$root")"
-assert_contains "the pre-YAML location is warned about" "$out" "WARN  layer team"
-assert_contains "the row says it is the pre-YAML location" "$out" "$root/.claude/docs-naming.json is the pre-YAML location"
-bash "$APPLY" --defaults --root "$root" >/dev/null
+assert_eq "an old team file does not fail the run" "0" "$(status "$root")"
+assert_contains "the team layer is reported absent" "$out" "INFO  layer team"
+assert_contains "the old team file is a WARN row" "$out" "WARN  old team file"
+assert_contains "the old team file is named, and apply seeds from it" "$out" "$root/.claude/docs-naming.json is no longer read; /docs-naming:setup apply copies its keys into $root/$TEAM_REL, then delete it"
+assert_contains "apply seeds from one file only, so the other is a manual copy" "$out" "$root/.claude/docs-hygiene.json is no longer read; copy any key still wanted into $root/$TEAM_REL by hand, then delete it"
+
+# 13c. With the YAML present, an old team file is a manual copy.
+root="$(new_repo)"
+mkdir -p "$root/.claude"
+printf '{"schema": 1, "file_names": {"rule": "lower-kebab"}}\n' >"$root/.claude/docs-hygiene.json"
 out="$(check "$root")"
-assert_contains "once the YAML exists it is the team layer" "$out" "PASS  layer team"
-assert_contains "and the team layer is the YAML" "$out" "$root/$TEAM_REL"
+assert_contains "the YAML stays the team layer" "$out" "PASS  layer team"
+assert_contains "the retired-name team file is a manual copy" "$out" "$root/.claude/docs-hygiene.json is no longer read; copy any key still wanted into $root/$TEAM_REL by hand, then delete it"
+
+# 13d. An old overlay file, at either name, is named with its manual step.
+root="$(new_repo)"
+mkdir -p "$root/.claude"
+printf '{"schema": 1, "file_names": {}}\n' >"$root/.claude/docs-naming.local.json"
+printf '{"schema": 1, "file_names": {}}\n' >"$root/.claude/docs-hygiene.local.json"
+out="$(check "$root")"
+assert_contains "the old overlay file is a WARN row" "$out" "WARN  old overlay file"
+assert_contains "the old overlay is named" "$out" "$root/.claude/docs-naming.local.json is no longer read; move its keys to $root/docs/conventions/docs-naming.local.yaml by hand, then delete it"
+assert_contains "the retired-name overlay is named" "$out" "$root/.claude/docs-hygiene.local.json is no longer read; move its keys to"
+
+# 13e. No old file, no row.
+root="$(new_repo)"
+assert_eq "no old file: no old-file row" "0" "$(check "$root" | grep -c 'old .* file')"
+
+# 13f. The user-global file at the retired docs-hygiene name is still read and named.
+root="$(new_repo)"
+mkdir -p "${root%/repo}/home/.claude"
+printf '{"schema": 1, "file_names": {"rule": "lower-kebab"}}\n' >"${root%/repo}/home/.claude/docs-hygiene.json"
+out="$(check "$root")"
+assert_contains "the retired user-global name warns" "$out" "WARN  layer user-global"
+assert_contains "and says to rename it" "$out" "is the retired docs-hygiene name; rename it to docs-naming.json in the same directory"
 
 # 14. Usage.
 assert_eq "--help exits 0" "0" "$(

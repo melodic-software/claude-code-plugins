@@ -22,12 +22,23 @@ script written in the session.
 2. **Offer the view in one sentence.** Build only when the reader accepts and the environment can serve a
    file. A CI or other non-interactive run emits no view: the record stands.
 3. **Resolve `medium`.** The path depends on whether the lane's skill has migrated to the shared medium
-   resolver, not on whether the resolver registers the lane. Only `planning` has migrated today;
-   architecture, discovery and debugging are registered but read the cascade themselves until their own
-   change migrates them.
+   resolver, not on whether the resolver registers the lane. `planning` and `debugging` have migrated;
+   architecture and discovery are registered but read the cascade themselves until their own change
+   migrates them.
    - **Resolver lanes** (`planning`). The lane's build command runs the resolver, the publish gate and
      delivery in one call: follow its section in place of steps 3 and 5, and step 4's rule for a missing
      `node` or a non-zero exit still applies. Do not read the rendered-views convention files yourself.
+   - **Resolver lanes** (`debugging`). Run the resolver. `--option` takes this plugin's `medium` option as the
+     calling skill states it; add `--argument` only when the reader named a medium in the request:
+
+     ```bash
+     node "<plugin-root>/lib/view-settings.mjs" resolve --lane <lane> --option "<medium option>" [--argument terminal|file|artifact]
+     ```
+
+     It prints one JSON line, then the report line naming the medium and what decided it, then any notice;
+     print those lines as they stand. The JSON's `medium` is the one to use: `terminal`, `file` or `artifact`.
+     Do not read the rendered-views convention files yourself. When `node` is missing, the builder cannot run
+     either: deliver the record.
    - **Other lanes.** Read the `rendered-views` cascade surface: `~/.claude/rendered-views.md`, then
      `<repo root>/.claude/rendered-views.md`, then `<repo root>/.claude/rendered-views.local.md`, whichever
      exist. The last layer that states `medium:` wins (`auto`, `terminal`, `file`, `artifact`). A team layer
@@ -258,7 +269,8 @@ copyable prompt-fix line).
 
 `/debugging:debug` records its Phase 6 post-mortem in the commit message, the PR description or the project's
 notes. Genre: a post-mortem that a later session or a teammate re-reads. Write the post-mortem first;
-everything in it passes the skill's secret redaction before it reaches the data.
+everything in it passes the skill's secret redaction before it reaches the data. Resolver lane:
+`--lane debugging:debug`.
 
 Build: pipe one JSON object (shape below) to the builder:
 

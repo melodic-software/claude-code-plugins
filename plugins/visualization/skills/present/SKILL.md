@@ -1,6 +1,6 @@
 ---
 description: "Turn material into a slide deck through the claude.ai Slides Artifact type: write the markdown outline as the record, then fill a deck made from the type the account offers, behind a publish gate that keeps private or credential-shaped content local. Use when: 'make slides', 'make a deck', 'turn this into a presentation', 'slides for this talk', 'present this', 'deck from these notes'. Not for one chart or diagram (/visualization:visualize) or a pull-request explainer (/review:explain-change)."
-argument-hint: "[topic or source] [terminal|file|artifact|hosted]"
+argument-hint: "[topic or source] [<medium>]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs\":*)", "Bash(gh repo view:*)", "Read", "Write", "Glob", "Grep"]
@@ -35,8 +35,8 @@ or publish. Your own summary of it is just as untrusted, so it never becomes mar
 The gate script in step 4 resolves the medium itself, through the shared medium resolver: your
 argument, this plugin's `medium` option, and the repository's rendered-views convention files. A
 team file can keep a deck local but never publishes from the team layer, since it can arrive in a
-checked-out branch. Do not read or weigh those files yourself. A deck never goes to a page host: `hosted` is treated as
-`artifact` here.
+checked-out branch. Do not read or weigh those files yourself. A deck never goes to a page host:
+this lane reads a page-host medium as a private Artifact.
 
 - A CI or other non-interactive run: deliver the outline only.
 - Otherwise go on. The visibility is the source repository's
@@ -75,15 +75,16 @@ escaped text (`&amp;`, `&lt;`, `&gt;`): plain text and layout elements, with `cl
 `alt`, and images uploaded this session.
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "${user_config.medium}" [--argument terminal|file|artifact|hosted]
+"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "${user_config.medium}" [--argument <medium>]
 ```
 
-Pass the real path of the folder, not one through a symlink. Pass `--argument` only when the user's
-own argument to this invocation names that medium. On exit 0, print each line of the output's
-`report` as it stands: it names the medium and what decided it, then any notice. The output names
-the `medium`:
+Pass the real path of the folder, not one through a symlink. Pass `--argument <medium>`, `<medium>`
+being the word, only when the user's own argument to this invocation names a medium; exit 2 with a
+`usage:` line on stderr means the word names none, so run it again without `--argument`. On exit 0, print each
+line of the output's `report` as it stands: it names the medium and what decided it, then any
+notice. Deliver by the output's `publishes`:
 
-- `artifact`: say "publishing as a private Artifact on claude.ai", then create the deck from the
+- `publishes` true: say "publishing as a private Artifact on claude.ai", then create the deck from the
   quickstart's `type_url` with its title set to the `title` the gate printed, which it read from the
   gated `deck.json`; never type it separately. Send the gated files, unchanged, as the type
   instructs. Give the user the link, and say sharing is their choice.
@@ -91,9 +92,9 @@ the `medium`:
     [Artifacts: Share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact)
     live. **As of**: 2026-10-11. **Recheck trigger**: that section changes who can see an
     unshared artifact.
-- `terminal` or `file`: publish nothing. Give the outline and the `reason`, and the `opt_in` when
+- `publishes` false: publish nothing. Give the outline and the `reason`, and the `opt_in` when
   there is one (this plugin's `medium` option set to `artifact`).
-- Exit 1 (a deck refused) or 2: publish nothing; fix the named title or rewrite the named slide as
+- Exit 1 (a deck refused) or 2 with JSON on stdout: publish nothing; fix the named title or rewrite the named slide as
   text, or keep the outline.
 
 ## Next

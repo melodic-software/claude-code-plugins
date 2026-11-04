@@ -3,6 +3,15 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.30] - 2026-11-04
+
+### Changed
+
+- The README no longer spells out the plugin cache path layout or how Node runs TypeScript. It
+  keeps the step to locate the cached `launch.ts` again after an update and the choice of no
+  build step and no committed build output, and points at the plugin loading reference and
+  Node's type stripping section.
+
 ## [0.6.29] - 2026-11-03
 
 ### Changed

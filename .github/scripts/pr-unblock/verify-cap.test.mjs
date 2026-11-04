@@ -223,13 +223,12 @@ test("a refusal other than the caller limit keeps the waits for later reads", as
   assert.equal(calls[1].env[NO_WAITS], undefined);
 });
 
-// Both dispatchers' FAIL-cap reads take the listing pr-merge carried
-// (listing-carry.mjs) as the first read's base, and share one saved listing
-// across every pull request of the job, as pr-merge.yml's gate does; without
-// them each read lists every artifact of the repository. The carry costs
-// listing-carry.mjs's calls (5 or 6 a run, its api-calls notices on
-// 2026-10-30), so it is fetched on the job's first FAIL-cap read, not by a
-// step every run pays for.
+// Both dispatchers' FAIL-cap reads take the run cache and head-ref map
+// pr-merge carried, fetched on the job's first FAIL-cap read, not by a step
+// every run pays for, and share one saved listing across every pull request
+// of the job. They fetch no carried listing: the reader reads the FAIL index
+// by exact name, so no gate saves one, and looking for it cost 11 calls a job
+// (listing-carry's api-calls notice, dispatch job 126277059871 on 2026-11-03).
 const READER = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
 const readerEnv = (name) => {
   const match = new RegExp(`^${name} = "([A-Z_]+)"$`, "m").exec(READER);
@@ -259,10 +258,10 @@ for (const [workflow, dispatchName] of [
   ["pr-feedback-dispatch.yml", "Dispatch address-feedback"],
   ["pr-unblock-dispatch.yml", "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"],
 ]) {
-  test(`${workflow}: the carried listing is fetched on the first FAIL-cap read only, and every read shares one saved listing`, async () => {
+  test(`${workflow}: the carry is fetched on the first FAIL-cap read only, names no carried listing, and every read shares one saved listing`, async () => {
     const steps = dispatchSteps(workflow);
     assert.deepEqual(
-      steps.filter((s) => s.block.includes("run: node .base/.github/scripts/pr-merge/listing-carry.mjs")).map((s) => s.name),
+      steps.filter((s) => s.block.includes(".base/.github/scripts/pr-merge/")).map((s) => s.name),
       [],
       "no step fetches the carry before the dispatch knows it reads a FAIL cap",
     );
@@ -274,6 +273,7 @@ for (const [workflow, dispatchName] of [
     const env = stepEnv(dispatch.block);
     assert.ok(env.VERIFY_EVIDENCE_SCRIPT, "the dispatch builds its FAIL-cap reader");
     assert.equal(env.GITHUB_TOKEN, "${{ github.token }}", "the carry is fetched with the job's token");
+    assert.equal(env[CARRY], undefined, "no gate saves a listing to carry");
     const order = [];
     const read = verifyCapReader(env, {
       spawn: (command, args, options) => {
@@ -290,9 +290,7 @@ for (const [workflow, dispatchName] of [
       order.map(([kind]) => kind),
       ["carry", "read", "read"],
     );
-    assert.equal(order[0][1][CARRY], "/runner/temp/verify-listing-carry.json");
     for (const [, spawned] of order.slice(1)) {
-      assert.equal(spawned[CARRY], "/runner/temp/verify-listing-carry.json", "the reader takes the file listing-carry.mjs wrote");
       assert.equal(spawned[LISTING], "/runner/temp/verify-listing.json", "one saved listing for the job's pull requests");
     }
   });
@@ -311,7 +309,7 @@ for (const [workflow, dispatchName] of [
     }
     assert.deepEqual(
       carrySteps({ ...env, RUNNER_TEMP: "/runner/temp" }).map(({ script, args }) => [script, ...args]),
-      [["listing-carry.mjs"], ["carry-run-cache.mjs", "read"], ["carry-run-cache.mjs"], ["head-ref-map.mjs", "read"]],
+      [["carry-run-cache.mjs", "read"], ["carry-run-cache.mjs"], ["head-ref-map.mjs", "read"]],
     );
   });
 }
@@ -324,9 +322,9 @@ test("the carry starts the reader's run cache from pr-merge's file, shares its G
   const key = `${REPO}|${"a".repeat(40)}...main`;
   const env = { RUNNER_TEMP: dir, BABYSIT_RUN_CACHE: cache, BABYSIT_VERIFY_HEAD_REFS: join(dir, "head-refs-in.json") };
   const steps = carrySteps(env);
-  const reads = steps.filter((step) => step.args[0] === "read" || step.script === "listing-carry.mjs");
+  const reads = steps.filter((step) => step.args[0] === "read");
   assert.equal(new Set(reads.map((step) => step.env.PR_MERGE_READS_PATH)).size, 1);
-  assert.deepEqual(reads.map((step) => step.env.API_BUDGET_SCRIPT), ["listing-carry", "carry-run-cache", "head-ref-map"]);
+  assert.deepEqual(reads.map((step) => step.env.API_BUDGET_SCRIPT), ["carry-run-cache", "head-ref-map"]);
 
   const start = steps.find((step) => step.script === "carry-run-cache.mjs" && step.args.length === 0);
   writeFileSync(start.env.CARRY_FROM, JSON.stringify({ "carried-on-branch": { [key]: { at: new Date().toISOString(), value: true } } }));
@@ -337,8 +335,22 @@ test("the carry starts the reader's run cache from pr-merge's file, shares its G
   assert.equal(readFileSync(output, "utf8"), "");
 });
 
-test("a job that names only the listing fetches only the listing", () => {
-  assert.deepEqual(carrySteps({ RUNNER_TEMP: "/t" }).map((step) => step.script), ["listing-carry.mjs"]);
+test("the carry never fetches pr-merge's artifact listing, and a job that names only the head-ref map fetches only the map", () => {
+  assert.deepEqual(carrySteps({ RUNNER_TEMP: "/t", BABYSIT_VERIFY_LISTING_CARRY: "/t/verify-listing-carry.json" }), []);
+  assert.deepEqual(
+    carrySteps({ RUNNER_TEMP: "/t", BABYSIT_VERIFY_HEAD_REFS: "/t/head-refs-in.json" }).map(({ script, args }) => [script, ...args]),
+    [["head-ref-map.mjs", "read"]],
+  );
+});
+
+test("a job that names only the listing carry fetches no carry", async () => {
+  let fetched = 0;
+  const read = verifyCapReader(
+    { GITHUB_REPOSITORY: REPO, BABYSIT_VERIFY_LISTING_CARRY: "/runner/temp/verify-listing-carry.json" },
+    { spawn: () => answer({ refusal: null }), carry: () => (fetched += 1), log: () => {} },
+  );
+  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(fetched, 0);
 });
 
 test("a carry that fails is fetched once, warns, and the reads go on without it", async () => {
@@ -346,7 +358,7 @@ test("a carry that fails is fetched once, warns, and the reads go on without it"
   const lines = [];
   const reads = [];
   const read = verifyCapReader(
-    { GITHUB_REPOSITORY: REPO, BABYSIT_VERIFY_LISTING_CARRY: "/runner/temp/verify-listing-carry.json" },
+    { GITHUB_REPOSITORY: REPO, BABYSIT_RUN_CACHE: "/runner/temp/babysit-run-cache.json" },
     {
       spawn: (command, args) => {
         reads.push(args.at(-2));
@@ -367,20 +379,20 @@ test("a carry that fails is fetched once, warns, and the reads go on without it"
   assert.match(lines[0], /^::warning::pr-merge's carried reads were not all fetched \(HTTP 502\)/);
 });
 
-// The default carry runs listing-carry.mjs as a bounded child, as the step
-// did: here it removes a stale file at the path and stops at the repository
+// The default carry runs carry-run-cache.mjs as a bounded child, as the step
+// did: here it removes a stale file at its path and stops at the repository
 // name, with no request.
-test("the default carry runs listing-carry.mjs with the job's environment, then the read goes on", async () => {
+test("the default carry runs carry-run-cache.mjs with the job's environment, then the read goes on", async () => {
   const dir = tempDir("verify-cap-");
-  const path = join(dir, "verify-listing-carry.json");
+  const path = join(dir, "pr-merge-carried.json");
   writeFileSync(path, "stale");
   const reads = [];
   const read = verifyCapReader(
-    { PATH: process.env.PATH, GITHUB_REPOSITORY: "not a repository", RUNNER_TEMP: dir, BABYSIT_VERIFY_LISTING_CARRY: path },
+    { PATH: process.env.PATH, GITHUB_REPOSITORY: "not a repository", RUNNER_TEMP: dir, BABYSIT_RUN_CACHE: join(dir, "babysit-run-cache.json") },
     { spawn: (command, args) => (reads.push(args.at(-2)), answer({ refusal: null })), log: () => {} },
   );
   assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
-  assert.equal(existsSync(path), false, "listing-carry.mjs removed the stale file before reading");
+  assert.equal(existsSync(path), false, "carry-run-cache.mjs removed the stale file before reading");
   assert.deepEqual(reads, ["42"]);
 });
 

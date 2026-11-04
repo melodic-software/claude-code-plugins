@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Turn actionlint_enabled back on and the missing actionlint goes back to FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The missing actionlint is INFO while the plugin is disabled.",
+      "why": "near miss: says nothing about re-enabling"
+    }
+  ]
+}
