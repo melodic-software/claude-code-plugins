@@ -92,8 +92,10 @@ on the Windows host above, `origin/main`'s runner with `--root` at a checkout
 of `fd862a49b848`; a cell with an exit code is a suite that failed there. It
 holds the 18 suites the 60-minute run reached; a blank cell was not reached.
 
-Re-measured rows: `audit-engine.test.sh` is 1336 s after #13229 (2714 s just before it, same host
-and day), from `run-plugin-tests.sh --timings` at `--jobs 1` on a native `C:` clone.
+Re-measured rows, from `run-plugin-tests.sh --timings` at `--jobs 1` on a native `C:` clone:
+`audit-engine.test.sh` is 1336 s after #13229, against the 1660 s above (a 2714 s run just before
+it overlapped other load on the host and is not a baseline). `audit-fleet.test.sh` is 269 s and
+266 s after #13232, alternated with 544 s and 403 s before it, passing both times.
 
 | Suite | Linux CI (s) | Windows Git Bash (s) |
 | --- | --- | --- |
@@ -551,7 +553,7 @@ and day), from `run-plugin-tests.sh --timings` at `--jobs 1` on a native `C:` cl
 | `plugins/repo-fleet-hygiene/scripts/allowed-tools-pairing.test.sh` | 0 | |
 | `plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh` | 0 | |
 | `plugins/repo-fleet-hygiene/skills/apply/scripts/apply-plan.test.sh` | 6 | |
-| `plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh` | 34 | 511 (exit 1) |
+| `plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh` | 34 | 268 |
 | `plugins/repo-fleet-hygiene/skills/setup/scripts/setup-config.test.sh` | 0 | |
 | `plugins/repo-fleet-hygiene/skills/sync/scripts/sync-fleet.test.sh` | 3 | |
 | `plugins/repo-hygiene/scripts/allowed-tools-pairing.test.sh` | 0 | |
