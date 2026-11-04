@@ -126,7 +126,7 @@ class on the catalog's axes, then apply the rules below.
 
 ### Risk-raising axes
 
-- **Structural blast radius**: a direct change to a structural or configuration surface
+- **Structural blast radius**: a direct change to a structural or configuration file
   derives `C4`. The axis fires on the change's target, not on the file the change lives in: a
   one-line fix that merely sits in a file declaring an interface is the over-read this excludes,
   and a purely mechanical single-implementation inline does not demote a row whose target is the
@@ -229,7 +229,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | dead-code-sweep | hybrid: DET detect (no agent session); AGT quarantine-exit judgment is the routine | DC (review-gated PR) | repo | C3 (liveness not mechanically checkable: reflection, dynamic dispatch, and out-of-tree callers all defeat the build); per-item escalation to C4 on a published surface | join: proven recurring manual pattern |
 | clone-trend-gate | DET | R (digest/gate) | repo | n/a, no agent session | not-a-routine |
 | cant-fail-test-repair | hybrid: DET detect (built: the `testing:audit` script detector; no agent session); AGT repair judgment is the routine | DC (PR) | repo | C3 (an assertion's adequacy is not mechanically checkable: a test that now fails may be right or wrong) | join: proven recurring manual pattern |
-| stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | C4 (a flag definition is a configuration surface; composes above the C3 the direct-change rule alone would give); disposition human-gated | join: proven recurring manual pattern |
+| stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | C4 (a flag definition is a configuration file; composes above the C3 the direct-change rule alone would give); disposition human-gated | join: proven recurring manual pattern |
 | formal-logic-modeling | AGT | R | repo | C1 | join: a stated invariant or specification artifact exists to model against |
 | layering-enforcement | AGT/HUM | R | repo | C1; disposition human-gated | join: layering rules stated as text, and a recurring manual pattern the incumbent reviewer does not already cover |
 | logic-simplification-sweep | AGT | DC (PR) | repo | C3 (equivalence above expression level is not mechanically checkable) | join (external): published effectiveness evidence exists |
@@ -241,7 +241,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | release-notes-generation | hybrid: DET cut mechanics (no agent session); AGT narrative is the routine | DC (draft) | repo | C3 (narrative truth not mechanically checkable) | join: proven recurring manual pattern |
 | eng-metrics-digest | AGT | R | repo | C1 | v1 |
 | knowledge-base-gardening | AGT/HUM | R + WI | repo | C1; disposition human-gated | join: proven recurring manual pattern |
-| ci-health-review | AGT | R + WI + DC (optional) | repo | C1 (report/WI); optional direct CI-config change C4 (structural/config surface) | v1 |
+| ci-health-review | AGT | R + WI + DC (optional) | repo | C1 (report/WI); optional direct CI-config change C4 (structural/config file) | v1 |
 | rotating-quality-improver | AGT | DC (targeted PRs) | repo | C3 | join: proven recurring manual pattern |
 | cross-artifact-sync | AGT | DC (mirrored PR) | repo (multi) | C3 | join: proven recurring manual pattern |
 | control-skill-upkeep | AGT | R + DC (one PR confined to the control skill directory) | repo | C1 (report); gated map-PR portion C3 | join: proven recurring manual pattern |

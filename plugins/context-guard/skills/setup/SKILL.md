@@ -240,7 +240,7 @@ or drop the bare segment, first. Readers then read `unknown` and take their cons
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor `settings.json` (user or project), the operator's status line command, or any
-  other Claude Code settings surface; `apply cache-line` prints the statusLine edit for the operator
+  other Claude Code settings file; `apply cache-line` prints the statusLine edit for the operator
   to paste.
 - Install `jq`, `node` or any system package.
 - Write to the snapshot directory `~/.claude/context-guard/context/`; the module owns those files.

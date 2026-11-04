@@ -28,7 +28,7 @@
     {
       "id": 6,
       "prompt": "I added a suppression to .claude/mutation-testing-arid.local.md. Confirm it's working.",
-      "expected_output": "Reports it as `personal-only, not applied` (INFO, not FAIL -- the entry is legal, it just does not suppress) and names promotion to the team layer as the remedy. Explains that this surface inverts the cascade default: it is a policy floor, so a personal-layer entry for a finding_id the team layer does not carry does not suppress, because absence from the team layer IS the team's unsuppressed state. Does not treat it as layering like the config file.",
+      "expected_output": "Reports it as `personal-only, not applied` (INFO, not FAIL -- the entry is legal, it just does not suppress) and names promotion to the team layer as the remedy. Explains that this suppression record inverts the cascade default: it is a policy floor, so a personal-layer entry for a finding_id the team layer does not carry does not suppress, because absence from the team layer IS the team's unsuppressed state. Does not treat it as layering like the config file.",
       "files": []
     },
     {

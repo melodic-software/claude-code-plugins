@@ -758,7 +758,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
 # #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
 # #11858 review: the page-surface Delivery bullet names single pacing's first-question add-round and one add per later question, and the round index leaves out held questions; each changes how a frontier is shown, resolves no row, and the late-commitment next-free-id rule is untouched
-# Rendered-views medium rung (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
+# Rendered-views medium choice (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
@@ -780,17 +780,19 @@ pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shap
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# The vocabulary sweep only renamed the absent convention source to "no convention file present", which it is (authoring-formats/README.md, AGENTS.md); the coverage prompt still runs with none present and exempts only itself, and no plant, gate or ladder rule changed
 pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts itself and nothing else)" \
   "$COVERAGE" \
-  "ce7cb30bef3740dfe2d5135ca715dc9e5368f6f5d40ea8f6a40f451b1af52524"
+  "602d44c1312dd079efa38ed518136aeb62079293d8685b78aff10e2db083aeb0"
 # The EARS tags and the acceptance_criteria_format ladder moved here from SKILL.md and loop.md
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
 # The resolving section names the ladder step-2 resolver command with --root (#11597) and has it run before any root-file or README read; a non-zero exit stays the ladder step-6 free-text degrade, and the EARS tags and bullet shapes are byte-identical
+# The vocabulary sweep only renamed the absent convention source to "no convention file at all", which it is (authoring-formats/README.md, AGENTS.md); free-text output stays untagged and byte-comparable, and the EARS tags and ladder are unchanged
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
-  "9b0ef001c95777aaec490eb8b4b5d5a28b7662ae0da00107db7c01f4b5ce481d"
+  "2707011ce51e3057290cff39b3d5509e20778e49f78393709290ecd3971f7b8c"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -831,7 +833,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Adds case 41 product-first-reply-is-one-question-with-strong-answer and case 42 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; neither licenses a silent capture or fudged gap, so cases 15 and 16 still hold
 # Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 # Restate after any out-of-band return (#8466 review): the full restate also fires when a return releases a held question with no row moved, and when the message also processes a same-turn reply; case 44 adds the release-only path; each widens when the restate is required, resolves no row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Rendered-views medium rung (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
+# Rendered-views medium choice (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
   "24a39bcd8d8fd649c213d5aa9519b58f6da070ef3575b6f672db9eaf14a849ff"
 

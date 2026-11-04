@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: stateless-env-zero-beats-setting
+description: "SKILL.md Precedence: a set CLAUDE_CODE_DISABLE_AUTO_MEMORY is authoritative, and 0 reports auto memory on even against autoMemoryEnabled false. The seed sets the env var to 0 in project settings, autoMemoryEnabled false in the higher-precedence local settings. Source: case 5 of the skill's legacy evals.json, rewritten for this format and made concrete. Hard because the operator says it is off, the setting says it is off from the higher scope, and the override sits in a lower one."
+tags: [stateless, harness-memory, hard]
+expected_outcome: "The reply reports auto memory on, names the env var at 0 as deciding it over autoMemoryEnabled false and calls out the disagreement; no settings file is changed."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:harness-memory:)?stateless"'
+    arm: with-only
+  - name: reports-on
+    type: regex
+    pattern: '(?:effective(?:ly)?|auto[- ]?memory)(?:(?!\boff\b|\bdisabled\b)[^\n.]){0,60}?(?<!not )(?<!n''t )(?<!based )(?<!depends )(?<!relies )\b(?:on|enabled|active|in effect)\b(?! (?:the|this|whether|which|what|your|my)\b)'
+    flags: i
+    target: last_message
+    arm: both
+  - name: names-override
+    type: regex
+    pattern: '^(?=[\s\S]*CLAUDE_CODE_DISABLE_AUTO_MEMORY)(?=[\s\S]*autoMemoryEnabled)(?=[\s\S]*(?:disagree|conflict|contradict|mismatch|overrid|outrank|authoritative|takes precedence|\bwins\b|\bbeats\b|no effect|not in effect))'
+    flags: i
+    target: last_message
+    arm: both
+  - name: no-settings-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path"\s*:\s*"[^"]*settings(?:\.local)?\.json"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-settings-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path"\s*:\s*"[^"]*settings(?:\.local)?\.json"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-change
+    type: tool_used
+    tool: Bash
+    input_match: '\bsed\s+-i[^;&|]*(?:settings|assistant-memory)|\b(?:rm|mv|truncate)\b[^;&|]*(?:settings|assistant-memory|MEMORY\.md)|>\s*(?:\\")?[\w./-]*(?:settings(?:\.local)?\.json|assistant-memory)'
+    min: 0
+    max: 0
+    arm: both
