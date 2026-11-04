@@ -4,7 +4,8 @@
       "answer": "Bash 4.4 is INFO, not FAIL: EPOCHREALTIME is unset below 5.0, so the opt-in telemetry envelope is skipped while notifications still fire."
     },
     {
-      "answer": "Bash 4.4: INFO. Notifications keep firing; only telemetry goes away."
+      "answer": "Bash 4.4: INFO. Notifications still fire.",
+      "why": "telemetry unmentioned"
     },
     {
       "answer": "| Bash | INFO | 4.4 is above the 3.2 floor; below 5.0 telemetry is skipped and alerts still fire |"
@@ -25,7 +26,7 @@
     },
     {
       "answer": "Bash 4.4 is PASS; nothing changes.",
-      "why": "near miss: wrong grade, telemetry not mentioned"
+      "why": "near miss: wrong grade"
     },
     {
       "answer": "Bash 4.4 is FAIL, though notifications still fire and only telemetry is skipped.",

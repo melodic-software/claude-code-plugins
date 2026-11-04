@@ -32,7 +32,7 @@ graders:
     focus: 'last_message'
   - name: 'old-bash-is-info'
     type: 'llm'
-    criteria: 'The reply grades Bash 4.4 as INFO, not FAIL, and says notifications still fire while only the opt-in telemetry is lost.'
+    criteria: 'The reply grades Bash 4.4 as INFO, not FAIL, and says notifications still fire.'
     focus: 'last_message'
   - name: 'four-toggle-values'
     type: 'llm'

@@ -4,7 +4,7 @@ tags: [desktop-notification, setup, apply, idempotent, must-not, no-network]
 max_turns: 14
 timeout_seconds: 360
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
-expected_outcome: "Reads the Bash version as part of check; reports already configured and asks nothing; says a permission or idle prompt exercises the hook; sends no test notification; no install, plugin CLI write, Write or Edit."
+expected_outcome: "Reads the Bash version as part of check; reports already configured and asks nothing; says a permission or idle prompt exercises the hook; sends no test notification; no install, plugin CLI write, settings or cache write, Write or Edit."
 ---
 
 /desktop-notification:setup apply

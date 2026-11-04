@@ -40,6 +40,13 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'no-settings-shell-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\"command\":\"(?:(?!<<)(?:''[^'']*''|[^\"\\'']|\\.))*?(?:>{1,2}\s*|\btee\s+(?:-a\s+)?|\bsed\s+-i\S*\s+(?:''[^'']*''|(?!\\n)[^\"\\;&|'']|\\[^n\"])*?|\b(?:mv|cp)\s+(?:-\S+\s+)*(?:[^\s;&|<>\\]|\\.)+\s+)(?:\\\"|'')?(?:[^\s\"\\;&|<>'']*/)?(?:\.claude/plugins/|(?:settings(?:\.local)?|\.claude)\.json(?![\w.-]))'
+    min: 0
+    max: 0
+    arm: 'both'
   - name: 'no-write'
     type: 'tool_used'
     tool: 'Write'

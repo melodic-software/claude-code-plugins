@@ -9,4 +9,4 @@ expected_outcome: "FAIL with os_toast on and INFO with it off; absent is a silen
 
 /desktop-notification:setup apply
 
-Run it on this machine first. Then a teammate's Ubuntu box has no notify-send. How does check grade that with the OS toast channel on, and with it off? What stops working if they leave it missing? What is the command to get it, and who runs it?
+Run it on this machine first. Then a teammate's Ubuntu box has no notify-send. How does check grade that with the OS toast channel on, and with it off? What stops working if they leave it missing, and what keeps working? What is the command to get it, and who runs it?
