@@ -150,11 +150,13 @@ roles, never aliases. When `/multi-agent:route` resolves in this session, run
 `/multi-agent:route all session=<this session's model alias>` once per run. Pass the role's `fanout`
 variant model when the stage dispatches more than one agent and its `single` variant when it
 dispatches one (a one-lens run, a one-candidate wave); omit the model when `omit_model` is true.
-Hunters pass no `effort`, so they run at the session level. Gates are non-fork spawns of a generic
+Hunters pass no `effort`, so they run at the session level on the main conversation's model; on
+another model that level does not apply. Gates are non-fork spawns of a generic
 subagent with no pin of their own, so each gate passes its variant's `effort`. A gate never runs on a
 weaker model than the hunters it checks: when its resolved model (the session's, if omitted) is
 weaker, pass the hunters' model instead. A gate never runs below the session effort either: when its
-resolved effort is lower, pass no `effort`.
+resolved effort is lower, pass no `effort` on the main conversation's model, and the session's level
+on another model.
 
 | Stage | Role |
 |---|---|
@@ -168,11 +170,15 @@ report that enabling the multi-agent plugin makes this routing configurable. The
 this skill's stand-in for the fan-out guard `/multi-agent:route` applies: it keeps a wide fan-out
 off the frontier tier; which model the alias then runs on is the harness's call (model pointer
 below). With no role map, gates pass no `effort` either. Pointer: for the per-spawn
-`effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
-As of: 2026-10-10. Recheck trigger: that section changes precedence or which spawns honor `effort`.
+`effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>;
+for which model the session's level reaches, see
+<https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates>.
+As of: 2026-11-04. Recheck trigger: either section changes precedence, which spawns honor `effort`,
+or which model the session's level reaches.
 
-Name the model and effort each stage was dispatched with in the run metadata: the level passed, or
-`session` when none was. A dispatch the harness rejects means the role map names an alias this
+Name the model and effort each stage was dispatched with in the run metadata: the level passed, or,
+when none was, `session` for a stage on the main conversation's model and `unset` for one on another
+model. A dispatch the harness rejects means the role map names an alias this
 session cannot use: report it rather than substitute one. The metadata names the model asked for,
 not proof of the model that ran. Pointer: for how a spawn's `model` alias resolves and what happens to a blocked
 one, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of: 2026-10-31. Recheck

@@ -100,16 +100,18 @@ Role effort reaches workflow `agent()` calls, which pass `opts.effort`
 explicitly, and Agent tool dispatches with no named type, which pass it as the
 per-spawn `effort` parameter (route's Output section). A named agent runs at
 its `effort` frontmatter unless its dispatcher passes `effort` on the call or
-a source ranked above both applies, or at the session's level when it sets
-none. route reads no settings file, so the
+a source ranked above both applies. When it sets none, it runs at the session's
+level on the main conversation's model; on another model that level does not
+apply. route reads no settings file, so the
 effort it prints is the level a caller asks for, before any cap. A loop lane's
 level is its own `lanes[].effort`, not the `orchestrator` role.
 
-- Pointer: [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
-  and [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
-- As of: 2026-10-31
-- Recheck: either section changes which source wins for a subagent's effort,
-  or what an unset `effort` field inherits.
+- Pointer: [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+  and [model config: effort level of subagents and teammates](https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates)
+- As of: 2026-11-04
+- Recheck: any of those sections changes which source wins for a subagent's
+  effort, or what an unset `effort` field inherits on either model.
 
 ## Hard cap
 

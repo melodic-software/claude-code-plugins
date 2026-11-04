@@ -160,15 +160,18 @@ lead session; the docs do not state whether a fork of the lead can drive one; se
 when either changes who can lead a team) and dynamic workflows (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
 placeholder, resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: we treat it as the effort a spawn runs at when the spawn
-passes no `effort` and the agent's definition pins none, so its gap from what a subtask needs IS
+passes no `effort`, the agent's definition pins none, and the spawn runs on the main conversation's
+model; on another model that level does not apply. Its gap from what a subtask needs IS
 the over-provisioning imperative 7 exists to stop. Close that gap by passing the level on a
 non-fork spawn of an unpinned agent, and omit it on a pinned named agent. Never read ultracode from this value. Pointer: for
 the subagent `effort` field, see <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>;
 for the per-spawn `effort` and its precedence, see
-<https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>; for how ultracode relates to
-effort, see <https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-10-10.
+<https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>; for which model the session's
+level reaches, see <https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates>;
+for how ultracode relates to
+effort, see <https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-11-04.
 Recheck trigger: any of those sections moves or changes how a subagent's effort or ultracode is
-set, or which spawns honor `effort`. Where a
+set, which spawns honor `effort`, or which model the session's level reaches. Where a
 `SendMessage` tool resolves in this session, run imperative 4's worker reuse and mid-flight
 intervention through it, addressed by the worker's agent ID. Never re-invoke the dispatch tool to
 continue a worker: that starts a second, independent worker. Read a refused message as a worker
