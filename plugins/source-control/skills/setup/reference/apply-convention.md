@@ -477,17 +477,16 @@ this skill's part:
   already resolves the commit-msg hooks dir via `git rev-parse --git-path hooks`; when a second
   consumer of the convention is present, a commit-msg hook, a CI title check, or a user-stated one,
   **recommend the neutral SSOT as the default**, because the tool-agnostic file is what that second
-  consumer reads without reimplementing this plugin's markdown-H2 grammar. Fall back to markdown-only
-  only when this plugin is demonstrably the sole consumer. A repo where nothing else reads the
-  convention loses nothing by staying markdown-only; say so rather than forcing the split.
-- **Default the path to the well-known location.** The neutral file's well-known default path is
+  consumer reads without reimplementing the convention grammar. Skip it only when this plugin is
+  demonstrably the sole consumer: `docs/conventions/source-control.yaml` already serves this
+  plugin, so say so rather than forcing a second file.
+- **Write it at the well-known path only.** The neutral file lives at
   `docs/conventions/source-control/commit-convention.yml` (the marketplace's own dogfooded
-  `docs/conventions/<concern>/` layout). Writing it **there** means the resolver finds it with **no
-  `## convention_source` pointer at all** (the resolver probes the well-known path at rung 2), so the
-  common case leaves nothing in agent-rewritable markdown to sever. Only when the repo insists on a
-  different location do you declare `## convention_source` with that repo-relative path (forward
-  slashes, no `..`) in `.claude/source-control.md`, which only the guardrails resolver still reads
-  (for one release), the rung-1 relocation override. Write the YAML
+  `docs/conventions/<concern>/` layout), where the resolver finds it with no pointer (rung 2).
+  Setup offers no other location: the `## convention_source` relocation pointer lives in the
+  retired `.claude/source-control.md`, so writing one would recreate that file. A repository that
+  insists on another path keeps its own pointer by hand until the guardrails resolver drops that
+  read. Write the YAML
   with machine keys (`subject_pattern`, `pr_title_pattern`, optionally `pr_body_required_sections`,
   `dialect: posix-ere`) plus a **1–2 line** `#` header (what the file is, who reads it), not a
   multi-line preamble; the flat YAML is self-describing and the human document proper lives in
