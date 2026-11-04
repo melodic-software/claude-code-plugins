@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No biome.json on its own: a minimal one is written only if you explicitly ask, since the plugin imposes no rules of its own."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It writes a default biome.json.",
+      "why": "writes uninvited"
+    },
+    {
+      "answer": "It leaves the config alone.",
+      "why": "near miss: no explicit-ask route, no reason"
+    }
+  ]
+}

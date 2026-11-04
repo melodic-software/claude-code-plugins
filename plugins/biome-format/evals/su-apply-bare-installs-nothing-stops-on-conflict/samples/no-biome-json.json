@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        ".biome.json",
+        "src/app.ts"
+      ],
+      "why": "another path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "biome.json"
+      ]
+    },
+    {
+      "answer": [
+        "src/biome.json"
+      ]
+    }
+  ]
+}

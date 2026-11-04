@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "On node-modules, pnpm or Yarn Classic it installs with `yarn add -D @biomejs/biome`, and states that change before running it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It only ever gives guidance for Yarn.",
+      "why": "never installs"
+    },
+    {
+      "answer": "On node-modules, pnpm or Yarn Classic it installs.",
+      "why": "near miss: says nothing about stating the change first"
+    }
+  ]
+}

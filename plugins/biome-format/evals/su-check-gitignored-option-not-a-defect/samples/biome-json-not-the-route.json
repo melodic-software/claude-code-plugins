@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No change to biome.json helps: the skip comes from the plugin option, not your Biome config."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add `.work` to files.includes in biome.json.",
+      "why": "tells the user to edit biome.json"
+    },
+    {
+      "answer": "The option decides this.",
+      "why": "near miss: does not answer about biome.json"
+    }
+  ]
+}

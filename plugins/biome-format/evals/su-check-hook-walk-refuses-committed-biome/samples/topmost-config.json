@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The root biome.json governs it: the hook walks up to the repo root and keeps the topmost config, so packages/vendored/biome.jsonc does not decide."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "packages/vendored/biome.jsonc governs it, since the closest config wins.",
+      "why": "closest, not topmost"
+    },
+    {
+      "answer": "The hook uses biome.json.",
+      "why": "near miss: does not say why the nested config loses"
+    }
+  ]
+}

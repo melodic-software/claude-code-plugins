@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "On pnp it skips the install: Plug'n'Play generates a loader file, not the node_modules/.bin shim the hook resolves. Install Biome on PATH or switch the linker."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "On pnp it runs `yarn add -D @biomejs/biome`.",
+      "why": "installs on pnp"
+    },
+    {
+      "answer": "On pnp it skips the install.",
+      "why": "near miss: no reason, no guidance"
+    }
+  ]
+}
