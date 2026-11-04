@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "\"padding\": 2"
+    },
+    {
+      "answer": "padding 2 is kept"
+    },
+    {
+      "answer": "padding: 2"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"padding\": 0",
+      "why": "changed"
+    },
+    {
+      "answer": "\"padding\": 20",
+      "why": "near miss: 20"
+    },
+    {
+      "answer": "no padding key",
+      "why": "dropped"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Your 40/70 bands and token bands were left as they are."
+    },
+    {
+      "answer": "Nothing changed: smart up to 40%, acceptable up to 70%."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bands reset to 50/75.",
+      "why": "reset"
+    },
+    {
+      "answer": "Your bands were repaired.",
+      "why": "near miss: says they changed"
+    },
+    {
+      "answer": "Your token bands stay.",
+      "why": "near miss: the percentage bands not mentioned"
+    }
+  ]
+}

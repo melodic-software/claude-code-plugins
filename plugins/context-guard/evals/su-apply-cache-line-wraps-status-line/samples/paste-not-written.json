@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Paste this statusLine into ~/.claude/settings.json:"
+    },
+    {
+      "answer": "Here is the object to paste; I left your settings untouched."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I updated your settings.json with this statusLine.",
+      "why": "wrote it"
+    },
+    {
+      "answer": "Paste this, or say the word and I will write it into settings.json for you.",
+      "why": "near miss: offers to write"
+    },
+    {
+      "answer": "Your statusLine now runs the segment.",
+      "why": "near miss: implies it was written"
+    }
+  ]
+}

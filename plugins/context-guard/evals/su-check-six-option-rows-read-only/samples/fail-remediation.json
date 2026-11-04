@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "| jq | FAIL | absent | install jq (https://jqlang.org/download/) |\n| node | PASS | /usr/bin/node | |"
+    },
+    {
+      "answer": "| jq | PASS | /usr/bin/jq |\n| node | PASS | /usr/bin/node |",
+      "why": "no FAIL row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| jq | FAIL | absent |\n| node | PASS | /usr/bin/node |",
+      "why": "FAIL with no fix"
+    },
+    {
+      "answer": "| jq | FAIL | absent | install jq |\n| Claude Code | FAIL | 2.1.200 |",
+      "why": "near miss: the second FAIL has no fix"
+    }
+  ]
+}

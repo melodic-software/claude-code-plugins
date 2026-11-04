@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "INFO: a fresh snapshot with a null used_percentage is expected."
+    },
+    {
+      "answer": "| Snapshot | INFO | fresh, used_percentage null |"
+    },
+    {
+      "answer": "Here: | Snapshot | FAIL | absent although the mod runs; check node |\nYour teammate's fresh snapshot with a null used_percentage is INFO.",
+      "why": "this host's own FAIL row beside the hypothetical's INFO"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: used_percentage is null.",
+      "why": "graded FAIL"
+    },
+    {
+      "answer": "It would be a PASS since the file is fresh.",
+      "why": "near miss: PASS, the null ignored"
+    },
+    {
+      "answer": "Check reports it as stale.",
+      "why": "near miss: wrong state"
+    }
+  ]
+}

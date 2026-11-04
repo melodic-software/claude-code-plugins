@@ -118,7 +118,7 @@ default zone bands, zones.json shape) are owned by
 
    | Option | Value | What it does |
    |---|---|---|
-   | `context_guard_hooks_enabled` | `${user_config.context_guard_hooks_enabled}` | `false` → **INERT**: the module sends no lines, and the PostCompact marker hook exits at once. Snapshot writes, the band row and the status tool continue. |
+   | `context_guard_hooks_enabled` | `${user_config.context_guard_hooks_enabled}` | `false` → **INERT**: the module sends no lines and shows no toast or crossing notice, and the PostCompact marker hook exits at once. Snapshot writes, the band row and the status tool continue. |
    | `model_notices` | `${user_config.model_notices}` | `false` (the default) → no lines to Claude and no operator-mode suggestions; the toast, band and writes continue. `true` sends the zone lines. |
    | `zone_report_mode` | `${user_config.zone_report_mode}` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row. |
    | `zone_line_data` | `${user_config.zone_line_data}` | The figures a line carries beside its zone (`percent`, `tokens`, `window`); `zone` alone means none. |

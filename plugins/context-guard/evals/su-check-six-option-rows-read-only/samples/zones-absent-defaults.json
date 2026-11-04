@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "| zones.json | INFO | absent: shipped defaults in effect; valid zero-config |"
+    },
+    {
+      "answer": "| zones.json | INFO | absent: shipped defaults 50/75 and the window-class token bands apply; valid zero-config |"
+    },
+    {
+      "answer": "zones.json is absent, so the shipped 50/75 bands and token bands are in effect. Not a defect."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| zones.json | FAIL | absent; run apply |",
+      "why": "near miss: absent graded a defect"
+    },
+    {
+      "answer": "| zones.json | INFO | absent |",
+      "why": "near miss: no bands in effect"
+    },
+    {
+      "answer": "| zones.json | INFO | absent: bands 40/70 in effect |",
+      "why": "near miss: wrong bands"
+    }
+  ]
+}

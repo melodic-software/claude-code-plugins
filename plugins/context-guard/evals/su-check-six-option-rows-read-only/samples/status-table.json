@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| jq | PASS | /usr/bin/jq |"
+    },
+    {
+      "answer": "| zones.json | INFO | absent: shipped defaults |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jq: PASS (/usr/bin/jq)",
+      "why": "no table"
+    },
+    {
+      "answer": "| jq | present | /usr/bin/jq |",
+      "why": "near miss: a table with no verdict word"
+    }
+  ]
+}
