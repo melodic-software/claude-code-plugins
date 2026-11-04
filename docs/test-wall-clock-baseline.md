@@ -65,7 +65,7 @@ checkout of `52a529d9cf` (#11995, a `skill-quality` skill change with its
 changelog fragment) timed with `--base 52a529d9cf~1`. The Linux column is the
 median of three runs on a WSL2 Linux host on 2026-11-02, not the CI runner;
 every gate exited 0. The Windows column is the median of three runs of the
-same commit and base on the Windows host below, on 2026-11-04; every gate
+same commit and base on the Windows host above, on 2026-11-04; every gate
 exited 0 and none took over 60 s. The first run's `check-purged-em-dashes.sh`
 took 31.174 s against 17.069 and 17.376 s after it, a cold file cache.
 
