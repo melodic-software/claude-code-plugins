@@ -228,9 +228,10 @@ jobs:
   # fix-docs output, since fix-docs's run job runs head code and can forge
   # handed-off, lane-class or credential-present. A listing that lags past the
   # read budget ends as a notice and a failed read as a red job. Both leave the
-  # outputs empty, which starts no fallback, and fix-docs-dispatch.mjs dispatches
-  # no PR again once a run for it completed, red or green. A failed fix-docs
-  # still reds its own jobs and the run.
+  # handoff facts empty, which starts no fallback, and fix-docs-dispatch.mjs
+  # dispatches no PR again once a run for it completed, red or green, unless that
+  # run is its only one and was lost (cancelled, timed_out or startup_failure). A
+  # failed fix-docs still reds its own jobs and the run.
   fix-docs-handoff:
     needs: [fix-docs-head, fix-docs]
     if: ${{ !cancelled() && needs.fix-docs.result != 'skipped' }}
