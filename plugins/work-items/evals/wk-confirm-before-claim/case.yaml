@@ -27,7 +27,7 @@ graders:
   - name: no-claim-before-yes
     type: tool_used
     tool: Bash
-    input_match: '(?<![\w-])claim[ \t]+(?:\\?["''])?local-markdown:|local-markdown/claim\.sh|(?:\bsed\b[^|;&\n]*[ \t]-i|>>?|\btee\b|\bcp\b|\bmv\b|(?:^|[;&|][ \t]*)install[ \t]|\bdd\b|\bpython3?\b|\bnode\b|\bperl\b)[^|;&\n]*(?:\.work-items/|docs/setup\.md)'
+    input_match: '(?<![\w`-])claim[ \t]+(?:\\?["''])?local-markdown:|local-markdown/claim\.sh|(?:\bsed\b[^|;&\n]*[ \t]-i|>>?|\btee\b|\bcp\b|\bmv\b|(?:^|[;&|][ \t]*)install[ \t]|\bdd\b|\bpython3?\b|\bnode\b|\bperl\b)(?:[^|;&"\\]|\\[^n])*(?:\.work-items/|docs/setup\.md)'
     min: 0
     max: 0
     arm: both
