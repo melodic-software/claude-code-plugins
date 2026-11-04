@@ -4906,7 +4906,15 @@ test("main fails a fault past the cap that left a branch of this run's own, and 
   const earlier = [earlierRetry(body, 1), earlierRetry(body, 2)];
   const own = await spentStop(earlier, { "lane.json": JSON.stringify({ branch: "work-resolve-issue/issue-77-123-1" }) });
   assert.equal(parseOutcomeMarker(own.comment).outcome, "failed");
-  const resumed = await spentStop(earlier, { "lane.json": JSON.stringify({ resume: "work-resolve-issue/issue-77-1-1" }) });
+  // patch-apply-failed names the resumed branch on the stop, so this reaches the run-id check.
+  const resumed = await spentStop(
+    earlier,
+    {
+      "lane.json": JSON.stringify({ resume: "work-resolve-issue/issue-77-1-1" }),
+      "work-outcome.json": JSON.stringify({ exit: "done", title: "t", summary: "s" }),
+    },
+    () => ({ ESCALATION_REASON: "patch-apply-failed" }),
+  );
   assert.deepEqual(resumed.writes, []);
 });
 
