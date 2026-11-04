@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
 expected_outcome: worktree-create.sh runs with the requested name, and the reply names the created path or the helper's refusal
 ---
 
-Create a worktree named feat/payment-retry so I have an isolated checkout for this feature.
+Create a worktree named feat/payment-retry so I have an isolated checkout for this feature. I am stepping away, so nobody can answer questions in this session.
