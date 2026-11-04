@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: audit-complexity-reports-the-change-with-provenance-and-no-verdict
-description: on a scaffolded repository with a default branch and an uncommitted change (a Python function with several branches, in the lane lizard and radon serve), the complexity report measures the change
+description: on a scaffolded repository with a default branch and an uncommitted change (a Python function with several branches, in the lane lizard and radon serve), the complexity report covers the change. The scaffold adds no collector, so a measure is taken only on a host where its collector is on PATH; on any other host, the eval sandbox included, it reads unavailable with its reason, and the measured numbers go unchecked there
 tags: [audit, complexity, change-scope]
-expected_outcome: 'Runs the bundled audit-complexity.sh against the change (merge-base diff plus uncommitted files), presents the markdown report with its Coverage of this run table, the cyclomatic reference of 20 cited to ISO/IEC 5055:2021 section 8.2.117, and no reference for cognitive complexity or Halstead difficulty, and renders no pass/fail verdict.'
+expected_outcome: 'Runs the bundled audit-complexity.sh against the change (merge-base diff plus uncommitted files), presents the markdown report with its Coverage of this run table naming the collector or the reason a measure is unavailable, the cyclomatic reference of 20 cited to ISO/IEC 5055:2021 section 8.2.117, and no reference for cognitive complexity or Halstead difficulty, and renders no pass/fail verdict.'
 context:
   scaffold_script: scaffold.sh
 execution:
