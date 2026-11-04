@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A `.sh` file written outside `CLAUDE_PROJECT_DIR` is skipped silently: no lint, no format, no notice."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A file outside the project is not covered.",
+      "why": "near miss: says nothing about the absence of a notice"
+    },
+    {
+      "answer": "A file outside the project is skipped, and the hook prints a notice saying so.",
+      "why": "wrong"
+    }
+  ]
+}

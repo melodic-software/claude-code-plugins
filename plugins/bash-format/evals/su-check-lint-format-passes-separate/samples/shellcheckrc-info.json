@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A missing `.shellcheckrc` is INFO: ShellCheck applies its own defaults."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A missing `.shellcheckrc` is not a problem.",
+      "why": "near miss: no grade, no reason"
+    },
+    {
+      "answer": "A missing `.shellcheckrc` is a FAIL: nothing gets linted without it.",
+      "why": "wrong grade"
+    }
+  ]
+}

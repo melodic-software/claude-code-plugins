@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "`{\"bash_format_enabled\": \"false\"}`"
+    },
+    {
+      "answer": "{\"bash_format_enabled\":\"false\"}",
+      "why": "no space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"bash_format_enabled\": false}",
+      "why": "unquoted boolean; every value is a string"
+    },
+    {
+      "answer": "bash_format_enabled=false",
+      "why": "the --config form, not the JSON"
+    },
+    {
+      "answer": "{\"bash_format_enabled\": \"true\"}",
+      "why": "wrong value"
+    }
+  ]
+}

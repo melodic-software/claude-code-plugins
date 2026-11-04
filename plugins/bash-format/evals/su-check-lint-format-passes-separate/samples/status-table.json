@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| node | PASS | /usr/bin/node |\n| jq | PASS | /usr/bin/jq |\n| shellcheck (lint pass) | PASS | /usr/bin/shellcheck |\n| shfmt (format pass) | PASS | opted in |\n| .editorconfig shell opt-in | INFO | [*.sh] governs |\n| .shellcheckrc | INFO | found |\n| bash_format_enabled | INFO | default true |\n| Hook registration | INFO | see /plugin |\n| Project scope | INFO | inside CLAUDE_PROJECT_DIR only |",
+      "why": "every row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bash, node, jq, the config files and the options all pass.",
+      "why": "prose, no table"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Bash | PASS |\n| node | PASS |\n| jq | PASS |\n| .editorconfig | INFO |\n| bash_format_enabled | INFO |\n| Hook registration | INFO |\n| Project scope | INFO |",
+      "why": "near miss: no .shellcheckrc row"
+    }
+  ]
+}
