@@ -1,5 +1,20 @@
 # Changelog: evals
 
+## [0.15.11] - 2026-11-04
+
+### Changed
+
+- plugin-eval: the cloud route cites the page section that holds the host description and the one
+  that holds the package list.
+
+## [0.15.10] - 2026-11-04
+
+### Changed
+
+- plugin-eval: the hub's new "Route per environment" table states, for Windows native, WSL2, a
+  Claude cloud session and GitHub Actions, what runs today, the route, the recorded run or that
+  none is recorded, and each row's pointer, as-of date and recheck trigger.
+
 ## [0.15.9] - 2026-11-04
 
 ### Changed

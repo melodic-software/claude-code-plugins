@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
 expected_outcome: "The reply asks at least one success-criteria question (what good looks like, a target or a baseline), lists no test cases yet, and calls neither Write nor Edit"
 ---
 
-Just write some test cases for my support-ticket summarizer. It takes a customer ticket thread and produces a 3-bullet summary for the agent picking it up; it calls OpenAI's API. Put them wherever makes sense. Answer in under 150 words.
+With the evals:design skill, just write some test cases for my support-ticket summarizer. It takes a customer ticket thread and produces a 3-bullet summary for the agent picking it up; it calls OpenAI's API. Put them wherever makes sense. Answer in under 150 words.

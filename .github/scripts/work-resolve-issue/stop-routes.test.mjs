@@ -220,6 +220,54 @@ test("an ending reason that names a secret noun as a capability keeps its route"
   }
 });
 
+// A technical sense of a secret noun names no secret, so an ending reason
+// keeps its route. Each reason below held as security-risk on a real stop.
+test("an ending reason that names a token or credential only in a technical sense keeps its route", () => {
+  for (const reason of [
+    "host-only: the eval needs paid model calls on the role's subscription token",
+    "host-only: shipped the bytes-per-token re-pin; the rest needs a desktop run",
+    "host-only: This CI lane has no Azure credentials",
+    "host-only: it needs a dequeue step with a pull-requests: write token",
+    "host-only: it requires the token-spending admission and dispatch workflows",
+    "host-only: the `merge` job, whose token has no `statuses: read`, cannot read it",
+    "host-only: the token's permissions do not cover the workflow write",
+  ]) {
+    assert.equal(runCode(reason), "host-only", reason);
+    assert.equal(securityWord(reason), "", reason);
+  }
+  // A secret value, an exposure or a credential path still holds beside a technical sense.
+  for (const reason of [
+    "host-only: the subscription token was pasted into the log",
+    "host-only: a write token leaked in the fixture",
+    "host-only: the per-token pricing note sits beside an exposed API key",
+    "host-only: has no credentials, and the secret is in ~/.aws/credentials",
+    "host-only: the token is ghp_ in the commit",
+    "host-only: the OAuth token is in the public run log",
+    "host-only: the session token sits in the issue body",
+    "host-only: a write token was sent to an external URL",
+    "host-only: the token has no expiry and sits in the public issue",
+    "host-only: the subscription token is stored in plaintext",
+    "host-only: a pull-requests: write token, now in the public log",
+    "host-only: the token's permissions appear in the output with its value",
+    "host-only: the write token the lane uses is in the public run log",
+    "host-only: the subscription token; it is in the public run log",
+    "host-only: (a write token) sits in the public issue body",
+    "host-only: a write token, so anyone can read it in the public log",
+    "host-only: the model token cannot expire and sits in the issue body",
+    "host-only: the subscription token to use is in the issue body",
+    "host-only: the write token cannot read it, and it is in the public log",
+    "host-only: the public run log now holds the write token.",
+    "host-only: the issue body contains the subscription token",
+    "host-only: anyone reading the public issue can see the model token",
+    "host-only: the public log includes the read token",
+    "host-only: the output token is in the public run log",
+    "host-only: the checkout input token sits in the issue body",
+    "host-only: the step's output token appears in the public job log",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+  }
+});
+
 // A large token count is a measure, not a credential: run 41380225807 held a
 // host-only reason as security on the "tokens" in its count.
 test("an ending reason that names a large token count keeps its route", () => {

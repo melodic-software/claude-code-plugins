@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "x:read"}}],
+      "why": "the skill loaded, with or without args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "answered from the page without loading the skill"
+    }
+  ]
+}

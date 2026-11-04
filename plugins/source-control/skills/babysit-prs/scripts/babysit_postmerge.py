@@ -77,6 +77,7 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_merge_policy as policy
+import babysit_run_cache as run_cache
 import babysit_tracker_binding as tracker_binding
 from babysit_gh import (
     RUN_SEARCH_CAP,
@@ -140,6 +141,9 @@ _LANE_RECORD_NAME = re.compile(
 # file, and every attempt is read as before.
 ATTEMPTS_ENV = "BABYSIT_POSTMERGE_ATTEMPTS"
 ATTEMPTS_VERSION = 1
+# The run cache section holding compare answers between two full SHAs
+# (`_Context._compare`). A branch tip is never kept there: it moves.
+COMPARE_SECTION = "postmerge-compare"
 _ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
@@ -1791,7 +1795,7 @@ class _Context:
         if self.quarantine_issues is None:
             found: dict[str, dict[str, Any]] = {}
             for issue in _demotion_issues(
-                self.owner, self.name, (self.identity, *DEMOTION_FILERS)
+                self.owner, self.name, (self.identity, *DEMOTION_FILERS), state="open"
             ):
                 suite = _quarantined_suite(issue.get("body"))
                 if suite is None or issue.get("state") != "open":
@@ -2207,13 +2211,26 @@ class _Context:
         return self.contains_cache[key]
 
     def _compare(self, ancestor: str, sha: str) -> bool:
-        """The compare API's answer to `contains`; a failed read raises."""
+        """The compare API's answer to `contains`; a failed read raises.
+        Between two full SHAs the answer, yes or no, never changes, so the
+        run's gate processes share it (`run_cache`, `COMPARE_SECTION`). A
+        shared answer still counts in `compare_reads`, so every compare
+        budget spends exactly as it would on a read."""
         self.compare_reads += 1
+        key = None
+        if _FULL_SHA.fullmatch(ancestor) and _FULL_SHA.fullmatch(sha):
+            key = f"{self.owner}/{self.name}|{ancestor}...{sha}"
+            shared = run_cache.get(COMPARE_SECTION, key, None)
+            if isinstance(shared, bool):
+                return shared
         compare = _read(
             ["api", f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}"],
             f"compare {ancestor[:12]}...{sha[:12]}",
         )
-        return json_object(compare).get("status") in ("ahead", "identical")
+        answer = json_object(compare).get("status") in ("ahead", "identical")
+        if key is not None:
+            run_cache.put(COMPARE_SECTION, key, answer)
+        return answer
 
     def _tip_bridge(self, tip: str) -> str | None:
         """The first full-history clone's copy of the branch, read from
@@ -3556,11 +3573,14 @@ pin_reader = PinReader
 
 
 def _demotion_issues(
-    owner: str, name: str, filers: Iterable[str]
+    owner: str, name: str, filers: Iterable[str], *, state: str
 ) -> list[dict[str, Any]]:
+    """Every issue (no pull request) one of `filers` opened in `state`:
+    `open` for a reader that keeps only open issues, `all` for one that
+    reopens a closed record."""
     issues: list[dict[str, Any]] = []
     for filer in dict.fromkeys(filers):
-        endpoint = f"repos/{owner}/{name}/issues?state=all&creator={quote(filer, safe='')}&per_page=100"
+        endpoint = f"repos/{owner}/{name}/issues?state={state}&creator={quote(filer, safe='')}&per_page=100"
         issues += [
             i
             for i in _paginated(endpoint, f"issues by {filer}")
@@ -3721,7 +3741,7 @@ def file_quarantines(
     filers = (agent_identity, *DEMOTION_FILERS)
     keys = {_login_key(f) for f in filers}
     open_issues: dict[str, dict[str, Any]] = {}
-    for issue in _demotion_issues(owner, name, filers):
+    for issue in _demotion_issues(owner, name, filers, state="open"):
         suite = _quarantined_suite(issue.get("body"))
         if suite is not None and issue.get("state") == "open":
             open_issues.setdefault(suite, issue)
@@ -3853,7 +3873,9 @@ def remediate(
     created = 0
     try:
         filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
-        existing = _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS))
+        existing = _demotion_issues(
+            owner, name, (agent_identity, *DEMOTION_FILERS), state="all"
+        )
         role_label = label or _role_label(owner, name)
         # One record per marker (signal, SHA); every distinct sighting under it
         # is checked against that record, so a second red run on a closed

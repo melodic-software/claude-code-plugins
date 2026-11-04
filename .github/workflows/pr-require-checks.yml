@@ -6512,7 +6512,20 @@ jobs:
             # stop in the job's stop file (gh_read's rate guard refuses the
             # pool), holds. The reader's own babysit_gh.py guard shares that
             # stop file.
-            if ! jq -e '[.["carried-run-record"], .["carried-fail-head-ref"], .["carried-on-branch"]] | map(objects | length) | add > 0' \
+            #   In FAIL index mode (the legacy FAILs file is present) that
+            # estimate does not apply: the reader reads by exact name
+            # (babysit_verify_evidence.py `_targeted`), and what it reads grows
+            # with the FAILs found, so no fixed cost bounds it. There the floor
+            # is kept per read instead: with BABYSIT_READ_FLOOR_STOP set,
+            # babysit_gh sends no read once its pool is below its read-floor
+            # share (every call and page goes through babysit_gh `_send`),
+            # warm cache or cold, and the judgment fails closed below. No cold
+            # gate runs and the unfiltered listing it priced is not read. Past
+            # INDEX_NAMES_CAP names the reader reads the whole listing, under
+            # the same per-read stop.
+            index_mode=false
+            [ ! -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ] || index_mode=true
+            if [ "$index_mode" = false ] && ! jq -e '[.["carried-run-record"], .["carried-fail-head-ref"], .["carried-on-branch"]] | map(objects | length) | add > 0' \
               "$BABYSIT_RUN_CACHE" >/dev/null 2>&1; then
               cold="#$pr is held: no carried run cache from pr-merge's last run"
               branch=${GROUP_BASE_REF#refs/heads/}
@@ -6551,7 +6564,7 @@ jobs:
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
             fi
             rm -f "$BABYSIT_VERIFY_LISTING"
-            report=$(python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
+            report=$(BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
               echo "::error::babysit_verify_evidence.py could not judge #$pr at $head; re-run this run."
               exit 1
             }
@@ -6568,7 +6581,7 @@ jobs:
               if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
                 listed=false
                 echo "::notice::the verdict reader refused #$pr before listing artifacts; merge-holds.mjs judges its refusal with no pass."
-              elif [ -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ]; then
+              elif [ "$index_mode" = true ]; then
                 # FAIL index mode: the reader reads by exact name and saves no
                 # listing, so the head's pass names are read the same way.
                 found=""

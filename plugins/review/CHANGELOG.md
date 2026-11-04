@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.3] - 2026-11-04
+
+### Fixed
+
+- The `code-reviewer` agent now reads its bundled files (`context/severity.md`, the quality-gate code-design criteria and the other `${CLAUDE_PLUGIN_ROOT}` files it names) with the `Read` tool instead of a shell `cat` or `sed`. Shell reads of those files were denied in eval runs, which made the reviewer-diversity suites invalid.
+
 ## [7.1.2] - 2026-11-04
 
 ### Changed
