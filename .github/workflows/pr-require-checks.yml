@@ -6512,13 +6512,16 @@ jobs:
             # stop in the job's stop file (gh_read's rate guard refuses the
             # pool), holds. The reader's own babysit_gh.py guard shares that
             # stop file.
-            #   In FAIL index mode (the legacy FAILs file is present) none of
-            # that cost exists: the reader reads by exact name
-            # (babysit_verify_evidence.py `_targeted`), the same reads a warm
-            # cache makes, which run with no pre-check, so no cold gate runs
-            # and the unfiltered listing it priced is not read. Past
-            # INDEX_NAMES_CAP names the reader still reads the whole listing,
-            # and a listing that does not read fails it closed below.
+            #   In FAIL index mode (the legacy FAILs file is present) that
+            # estimate does not apply: the reader reads by exact name
+            # (babysit_verify_evidence.py `_targeted`), and what it reads grows
+            # with the FAILs found, so no fixed cost bounds it. There the floor
+            # is kept per read instead: BABYSIT_VERIFY_FLOOR_STOP stops the
+            # reader before any read once a pool it read is below its
+            # read-floor share, warm cache or cold, and the judgment fails
+            # closed below. No cold gate runs and the unfiltered listing it
+            # priced is not read. Past INDEX_NAMES_CAP names the reader reads
+            # the whole listing, under the same per-read stop.
             index_mode=false
             [ ! -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ] || index_mode=true
             if [ "$index_mode" = false ] && ! jq -e '[.["carried-run-record"], .["carried-fail-head-ref"], .["carried-on-branch"]] | map(objects | length) | add > 0' \
@@ -6560,7 +6563,7 @@ jobs:
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
             fi
             rm -f "$BABYSIT_VERIFY_LISTING"
-            report=$(python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
+            report=$(BABYSIT_VERIFY_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
               echo "::error::babysit_verify_evidence.py could not judge #$pr at $head; re-run this run."
               exit 1
             }

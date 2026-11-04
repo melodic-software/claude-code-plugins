@@ -291,6 +291,7 @@ from babysit_gh import (
     flatten_paginated_items,
     gh_api_with_headers,
     gh_http_status,
+    low_headroom,
     pull_request_commits_once,
     split_created_window,
 )
@@ -308,6 +309,11 @@ LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 # `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
+# Set to 1, the reader sends no read once a pool it has read is below its
+# `read-floor` share (babysit_gh.low_headroom): the read fails as unreadable,
+# so the judgment fails closed instead of spending the floor. ci-status sets
+# it, since no estimate bounds what a judgment reads.
+FLOOR_STOP_ENV = "BABYSIT_VERIFY_FLOOR_STOP"
 # A FAIL's index artifacts (write-verdict.mjs failIndexNames), one per tie:
 # `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>`, `issue-<i>`.
 INDEX_PREFIX = "pr-verify-index-"
@@ -1297,6 +1303,10 @@ class Reader:
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
     )
+    # Whether reads stop at the read floor (`FLOOR_STOP_ENV`).
+    floor_stop: bool = field(
+        default_factory=lambda: os.environ.get(FLOOR_STOP_ENV) == "1"
+    )
     # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
     # `merge.agent-identity`, the lanes App's login: its trusted-list id is
@@ -2026,6 +2036,12 @@ class Reader:
         for wait in (*LISTING_WAITS, None):
             left = deadline - _listing_clock()
             if left <= 0:
+                return None
+            if self.floor_stop and low_headroom():
+                print(
+                    f"::error::a GitHub API pool is below its read floor, so {path} is not read.",
+                    file=sys.stderr,
+                )
                 return None
             try:
                 proc, headers = gh_api_with_headers(
