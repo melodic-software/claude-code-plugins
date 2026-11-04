@@ -64,9 +64,8 @@ one file per clone, shared by its worktrees, never committed. No network.
 
 The two `findings_buffer_adapter_*` options bind one repository's own findings-buffer adapter, in
 user scope, where a repository cannot write. `buffer.sh` reads them from your user settings and
-managed settings only, never from the environment or a session's `--settings` file, so the
-environment-variable column and the `--settings` route in the generated block below do not apply
-to them. A plugin loaded outside the plugin cache (`--plugin-dir`) has no user settings to read,
+managed settings only, never from the environment or a session's `--settings` file, so setting them
+either way has no effect. A plugin loaded outside the plugin cache (`--plugin-dir`) has no user settings to read,
 so there only managed settings can set them.
 `findings_buffer_adapter_repository` is that
 repository's git common directory (`git rev-parse --path-format=absolute --git-common-dir` in its

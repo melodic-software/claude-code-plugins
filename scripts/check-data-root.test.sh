@@ -64,6 +64,21 @@ check "plugin-options-docs --check leaves the named tree's README alone" \
 run_in "$opts_ok" python3 "$SELF_DIR/sync-plugin-options-docs.py" --check
 check "plugin-options-docs passes a clean tree CHECK_DATA_ROOT names" '[[ $RC == 0 ]]'
 
+# The generated block points at upstream docs instead of restating them (#12700).
+opts_gen="$tmp/opts-gen"
+mkdir -p "$opts_gen/plugins/p/.claude-plugin"
+printf '# p\n' >"$opts_gen/plugins/p/README.md"
+printf '{"name":"p","userConfig":{"k":{"type":"string"},"tok":{"type":"string","sensitive":true}}}\n' \
+  >"$opts_gen/plugins/p/.claude-plugin/plugin.json"
+run_in "$opts_gen" python3 "$SELF_DIR/sync-plugin-options-docs.py"
+block="$(cat "$opts_gen/plugins/p/README.md")"
+check "plugin-options-docs block restates no upstream fact" \
+  '[[ $block != *CLAUDE_PLUGIN_OPTION_* && $block != *--config* && $block != *--values-stdin* && $block != *"settings scopes"* ]]'
+check "plugin-options-docs block carries its as-of date and recheck trigger" \
+  '[[ $block == *"As of 20"* && $block == *"Recheck trigger:"* ]]'
+check "plugin-options-docs block keeps a sensitive option off the command line" \
+  '[[ $block == *"Never put this plugin'"'"'s \`sensitive\` option(s) (\`tok\`) on a command line"* ]]'
+
 # check-changelog-parity.sh
 parity_bad="$tmp/parity-bad"
 parity_ok="$tmp/parity-ok"
