@@ -26,7 +26,7 @@ values, so put them in place before running a command.
    interpolate it.
 4. Layer order is one layer deep: an explicit invocation argument, where the skill has one, then
    the team convention doc, then the key's documented default. A convention-doc surface has no
-   personal overlay, so there is no further layer to consult.
+   personal override, so there is no further layer to consult.
 5. Default: the value the reading skill names for the key.
 6. Degrade soft, and say so. No pointer line, no convention home on disk, no
    `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value each

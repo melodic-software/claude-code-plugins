@@ -373,7 +373,7 @@ cmd_config() {
   if under_link "$file" "$repo"; then
     warn "skipping a layer that is a symlink or under a symlinked directory: $file"
   elif [[ -f "$file" ]]; then
-    read_layer overlay "$file" "$repo" "$file"
+    read_layer personal-override "$file" "$repo" "$file"
   fi
   file="${HOME:-}/.claude/testing.yaml"
   [[ -z "${HOME:-}" || ! -f "$file" ]] || read_layer user-global "$file" "$repo" "$file"
@@ -384,7 +384,7 @@ cmd_config() {
   fi
 
   # The team value, or the default 0 when the team sets none, is the ceiling.
-  # On a tie the team is named first, then overlay, user-global, the option.
+  # On a tie the team is named first, then the personal override, user-global, the option.
   local cap=0 cap_name=default
   for i in "${!L_NAME[@]}"; do
     if [[ "${L_NAME[i]}" == team ]]; then
@@ -392,7 +392,7 @@ cmd_config() {
     fi
   done
   v="$cap" n="$cap_name" reason="$team_reason"
-  for name in overlay user-global user-option; do
+  for name in personal-override user-global user-option; do
     for i in "${!L_NAME[@]}"; do
       [[ "${L_NAME[i]}" == "$name" ]] || continue
       if ((L_PIXELS[i] > cap)); then

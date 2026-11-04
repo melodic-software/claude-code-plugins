@@ -161,7 +161,7 @@ while [[ "$i" -lt "$tier_count" ]]; do
   # the one that cannot silently loosen anything.
   tlayer="$(cfg ".file_names.tiers[$i]._layer")"
   case "$tlayer" in
-  user-global | overlay) tauth=0 ;;
+  user-global | personal-override) tauth=0 ;;
   *) tauth=1 ;;
   esac
   matched=0

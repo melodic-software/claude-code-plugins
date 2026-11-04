@@ -88,8 +88,8 @@ pixel_tolerance:
   reason: "subpixel text: the CI image renders without hinting"
 ```
 
-The user-global `~/.claude/testing.yaml`, the overlay `.claude/testing.local.yaml` and the plugin
-option can only lower the team value. The script reports a raise as ignored, and names an invalid
+The user-global `~/.claude/testing.yaml`, the personal override `.claude/testing.local.yaml`
+(`source=personal-override`) and the plugin option can only lower the team value. The script reports a raise as ignored, and names an invalid
 layer and drops it. Quote a `reason` that holds a colon followed by a space.
 
 A tolerance above 0 is used only with its recorded reason; never pass a higher `--tolerance` than

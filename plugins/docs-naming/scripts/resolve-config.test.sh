@@ -76,13 +76,13 @@ write_yaml() {
   printf '%s\n' "$2" >"$1"
 }
 
-# write_team <root> <file_names-json>, write_overlay likewise: the YAML layers
+# write_team <root> <file_names-json>, write_personal likewise: the YAML layers
 # under the default convention home, rendered from the same JSON a case states.
 write_team() {
   write_yaml "$1/docs/conventions/docs-naming.yaml" "$(layer_yaml_render "$2")"
 }
 
-write_overlay() {
+write_personal() {
   write_yaml "$1/docs/conventions/docs-naming.local.yaml" "$(layer_yaml_render "$2")"
 }
 
@@ -113,9 +113,9 @@ write_team "$root" '{"regex": "^team$"}'
 assert_eq "team layer: regex overrides the default" "^team$" "$(resolve "$root" | jq -r '.file_names.regex')"
 assert_contains "team layer: provenance names it" "$(layers "$root")" "regex	bundled,team"
 
-# 3. The overlay beats the team layer on a nearest-wins key.
-write_overlay "$root" '{"regex": "^overlay$"}'
-assert_eq "overlay: nearest wins on regex" "^overlay$" "$(resolve "$root" | jq -r '.file_names.regex')"
+# 3. The personal override beats the team layer on a nearest-wins key.
+write_personal "$root" '{"regex": "^personal$"}'
+assert_eq "personal override: nearest wins on regex" "^personal$" "$(resolve "$root" | jq -r '.file_names.regex')"
 
 # 3b. And the team layer beats the USER-GLOBAL one, because the team layer is
 #     nearer. The additive class needs the opposite layer order, so this is the
@@ -132,32 +132,32 @@ assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bun
 #    personal layer only adds to what the team decided.
 root="$(new_root)"
 write_team "$root" '{"sweep_exclude": ["docs/frozen/**"]}'
-write_overlay "$root" '{"sweep_exclude": ["docs/mine/**"]}'
+write_personal "$root" '{"sweep_exclude": ["docs/mine/**"]}'
 out="$(resolve "$root" | jq -c '.file_names.sweep_exclude')"
-assert_contains "additive: the team entry survives the overlay" "$out" '"docs/frozen/**"'
-assert_contains "additive: the overlay entry is added" "$out" '"docs/mine/**"'
+assert_contains "additive: the team entry survives the personal override" "$out" '"docs/frozen/**"'
+assert_contains "additive: the personal override's entry is added" "$out" '"docs/mine/**"'
 assert_lacks "additive: the team layer replaced the bundled default" "$out" '".work/**"'
 
 # 4b. With no team layer, a personal layer adds to the bundled default.
 root="$(new_root)"
-write_overlay "$root" '{"sweep_exclude": ["docs/mine/**"]}'
+write_personal "$root" '{"sweep_exclude": ["docs/mine/**"]}'
 out="$(resolve "$root" | jq -c '.file_names.sweep_exclude')"
 assert_contains "additive: the bundled default survives a personal addition" "$out" '".work/**"'
 assert_contains "additive: the personal entry is added to it" "$out" '"docs/mine/**"'
 
-# 5. A personal layer cannot shrink a policy-floor list: an overlay `tiers` that
+# 5. A personal layer cannot shrink a policy-floor list: a personal `tiers` that
 #    omits the frozen released tier still resolves with it present.
 root="$(new_root)"
-write_overlay "$root" '{"tiers": [{"name": "mine", "paths": ["docs/x/**"], "forms": "all"}]}'
+write_personal "$root" '{"tiers": [{"name": "mine", "paths": ["docs/x/**"], "forms": "all"}]}'
 names="$(resolve "$root" | jq -r '.file_names.tiers[].name' | sort | tr '\n' ' ')"
-assert_eq "policy floor: the overlay adds a tier and removes none" "historical mine released " "$names"
+assert_eq "policy floor: the personal override adds a tier and removes none" "historical mine released " "$names"
 
-# 6. `generated` is team-layer only: an overlay declaration is inert.
+# 6. `generated` is team-layer only: a personal override's declaration is inert.
 root="$(new_root)"
-write_overlay "$root" '{"generated": [{"path": "x", "regenerate": "rm -rf /"}]}'
+write_personal "$root" '{"generated": [{"path": "x", "regenerate": "rm -rf /"}]}'
 out="$(resolve "$root" | jq -c '.file_names.generated')"
-assert_eq "team-only: the overlay regenerator is ignored" "[]" "$out"
-assert_contains "team-only: the overlay declaration is reported inert" "$(layers "$root")" "!inert:generated	overlay"
+assert_eq "team-only: the personal override's regenerator is ignored" "[]" "$out"
+assert_contains "team-only: the personal override's declaration is reported inert" "$(layers "$root")" "!inert:generated	personal-override"
 
 # 7. The same holds for the user-global layer.
 root="$(new_root)"
@@ -233,7 +233,7 @@ write_team "$root" '{"rule": "lower-kebab"}'
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "paths: the team YAML is present" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
 assert_contains "paths: the user-global layer is absent" "$out" "user-global	$(home_of "$root")/.claude/docs-naming.json	absent"
-assert_contains "paths: the overlay is absent, at its YAML path" "$out" "overlay	$root/docs/conventions/docs-naming.local.yaml	absent"
+assert_contains "paths: the personal override is absent, at its YAML path" "$out" "personal-override	$root/docs/conventions/docs-naming.local.yaml	absent"
 
 # 15. With no --root the resolver takes the git toplevel of the working
 #     directory, never the directory the script lives in.
@@ -264,7 +264,7 @@ assert_contains "and carries its layer" "$tiers" '"_layer":"team"'
 assert_contains "a personal tier is still appended" "$tiers" '"name":"t-personal"'
 assert_contains "and is stamped with the layer that added it" "$tiers" '"_layer":"user-global"'
 
-# Config-cascade step 2: a home or non-repo root has no team or overlay layer, and
+# Config-cascade step 2: a home or non-repo root has no team layer or personal override, and
 # the user-global file is read once, never again as team.
 home="$TEST_TMPDIR/hroot/home"
 mkdir -p "$home/.claude"
@@ -278,7 +278,7 @@ assert_contains "home root: provenance names the user-global layer once" "$out" 
 assert_lacks "home root: provenance never names the team layer" "$out" ",team"
 out="$(bash "$SUT" paths --root "$home" --home "$home")"
 assert_contains "home root: paths marks team not-applicable" "$out" "team	-	not-applicable: home root"
-assert_contains "home root: paths marks the overlay not-applicable" "$out" "overlay	-	not-applicable: home root"
+assert_contains "home root: paths marks the personal override not-applicable" "$out" "personal-override	-	not-applicable: home root"
 
 # An ancestor of the home is a home root too.
 parent="$TEST_TMPDIR/hroot"
@@ -291,11 +291,11 @@ git init -q "$home" >/dev/null 2>&1
 out="$(bash "$SUT" paths --root "$home" --home "$home")"
 assert_contains "a git repository at the home is still a home root" "$out" "team	-	not-applicable: home root"
 
-# A directory that is not a git working tree has no team or overlay layer.
+# A directory that is not a git working tree has no team layer or personal override.
 plain="$TEST_TMPDIR/plain"
 mkdir -p "$TEST_TMPDIR/plainhome"
 write_team "$plain" '{"rule": "plain-team"}'
-write_overlay "$plain" '{"rule": "plain-overlay"}'
+write_personal "$plain" '{"rule": "plain-personal"}'
 out="$(bash "$SUT" resolve --root "$plain" --home "$TEST_TMPDIR/plainhome")"
 assert_eq "a non-repo root: the bundled rule stands" "lower-kebab" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
 out="$(bash "$SUT" paths --root "$plain" --home "$TEST_TMPDIR/plainhome")"
@@ -318,14 +318,14 @@ out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
 assert_eq "retired name: the new name wins when both exist" "^current$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
 assert_lacks "retired name: no warning once the new-name file exists" "$(cat "$TEST_TMPDIR/err")" "docs-hygiene.json"
 
-# The team and overlay files at the retired docs-hygiene name are not read at
+# The team and personal override files at the retired docs-hygiene name are not read at
 # all, and resolve says nothing about them.
 root="$(new_root)"
 write_layer "$root/.claude/docs-hygiene.json" '{"regex": "^retired$"}'
 write_layer "$root/.claude/docs-hygiene.local.json" '{"exempt_paths": ["docs/retired/**"]}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
 assert_eq "retired team name: not read" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
-assert_lacks "retired overlay name: not read" "$(printf '%s' "$out" | jq -c '.file_names.exempt_paths')" "docs/retired/**"
+assert_lacks "retired personal override name: not read" "$(printf '%s' "$out" | jq -c '.file_names.exempt_paths')" "docs/retired/**"
 assert_eq "retired team name: resolve is quiet on stderr" "" "$(cat "$TEST_TMPDIR/err")"
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "retired team name: paths reports the team YAML absent" "$out" "team	$root/docs/conventions/docs-naming.yaml	absent"
@@ -358,17 +358,17 @@ assert_eq "both exist: no warning, the JSON is not read" "" "$(cat "$TEST_TMPDIR
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "both exist: paths reports the YAML" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
 
-# With no YAML, the old team and overlay JSON files are not read either.
+# With no YAML, the old team and personal override JSON files are not read either.
 root="$(new_repo)"
 write_layer "$root/.claude/docs-naming.json" '{"regex": "^old$"}'
 write_layer "$root/.claude/docs-naming.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
 assert_eq "no YAML: the old team JSON is not read" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
-assert_lacks "no YAML: the old overlay JSON is not read" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" "docs/mine/**"
+assert_lacks "no YAML: the old personal override JSON is not read" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" "docs/mine/**"
 assert_eq "no YAML: resolve stays quiet on stderr, which skill scripts pass through" "" "$(cat "$TEST_TMPDIR/err")"
 pout="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "no YAML: paths reports the team YAML absent" "$pout" "team	$root/docs/conventions/docs-naming.yaml	absent"
-assert_contains "no YAML: paths reports the overlay YAML absent" "$pout" "overlay	$root/docs/conventions/docs-naming.local.yaml	absent"
+assert_contains "no YAML: paths reports the personal override YAML absent" "$pout" "personal-override	$root/docs/conventions/docs-naming.local.yaml	absent"
 assert_eq "no YAML: every key stays bundled" "" "$(layers "$root" | grep -v 'bundled$' || true)"
 
 # The resolver names the layer that supplied each value, across all three layers.
@@ -382,9 +382,9 @@ write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'exempt_basenames:
 lay="$(layers "$root")"
 assert_contains "provenance: a nearest-wins key lists user-global then team" "$lay" "regex	bundled,user-global,team"
 assert_contains "provenance: the user-global rule survives where the team sets none" "$lay" "rule	bundled,user-global"
-assert_contains "provenance: an additive key lists team then overlay" "$lay" "exempt_basenames	bundled,team,overlay"
+assert_contains "provenance: an additive key lists team then the personal override" "$lay" "exempt_basenames	bundled,team,personal-override"
 assert_contains "provenance: an additive key the user-global sets" "$lay" "exempt_extensions	bundled,user-global"
-assert_eq "provenance: the team basenames replace the default, the overlay adds" "TEAM.md MINE.md" "$(resolve "$root" | jq -r '.file_names.exempt_basenames | join(" ")')"
+assert_eq "provenance: the team basenames replace the default, the personal override adds" "TEAM.md MINE.md" "$(resolve "$root" | jq -r '.file_names.exempt_basenames | join(" ")')"
 
 # Value fidelity: root objects, tiers stamped with their layer, an explicit empty
 # list replacing a non-empty default, and a null redirect_map.
@@ -417,7 +417,7 @@ assert_eq "yaml: a regenerator with quotes survives" "bash gen.sh --flag 'a b' >
 assert_eq "yaml: a nested list survives" "generated_on" "$(printf '%s' "$out" | jq -r '.file_names.generated[0].churn[0]')"
 assert_eq "yaml: redirect_map null is JSON null" "null" "$(printf '%s' "$out" | jq -c '.file_names.redirect_map')"
 
-# A hand-written overlay YAML is held to the policy floor too.
+# A hand-written personal override YAML is held to the policy floor too.
 root="$(new_repo)"
 write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'generated:
   - path: "x"
@@ -425,9 +425,9 @@ write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'generated:
 sweep_exclude:
   - "docs/mine/**"'
 out="$(resolve "$root")"
-assert_eq "yaml overlay: the regenerator is ignored" "[]" "$(printf '%s' "$out" | jq -c '.file_names.generated')"
-assert_contains "yaml overlay: the declaration is reported inert" "$(layers "$root")" "!inert:generated	overlay"
-assert_contains "yaml overlay: an addition is still made" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" '"docs/mine/**"'
+assert_eq "yaml personal override: the regenerator is ignored" "[]" "$(printf '%s' "$out" | jq -c '.file_names.generated')"
+assert_contains "yaml personal override: the declaration is reported inert" "$(layers "$root")" "!inert:generated	personal-override"
+assert_contains "yaml personal override: an addition is still made" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" '"docs/mine/**"'
 
 # A YAML layer the parser rejects is fatal and names the file and the line.
 root="$(new_repo)"

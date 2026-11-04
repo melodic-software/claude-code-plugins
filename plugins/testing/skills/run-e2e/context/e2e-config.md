@@ -6,11 +6,11 @@ visible, who drives, and whether it drives an app already running. The keys live
 - `recording` and `browser_mode` stay on `.claude/testing/e2e.md`. That surface's identity is its
   path relative to `.claude/`, `testing/e2e.md`, so its layers are `~/.claude/testing/e2e.md`
   (user-global), `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.md` (team), and
-  `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.local.md` (local overlay).
+  `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.local.md` (personal override).
 - `e2e_driver`, `reuse_running_instance` and `browser_driver` are top-level keys of the testing
   plugin's YAML config, the file the scan settings share: team `docs/conventions/testing.yaml` (schema
   [`schemas/testing.schema.json`](../../../schemas/testing.schema.json)), user-global
-  `~/.claude/testing.yaml`, and local overlay `.claude/testing.local.yaml`; per user, the plugin
+  `~/.claude/testing.yaml`, and personal override `.claude/testing.local.yaml`; per user, the plugin
   `userConfig` options of the same names. `scripts/resolve-config.sh e2e` resolves them.
 
 All five keys govern only this skill's own driving ([own-driving.md](own-driving.md)). When a run
@@ -108,7 +108,7 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 `recording` and `browser_mode`, highest authority first:
 
 1. Explicit session prompt
-2. Local overlay (`.claude/testing/e2e.local.md`)
+2. Personal override (`.claude/testing/e2e.local.md`)
 3. Team (`.claude/testing/e2e.md`)
 4. User-global (`~/.claude/testing/e2e.md`)
 5. Bundled default (`recording: off`, `browser_mode: headless`)
@@ -116,7 +116,7 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 `e2e_driver`, `reuse_running_instance` and `browser_driver`, highest authority first:
 
 1. Explicit session prompt
-2. Local overlay (`.claude/testing.local.yaml`)
+2. Personal override (`.claude/testing.local.yaml`)
 3. Team (`docs/conventions/testing.yaml`)
 4. User-global (`~/.claude/testing.yaml`)
 5. The plugin `userConfig` option of the same name

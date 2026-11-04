@@ -9,14 +9,15 @@
 #
 # LAYERS, per the config-cascade convention: user-global
 # (~/.claude/docs-naming.json), team (<home>/docs-naming.yaml), and a gitignored
-# personal overlay (<home>/docs-naming.local.yaml), applied in that order over the
+# personal override (<home>/docs-naming.local.yaml), applied in that order over the
 # bundled defaults. <home> is the repository's convention home (docs/conventions
 # unless AGENTS.md or CLAUDE.md binds another), and the YAML's keys are the
 # `file_names` keys, validated by schemas/docs-naming.schema.json. When --root is
 # the home directory (or an ancestor of it) or is not inside a git working tree,
-# there is no team or overlay layer, and `paths` reports both as not-applicable.
+# there is no team layer or personal override, and `paths` reports both as
+# not-applicable.
 #
-# OLD TEAM AND OVERLAY FILES. The JSON files those layers used to live in
+# OLD TEAM AND PERSONAL OVERRIDE FILES. The JSON files those layers used to live in
 # (<root>/.claude/docs-naming.json, .local.json, and the retired docs-hygiene
 # names of both) are not read; `/docs-naming:setup check` names each one it finds.
 #
@@ -39,14 +40,14 @@
 # The additive and team-only classes are the POLICY FLOOR. Every key in them
 # decides what the realign skill will do to a tree: which files are frozen, which
 # references are edited in which form, and which shell command runs after a move.
-# A personal overlay that could REPLACE one could quietly widen a frozen tier or
+# A personal override that could REPLACE one could quietly widen a frozen tier or
 # swap the command that regenerates a record, which is a team decision weakened
 # from one machine. Appending is still allowed, because a contributor adding an
 # exemption or a scope root of their own weakens nothing. The team layer is the
 # authority rather than a peer, so it replaces: a repository whose defaults do
 # not fit has to be able to say so, not only add to them.
 #
-# LAYERS ARE APPLIED team, user-global, overlay, so a personal addition is made
+# LAYERS ARE APPLIED team, user-global, personal-override, so a personal addition is made
 # to what the team decided rather than to a bundled default the team replaced.
 #
 # CRLF. On native Windows, jq writes \r\n (its own release notes add --binary to
@@ -67,7 +68,8 @@
 #            present, absent, legacy (user-global only), or a not-applicable
 #            reason
 #
-#   --root   the repository root to resolve the team and overlay layers against.
+#   --root   the repository root to resolve the team layer and personal override
+#            against.
 #            Default: `git rev-parse --show-toplevel` from the current directory,
 #            never the directory this script happens to live in, so a worktree or
 #            a fixture is addressed explicitly.
@@ -151,21 +153,21 @@ USER_LAYER=""
 [[ -n "$USER_HOME_DIR" ]] && USER_LAYER="$USER_HOME_DIR/.claude/docs-naming.json"
 
 # Config-cascade step 2: a root that is the home directory or an ancestor of it,
-# or that is not inside a git working tree, has no team or overlay layer. The
+# or that is not inside a git working tree, has no team layer or personal override. The
 # home is --home, not the inherited $HOME, so a fixture is classified against
 # the directory it names.
 # shellcheck source=../lib/config-root.sh
 . "$SCRIPT_DIR/../lib/config-root.sh"
 ROOT_CLASS="$(HOME="$USER_HOME_DIR" config_root_classify "$ROOT")"
 TEAM_YAML=""
-OVERLAY_YAML=""
+PERSONAL_YAML=""
 LAYER_SKIP=""
 if [[ "$ROOT_CLASS" != repo ]]; then
   LAYER_SKIP="not-applicable: $ROOT_CLASS root"
 else
   CONVENTION_HOME="$(layer_yaml_home "$ROOT" 2>&1)" || die "$CONVENTION_HOME"
   TEAM_YAML="$ROOT/$CONVENTION_HOME/docs-naming.yaml"
-  OVERLAY_YAML="$ROOT/$CONVENTION_HOME/docs-naming.local.yaml"
+  PERSONAL_YAML="$ROOT/$CONVENTION_HOME/docs-naming.local.yaml"
 fi
 
 # The user-global file at the retired docs-hygiene name, when only that one exists.
@@ -184,9 +186,9 @@ if [[ "$ACTION" = paths ]]; then
   else
     printf 'user-global\t%s\tabsent\n' "$USER_LAYER"
   fi
-  for name in team overlay; do
+  for name in team personal-override; do
     path="$TEAM_YAML"
-    [[ "$name" = team ]] || path="$OVERLAY_YAML"
+    [[ "$name" = team ]] || path="$PERSONAL_YAML"
     if [[ -n "$LAYER_SKIP" ]]; then
       printf '%s\t-\t%s\n' "$name" "$LAYER_SKIP"
     elif [[ -f "$path" ]]; then
@@ -231,7 +233,7 @@ read_layer() {
 BUNDLED_JSON="$(jqr -e . "$TEMPLATE" 2>/dev/null)" || die "bundled defaults are not valid JSON: $TEMPLATE"
 USER_JSON="$(read_layer user-global "${USER_OLD:-$USER_LAYER}")" || exit $?
 TEAM_JSON="$(read_layer team "$TEAM_YAML" yaml)" || exit $?
-OVERLAY_JSON="$(read_layer overlay "$OVERLAY_YAML" yaml)" || exit $?
+PERSONAL_JSON="$(read_layer personal-override "$PERSONAL_YAML" yaml)" || exit $?
 
 if [[ "$ACTION" = resolve && -n "$USER_OLD" ]]; then
   printf 'resolve-config: WARN: reading %s, the retired name; rename it to %s\n' \
@@ -282,15 +284,15 @@ for key in $KEY_ORDER; do
   # Nearest-wins keys apply the nearer layer last so it wins; additive keys apply
   # team first so its replacement cannot discard personal additions.
   case "$NEAREST_WINS" in
-  *" $key "*) layer_order='user-global team overlay' ;;
-  *) layer_order='team user-global overlay' ;;
+  *" $key "*) layer_order='user-global team personal-override' ;;
+  *) layer_order='team user-global personal-override' ;;
   esac
 
   for layer in $layer_order; do
     case "$layer" in
     user-global) layer_json="$USER_JSON" ;;
     team) layer_json="$TEAM_JSON" ;;
-    overlay) layer_json="$OVERLAY_JSON" ;;
+    personal-override) layer_json="$PERSONAL_JSON" ;;
     *) layer_json='' ;;
     esac
     layer_has "$key" "$layer_json" || continue

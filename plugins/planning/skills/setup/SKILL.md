@@ -91,7 +91,7 @@ only where a choice genuinely needs the user. No silent writes. Every write is u
 4. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
    convention home, the script prints an offer: with the operator's confirmation it adds a
    convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
-   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   exists or `CLAUDE.md` only imports it) and the personal override ignore line
    `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
    `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
    exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the
@@ -125,7 +125,7 @@ implement it by reference, do not restate it. Plugin-side notes only:
   a root `CODING_STANDARDS.md` and `CONTRIBUTING.md`, ambient `CLAUDE.md` content).
 - **Bootstrap writes** (interactive, user-accepted. No silent writes): the skeleton index with
   its `standards-contract` frontmatter at the binding's version, and the setup-owned
-  `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write
+  `<standards_dir>/.gitignore` containing `*.local.md` (the personal override ignore). Write
   `.claude/standards.yaml` only when the user relocates the root from the documented default.
   After a bootstrap write, run the tracked-file pair on each written team file:
   `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
@@ -177,7 +177,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 ## Output
 
 When the standards concern was exercised, a written (or confirmed-healthy) standards index and its
-overlay `.gitignore`, a one-line summary of the effective values, the row-validation results, and how
+personal override `.gitignore`, a one-line summary of the effective values, the row-validation results, and how
 to re-run this setup to reconfigure or migrate. When the settings were exercised, the `check` table
 before and after, the diff when one was shown, the written path, and whether the file is tracked.
 
