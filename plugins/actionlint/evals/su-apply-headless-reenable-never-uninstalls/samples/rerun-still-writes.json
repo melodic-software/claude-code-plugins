@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Against the installed plugin the rerun prints `already installed`, and it still writes the value."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "If it prints `already installed`, nothing changed; uninstall first.",
+      "why": "says the rerun writes nothing"
+    }
+  ]
+}

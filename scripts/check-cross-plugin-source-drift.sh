@@ -24,7 +24,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
+# script (scripts/check-affected.sh run from the pre-push hook's merge-base copy).
+cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 

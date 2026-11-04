@@ -10,26 +10,32 @@
 // - every string literal that opens with `query`, `mutation` or
 //   `subscription` (after an optional `query=`) and then `(` or `{` (an
 //   operation name between them is allowed) parses and validates, over
-//   tracked JS, shell and workflow files (test files excluded). Python
-//   sources are not scanned: their operations join adjacent literals and
-//   f-strings, which `read` does not follow (unextractable.txt records it);
+//   tracked JS, shell, workflow and Python files (test files and Python
+//   `tests/` directories excluded);
 // - in JS, a `+` chain continues the literal, and `${NAME}` or `+ NAME` takes
 //   the value of a same-file `const NAME =` built only from literals;
+// - in Python, only a string token opens a literal, so a quote inside another
+//   string or a comment opens none; adjacent literals (across lines inside
+//   brackets, and across comments) continue it, triple quotes included, and
+//   an f-string `{NAME}` takes the value of a same-file `NAME =` statement
+//   built only from a number or literals, `{{` and `}}` being braces. A `+`
+//   ends the literal;
 // - any other interpolation (JS `${...}`, workflow `${{ }}`, shell `$NAME`,
-//   `${...}` and `$(...)` outside single quotes) takes a placeholder of its
-//   position: text inside a GraphQL string, `"interpolated"` in an argument
-//   value (a type error on it alone is dropped), `__typename` in a selection
-//   set, and nothing elsewhere. One followed by arguments or a selection names
-//   a field, which no placeholder can stand for. Once a placeholder stands in,
-//   an unused variable or fragment is not an error: the interpolated text may
-//   use it;
+//   `${...}` and `$(...)` outside single quotes, a Python f-string `{...}`)
+//   takes a placeholder of its position: text inside a GraphQL string,
+//   `"interpolated"` in an argument value (a type error on it alone is
+//   dropped), `__typename` in a selection set, and nothing elsewhere. One
+//   followed by arguments or a selection names a field, which no placeholder
+//   can stand for. Once a placeholder stands in, an unused variable or
+//   fragment is not an error: the interpolated text may use it;
 // - a literal that opens with `{` and reads as a shorthand query, and
 //   `query=@file`, cannot be checked here;
 // - a file with more request sites (`github.graphql(`,
 //   `github.graphql.paginate(`, `request("POST /graphql"`, or a `gh api` /
 //   `gh_api` command whose path is `graphql`, continuation lines joined, and
 //   not a `function graphql(` wrapper) than extracted operations has sites it
-//   cannot see.
+//   cannot see. A Python argv list (`["api", "graphql", ...]`) is not counted
+//   as a site.
 // An operation that does not parse after that or names a field by
 // interpolation, a shorthand or `query=@file`, and each unseen request site
 // count against their file. unextractable.txt
@@ -56,7 +62,9 @@ const { buildSchema, Kind, parse, validate } = require("graphql");
 const ROOT = path.resolve(__dirname, "..", "..", "..");
 const SCHEMA = path.join(ROOT, "schemas", "github", "schema.docs.graphql.gz");
 const ALLOWLIST = path.join(__dirname, "unextractable.txt");
-const SOURCE = /\.(?:c?js|mjs|sh|bash|ya?ml)$/;
+const SOURCE = /\.(?:c?js|mjs|sh|bash|ya?ml|py)$/;
+const TEST_FILE =
+  /\.test\.[^/]+$|(?:^|\/)tests\/.+\.py$|(?:^|\/)(?:test_[^/]*|[^/]*_test)\.py$/;
 const OPENING =
   /[`'"]\s*(?:query=)?(?:query|mutation|subscription)\b\s*(?:[A-Za-z_]\w*\s*)?[({]/g;
 const SHORTHAND = /[`'"]\s*\{/g;
@@ -67,6 +75,13 @@ const QUERY_FILE = /\bquery=@/;
 const COMMENT = /^\s*(?:#|\/\/|\*)/;
 const CONSTANT = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g;
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+const PY_PREFIX = /^(?:[rRuUbB]|[fFtT][rR]?|[rR][fFtTbB]|[bB][rR])$/;
+const PY_ASSIGNMENT = /[ \t]*=(?!=)[ \t]*/y;
+const PY_NUMBER = /(-?\d+(?:\.\d+)?)[ \t]*(?:#.*)?(?:\r?\n|$)/y;
+const PY_OPEN_PAREN = /\((?:\s|#.*)*/y;
+const PY_QUOTE = /[A-Za-z]{0,2}(?:"""|'''|"|')/y;
+const PY_END = /[ \t]*(?:#.*)?(?:\r?\n|$)/y;
+const PY_CLOSE_PAREN = /(?:\s|#.*)*\)[ \t]*(?:#.*)?(?:\r?\n|$)/y;
 const PLACEHOLDER = "interpolated";
 const SELECTION = "__typename";
 
@@ -80,7 +95,7 @@ function trackedSources(excluded) {
     .filter(
       (file) =>
         SOURCE.test(file) &&
-        !/\.test\.[^/]+$/.test(file) &&
+        !TEST_FILE.test(file) &&
         !excluded.some((prefix) => file.startsWith(prefix)),
     );
 }
@@ -173,27 +188,49 @@ function resolve(scope, name) {
   if (!scope.constants?.has(name) || scope.resolving.has(name)) return null;
   if (scope.values.has(name)) return scope.values.get(name);
   scope.resolving.add(name);
-  const at = scope.constants.get(name);
   const inner = { ...scope, complete: true, opaque: false };
-  let value = null;
-  const number = /^-?\d+(?:\.\d+)?/.exec(scope.text.slice(at, at + 32));
-  if (number) {
-    if (/^[ \t]*(?:[;,\n]|$)/.test(scope.text.slice(at + number[0].length))) {
-      value = number[0];
-    }
-  } else if (/[`'"]/.test(scope.text[at])) {
-    const chain = readChain(scope.text, at, inner);
-    if (
-      chain &&
-      inner.complete &&
-      /^\s*(?:[;,)}]|$)/.test(scope.text.slice(chain.end))
-    ) {
-      value = chain.body;
-    }
-  }
+  const read = scope.python ? pythonValue : jsValue;
+  const value = read(scope.constants.get(name), inner);
   scope.resolving.delete(name);
   scope.values.set(name, value);
   return value;
+}
+
+// A JS `const` value at `at`: a number, or a literal and its `+` chain.
+function jsValue(at, scope) {
+  const { text } = scope;
+  const number = /^-?\d+(?:\.\d+)?/.exec(text.slice(at, at + 32));
+  if (number) {
+    const end = /^[ \t]*(?:[;,\n]|$)/.test(text.slice(at + number[0].length));
+    return end ? number[0] : null;
+  }
+  if (!/[`'"]/.test(text[at])) return null;
+  const chain = readChain(text, at, scope);
+  if (!chain || !scope.complete) return null;
+  return /^\s*(?:[;,)}]|$)/.test(text.slice(chain.end)) ? chain.body : null;
+}
+
+function matchAt(pattern, text, index) {
+  pattern.lastIndex = index;
+  return pattern.exec(text);
+}
+
+// A Python assignment's value at `at`: a number, or adjacent literals, in
+// parentheses or not, that end the statement.
+function pythonValue(at, scope) {
+  const { text } = scope;
+  const number = matchAt(PY_NUMBER, text, at);
+  if (number) return number[1];
+  const paren = matchAt(PY_OPEN_PAREN, text, at);
+  const start = at + (paren ? paren[0].length : 0);
+  const quote = matchAt(PY_QUOTE, text, start);
+  if (!quote) return null;
+  const open = start + quote[0].length - 1;
+  const literal = scope.literals.get(open);
+  if (!literal || literal.continues) return null;
+  const chain = readPythonChain(text, open, scope);
+  const end = matchAt(paren ? PY_CLOSE_PAREN : PY_END, text, chain.end);
+  return scope.complete && end ? chain.body : null;
 }
 
 function substitute(out, expression, scope, after) {
@@ -294,6 +331,174 @@ function readChain(text, start, scope) {
   }
 }
 
+// The length of the f-string replacement field starting with the `{` at `i`,
+// past any string inside it.
+function fieldLength(text, i) {
+  let depth = 0;
+  for (let j = i; j < text.length; j += 1) {
+    const c = text[j];
+    if (c === '"' || c === "'") {
+      const close = text.indexOf(c, j + 1);
+      if (close < 0) break;
+      j = close;
+    } else if ("([{".includes(c)) depth += 1;
+    else if (")]}".includes(c) && --depth === 0) return j + 1 - i;
+  }
+  return text.length - i;
+}
+
+// The Python string literal whose quote, after any `prefix`, is at `q`:
+// `open` is the quote its body follows (a triple's last).
+function pythonLiteral(text, q, prefix) {
+  const quote = text[q];
+  const triple = text.startsWith(quote.repeat(3), q);
+  const bodyStart = q + (triple ? 3 : 1);
+  const formatted = /[fFtT]/.test(prefix);
+  let i = bodyStart;
+  let closing = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === "\\") i += 2;
+    else if (formatted && (c === "{" || c === "}") && text[i + 1] === c) {
+      i += 2;
+    } else if (formatted && c === "{") i += fieldLength(text, i);
+    else if (triple ? text.startsWith(quote.repeat(3), i) : c === quote) {
+      closing = triple ? 3 : 1;
+      break;
+    } else if (!triple && c === "\n") break;
+    else i += 1;
+  }
+  return {
+    open: bodyStart - 1,
+    bodyStart,
+    bodyEnd: Math.min(i, text.length),
+    end: Math.min(i, text.length) + closing,
+    raw: /[rR]/.test(prefix),
+    formatted,
+    continues: false,
+    next: null,
+  };
+}
+
+// A Python file's string literals, by `open`, each linked to the literal an
+// implicit concatenation joins to it (`next`), and the first `NAME =`
+// statement of each name, to the index of its value.
+function pythonTokens(text) {
+  const literals = new Map();
+  const constants = new Map();
+  const word = /\w+/y;
+  let depth = 0;
+  let previous = null;
+  let lineStart = true;
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === "#") {
+      const end = text.indexOf("\n", i);
+      i = end < 0 ? text.length : end;
+    } else if (c === "\\" && text[i + 1] === "\n") {
+      i += 2;
+    } else if (c === "\n") {
+      if (depth === 0) {
+        previous = null;
+        lineStart = true;
+      }
+      i += 1;
+    } else if (/\s/.test(c)) {
+      i += 1;
+    } else {
+      const name = matchAt(word, text, i)?.[0] ?? "";
+      const after = i + name.length;
+      const quoted = text[after] === '"' || text[after] === "'";
+      if (quoted && (!name || PY_PREFIX.test(name))) {
+        const literal = pythonLiteral(text, after, name);
+        literals.set(literal.open, literal);
+        if (previous) {
+          previous.next = literal;
+          literal.continues = true;
+        }
+        previous = literal;
+        i = literal.end;
+      } else {
+        const value =
+          lineStart && /^[A-Za-z_]/.test(name)
+            ? matchAt(PY_ASSIGNMENT, text, after)
+            : null;
+        if (value && !constants.has(name)) {
+          constants.set(name, value.index + value[0].length);
+        }
+        if ("([{".includes(c)) depth += 1;
+        else if (")]}".includes(c)) depth = Math.max(0, depth - 1);
+        previous = null;
+        i += Math.max(name.length, 1);
+      }
+      lineStart = false;
+    }
+  }
+  return { literals, constants };
+}
+
+// The body of the Python literal whose body follows the quote at `open`, and
+// of each literal an implicit concatenation joins to it, f-string
+// replacement fields replaced, and where the last one ends.
+function readPythonChain(text, open, scope) {
+  let literal = scope.literals.get(open);
+  if (!literal) return null;
+  let body = "";
+  for (;;) {
+    body += readPythonLiteral(text, literal, scope, body);
+    if (!literal.next) return { body, end: literal.end };
+    literal = literal.next;
+  }
+}
+
+function readPythonLiteral(text, literal, scope, prefix) {
+  let out = prefix;
+  let i = literal.bodyStart;
+  while (i < literal.bodyEnd) {
+    const c = text[i];
+    if (c === "\\" && !literal.raw) {
+      out += text[i + 1] === "n" ? "\n" : text[i + 1];
+      i += 2;
+    } else if (
+      literal.formatted &&
+      (c === "{" || c === "}") &&
+      text[i + 1] === c
+    ) {
+      out += c;
+      i += 2;
+    } else if (literal.formatted && c === "{") {
+      const end = i + fieldLength(text, i);
+      const expression = text.slice(i + 1, end - 1).trim();
+      const { next } = literal;
+      const after = (
+        text.slice(end, literal.bodyEnd) +
+        (next ? text.slice(next.bodyStart, next.bodyEnd) : "")
+      ).slice(0, 64);
+      const value = IDENTIFIER.test(expression)
+        ? resolve(scope, expression)
+        : null;
+      out += value ?? placeholder(out, scope, after);
+      i = end;
+    } else {
+      out += c;
+      i += 1;
+    }
+  }
+  return out.slice(prefix.length);
+}
+
+// Where each literal that `pattern` matches at its opening quote opens. In
+// Python only a literal that no implicit concatenation continues opens one.
+function openings(text, pattern, literals) {
+  if (!literals) return [...text.matchAll(pattern)].map((match) => match.index);
+  const sticky = new RegExp(pattern.source, "y");
+  return [...literals.values()]
+    .filter((literal) => !literal.continues)
+    .map((literal) => literal.open)
+    .filter((open) => matchAt(sticky, text, open));
+}
+
 function lineOf(text, index) {
   return text.slice(0, index).split("\n").length;
 }
@@ -324,7 +529,10 @@ function extract(schema, file, text) {
   const operations = [];
   const unsupported = [];
   const js = /\.(?:c?js|mjs)$/.test(file);
-  const constants = new Map();
+  const python = /\.py$/.test(file);
+  const tokens = python ? pythonTokens(text) : null;
+  const literals = tokens?.literals;
+  const constants = tokens?.constants ?? new Map();
   if (js) {
     for (const match of text.matchAll(CONSTANT)) {
       if (!constants.has(match[1])) {
@@ -337,15 +545,18 @@ function extract(schema, file, text) {
     const scope = {
       text,
       shell: shellAt(file, text, index),
+      python,
+      literals,
       constants,
       values,
       resolving: new Set(),
       complete: true,
       opaque: false,
     };
-    const chain = js
-      ? readChain(text, index, scope)
-      : readLiteral(text, index, scope);
+    let chain;
+    if (python) chain = readPythonChain(text, index, scope);
+    else if (js) chain = readChain(text, index, scope);
+    else chain = readLiteral(text, index, scope);
     return (
       chain && {
         source: chain.body.replace(/^\s*query=/, ""),
@@ -354,17 +565,17 @@ function extract(schema, file, text) {
       }
     );
   };
-  for (const match of text.matchAll(OPENING)) {
-    const literal = read(match.index);
+  for (const index of openings(text, OPENING, literals)) {
+    const literal = read(index);
     if (literal !== null) {
-      operations.push({ file, line: lineOf(text, match.index), ...literal });
+      operations.push({ file, line: lineOf(text, index), ...literal });
     }
   }
-  for (const match of text.matchAll(SHORTHAND)) {
-    const literal = read(match.index);
+  for (const index of openings(text, SHORTHAND, literals)) {
+    const literal = read(index);
     if (literal !== null && isShorthand(schema, literal.source)) {
       unsupported.push(
-        `${file}:${lineOf(text, match.index)}: shorthand operation; open it with \`query\``,
+        `${file}:${lineOf(text, index)}: shorthand operation; open it with \`query\``,
       );
     }
   }
@@ -526,6 +737,54 @@ test("JS constants resolve and other interpolations take their position's placeh
       { syntax: "an interpolation names a field", errors: [] },
     ],
   );
+});
+
+test("Python literals join, f-strings resolve constants and placeholders, and only string tokens open", () => {
+  const sample = [
+    'ACTOR = "fragment actor on Actor{login}"',
+    "PAGE = 100",
+    "FIELDS = (",
+    '    "login "  # a comment between literals',
+    '    "url"',
+    ")",
+    "Q = (",
+    '    "query($o:String!,$r:String!){repository(owner:$o,name:$r){"',
+    '    f"pullRequests(first:{PAGE},orderBy:{{field:UPDATED_AT,direction:DESC}}){{"',
+    '    f"nodes{{author{{{FIELDS} ...actor}} {extra}}}}}}}}}"',
+    '    f"{ACTOR}"',
+    ")",
+    'T = """',
+    'query { repository(owner: "o", name: "r") { id } }',
+    '"""',
+    '# "query { viewer { login } }" in a comment opens nothing',
+    `S = 'a "query { viewer { nope } }" inside another string'`,
+    'L = f"query {{ viewer {{ {name}(first: 1) {{ totalCount }} }} }}"',
+    'J = "query($n:Int!" + suffix + "){viewer{login}}"',
+    'SH = "{ viewer { login } }"',
+    "B = (",
+    '    "query($n:Int!){viewer{pullRequests(first:$n){nodes{reviewThreads(first:1){"',
+    '    "nodes{resolvedBy{... on Bot{login}}}}}}}}"',
+    ")",
+  ].join("\n");
+  const { operations, unsupported } = extract(schema, "sample.py", sample);
+  assert.deepEqual(
+    operations.map((operation) => operation.line),
+    [8, 13, 18, 19, 22],
+  );
+  const [joined, triple, named, plus, spread] = operations.map((operation) =>
+    problems(schema, operation),
+  );
+  assert.deepEqual(joined, { syntax: null, errors: [] });
+  assert.deepEqual(triple, { syntax: null, errors: [] });
+  assert.deepEqual(named, {
+    syntax: "an interpolation names a field",
+    errors: [],
+  });
+  assert.ok(plus.syntax, "a `+` ends the literal");
+  assert.match(spread.errors.join("\n"), /cannot be spread/);
+  assert.deepEqual(unsupported, [
+    "sample.py:20: shorthand operation; open it with `query`",
+  ]);
 });
 
 test("unextractable.txt lists every site the extractor cannot check", (t) => {

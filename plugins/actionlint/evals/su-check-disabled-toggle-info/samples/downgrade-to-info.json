@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "No. With actionlint_enabled off, the missing actionlint is reported as INFO rather than FAIL: a deliberately disabled plugin is not broken."
+    },
+    {
+      "answer": "Not broken: the missing actionlint is INFO while the toggle is off. A missing node would still be FAIL. (This session's toggle actually reads true.)",
+      "why": "node stays FAIL and a note on the real state are allowed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: actionlint is missing, so check reports it as FAIL.",
+      "why": "keeps FAIL"
+    },
+    {
+      "answer": "Your toggle is true in this session, so I can't say.",
+      "why": "answers only the observed state"
+    }
+  ]
+}
