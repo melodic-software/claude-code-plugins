@@ -243,7 +243,12 @@ git -C "$root" config user.email fixture@example.invalid
 git -C "$root" config user.name "Fixture"
 git -C "$root" config commit.gpgsign false
 write_team "$root" '{"regex": "^from-cwd$"}'
-out="$(cd "$root" && HOME="$(home_of "$root")" bash "$SUT" resolve | jq -r '.file_names.regex')"
+# A version-manager shim (mise) resolves jq through $HOME, so it breaks under the
+# fixture HOME; put the real jq, found while HOME is still real, first on PATH.
+jq_bin="$TEST_TMPDIR/jq-bin"
+mkdir -p "$jq_bin"
+ln -sf "$(mise which jq 2>/dev/null || command -v jq)" "$jq_bin/jq"
+out="$(cd "$root" && HOME="$(home_of "$root")" PATH="$jq_bin:$PATH" bash "$SUT" resolve | jq -r '.file_names.regex')"
 assert_eq "no --root: the git toplevel of the cwd supplies the team layer" "^from-cwd$" "$out"
 
 # Every tier entry carries the layer that contributed it, which is what lets a

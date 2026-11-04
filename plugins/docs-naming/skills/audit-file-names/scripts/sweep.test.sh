@@ -206,12 +206,17 @@ git -C "$root9" add -A >/dev/null
 git -C "$root9" commit -qm "a deep historical file and an unclaimed one" >/dev/null
 home9="$TEST_TMPDIR/home9-$RANDOM"
 mkdir -p "$home9/.claude"
+# A version-manager shim (mise) resolves jq through $HOME, so it breaks under the
+# fixture HOME; put the real jq, found while HOME is still real, first on PATH.
+jq9="$TEST_TMPDIR/jq-bin"
+mkdir -p "$jq9"
+ln -sf "$(mise which jq 2>/dev/null || command -v jq)" "$jq9/jq"
 
 # A personal tier out-specifying the team's `docs/adr/**` with a looser form.
 jq -n '{schema: 1, file_names: {tiers: [
   {name: "personal-loose", paths: ["docs/adr/deep/**"], forms: "all"}]}}' \
   >"$home9/.claude/docs-naming.json"
-floor="$(HOME="$home9" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
+floor="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
 
 assert_contains "the team's historical tier still owns the deeper file" "$floor" \
   "docs/adr/deep/0003-deep.md:md-link:historical:edit"
@@ -224,7 +229,7 @@ assert_eq "the narrative stem there is still reported, never edited" "0" \
 jq -n '{schema: 1, file_names: {tiers: [
   {name: "personal-frozen", paths: ["notes/**"], forms: "none"}]}}' \
   >"$home9/.claude/docs-naming.json"
-adds="$(HOME="$home9" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
+adds="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
 
 assert_contains "a personal tier still claims a file no team tier covers" "$adds" \
   "notes/n.md:plain:personal-frozen:report"
