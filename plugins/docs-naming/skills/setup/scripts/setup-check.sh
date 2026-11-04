@@ -105,7 +105,7 @@ fi
 
 # --- layers ------------------------------------------------------------------
 
-TEAM_FILE="" TEAM_STATE="" OVERLAY_FILE="" OVERLAY_STATE=""
+TEAM_FILE="" TEAM_STATE="" PERSONAL_FILE="" PERSONAL_STATE=""
 layer_paths="$(resolver paths)" || die "cannot resolve the layer paths"
 while IFS="$(printf '\t')" read -r name path state; do
   [[ -n "$name" ]] || continue
@@ -117,14 +117,14 @@ while IFS="$(printf '\t')" read -r name path state; do
   esac
   case "$name" in
   team) TEAM_FILE="$path" TEAM_STATE="$state" ;;
-  overlay) OVERLAY_FILE="$path" OVERLAY_STATE="$state" ;;
+  personal-override) PERSONAL_FILE="$path" PERSONAL_STATE="$state" ;;
   *) ;;
   esac
 done <<EOF
 $layer_paths
 EOF
 
-# The JSON files the team and overlay layers used to live in are no longer read.
+# The JSON files the team layer and personal override used to live in are no longer read.
 # setup apply seeds an absent team YAML from the first of the two team files.
 if [[ "$TEAM_STATE" == present || "$TEAM_STATE" == absent ]]; then
   seeds=0
@@ -139,7 +139,7 @@ if [[ "$TEAM_STATE" == present || "$TEAM_STATE" == absent ]]; then
     fi
   done
   for old in "$ROOT/.claude/docs-naming.local.json" "$ROOT/.claude/docs-hygiene.local.json"; do
-    [[ -f "$old" ]] && row WARN "old overlay file" "$old is no longer read; move its keys to $OVERLAY_FILE by hand, then delete it"
+    [[ -f "$old" ]] && row WARN "old personal override file" "$old is no longer read; move its keys to $PERSONAL_FILE by hand, then delete it"
   done
 fi
 
@@ -276,14 +276,14 @@ $(printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate 
 EOF
 fi
 
-# --- tracked team layer, ignored overlay -------------------------------------
+# --- tracked team layer, ignored personal override ---------------------------
 
 TEAM_LAYER="${TEAM_FILE#"$ROOT"/}"
-OVERLAY_LAYER="${OVERLAY_FILE#"$ROOT"/}"
+PERSONAL_PATH="${PERSONAL_FILE#"$ROOT"/}"
 team_read=0
 [[ "$TEAM_STATE" == present ]] && team_read=1
-overlay_read=0
-[[ "$OVERLAY_STATE" == present ]] && overlay_read=1
+personal_read=0
+[[ "$PERSONAL_STATE" == present ]] && personal_read=1
 
 if [[ "$HAVE_GIT" -eq 1 && "$team_read" -eq 1 ]]; then
   if git -C "$ROOT" check-ignore -q "$TEAM_LAYER" 2>/dev/null; then
@@ -297,11 +297,11 @@ elif [[ "$team_read" -eq 0 ]]; then
   row INFO "team layer tracked" "no team layer yet; run setup apply --defaults to write one"
 fi
 
-if [[ "$HAVE_GIT" -eq 1 && "$overlay_read" -eq 1 ]]; then
-  if git -C "$ROOT" check-ignore -q "$OVERLAY_LAYER" 2>/dev/null; then
-    row PASS "overlay ignored" "$OVERLAY_LAYER is gitignored"
+if [[ "$HAVE_GIT" -eq 1 && "$personal_read" -eq 1 ]]; then
+  if git -C "$ROOT" check-ignore -q "$PERSONAL_PATH" 2>/dev/null; then
+    row PASS "personal override ignored" "$PERSONAL_PATH is gitignored"
   else
-    row WARN "overlay ignored" "$OVERLAY_LAYER is not gitignored; the recommended line is ${OVERLAY_LAYER%/*}/$GITIGNORE_LINE"
+    row WARN "personal override ignored" "$PERSONAL_PATH is not gitignored; the recommended line is ${PERSONAL_PATH%/*}/$GITIGNORE_LINE"
   fi
 fi
 

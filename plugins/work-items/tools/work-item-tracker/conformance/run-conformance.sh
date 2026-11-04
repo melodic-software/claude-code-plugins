@@ -75,8 +75,8 @@ CB_REPO=""
 # shellcheck source=/dev/null
 source "$BINDING_FILE_SH"
 cb_setup
-# Re-home the binding into a run-private dir: the overlay lands BESIDE it under a fixed
-# name, so two runs sharing $TMPDIR would clobber each other's overlay.
+# Re-home the binding into a run-private dir: the personal override lands BESIDE it under
+# a fixed name, so two runs sharing $TMPDIR would clobber each other's personal override.
 BINDING_DIR="$(mktemp -d)"
 cp "$WORK_ITEM_TRACKER_BINDING" "$BINDING_DIR/binding.json"
 export WORK_ITEM_TRACKER_BINDING="$BINDING_DIR/binding.json"
@@ -135,17 +135,18 @@ wit_case "unknown verb → usage" 2 definitely-not-a-verb
 WIT_OUT="$(WORK_ITEM_TRACKER_BINDING="/nonexistent-$$.json" bash "$TRACKER" capabilities 2>/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
 
-# --- binding overlay (CONTRACT.md "Setup (binding file)") ---
-# Seam-level overlay behavior through the CLI; merge semantics are unit-tested in
-# lib/binding.test.sh. A non-allowlisted key exits 3; removing the overlay restores the team view.
-OVERLAY_PATH="$(wit_overlay_path "$WORK_ITEM_TRACKER_BINDING")"
-printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERLAY_PATH"
-wit_case "allowlisted overlay key merges; verbs still dispatch" 0 capabilities
-printf '%s\n' '{"provider":"someone-elses-provider"}' >"$OVERLAY_PATH"
+# --- binding personal override (CONTRACT.md "Setup (binding file)") ---
+# Seam-level personal override behavior through the CLI; merge semantics are unit-tested in
+# lib/binding.test.sh. A non-allowlisted key exits 3; removing the personal override restores
+# the team view.
+OVERRIDE_PATH="$(wit_override_path "$WORK_ITEM_TRACKER_BINDING")"
+printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERRIDE_PATH"
+wit_case "allowlisted personal override key merges; verbs still dispatch" 0 capabilities
+printf '%s\n' '{"provider":"someone-elses-provider"}' >"$OVERRIDE_PATH"
 WIT_OUT="$(bash "$TRACKER" capabilities 2>/dev/null)"
-assert_eq "non-overlayable overlay key → exit 3" "3" "$?"
-rm -f "$OVERLAY_PATH"
-wit_case "overlay removal restores the team binding" 0 capabilities
+assert_eq "non-overridable personal override key → exit 3" "3" "$?"
+rm -f "$OVERRIDE_PATH"
+wit_case "personal override removal restores the team binding" 0 capabilities
 
 # --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
 # Skew is asserted against a synthetic shadow of the SAME provider via WIT_ADAPTERS_DIR:

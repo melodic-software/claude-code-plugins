@@ -27,7 +27,7 @@ check.
      only it (SKILL.md "Provider binding" step 1); name any `provider` or `config` value that
      differs between the two. When a `.work-item-tracker.local.json` exists and
      `<home>/work-items.local.yaml` has no `tracker` key, say the seam no longer reads that
-     personal overlay, since it reads the overlay beside the YAML binding; `apply` copies it.
+     personal override, since it reads the one beside the YAML binding; `apply` copies it.
 
    Validate the binding that binds without mutating: `<home>/work-items.yaml` parses with
    `awk -f <plugin-root>/skills/triage/scripts/yaml-subset.awk` and its `tracker` mapping carries no
@@ -40,14 +40,14 @@ check.
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
-   The ignore rule for `OVERLAY` (`<home>/work-items.local.yaml`) is required whether or not the
-   overlay file exists. A present overlay must parse (the YAML file with the same parser, its
+   The ignore rule for `OVERRIDE` (`<home>/work-items.local.yaml`) is required whether or not the
+   personal override file exists. A present personal override must parse (the YAML file with the same parser, its
    `tracker` mapping; a legacy `.work-item-tracker.local.json`, still read beside a legacy-only
    binding, as JSON), carry only allowlisted keys
    (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
    Ignored and untracked are **two independent probes**: run the same pair `apply` step 5 uses, per
-   [`reference/overlay-ignore-probes.md`](overlay-ignore-probes.md). A bare
-   `git check-ignore` is silent for an already-tracked overlay. Tracked is the more serious FAIL;
+   [`reference/personal-override-ignore-probes.md`](personal-override-ignore-probes.md). A bare
+   `git check-ignore` is silent for an already-tracked personal override. Tracked is the more serious FAIL;
    name it as such when both hold.
    A `github` binding must additionally be **addressable from this checkout**, because everything
    above is shape and owner/repo are never recorded in the binding, every repo-scoped verb derives

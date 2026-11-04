@@ -150,8 +150,8 @@ wit_need_jira_config() {
       printf '%s: no binding found (tracker: in <home>/work-items.yaml, or the legacy repo-root JSON binding) — see CONTRACT.md Setup\n' "$name" >&2
       exit "$EX_CONFIG"
     }
-  # The effective (team + allowlisted overlay) view: auth_email/auth_env are the
-  # jira keys a per-user overlay may carry — auth identity is per-account —
+  # The effective (team + allowlisted personal override) view: auth_email/auth_env are
+  # the jira keys a personal override may carry — auth identity is per-account —
   # while site/project_keys and the JQL-shaping keys stay team-only.
   ejson="$(wit_effective_binding_json "$binding")" ||
     {

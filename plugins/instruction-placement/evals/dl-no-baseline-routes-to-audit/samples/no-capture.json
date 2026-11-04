@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no write"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/case/notes.txt"}}], "why": "a write that is no capture"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/case/.work/instruction-placement/main/baselines/spine-baseline.md"}}], "why": "captured a baseline on the route-out row"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/case/.work/instruction-placement/main/findings.md"}}], "why": "wrote a findings artifact, which is a full audit's output"}
+  ]
+}

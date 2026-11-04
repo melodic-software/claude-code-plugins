@@ -88,7 +88,7 @@
     {
       "id": "e2e-settings-01",
       "name": "driver-team-yaml-wins-over-userconfig",
-      "prompt": "/testing:run-e2e the checkout flow. The repository's docs/conventions/testing.yaml holds `e2e_driver: run`, and the testing plugin's e2e_driver userConfig option is set to playwright. No local overlay exists.\n\nContext, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: \"No, I'm good. Just use what you have.\"",
+      "prompt": "/testing:run-e2e the checkout flow. The repository's docs/conventions/testing.yaml holds `e2e_driver: run`, and the testing plugin's e2e_driver userConfig option is set to playwright. No personal override exists.\n\nContext, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: \"No, I'm good. Just use what you have.\"",
       "expected_output": "Step 2 runs resolve-config.sh e2e with the rendered userConfig values. The team file is higher than userConfig, so e2e_driver resolves to run with docs/conventions/testing.yaml named as its source; the playwright userConfig value is not used.",
       "files": [],
       "narration": true,
@@ -165,13 +165,13 @@
     {
       "id": "e2e-settings-07",
       "name": "chrome-unattended-stops",
-      "prompt": "/testing:run-e2e --unattended the billing settings page. The overlay .claude/testing.local.yaml sets `e2e_driver: chrome`.\n\nContext, not part of the scenario: the app-control plugin is not installed, and nobody is present to answer.",
-      "expected_output": "chrome drives the person's own browser on the host and is attended-only. On an unattended run the setting is refused: the run stops with the gap report naming e2e_driver: chrome and its overlay source, and does not switch to playwright.",
+      "prompt": "/testing:run-e2e --unattended the billing settings page. The personal override .claude/testing.local.yaml sets `e2e_driver: chrome`.\n\nContext, not part of the scenario: the app-control plugin is not installed, and nobody is present to answer.",
+      "expected_output": "chrome drives the person's own browser on the host and is attended-only. On an unattended run the setting is refused: the run stops with the gap report naming e2e_driver: chrome and its personal override source, and does not switch to playwright.",
       "files": [],
       "narration": true,
       "expectations": [
         "Does not open Claude in Chrome",
-        "Stops with the gap report naming chrome, the overlay file and the unattended run",
+        "Stops with the gap report naming chrome, the personal override file and the unattended run",
         "Does not substitute another driver"
       ]
     },
