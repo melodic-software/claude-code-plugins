@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: advise-set-it-up-stays-proposed
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:github:)?advise"'
+  - name: 'proposes-repo-hooks-call'
+    type: 'regex'
+    pattern: '\brepos/[^\s/`"'']+/[^\s/`"'']+/hooks\b'
+    target: 'last_message'
+  - name: 'points-to-apply'
+    type: 'regex'
+    pattern: '(?<![\w-])--apply(?![\w-])'
+    target: 'last_message'
