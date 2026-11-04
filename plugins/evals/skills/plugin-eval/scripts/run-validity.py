@@ -94,9 +94,20 @@ one line per check, detail lines indented under it:
                       of its case names that tool, such as the broken side of
                       a negative control searching for the text it lacks; a
                       Glob pattern that is rooted or holds `..` never
-                      qualifies. A with-arm denied compound Bash call whose
-                      plugin part a later Bash call in the same trace ran
-                      alone and was not denied is set aside the same way:
+                      qualifies; so is, in a without-arm run that finished,
+                      a search whose every term names only a suite.plugins
+                      plugin, which that arm lacks by design: one find whose
+                      only tests are -name, -iname, -path or -ipath (plus
+                      -type, -maxdepth, -mindepth, -a and -print, no -o or
+                      !), or one grep, egrep or fgrep with plain flags, either
+                      piped only into head or tail with no file, a Grep
+                      pattern, or a Glob whose
+                      every segment but * and ** names it; a term matches
+                      once its *, ., ^, $ and / ends are stripped, case
+                      ignored (find / -ipath '*markdown-format*'). A
+                      with-arm denied compound Bash call whose plugin part
+                      a later Bash call in the same trace ran alone and was
+                      not denied is set aside the same way:
                       split at ;, &&, || and
                       newlines, its assignment-only and cd commands dropped
                       and, after that part, ls, echo or cat (piped only into
@@ -361,6 +372,16 @@ EXPANDING = re.compile(r"[*?\[\]{}~$]")
 SUBSTITUTION = re.compile(r"\$\(|`")
 # A plugin-data compound's command that names no path (own_data_compound).
 ECHO = "echo"
+# A without-arm search for the plugin it lacks (absent_plugin_search): the
+# commands, find words and grep flags it may use, and the wildcard and anchor
+# characters stripped from a term's ends before it is compared with a name.
+SEARCH_COMMANDS = ("find", "grep", "egrep", "fgrep")
+FIND_NAME_TESTS = ("-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename")
+FIND_VALUE_TESTS = ("-type", "-maxdepth", "-mindepth")
+# No -o or negation: either widens the match past the plugin's name.
+FIND_CONNECTIVES = ("-a", "-and", "-print", "-xdev")
+GREP_SEARCH_FLAGS = "rRIilLnsHhwFEcoqx"
+SEARCH_TERM_ENDS = "*.^$/"
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -1993,6 +2014,124 @@ def own_copy_denial(run, denial, roots):
     )
 
 
+def names_absent(term, absent):
+    """True when a search term, its wildcard and anchor ends stripped, is one of
+    the absent plugins' names, case ignored (*markdown-format*, .*x.*, ^x$)."""
+    return isinstance(term, str) and term.strip(SEARCH_TERM_ENDS).lower() in absent
+
+
+def search_words(command):
+    """A Bash command's words when it is one find or grep-family command, piped
+    only into head or tail, its file-less redirects dropped; else None. A
+    command that does not parse, holds an operator other than | or a redirect
+    into a file, or a word with an unquoted glob, brace, tilde or $, never
+    qualifies."""
+    segments = command_segments(command)
+    if not segments or len(segments) != 1 or segments[0][2] or writes_file(segments[0][0]):
+        return None
+    words = [
+        "".join(part for part, _ in w) if isinstance(w, tuple) else w
+        for w in segments[0][0]
+    ]
+    stages = [[]]
+    for word in words:
+        if word is None:
+            stages.append([])
+        else:
+            stages[-1].append(word)
+    if words[0] not in SEARCH_COMMANDS or any(
+        not stage
+        or stage[0] not in TRAILING_PIPED
+        or not all(NUMBER.match(w) or w.startswith("-") for w in stage[1:])
+        for stage in stages[1:]
+    ):
+        return None
+    out, drop = [], False
+    for word in stages[0]:
+        if drop:
+            drop = False
+            continue
+        full = REDIRECT.fullmatch(word)
+        if full:
+            drop = not full.group(1)
+            continue
+        out.append(word)
+    return out
+
+
+def find_terms(words):
+    """The name and path patterns of a find command whose every word is a start
+    path, a name or path test, -type, -maxdepth or -mindepth with a bare value,
+    or a connective; else None."""
+    rest = iter(words[1:])
+    terms, started = [], False
+    for word in rest:
+        if not started and not word.startswith("-") and word != "!":
+            continue
+        started = True
+        if word in FIND_NAME_TESTS:
+            terms.append(next(rest, None))
+        elif word in FIND_VALUE_TESTS:
+            if not BARE_WORD.match(next(rest, "") or ""):
+                return None
+        elif word not in FIND_CONNECTIVES:
+            return None
+    return terms or None
+
+
+def grep_terms(words):
+    """The patterns of a grep, egrep or fgrep command whose flags are only
+    GREP_SEARCH_FLAGS clusters and -e values, its first operand the pattern
+    when no -e gives one; else None."""
+    rest = iter(words[1:])
+    terms, operands, flags = [], [], True
+    for word in rest:
+        if flags and word == END_OF_FLAGS:
+            flags = False
+        elif flags and word.startswith("-") and word != "-":
+            cluster = word[1:]
+            for i, flag in enumerate(cluster):
+                if flag == "e":
+                    terms.append(cluster[i + 1 :] or next(rest, None))
+                    break
+                if flag not in GREP_SEARCH_FLAGS:
+                    return None
+        else:
+            operands.append(word)
+    if not terms:
+        terms = operands[:1]
+    return terms or None
+
+
+def absent_plugin_search(run, denial, absent):
+    """True when a finished without-arm run's denied call is a search whose every
+    term names only a plugin under test (absent, its names lowercased), which
+    that arm lacks by design: a find whose name and path tests, or a grep whose
+    patterns, name only it (search_words), a Grep tool's pattern, or a Glob
+    pattern whose every segment other than * or ** names it. The arm searches
+    for the skill it was asked to run and is denied; the denial cannot raise its
+    score. Any other tool, term, flag or path never qualifies."""
+    name = denial[2]
+    if run.arm != "without" or not absent or not finished(run):
+        return False
+    tool_input = own_input(run, denial)
+    if name == BASH_TOOL:
+        words = search_words(tool_input.get(BASH_COMMAND))
+        if not words:
+            return False
+        terms = find_terms(words) if words[0] == "find" else grep_terms(words)
+        return bool(terms) and all(names_absent(t, absent) for t in terms)
+    if name == "Grep":
+        return names_absent(tool_input.get("pattern"), absent)
+    if name == GLOB_TOOL:
+        pattern = tool_input.get(GLOB_PATTERN)
+        if not isinstance(pattern, str):
+            return False
+        parts = [p for p in pattern.split("/") if p not in ("", "*", "**")]
+        return bool(parts) and all(names_absent(p, absent) for p in parts)
+    return False
+
+
 def command_segments(command):
     """A Bash command's commands, split at SEPARATORS, each a (words, assignments,
     expands) triple: its words as shell_words gives them (quotes removed, same-
@@ -2152,10 +2291,12 @@ def probe_split(case, runs, found, root):
     )
 
 
-def check_denials(runs, roots, root, own_copy_search_warns=False):
+def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=()):
     traced = [r for r in runs if r.trace is not None]
     every = {r: denials(r) for r in traced}
-    # Plugin-data denials, reads of the session's own tool results and, under
+    absent = {n.lower() for n in plugin_names if isinstance(n, str) and n}
+    # Plugin-data denials, reads of the session's own tool results, a finished
+    # without-arm run's searches for the plugin it lacks and, under
     # --own-copy-search-warns, a finished run's ungraded searches of its own plugin
     # copy warn and never count toward a FAIL, so every other rule judges a run on
     # the denials left.
@@ -2175,6 +2316,17 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
         ]
         for r in traced
     }
+    lacked = {
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r]
+            and d not in results[r]
+            and d not in searched[r]
+            and absent_plugin_search(r, d, absent)
+        ]
+        for r in traced
+    }
     # A denied compound call whose plugin part a later call ran alone, allowed.
     recovered = {
         r: [
@@ -2183,6 +2335,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             if d not in data[r]
             and d not in results[r]
             and d not in searched[r]
+            and d not in lacked[r]
             and recovered_denial(r, d, roots, {e[3] for e in every[r]})
         ]
         for r in traced
@@ -2203,6 +2356,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             if d not in data[r]
             and d not in results[r]
             and d not in searched[r]
+            and d not in lacked[r]
             and d not in recovered[r]
         ]
         + [d for d in network[r] if d not in offline[r]]
@@ -2250,6 +2404,15 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             self_search,
             "denied read or search" if self_search == 1 else "denied reads or searches",
         )
+    missing_search = sum(len(lacked[r]) for r in denied)
+    if missing_search:
+        summary += (
+            "; %d %s for the plugin a finished without-arm run lacks, not counted"
+            % (
+                missing_search,
+                "denied search" if missing_search == 1 else "denied searches",
+            )
+        )
     rerun = sum(len(recovered[r]) for r in denied)
     if rerun:
         summary += (
@@ -2273,7 +2436,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory,%s%s%s which never"
+            " aimed only at the session's own tool-results directory,%s%s%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
@@ -2281,6 +2444,8 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
                 " or, under --own-copy-search-warns, a Read, Grep or Glob aimed only"
                 " at the plugin copy a finished run loaded that no tool_used grader of"
                 " its case names," if own_copy_search_warns else "",
+                " or a finished without-arm run's search naming only the plugin it"
+                " lacks," if missing_search else "",
                 " or a with-arm denied compound Bash call whose plugin part a later"
                 " call in its run ran alone and was allowed," if rerun else "",
                 " or a with-arm sandbox network denial in an invocation-probe, control"
@@ -2709,7 +2874,13 @@ def main(argv=None):
         ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base), root)),
         (
             "permission denials",
-            check_denials(runs, plugin_roots, root, args.own_copy_search_warns),
+            check_denials(
+                runs,
+                plugin_roots,
+                root,
+                args.own_copy_search_warns,
+                [name for name, _ in suite_plugins(suite, base)],
+            ),
         ),
         ("skill fired", check_fired(cases, runs, root, frozenset(args.measured_fire))),
         ("probe tools", check_probe_tools(runs, root)),

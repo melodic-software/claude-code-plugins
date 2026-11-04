@@ -99,11 +99,15 @@ edit_input() {
 }
 N=0
 # run <tool> <file> <tool_input json> [env assignments...]
+# The payload is built before the hook starts and fed as a here-string, never
+# piped from a jq started beside it: the hook exits 0 unchecked when stdin
+# stays idle for stdin_read_timeout (2 s), which a starved runner can reach.
 run() {
   N=$((N + 1))
-  local tool="$1" file="$2" input="$3"
+  local tool="$1" file="$2" input="$3" p
   shift 3
-  out="$(payload "$tool" "$file" "call-$N" "$input" | env "$@" bash "$HOOK" 2>/dev/null)"
+  p="$(payload "$tool" "$file" "call-$N" "$input")"
+  out="$(env "$@" bash "$HOOK" <<<"$p" 2>/dev/null)"
   rc=$?
 }
 block_on() {
@@ -118,9 +122,9 @@ ADD_SKIP_MARKED="$(edit_input "test('adds zero', () => {" \
   $'// test-change: sum(0, 0) is flaky upstream, tracked in #12\ntest.skip(\'adds zero\', () => {')"
 
 # The option gate: unset, the launcher never starts the hook.
-out="$(payload Edit "$REPO/src/sum.test.ts" call-gate "$DROP_EXPECT" |
-  CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' node "$HOOK_DIR/exec-bash.mjs" \
-    --require-true TEST_GUARDS_ENABLED "$HOOK" 2>&1)"
+p="$(payload Edit "$REPO/src/sum.test.ts" call-gate "$DROP_EXPECT")"
+out="$(CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' node "$HOOK_DIR/exec-bash.mjs" \
+  --require-true TEST_GUARDS_ENABLED "$HOOK" <<<"$p" 2>&1)"
 assert_empty "option unset: no output" "$out"
 
 # (a) a removed expect( line is named, and the output carries no decision.
@@ -276,17 +280,18 @@ run Edit "$REPO/src/test_calc.py" "$(edit_input 'def test_add():' $'@pytest.mark
 assert_contains "pytest: an added skip decorator is named" "$out" "@pytest.mark.skip"
 
 # Two overlapping `if` rows run the hook twice for one call; only one reports.
-first="$(payload Edit "$REPO/src/sum.test.ts" dup-call "$DROP_EXPECT" | bash "$HOOK" 2>/dev/null)"
-second="$(payload Edit "$REPO/src/sum.test.ts" dup-call "$DROP_EXPECT" | bash "$HOOK" 2>/dev/null)"
+p="$(payload Edit "$REPO/src/sum.test.ts" dup-call "$DROP_EXPECT")"
+first="$(bash "$HOOK" <<<"$p" 2>/dev/null)"
+second="$(bash "$HOOK" <<<"$p" 2>/dev/null)"
 assert_contains "dedup: the first run for a tool_use_id reports" "$first" "expect(sum(2, 2))"
 assert_empty "dedup: a second run for the same tool_use_id is silent" "$second"
 
 # test-scan keeps its own marker: a call test-weaken saw still gets scanned.
 printf 'test("x", () => {\n  run();\n});\n' >"$REPO/src/bare.test.ts"
-out="$(jq -cn --arg f "$REPO/src/bare.test.ts" \
+p="$(jq -cn --arg f "$REPO/src/bare.test.ts" \
   '{hook_event_name: "PostToolUse", tool_name: "Write", session_id: "s1", tool_use_id: "dup-call",
-    tool_input: {file_path: $f}, tool_response: {type: "create", structuredPatch: []}}' |
-  bash "$HOOK_DIR/test-scan.sh" 2>/dev/null)"
+    tool_input: {file_path: $f}, tool_response: {type: "create", structuredPatch: []}}')"
+out="$(bash "$HOOK_DIR/test-scan.sh" <<<"$p" 2>/dev/null)"
 assert_contains "test-scan still reports a call test-weaken already saw" "$out" "rule-zero-assertion"
 
 echo

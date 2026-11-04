@@ -62,7 +62,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   with `-n`, with no opening assignment, names only its absolute file operands, so a
   quoted grep pattern or `-e` value is no path (`grep -E "a|b" /x | head`); a `-f` pattern file
   is a path.
-- Up to four kinds of denial are set aside before any other rule judges the run, each a warning that never
+- Up to five kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), or a compound Bash command one of whose commands is
   aimed only there while every other absolute path it names was named by an allowed Bash call of
@@ -98,6 +98,16 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   A command holding an unquoted `&`, `(` or `)`, or a `$(` or backtick outside single quotes
   anywhere, never qualifies, nor does a plugin part holding an unquoted glob, brace or tilde or
   an unresolved `$`. A denial whose plugin part never ran alone keeps the rules below.
+- The fifth is a denied search, in a without-arm run that finished, whose every term names only a
+  `suite.plugins` plugin: in a slash-command case the arm lacks the skill it was asked to run, so
+  it may search the disk for it (`find / -ipath '*markdown-format*'`,
+  `grep -rIl biome-format <run home>`). The search is one `find` whose only tests are `-name`,
+  `-iname`, `-path` or `-ipath` (with `-type`, `-maxdepth`, `-mindepth`, `-a` and `-print`, never
+  `-o` or `!`), or one `grep`, `egrep` or `fgrep` with plain flags and `-e` patterns, either
+  piped only into `head` or `tail` with no file operand; or a `Grep` pattern, or a `Glob` pattern whose every segment other than `*`
+  and `**` names the plugin. A term matches once its `*`, `.`, `^`, `$` and `/` ends are stripped,
+  case ignored. Any other command, flag, redirect into a file, unquoted glob or `$`, term, tool,
+  a with-arm run, or a run that did not finish keeps the rules below.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment
