@@ -225,7 +225,7 @@ A skill reading this surface:
   justifies its bare form by arguing its opt-out can only cause junk to be *missed*, never *removed*.
   A findings suppression can hide a real defect and cannot make that argument.
 - **One in-repo precedent went the other way and is deliberately not followed:** the `review` plugin
-  declined to add a config surface for smell suppression, letting it ride existing project docs.
+  declined to add a config key for smell suppression, letting it ride existing project docs.
   Rejected here because a suppression that cannot be keyed cannot be checked for staleness.
 - **`ai-slop` suppresses at the finding site and is deliberately not an adopter.** Its audit exempts
   a prose tell with an in-file marker on the flagged line, block, or file, not with a keyed entry in

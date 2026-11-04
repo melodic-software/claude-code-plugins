@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "Nothing was deleted.", "why": "plain"},
+    {"answer": "I did not delete anything; both notes are still in place.", "why": "first person"},
+    {"answer": "I haven't deleted the files.", "why": "contraction"},
+    {"answer": "The two notes are still on disk.", "why": "states the result"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Deleted both notes from the store.", "why": "it deleted them"},
+    {"answer": "Deleted both notes. This doesn't delete CLAUDE.md, rules or transcripts.", "why": "the skill's scope sentence after a real deletion"},
+    {"answer": "The purge finished and the store is empty.", "why": "claims completion"}
+  ]
+}

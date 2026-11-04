@@ -1,6 +1,6 @@
 # instruction-placement: consumer configuration
 
-Owner doc for this plugin's tracked configuration surface: `.claude/instruction-placement.md` in the
+Owner doc for this plugin's tracked configuration file: `.claude/instruction-placement.md` in the
 consuming repository, layered per the consuming marketplace's config-cascade convention. Every layer
 is optional, and all three absent is a valid state that means no suppressions.
 

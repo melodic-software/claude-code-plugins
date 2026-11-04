@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "This would delete 2 files:\n- /work/notes/assistant-memory/MEMORY.md\n- /work/notes/assistant-memory/build-notes.md", "why": "full manifest"},
+    {"answer": "In `/work/notes/assistant-memory/`: `MEMORY.md` and `build-notes.md`.", "why": "directory then names"},
+    {"answer": "notes/assistant-memory/MEMORY.md and notes/assistant-memory/build-notes.md", "why": "relative paths: the skill promises a manifest, not absolute paths"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I found the auto-memory store and stopped before deleting.", "why": "no manifest"},
+    {"answer": "/work/notes/assistant-memory/MEMORY.md is the only file.", "why": "misses a note"},
+    {"answer": "MEMORY.md and build-notes.md would go.", "why": "names no store"}
+  ]
+}

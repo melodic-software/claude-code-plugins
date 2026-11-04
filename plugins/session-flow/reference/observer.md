@@ -127,7 +127,7 @@ The observations are kept, and nothing is written to the ledger, when the run ex
 body reports `is_error`, its output is not JSON, `terminal_reason` (when present) is not `completed`,
 `subtype` is not `success`, `permission_denials` is non-empty, or the result text is empty.
 
-## Config surface (userConfig)
+## Config (userConfig)
 
 Declared in the plugin manifest; the SessionStart hook and the `arm` action read the same values.
 

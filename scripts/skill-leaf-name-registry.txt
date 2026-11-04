@@ -78,7 +78,7 @@
 # promise mutation the verb table reserves for clean/tidy/fix.
 #
 # instruction-placement joins on its own grounds. Its object is neither a
-# codebase nor a configuration surface but the PLACEMENT of agent-facing
+# codebase nor its configuration but the PLACEMENT of agent-facing
 # instruction content: which surface carries each convention, and therefore
 # when it enters context. It holds the verb's contract exactly -- bare
 # invocation sweeps and reports, the only write is the findings artifact its
