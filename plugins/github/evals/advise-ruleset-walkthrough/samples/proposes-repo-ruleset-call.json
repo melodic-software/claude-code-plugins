@@ -5,7 +5,7 @@
       "why": "exact repo endpoint"
     },
     {
-      "answer": "POST /repos/{owner}/{repo}/rulesets with the body below.",
+      "answer": "POST /repos/OWNER/REPO/rulesets with the body below.",
       "why": "templated endpoint"
     }
   ],

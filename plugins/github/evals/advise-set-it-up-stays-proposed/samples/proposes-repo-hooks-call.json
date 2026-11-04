@@ -5,7 +5,7 @@
       "why": "exact repo endpoint"
     },
     {
-      "answer": "POST /repos/{owner}/{repo}/hooks with the payload below.",
+      "answer": "POST /repos/OWNER/REPO/hooks with the payload below.",
       "why": "templated endpoint"
     }
   ],
