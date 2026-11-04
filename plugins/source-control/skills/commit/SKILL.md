@@ -27,7 +27,7 @@ invocation:
 Keep the `head` and `tail` pipes in the commands: they are the bound
 ([reference/config-probes.md](reference/config-probes.md) says why).
 
-Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and overlay as not applicable, skip the three probes, and read user-global only ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
+Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and personal override as not applicable, skip the three probes, and read user-global only ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
 
 The team value of the convention keys (`subject_pattern`, `type_list`, `trailer_policy`) comes from
 `docs/conventions/source-control.yaml`, read when probe 1 below reports it tracked, through
@@ -44,7 +44,7 @@ the leading `:` is pathspec magic, and quoting keeps the shell from reinterpreti
    `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"`
 2. Team layer, existence.
    `git ls-files --cached --others -- ":/docs/conventions/source-control.yaml"`
-3. Personal overlay, existence.
+3. Personal override, existence.
    `git ls-files --cached --others -- ":/.claude/source-control.local.md"`
 
 Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed.
@@ -108,7 +108,7 @@ these failure modes:
 The subject convention (WHAT shape a subject must take) resolves via a ladder, checked in order:
 
 1. **The layered source-control convention config**. User-global, tracked team
-   (`docs/conventions/source-control.yaml`), and gitignored personal overlay, merged per key by
+   (`docs/conventions/source-control.yaml`), and gitignored personal override, merged per key by
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
    Resolve all three layers before using any value; a value from one layer alone is not the effective
    config. When any layer declares one, the effective `subject_pattern` (and `type_list`, when

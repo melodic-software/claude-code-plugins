@@ -367,7 +367,7 @@ them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremo
   convention resolves from the layered source-control config (written by
   `/source-control:setup`) first, a `~/.claude` user-global file, the tracked
   team file `docs/conventions/source-control.yaml`, and a gitignored `.claude/source-control.local.md` personal
-  overlay, merged per key, then the consuming project's own
+  override, merged per key, then the consuming project's own
   `CLAUDE.md`, rules, and hooks; branch naming, PR template, merge style, and
   bot-identity wrappers also come from the project's own `CLAUDE.md` and
   rules. Defaults (Conventional Commits, squash merge) apply only when the
@@ -447,8 +447,8 @@ The commit-subject / PR-title convention is separate: run
 **`/source-control:setup`** to interview your repo and write the
 source-control config. Idempotent and safe to re-run. `apply layer=team`
 appends the recursive `.claude/**/*.local.*` line to your `.gitignore` when it is missing, so the
-personal overlay layer stays out of version control; `layer=local` never edits `.gitignore` and
-fails with a recommendation when the overlay is exposed.
+personal override layer stays out of version control; `layer=local` never edits `.gitignore` and
+fails with a recommendation when the personal override is exposed.
 Remaining optional environment variables:
 
 | Variable | Used by | Effect |

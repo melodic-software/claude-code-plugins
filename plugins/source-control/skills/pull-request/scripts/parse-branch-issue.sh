@@ -34,8 +34,8 @@
 #      UTF-8 BOM, trailing whitespace, and a closing `#` sequence on the heading
 #      are accepted. Repo root: CLAUDE_PROJECT_DIR, else
 #      `git rev-parse --show-toplevel`. When that root is the home directory
-#      (or an ancestor of it), team and overlay layers are not applicable. A
-#      root outside any git working tree skips both layers too. An overlay
+#      (or an ancestor of it), team and personal override layers are not applicable. A
+#      root outside any git working tree skips both layers too. A personal override
 #      path that physically equals the user-global file is skipped even when
 #      the root is not home.
 #   2. The deprecated branch_issue_pattern userConfig: `pattern` (unless it is the
@@ -273,12 +273,12 @@ LAYERS=()
 USER_LAYER="${HOME:-}/.claude/source-control.md"
 if [[ -n "$REPO_ROOT" ]]; then
   case "$(config_root_classify "$REPO_ROOT")" in
-    home) note "team and overlay not applicable: project root is the home directory (or an ancestor of it)" ;;
-    non-repo) note "team and overlay not applicable: project root is not inside a git repository" ;;
+    home) note "team and personal override not applicable: project root is the home directory (or an ancestor of it)" ;;
+    non-repo) note "team and personal override not applicable: project root is not inside a git repository" ;;
     *)
-      overlay="${REPO_ROOT}/.claude/source-control.local.md"
+      personal_override="${REPO_ROOT}/.claude/source-control.local.md"
       TEAM_YAML="${REPO_ROOT}/${CONVENTION_KEY_YAML_REL}"
-      config_root_paths_same "$overlay" "$USER_LAYER" || LAYERS+=("$overlay")
+      config_root_paths_same "$personal_override" "$USER_LAYER" || LAYERS+=("$personal_override")
       # The team layer is the YAML, a layer only when git tracks it, as in the
       # commit skill. The retired .claude/source-control.md is not read.
       if convention_key_tracked "$REPO_ROOT" "$CONVENTION_KEY_YAML_REL"; then
@@ -295,7 +295,7 @@ LAYERS+=("$USER_LAYER")
 layer_label() {
   case "$1" in
     "${TEAM_YAML:-}") echo "$CONVENTION_KEY_YAML_REL" ;;
-    "${overlay:-}") echo ".claude/source-control.local.md" ;;
+    "${personal_override:-}") echo ".claude/source-control.local.md" ;;
     "$USER_LAYER") echo "user-global .claude/source-control.md in the home directory" ;;
     *) echo "$1" ;;
   esac

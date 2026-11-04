@@ -1,5 +1,5 @@
 ---
-description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the user-global, team, and personal-overlay layers plus the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
+description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the user-global, team, and personal-override layers plus the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
 argument-hint: "[check|apply] [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
 user-invocable: true
 disable-model-invocation: true
@@ -14,7 +14,7 @@ Inspect and configure the source-control plugin per the uniform setup contract
 `check` reports the effective configuration, `apply` writes it. Two configuration surfaces:
 
 1. The commit-subject / PR-title convention config, layered across a user-global file, the tracked
-   team file (`docs/conventions/source-control.yaml`), and a gitignored personal overlay and merged per key by
+   team file (`docs/conventions/source-control.yaml`), and a gitignored personal override and merged per key by
    [../../reference/config-resolution.md](../../reference/config-resolution.md). Resolved first by
    `/source-control:commit` and `/source-control:pull-request` before they fall back to inference or
    the bundled Conventional Commits default. Conventional Commits is genuinely optional, some orgs
@@ -51,9 +51,9 @@ single layer's value as the effective convention; a reader who cannot see which 
 tell why `/source-control:commit` behaves as it does.
 
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, team and
-overlay are **not applicable**
+personal override are **not applicable**
 ([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade #4672):
-do not read `${REPO_ROOT}/docs/conventions/source-control.yaml` or the overlay,
+do not read `${REPO_ROOT}/docs/conventions/source-control.yaml` or the personal override,
 report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
 or `project root is not inside a git repository`), and resolve user-global only.
 `parse-branch-issue.sh` prints the same note on stderr. Git
@@ -64,8 +64,8 @@ tracked/ignored probes do not apply: there is no consumer repository to answer a
 key                        value                       won by
 subject_pattern            ^[A-Z]+-\d+: .+             team
 pr_title_pattern           Same as subject_pattern      team
-trailer_policy             none                         local overlay
-pr_body_attribution        none                         local overlay
+trailer_policy             none                         personal override
+pr_body_attribution        none                         personal override
 pr_body_required_sections  briefing                     plugin default
 branch_issue_pattern       ^[^/]+/([0-9]+)-             team
 ```
@@ -110,19 +110,19 @@ Per-layer verdicts:
   by source-control; name the `## <key>` sections it still carries. `apply` copies every key the
   schema declares into `docs/conventions/source-control.yaml` and removes its section; delete the
   file once it carries none.
-- **Local overlay ignore rule** (the recursive `.claude/**/*.local.*`, covering
+- **Personal override ignore rule** (the recursive `.claude/**/*.local.*`, covering
   `REPO_ROOT/.claude/source-control.local.md`): probe the ignore rule whether or
-  not the overlay file exists. The rule's job is to be in place **before** the
-  first overlay is written; conditioning the probe on the file already existing
+  not the personal override file exists. The rule's job is to be in place **before** the
+  first personal override is written; conditioning the probe on the file already existing
   is the window that produces the exposure. Missing rule → FAIL, remediable by
   `apply` (which writes the line at team-layer bind, not only at `layer=local`).
-  Probe with `git check-ignore --no-index -v -- .claude/nested/overlay.local.md`
+  Probe with `git check-ignore --no-index -v -- .claude/nested/personal-override.local.md`
   (the path does not need to exist). The sentinel is nested so a leftover
-  `.claude/*.local.*` rule, which still matches the flat overlay path, is not
+  `.claude/*.local.*` rule, which still matches the flat personal override path, is not
   mistaken for the recursive rule. A match counts only when `-v` names a
   repository `.gitignore` as the source. `$GIT_DIR/info/exclude` and
   `core.excludesFile` are operator-local and do not protect a teammate.
-- **Local overlay file** (`REPO_ROOT/.claude/source-control.local.md`): when
+- **Personal override file** (`REPO_ROOT/.claude/source-control.local.md`): when
   present, PASS only when an ignore rule matches it **and** it is not in the
   index. Two distinct failures hide behind one symptom and need different
   remediations, so probe them separately. See the two-probe form under
@@ -298,7 +298,7 @@ In brief:
   repository there is no team to share with) and offer `layer=user`.
 - **Non-interactive** (`subject_pattern=`): an in-place *update*, never a fresh file. Carry every
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
-  non-machine-checkable value, and for an overlay omit requested keys the layers below already
+  non-machine-checkable value, and for a `user` or `local` write omit requested keys the layers below already
   resolve identically.
 - **`branch_issue_pattern=`**: alone, it writes or replaces only the `branch_issue_pattern` key of
   the chosen layer (a quoted scalar in the team YAML; the `## branch_issue_pattern` section, value in
@@ -440,7 +440,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   the authoritative gate; this config only tells the plugin's skills what shape to draft and
   pre-check against.
 - Write the consumer's `.gitignore`, except the one recursive `.claude/**/*.local.*` line at
-  team-layer bind / `apply`. That line must exist before any overlay is written,
+  team-layer bind / `apply`. That line must exist before any personal override is written,
   so `apply` appends it when missing and announces the edit. Everything else in
   `.gitignore` stays the consumer's.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The convention lives in
