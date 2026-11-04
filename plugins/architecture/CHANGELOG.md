@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-04
+
+### Changed
+
+- `reference/rendered-view.md` step 3 sends every view lane to the shared medium resolver, discovery included, and no longer lists `~/.claude/rendered-views.md`, `.claude/rendered-views.md` and `.claude/rendered-views.local.md` as files to read. The `terminal` delivery points at the resolver's report line in place of naming a layer.
+
 ## [2.0.1] - 2026-11-04
 
 ### Fixed

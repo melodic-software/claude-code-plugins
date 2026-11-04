@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-04
+
+### Changed
+
+- **teach:** the workspace-root ladder reads the `${CLAUDE_PLUGIN_DATA}/workspace-root` pointer file with the Read tool in a call of its own, never chained with `list-workspaces.sh` in one Bash call. The eval sandbox denied that chained call in 4 of 9 with-arm runs of `te-root-declared-substitution` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
+
 ## [1.0.3] - 2026-11-04
 
 ### Fixed
