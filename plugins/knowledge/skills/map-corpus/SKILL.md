@@ -207,7 +207,9 @@ resources get digests); the parent's invariant governs each downstream run untou
    describes under Batch path. Each queue entry carries `verification`, `not-run` until a
    digest reports, then the page's checklist `Verification status` value.
 4. Once the runs return, write each queue entry's `verification`: from the workflow result's page
-   entry, or from the slice checklist's `Verification status` line after a Skill-tool run.
+   entry, or from the slice checklist's `Verification status` line after a Skill-tool run. An
+   entry the workflow result lists under `deferred` or `rejected` was not run: write it
+   `not-run: <reason>`, with that list's reason.
 5. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
    otherwise present and stop.
 
