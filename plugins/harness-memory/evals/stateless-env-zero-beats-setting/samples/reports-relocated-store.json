@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The notes are in /work/notes/assistant-memory: MEMORY.md (3 lines) and 1 topic file.", "why": "absolute path"},
+    {"answer": "Store: `notes/assistant-memory/` (from autoMemoryDirectory in project settings).", "why": "relative path"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "The notes would be in the default store under the config directory; MEMORY.md is absent.", "why": "took the snapshot's default"},
+    {"answer": "Your notes are somewhere under notes/.", "why": "does not name the directory"}
+  ]
+}
