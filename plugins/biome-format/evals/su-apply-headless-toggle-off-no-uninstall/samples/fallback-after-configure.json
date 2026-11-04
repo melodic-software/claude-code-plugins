@@ -6,6 +6,10 @@
     {
       "answer": "`claude plugin configure biome-format@m --values-stdin`, else `claude plugin install -s user biome-format@m --config biome_format_enabled=false`.",
       "why": "a flag between the verb and the target"
+    },
+    {
+      "answer": "Run `claude plugin configure biome-format@<marketplace> --values-stdin`. On an older release, `claude plugin install -s <scope> biome-format@<marketplace> --config biome_format_enabled=false`.",
+      "why": "a placeholder scope flag before the target"
     }
   ],
   "fail": [

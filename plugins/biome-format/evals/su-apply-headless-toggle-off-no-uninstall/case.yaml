@@ -13,7 +13,7 @@ graders:
     target: 'last_message'
   - name: 'fallback-after-configure'
     type: 'regex'
-    pattern: 'claude plugin configure(?=[^\n]*--values-stdin)(?:\s+-\S+)*\s+biome-format@\S+[\s\S]*?claude plugin install(?:\s+-\S+(?:\s+(?!biome-format@)\w+)?)*\s+biome-format@\S+[^\n]*?--config[ =]biome_format_enabled=false\b'
+    pattern: 'claude plugin configure(?=[^\n]*--values-stdin)(?:\s+-\S+)*\s+biome-format@\S+[\s\S]*?claude plugin install(?:\s+-\S+(?:\s+(?!biome-format@)(?:\w+|<[^>\s]+>))?)*\s+biome-format@\S+[^\n]*?--config[ =]biome_format_enabled=false\b'
     target: 'last_message'
   - name: 'rerun-still-writes'
     type: 'llm'
