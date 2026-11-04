@@ -9,6 +9,7 @@
 # Each case runs the real script against a fixture tree. This repository's own
 # tree passes all four checks, so a script that ignored the variable would exit
 # 0 on the failing fixture.
+# test-scope: plugins/*/.claude-plugin/plugin.json plugins/*/README.md
 # shellcheck disable=SC2016
 set -uo pipefail
 
