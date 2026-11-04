@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.2] - 2026-11-04
+
+### Changed
+
+- `/source-control:worktree`: the nesting invariant's dated measurement, its disputed arms and its
+  expiry stamp return to the skill body, and every pointer returns with them. A negative control
+  could not show the skill's eval suite detects the loss of that text, so the cut is unmeasurable
+  and the before text ships. The isolation-enforcement passage stays as our rules plus a pointer.
+
 ## [7.1.1] - 2026-11-04
 
 ### Fixed
