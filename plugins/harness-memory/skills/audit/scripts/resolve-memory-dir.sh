@@ -17,6 +17,7 @@ pinned_memory_dir() {
   [[ -n "${CLAUDE_CONFIG_DIR:-}" && "$pinned" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || return 1
   case "$(printf '%s' "$pinned" | tr '[:upper:]' '[:lower:]')" in
   con | prn | aux | nul | com[0-9] | lpt[0-9]) return 1 ;;
+  *) ;;
   esac
   printf '%s\n' "$CLAUDE_CONFIG_DIR/projects/$pinned/memory"
 }
