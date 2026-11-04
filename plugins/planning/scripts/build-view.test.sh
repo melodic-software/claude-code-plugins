@@ -180,16 +180,16 @@ for (const [kind, fixture] of Object.entries(fixtures)) {
     }
     check(`${kind}: the toggle opens on system`, /data-rv-theme="system" aria-pressed="true"/.test(html));
     check(`${kind}: no other theme control`, !/data-accent|data-palette|accent picker|palette picker/i.test(html));
-    // The toggle only sets or clears data-theme on the root, so the view's own colour
+    // The toggle only sets or clears data-theme on the root, so the view's own color
     // tokens must follow it, or Light and Dark change aria-pressed and not the page.
     const tokens = (block) => block !== undefined && /--bg:/.test(block) && /--fg:/.test(block);
-    const base = /(?:^|\n)\s*:root\s*\{([^}]*)\}/.exec(html)?.[1];
-    const pinned = /:root\[data-theme=dark\]\s*\{([^}]*)\}/.exec(html)?.[1];
-    const guarded = /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme=light\]\)\s*\{([^}]*)\}/.exec(html)?.[1];
-    check(`${kind}: the base tokens define --bg and --fg in a light scheme`, tokens(base) && /color-scheme:\s*light/.test(base));
-    check(`${kind}: data-theme=dark pins the dark tokens`, tokens(pinned) && /color-scheme:\s*dark/.test(pinned));
-    check(`${kind}: the system dark tokens yield to data-theme=light`, tokens(guarded) && /color-scheme:\s*dark/.test(guarded));
-    check(`${kind}: every prefers-color-scheme dark block is guarded`, (html.match(/prefers-color-scheme:\s*dark\)\s*\{/g) ?? []).length === (html.match(/prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme=light\]\)/g) ?? []).length);
+    const base = /(?:^|\n)[ \t\n\r\f]*:root[ \t\n\r\f]*\{([^}]*)\}/.exec(html)?.[1];
+    const pinned = /:root\[data-theme=dark\][ \t\n\r\f]*\{([^}]*)\}/.exec(html)?.[1];
+    const guarded = /@media \(prefers-color-scheme: dark\)[ \t\n\r\f]*\{[ \t\n\r\f]*:root:not\(\[data-theme=light\]\)[ \t\n\r\f]*\{([^}]*)\}/.exec(html)?.[1];
+    check(`${kind}: the base tokens define --bg and --fg in a light scheme`, tokens(base) && /color-scheme:[ \t\n\r\f]*light/.test(base));
+    check(`${kind}: data-theme=dark pins the dark tokens`, tokens(pinned) && /color-scheme:[ \t\n\r\f]*dark/.test(pinned));
+    check(`${kind}: the system dark tokens yield to data-theme=light`, tokens(guarded) && /color-scheme:[ \t\n\r\f]*dark/.test(guarded));
+    check(`${kind}: every prefers-color-scheme dark block is guarded`, (html.match(/prefers-color-scheme:[ \t\n\r\f]*dark\)[ \t\n\r\f]*\{/g) ?? []).length === (html.match(/prefers-color-scheme:[ \t\n\r\f]*dark\)[ \t\n\r\f]*\{[ \t\n\r\f]*:root:not\(\[data-theme=light\]\)/g) ?? []).length);
   }
   const plan = readFileSync(`${dir}/${fixtures.plan.template}`, "utf8");
   const shows = keysOf(plan, "data-rv-shows");
