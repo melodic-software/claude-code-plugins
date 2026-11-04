@@ -478,7 +478,7 @@ sync_stale_base() {
   out=$(git -C "$wd" diff --name-only --diff-filter=U)
   git -C "$wd" merge --abort 2>/dev/null
   if [[ -n "$out" ]]; then
-    echo "push-branch.sh: merging $ref into '$BRANCH' conflicted; merge aborted; not pushing. Merge it by hand (/source-control:resolve-conflicts), then push again" >&2
+    echo "push-branch.sh: merging $ref into '$BRANCH' conflicted; merge aborted; not pushing. Merge it by hand and resolve the conflicts per /source-control:pull-request's base-merge step (ready-for-review.md §2.5.2), then push again" >&2
     exit 4
   fi
   echo "push-branch.sh: merging $ref into '$BRANCH' failed; not pushing" >&2

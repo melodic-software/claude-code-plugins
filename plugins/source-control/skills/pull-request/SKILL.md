@@ -12,7 +12,7 @@ metadata:
 
 ## Repository context. Gather first
 
-The read actions `view`, `list`, `review-comments` and `review-venue`, `comments --ci`, `dependency --ci` and `ci --ci` skip this section. For every other action, collect these with
+The read actions `view`, `list`, `review-comments` and `review-venue`, `comments --ci`, `conflicts --ci`, `dependency --ci` and `ci --ci` skip this section. For every other action, collect these with
 **individual** Bash calls, one command per call, never combined into a single invocation:
 
 - Current branch, `git branch --show-current`
@@ -70,6 +70,7 @@ For runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/tem
 | `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a forge-events channel (an MCP server delivering webhook events into the session), ~0 idle requests; **(2) Monitor tool** fallback (60s poll); **(3) polling** in cloud/headless sessions, plus the PR-activity subscription where the session offers it. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
 | `comments --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended mode: the runner's kept reviewer-bot threads, or an earlier pr-verify FAIL's notes, only, through its review-thread tool, running no head code. See [reference/comments-ci.md](reference/comments-ci.md) |
+| `conflicts --ci` | Phase 2.5.2 (CI) | Unattended conflict resolution for the pr-unblock lane: reads the runner's `conflicts.json` as data, resolves each conflicted path in place under the base-merge step's discipline, runs no command, never edits a path under `.github/workflows/`, and leaves a path whose two intents cannot both hold with its markers, which escalates it. See [reference/conflicts-ci.md](reference/conflicts-ci.md) |
 | `dependency --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended review of one risky Dependabot update: reads the context file, the checkout and the upstream release notes as data, leaves a scoped fix outside `.github/` uncommitted for a later job to push, and returns a merge, fix, close or escalate verdict as structured output, running no head code. See [reference/dependency-ci.md](reference/dependency-ci.md) |
 | `ci --ci` | CI | The pr-unblock lane's unattended fix of a PR's failing checks: reads the runner's context file as data, reproduces each check with the repository's own command, fixes the cause, reruns it, and leaves the fix uncommitted for the runner's patch; never weakens a check, and escalates what it cannot fix with a named reason. See [reference/ci-ci.md](reference/ci-ci.md) |
 | `merge` | Phase 4 | Squash merge, or merge or enqueue without asking once the PR is `CLEAN` and the AI review checks have passed on the reviewed head, with the plain merge command (a refusal is reported, never handed to the user or retried in another shape), then confirm a merge-queue PR entered the queue (enqueue a `CLEAN` one left out, report the refusal text verbatim; §4.2.2) and wait for `MERGED` (no strategy flag behind a merge queue, `--auto` only pinned to the reviewed head; [reference/merge.md](reference/merge.md) §4.2.1) + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
@@ -144,6 +145,7 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 | 2. Create | [reference/create.md](reference/create.md) | `create` |
 | 2.5. Ready for review | [reference/ready-for-review.md](reference/ready-for-review.md) | `ready` |
 | 3. Monitor | [reference/monitor.md](reference/monitor.md) | `monitor`, `comments` |
+| 2.5.2 (CI) | [reference/conflicts-ci.md](reference/conflicts-ci.md) | `conflicts --ci` |
 | 3.5 (CI) | [reference/comments-ci.md](reference/comments-ci.md) | `comments --ci` |
 | 3.5 (CI) | [reference/dependency-ci.md](reference/dependency-ci.md) | `dependency --ci` |
 | CI | [reference/ci-ci.md](reference/ci-ci.md) | `ci --ci` |
@@ -154,7 +156,7 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 
 ## Monitor entry
 
-On `monitor`, `comments`, or `full` reaching monitor, read [reference/monitor.md](reference/monitor.md) before any CI polling or comment evaluation: its entry checklist runs first, and its per-iteration checklist governs every CI or comment event. Standalone `create` runs Steps 1-3 of that entry checklist when its session will keep acting on the PR it opened ([reference/create.md](reference/create.md) §2.6); `create --pushed` leaves them to its caller. `comments --ci` skips it, and `dependency --ci` and `ci --ci` do not enter Phase 3.
+On `monitor`, `comments`, or `full` reaching monitor, read [reference/monitor.md](reference/monitor.md) before any CI polling or comment evaluation: its entry checklist runs first, and its per-iteration checklist governs every CI or comment event. Standalone `create` runs Steps 1-3 of that entry checklist when its session will keep acting on the PR it opened ([reference/create.md](reference/create.md) §2.6); `create --pushed` leaves them to its caller. `comments --ci` skips it, and `conflicts --ci`, `dependency --ci` and `ci --ci` do not enter Phase 3.
 
 ---
 
