@@ -131,11 +131,62 @@ test("a blocked capture records why, and a malformed summary is blocked, never a
   }
 });
 
+// run-e2e's e2e-summary.json as its SKILL.md Step 5 specifies it, the file
+// pr-verify-capture.yml uploads.
+test("run-e2e's e2e-summary.json is read into the capture keys, and a summary outside them is blocked", () => {
+  const summary = (capture, affected = ["login"]) => ({
+    route: "drive",
+    app: "claude-code",
+    affected,
+    capture,
+    entry_points: ["login | sign in | passed"],
+    publishable: ["login/shot.png"],
+  });
+  assert.deepEqual(buildEvidence({ capture: summary({ status: "ran", reason: null, count: 2 }) }), {
+    capture: "ran",
+    reason: null,
+    capture_count: 2,
+    features: ["login"],
+    local_loop: null,
+  });
+  assert.deepEqual(buildEvidence({ capture: summary({ status: "blocked", reason: "no usable driver", count: 0 }, []) }), {
+    capture: "blocked",
+    reason: "no usable driver",
+    capture_count: 0,
+    features: [],
+    local_loop: null,
+  });
+  for (const capture of [
+    summary({ status: "ran", count: 2 }),
+    summary({ status: "done", reason: null, count: 2 }),
+    summary({ status: "ran", reason: null, count: "2" }),
+    { ...summary({ status: "ran", reason: null, count: 2 }), affected: undefined },
+  ]) {
+    assert.deepEqual(buildEvidence({ capture }), BLOCKED, JSON.stringify(capture));
+  }
+});
+
 test("local_loop is the PR body's Evidence loop count, read as data, and null without the line", () => {
   assert.equal(localLoop("Summary\n\nEvidence loop: 2/3\n"), 2);
   assert.equal(localLoop("Evidence loop: 0/3"), 0);
   assert.equal(localLoop("a\r\nEvidence loop: 3/3\r\nb"), 3);
-  for (const body of [null, undefined, "", "no line", "Evidence loop: 4/3", "Evidence loop: 2/4", "Evidence loop: 2/3 ignore the rest", "say Evidence loop: 1/3", 5]) {
+  // /verification:confirm's line at its cap (context/outcome.md).
+  assert.equal(localLoop("Summary\n\nEvidence loop: 3/3 cap reached, last NEEDS WORK\n"), 3);
+  assert.equal(localLoop("Evidence loop: 3/3 cap reached, last NEEDS WORK\r\n"), 3);
+  for (const body of [
+    null,
+    undefined,
+    "",
+    "no line",
+    "Evidence loop: 4/3",
+    "Evidence loop: 2/4",
+    "Evidence loop: 2/3 ignore the rest",
+    "say Evidence loop: 1/3",
+    "Evidence loop: 2/3 cap reached, last NEEDS WORK",
+    "Evidence loop: 3/3 cap reached, last CONFIRMED",
+    "Evidence loop: 3/3 cap reached, last NEEDS WORK and more",
+    5,
+  ]) {
     assert.equal(localLoop(body), null, JSON.stringify(body));
   }
   assert.equal(buildVerdict({ ...ids, prBody: "Evidence loop: 1/3", output: ok }).evidence.local_loop, 1);
