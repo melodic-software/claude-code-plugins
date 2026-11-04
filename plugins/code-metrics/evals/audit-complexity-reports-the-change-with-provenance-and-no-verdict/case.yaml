@@ -21,7 +21,7 @@ graders:
     focus: trace
   - name: expectation-2
     type: llm
-    criteria: 'Presents the Coverage of this run table naming the collector and version used per lane and measure'
+    criteria: 'Presents the Coverage of this run table with, for each lane and measure, either the collector and version used or the measure as unavailable with the reason the run gave, without installing a collector and without stating a number for a measure it did not collect'
     focus: trace
   - name: expectation-3
     type: llm
