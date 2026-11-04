@@ -1,15 +1,23 @@
 schema_version: "1.1"
 name: 'read-huge-article-stops-at-the-read-budget-and-says-so'
+context:
+  scaffold_script: scaffold.sh
 graders:
-  - name: 'expectation-1'
-    type: 'llm'
-    criteria: 'Bounds the total bytes read into context, not merely each individual slice'
-    focus: 'trace'
-  - name: 'expectation-2'
-    type: 'llm'
-    criteria: 'Reports the result as partial rather than presenting the read portion as the whole article'
-    focus: 'trace'
-  - name: 'expectation-3'
-    type: 'llm'
-    criteria: 'Still deletes the spool after stopping early'
-    focus: 'trace'
+  - name: 'no-tail-marker'
+    type: 'regex'
+    pattern: 'tarnwick|kx-?7731'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'no-read-past-budget'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"(?:offset|limit)":(?:[3-9]\d{3}|\d{5,})\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'says-partial'
+    type: 'regex'
+    pattern: '(?<!\bnot )(?<!\bnot a )(?<!n[’'']t )(?<!n[’'']t a )\b(?:partial|partially|incomplete|truncated|cut off|not the (?:whole|full|complete) (?:article|post|file))\b|\b(?:stopped|stops|stopping)\b[^\n]{0,60}?\b(?:budget|cap|ceiling|limit|256 ?KB|262,?144)\b|\b(?:read|covers?|shown?|showing)\b[^\n]{0,40}?\b(?:only|just) the first\b'
+    flags: 'i'
+    target: 'last_message'

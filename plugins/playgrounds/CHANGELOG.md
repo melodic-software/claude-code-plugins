@@ -3,6 +3,12 @@
 All notable changes to the `playgrounds` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.7] - 2026-11-03
+
+### Changed
+
+- The legacy `skills/use/evals/evals.json` cases moved to `evals/<case>/`: the installed, shadowed-name and cloud-delivery cases load a `playground` stand-in that carries a skill, so the present path runs, and the absent-install case is dropped as a duplicate of `use-absent-install-scope` ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
 ## [0.2.6] - 2026-11-03
 
 ### Changed

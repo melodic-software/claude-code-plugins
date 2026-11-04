@@ -1,5 +1,19 @@
 # Changelog: discovery plugin
 
+## [1.3.4] - 2026-11-03
+
+### Changed
+
+- The shared medium resolver modules (`view-settings.mjs` and the modules it loads) ship under `lib/` ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no skill changes how it resolves the medium yet.
+
+## [1.3.3] - 2026-11-03
+
+### Changed
+
+- The rendered-view reference is now a synced copy of the one shared rendered-view procedure ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no skill changes how it resolves the medium yet.
+
+- `/discovery:blindspot` also triggers on "blind spot pass", the name Anthropic's field guide to Claude Fable gives this practice.
+
 ## [1.3.2] - 2026-11-03
 
 ### Fixed
