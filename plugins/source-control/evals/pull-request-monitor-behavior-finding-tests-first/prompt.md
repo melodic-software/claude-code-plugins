@@ -5,7 +5,7 @@ plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
-allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit]
 expected_outcome: A test for the renewal-day downgrade is written and run before billing/proration.py is edited
 ---
 
