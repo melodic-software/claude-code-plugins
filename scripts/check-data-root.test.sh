@@ -80,6 +80,17 @@ check "plugin-options-docs block carries its as-of date and recheck trigger" \
 check "plugin-options-docs block keeps a sensitive option off the command line" \
   '[[ $block == *"Never put this plugin'"'"'s \`sensitive\` option(s) (\`tok\`) on a command line"* ]]'
 
+# Every README carrying the block passes the stamp check's trigger-less rule. Only that rule is
+# read: an expiry finding depends on today's date, so it would fail this test as the dates age.
+readmes=()
+for readme in "$SELF_DIR"/../plugins/*/README.md; do
+  grep -qF 'END GENERATED: plugin options' "$readme" && readmes+=("$readme")
+done
+RC=0
+OUT="$(bash "$SELF_DIR/../plugins/attribution/skills/audit/scripts/check-stamps.sh" --trigger-less "${readmes[@]}" 2>&1)" || RC=$?
+check "plugin-options-docs READMEs pass check-stamps --trigger-less" \
+  '[[ ${#readmes[@]} -gt 0 && $RC == 0 && $OUT == *"\"trigger_less_check\": true"* && $OUT != *rule-trigger-less-stamp* ]]'
+
 # check-changelog-parity.sh
 parity_bad="$tmp/parity-bad"
 parity_ok="$tmp/parity-ok"
