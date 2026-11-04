@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.1] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [2.3.0] - 2026-11-04
+
+### Added
+
+- The plan, brainstorm and design views carry the shared chrome: a System, Light and Dark theme toggle (System by default, nothing stored) and a Comment box, copied from the plugin's new `reference/html-chrome.html` (#12654).
+- On the plan view, each verdict choice shows an example reply, redrawn in the browser when the choice changes, with no network call.
+
+### Changed
+
+- The views' reply carries the reader's comment under the key `comment` (`notes.comment` in a session event); it was `note`.
+- Shared `view-runtime.js` and `view-builder.mjs` synced: the theme toggle and redraw bindings.
+
+- The shared `reference/rendered-view.md` now lists `architecture` as a medium-resolver lane beside `planning`, and adds the architecture deepening report's medium rules.
+
 ## [2.2.4] - 2026-11-04
 
 ### Changed

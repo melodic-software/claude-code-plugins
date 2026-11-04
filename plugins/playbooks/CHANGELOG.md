@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.2] - 2026-11-04
+
+### Changed
+
+- `skill-authoring`: the skill criteria now say trigger text goes in `description`, never in `when_to_use`, because Cursor's skill frontmatter has no `when_to_use` field.
+
 ## [0.28.1] - 2026-11-04
 
 ### Changed

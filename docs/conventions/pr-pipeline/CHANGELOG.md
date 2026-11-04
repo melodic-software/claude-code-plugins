@@ -1,5 +1,34 @@
 # Changelog for the PR pipeline convention
 
+## [8.50.4] - 2026-11-04
+
+### Fixed
+
+- work-unblock's sweep holds through a failed listing instead of failing. A failed closed-issue
+  listing prints a notice, does nothing more and ends green, and the next sweep's window stays back,
+  so it reads the closes that listing missed: `sweepSince` starts from the last run only when its job
+  log shows it read the listing. A failed listing of the deferred, open or `agent-ready` issues holds
+  with a notice while the sweep goes on.
+
+## [8.50.3] - 2026-11-04
+
+### Fixed
+
+- Stale-branch cleanup (`maintenance-delete-stale-branches.yml`) moves from 06:17 to 13:17 UTC, the quietest hour of job-token calls measured, out of the busy overnight hours where its calls added to a `GITHUB_TOKEN` breaker trip.
+
+- work-resolve-issue holds through a read outage instead of failing. `report-outcome.mjs
+  --find-prior` ends green with a notice and `proceed=false` on a failed read, so no model runs and
+  a later run reads again. A run whose `merge: human` labeler cannot be read opens no PR and posts
+  nothing, and the next run opens it from the unreported branch. A stop past `limits.stop-retries`
+  no longer fails the issue when it and every counted retry were faults in the lane's machinery
+  (`fault: true` in `stop-routes.json`), unless the run left a branch of its own.
+
+## [8.50.2] - 2026-11-04
+
+### Fixed
+
+- A fix or quarantine issue the post-merge demotion alert could not hand to intake triage no longer takes `needs-human`. A fix issue gets a hidden marker comment on it and on its record, a quarantine issue one on the issue, and each alert run retries what a marker names until it succeeds. A record still takes `needs-human` when a failing check was over the cap or outside the name charset.
+
 ## [8.50.1] - 2026-11-04
 
 ### Fixed

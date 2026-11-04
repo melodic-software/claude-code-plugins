@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": "# Setup\n\nInstall with:\n\n    pip install widget\n", "why": "fixed"}
+  ],
+  "fail": [
+    {"answer": "# Setup\n\nInstall with:\n\n    pip install widgets\n", "why": "a different package name"}
+  ]
+}

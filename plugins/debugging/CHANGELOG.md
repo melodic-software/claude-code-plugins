@@ -3,6 +3,20 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [1.0.2] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654). The shared `reference/rendered-view.md` copy names the planning views' reply text `notes.comment`; no other change to this plugin.
+
+- The shared `reference/rendered-view.md` now lists `architecture` as a medium-resolver lane beside `planning`; the post-mortem view still reads the rendered-views cascade itself.
+
 ## [1.0.1] - 2026-11-04
 
 ### Changed

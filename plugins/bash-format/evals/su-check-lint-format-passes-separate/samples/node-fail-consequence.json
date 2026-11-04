@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Missing node is a FAIL: every hook row launches through `node hooks/exec-bash.mjs`, so the hook never starts and no shell edit gets formatted."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing node is a FAIL.",
+      "why": "near miss: no consequence"
+    },
+    {
+      "answer": "node is INFO; the hook falls back to bash when it is absent.",
+      "why": "wrong grade and consequence"
+    }
+  ]
+}

@@ -52,7 +52,7 @@ export const LANES = Object.freeze(
       lane("visualization:present", ["deck"], false, "artifact", true),
       lane("visualization:visualize", [], false, null, true),
       lane("planning", ["plan", "brainstorm", "design"], false, "artifact", true),
-      lane("architecture", ["landscape", "containers", "components", "dependencies", "data", "events", "flow", "context", "deployment"], false, "file", false),
+      lane("architecture", ["landscape", "containers", "components", "dependencies", "data", "events", "flow", "context", "deployment"], false, "file", true),
       lane("discovery:blindspot", ["blindspot"], false, "file", true),
       lane("debugging:debug", ["post-mortem"], false, "file", true),
       lane("education:illustrate", [], false, "file", true),

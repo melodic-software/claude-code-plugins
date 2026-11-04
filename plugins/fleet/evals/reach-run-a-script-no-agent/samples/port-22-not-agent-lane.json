@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "It runs as `ssh-admin`. **No Claude sign-in.** That account has no DPAPI either.",
+      "why": "observed reply form"
+    },
+    {
+      "answer": "Port 22 is not an agent lane, so this is a pwsh script only.",
+      "why": "the section's own name"
+    },
+    {
+      "answer": "`ssh-admin` can't run `claude` on that machine.",
+      "why": "the same fact as a limit on the account"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "It runs as `ssh-admin`. It has no DPAPI, so anything needing the console user's credentials goes through an on-demand task.",
+      "why": "observed without-arm form: only what the scaffolded manifest supplies"
+    }
+  ]
+}

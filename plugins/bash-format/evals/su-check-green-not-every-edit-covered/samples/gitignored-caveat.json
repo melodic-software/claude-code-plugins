@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A gitignored file is skipped silently too, unless `bash_format_lint_gitignored` is `true`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Gitignored files might behave differently.",
+      "why": "near miss: no rule, no option"
+    },
+    {
+      "answer": "Gitignored files are formatted like any other.",
+      "why": "wrong"
+    }
+  ]
+}

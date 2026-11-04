@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "apply installs neither tool. It points you at each install guide for you to run; this skill never installs system packages."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are the install guides for shellcheck and shfmt.",
+      "why": "near miss: does not say apply will not install them"
+    },
+    {
+      "answer": "apply will install shellcheck and shfmt for you.",
+      "why": "wrong"
+    }
+  ]
+}
