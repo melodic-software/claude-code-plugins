@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [8.50.3] - 2026-11-04
+
+### Fixed
+
+- Stale-branch cleanup (`maintenance-delete-stale-branches.yml`) moves from 06:17 to 13:17 UTC, the quietest hour of job-token calls measured, out of the busy overnight hours where its calls added to a `GITHUB_TOKEN` breaker trip.
+
+- work-resolve-issue holds through a read outage instead of failing. `report-outcome.mjs
+  --find-prior` ends green with a notice and `proceed=false` on a failed read, so no model runs and
+  a later run reads again. A run whose `merge: human` labeler cannot be read opens no PR and posts
+  nothing, and the next run opens it from the unreported branch. A stop past `limits.stop-retries`
+  no longer fails the issue when it and every counted retry were faults in the lane's machinery
+  (`fault: true` in `stop-routes.json`), unless the run left a branch of its own.
+
 ## [8.50.2] - 2026-11-04
 
 ### Fixed
