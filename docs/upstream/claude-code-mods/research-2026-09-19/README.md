@@ -34,4 +34,6 @@ output, docs pages, issue comments and posts) was rewritten in our own words to 
 [what a row may describe](../../../contracts/upstream-drift/README.md#what-a-row-may-describe).
 Each restatement keeps its speaker, date, comment id, basis label and confidence; read the wording
 at the cited source. Short fragments the analysis turns on, of four words or fewer, stay quoted.
+Two code blocks stay because they hold only names: the one-line `plugin.json` skeleton in
+`research-api-surface.md` and the plugin directory layout in `research-authoring-and-testing.md`.
 Quotes of this repository's own text and of the research lanes' wording are kept as written.

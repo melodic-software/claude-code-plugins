@@ -82,15 +82,9 @@ gate. `INFERRED` · MEDIUM · `repo-primary/VERIFICATION.md` row 8.8.
 
 ## Observed on this machine
 
-```
-$ claude plugin test
-error: unknown command 'test'
-(Did you mean list?)
-
-$ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test --help
-Usage: claude plugin test [dir]
-…
-```
+Without the flag, `claude plugin test` fails as an unknown command and suggests
+`list`. With `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`, `claude plugin test --help`
+prints a usage line that takes an optional directory.
 
 Three arms, run with `env -u` as a real control: unset → unknown command;
 `=0` → unknown command; `=1` → runs, exit 0. `OBSERVED` · HIGH ·

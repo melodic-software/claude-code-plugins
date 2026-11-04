@@ -185,7 +185,7 @@ missing from this ledger, per `VERIFICATION.md` Check 2.
 | Correction applied where | What was missing from §B |
 |---|---|
 | `community-falsification/VERIFICATION.md` row 3 tail: the Windows repro at 2.1.272 qualifies the field-evidence sidecar's "No Windows-specific mods defect was found in the tracker." Applied at `research-authoring-and-testing.md:244-245` ("Not defect-free"). | Not listed here until now. |
-| `community-falsification/VERIFICATION.md` row 7 refinements: the davila7 tree has grown past the artifact's list, and two repos (`Charlie0113-T/claude-agent-flow`, `shcv/harness-investigations`) were correctly filtered out of the "seven". The "seven" figure is used at `research-enablement-and-distribution.md:204` and `research-roadmap-and-staff-statements.md:217` without the filtering note. | Neither repo's exclusion was recorded here. |
+| `community-falsification/VERIFICATION.md` row 7 refinements: the davila7 tree has grown past the artifact's list, and two repos (`Charlie0113-T/claude-agent-flow`, `shcv/harness-investigations`) were correctly filtered out of the "seven". The "seven" figure is used at `research-enablement-and-distribution.md:197` and `research-roadmap-and-staff-statements.md:217` without the filtering note. | Neither repo's exclusion was recorded here. |
 | `surfaces-desktop/VERIFICATION.md` row 1 note: "no single sentence says 'plugin hooks run in Cowork'"; the claim is a sound join of two adjacent sentences, graded CONFIRMED, not a resurrection. `research-surfaces.md:86-90` presents the joined conclusion without the caveat, which is load-bearing for anyone re-quoting it. | The join caveat was never recorded here. |
 
 ## C. Unresolved between inputs

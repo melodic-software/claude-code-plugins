@@ -168,15 +168,9 @@ convention, legacy-key fallback, one `$.ui.log` line). `SOURCE` · HIGH.
 
 ## The static source scan
 
-```ts
-export type PluginRegisterUses = {
-  events: readonly string[];
-  calls:  readonly string[];
-  env?: { reads: readonly string[]; writes: readonly string[] };
-};  // :L6196
-```
-
-`events` holds the `on(...)` patterns in registration order and `calls` the sorted
+`PluginRegisterUses` (`:L6196`) is an object type with two read-only string lists,
+`events` and `calls`, and an optional `env` object holding `reads` and `writes`
+string lists. `events` holds the `on(...)` patterns in registration order and `calls` the sorted
 `noun.method` calls on `$`. The JSDoc calls both exact, because a module that
 writes `on`, `$` or `$.env` in any non-literal form fails to load. Two readable
 binary strings corroborate it independently, one of them the `modules` field's
