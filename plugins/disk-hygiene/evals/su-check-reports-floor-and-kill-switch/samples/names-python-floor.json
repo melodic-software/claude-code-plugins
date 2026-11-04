@@ -1,0 +1,1 @@
+{"pass": [{"answer": "Python floor (MIN_PYTHON in hygiene.py): 3.11. /usr/bin/python3 is 3.12.3: PASS."}, {"answer": "| Python | FAIL | /usr/bin/python3 is 3.10.12; install Python 3.11 or later |"}], "fail": [{"answer": "python3 resolves to /usr/bin/python3: PASS."}, {"answer": "Requires Python 3.8 or later."}, {"answer": "python3 is 3.11.4: PASS."}]}
