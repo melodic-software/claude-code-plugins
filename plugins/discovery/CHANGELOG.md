@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.4.5] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
 ## [1.4.4] - 2026-11-04
 
 ### Changed
