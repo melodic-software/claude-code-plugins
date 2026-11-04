@@ -204,12 +204,13 @@ resources get digests); the parent's invariant governs each downstream run untou
 3. Hand the queue to **N runs of `/knowledge:docpage-digest`, each invoked via the Skill tool**, unrenamed, unmodified, one URL per run, each under its own contract.
    With more than one URL and the Workflow tool available, launch the
    `knowledge:docpage-digest-batch` workflow over the queue instead, as `/knowledge:docpage-digest`
-   describes under Batch path. Each queue entry carries `verification`, `not-run` until a
-   digest reports, then the page's checklist `Verification status` value.
+   describes under Batch path. Each queue entry carries `verification`,
+   `unverified: not run: awaiting digest` until a digest reports, then the page's checklist
+   `Verification status` value.
 4. Once the runs return, write each queue entry's `verification`: from the workflow result's page
    entry, or from the slice checklist's `Verification status` line after a Skill-tool run. An
-   entry the workflow result lists under `deferred` or `rejected` was not run: write it
-   `not-run: <reason>`, with that list's reason.
+   entry the workflow result lists under `deferred` or `rejected` was not run: write that entry's
+   `verification` value, `unverified: not run: <reason>`, with that list's reason.
 5. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
    otherwise present and stop.
 

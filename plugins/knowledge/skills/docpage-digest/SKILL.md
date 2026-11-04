@@ -40,7 +40,11 @@ another page's checklist. The canonical URL is the post-redirect page URL with n
 trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop only known tracking-only
 query parameters (`utm_*`, `gclid`, `fbclid`); KEEP content-selecting ones (`?version=v2` is a
 different document). Keep `ref`, which often selects a branch or revision, unless the matched
-publisher profile marks it tracking-only for that host. Equivalent spellings then resume the same
+publisher profile marks it tracking-only for that host. Before any shell command carries the
+canonical URL, it must pass the checks `urlRejection` in
+[`../../workflows/docpage-digest-batch.js`](../../workflows/docpage-digest-batch.js) defines
+(https, that function's character allowlist, a public host); a URL that fails stops the run with
+that reason. Equivalent spellings then resume the same
 root, and different resources never share one:
 
 1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
