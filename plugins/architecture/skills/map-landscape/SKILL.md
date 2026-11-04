@@ -235,8 +235,8 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
 
 ## Gotchas
 
-- **The two dialects are not symmetric, and mermaid is the loose one.** The mermaid output is a
-  `C4Context` diagram used without a focal system.
+- **The two dialects are not symmetric, and mermaid is the loose one.** Mermaid has no landscape diagram type, so the mermaid output
+  is a `C4Context` diagram used without a focal system.
   - **Pointer**: for the landscape view each dialect offers, see
     [Structurizr DSL: systemLandscape view](https://docs.structurizr.com/dsl/language#systemlandscape-view)
     and [Mermaid: C4 Diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams).

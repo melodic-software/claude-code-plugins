@@ -4,10 +4,9 @@ bump: patch
 
 ### Changed
 
-- `setup` no longer describes `claude plugin configure`'s install lookup, the rerun's `-s`
-  default, or either route's exit code and empty-string handling. It keeps passing the scope
-  `claude plugin list` reports and reading each route's output, and points at the
-  `plugin configure` and `plugin install` sections of the plugin commands reference.
-- The Windows check catalog's environment and PATH health entry no longer explains the User Path
-  `CRIT` threshold with a claim about the System Properties editor; 2047 stays as this audit's own
-  threshold.
+- `setup` no longer states which settings file either `plugin configure` route writes. It keeps
+  the scope and failure-signal guidance with their reasons, and points at the `plugin configure`
+  and `plugin install` sections of the plugin commands reference.
+- The Windows check catalog's environment and PATH health entry no longer names the System
+  Properties editor as the source of the 2047 User Path `CRIT` threshold; it keeps that further
+  appends are silently discarded.

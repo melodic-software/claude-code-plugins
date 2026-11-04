@@ -4,7 +4,7 @@
   version), even with a stamp; they point at the exact section, and the pointer carries an as-of
   date and recheck trigger: [rule](../../.claude/rules/skill-bodies-state-current-rules.md).
 - Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
-  eval evidence of no loss:
+  eval evidence of no loss, except a restated upstream fact swapped for a pointer:
   [skill criteria](../../plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md).
 - A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
   owner or in a declared-provider surface:

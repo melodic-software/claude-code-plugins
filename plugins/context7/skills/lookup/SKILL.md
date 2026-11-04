@@ -79,7 +79,7 @@ never hand a `${…}` token from those files to the Bash tool.
 
 ## Gotchas
 
-- **Windows Git Bash**: always prefix `ctx7 docs`, and `ctx7 search --library /org/project`, with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
+- **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs`, and `ctx7 search --library /org/project`, with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
   - **Pointer**: for how an MSYS2-based shell rewrites a `/org/project` argument, see
     [MSYS2: Automatic Unix ⟶ Windows Path Conversion](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion).
   - **As of**: 2026-11-03

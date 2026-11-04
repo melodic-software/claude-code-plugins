@@ -271,10 +271,14 @@ Reject an argument targeting an unknown check id, remediation or muted key with 
    (repeatable per key). Against an already-installed plugin it prints `already installed` and
    still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
    stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-   manifest default. Run either route from the project the plugin is installed in. For the rerun,
-   always pass `-s` with the scope `claude plugin list` reports; from the home directory pass
-   `user`. Read each route's output, not only its exit code, to tell a saved value from a
-   rejected one.
+   manifest default. `claude plugin configure`
+   has no scope flag and finds only an install visible from the working directory. For the rerun,
+   `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run from that
+   project's directory for a `project`/`local` scope, or the rerun adds a second install record at
+   the scope passed and enables the plugin there; from the home directory pass `user`. Check each
+   route's own failure signal: `claude plugin configure` rejects a bad value with exit 1 and saves
+   nothing, but stores an empty string as `""`; the rerun prints a warning for a rejected value yet
+   exits 0, so read its output.
    - **Pointer**: for how each route resolves the install, its scope default, and what it prints
      and exits with on a rejected value, fetch
      [Plugin commands reference: plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)

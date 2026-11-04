@@ -744,7 +744,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   ```
 
 - **Severity rubric:**
-  - `CRIT`: User Path length ≥ 2047, this audit's own threshold.
+  - `CRIT`: User Path length ≥ 2047 (further appends are silently discarded).
   - `WARN` when any of these hold: User Path length ≥ 1800; User Path value kind is
     `REG_SZ` (`String`) rather than `REG_EXPAND_SZ` (`ExpandString`);
     `DISABLE_AUTOUPDATER` set to a truthy
