@@ -219,7 +219,7 @@ marketplace you installed this plugin from:
   headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
 - **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-Never put this plugin's `sensitive` option(s) (`miro_api_token`) on a command line. How `plugin configure` handles one is recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
+Never put this plugin's `sensitive` option(s) (`miro_api_token`) on a command line or, by hand, in a settings file. How `plugin configure` handles one is recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
 Every option here is `sensitive`, so the install fallback for a release without `plugin configure` does not apply.

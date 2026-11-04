@@ -93,16 +93,20 @@ block="$(cat "$opts_sens/plugins/p/README.md")"
 check "plugin-options-docs withholds the install fallback when every option is sensitive" \
   '[[ $block != *"see [Plugin install]"* && $block == *"the install fallback for a release without \`plugin configure\` does not apply"* ]]'
 
-# Every README carrying the block passes the stamp check's trigger-less rule. Only that rule is
-# read: an expiry finding depends on today's date, so it would fail this test as the dates age.
-readmes=()
+# Every file this generator and its options touch passes the stamp check's trigger-less rule:
+# READMEs with the block, plugin manifests, changelog fragments, the generator and this test. Only
+# that rule is read: an expiry finding depends on today's date, so it would fail as dates age.
+stamped=("$SELF_DIR/sync-plugin-options-docs.py" "$SELF_DIR/check-data-root.test.sh")
 for readme in "$SELF_DIR"/../plugins/*/README.md; do
-  grep -qF 'END GENERATED: plugin options' "$readme" && readmes+=("$readme")
+  grep -qF 'END GENERATED: plugin options' "$readme" && stamped+=("$readme")
+done
+for other in "$SELF_DIR"/../plugins/*/.claude-plugin/plugin.json "$SELF_DIR"/../.changes/*/*.md; do
+  [[ -f $other ]] && stamped+=("$other")
 done
 RC=0
-OUT="$(bash "$SELF_DIR/../plugins/attribution/skills/audit/scripts/check-stamps.sh" --trigger-less "${readmes[@]}" 2>&1)" || RC=$?
-check "plugin-options-docs READMEs pass check-stamps --trigger-less" \
-  '[[ ${#readmes[@]} -gt 0 && $RC == 0 && $OUT == *"\"trigger_less_check\": true"* && $OUT != *rule-trigger-less-stamp* ]]'
+OUT="$(bash "$SELF_DIR/../plugins/attribution/skills/audit/scripts/check-stamps.sh" --trigger-less "${stamped[@]}" 2>&1)" || RC=$?
+check "plugin-options-docs files pass check-stamps --trigger-less" \
+  '[[ ${#stamped[@]} -gt 2 && $RC == 0 && $OUT == *"\"trigger_less_check\": true"* && $OUT != *rule-trigger-less-stamp* ]]'
 
 # check-changelog-parity.sh
 parity_bad="$tmp/parity-bad"
