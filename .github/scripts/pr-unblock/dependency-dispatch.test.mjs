@@ -445,6 +445,16 @@ test("a version 2 record that holds a limit-stopped head is ignored, and the hea
   assert.deepEqual(dispatched, [{ number: 67, workflowRunId: "7067" }]);
 });
 
+// A version 5 record held a head-lag-stopped head as reviewed (its
+// superseded-sha skip was terminal); that record's version is read as empty.
+test("a version 5 record that holds a head-lag-stopped head is ignored, and the head dispatches again", async () => {
+  const node = pr(68);
+  const record = parseRecord(JSON.stringify({ version: 5, handled: { [CHECK]: [node.headRefOid] }, dispatched: {} }));
+  assert.equal(record.handled.get(CHECK), undefined, "read as empty");
+  const checks = headOf(node, [roundRun("review-dependency", "neutral", "Skipped: superseded-sha", "2026-10-17T10:00:00Z")]);
+  assert.deepEqual((await run(fakeApi({ nodes: [node], checks }), { record })).dispatched, [{ number: 68, workflowRunId: "7068" }]);
+});
+
 // Reads spent only where they change the decision. Each count beside the
 // assertion is what the dispatcher read before it skipped them.
 const RED_CI = [{ id: 1, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" }];

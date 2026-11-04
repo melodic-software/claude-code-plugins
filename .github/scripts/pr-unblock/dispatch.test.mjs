@@ -1443,13 +1443,13 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     DISPATCH_RECORD: path,
   };
   // A recorded head no open PR carries any more is dropped.
-  writeFileSync(path, JSON.stringify({ version: 5, handled: { [CHECK_NAME]: ["f".repeat(40)] }, bases: { ["f".repeat(40)]: "b".repeat(40) }, dispatched: {} }));
+  writeFileSync(path, JSON.stringify({ version: 6, handled: { [CHECK_NAME]: ["f".repeat(40)] }, bases: { ["f".repeat(40)]: "b".repeat(40) }, dispatched: {} }));
   const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
-    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 5, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, bases: {}, dispatched: {}, docsRuns: {} });
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 6, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, bases: {}, dispatched: {}, docsRuns: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "");
@@ -1719,6 +1719,18 @@ test("resolve-conflicts: a head-lag stop on the current head is sent again once,
     await run();
     assert.deepEqual(dispatchedNumbers(api), [], label);
   }
+});
+
+test("a version 5 record that holds a head-lag-stopped head is ignored, and resolve-conflicts and sync-shared-copies send it again", async () => {
+  const head = pr(1).headRefOid;
+  const record = parseRecord(JSON.stringify({ version: 5, handled: { [CHECK_NAME]: [head], "pr-unblock / sync-shared-copies": [copyPr(46).headRefOid] }, bases: {}, dispatched: {} }));
+  assert.equal(record.handled.size, 0, "read as empty");
+  const { api, run } = harness({ pages: [[pr(1)]], checked: new Map([[head, [lagStop("10:00")]]]) }, { record });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["1"]);
+  const node = copyPr(46);
+  const copies = copyApi({ timelines: new Map([[46, copyRefusal(node.headRefOid)]]), checks: new Map([[node.headRefOid, [lagStop("10:00")]]]) });
+  assert.equal((await copyDispatch(copies, [node], { record })).dispatched.length, 1);
 });
 
 test("sync-shared-copies: a head-lag stop on the current head is sent again once, under the cap", async () => {
