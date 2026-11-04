@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/arpeggio.wav (0.857s, nes)\\n\"}]}}", "why": "relative path"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"/work/audio/arpeggio.wav (0.857s, nes)\"}]}}", "why": "absolute path"}
+  ],
+  "fail": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":\"render this MML to wav on the NES chip and save it as audio/arpeggio.wav: t140 o4 l8 c e g > c\"}}", "why": "the prompt alone"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/arpeggio.wav (0.857s, gameboy)\"}]}}", "why": "the default chip"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/arpeggio.wav (1.286s, nes)\"}]}}", "why": "notes added"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/arpeggio.wav (1.000s, nes)\"}]}}", "why": "tempo changed"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"mml.py: unexpected '?' in score\"}]}}", "why": "a refused score"}
+  ]
+}

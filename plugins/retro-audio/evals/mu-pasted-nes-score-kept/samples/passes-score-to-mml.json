@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/mml.py\" --chip nes --out audio/arpeggio.wav \"t140 o4 l8 c e g > c\""}}], "why": "the SKILL.md shape"},
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p audio && python3 /plugins/retro-audio/scripts/mml.py --chip nes --out audio/arpeggio.wav 't140 o4 l8 c e g > c'"}}], "why": "after &&, single quotes"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/mml.py --out audio/arpeggio.wav --chip=nes \"t140 o4 l8 c e g>c\""}}], "why": "no space around >"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/mml.py --chip nes --out audio/arpeggio.wav \"t140 o4 l8 c e g > c e g\""}}], "why": "notes added"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/mml.py --chip nes --out audio/arpeggio.wav \"t140 o4 l8 c d e f\""}}], "why": "a different melody"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/mml.py --chip nes --out audio/arpeggio.wav \"t140 o4 l8 c e g > c#\""}}], "why": "an accidental added"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo \"t140 o4 l8 c e g > c\" > audio/score.mml"}}], "why": "written, not rendered"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 synth.py \"t140 o4 l8 c e g > c\""}}], "why": "a script of the run's own"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/mml.py --chip nes --out audio/arpeggio.wav \"t120 o4 l8 c e g > c\""}}], "why": "tempo changed"}
+  ]
+}

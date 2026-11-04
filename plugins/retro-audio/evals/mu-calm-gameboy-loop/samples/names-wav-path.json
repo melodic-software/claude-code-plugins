@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "The loop is at audio/calm-loop.wav."},
+    {"answer": "Saved to `/work/audio/calm-loop.wav` (3.2 s, gameboy)."},
+    {"answer": "WAV: audio/calm-loop.wav"}
+  ],
+  "fail": [
+    {"answer": "I wrote a calm loop for you.", "why": "no path"},
+    {"answer": "Saved to audio/calm-loop.wav.bak", "why": "another file"},
+    {"answer": "Saved to audio/calm-loop.wave", "why": "another extension"},
+    {"answer": "Saved to audio/calm-loop.wav-old", "why": "a suffixed name"}
+  ]
+}
