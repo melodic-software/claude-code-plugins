@@ -243,9 +243,9 @@ durable local store (one redacted record per session, incremental, retention-bou
 reports per-session metrics against a shipped reference baseline, shows this store's p90 beside
 each threshold and marks a stale baseline, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
-applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
-preferences two or more sessions show, and hands each one you confirm to `/corrections:codify` for
-a user-scope file, never a repository file. The `correction` action has the session's model judge
+applies a finding. `/corrections:codify preferences` reads the stored excerpts of your own typed
+turns through the `excerpts-only` consumer mode, for a line in a user-scope file, never a repository
+file. The `correction` action has the session's model judge
 which stored short turns corrected the agent and reports them in a separate, unranked `Judged`
 section beside the measured findings. The `trends` action reads the health scores `retro` records
 and shows how they move across sessions, with delivery metrics beside them when the work-items
@@ -255,7 +255,6 @@ plugin is installed.
 /session-flow:audit-sessions                                # collect, then sweep every session
 /session-flow:audit-sessions sweep --since 2026-09-01       # a date window
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
-/session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to corrections:codify
 /session-flow:audit-sessions correction --since 2026-09-01  # model-judged corrections, reported unranked
 /session-flow:audit-sessions trends                         # cross-session score history and delivery metrics
 ```

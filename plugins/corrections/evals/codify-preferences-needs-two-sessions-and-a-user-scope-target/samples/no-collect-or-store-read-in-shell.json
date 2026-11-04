@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/scripts/sweep.py\" --data-dir \"/d\" --excerpts --scope machine"
+          }
+        }
+      ],
+      "why": "the consumer mode's own read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/scripts/collect.py\" collect --data-dir \"/d\""
+          }
+        }
+      ],
+      "why": "collects"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -r ISO /sandbox/.claude/projects"
+          }
+        }
+      ],
+      "why": "reads transcripts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /d/audit-sessions/store/v1/sessions"
+          }
+        }
+      ],
+      "why": "reads the store"
+    }
+  ]
+}

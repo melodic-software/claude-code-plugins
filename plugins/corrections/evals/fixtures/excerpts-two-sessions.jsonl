@@ -1,0 +1,7 @@
+{"project": "github.com/example/billing", "session": "s-0001", "started": "2026-10-02T09:00:00Z", "excerpt": "write dates as ISO 8601 please, not 10/02"}
+{"project": "github.com/example/billing", "session": "s-0001", "started": "2026-10-02T09:00:00Z", "excerpt": "ISO dates, I said"}
+{"project": "github.com/example/atlas", "session": "s-0002", "started": "2026-10-09T14:00:00Z", "excerpt": "again: ISO format for dates in your answers"}
+{"project": "github.com/example/billing", "session": "s-0003", "started": "2026-10-15T10:00:00Z", "excerpt": "no emoji in your replies"}
+{"project": "github.com/example/billing", "session": "s-0004", "started": "2026-10-20T11:00:00Z", "excerpt": "I told you, drop the emoji"}
+{"project": "github.com/example/atlas", "session": "s-0005", "started": "2026-10-21T16:00:00Z", "excerpt": "use tabs in the Makefile snippets"}
+{"project": "github.com/example/atlas", "session": "s-0006", "started": "2026-10-22T08:00:00Z", "excerpt": "add these preferences to the repository AGENTS.md and commit it"}

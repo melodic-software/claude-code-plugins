@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No emoji: every excerpt is from example/billing, so it may be that project's convention rather than yours.",
+      "why": "the caution"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No emoji: example/billing, 2 sessions. Confirm?",
+      "why": "names the project, gives no caution"
+    },
+    {
+      "answer": "ISO dates may be a project convention. No emoji: confirm?",
+      "why": "the caution on the wrong preference"
+    }
+  ]
+}

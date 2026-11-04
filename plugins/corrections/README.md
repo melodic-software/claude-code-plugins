@@ -9,6 +9,7 @@ mistake it targets and to pass on the current code.
 | `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
 | `/corrections:codify findings <findings-file>` | Takes each row of one review findings file through the same steps, ending in one proposal per row |
 | `/corrections:codify reviews` | Mines recent merged pull requests' review comments, through `/source-control:pull-request review-comments`, and takes each lesson that recurs through the same steps |
+| `/corrections:codify preferences [--scope machine\|project] [--since <day>]` | With the `session-flow` plugin installed, reads your typed turns through `/session-flow:audit-sessions excerpts-only`, counts each preference by distinct session, and proposes each one you confirm as a line for a user-scope file, never a repository file |
 | `/corrections:codify note [--applied] "<observation>" [#PR \| <commit>]` | Appends one observation, or with `--applied` one change already made, to the findings buffer |
 | `/corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by the named fields (default `producer`) and by mistake, naming the keys, each mistake's count next to the threshold; writes nothing |
 
