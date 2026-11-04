@@ -231,7 +231,7 @@ interrupt, the setting decides whether it is.
 - **Pointer**: for what a resumed worker keeps, a user-stopped worker refusing messages and
   resuming after `TaskStop`, see <https://code.claude.com/docs/en/sub-agents#resume-subagents>.
 - **As of**: 2026-11-04
-- **Recheck trigger**: any of those sections changes what a resumed worker keeps, how a stopped
+- **Recheck trigger**: that section changes what a resumed worker keeps, how a stopped
   worker answers a message, or whether a `TaskStop`-ed worker can be resumed.
 
 ## Imperative 6: SURFACE DRIFT

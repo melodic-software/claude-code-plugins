@@ -169,7 +169,8 @@ session's, except when the session model is frontier or unknown, where pass `opu
 report that enabling the multi-agent plugin makes this routing configurable. The `opus` fallback is
 this skill's stand-in for the fan-out guard `/multi-agent:route` applies: it keeps a wide fan-out
 off the frontier tier; which model the alias then runs on is the harness's call (model pointer
-below). With no role map, gates pass no `effort` either. Pointer: for the per-spawn
+below). With no role map, a gate on the main conversation's model passes no `effort`, and a gate on
+`opus` passes the session's level, which keeps the session-effort rule above. Pointer: for the per-spawn
 `effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>;
 for which model the session's level reaches, see
 <https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates>.

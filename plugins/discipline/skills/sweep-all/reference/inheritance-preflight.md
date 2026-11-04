@@ -1,8 +1,8 @@
 # Preflight: proving the fan-out inherits
 
 **Every documented harness claim in this file was verified 2026-11-04, with Claude Code 2.1.318 the
-latest release**, reading <https://code.claude.com/docs/en/sub-agents> and
-<https://code.claude.com/docs/en/env-vars> as fetched that day. Recheck trigger: either page stops
+latest release**, reading <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>
+and <https://code.claude.com/docs/en/env-vars#variables> as fetched that day. Recheck trigger: either page stops
 carrying a quoted span below, either page changes what turns fork mode off, or a release note names
 fork mode, subagent tool filtering, or `CLAUDE_CODE_FORK_SUBAGENT`. The same stamp covers the fork
 claims in [`batched-pass.md`](batched-pass.md), which cites it rather than repeating it;
@@ -22,18 +22,20 @@ corrections applied to real files.
 one thing: whether the `Agent` tool offers the `fork` type in this session.
 Offered means stage 2 can try; not offered predicts a failed canary and points
 the report at what turns forks off. We do not read `run_in_background` on
-`Agent` or `Bash` as a fork-mode signal, because no page ties that parameter to
-fork mode. **This stage never gates**: no page says how fork mode shows in a
-tool schema, so neither reading is conclusive. It explains what stage 2 finds;
-it never replaces stage 2 and never aborts on its own.
+`Agent` or `Bash` as a fork-mode signal: the docs relate fork mode to what a
+call that leaves that parameter out does, which only a dispatched call shows,
+and this stage dispatches nothing. **This stage never gates**: no page says how
+fork mode shows in a tool schema, so neither reading is conclusive. It explains
+what stage 2 finds; it never replaces stage 2 and never aborts on its own.
 
 - **Pointer**: when explaining a missing `fork` type, fetch
-  [Turn fork mode on or off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
+  [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
   and [Agent tool behavior](https://code.claude.com/docs/en/tools-reference#agent-tool-behavior)
-  live.
+  live; for how fork mode relates to an omitted `run_in_background`, fetch
+  [the SDK's Agent tool reference](https://code.claude.com/docs/en/agent-sdk/python#agent) live.
 - **As of**: 2026-11-04
 - **Recheck trigger**: a page documents how fork mode shows in the `Agent` tool's
-  schema, or ties `run_in_background` to fork mode.
+  schema, or makes the parameter's presence in a schema depend on fork mode.
 
 **Stage 1b. Explicit fork-off short-circuit (zero dispatch).** We read
 `CLAUDE_CODE_FORK_SUBAGENT` explicitly `0` as fork mode off. Do not dispatch the
@@ -43,7 +45,7 @@ in every case but the explicit `0` above stage 2 remains the authoritative test.
 
 - **Pointer**: when stating which sessions and versions have fork mode on by
   default, fetch
-  [Turn fork mode on or off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
+  [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
   and the [`CLAUDE_CODE_FORK_SUBAGENT` row](https://code.claude.com/docs/en/env-vars#variables)
   live.
 - **As of**: 2026-11-04
