@@ -123,8 +123,8 @@ and is mirrored into the index unchanged.
 It matches ID tokens and quotes, not meaning, so what it cannot see is yours: the words a
 sidecar line adds outside its quote, a pointer that cites the wrong claim for what its line says,
 or a decision that leans on a claim past a recorded qualifier. Two cases are graded by you, not by
-the check: a table row that restates a claim with no ID and no quote, which the check cannot tie to
-a claim, and an index lead-in whose scope outruns its pointers, where a cited claim's qualifier
+the check: a table row or sentence that restates a claim without its ID or a quote of it, even on a
+line that cites another claim, which the check cannot tie to the claim it restates, and an index lead-in whose scope outruns its pointers, where a cited claim's qualifier
 rules the sentence out though its labels pass and it carries no sweep word. The rule is in
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md),
 "Restatements cite; they do not restate". At a slice root the parent ran that check with
