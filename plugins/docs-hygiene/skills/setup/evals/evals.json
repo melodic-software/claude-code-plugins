@@ -2,20 +2,6 @@
   "skill_name": "setup",
   "evals": [
     {
-      "id": 1,
-      "name": "resolves-and-runs-the-binary",
-      "prompt": "Set up docs-hygiene for this repo. /docs-hygiene:setup",
-      "expected_output": "Resolves markdownlint-cli2 from PATH or the repository's node_modules/.bin, runs it with --help, and reports a PASS row naming which one resolved when the first line of stdout is the version banner, even though --help exits 2. Installs nothing and writes nothing.",
-      "files": [],
-      "expectations": [
-        "Probes PATH first and node_modules/.bin under the repository root second",
-        "Runs the resolved binary with --help rather than treating resolution alone as a pass",
-        "Never runs markdownlint-cli2 with --version",
-        "Reads PASS from the version banner on the first line of stdout, not from the exit code, which is 2 for --help",
-        "Writes no file and runs no install command"
-      ]
-    },
-    {
       "id": 2,
       "name": "missing-binary-reports-remediation",
       "prompt": "compress stopped and said markdownlint-cli2 is missing. Run the docs-hygiene setup and fix it for me.",

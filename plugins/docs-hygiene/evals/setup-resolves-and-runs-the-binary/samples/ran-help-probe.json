@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node_modules/.bin/markdownlint-cli2 --help 2>&1 | head -n 1"}}], "why": "the workspace binary with --help"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/work/node_modules/.bin/markdownlint-cli2\" --help"}}], "why": "a quoted absolute path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2 || true; ./node_modules/.bin/markdownlint-cli2 --help"}}], "why": "the probe after the PATH check"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Bash call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls node_modules/.bin/markdownlint-cli2"}}], "why": "resolution only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node_modules/.bin/markdownlint-cli2 --version"}}], "why": "--version instead of --help"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "node_modules/.bin/markdownlint-cli2 --help"}}], "why": "the text in another tool's input"}
+  ]
+}

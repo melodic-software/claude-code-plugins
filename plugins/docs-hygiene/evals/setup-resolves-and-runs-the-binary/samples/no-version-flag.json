@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [], "why": "no Bash call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node_modules/.bin/markdownlint-cli2 --help"}}], "why": "the --help probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "markdownlint-cli2 --help\nnode --version"}}], "why": "--version on another program, after a newline"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "markdownlint-cli2 --version"}}], "why": "--version on PATH"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/work/node_modules/.bin/markdownlint-cli2\" --version 2>&1"}}], "why": "--version on a quoted path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node_modules/.bin/markdownlint-cli2 --no-globs --version"}}], "why": "--version after another argument"}
+  ]
+}
