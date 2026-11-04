@@ -11,7 +11,8 @@ own detection rule is a minor bump.
 ## Suite-case eval coverage, contract unchanged at 1.1 - 2026-11-04
 
 One eval per record may now sit in a plugin suite case (`evals/<case>/`) as well as the legacy
-setup `evals.json`; a `description` never counts. A plugin with no `evals.json` fails only on an id
+setup `evals.json`: its `prompt.md` body, `case.yaml` outside description keys and comments, or a
+`graders/*.md` body. A plugin with no `evals.json` fails only on an id
 neither source names. No field, kind, exit code or severity changed.
 
 ## Scope wording, contract unchanged at 1.1 - 2026-10-03

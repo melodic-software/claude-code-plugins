@@ -745,36 +745,61 @@ function textCoversRetirementId(text, id) {
   return new RegExp(`(?:^|[^A-Za-z0-9-])${escapeRegExp(id)}(?:[^A-Za-z0-9-]|$)`).test(text);
 }
 
-// YAML text with every `description:` key dropped, at any depth, along with
-// its continuation lines (anything blank or indented past the key). Authors
-// list dropped expectations in descriptions, so they never count as coverage.
+// YAML text without comments and without any `description` key, at any depth
+// and in any spelling (plain, quoted, flow-mapping, `? ` explicit), along with
+// its continuation lines: anything blank or indented past the key, plus `- `
+// or `: ` lines at the key's own column. Authors list dropped expectations in
+// descriptions, so they never count as coverage. It fails closed: a line
+// reading `description:` inside another key's block scalar is dropped too.
 function withoutYamlDescriptions(text) {
   const kept = [];
-  let keyColumn = -1;
-  for (const line of text.split(/\r?\n/)) {
-    if (keyColumn >= 0 && (line.trim() === "" || line.search(/\S/) > keyColumn)) continue;
-    keyColumn = -1;
-    const key = /^(\s*(?:-\s+)?)description\s*:/.exec(line);
-    if (key) keyColumn = key[1].length;
-    else kept.push(line);
+  let skip = null;
+  for (const raw of text.replace(/^﻿/, "").split(/\r?\n/)) {
+    if (/^\s*#/.test(raw)) continue;
+    const line = raw.replace(/\s#.*$/, "");
+    const column = line.search(/\S/);
+    if (skip) {
+      const own = column === skip.column && skip.ownColumn.test(line.trim());
+      if (line.trim() === "" || column > skip.column || own) continue;
+      skip = null;
+    }
+    if (!/(?:^|[\s{,?\-"'])description["']?\s*:|^\s*\?\s+["']?description\b/.test(line)) {
+      kept.push(line);
+      continue;
+    }
+    const key = /^(\s*(?:[-?]\s+)?)["']?description["']?\s*(:?)(.*)$/.exec(line);
+    if (!key) continue;
+    const explicit = key[1].trim() === "?";
+    const empty = key[3].trim() === "";
+    skip = {
+      column: explicit ? column : key[1].length,
+      ownColumn: explicit ? /^:/ : empty ? /^-(?:\s|$)/ : /$^/,
+    };
   }
   return kept.join("\n");
 }
 
-// One haystack per plugin suite case (evals/<case>/): the directory name, the
-// prompt.md body without its frontmatter, and case.yaml without descriptions.
-// samples/ and scaffolds are fixtures, not the probe, so they are not read.
+// Markdown text without a leading BOM or frontmatter.
+function markdownBody(text) {
+  return text.replace(/^﻿/, "").replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "");
+}
+
+// One haystack per plugin suite case (evals/<case>/): the prompt.md body,
+// case.yaml outside description keys and comments, and graders/*.md bodies.
+// Frontmatter, samples/, scaffolds, and the results/ and mocks/ trees are not
+// the probe, so they never count; neither does the directory name.
 function suiteCaseHaystacks(suiteRoot) {
   const cases = new Map();
   for (const path of filesIn(suiteRoot)) {
     const parts = relative(suiteRoot, path).split(sep);
-    if (parts.length !== 2) continue;
-    const [name, file] = parts;
+    if (parts[0] === "results" || parts[0] === "mocks") continue;
     let text;
-    if (file === "case.yaml") text = withoutYamlDescriptions(read(path));
-    else if (file === "prompt.md") text = read(path).replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "");
-    else continue;
-    cases.set(name, [...(cases.get(name) ?? [name]), text]);
+    if (parts.length === 2 && parts[1] === "case.yaml") text = withoutYamlDescriptions(read(path));
+    else if (parts.length === 2 && parts[1] === "prompt.md") text = markdownBody(read(path));
+    else if (parts.length === 3 && parts[1] === "graders" && parts[2].endsWith(".md")) {
+      text = markdownBody(read(path));
+    } else continue;
+    cases.set(parts[0], [...(cases.get(parts[0]) ?? []), text]);
   }
   return [...cases.values()].map((texts) => texts.join("\n"));
 }
@@ -974,7 +999,8 @@ for (const manifestPath of retirementManifests) {
   // path), so every id needs an eval naming it (mechanism-validation, hybrid
   // item 1). A legacy setup evals.json case covers it through its name,
   // prompt, expected_output or expectations; a plugin suite case through its
-  // directory name, its prompt.md body or its case.yaml minus descriptions.
+  // prompt.md body, case.yaml outside description keys and comments, or its
+  // graders/*.md bodies.
   const evalsPath = join(pluginRoot, plugin, "skills", "setup", "evals", "evals.json");
   const suiteRoot = join(pluginRoot, plugin, "evals");
   const haystacks = [];

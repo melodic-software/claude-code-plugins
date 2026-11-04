@@ -22,7 +22,7 @@
 # aggregate exit code. The one exit-code assertion is the closing real-corpus
 # case.
 #
-# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/evals/*/case.yaml plugins/*/evals/*/prompt.md plugins/*/reference/artifact-protocol.md
+# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/evals/*/case.yaml plugins/*/evals/*/prompt.md plugins/*/evals/*/graders/*.md plugins/*/reference/artifact-protocol.md
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
 
@@ -854,6 +854,114 @@ if has_fail_line "${R_EVAL_UNCOVERED}alpha-r002" && ! grep -q "${R_EVAL_UNCOVERE
 else
   fail "a description-only id should fail, and the prompt.md id should not: $out"
 fi
+
+# Description-stripper shapes. Each fixture has no evals.json, one case
+# covering alpha-r001 in its prompt body, and a probe case whose case.yaml
+# (stdin) is the only place alpha-r002 can be named.
+r002_fixture() {
+  conforming_retirements_fixture
+  rm -rf "$TMP/plugins/alpha/skills/setup/evals"
+  write_suite_case alpha covers-r001 'Run /alpha:setup check; alpha-r001 is planted.' <<<'name: covers-r001'
+  write_suite_case alpha probe
+}
+r002_covered() {
+  out="$(run_fixture)"
+  if [[ -z "$(retirement_failure_lines)" ]]; then ok "$1"; else fail "$1: $out"; fi
+}
+r002_uncovered() {
+  out="$(run_fixture)"
+  if has_fail_line "${R_EVAL_UNCOVERED}alpha-r002" && ! grep -q "${R_EVAL_UNCOVERED}alpha-r001" <<<"$out"; then
+    ok "$1"
+  else
+    fail "$1: $out"
+  fi
+}
+
+r002_fixture <<'YAML'
+graders:
+  - description: 'dropped'
+    pattern: 'alpha-r002'
+YAML
+r002_covered "a sibling key after a dash-form description still covers"
+
+r002_fixture <<'YAML'
+description: >
+  Folded text that names
+  nothing to cover.
+graders:
+  - pattern: 'alpha-r002'
+YAML
+r002_covered "a key after a top-level block-scalar description still covers"
+
+r002_fixture </dev/null
+printf 'description: >\r\n  folded\r\ngraders:\r\n  - pattern: '"'"'alpha-r002'"'"'\r\n' \
+  >"$TMP/plugins/alpha/evals/probe/case.yaml"
+r002_covered "a CRLF case.yaml still covers through a key after its description"
+
+r002_fixture <<'YAML'
+# alpha-r002 is dropped for now
+name: probe
+YAML
+r002_uncovered "an id only in a whole-line comment is not covered"
+
+r002_fixture <<'YAML'
+name: probe # alpha-r002 dropped
+YAML
+r002_uncovered "an id only in a trailing comment is not covered"
+
+r002_fixture <<'YAML'
+"description": 'alpha-r002 dropped'
+name: probe
+YAML
+r002_uncovered "an id only in a quoted description key is not covered"
+
+r002_fixture <<'YAML'
+graders: [{name: g, description: 'alpha-r002 dropped', type: regex}]
+YAML
+r002_uncovered "an id only in a flow-mapping description is not covered"
+
+r002_fixture <<'YAML'
+description:
+- alpha-r002 dropped
+- another note
+name: probe
+YAML
+r002_uncovered "an id only in a description's same-indent sequence is not covered"
+
+r002_fixture <<'YAML'
+? description
+: alpha-r002 dropped
+name: probe
+YAML
+r002_uncovered "an id only in an explicit-key description is not covered"
+
+r002_fixture <<<'name: probe'
+write_suite_case alpha alpha-r002 <<<'name: probe-two'
+r002_uncovered "a case directory named the id with an id-free case is not covered"
+
+r002_fixture <<<'name: probe'
+mkdir -p "$TMP/plugins/alpha/evals/probe/graders"
+printf -- '---\ndescription: "fixture"\n---\n\nPASS when the reply names alpha-r002.\n' \
+  >"$TMP/plugins/alpha/evals/probe/graders/names-id.md"
+r002_covered "an id in a graders/*.md body covers"
+
+r002_fixture <<<'name: probe'
+mkdir -p "$TMP/plugins/alpha/evals/probe/graders"
+printf -- '---\ndescription: "alpha-r002 dropped"\n---\n\nPASS when the reply is clean.\n' \
+  >"$TMP/plugins/alpha/evals/probe/graders/clean.md"
+r002_uncovered "an id only in a graders/*.md frontmatter description is not covered"
+
+r002_fixture <<<'name: probe'
+mkdir -p "$TMP/plugins/alpha/evals/results/run1" "$TMP/plugins/alpha/evals/mocks"
+printf 'alpha-r002\n' >"$TMP/plugins/alpha/evals/results/run1/prompt.md"
+printf 'alpha-r002\n' >"$TMP/plugins/alpha/evals/results/prompt.md"
+printf 'name: alpha-r002\n' >"$TMP/plugins/alpha/evals/mocks/case.yaml"
+r002_uncovered "an id only under evals/results/ or evals/mocks/ is not covered"
+
+r002_fixture <<<'name: probe'
+printf '\xef\xbb\xbf---\ndescription: "alpha-r002 dropped"\n---\n\nRun /alpha:setup check.\n' \
+  >"$TMP/plugins/alpha/evals/probe/prompt.md"
+r002_uncovered "a BOM-prefixed prompt.md with the id only in frontmatter is not covered"
 
 # Legacy and suite sources combine: one id per source.
 conforming_retirements_fixture
