@@ -72,6 +72,9 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   ([Measurement](#measurement)); cut a paraphrase of words already present, and cut a term no
   probe has tested. Our untested hypothesis is that weaker models lean on these terms more, so
   measure on each model the skill targets.
+- **Trigger text goes in `description`**, never in a `when_to_use` key, so it reaches the model
+  in every host the plugin loads in. Why: the frontmatter-fields section of the Cursor skills
+  docs in [Sources](#sources).
 - **User-invoked** (`disable-model-invocation: true`): a one-line summary, no trigger list. Why
   trigger text does nothing there: the invocation-control section of the Claude Code skills docs
   in [Sources](#sources).
@@ -355,6 +358,9 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
 - **Agent Skills specification**: the portable `description` limit at
   [description field](https://agentskills.io/specification#description-field). As of 2026-10-06.
   Recheck: that field's limit changes.
+- **Cursor skills docs**: the skill frontmatter fields at
+  [Frontmatter fields](https://cursor.com/docs/skills#frontmatter-fields). As of 2026-11-04.
+  Recheck: that section's field list changes.
 - **Prompt audit**, `shared/prompt-audit.md` in the `claude-api` skill bundled with Claude Code
   (read at 2.1.292). As of 2026-10-06. Recheck: a Claude Code release changes that file.
 - **Subagent docs**: [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
