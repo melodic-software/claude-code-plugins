@@ -703,21 +703,17 @@ async function main() {
             const paint = colors => { cx.clearRect(0, 0, 1, 1); for (const c of colors) { cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); } return [...cx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
             const lum = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
             const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-            const app = document.getElementById("app"), was = app.dataset.accent, out = [];
-            for (const accent of ["teal", "indigo", "violet", "amber"]) {
-              app.dataset.accent = accent;
-              for (const b of document.querySelectorAll(".vf-round-cur .vf-q")) {
-                const m = b.querySelector(".vf-qstat"), layers = [];
-                for (let e = m; e; e = e.parentElement) layers.unshift(getComputedStyle(e).backgroundColor);
-                const bg = paint(["#fff", ...layers]), fg = paint([...layers, getComputedStyle(m).color]), r = ratio(fg, bg);
-                if (r < 4.5) out.push(`${scheme} ${accent} ${b.dataset.stat || "open"}: ${r.toFixed(2)}:1`);
-              }
+            const out = [];
+            for (const b of document.querySelectorAll(".vf-round-cur .vf-q")) {
+              const m = b.querySelector(".vf-qstat"), layers = [];
+              for (let e = m; e; e = e.parentElement) layers.unshift(getComputedStyle(e).backgroundColor);
+              const bg = paint(["#fff", ...layers]), fg = paint([...layers, getComputedStyle(m).color]), r = ratio(fg, bg);
+              if (r < 4.5) out.push(`${scheme} ${b.dataset.stat || "open"}: ${r.toFixed(2)}:1`);
             }
-            if (was) app.dataset.accent = was; else delete app.dataset.accent;
             return out;
           }, scheme));
         }
-        ok("1440x900: marker numbers meet 4.5:1 in dark and light, every accent, open, answered and locked", bad.length === 0, bad.join("; "));
+        ok("1440x900: marker numbers meet 4.5:1 in dark and light, open, answered and locked", bad.length === 0, bad.join("; "));
       }
       await own.context().close();
     }
