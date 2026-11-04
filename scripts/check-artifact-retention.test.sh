@@ -248,6 +248,23 @@ run_case "a scanned family's upload with no scan step fails" 1 \
   "drop_line $WORKFLOW '        uses: ./.github/actions/scan-upload'" \
   "$WORKFLOW:14: upload \`lane-patch-\${{ github.run_attempt }}\` has no scan before it; $TABLE family \`lane-patch-*\` says scan: upload"
 
+REMOTE_SCAN=melodic-software/ci-workflows/.github/actions/scan-upload
+SHA=09cf6f2ecd22f7188e62552dea9af48adbd23bb1
+
+run_case "a ci-workflows scan-upload at a full commit SHA counts as the scan" 0 \
+  "subst $WORKFLOW 'uses: ./.github/actions/scan-upload' 'uses: $REMOTE_SCAN@$SHA # 09cf6f2 2026-11-03'" \
+  "check-artifact-retention: 4 upload step(s) match"
+
+for ref in main v1 09cf6f2 09CF6F2ECD22F7188E62552DEA9AF48ADBD23BB1 "${SHA}0"; do
+  run_case "a ci-workflows scan-upload at ref $ref is no scan" 1 \
+    "subst $WORKFLOW 'uses: ./.github/actions/scan-upload' 'uses: $REMOTE_SCAN@$ref'" \
+    "has no scan before it"
+done
+
+run_case "another owner's scan-upload at a full commit SHA is no scan" 1 \
+  "subst $WORKFLOW 'uses: ./.github/actions/scan-upload' 'uses: other-org/ci-workflows/.github/actions/scan-upload@$SHA'" \
+  "has no scan before it"
+
 run_case "a scan over a different path does not count" 1 \
   "subst $WORKFLOW '          path: patch.diff
       - if' '          path: other.diff
