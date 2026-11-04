@@ -229,7 +229,7 @@ test("the gate reads the key's credit history at the pinned check-key-credit onc
   assert.match(gate, /^ {8}id: credit$/m);
   assert.equal(ifOf(gate), "steps.gate.outputs.proceed == 'true'");
   assert.match(gate, /^ {8}continue-on-error: true$/m);
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # \S/m);
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # \S/m);
   assert.doesNotMatch(gate, /secrets\./);
   assert.match(gate, /^ {10}key-job: model$/m);
   assert.match(gate, /^ {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \|\| '1' \}\}$/m);

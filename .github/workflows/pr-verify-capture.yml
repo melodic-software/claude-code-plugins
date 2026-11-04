@@ -227,7 +227,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -267,7 +267,7 @@ jobs:
         id: probe
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -405,7 +405,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 16
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:

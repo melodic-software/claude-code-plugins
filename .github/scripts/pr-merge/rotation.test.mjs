@@ -9,12 +9,13 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { crc32 } from "node:zlib";
 
-import { fakeGhDownload } from "./gh-download.fixture.mjs";
+import { fakeGhArchive, fakeGhDownload } from "./gh-download.fixture.mjs";
 import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
-import { ghDownload, main, rotate, sharedReads } from "./rotation.mjs";
+import { ghDownload, ghDownloadArtifact, main, newestTrustedArtifact, newestTrustedRun, rotate, sharedReads } from "./rotation.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -322,4 +323,75 @@ test("a graphql or search stop does not refuse gh run download, which spends cor
   } finally {
     rmSync(run, { recursive: true, force: true });
   }
+});
+
+// A one-entry zip with the entry stored uncompressed, laid out as PKWARE's
+// APPNOTE.TXT section 4.3 gives a local header, its data, the central
+// directory header and the end of central directory record.
+function storedZip(name, text) {
+  const data = Buffer.from(text);
+  const file = Buffer.from(name);
+  const crc = crc32(data);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt32LE(crc, 14);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(file.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt32LE(crc, 16);
+  central.writeUInt32LE(data.length, 20);
+  central.writeUInt32LE(data.length, 24);
+  central.writeUInt16LE(file.length, 28);
+  const offset = local.length + file.length + data.length;
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + file.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([local, file, data, central, file, end]);
+}
+
+test("ghDownloadArtifact fetches an artifact by id with one counted API request and lists no artifacts", () => {
+  const run = tempDir("rotation-archive-");
+  try {
+    const archive = join(run, "fixture.zip");
+    writeFileSync(archive, storedZip("settled.json", '{"version":3}'));
+    const bin = fakeGhArchive(run, archive);
+    const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+    const download = ghDownloadArtifact({ repo: "o/r", token: "t", dir: run, name: "reconcile-settled-runs", file: "settled.json", env });
+    assert.equal(download(9), '{"version":3}');
+    assert.equal(download(9), '{"version":3}', "a second read of the same artifact downloads nothing");
+    assert.deepEqual(readFileSync(join(run, "gh-calls"), "utf8").split("\n").filter(Boolean), ["api -i repos/o/r/actions/artifacts/9/zip"]);
+    const lib = fileURLToPath(new URL("../../actions/log-api-budget/api-budget.bash", import.meta.url));
+    const calls = execFileSync("bash", ["-c", '. "$0"; api_budget_emit_calls github-token', lib], { encoding: "utf8", env });
+    assert.match(calls, /github-token=1 /, "the download host is off GitHub's API, so only the archive request counts");
+    assert.throws(() => ghDownloadArtifact({ repo: "o/r", token: "t", dir: run, name: "x", file: "other.json", env })(10), /Command failed/, "a file the archive lacks fails");
+  } finally {
+    rmSync(run, { recursive: true, force: true });
+  }
+});
+
+test("newestTrustedArtifact names the newest unexpired artifact of the run newestTrustedRun picks", async () => {
+  const listing = { workflow_runs: [wf(8, "schedule"), wf(7, "schedule")] };
+  const artifacts = {
+    8: [{ id: 80, name: "pr-merge-gate-cursor", expired: true }],
+    7: [{ id: 71, name: "pr-merge-gate-cursor", expired: false }, { id: 73, name: "pr-merge-gate-cursor", expired: false }, { id: 79, name: "other", expired: false }],
+  };
+  const actions = async (method, path) => {
+    if (path.includes("/workflows/")) return listing;
+    const list = artifacts[/\/runs\/(\d+)\/artifacts/.exec(path)[1]];
+    return { total_count: list.length, artifacts: list };
+  };
+  const options = { repo: REPO, runId: "999", actions, name: "pr-merge-gate-cursor" };
+  assert.deepEqual(await newestTrustedArtifact(options), { runId: 7, artifactId: 73 });
+  assert.equal(await newestTrustedRun(options), 7);
+  artifacts[7] = [{ name: "pr-merge-gate-cursor", expired: false }];
+  assert.deepEqual(await newestTrustedArtifact(options), { runId: 7, artifactId: undefined });
+  assert.equal(await newestTrustedRun(options), 7, "a listing without ids still finds the run");
 });
