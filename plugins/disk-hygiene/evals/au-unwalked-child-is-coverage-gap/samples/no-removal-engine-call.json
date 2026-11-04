@@ -1,0 +1,1 @@
+{"pass": [{"answer": "Removal is a separate /disk-hygiene:clean run against /eval/work/build-cache."}], "fail": [{"answer": "Next: /usr/bin/python3 /eval/plugin/skills/clean/scripts/hygiene.py preview --snapshot /eval/data/runs/a1/snapshot.json"}]}
