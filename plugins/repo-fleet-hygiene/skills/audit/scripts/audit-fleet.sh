@@ -2153,6 +2153,7 @@ if [[ "$GH_READY" == "true" ]]; then
   GH_ACCOUNT="$(run_bounded_gh api user --hostname github.com --method GET --template '{{.login}}' 2>/dev/null | tr -d '\r\n')" || GH_ACCOUNT=""
 fi
 
+SELECTED_URL=""
 select_remote() {
   local repo="$1" remotes name
   local -a remote_names=()
