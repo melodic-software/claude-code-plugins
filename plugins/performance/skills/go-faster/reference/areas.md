@@ -172,11 +172,14 @@ them live when a command's output, or the files you find, do not match the entry
 - **Recheck trigger**: the `tool_decision` event is renamed or removed.
 
 - **Pointer**: [Run hooks in the background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background),
-  for which hooks hold the turn's end. The hook-timing record `stop-hook-timing` reads is on no
+  for which hooks hold the turn's end. The transcript record `stop-hook-timing` reads is on no
   docs page; its shape, and which hooks it leaves untimed, is the observation (Claude Code 2.1.296)
   in [#6784](https://github.com/melodic-software/claude-code-plugins/issues/6784) and its PR.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the hooks page documents a per-hook timing record or an async flag in
+  [Debug hooks](https://code.claude.com/docs/en/hooks#debug-hooks) documents per-hook durations in
+  the debug log instead. We keep the transcript record because it needs no debug logging, so it
+  covers a session that already ran.
+- **As of**: 2026-11-04
+- **Recheck trigger**: the hooks page documents per-hook timing or an async flag in
   transcript records; `stop-hook-timing` prints `records` 0 for a transcript of a session whose
   Stop hooks ran; or a background hook appears under `hooks` with a duration.
 

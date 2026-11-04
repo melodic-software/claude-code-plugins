@@ -435,12 +435,14 @@ fi
 # `disable-model-invocation: true` keeps a skill's description out of the
 # model-visible listing entirely, so it spends none of the shared budget —
 # counting it would overstate the aggregate. See the header.
-# A pragmatic normalizer for one known field, not a YAML parser. YAML 1.1's
-# `yes` / `on` aliases are deliberately NOT folded in: the docs only ever spell
-# this field `true`, and treating a bare `yes` as the boolean risks dropping a
-# skill over a value the harness may read as a plain string.
+# A pragmatic normalizer for one known field, not a YAML parser. FM_TRUE holds
+# the true spellings of a boolean field. Pointer: for what a boolean field
+# accepts, fetch https://code.claude.com/docs/en/skills#frontmatter-reference
+# live. As of: 2026-11-04. Recheck trigger: that section changing its accepted
+# spellings.
 if ! AWK_RESULT="$(awk -F'\t' \
   -v max="$MAX_DESC_CHARS" -v joiner_chars="$JOINER_CHARS" -v out="$CONTRIB_FILE" '
+  BEGIN { FM_TRUE["true"]; FM_TRUE["yes"]; FM_TRUE["on"]; FM_TRUE["1"] }
   function trim_ws(v) {
     sub(/^[[:space:]]+/, "", v)
     sub(/[[:space:]]+$/, "", v)
@@ -544,7 +546,7 @@ if ! AWK_RESULT="$(awk -F'\t' \
     # need it, because strip_quotes trims nothing: a value still ending in a
     # newline has that newline as its last character, so the closing quote never
     # matches and the quote marks survive into the measured length.
-    if (normalize_bool(fm_field("disable-model-invocation")) == "true") next
+    if (normalize_bool(fm_field("disable-model-invocation")) in FM_TRUE) next
     desc = strip_quotes(strip_trailing_nl(fm_field("description")))
     wtu = strip_quotes(strip_trailing_nl(fm_field("when_to_use")))
     desc_len = length(desc); wtu_len = length(wtu)

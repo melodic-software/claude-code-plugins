@@ -294,8 +294,8 @@ its event through unchanged.
   that section is renamed or stops relating them). **Pointer**: when deciding what those defaults
   are, fetch
   [model config: default auto-compact thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that table changes, or its section is renamed
-  or removed. The trigger itself is
+  live. **As of**: 2026-11-04. **Recheck trigger**: that section's thresholds change, or it is
+  renamed or removed. The trigger itself is
   operator-tunable, per model as well as globally; the reader contract's tunable
   table records which surfaces we rely on and where to read the rest. The module's percentage
   bands follow it: it reads the window the engine settled on (the `/context` breakdown's

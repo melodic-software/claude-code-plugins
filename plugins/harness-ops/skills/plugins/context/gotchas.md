@@ -281,7 +281,7 @@ removes the marketplace from its last remaining scope, it:
   for the orphan sweep exactly as an `uninstall` does.
 
 Nothing preserves the journal through it. `claude plugin uninstall` has `--keep-data`;
-`marketplace remove` takes only `--scope`, and it does not route through the uninstall path, it is a
+`marketplace remove` has no such flag, and it does not route through the uninstall path, it is a
 parallel path over the same delete helpers.
 
 **So never run `marketplace remove` as a remediation for a bad `sync`.** It destroys the evidence
@@ -300,14 +300,17 @@ preserved.
 
 **Verification record.** *Claim:* the four effects above, and the absence of any keep-data option on
 this subcommand. *Basis:* the shipped CLI bundle (`~/.local/share/claude/versions/<version>`) for
-the record cascade, the data-directory removal, the settings cleanup and the `.orphaned_at` write,
-none of which the docs state;
+the per-record cascade, the settings cleanup and the `.orphaned_at` write. The docs state none of
+the cascade or the marker, and of the settings cleanup only the saved options and secrets: the
+`enabledPlugins`, `extraKnownMarketplaces` and `pluginUsage` clearing rests on the bundle alone;
 [plugin marketplace remove](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove)
-for the uninstall of every plugin installed from a marketplace removed from its last scope (re-read
-2026-10-07), and
+for the uninstall of every plugin installed from a marketplace removed from its last scope and the
+deletion of their saved options, secrets and data, which the bundle also shows (re-read
+2026-11-04), and
 [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) for `uninstall --keep-data`;
-and `claude plugin marketplace remove --help`, which lists `--scope` and nothing else. *As of*
-2026-09-07 on **Claude Code 2.1.263** (win32), with the same bundle strings present in 2.1.260 and
+and `claude plugin marketplace remove --help`, which lists no keep-data option (re-run 2026-11-04 on
+Claude Code 2.1.318). *As of*
+2026-09-07 on **Claude Code 2.1.263** (win32) for the bundle, with the same bundle strings present in 2.1.260 and
 2.1.261, so the behavior is not version-gated. ***Recheck trigger:*** any release note or
 `plugins/cli-reference` / `plugins/marketplace-reference` / `plugins/manifest-reference` change touching marketplace removal, `--keep-data`, the
 persistent data directory, or the settings cleanup cascade; or a keep-data flag appearing on
@@ -439,9 +442,8 @@ instead; `--bare` skips hooks, LSP, plugin sync and the MCP boot, at roughly 15s
 rather than 6s. Until the revert drains, use `--bare` for unrelated shell work too, and do not run
 `/reload-plugins`.
 
-*Basis:* the absence of a bulk verb is `claude plugin uninstall --help`, whose complete option list
-is `-h/--help`, `--json`, `--keep-data`, `--prune`, `-s/--scope` and nothing that takes more than
-one `<plugin>`; the spawn-and-load behavior and the `--bare` mitigation are direct observation
+*Basis:* the absence of a bulk verb is `claude plugin uninstall --help`, which takes one `<plugin>`
+and has no option that takes more (re-run 2026-11-04 on Claude Code 2.1.318); the spawn-and-load behavior and the `--bare` mitigation are direct observation
 during the 2026-09-14 revert on this fleet: the host's node/bun process count climbed on every
 plain uninstall and stayed flat at 73 across six consecutive `--bare` uninstalls; the ~6s and ~15s
 figures are wall-clock from that same run and are machine- and plugin-count-dependent, so treat
@@ -481,9 +483,10 @@ one plugin with `defaultEnabled: false` in its entry and one without the field.
   editing the settings file removes it.
 
 The probe's evidence is held in
-[PR #6096](https://github.com/melodic-software/claude-code-plugins/pull/6096). No docs page states what either command writes to `enabledPlugins` as of 2026-10-04;
-[`plugin uninstall`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) and
-[`enabledPlugins`](https://code.claude.com/docs/en/settings-reference#enabledplugins) cover the
-commands and the key. ***Recheck trigger:*** a release note touching what `plugin install`,
+[PR #6096](https://github.com/melodic-software/claude-code-plugins/pull/6096). [`enabledPlugins`](https://code.claude.com/docs/en/settings-reference#enabledplugins) says `/plugin`
+and `claude plugin enable` write the key. No docs page states what an install or an uninstall writes
+to it, or what `enable` and `disable` do for an id with no install record, as of 2026-11-04;
+[`plugin uninstall`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) covers
+that command. ***Recheck trigger:*** a release note touching what `plugin install`,
 `uninstall`, `enable` or `disable` writes to `enabledPlugins`; either section starting to state it;
 or a disabled-by-default install that stops printing the notice.

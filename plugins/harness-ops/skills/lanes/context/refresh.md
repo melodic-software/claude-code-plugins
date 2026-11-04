@@ -24,13 +24,14 @@ handles built-in commands.
      live. **As of**: 2026-10-11. **Recheck trigger**: that section says a running
      session picks up an updated plugin.
 
-2. **`/loop` does not re-read the skill each cycle.** We treat a rendered `SKILL.md`
-   as entering the conversation once, so even an updated on-disk copy is never
-   re-injected into the running loop.
+2. **`/loop` is no way to deliver a skill edit.** A repeat invocation can append
+   changed skill content, and we do not count a `/loop` fire as one: we treat an
+   updated on-disk copy as not reaching the running loop.
    - **Pointer**: when checking how long skill content stays and what a repeat
      invocation gets, fetch [skills: skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
-     live. **As of**: 2026-10-11. **Recheck trigger**: that section says the skill
-     file is re-read on later turns.
+     live. **As of**: 2026-11-04. **Recheck trigger**: that section says the skill
+     file is re-read on later turns, or says whether a `/loop` fire is a repeat
+     invocation.
 
 3. **A loop can't reload itself.** `/reload-plugins` is a built-in command, and we
    treat a scheduled or loop fire as unable to execute one, so a lane cannot

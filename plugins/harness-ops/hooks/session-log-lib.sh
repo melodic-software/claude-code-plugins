@@ -66,10 +66,11 @@
 # $CLAUDE_EFFORT is the payload's effort.level, so both are empty on the
 # SLOG_EFFORT_NA_EVENTS events.
 # Basis: https://code.claude.com/docs/en/hooks ("Common input fields" and each
-# event's "input" section); the page does not say which events, so the event
-# split is read from the Claude Code 2.1.287 binary (the hook-input builder
-# and the hook spawn environment).
-# As of: 2026-10-02.
+# event's "input" section); the page names some events and leaves the rest as
+# "other events with a tool-use context", so the full event split is read from
+# the Claude Code 2.1.287 binary (the hook-input builder and the hook spawn
+# environment).
+# As of: 2026-10-02 for the binary read; the page wording re-read 2026-11-04.
 # Recheck: each /harness-ops:changelog ingest whose release notes touch hook
 # input fields, when a key here stops appearing in the page's input sections,
 # or when Stop rows on an effort-capable model record `unset`.

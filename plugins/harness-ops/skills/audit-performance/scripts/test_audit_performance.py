@@ -998,7 +998,31 @@ class TestConfigLiveness(unittest.TestCase):
             )
             self.assertEqual(result["sessions_predating_settings"], 1)
             self.assertIn("have NOT picked up the change", result["advisory"])
-            self.assertIn("Restart is required", result["advisory"])
+            # Source: https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins
+            # names /reload-plugins for plugin changes made outside the panel; a restart
+            # is the next-session route that page's plugin update section states.
+            self.assertIn("/reload-plugins", result["advisory"])
+            self.assertIn("restart", result["advisory"])
+
+    def test_stale_advisory_limits_the_pending_claim_to_plugin_enablement(self):
+        # Source: https://code.claude.com/docs/en/settings#when-edits-take-effect says
+        # edits to permissions and hooks reach the running session without a restart,
+        # so a newer settings.json alone cannot mean the change was not picked up.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / ".claude"
+            write_settings(root, {})
+            mtime = (root / "settings.json").stat().st_mtime
+            records = [
+                {"pid": 10, "ppid": 1, "name": "node", "started_epoch": mtime - 600}
+            ]
+            advisory = engine.config_liveness(root, records)["advisory"]
+            self.assertIn("permissions", advisory)
+            self.assertIn("hooks", advisory)
+            self.assertIn("If this edit enabled or disabled a plugin", advisory)
+            self.assertLess(
+                advisory.index("If this edit enabled or disabled a plugin"),
+                advisory.index("have NOT picked up the change"),
+            )
 
     def test_no_stale_session_yields_a_consistent_advisory_not_a_warning(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1010,7 +1034,9 @@ class TestConfigLiveness(unittest.TestCase):
             ]
             result = engine.config_liveness(root, records)
             self.assertEqual(result["sessions_predating_settings"], 0)
-            self.assertNotIn("Restart is required", result["advisory"])
+            # Same source as the stale case: with nothing stale, no reload is owed.
+            # https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins
+            self.assertNotIn("/reload-plugins", result["advisory"])
 
     def test_the_session_heuristic_is_labelled_rather_than_asserted(self):  # identifier, not prose # spellchecker:disable-line
         with tempfile.TemporaryDirectory() as tmp:
