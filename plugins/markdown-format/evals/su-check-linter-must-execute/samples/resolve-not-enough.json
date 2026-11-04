@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "No, it proves more than resolution: check runs the resolved tool with --version, and a shim that resolves but cannot execute is FAIL."
+      "answer": "No, it proves more than resolution: check runs the resolved tool with --help, and a shim that resolves but cannot execute is FAIL."
     }
   ],
   "fail": [
@@ -10,7 +10,7 @@
       "why": "resolution passes"
     },
     {
-      "answer": "It runs the tool with --version. A shim that resolves but cannot run is reported as INFO.",
+      "answer": "It runs the tool with --help. A shim that resolves but cannot run is reported as INFO.",
       "why": "wrong grade"
     }
   ]

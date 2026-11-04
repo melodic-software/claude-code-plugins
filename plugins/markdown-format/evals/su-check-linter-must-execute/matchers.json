@@ -10,11 +10,11 @@
       }
     }
   ],
-  "version-probe": [
+  "liveness-probe": [
     {
       "use": "command_position_multishell"
     },
-    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?markdownlint-cli2(?:\\.(?:exe|cmd))?(?:\\\\\\\"|')?(?![\\w./-])(?:\\s|\\\\\\\\\\\\n)+--version\\b"
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?markdownlint-cli2(?:\\.(?:exe|cmd))?(?:\\\\\\\"|')?(?![\\w./-])(?:\\s|\\\\\\\\\\\\n)+--help\\b"
   ],
   "no-install": [
     {
@@ -26,7 +26,7 @@
     {
       "use": "command_position_multishell"
     },
-    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?markdownlint-cli2(?:\\.(?:exe|cmd))?(?:\\\\\\\"|')?(?![\\w./-])(?!(?:\\s|\\\\\\\\\\\\n)+(?:--?version|--help|-h)\\b)"
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?markdownlint-cli2(?:\\.(?:exe|cmd))?(?:\\\\\\\"|')?(?![\\w./-])(?!(?:\\s|\\\\\\\\\\\\n)+(?:--help|-h)\\b)"
   ],
   "no-apply-step": [
     {

@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "markdownlint-cli2 --version"
+            "command": "markdownlint-cli2 --help"
           }
         }
       ],
@@ -16,7 +16,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node_modules/.bin/markdownlint-cli2 --version"
+            "command": "node_modules/.bin/markdownlint-cli2 --help"
           }
         }
       ],
@@ -27,7 +27,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "\"./node_modules/.bin/markdownlint-cli2\" --version 2>&1"
+            "command": "\"./node_modules/.bin/markdownlint-cli2\" --help 2>&1"
           }
         }
       ],
@@ -38,7 +38,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "/opt/tools/markdownlint-cli2/1.0.0/markdownlint-cli2 --version"
+            "command": "/opt/tools/markdownlint-cli2/1.0.0/markdownlint-cli2 --help"
           }
         }
       ],
@@ -49,7 +49,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "command -v markdownlint-cli2 && markdownlint-cli2 --version"
+            "command": "command -v markdownlint-cli2 && markdownlint-cli2 --help"
           }
         }
       ],
@@ -77,11 +77,22 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "grep -n \"markdownlint-cli2 --version\" SKILL.md"
+            "command": "grep -n \"markdownlint-cli2 --help\" SKILL.md"
           }
         }
       ],
       "why": "the command as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "markdownlint-cli2 --version"
+          }
+        }
+      ],
+      "why": "not the probe"
     },
     {
       "answer": [
@@ -99,7 +110,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "echo markdownlint-cli2 --version"
+            "command": "echo markdownlint-cli2 --help"
           }
         }
       ],
