@@ -145,7 +145,7 @@ export const detailSuffix = (error) => (typeof error?.detail === "string" && err
 // wait is sent again, inside the same 3 attempts, once the reset passes. A
 // retry line names an error's name and cause code only: undici puts a
 // whole header value, the token included, in some messages. createGitHub and
-// budgetedFetch both use it; budgetedFetch resends a rate-limited read itself.
+// budgetedFetch both use it, with resendLimited.
 const SERVER_RETRY_DELAYS_MS = [2000, 4000];
 const ATTEMPT_TIMEOUT_MS = 20_000;
 // A GraphQL query: a POST to /graphql whose document starts with `query` or

@@ -30,15 +30,16 @@
     {
       "id": 3,
       "name": "artifact-forward-decision-table-two-numbering-systems",
-      "prompt": "break this down, this is a wall of text. (Fixture: no rendered-views layer exists, so no medium is set.)",
-      "expected_output": "For decision-dense content, renders a decision table with numbered rows and the columns item | recommendation | alternative | what-you're-deciding. The row number (the table's own) is used for answer-mapping; the item column carries the original identifier as a back-link — the two numbering systems stay distinct. Recommendation and alternative cells carry verbatim operative terms. With no medium set, the shipped default decides: if the Artifact surface is available it publishes an HTML artifact (after loading artifact-design); otherwise it degrades to a local HTML file or structured terminal markdown. The output says the shipped default decided the medium.",
+      "prompt": "break this down, this is a wall of text. (Fixture: no rendered-views setting exists in any scope and the adhd plugin's medium option is auto, so no medium is set.)",
+      "expected_output": "For decision-dense content, renders a decision table with numbered rows and the columns item | recommendation | alternative | what-you're-deciding. The row number (the table's own) is used for answer-mapping; the item column carries the original identifier as a back-link — the two numbering systems stay distinct. Recommendation and alternative cells carry verbatim operative terms. It runs the shared medium resolver first; with no medium set the resolver's JSON medium is null and its report line names the plugin default, so the skill's own rendering table picks the rung by the surfaces present and the content size, loading artifact-design before it publishes. The output prints the resolver's report line.",
       "files": [],
       "expectations": [
         "Produces a decision table with the columns item | recommendation | alternative | what-you're-deciding",
         "Uses distinct numbering: the table's own row number for answer-mapping and the original item number as a back-link",
         "Recommendation/alternative cells carry verbatim operative terms, not paraphrase",
-        "With no medium set, selects the render medium (published artifact / local HTML file / terminal markdown) by artifact-surface availability and content size",
-        "Names the shipped default as the source of the medium"
+        "Runs the shared medium resolver (lib/view-settings.mjs resolve --lane adhd:clarify) before choosing a rung",
+        "With the resolver's medium null, picks the rung from its rendering table by artifact-surface availability and content size",
+        "Prints the resolver's report line, which names the plugin default as what decided"
       ]
     },
     {
@@ -104,29 +105,43 @@
     },
     {
       "id": 9,
-      "name": "user-global-file-medium-keeps-decision-table-local",
-      "prompt": "break this down, this is a wall of text. (Fixture: the previous assistant response holds five open decisions; the Artifact tool is present; ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no --medium argument was given.)",
-      "expected_output": "Resolves medium from the rendered-views layers before choosing a rung, reads medium: file from the user-global layer, and writes the decision table as a self-contained local HTML file in the OS temp directory, handing back its path. It does not publish an Artifact even though the Artifact tool is present, and it names ~/.claude/rendered-views.md as the layer that supplied the medium.",
+      "name": "user-config-file-medium-keeps-decision-table-local",
+      "prompt": "break this down, this is a wall of text. (Fixture: the previous assistant response holds five open decisions; the Artifact tool is present; the adhd plugin's medium option is set to 'file'; the repo has no rendered-views convention file; no --medium argument was given.)",
+      "expected_output": "Runs the shared medium resolver with the plugin's medium option before choosing a rung; the resolver returns the local-file medium decided by userConfig. It writes the decision table as a self-contained local HTML file in the OS temp directory and hands back its path. It does not publish an Artifact even though the Artifact tool is present, and it prints the resolver's report line naming userConfig as what decided.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves medium from the rendered-views layers before choosing a rung",
+        "Runs the shared medium resolver, passing the plugin's medium option, before choosing a rung",
         "Writes a local HTML file and hands back its path",
         "Does not call the Artifact tool or publish to claude.ai, although the tool is present",
-        "Names ~/.claude/rendered-views.md as the source of the medium"
+        "Prints the resolver's report line, which names userConfig as what decided the medium"
       ]
     },
     {
       "id": 10,
-      "name": "team-layer-artifact-does-not-publish",
-      "prompt": "make this clear. (Fixture: the previous assistant response holds four open decisions; the Artifact tool is present; the repo's tracked .claude/rendered-views.md says 'medium: artifact'; no user-global layer or overlay exists; no --medium argument was given.)",
-      "expected_output": "Reads medium: artifact from the team layer, reports that a team-layer publishing value does not publish because a checked-out branch can write it, and keeps the decision table in a local HTML file instead of publishing an Artifact. Names the team layer as the source it read and says why it was not honored.",
+      "name": "team-file-publishing-value-does-not-decide",
+      "prompt": "make this clear. (Fixture: the previous assistant response holds four open decisions; the Artifact tool is present; the repo's tracked docs/conventions/rendered-views.yaml says 'medium: artifact'; no personal override exists; the adhd plugin's medium option is auto; no --medium argument was given.)",
+      "expected_output": "Runs the shared medium resolver and does not read docs/conventions/rendered-views.yaml itself. The resolver ignores the team file's publishing value, because a checked-out branch can write it, and says so in a notice; its report line names the plugin default, not the team file, as what decided. The skill prints the report line and the notice as they stand, then lets its own rendering table pick the rung.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Does not publish an Artifact on the strength of the team-layer medium: artifact",
-        "Keeps the decision table in a local HTML file",
-        "Reports the team-layer value and why it does not publish"
+        "Runs the shared medium resolver instead of reading the team file itself",
+        "Prints the resolver's notice that the team file's publishing value is ignored",
+        "Does not name the team file as what decided the medium; the report line names the plugin default"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "retired-settings-file-still-keeps-the-view-local",
+      "prompt": "clarify this. (Fixture: the previous assistant response holds three open decisions; ~/.claude/rendered-views.md contains only 'medium: terminal'; no other rendered-views setting exists and the adhd plugin's medium option is auto; no --medium argument was given.)",
+      "expected_output": "Runs the shared medium resolver and does not read ~/.claude/rendered-views.md itself. That file is retired, but its local value still keeps the view local when no scope sets one: the resolver returns medium terminal, its report line names the retired file as what decided, and its notice says the file is retired but still keeps the view local and names where to set the value instead. The skill prints the report line and that notice as they stand and keeps the decision table in the terminal; it publishes no Artifact.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the shared medium resolver instead of reading ~/.claude/rendered-views.md itself",
+        "Prints the resolver's notice that the retired file still keeps the view local and where to set the value instead",
+        "Prints the resolver's report line, which names the retired ~/.claude/rendered-views.md as what decided",
+        "Keeps the decision table in the terminal and publishes no Artifact"
       ]
     }
   ]
