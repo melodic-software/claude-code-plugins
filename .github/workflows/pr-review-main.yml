@@ -456,7 +456,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/report-api-budget@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-api-budget@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
         with:
           tokens: github-token
 

@@ -45,6 +45,12 @@ done
 case "$1 $2" in
 'pr list') json="$FAKE_PRS" ;;
 'api graphql')
+  if [[ $* == *'mergeQueue(branch'* ]]; then
+    if [[ $FAKE_QUEUE == fail ]]; then exit 1; fi
+    json=$FAKE_QUEUE
+    jq -r "$jq_expr" <<<"$json"
+    exit 0
+  fi
   if [[ $FAKE_QUEUED == fail ]]; then exit 1; fi
   json="{\"data\":{\"node\":{\"isInMergeQueue\":$FAKE_QUEUED}}}" ;;
 api\ repos/*)
@@ -125,7 +131,7 @@ new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide FAKE_QUEUED=true GATE_RC=1
 check 'queued: exit 0' 0 "$RC"
 check 'queued: no rebuild' false "$(val rebuild)"
-check 'queued: notice names the pull request' 1 "$(grep -c '^::notice::.*#7 .*merge queue' <<<"$OUT" || true)"
+check 'queued: notice names the pull request and its queued head' 1 "$(grep -c "^::notice::.*#7 .*merge queue at $HEAD_SHA" <<<"$OUT" || true)"
 check 'queued: pull request outputs still written' "PR_n 7 $HEAD_SHA" "$(val id) $(val number) $(val head)"
 
 echo '# queued release pull request with a merge conflict'
@@ -397,5 +403,71 @@ FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=workflow_dispatch G
 check 'dispatch stale: rebuild' true "$(val rebuild)"
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=1 FAKE_RUNS="[$(run "$t1" success),$(lane in_progress)]"
 check 'dispatch stale+lane running: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+
+# queue-ahead.sh, which the merge job runs before it queues the release: R gets
+# a release commit changing two files, and FAKE_QUEUE is the GraphQL response.
+new_fixture no
+tg checkout -q -b release-files
+mkdir -p "$R/plugins/a/.claude-plugin"
+echo '{}' >"$R/plugins/a/.claude-plugin/plugin.json"
+echo '# a' >"$R/plugins/a/CHANGELOG.md"
+tg add -A
+commit 'release a'
+REL_SHA=$(tg rev-parse HEAD)
+tg checkout -q main
+# entry <number> <total files> <path>...: one queued pull request.
+entry() {
+  local n=$1 total=$2
+  shift 2
+  jq -nc --argjson n "$n" --argjson total "$total" '{pullRequest: {number: $n, files: {totalCount: $total, nodes: ($ARGS.positional | map({path: .}))}}}' --args "$@"
+}
+# queue <total entries> <entry>...: a response holding main's merge queue.
+queue() {
+  local total=$1
+  shift
+  jq -nc --argjson total "$total" '{data: {repository: {mergeQueue: {id: "MQ_1", entries: {totalCount: $total, nodes: ($ARGS.positional | map(fromjson))}}}}}' --args "$@"
+}
+run_ahead() {
+  : >"$TMP/gh.log"
+  RC=0
+  OUT=$(cd "$R" && env PATH="$TMP/bin:$PATH" GH_LOG="$TMP/gh.log" GH_TOKEN=t GITHUB_REPOSITORY=o/r \
+    FAKE_QUEUE="$1" bash "$SCRIPT_DIR/queue-ahead.sh" "$MAIN_SHA" "$REL_SHA" 2>"$TMP/err") || RC=$?
+}
+ahead() { sed -n 's/^ahead=//p' <<<"$OUT"; }
+
+echo '# queue-ahead: an empty queue'
+run_ahead "$(queue 0)"
+check 'empty queue: exit 0' 0 "$RC"
+check 'empty queue: its id, nothing ahead' 'queue=MQ_1' "$OUT"
+check 'empty queue: one API call' 1 "$(wc -l <"$TMP/gh.log")"
+
+echo '# queue-ahead: main has no merge queue'
+run_ahead '{"data":{"repository":{"mergeQueue":null}}}'
+check 'no queue: exit 0, empty id' '0 queue=' "$RC $OUT"
+
+echo '# queue-ahead: an entry ahead changes a file the release changes'
+run_ahead "$(queue 2 "$(entry 5 2 plugins/b/x.md plugins/a/.claude-plugin/plugin.json)" "$(entry 6 1 plugins/c/y.md)")"
+check 'overlap: exit 0' 0 "$RC"
+check 'overlap: names that entry and the file' '#5 changes plugins/a/.claude-plugin/plugin.json' "$(ahead)"
+
+echo '# queue-ahead: the entries ahead change other files'
+run_ahead "$(queue 2 "$(entry 5 1 plugins/b/x.md)" "$(entry 6 1 plugins/a/README.md)")"
+check 'no overlap: nothing ahead' '' "$(ahead)"
+check 'no overlap: the queue id' MQ_1 "$(sed -n 's/^queue=//p' <<<"$OUT")"
+
+echo '# queue-ahead: reads it cannot list in full count as an overlap'
+run_ahead "$(queue 1 "$(entry 5 101 plugins/b/x.md)")"
+check 'files past the page: counted' '#5 changes more than 1 files' "$(ahead)"
+run_ahead "$(queue 101 "$(entry 5 1 plugins/b/x.md)")"
+check 'entries past the page: counted' 'more than 1 pull requests are queued' "$(ahead)"
+run_ahead "$(queue 1 '{"pullRequest":null}')"
+check 'an entry with no pull request: skipped' '0 ' "$RC $(ahead)"
+
+echo '# queue-ahead: the read fails'
+run_ahead fail
+check 'lookup failure: non-zero exit' 1 "$((RC != 0))"
+run_ahead '{"errors":[{"message":"boom"}]}'
+check 'no repository in the response: non-zero exit' 1 "$((RC != 0))"
+check 'no repository in the response: no queue line' '' "$(grep '^queue=' <<<"$OUT" || true)"
 
 exit "$FAILED"
