@@ -387,13 +387,17 @@ check's output, and stop.
 
 **Closing claims.** Then, in every run and on the head that will flip, check each issue the PR
 would close against that head's diff the way [create.md](create.md) §2.4.0 does ("Close only what
-the diff finishes"). Take the issues from the forge's own list of closing references, which counts
-a keyword anywhere in the body
-([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-closing-claims)),
-not from the linkage line alone. This is not a `pre_ready` step: neither the list nor `--skip`
-turns it off. When an issue has an item not delivered, leave the PR in draft and report, per
-issue, the `Refs: #N` line and the `## Remaining` items the body needs, the way create.md §2.4.1
-writes them; the body is the author's to change, and `ready` runs again after it changes. The flip's own shell command also checks that the forge's head for the
+the diff finishes"). Take the issues from the forge's own list of the PR's closing references, not
+from the linkage line alone, and read each in its own repository
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-closing-claims)).
+An earlier pull request's credit counts only when that pull request is on the body's own
+`Siblings:` line and its body says it delivered the item, as pr-verify credits it (pr-pipeline
+convention, section "Verifier verdict"). A closing reference whose read fails or comes back empty
+counts as not delivered, never as a pass. This is not a `pre_ready` step: neither the list nor
+`--skip` turns it off. When an issue has an item not delivered, leave the PR in draft and report,
+per issue, the `Refs: #N` line and the `## Remaining` items the body needs (or the failed read),
+the way create.md §2.4.1 writes them; the body is the author's to change, and `ready` runs again
+after it changes. The flip's own shell command also checks that the forge's head for the
 PR is that local head, then runs `verify-gate.sh check` for it, and goes on only on exit 0: a head
 the forge never matched or that moved since, a `fail`, or no result recorded for that head (a
 commit after the record voids it) refuses the flip and the PR stays a draft. Otherwise, when

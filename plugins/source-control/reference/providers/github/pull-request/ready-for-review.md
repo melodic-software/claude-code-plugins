@@ -96,11 +96,19 @@ gh pr diff "$PR_NUMBER"
 
 ## Read the closing claims
 
-The issues GitHub would close on merge, from every closing keyword in the body, and each one's
-body and open sub-issues (the [Refs issue read](create.md#refs-issue-read), once per issue):
+The issues GitHub would close on merge, each with its repository, then each issue's body and open
+sub-issues read in that repository, and the body's `Siblings:` line. Unlike the Refs issue read,
+no read here swallows a failure: a non-zero exit or an empty body is a failed read, which the
+phase counts as not delivered.
 
 ```bash
-gh pr view "$PR_NUMBER" --json closingIssuesReferences -q '.closingIssuesReferences[].number'
+CLAIMS=$(gh pr view "$PR_NUMBER" --json closingIssuesReferences \
+  -q '.closingIssuesReferences[] | "\(.repository.owner.login)/\(.repository.name) \(.number)"') || exit 1
+while read -r ISSUE_REPO ISSUE_NUM; do
+  [[ -n "$ISSUE_NUM" ]] || continue
+  gh issue view "$ISSUE_NUM" --repo "$ISSUE_REPO" --json state,body,subIssues   # a failure here is a failed read
+done <<< "$CLAIMS"
+gh pr view "$PR_NUMBER" --json body -q '.body' | grep -E '^Siblings: '
 ```
 
 ## Record the skipped steps
