@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "node plugins/planning/scripts/page-input.mjs plan --file /tmp/page-input-report-speed.txt"}}
+      ],
+      "why": "checks the block without editing the record"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": ".work/report-speed/PLAN.md", "old_string": "## Phases", "new_string": "## Phases\n\n| at | kind | choice | option | text |"}}
+      ],
+      "why": "edits the record for a rejected block"
+    }
+  ]
+}
