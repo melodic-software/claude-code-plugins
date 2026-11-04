@@ -50,8 +50,8 @@ resolver's message. With `<home>` resolved:
 
 - `BINDING` is the `tracker` key of `$ROOT/<home>/work-items.yaml`. That file may hold other
   work-items settings; setup edits only its `tracker` mapping.
-- `OVERLAY` is the gitignored per-user `$ROOT/<home>/work-items.local.yaml` (its `tracker` mapping).
-- `LEGACY` is `$ROOT/.work-item-tracker.json` and its overlay `$ROOT/.work-item-tracker.local.json`:
+- `OVERRIDE` is the gitignored personal override `$ROOT/<home>/work-items.local.yaml` (its `tracker` mapping).
+- `LEGACY` is `$ROOT/.work-item-tracker.json` and its personal override `$ROOT/.work-item-tracker.local.json`:
   read, and copied by step 1 of "Provider binding", never written.
 - `SCHEDULE` is `$ROOT/.github/recurring-schedule.json`.
 
@@ -81,14 +81,14 @@ when this pass must stop instead of guessing.
    report the bound `provider` and `config`. RECOMMENDED: keep it. Re-bind only to switch providers
    or fix config. Keeping a binding to a seeded provider still runs step 4's seed copy, attended or
    not. When only the legacy `.work-item-tracker.json` binds the repository, copy it: run step 5's
-   ignore pass for `OVERLAY` first, then
+   ignore pass for `OVERRIDE` first, then
    `bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/migrate-binding.sh" --root "$ROOT"`. It copies
-   the JSON binding and its overlay into the `tracker` mapping of `<home>/work-items.yaml` and
+   the JSON binding and its personal override into the `tracker` mapping of `<home>/work-items.yaml` and
    `<home>/work-items.local.yaml`, appending to a file that holds other settings. It checks both
    layers and reads each copy back through the seam before it writes either, so a binding is never
-   copied without its overlay. Announce each line it prints (`copied`, `already-yaml`, `no-json`,
+   copied without its personal override. Announce each line it prints (`copied`, `already-yaml`, `no-json`,
    `empty`). Exit `1` names a value it cannot copy (a null, an empty object, a list of mappings);
-   `3` an `OVERLAY` path that no `.gitignore` rule covers or that the index holds; `4` a repository
+   `3` an `OVERRIDE` path that no `.gitignore` rule covers or that the index holds; `4` a repository
    where no home applies or whose pointer is broken. Each writes nothing and is a finding to report. The JSON files
    stay where they are, unchanged: babysit-prs, the autonomy plugin's resolve-prerequisites, and the
    work, triage, attend-queue and track preflights still read only them. Say so, and say that a later
@@ -141,17 +141,17 @@ when this pass must stop instead of guessing.
    - `edited` (exit 1): someone changed the copy, so nothing was written. Show the diff that follows
      and stop this step; never delete or overwrite the copy to force an update. With no interactive
      user, report it as a finding and continue with the existing copy.
-5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay
+5. **Ensure the personal-override gitignore line.** The gitignored personal override
    (`<home>/work-items.local.yaml`, allowlisted keys only. CONTRACT.md "Setup (binding file)") sits
    in the convention home, outside the `.claude/**/*.local.*` convention line, so `apply` must
-   confirm a repository `.gitignore` rule covers it even when the overlay file does not exist yet,
+   confirm a repository `.gitignore` rule covers it even when the personal override file does not exist yet,
    and append that path as a line when none does, **announcing the edit** (touch nothing else there).
    While a legacy `.work-item-tracker.local.json` exists, it must stay ignored and untracked too:
    run the same probes on it.
-   `$GIT_DIR/info/exclude` and `core.excludesFile` do not protect a teammate. A *tracked* overlay
+   `$GIT_DIR/info/exclude` and `core.excludesFile` do not protect a teammate. A *tracked* personal override
    in the index is a finding to stop and report, never ignore. Ignored and untracked are **two
    independent probes**; a bare `git check-ignore` is silent for an already-tracked path. Run the
-   probes as [`reference/overlay-ignore-probes.md`](reference/overlay-ignore-probes.md) specifies,
+   probes as [`reference/personal-override-ignore-probes.md`](reference/personal-override-ignore-probes.md) specifies,
    including why the ignore verdict must NOT come from `check-ignore -v`'s exit code.
 
 Example `<home>/work-items.yaml` (`github`; `local-markdown` adds `storage_dir: .work-items` under
@@ -432,7 +432,7 @@ report INFO naming `/work-items:setup apply` with a user present.
      is unclassified: a done blocker carrying it keeps blocking and warns.
   4. **Write the binding**: re-read `<home>/work-items.yaml` immediately before writing and merge
      only `tracker.config.jira.resolutions` as `{"completed": [ids], "wont_do": [ids]}`, ids as strings.
-     It is team binding only; never write it to the personal overlay.
+     It is team binding only; never write it to the personal override.
 
 On a re-run, a Jira binding that already classifies every listed resolution reports "already
 configured"; otherwise offer only the resolutions it does not classify.

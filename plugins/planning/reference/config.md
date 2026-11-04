@@ -18,7 +18,7 @@ Decision 8):
 `plan_reader` alone has two layers above these: the `Reader depth:` line a plan records at its
 first publish, then a per-run `--reader` argument.
 
-No `~/.claude` file, `.claude/` file or local overlay sets these keys. The reading skill resolves
+No `~/.claude` file, `.claude/` file or personal override sets these keys. The reading skill resolves
 each key in its own text, with no reader script, and reports one line naming the value and the
 layer that supplied it. `/planning:setup apply <key>=<value>` writes the repository file after
 validating it against the schema, and shows the diff and asks before it changes an existing one.

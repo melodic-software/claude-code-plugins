@@ -80,27 +80,27 @@
       "id": 7,
       "name": "check-renders-effective-merge-with-winning-layer",
       "prompt": "/source-control:setup check",
-      "expected_output": "Reports one effective-configuration table across all three layers — a row per key with its resolved value and which layer supplied it — rather than the tracked team file's values alone. The personal overlay's trailer_policy: none wins that key; the team file supplies the rest. Also reports a per-layer presence line, and reports the local overlay's gitignore status as a PASS when it is ignored rather than as the team file's hard-STOP condition.",
+      "expected_output": "Reports one effective-configuration table across all three layers — a row per key with its resolved value and which layer supplied it — rather than the tracked team file's values alone. The personal override's trailer_policy: none wins that key; the team file supplies the rest. Also reports a per-layer presence line, and reports the personal override's gitignore status as a PASS when it is ignored rather than as the team file's hard-STOP condition.",
       "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
       "expectations": [
         "Reports the effective merged configuration, not one layer's values presented as the whole convention",
-        "Names which layer supplied each resolved key (the overlay wins trailer_policy; the team file supplies subject_pattern)",
-        "Treats a gitignored personal overlay as PASS, not as the FAIL a gitignored team file produces",
+        "Names which layer supplied each resolved key (the personal override wins trailer_policy; the team file supplies subject_pattern)",
+        "Treats a gitignored personal override as PASS, not as the FAIL a gitignored team file produces",
         "Reports each layer's presence, including absent layers, as INFO rather than failure"
       ]
     },
     {
       "id": 8,
-      "name": "routes-personal-request-to-local-overlay-not-team-file",
+      "name": "routes-personal-request-to-personal-override-not-team-file",
       "prompt": "/source-control:setup apply\n\nI personally want ticket-prefixed subjects like WEB-123: fix the thing on this repo, but don't change what the team uses.",
-      "expected_output": "Writes .claude/source-control.local.md, not the tracked team docs/conventions/source-control.yaml, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the overlay is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the recursive .claude/**/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
+      "expected_output": "Writes .claude/source-control.local.md, not the tracked team docs/conventions/source-control.yaml, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the personal override is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the recursive .claude/**/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
       "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
-        "Writes the personal overlay path, leaving the tracked team file unmodified",
+        "Writes the personal override path, leaving the tracked team file unmodified",
         "States which layer it selected before writing",
         "Writes only the differing keys instead of restating every key from the team layer",
-        "Treats a git check-ignore match on the overlay as success, and never stages the overlay with git add",
-        "When the overlay is not ignored, recommends the recursive .claude/**/*.local.* gitignore line instead of editing the consumer's .gitignore",
+        "Treats a git check-ignore match on the personal override as success, and never stages the personal override with git add",
+        "When the personal override is not ignored, recommends the recursive .claude/**/*.local.* gitignore line instead of editing the consumer's .gitignore",
         "Reports the resulting effective merge across layers rather than only the keys just written"
       ]
     },
@@ -114,31 +114,31 @@
         "Writes the user-global path rather than a repo path",
         "Runs no git check-ignore, git status, or git add against the user-global file",
         "Does not report the user-global write as staged or awaiting a commit",
-        "Reports the resulting effective merge, noting that an existing team file or personal overlay still overrides these values per key"
+        "Reports the resulting effective merge, noting that an existing team file or personal override still overrides these values per key"
       ]
     },
     {
       "id": 10,
-      "name": "non-interactive-overlay-omits-keys-equal-to-lower-layers",
+      "name": "non-interactive-personal-override-omits-keys-equal-to-lower-layers",
       "prompt": "/source-control:setup apply layer=local subject_pattern=Conventional Commits",
-      "expected_output": "Resolves the layers below the overlay before writing. The team file already declares the same Conventional Commits subject_pattern and a pr_title_pattern of Same as subject_pattern, so neither key is a genuine deviation and neither is written — pinning them in the overlay would make a later team convention change silently ineffective on this machine. Reports that the requested value already holds and that no overlay was needed, rather than materializing an overlay that restates the team layer.",
+      "expected_output": "Resolves the layers below the personal override before writing. The team file already declares the same Conventional Commits subject_pattern and a pr_title_pattern of Same as subject_pattern, so neither key is a genuine deviation and neither is written — pinning them in the personal override would make a later team convention change silently ineffective on this machine. Reports that the requested value already holds and that no personal override was needed, rather than materializing a personal override that restates the team layer.",
       "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
         "Reads the team layer before writing, even though the invocation is non-interactive and names an explicit value",
-        "Omits subject_pattern and pr_title_pattern from the overlay because they already equal the effective lower-layer merge",
-        "Does not write an overlay whose keys restate the team layer",
+        "Omits subject_pattern and pr_title_pattern from the personal override because they already equal the effective lower-layer merge",
+        "Does not write a personal override whose keys restate the team layer",
         "Tells the user the requested convention already holds instead of reporting a write it did not need to make"
       ]
     },
     {
       "id": 11,
-      "name": "non-interactive-update-preserves-unrequested-overlay-keys",
+      "name": "non-interactive-update-preserves-unrequested-personal-override-keys",
       "prompt": "/source-control:setup apply layer=local subject_pattern=^[A-Z]+-\\d+: .+",
-      "expected_output": "The personal overlay already declares trailer_policy: none, which this invocation says nothing about. The skill reads the target layer before rewriting it and carries that key through unchanged, replacing only subject_pattern (and the pr_title_pattern derived from it). It does not treat a rewrite as a fresh file, which would silently drop the active personal trailer override and change commit behavior the user never asked to change.",
+      "expected_output": "The personal override already declares trailer_policy: none, which this invocation says nothing about. The skill reads the target layer before rewriting it and carries that key through unchanged, replacing only subject_pattern (and the pr_title_pattern derived from it). It does not treat a rewrite as a fresh file, which would silently drop the active personal trailer override and change commit behavior the user never asked to change.",
       "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
       "expectations": [
-        "Reads the existing overlay before rewriting it rather than composing the file from the invocation alone",
-        "Preserves the overlay's existing trailer_policy: none, which the invocation did not mention",
+        "Reads the existing personal override before rewriting it rather than composing the file from the invocation alone",
+        "Preserves the personal override's existing trailer_policy: none, which the invocation did not mention",
         "Replaces only subject_pattern and the pr_title_pattern derived from it",
         "Removes a key only when the user explicitly clears it, never as a side effect of an unrelated one-key update"
       ]
@@ -186,13 +186,13 @@
       "id": 15,
       "name": "reset-to-default-writes-explicit-list-over-lower-layer",
       "prompt": "/source-control:setup apply layer=local\n\nThe tracked team docs/conventions/source-control.yaml already declares pr_body_required_sections as Summary, Test plan, Related. I personally don't want to bother with that list on this machine — go back to the plugin's own default.",
-      "expected_output": "Because pr_body_required_sections falls through per key, an omitted section in the local overlay would keep inheriting the team layer's Summary/Test plan/Related list, not reset to the portable default. The skill recognizes the intent as an explicit override and writes pr_body_required_sections in the local overlay as the keyword briefing rather than leaving the section out, stating in one line that it is written explicitly to override the team layer's list, not merely to restate the portable default. It then reports the resulting effective merge (the local overlay's briefing winning over the team layer).",
+      "expected_output": "Because pr_body_required_sections falls through per key, an omitted section in the personal override would keep inheriting the team layer's Summary/Test plan/Related list, not reset to the portable default. The skill recognizes the intent as an explicit override and writes pr_body_required_sections in the personal override as the keyword briefing rather than leaving the section out, stating in one line that it is written explicitly to override the team layer's list, not merely to restate the portable default. It then reports the resulting effective merge (the personal override's briefing winning over the team layer).",
       "files": [],
       "expectations": [
         "Recognizes that omitting the section would NOT reset to the portable default, because the team layer already sets pr_body_required_sections",
-        "Writes the keyword briefing into the local overlay rather than omitting the section",
+        "Writes the keyword briefing into the personal override rather than omitting the section",
         "States the one-line reason the explicit list is written (overriding the lower layer, not merely restating the default)",
-        "Reports the resulting effective merge showing the local overlay's briefing keyword winning over the team layer's list"
+        "Reports the resulting effective merge showing the personal override's briefing keyword winning over the team layer's list"
       ]
     },
     {
@@ -235,13 +235,13 @@
     },
     {
       "id": 19,
-      "name": "check-reports-missing-overlay-ignore-without-overlay-file",
+      "name": "check-reports-missing-personal-override-ignore-without-personal-override-file",
       "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no .claude/source-control.local.md. .gitignore does not mention .claude/**/*.local.*.",
-      "expected_output": "Reports FAIL on the local-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive .claude/**/*.local.* line at team-layer bind. The presence probe is git check-ignore --no-index -v -- .claude/nested/overlay.local.md, not the flat overlay path.",
+      "expected_output": "Reports FAIL on the personal-override ignore rule even though no personal override file exists: the rule must be in place before the first personal override is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive .claude/**/*.local.* line at team-layer bind. The presence probe is git check-ignore --no-index -v -- .claude/nested/personal-override.local.md, not the flat personal override path.",
       "files": [],
       "expectations": [
-        "Probes the ignore rule without requiring the overlay file to exist",
-        "Probes a nested sentinel (.claude/nested/overlay.local.md) rather than the flat overlay path",
+        "Probes the ignore rule without requiring the personal override file to exist",
+        "Probes a nested sentinel (.claude/nested/personal-override.local.md) rather than the flat personal override path",
         "Counts only a repository .gitignore match, not info/exclude or core.excludesFile",
         "Missing .claude/**/*.local.* rule is FAIL, not INFO",
         "Remediation is apply writing the ignore line at team-layer bind"
@@ -251,11 +251,11 @@
       "id": 20,
       "name": "check-does-not-accept-leftover-nonrecursive-ignore-as-the-recursive-rule",
       "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no .claude/source-control.local.md. .gitignore contains .claude/*.local.* and does not contain .claude/**/*.local.*.",
-      "expected_output": "Reports FAIL on the local-overlay ignore rule. The leftover .claude/*.local.* line matches the flat overlay path, so probing .claude/source-control.local.md would have passed; the nested sentinel .claude/nested/overlay.local.md does not match that line, so check still FAILs and names apply as the remediation (append .claude/**/*.local.* at team-layer bind).",
+      "expected_output": "Reports FAIL on the personal-override ignore rule. The leftover .claude/*.local.* line matches the flat personal override path, so probing .claude/source-control.local.md would have passed; the nested sentinel .claude/nested/personal-override.local.md does not match that line, so check still FAILs and names apply as the remediation (append .claude/**/*.local.* at team-layer bind).",
       "files": [],
       "expectations": [
-        "A leftover .claude/*.local.* rule is not treated as the recursive overlay ignore rule",
-        "The presence probe uses .claude/nested/overlay.local.md",
+        "A leftover .claude/*.local.* rule is not treated as the recursive personal override ignore rule",
+        "The presence probe uses .claude/nested/personal-override.local.md",
         "Missing .claude/**/*.local.* is FAIL even when .claude/*.local.* is present",
         "Remediation is apply appending the recursive line at team-layer bind"
       ]
@@ -276,12 +276,12 @@
     },
     {
       "id": 22,
-      "name": "check-at-home-root-reports-team-and-overlay-not-applicable",
+      "name": "check-at-home-root-reports-team-and-personal-override-not-applicable",
       "prompt": "/source-control:setup check\n\nThe session's project root is the operator's home directory, which contains ~/.claude/source-control.md and no repository of its own.",
-      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal overlay as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves user-global only and never presents ~/.claude/source-control.md as the team layer. The effective-configuration table shows user-global as the only winning layer, and the git tracked/ignored probes are not run.",
+      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal override as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves user-global only and never presents ~/.claude/source-control.md as the team layer. The effective-configuration table shows user-global as the only winning layer, and the git tracked/ignored probes are not run.",
       "files": [],
       "expectations": [
-        "Reports team and overlay as not applicable and names the reason: project root is the home directory (or an ancestor of it)",
+        "Reports team and personal override as not applicable and names the reason: project root is the home directory (or an ancestor of it)",
         "Resolves user-global only and does not read ~/.claude/source-control.md a second time as the team layer",
         "Shows user-global as the only layer that can win in the effective-configuration table",
         "Runs no git ls-files, git check-ignore, or trackedness probe against the home directory"

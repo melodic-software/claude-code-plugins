@@ -2,7 +2,7 @@
 # resolve-config.sh — resolve the testing plugin's config cascade.
 #
 # LAYERS, per the config-cascade convention, in order: user-global
-# (~/.claude/testing.yaml), team and a gitignored personal overlay
+# (~/.claude/testing.yaml), team and a gitignored personal override
 # (<root>/.claude/testing.local.yaml). The team layer is
 # <root>/docs/conventions/testing.yaml when it exists (schema:
 # schemas/testing.schema.json). Without it, the team layer is the ```yaml config
@@ -55,7 +55,7 @@
 # named on stderr and the default stands). check-browser-driver.sh, beside this
 # script, stops when that command is not on PATH.
 # It prints `<key> <tab> <value> <tab> <source>` per key, the source being the
-# layer file, userConfig, or default. Highest first: the overlay,
+# layer file, userConfig, or default. Highest first: the personal override,
 # docs/conventions/testing.yaml, the user-global file, then the --user value
 # (the rendered userConfig option; an unrendered ${user_config.<key>} or an
 # empty value is unset). The first that sets the key decides; an unknown,
@@ -69,7 +69,7 @@
 # WRITE: `resolve-config.sh write` resolves /testing:write's keys the same
 # way and prints the same three columns: tdd_refactor_step (on | off, default
 # on) and first_test (user-flow | unit, default user-flow). They are
-# repository settings: only the overlay and testing.yaml set them, the
+# repository settings: only the personal override and testing.yaml set them, the
 # user-global file is skipped with a warning, and there is no --user value.
 #
 # Usage:
@@ -80,15 +80,15 @@
 #   resolve-config.sh --help
 #   source resolve-config.sh                  defines tcfg_norm, tcfg_glob_re
 #
-#   --root  the repository root the team and overlay layers and relative paths
-#           resolve against. Default: the current directory's git toplevel,
+#   --root  the repository root the team layer, the personal override and
+#           relative paths resolve against. Default: the current directory's git toplevel,
 #           else $CLAUDE_PROJECT_DIR.
 #   --home  the directory holding the user-global layer. Default: $HOME.
 #   --quick skip the adapter load and hook.uncovered: the test-scan.sh path,
 #           where the scanner's own adapter load still refuses a bad extend.
 #           Adapter ids are still checked, against the adapter files' id: lines.
 #
-# Exit: 0 resolved, 2 usage error, a team or overlay layer that is a symlink
+# Exit: 0 resolved, 2 usage error, a team layer or personal override that is a symlink
 # or under a symlinked directory inside <root>, or an unreadable, unparsable or invalid
 # layer (the file and line are named on stderr).
 
@@ -305,7 +305,7 @@ TEAM_DOCS="$ROOT/docs/conventions/testing.md"
 TEAM_YAML="$ROOT/.claude/testing.yaml"
 
 # gather <team file>: set layers to the user-global layer, that team layer and
-# the overlay, as present.
+# the personal override, as present.
 layers=()
 declare -A layer_seen=()
 gather() {

@@ -4,7 +4,7 @@
 Seven keys (`POLICY_KEYS`) are read from the TARGET repository's tracked
 `docs/conventions/source-control.yaml` on its default branch, through the
 contents API with no `ref`, so neither the launching checkout's working tree nor
-a personal layer (user-global, local overlay) can supply a value. A YAML the
+a personal layer (user-global, personal override) can supply a value. A YAML the
 shared reader rejects is an error. The retired `.claude/source-control.md` is
 not read. The operator's `userConfig` value is the deprecated fallback, merged
 per key by the modes `merge_repo_config` documents. The review bot logins,

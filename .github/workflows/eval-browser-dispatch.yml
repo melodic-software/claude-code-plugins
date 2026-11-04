@@ -649,6 +649,8 @@ jobs:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
           REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
+          RUNS: ${{ inputs.runs }}
         run: |
           failed=0
           redact=()
@@ -668,6 +670,17 @@ jobs:
             summary="$OUT/$name/summary.md"
             annotation="$OUT/$name/annotation.txt"
             node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" --annotation "$annotation" >"$summary" || failed=1
+            # A dispatched run uploads its results, but not the traces --keep-temp
+            # keeps here, so the validity verdict is read here and only its last
+            # line is kept (its detail lines can quote a trace), as
+            # eval-hill-climb-pass.yml does. noise-report reads only results.json,
+            # which the upload already holds. A dispatched run always scaffolds.
+            if [ "$DISPATCHED" = true ]; then
+              validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$results" --runs "$RUNS" --scaffolded) || true
+              printf '%s\n' "$validity" | tail -n 1 >"$OUT/$name/validity.txt"
+              python3 .base/plugins/evals/skills/plugin-eval/scripts/noise-report.py "$results" >"$OUT/$name/noise.txt" 2>&1 || true
+              printf '\nValidity: %s\n' "$(cat "$OUT/$name/validity.txt")" >>"$summary"
+            fi
             cat "$summary" >>"$GITHUB_STEP_SUMMARY"
             echo >>"$GITHUB_STEP_SUMMARY"
             token=$(openssl rand -hex 16)

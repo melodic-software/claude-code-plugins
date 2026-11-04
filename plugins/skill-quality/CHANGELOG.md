@@ -3,6 +3,19 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-04
+
+### Fixed
+
+- `check-listing-budget.sh`: a `disable-model-invocation` spelled `yes`, `on` or `1`, in any letter
+  case, now leaves the listing estimate as `true` does, so such a skill no longer overstates the
+  aggregate.
+- `check-skill.sh`: `disable-model-invocation` accepts `yes`, `no`, `on`, `off`, `1` and `0` in any
+  letter case, as the skills page does, so the two checks agree on those spellings.
+
+- `check-skill.sh`: the invalid and quoted `disable-model-invocation` errors list every spelling the
+  check accepts, in any letter case, instead of only `true` and `false`.
+
 ## [1.0.3] - 2026-11-04
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-04
+
+### Fixed
+
+- `/disk-hygiene:clean` safety model drops upstream statements the settings reference and hooks page no longer make; the declines and the guard are unchanged.
+
 ## [1.0.2] - 2026-11-04
 
 ### Fixed

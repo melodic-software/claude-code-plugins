@@ -51,7 +51,7 @@ you picked before writing, since writing to the wrong one either fails to reach 
 commits a personal preference to shared history.
 
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, **refuse
-`layer=team` and `layer=local`**. At home the team and overlay paths sit in the operator's home directory, beside the user-global
+`layer=team` and `layer=local`**. At home the team and personal override paths sit in the operator's home directory, beside the user-global
 `~/.claude/source-control.md`, so a team write would edit the operator's personal config under a
 team label; outside a repository the tracked/ignored probes
 have no repository to answer against. Name the reason, the same note `parse-branch-issue.sh`
@@ -81,13 +81,13 @@ vocabulary the pattern does not use. Moving the other way re-adds the bundled 11
 `pr_title_pattern` follows the same rule unless the user set it to a value independent of
 `subject_pattern`, which is carried through like any other independent key.
 
-**Writing an overlay layer, `user` or `local`, resolve the layers below first and omit any
+**Writing the `user` or `local` layer, resolve the layers below first and omit any
 *requested* key already equal to that merge.** A non-interactive argument is not evidence of a genuine
 deviation: `apply layer=local subject_pattern=X` against a team file that already declares `X` would
 otherwise pin `X` locally, so a later team change would be silently ignored on this machine, the
 exact failure per-key override exists to prevent. This applies to the requested keys only; it never
-licenses dropping an unrelated key the overlay already carries. When every requested key already holds
-and the overlay would otherwise be empty, write nothing and say so rather than materializing an empty
+licenses dropping an unrelated key the written layer already carries. When every requested key already holds
+and the written layer would otherwise be empty, write nothing and say so rather than materializing an empty
 file.
 
 **`branch_issue_pattern=<ERE>` writes the branch-to-issue grammar.** It is independent of
@@ -112,7 +112,7 @@ file.
   is. For `user` and `local` it is the `## branch_issue_pattern` section, value in backticks on the
   first line under the heading (a value that itself contains a backtick goes in a fenced code block
   instead), every other section and the preamble untouched. When the target file does not exist yet, write the step 5 template's
-  preamble plus this one section, never placeholder sections for the other keys. The overlay rule
+  preamble plus this one section, never placeholder sections for the other keys. The layered-write rule
   above applies: writing `user` or `local`, when the layers below already resolve the same value,
   write nothing and say so.
 - **Combined** with `subject_pattern=`: one pass writes both. The `subject_pattern=` rules above
@@ -136,8 +136,8 @@ With no argument in an interactive session, run the interview:
    every self-contained Bash call.
 1. **Read the current config first**, all three layers, not just the target. Present the effective
    merge and which layer supplies each key; the interview proposes changes against that baseline and
-   overwrites nothing without confirmation. Writing an overlay layer, carry only the keys that
-   genuinely differ from the merge below it: an overlay that restates every key silently pins values
+   overwrites nothing without confirmation. Writing the `user` or `local` layer, carry only the keys that
+   genuinely differ from the merge below it: a layer that restates every key silently pins values
    the base layer should still own, which is the failure mode per-key override exists to avoid.
 2. **Infer before asking.** Gate this on the resolved value, not on file presence: infer whenever the
    **effective merged `subject_pattern` is unresolved**, which includes the case where layers exist
@@ -242,7 +242,7 @@ With no argument in an interactive session, run the interview:
      *below* the one being written already resolve to the portable default (or the key is unset
      everywhere), since writing the explicit default there would just add redundant noise. When the intent
      is genuinely to reset back to the portable default *over* a lower layer that sets something else
-     (a team config requiring `Related`, and this write is a personal overlay or a team rewrite meant
+     (a team config requiring `Related`, and this write is a `user` or `local` layer or a team rewrite meant
      to drop it), the portable default must be written out explicitly as the keyword `briefing`. An
      omitted section would silently keep inheriting the lower layer's list instead.
      State the one-line reason when this applies ("written explicitly to override the team layer's
@@ -338,7 +338,7 @@ With no argument in an interactive session, run the interview:
    drafting read is per-H2-key, so the preamble can never change a resolved value.
 
 6. **Verify the write, per layer.** The post-write check inverts between layers and there is no
-   shared shortcut: the team file must be tracked, the local overlay must be ignored, and the
+   shared shortcut: the team file must be tracked, the personal override must be ignored, and the
    user-global file is not in a repository at all. Run the wrong one and the skill reports success
    over exactly the failure it exists to catch.
 
@@ -352,7 +352,7 @@ With no argument in an interactive session, run the interview:
      and reports nothing for a file that is already tracked, because gitignore rules do not apply to
      tracked files, so "no rule exists" and "a rule exists but the file was committed anyway" are
      indistinguishable from its output alone, and they need opposite remediations. Never stage the
-     overlay in either case.
+     personal override in either case.
    - **`layer=team`**: `REPO_ROOT/docs/conventions/source-control.yaml` must be tracked and staged. Verify it
      is actually staged before reporting success; neither `git check-ignore -v` nor
      `git ls-files --error-unmatch` proves this alone. `git check-ignore -v` only reports a matching
@@ -362,13 +362,13 @@ With no argument in an interactive session, run the interview:
      already tracked, so that check exits 0 even though the new content is still an unstaged
      working-tree modification.
 
-   For `layer=team`, also ensure the personal-overlay ignore rule exists
-   **whether or not an overlay file has been written**. The rule belongs to
+   For `layer=team`, also ensure the personal-override ignore rule exists
+   **whether or not a personal override file has been written**. The rule belongs to
    bind time, not to `layer=local`. Probe a nested sentinel
-   (`.claude/nested/overlay.local.md`), not the flat overlay path: a leftover
+   (`.claude/nested/personal-override.local.md`), not the flat personal override path: a leftover
    `.claude/*.local.*` rule still matches `.claude/source-control.local.md` and
    would otherwise look like the recursive rule is present. If
-   `git check-ignore --no-index -v -- .claude/nested/overlay.local.md` reports
+   `git check-ignore --no-index -v -- .claude/nested/personal-override.local.md` reports
    no match **from a repository `.gitignore`** (ignore `$GIT_DIR/info/exclude`
    and `core.excludesFile`), append the recursive `.claude/**/*.local.*` line
    to the consumer `.gitignore`, announce the edit, and stage that line with
@@ -405,11 +405,11 @@ With no argument in an interactive session, run the interview:
 
    ```bash
    REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-   OVERLAY=".claude/source-control.local.md"
+   PERSONAL_OVERRIDE=".claude/source-control.local.md"
    # --no-index answers "does a matching ignore rule exist?" on its own terms. Without it, git
    # consults the index first and reports nothing for an already-tracked file, conflating a missing
    # rule with a rule that exists but was overridden by a past commit.
-   IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")" && HAS_RULE=1 || HAS_RULE=0
+   IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$PERSONAL_OVERRIDE")" && HAS_RULE=1 || HAS_RULE=0
    # --no-index still consults $GIT_DIR/info/exclude and core.excludesFile. Those
    # are operator-local; a teammate does not inherit them. Count only a
    # repository .gitignore as the team-wide rule.
@@ -421,30 +421,30 @@ With no argument in an interactive session, run the interview:
      esac
    fi
    # An ignore rule does not untrack an already-committed file, so ask the index separately.
-   TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
-   # Exit non-zero on either FAIL, exactly as the team guard does. The overlay was written at step 5,
+   TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$PERSONAL_OVERRIDE")"
+   # Exit non-zero on either FAIL, exactly as the team guard does. The personal override was written at step 5,
    # so proceeding here would report an effective merge over a personal file that is still shareable —
    # visible to `git status` (no rule) or already in team history (tracked). Halt until it is fixed.
    if [ "$HAS_RULE" -eq 1 ] && [ -z "$TRACKED" ]; then
-     echo "OK: personal overlay is ignored and untracked: $IGNORE_MATCH"
+     echo "OK: personal override is ignored and untracked: $IGNORE_MATCH"
    elif [ -n "$TRACKED" ]; then
-     echo "FAIL: $OVERLAY is tracked; untrack it with: git rm --cached $OVERLAY" >&2
+     echo "FAIL: $PERSONAL_OVERRIDE is tracked; untrack it with: git rm --cached $PERSONAL_OVERRIDE" >&2
      exit 1
    else
-     echo "FAIL: no ignore rule matches $OVERLAY; add .claude/**/*.local.* to .gitignore" >&2
+     echo "FAIL: no ignore rule matches $PERSONAL_OVERRIDE; add .claude/**/*.local.* to .gitignore" >&2
      exit 1
    fi
    ```
 
    The tracked branch takes precedence in the report: adding the `.gitignore` line to an
-   already-committed overlay changes nothing, so recommending it there sends the user in a circle.
+   already-committed personal override changes nothing, so recommending it there sends the user in a circle.
 
    Either guard stopping the sequence (non-zero exit) halts the apply. Do not report success or
    proceed to step 7. For the team guard (`IGNORE_MATCH` reported), tell the user the matching
    `.gitignore` pattern and ask them to either fix `.gitignore` so the team YAML is no
    longer excluded, or persist the convention to a different layer. For the `layer=local` guard,
    surface the failure's own remediation, the recursive `.claude/**/*.local.*` ignore line for a missing
-   rule or `git rm --cached` for an already-tracked overlay, so the personal overlay does not linger in a
+   rule or `git rm --cached` for an already-tracked personal override, so the personal override does not linger in a
    shareable state. Re-run this step once the state is fixed.
 
    This skill stages but does not commit, so `git status --porcelain` legitimately keeps printing an
@@ -456,7 +456,7 @@ With no argument in an interactive session, run the interview:
 
 7. **Report the new effective merge**, not just what was written. A `layer=user` write can be
    overridden by an existing team file, and a `layer=team` write can be overridden by an existing
-   local overlay. A user who is told only "wrote `subject_pattern`" and then sees `/source-control:commit` use a
+   personal override. A user who is told only "wrote `subject_pattern`" and then sees `/source-control:commit` use a
    different pattern has been misled by the success message.
 
    For a `team` write, the report also states plainly what the file is and is not: a drafting aid

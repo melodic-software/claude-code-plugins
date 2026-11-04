@@ -298,7 +298,7 @@ step 1 and before any tracker read or write:
 Layers, lowest first: the manifest default, then the per-user `userConfig` value, then the
 repository's `docs/conventions/work-items.yaml` (schema:
 [`${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json);
-layer order from ADR 0064 Decision 8; these keys have no `~/.claude` file or local overlay). For each key:
+layer order from ADR 0064 Decision 8; these keys have no `~/.claude` file or personal override). For each key:
 
 1. **Repository.** When the invocation carried `--config-ref <ref>`, check `<ref>` before any
    command uses it: it must match `^[0-9a-f]{40}$`, or match `^origin/[A-Za-z0-9._/-]+$` and

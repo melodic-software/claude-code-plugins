@@ -202,51 +202,51 @@
     },
     {
       "id": 16,
-      "name": "apply-stops-on-tracked-personal-overlay-rather-than-appending-a-duplicate-ignore-line",
+      "name": "apply-stops-on-tracked-personal-override-rather-than-appending-a-duplicate-ignore-line",
       "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is committed to the repository, and .gitignore already carries a .work-item-tracker.local.json line, so the file is tracked despite a matching rule.)",
-      "expected_output": "At the personal-overlay gitignore step, runs two independent probes rather than a bare git check-ignore: git check-ignore --no-index -q for whether the path is ignored, and git ls-files for whether the path is in the index. Because bare git check-ignore consults the index first and exits 1 with no output for an already-tracked path, its silence cannot distinguish 'no rule exists' from 'a rule exists but the file was committed anyway', and those need opposite remediations. The ignore verdict comes from the non-verbose exit code — `-v` is only for the human-readable report, because `-v` treats a negation pattern as a match and still exits 0. With ls-files reporting the path as tracked, setup STOPS and reports it as a finding: the overlay is in team history and may carry per-user auth identity, and the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential. It does NOT append another .work-item-tracker.local.json line to .gitignore, and does not announce a duplicate ignore line as the fix, since an ignore rule does not untrack an already-committed file.",
+      "expected_output": "At the personal-override gitignore step, runs two independent probes rather than a bare git check-ignore: git check-ignore --no-index -q for whether the path is ignored, and git ls-files for whether the path is in the index. Because bare git check-ignore consults the index first and exits 1 with no output for an already-tracked path, its silence cannot distinguish 'no rule exists' from 'a rule exists but the file was committed anyway', and those need opposite remediations. The ignore verdict comes from the non-verbose exit code — `-v` is only for the human-readable report, because `-v` treats a negation pattern as a match and still exits 0. With ls-files reporting the path as tracked, setup STOPS and reports it as a finding: the personal override is in team history and may carry per-user auth identity, and the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential. It does NOT append another .work-item-tracker.local.json line to .gitignore, and does not announce a duplicate ignore line as the fix, since an ignore rule does not untrack an already-committed file.",
       "files": [],
       "expectations": [
         "Uses git check-ignore --no-index -q (not a bare git check-ignore, and not -v) to take the ignore verdict, so the index cannot mask the answer and a negation pattern cannot be read as coverage",
         "Runs a separate git ls-files index probe and treats ignored and untracked as two independent conditions",
-        "Stops and reports the tracked overlay as a finding, naming git rm --cached as the remediation",
-        "Does not append a .gitignore line, and never reports a duplicate ignore line as having fixed a tracked overlay"
+        "Stops and reports the tracked personal override as a finding, naming git rm --cached as the remediation",
+        "Does not append a .gitignore line, and never reports a duplicate ignore line as having fixed a tracked personal override"
       ]
     },
     {
       "id": 17,
-      "name": "apply-still-appends-the-ignore-line-for-an-untracked-uncovered-overlay",
+      "name": "apply-still-appends-the-ignore-line-for-an-untracked-uncovered-personal-override",
       "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is NOT tracked, and no .gitignore rule matches it.)",
-      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the .work-item-tracker.local.json line to the consumer's .gitignore and announces the edit as the one declared exception, touching nothing else in that file. It does not stage the overlay, and it does not raise the tracked-overlay stop condition, which applies only when git ls-files reports the path.",
+      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the .work-item-tracker.local.json line to the consumer's .gitignore and announces the edit as the one declared exception, touching nothing else in that file. It does not stage the personal override, and it does not raise the tracked-personal-override stop condition, which applies only when git ls-files reports the path.",
       "files": [],
       "expectations": [
         "Appends the .work-item-tracker.local.json line to .gitignore and announces the edit",
         "Modifies no other line of .gitignore",
-        "Does not stage or commit the overlay",
-        "Does not raise the tracked-overlay stop condition when the index probe comes back empty"
+        "Does not stage or commit the personal override",
+        "Does not raise the tracked-personal-override stop condition when the index probe comes back empty"
       ]
     },
     {
       "id": 18,
-      "name": "apply-treats-a-negated-overlay-as-uncovered-not-as-already-ignored",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root and is untracked. The consumer's .gitignore carries `*.json` on one line and `!.work-item-tracker.local.json` on the next, so a pattern matches the overlay but the net effect is that git does NOT ignore it.)",
-      "expected_output": "Takes the ignore verdict from the bare exit code of git check-ignore --no-index, not from git check-ignore --no-index -v. With -v, git reports negation patterns as matches and exits 0, so the -v exit code means 'some pattern matched' rather than 'the path is ignored', and reading it as the verdict here would report the overlay as already covered while git leaves it exposed to git add -A. The bare probe exits non-zero, so setup treats this as the uncovered case: it appends the .work-item-tracker.local.json line to .gitignore and announces the edit, which is the correct remediation because the last matching rule wins. It uses -v only to render a matching rule in its report, never to decide.",
+      "name": "apply-treats-a-negated-personal-override-as-uncovered-not-as-already-ignored",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root and is untracked. The consumer's .gitignore carries `*.json` on one line and `!.work-item-tracker.local.json` on the next, so a pattern matches the personal override but the net effect is that git does NOT ignore it.)",
+      "expected_output": "Takes the ignore verdict from the bare exit code of git check-ignore --no-index, not from git check-ignore --no-index -v. With -v, git reports negation patterns as matches and exits 0, so the -v exit code means 'some pattern matched' rather than 'the path is ignored', and reading it as the verdict here would report the personal override as already covered while git leaves it exposed to git add -A. The bare probe exits non-zero, so setup treats this as the uncovered case: it appends the .work-item-tracker.local.json line to .gitignore and announces the edit, which is the correct remediation because the last matching rule wins. It uses -v only to render a matching rule in its report, never to decide.",
       "files": [],
       "expectations": [
         "Derives the ignored/not-ignored verdict from git check-ignore --no-index WITHOUT -v",
-        "Does not report the overlay as already covered merely because a negation pattern matched",
+        "Does not report the personal override as already covered merely because a negation pattern matched",
         "Appends the ignore line and announces the edit, relying on last-matching-rule-wins",
         "Uses -v output only for the human-readable report"
       ]
     },
     {
       "id": 19,
-      "name": "check-fails-on-a-tracked-overlay-that-no-rule-covers",
+      "name": "check-fails-on-a-tracked-personal-override-that-no-rule-covers",
       "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json is committed to the repository and no .gitignore rule matches it.)",
-      "expected_output": "Probe 2 runs both probes and reports FAIL. With the index probe reporting the path and no rule covering it, both conditions are wrong at once, and the report names the TRACKED condition as the finding because it is the more serious of the two: the overlay is in team history and may carry per-user auth identity, so the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential, after which the missing ignore rule is what apply adds. check modifies nothing and does not append the .gitignore line itself.",
+      "expected_output": "Probe 2 runs both probes and reports FAIL. With the index probe reporting the path and no rule covering it, both conditions are wrong at once, and the report names the TRACKED condition as the finding because it is the more serious of the two: the personal override is in team history and may carry per-user auth identity, so the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential, after which the missing ignore rule is what apply adds. check modifies nothing and does not append the .gitignore line itself.",
       "files": [],
       "expectations": [
-        "Reports FAIL rather than PASS when the overlay is tracked",
+        "Reports FAIL rather than PASS when the personal override is tracked",
         "Names the tracked condition as the finding when both the rule is missing and the file is tracked",
         "Gives git rm --cached as the remediation, not just adding an ignore line",
         "Writes nothing, since check is read-only"
@@ -254,9 +254,9 @@
     },
     {
       "id": 20,
-      "name": "check-reports-missing-overlay-ignore-without-overlay-file",
+      "name": "check-reports-missing-personal-override-ignore-without-the-file",
       "prompt": "/work-items:setup check\n\nThe tracker key of docs/conventions/work-items.yaml binds github, and AGENTS.md binds no convention home. There is no docs/conventions/work-items.local.yaml. .gitignore does not mention that path.",
-      "expected_output": "Reports FAIL on the personal-overlay ignore rule for docs/conventions/work-items.local.yaml even though no overlay file exists: the rule must be in place before the first overlay is written. Does not wait for the overlay to appear before probing. Uses the same two-probe pair as apply step 5. Remediation is apply step 5, which appends the line. A match from info/exclude or core.excludesFile is not a team-wide rule.",
+      "expected_output": "Reports FAIL on the personal-override ignore rule for docs/conventions/work-items.local.yaml even though no personal override file exists: the rule must be in place before the first personal override is written. Does not wait for the personal override to appear before probing. Uses the same two-probe pair as apply step 5. Remediation is apply step 5, which appends the line. A match from info/exclude or core.excludesFile is not a team-wide rule.",
       "files": [],
       "expectations": [
         "Probes git check-ignore --no-index on docs/conventions/work-items.local.yaml without requiring the file to exist",
@@ -269,12 +269,12 @@
       "id": 21,
       "name": "apply-copies-a-legacy-json-binding-and-keeps-the-json-file",
       "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json at the repo root binds github with config.lease_ttl_hours 24, and .work-item-tracker.local.json beside it sets config.lease_ttl_hours 6. AGENTS.md binds no convention home, and docs/conventions/work-items.yaml holds only ai_disclaimer: false. .gitignore carries a .work-item-tracker.local.json line and nothing else. This runs unattended.)",
-      "expected_output": "Check reports that the binding exists only in the legacy JSON file. Apply ensures a .gitignore rule covers docs/conventions/work-items.local.yaml and announces that edit, then runs migrate-binding.sh, which appends a tracker mapping to docs/conventions/work-items.yaml below ai_disclaimer and writes docs/conventions/work-items.local.yaml with the overlay's lease_ttl_hours. It announces both copies and says the JSON files stay unchanged because babysit-prs, resolve-prerequisites and the work, triage, attend-queue and track preflights still read only them. It does not delete, rewrite or ask the user to edit .work-item-tracker.json, and it keeps the copied binding rather than re-binding a provider.",
+      "expected_output": "Check reports that the binding exists only in the legacy JSON file. Apply ensures a .gitignore rule covers docs/conventions/work-items.local.yaml and announces that edit, then runs migrate-binding.sh, which appends a tracker mapping to docs/conventions/work-items.yaml below ai_disclaimer and writes docs/conventions/work-items.local.yaml with the personal override's lease_ttl_hours. It announces both copies and says the JSON files stay unchanged because babysit-prs, resolve-prerequisites and the work, triage, attend-queue and track preflights still read only them. It does not delete, rewrite or ask the user to edit .work-item-tracker.json, and it keeps the copied binding rather than re-binding a provider.",
       "files": [],
       "expectations": [
         "Check reports the binding as existing only in .work-item-tracker.json",
-        "Adds and announces a .gitignore rule for docs/conventions/work-items.local.yaml before the overlay is copied",
-        "Runs migrate-binding.sh and announces the copied binding and overlay",
+        "Adds and announces a .gitignore rule for docs/conventions/work-items.local.yaml before the personal override is copied",
+        "Runs migrate-binding.sh and announces the copied binding and personal override",
         "Leaves .work-item-tracker.json and .work-item-tracker.local.json unchanged and says which readers still read them",
         "Keeps ai_disclaimer in docs/conventions/work-items.yaml"
       ]

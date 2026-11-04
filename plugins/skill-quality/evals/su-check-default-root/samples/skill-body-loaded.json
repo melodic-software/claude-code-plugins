@@ -1,0 +1,1 @@
+{"pass":[{"answer":"For a single run, set CHECK_SKILL_SKILLS_ROOT.","why":"skill-only detail"}],"fail":[{"answer":"Set skills_root with /plugin configure.","why":"generic advice only"},{"answer":"Unknown command: /skill-quality:setup","why":"skill not loaded"}]}

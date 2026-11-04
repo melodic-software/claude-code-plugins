@@ -1,27 +1,28 @@
 #!/usr/bin/env bash
 # Copy the legacy JSON tracker binding (.work-item-tracker.json) and its personal
-# overlay (.work-item-tracker.local.json) into the `tracker` mapping of
+# override (.work-item-tracker.local.json) into the `tracker` mapping of
 # <home>/work-items.yaml and <home>/work-items.local.yaml, for /work-items:setup
 # apply (SKILL.md "Provider binding"). The JSON files are left in place: readers
 # outside the seam still read only them.
 #
 # Each layer is copied only when its YAML file has no `tracker` key. Both layers are
 # checked before either is written: once the YAML binding exists the seam reads only
-# the YAML overlay, so a binding copied without its overlay would drop the overlay
-# silently. The YAML text is appended to the file (created when absent), parsed back
-# with the seam's own reader and compared with the JSON before it is written, so a
-# copy that would read differently is never written. The overlay is copied only to
-# a path a repository .gitignore rule covers and the index does not hold.
+# the YAML personal override, so a binding copied without its personal override would
+# drop it silently. The YAML text is appended to the file (created when absent), parsed
+# back with the seam's own reader and compared with the JSON before it is written, so a
+# copy that would read differently is never written. The personal override is copied
+# only to a path a repository .gitignore rule covers and the index does not hold.
 #
 # Usage: migrate-binding.sh [--root <repo-root>]
 #
 # Stdout, one line per layer: `binding: <outcome> <detail>` then
-# `overlay: <outcome> <detail>`. Outcomes: copied, already-yaml, no-json, empty
-# (the JSON file is `{}`), not-ignored and tracked (overlay only, nothing written).
+# `override: <outcome> <detail>`. Outcomes: copied, already-yaml, no-json, empty
+# (the JSON file is `{}`), not-ignored and tracked (personal override only, nothing
+# written).
 #
 # Exit: 0 done; 1 a file does not parse, holds a value the YAML subset cannot carry
 #       or the seam reads differently, or the copy did not read back the same;
-#       2 usage; 3 the overlay's YAML path is not gitignored or is tracked;
+#       2 usage; 3 the personal override's YAML path is not gitignored or is tracked;
 #       4 no convention home applies (declined, $HOME, not a git work tree, or a
 #       broken pointer, which the resolver names on stderr). Exits 1, 3 and 4 write
 #       nothing.
@@ -31,7 +32,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../tools/work-item-tracker/lib/binding.sh
 source "$SCRIPT_DIR/../../../tools/work-item-tracker/lib/binding.sh"
 
-LEGACY_OVERLAY=".work-item-tracker.local.json"
+LEGACY_OVERRIDE=".work-item-tracker.local.json"
 
 ROOT=""
 while [[ $# -gt 0 ]]; do
@@ -160,7 +161,7 @@ write() {
 }
 
 # gitignored <path>: a repository .gitignore rule ignores the path, as
-# reference/overlay-ignore-probes.md decides it (info/exclude and core.excludesFile
+# reference/personal-override-ignore-probes.md decides it (info/exclude and core.excludesFile
 # protect no teammate). git prints a repository .gitignore source relative to the
 # work tree and an excludes file as an absolute path, so a global excludes file
 # named ~/.gitignore is refused before the .gitignore name test.
@@ -181,29 +182,29 @@ if ! HOME_DIR="$(wit_convention_home "$ROOT")"; then
 fi
 JSON="$ROOT/$WIT_LEGACY_BINDING"
 YAML="$ROOT/$HOME_DIR/work-items.yaml"
-OVERLAY_JSON="$ROOT/$LEGACY_OVERLAY"
-OVERLAY_REL="$HOME_DIR/work-items.local.yaml"
-OVERLAY_YAML="$ROOT/$OVERLAY_REL"
+OVERRIDE_JSON="$ROOT/$LEGACY_OVERRIDE"
+OVERRIDE_REL="$HOME_DIR/work-items.local.yaml"
+OVERRIDE_YAML="$ROOT/$OVERRIDE_REL"
 
 plan binding "$JSON" "$YAML" || exit 1
 BINDING_STATE="$STATE"
 BINDING_DETAIL="$DETAIL"
-plan overlay "$OVERLAY_JSON" "$OVERLAY_YAML" || exit 1
-OVERLAY_STATE="$STATE"
-OVERLAY_DETAIL="$DETAIL"
+plan override "$OVERRIDE_JSON" "$OVERRIDE_YAML" || exit 1
+OVERRIDE_STATE="$STATE"
+OVERRIDE_DETAIL="$DETAIL"
 
-if [[ "$OVERLAY_STATE" == "copy" ]]; then
-  if ! gitignored "$OVERLAY_REL"; then
-    printf 'overlay: not-ignored %s\n' "$OVERLAY_REL"
-    echo "migrate-binding: add a .gitignore rule for $OVERLAY_REL, then run again" >&2
+if [[ "$OVERRIDE_STATE" == "copy" ]]; then
+  if ! gitignored "$OVERRIDE_REL"; then
+    printf 'override: not-ignored %s\n' "$OVERRIDE_REL"
+    echo "migrate-binding: add a .gitignore rule for $OVERRIDE_REL, then run again" >&2
     exit 3
   fi
-  if [[ -n "$(git -C "$ROOT" ls-files -- "$OVERLAY_REL")" ]]; then
-    printf 'overlay: tracked %s\n' "$OVERLAY_REL"
-    echo "migrate-binding: $OVERLAY_REL is in the index; untrack it (git rm --cached), then run again" >&2
+  if [[ -n "$(git -C "$ROOT" ls-files -- "$OVERRIDE_REL")" ]]; then
+    printf 'override: tracked %s\n' "$OVERRIDE_REL"
+    echo "migrate-binding: $OVERRIDE_REL is in the index; untrack it (git rm --cached), then run again" >&2
     exit 3
   fi
 fi
 
 write binding "$BINDING_STATE" "$BINDING_DETAIL" "$JSON" "$YAML" || exit 1
-write overlay "$OVERLAY_STATE" "$OVERLAY_DETAIL" "$OVERLAY_JSON" "$OVERLAY_YAML" || exit 1
+write override "$OVERRIDE_STATE" "$OVERRIDE_DETAIL" "$OVERRIDE_JSON" "$OVERRIDE_YAML" || exit 1

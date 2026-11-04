@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "/plugins/instruction-placement/skills/migrate/scripts/plan-migration.sh --root ."}}], "why": "bare path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/p/skills/migrate/scripts/plan-migration.sh\" --root \"/tmp/case\""}}], "why": "quoted path and root"},
+    {"answer": [{"tool": "Bash", "input": {"command": "/p/plan-migration.sh --expand-mentions --root /tmp/case"}}], "why": "another flag before --root"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "/p/plan-migration.sh"}}], "why": "no --root, so it plans whatever directory the call landed in"},
+    {"answer": [{"tool": "Bash", "input": {"command": "/p/cutover-check.sh --root ."}}], "why": "a different script"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "plan-migration.sh --root"}}], "why": "not a Bash call"},
+    {"answer": []}
+  ]
+}

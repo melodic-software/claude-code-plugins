@@ -1,0 +1,1 @@
+{"pass":[{"answer":"For one run, set CHECK_SKILL_SKILLS_ROOT instead.","why":"skill-only detail"}],"fail":[{"answer":"Use /plugin configure skill-quality.","why":"generic advice only"}]}

@@ -3,6 +3,15 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.6] - 2026-11-04
+
+### Fixed
+
+- `/harness-memory:audit` and `/harness-memory:stateless` resolve the memory directory from a usable `CLAUDE_CODE_PROJECT_DIR_NAME` set beside `CLAUDE_CONFIG_DIR`.
+- The import walker keeps a backslash-escaped space inside a path and no longer counts a quoted path as an import.
+- `/harness-memory:stateless status` says when a project or local `autoMemoryDirectory` may not be in effect.
+- `/harness-memory:audit` references agree that the `MEMORY.md` strip is the gate's own rule, and no longer restate which tool fires a path-scoped rule or how a directly read `AGENTS.md` differs.
+
 ## [2.1.5] - 2026-11-04
 
 ### Fixed

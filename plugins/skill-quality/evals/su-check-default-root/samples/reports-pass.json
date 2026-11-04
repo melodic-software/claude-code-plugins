@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| PASS | Root exists and has skills |",
+      "why": "PASS row"
+    },
+    {
+      "answer": "Already configured: nothing to change.",
+      "why": "rerun wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: no skills root found.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "Here is the root.",
+      "why": "no verdict"
+    },
+    {
+      "answer": "FAIL: no skills root found. Reconfigure, and for the rerun pass the scope claude plugin list reports.",
+      "why": "lowercase pass in guidance"
+    }
+  ]
+}

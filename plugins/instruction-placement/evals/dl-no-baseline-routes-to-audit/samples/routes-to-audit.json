@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Nothing to compare against. Run `/instruction-placement:audit` to make the first findings artifact.", "why": "names the skill"},
+    {"answer": "With neither a baseline nor an artifact, this needs a full audit first.", "why": "names a full audit"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Nothing moved since the last run. 0 suppressed.", "why": "a quiet run reported with no prior run to compare"},
+    {"answer": "I audited the file and found one candidate.", "why": "ran an audit instead of routing to one"}
+  ]
+}

@@ -149,27 +149,27 @@ wit_find_binding() {
   printf '%s\n' "$root/$WIT_LEGACY_BINDING"
 }
 
-# The only keys the per-user overlay may refine; any other overlay key is a config
+# The only keys the personal override may refine; any other key there is a config
 # error, never a merge (CONTRACT.md "Setup (binding file)").
-readonly WIT_OVERLAY_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["config","linear","auth_env"],["config","gitea","auth_env"],["docs"]]'
+readonly WIT_OVERRIDE_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["config","linear","auth_env"],["config","gitea","auth_env"],["docs"]]'
 
-# wit_overlay_path <binding-path>: echo where the overlay sits beside that binding
-# (work-items.local.yaml beside a YAML binding, else .work-item-tracker.local.json),
+# wit_override_path <binding-path>: echo where the personal override sits beside that
+# binding (work-items.local.yaml beside a YAML binding, else .work-item-tracker.local.json),
 # whether or not it exists.
-wit_overlay_path() {
+wit_override_path() {
   local dir name=".work-item-tracker.local.json"
   [[ "$1" == *.yaml ]] && name="work-items.local.yaml"
   dir="$(cd "$(dirname "$1")" && pwd)" || return 1
   printf '%s\n' "$dir/$name"
 }
 
-# wit_find_overlay <binding-path>: echo the overlay path beside whatever binding
-# resolved, or fail when none exists.
-wit_find_overlay() {
-  local overlay
-  overlay="$(wit_overlay_path "$1")" || return 1
-  [[ -f "$overlay" ]] || return 1
-  printf '%s\n' "$overlay"
+# wit_find_override <binding-path>: echo the personal override path beside whatever
+# binding resolved, or fail when none exists.
+wit_find_override() {
+  local override
+  override="$(wit_override_path "$1")" || return 1
+  [[ -f "$override" ]] || return 1
+  printf '%s\n' "$override"
 }
 
 # wit_binding_layer_json <path>: one layer as a JSON value: the `tracker` mapping of
@@ -183,21 +183,22 @@ wit_binding_layer_json() {
 }
 
 # wit_effective_binding_json <binding-path>: the team file merged with allowlisted
-# overlay keys. A bad overlay fails loudly: it must never silently reshape team state.
+# personal override keys. A bad personal override fails loudly: it must never silently
+# reshape team state.
 wit_effective_binding_json() {
-  local path="$1" team overlay overlay_json bad
+  local path="$1" team override override_json bad
   team="$(wit_binding_layer_json "$path")" || return 1
-  if ! overlay="$(wit_find_overlay "$path")"; then
+  if ! override="$(wit_find_override "$path")"; then
     printf '%s\n' "$team"
     return 0
   fi
-  if ! overlay_json="$(wit_binding_layer_json "$overlay")"; then
-    printf 'work-item-tracker: overlay %s does not parse as a binding layer\n' "$overlay" >&2
+  if ! override_json="$(wit_binding_layer_json "$override")"; then
+    printf 'work-item-tracker: personal override %s does not parse as a binding layer\n' "$override" >&2
     return 1
   fi
   # Each path must be an allowlisted SCALAR or an object prefix of one; a leaf-only check
   # lets {"provider":{}} through. Use any() equality: index() on an array is a subsequence search.
-  bad="$(jq -c --argjson allowed "$WIT_OVERLAY_ALLOWED_PATHS" '
+  bad="$(jq -c --argjson allowed "$WIT_OVERRIDE_ALLOWED_PATHS" '
     . as $o
     | [paths]
     | map(select(. as $p
@@ -205,19 +206,19 @@ wit_effective_binding_json() {
            | ((any($allowed[]; . == $p) and $t != "object" and $t != "array")
               or ($t == "object"
                   and any($allowed[]; (length > ($p | length)) and (.[:($p | length)] == $p)))))
-        | not))' <<<"$overlay_json")"
+        | not))' <<<"$override_json")"
   if [[ "$bad" != "[]" ]]; then
-    printf 'work-item-tracker: overlay %s sets non-overlayable key(s) %s — only lease TTL and per-provider auth identity (jira, linear, gitea) may be personal; see CONTRACT.md "Setup (binding file)"\n' \
-      "$overlay" "$bad" >&2
+    printf 'work-item-tracker: personal override %s sets non-overridable key(s) %s — only lease TTL and per-provider auth identity (jira, linear, gitea) may be personal; see CONTRACT.md "Setup (binding file)"\n' \
+      "$override" "$bad" >&2
     return 1
   fi
   # Merge by PRESENCE, not non-null value: an explicit null merges and faces normal
   # validation, never a silent fallback to the team value.
-  jq -c -s --argjson allowed "$WIT_OVERLAY_ALLOWED_PATHS" '
+  jq -c -s --argjson allowed "$WIT_OVERRIDE_ALLOWED_PATHS" '
     .[0] as $team | .[1] as $o
     | [$o | paths(type != "object")] as $present
     | reduce ($allowed[] | . as $p | select(any($present[]; . == $p))) as $p
-        ($team; setpath($p; $o | getpath($p)))' <<<"$team"$'\n'"$overlay_json"
+        ($team; setpath($p; $o | getpath($p)))' <<<"$team"$'\n'"$override_json"
 }
 
 # wit_role_label <binding-json> <role> <default>: the configured label, or <default>
@@ -228,15 +229,15 @@ wit_role_label() {
   printf '%s\n' "${configured:-$3}"
 }
 
-# wit_invalid <path> <key> <value>: name the file (the overlay when it sets the key),
-# key and value of a rejected binding value on stderr (ADR 0075 "The invalid-value
-# rule"), and fail.
+# wit_invalid <path> <key> <value>: name the file (the personal override when it sets
+# the key), key and value of a rejected binding value on stderr (ADR 0075 "The
+# invalid-value rule"), and fail.
 wit_invalid() {
-  local file="$1" key="$2" overlay present
-  if overlay="$(wit_find_overlay "$1")"; then
-    present="$(wit_binding_layer_json "$overlay" 2>/dev/null |
+  local file="$1" key="$2" override present
+  if override="$(wit_find_override "$1")"; then
+    present="$(wit_binding_layer_json "$override" 2>/dev/null |
       jq --arg k "$2" '($k | split(".")) as $p | any(paths; . == $p)' 2>/dev/null)"
-    [[ "$present" == "true" ]] && file="$overlay"
+    [[ "$present" == "true" ]] && file="$override"
   fi
   [[ "$file" == *.yaml ]] && key="tracker.$key"
   printf 'work-item-tracker: %s: invalid %s: %s\n' "$file" "$key" "${3:-(absent)}" >&2

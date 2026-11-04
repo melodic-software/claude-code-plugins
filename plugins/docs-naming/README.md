@@ -10,7 +10,7 @@ plugin.
 
 | Skill | What it does |
 |---|---|
-| `/docs-naming:setup` | Check-centric setup for the plugin's one consumer surface, `docs/conventions/docs-naming.yaml`: `check` resolves all three layers, names the layer behind every key, and verifies that the casing regex compiles, each tier names a known form, each generated file's regenerator resolves, the team layer is tracked, and the overlay is ignored; `apply` writes the team layer per key, idempotently. |
+| `/docs-naming:setup` | Check-centric setup for the plugin's one consumer surface, `docs/conventions/docs-naming.yaml`: `check` resolves all three layers, names the layer behind every key, and verifies that the casing regex compiles, each tier names a known form, each generated file's regenerator resolves, the team layer is tracked, and the personal override is ignored; `apply` writes the team layer per key, idempotently. |
 | `/docs-naming:audit-file-names` | Read-only inventory of a tree's file names against the configured casing rule: proposes a legal name per offender, finds every reference to each one, classifies each site by shape and by the tier its file belongs to, refuses any plan that would create a case-only path collision, and writes the rename plan the realign stage consumes. Renames nothing and edits nothing. |
 | `/docs-naming:realign-file-names` | Executes that plan one file at a time, behind one human acceptance each: `git mv`, then only the reference shapes the citing file's tier allows, then the declared regenerator for any generated record. Refuses a blanket yes, a range, a glob, and `all`. Frozen and ambiguous sites are listed and left alone. Never commits and never bumps a version. |
 | `/docs-naming:generate-file-name-gate` | Emits the check that enforces the rule: a standalone bash checker plus its own suite, with the rule, roots, and exemptions inlined from the resolved configuration, carrying no run-time dependency on this plugin. `--rule` also writes the path-scoped rule file. A rule alone cannot enforce a naming convention: it only guides Claude during a session, blocks nothing, and never runs in CI. |
@@ -34,7 +34,7 @@ plugin.
 The skills read one consumer surface, layered as user-global, team
 (`docs/conventions/docs-naming.yaml`, tracked, validated by
 [`schemas/docs-naming.schema.json`](schemas/docs-naming.schema.json)), and a
-gitignored personal overlay (`docs/conventions/docs-naming.local.yaml`). All
+gitignored personal override (`docs/conventions/docs-naming.local.yaml`). All
 three absent is a valid state: every key has a bundled default, and the defaults
 are this marketplace's own values, except `generated`, which is empty.
 `/docs-naming:setup check` verifies the
@@ -43,7 +43,7 @@ resolved document and names the layer that supplied each key, and
 consumer's `.gitignore`. Keys, defaults, merge classes, and the policy floor are
 documented in [`reference/config.md`](reference/config.md).
 
-The JSON files under `.claude/` the team and overlay layers used to live in
+The JSON files under `.claude/` the team layer and personal override used to live in
 (`docs-naming.json`, `docs-naming.local.json`, and their `docs-hygiene` names)
 are not read. `/docs-naming:setup check` names each one it finds, and while the
 team YAML is absent `/docs-naming:setup apply` copies the old team file's keys

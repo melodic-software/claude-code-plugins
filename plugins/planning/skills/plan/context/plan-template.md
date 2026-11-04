@@ -49,7 +49,7 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed at St
 
 | Surface | Sections cited | Layer provenance |
 |---------|----------------|------------------|
-| <surface id from the index> | <file + section(s) loaded> | <team / personal overlay / user-global> |
+| <surface id from the index> | <file + section(s) loaded> | <team / personal override / user-global> |
 
 ### Approach
 

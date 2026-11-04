@@ -78,7 +78,7 @@ run_no_default "--no-default still applies a consumer pattern" '^[^/]+/([0-9]+)-
 
 # Markdown layer cascade. Each case gets its own fixture HOME and repo root.
 # `${CASE_HOME}/.claude/source-control.md` is the user-global layer and
-# `${CASE_REPO}/.claude/source-control.local.md` the personal overlay, the two
+# `${CASE_REPO}/.claude/source-control.local.md` the personal override, the two
 # markdown layers; the team layer is docs/conventions/source-control.yaml.
 # `layer <file> <value>` writes one `## branch_issue_pattern` section; the value
 # is wrapped in backticks, as setup writes it. `yaml_layer <file> <value>` writes
@@ -187,7 +187,7 @@ new_case
 layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
-run_cfg "local overlay beats team and user-global" "a/5/77-x-9" "" - "5" 0 empty
+run_cfg "personal override beats team and user-global" "a/5/77-x-9" "" - "5" 0 empty
 
 # A layer whose section exists but yields no usable pattern stops resolution:
 # no stdout, exit 1, and a note naming the layer and `stopped`, even when a
@@ -426,22 +426,22 @@ new_case
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/([{]x{2}|[0-9]{1,16})-'
 run_cfg "bounds up to 16 and a literal brace in brackets allowed" "feat/42-x" "" - "42" 0 empty
 
-# Home-rooted session: team and overlay collapse onto ~/.claude and must not
-# be read as team. Overlay at home is skipped; user-global is the only layer.
-HOME_NOTE='team and overlay not applicable: project root is the home directory'
+# Home-rooted session: team and personal override collapse onto ~/.claude and must not
+# be read as team. Personal override at home is skipped; user-global is the only layer.
+HOME_NOTE='team and personal override not applicable: project root is the home directory'
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
 layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
 CASE_REPO="$CASE_HOME"
-run_cfg "home project root reads user-global once, never overlay as team" \
+run_cfg "home project root reads user-global once, never personal override as team" \
   "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
 layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
 CASE_REPO="$(dirname "$CASE_HOME")"
-run_cfg "an ancestor of home also skips team and overlay" \
+run_cfg "an ancestor of home also skips team and personal override" \
   "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
 
 new_case
@@ -455,7 +455,7 @@ layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
 CASE_REPO="$(mktemp -d "${FIXTURES}/norepo.XXXXXX")"
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
-run_cfg "a root outside any git repository skips team and overlay" \
+run_cfg "a root outside any git repository skips team and personal override" \
   "a/5-x-9" "" - "5" 0 "project root is not inside a git repository"
 
 # Physical equality through a symlink. mklink <target> <link> <case> fails, with
@@ -470,19 +470,19 @@ new_case
 layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
 layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
 CASE_REPO="${FIXTURES}/home-alias.$$"
-if mklink "$CASE_HOME" "$CASE_REPO" "a symlink alias of home skips team and overlay"; then
-  run_cfg "a symlink alias of home also skips team and overlay" \
+if mklink "$CASE_HOME" "$CASE_REPO" "a symlink alias of home skips team and personal override"; then
+  run_cfg "a symlink alias of home also skips team and personal override" \
     "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
 fi
 
-# The repo's overlay file is a symlink to the user-global file. It must be
+# The repo's personal override file is a symlink to the user-global file. It must be
 # read once, as user-global, and the note must name the user-global path, never
 # the repo-side spelling of it.
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '(['
 mkdir -p "${CASE_REPO}/.claude"
-if mklink "${CASE_HOME}/.claude/source-control.md" "${CASE_REPO}/.claude/source-control.local.md" "an overlay file that is the user-global file is skipped"; then
-  run_cfg "an overlay file that physically is the user-global file is read once, as user-global" \
+if mklink "${CASE_HOME}/.claude/source-control.md" "${CASE_REPO}/.claude/source-control.local.md" "a personal override file that is the user-global file is skipped"; then
+  run_cfg "a personal override file that physically is the user-global file is read once, as user-global" \
     "$WN" "" - "" 1 "home\.[^ ]*/\.claude/source-control\.md.*invalid ERE.*${STOPPED}" \
     "${CASE_REPO}/.claude/source-control.local.md"
 fi
@@ -536,7 +536,7 @@ run_explain "no YAML file: the retired markdown is not read, the default applies
 new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
-run_explain "the personal overlay still beats the team YAML" "feat/12-add-widget-1234" "12" \
+run_explain "the personal override still beats the team YAML" "feat/12-add-widget-1234" "12" \
   '\.claude/source-control\.local\.md$'
 
 new_case

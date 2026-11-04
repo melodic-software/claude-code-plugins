@@ -1,0 +1,76 @@
+# Verifying the personal-override ignore state
+
+How `apply` step 5 and `check` probe 2 establish that the personal override
+`<home>/work-items.local.yaml` is ignored **and** untracked, `<home>` being the convention home
+SKILL.md "Resolving the paths" resolves. Both surfaces assert the same condition, so both run the
+same probes; this file is the single description of them. While a legacy
+`.work-item-tracker.local.json` exists at the repository root, run the same probes on it too.
+
+## Why one probe is not enough
+
+The personal override must be both **ignore-matched** and **absent from the index**, and those are two
+independent facts that need opposite remediations. A bare `git check-ignore` cannot separate
+them: it consults the index first and reports nothing (exit 1, no output) for a path that is
+already tracked, because gitignore rules do not apply to tracked files. So its silence means
+either "no rule covers this" or "a rule covers it but the file was committed anyway".
+Reading that silence as the former makes `apply` append an ignore line that changes nothing,
+then announce it as the fix while a credential-bearing file stays in team history.
+
+Sibling `source-control` documents the same trap for its own personal override
+(`/source-control:setup`, its `layer=local` file).
+
+## The probes
+
+Run both as one Bash tool call:
+
+```bash
+REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+OVERRIDE="<home>/work-items.local.yaml"  # repo-relative; the legacy pass uses .work-item-tracker.local.json
+# Is the path IGNORED? Two flags, and both are required:
+#   --no-index answers on gitignore's terms alone, so an already-tracked file cannot mask
+#              the answer the way it does for a bare check-ignore.
+#   NO -v here. With -v, git reports NEGATION patterns too and still exits 0, so the exit
+#              code would mean "some pattern matched", not "the path is ignored". Under a
+#              `*.yaml` + `!<home>/work-items.local.yaml` pair the personal override is NOT ignored
+#              yet `-v` exits 0. Only the bare exit code is a truth value.
+# The personal override path does not need to exist; the rule must be in place first.
+git -C "$REPO_ROOT" check-ignore --no-index -q -- "$OVERRIDE" && IGNORED=1 || IGNORED=0
+# An ignore rule does not untrack an already-committed file, so ask the index separately.
+TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERRIDE")"
+# Only for the human-readable report and for source inspection, never as the
+# ignored/not-ignored verdict. --no-index still consults info/exclude and
+# core.excludesFile; those are operator-local and do not protect a teammate.
+[ "$IGNORED" -eq 1 ] && IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERRIDE")"
+if [ "$IGNORED" -eq 1 ]; then
+  IGNORE_SRC="${IGNORE_MATCH%%:*}"
+  # A repository .gitignore prints relative to the work tree; an excludes file prints
+  # absolute, so a global `core.excludesFile = ~/.gitignore` must not pass the name test.
+  case "$IGNORE_SRC" in
+    /*) IGNORED=0 ;;
+    .gitignore|*/.gitignore) ;;
+    *) IGNORED=0 ;;
+  esac
+fi
+```
+
+## Branching on the pair
+
+| `TRACKED` | `IGNORED` | verdict |
+| --- | --- | --- |
+| non-empty | either | **STOP / FAIL**: tracked personal override |
+| empty | `0` | not covered: `apply` appends the line; `check` FAILs |
+| empty | `1` | correct state: report `$IGNORE_MATCH`, change nothing |
+
+- **Tracked** is the serious one and outranks the ignore state: the personal override is in team history
+  and may carry per-user auth identity. Remediation is
+  `git rm --cached -- "$OVERRIDE"`, plus rotating any credential that was
+  committed. Never append the ignore line here. It does not untrack an already-committed
+  file, and reporting it as the fix would paper over exactly the failure this check exists to
+  catch. When both conditions hold, name the tracked one as the finding.
+- **Untracked and not covered** is the ordinary case `apply` fixes: append the `$OVERRIDE` path
+  as a line to the consumer's root `.gitignore` and **announce the edit**
+  (the one declared exception to leaving the consumer's `.gitignore` alone; touch nothing else in
+  that file). This is also the correct
+  remediation when a negation rule is what left the path exposed, since the last matching rule
+  wins. `check` reports the same condition as a FAIL rather than editing.
+- **Untracked and covered** needs no action from either surface.

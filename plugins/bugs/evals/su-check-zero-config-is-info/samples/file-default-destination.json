@@ -1,0 +1,1 @@
+{"pass":[{"answer":"output_dir is unset, so --file writes to ${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/.","why":"variable"},{"answer":"--file reports go to the plugin's own data directory.","why":"prose"}],"fail":[{"answer":"--file writes to ./bugs.","why":"wrong destination"}]}
