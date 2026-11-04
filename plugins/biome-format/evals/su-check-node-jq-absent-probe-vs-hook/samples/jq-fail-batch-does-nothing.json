@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A missing jq is a FAIL: the batch hook then does nothing because it reads the file paths with jq. The SessionStart probe reports it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A missing jq is a FAIL: the hook skips with a visible notice once per session.",
+      "why": "the stale notice claim"
+    },
+    {
+      "answer": "A missing jq is a FAIL.",
+      "why": "near miss: no consequence"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "It stops here: the package-lock.json contradicts packageManager, so instead of guessing it gives manager-specific guidance, and it never adds a competing lockfile."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It runs `pnpm add -D @biomejs/biome`, since packageManager wins.",
+      "why": "guesses a manager"
+    },
+    {
+      "answer": "It would not install.",
+      "why": "near miss: no reason and no guidance"
+    }
+  ]
+}

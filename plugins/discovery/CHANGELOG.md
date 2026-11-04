@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.4.6] - 2026-11-04
+
+### Changed
+
+- `reference/rendered-view.md` step 3 lists discovery with the lanes that take `medium` from the shared resolver, matching what `/discovery:blindspot` already does, and no longer lists `~/.claude/rendered-views.md`, `.claude/rendered-views.md` and `.claude/rendered-views.local.md` as files to read. The "Discovery: blindspot" section names its resolver lane, `--lane discovery:blindspot`.
+
 ## [1.4.5] - 2026-11-04
 
 ### Fixed

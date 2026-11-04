@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "An empty or unexpanded value means the default, so it is not a failure."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "An unexpanded value means the plugin is misconfigured: FAIL.",
+      "why": "reads it as a failure"
+    },
+    {
+      "answer": "The value is shown as written.",
+      "why": "near miss: does not say what it means"
+    }
+  ]
+}

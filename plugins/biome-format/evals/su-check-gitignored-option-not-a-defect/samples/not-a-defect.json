@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Not a defect: .work/ is gitignored and by default the hook leaves a gitignored file alone, so .work/scratch.ts was skipped."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "That is a bug: the hook should have rewritten the file.",
+      "why": "calls it a defect"
+    },
+    {
+      "answer": "The hook skipped it.",
+      "why": "near miss: no default rule and no verdict"
+    }
+  ]
+}

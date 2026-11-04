@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Check found no FAIL: already configured."
+    },
+    {
+      "answer": "Already configured. Nothing changed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything passes.",
+      "why": "not the reported phrase"
+    },
+    {
+      "answer": "Biome is already installed and the entry was configured earlier.",
+      "why": "near miss: the words apart"
+    }
+  ]
+}
