@@ -8,32 +8,15 @@
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the Design's Contracts (routes, snapshot, auth) and the fixtures, never from the page.
 "use strict";
-const { execFileSync, spawnSync } = require("node:child_process");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { upOnSparePort, guestKey } = require("./browser_harness");
+const { loadPlaywright, upOnSparePort, guestKey } = require("./browser_harness");
 
 const here = __dirname, shared = path.resolve(here, "..");
 const results = [];
 const ok = (name, pass, detail) => results.push(`${pass ? "PASS" : "FAIL"} ${name}${detail !== undefined && !pass ? `  [${detail}]` : ""}`);
-
-/** playwright-core from node_modules, else from the playwright-cli install (it bundles one). */
-function loadPlaywright() {
-  for (const name of ["playwright-core", "playwright"]) { try { return require(name); } catch { /* next */ } }
-  const cli = spawnSync("bash", ["-c", "command -v playwright-cli"], { encoding: "utf8" }).stdout.trim();
-  if (!cli) return null;
-  let dir = path.dirname(fs.realpathSync(cli));
-  for (let i = 0; i < 6 && dir !== path.dirname(dir); i++, dir = path.dirname(dir)) {
-    const nm = path.join(dir, "node_modules");
-    const tries = [path.join(nm, "playwright-core")];
-    for (const sub of [".mise", ".pnpm"]) {
-      try { for (const e of fs.readdirSync(path.join(nm, sub))) if (/^playwright-core@/.test(e)) tries.push(path.join(nm, sub, e, "node_modules", "playwright-core")); } catch { /* none */ }
-    }
-    for (const t of tries) { try { return require(t); } catch { /* next */ } }
-  }
-  return null;
-}
 
 const fake = path.join(here, "fixtures", process.platform === "win32" ? "fake_cloudflared.py" : "fake-cloudflared.sh");
 const env = { ...process.env, SHARED_CLOUDFLARED: process.env.SHARED_CLOUDFLARED || fake, WATCH_ID: "ui-journey" };

@@ -283,6 +283,9 @@ run "env FOO=1 -C <sha256-repo> git push --force-with-lease=main:<40-hex> (NAME=
 GIT_SHIM_DIR="$TEST_TMPDIR/git-shim"
 GIT_CALL_LOG="$TEST_TMPDIR/git-calls"
 mkdir -p "$GIT_SHIM_DIR"
+# pwd gives the POSIX form: a Windows git's toplevel starts C:/, and that colon
+# would split the PATH entry below so the shim is never found.
+GIT_SHIM_DIR="$(cd "$GIT_SHIM_DIR" && pwd)"
 cat >"$GIT_SHIM_DIR/git" <<EOF
 #!/usr/bin/env bash
 printf 'x' >>"$GIT_CALL_LOG"
@@ -950,12 +953,15 @@ run_bounded "traversal: 20-hop dual-spelling chain to reset --hard (blocked, bou
   "$(alias_chain 20 'reset --hard')" 2 30
 # A long chain that does NOT branch (one spelling per hop) must stay allowed —
 # the budget bounds branching, not depth. Ceiling-guarded too: a regression that
-# made this one branch would otherwise hang the suite rather than fail it.
-run_bounded "traversal: 60-hop single-spelling chain to a safe op (allowed)" \
+# made this one branch would otherwise hang the suite rather than fail it. With
+# no /proc/self/limits the depth cap is 25, so the chain stays inside it there.
+BDG_LONG_HOPS=60
+[[ -r /proc/self/limits ]] || BDG_LONG_HOPS=24
+run_bounded "traversal: $BDG_LONG_HOPS-hop single-spelling chain to a safe op (allowed)" \
   "$(
     cmd="git"
-    for ((i = 1; i < 60; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
-    printf '%s' "$cmd -c alias.a60=status a1"
+    for ((i = 1; i < BDG_LONG_HOPS; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
+    printf '%s' "$cmd -c alias.a$BDG_LONG_HOPS=status a1"
   )" 0 30
 # Divergent spellings defeat state collapse, so the budget is what stops the walk:
 # fail CLOSED rather than stall the hook.
@@ -2756,8 +2762,15 @@ BDG_LIMITS="$TEST_TMPDIR/limits-unlimited"
 printf 'Max stack size            unlimited            unlimited            bytes\n' >"$BDG_LIMITS"
 BDG_HUGE="$TEST_TMPDIR/limits-huge"
 printf 'Max stack size            999999999999         999999999999         bytes\n' >"$BDG_HUGE"
-expect "depth cap: a 30-hop chain is allowed under the real stack" 0 \
-  --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+# guard::alias_depth_max reads the stack from /proc/self/limits, which Git Bash
+# lacks, so the real stack there is the same fallback as a missing limits file.
+if [[ -r /proc/self/limits ]]; then
+  expect "depth cap: a 30-hop chain is allowed under the real stack" 0 \
+    --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+else
+  expect "depth cap: a host with no /proc/self/limits caps at 25, so the 30-hop chain denies" 2 \
+    --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+fi
 expect "depth cap: no limits file falls back to 25, so the 30-hop chain denies" 2 \
   --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
   -- GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits"
