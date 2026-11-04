@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4] - 2026-11-04
+
+### Changed
+
+- Shared standards contract synced at 1.1.3: the personal layer `<standards_dir>/*.local.md` is called the personal override (#13187). Wording only.
+
 ## [0.4.3] - 2026-11-04
 
 ### Changed

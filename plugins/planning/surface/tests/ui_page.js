@@ -325,7 +325,11 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.fill("#note", Array.from({length: 600}, (_, i) => "word" + i).join(" ")); await page.waitForTimeout(250);
     const long = await body();
     ok("a 600-word note leaves the question body the share it had, with the recommendation in view", long.share >= short.share - 0.02 && long.top === 0 && long.rec, JSON.stringify({short, long}));
-    ok("the answer panel scrolls inside its limit and Save is reachable in it", await page.evaluate(() => { const a = document.getElementById("answer"); const s = a.querySelector("[data-save]"); if (!s) return false; s.scrollIntoView({block: "nearest"}); const b = a.getBoundingClientRect(), r = s.getBoundingClientRect(); return a.scrollHeight > a.clientHeight && ["auto", "scroll"].includes(getComputedStyle(a).overflowY) && r.top >= b.top - 1 && r.bottom <= b.bottom + 1; }));
+    // Whether the panel fits at 800 px turns on the host's font metrics, so a shorter window makes it overflow on every host.
+    await page.setViewportSize({width: 1280, height: 560}); await page.waitForTimeout(250);
+    const panel = await page.evaluate(() => { const a = document.getElementById("answer"); const s = a.querySelector("[data-save]"); if (!s) return {save: false}; s.scrollIntoView({block: "nearest"}); const b = a.getBoundingClientRect(), r = s.getBoundingClientRect(); return {save: true, scrollH: a.scrollHeight, clientH: a.clientHeight, overflowY: getComputedStyle(a).overflowY, panel: [b.top, b.bottom], btn: [r.top, r.bottom]}; });
+    ok("the answer panel scrolls inside its limit and Save is reachable in it", panel.save && panel.scrollH > panel.clientH && ["auto", "scroll"].includes(panel.overflowY) && panel.btn[0] >= panel.panel[0] - 1 && panel.btn[1] <= panel.panel[1] + 1, JSON.stringify(panel));
+    await page.setViewportSize({width: 1280, height: 800}); await page.waitForTimeout(250);
     await page.evaluate(() => { const c = document.getElementById("conflict"); c.hidden = false; c.innerHTML = "<p>" + "The question changed while you answered. ".repeat(60) + "</p>"; });
     const conf = await body();
     ok("an open conflict box leaves the question body the share it had", conf.share >= short.share - 0.02 && conf.rec, JSON.stringify({short, conf}));

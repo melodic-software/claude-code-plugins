@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [7.0.3] - 2026-11-04
+
+### Changed
+
+- Shared setup-apply library synced: its offer and write messages now say personal override where they said overlay or personal overlay (#13187). Behavior is unchanged.
+
+### Fixed
+
+- `/session-flow:orchestrate`: the session's effort reaches an unpinned spawn that passes no `effort`
+  only on the main conversation's model, and the addendum now says so. Two `worker_continuation`
+  pointers move to the section that holds their text.
+
 ## [7.0.2] - 2026-11-04
 
 ### Changed

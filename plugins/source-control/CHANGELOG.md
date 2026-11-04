@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.0] - 2026-11-04
+
+### Changed
+
+- `/source-control:babysit-loop` no longer counts an issue in a cordoned milestone toward either `--drain` exit. Its snapshot reads the names from `cordoned-milestones` in the target's `admission-rules.json`; a repository without that file cordons nothing.
+
+- Shared config-cascade library synced: the personal layer is now called the personal override in comments and in view-settings' warnings, and `overlayApplies` is `personalOverrideApplies` (#13187). Behavior is unchanged.
+
 ## [8.0.0] - 2026-11-04
 
 ### Changed

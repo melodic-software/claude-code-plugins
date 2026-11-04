@@ -830,7 +830,7 @@ assert_eq "$(jsonget "$mo_out" 'j.error')" "sdk-absent" \
   "measure-only reports sdk-absent" "measure-only did not report sdk-absent"
 assert_eq "$(jsonget "$mo_out" 'j.categories === undefined')" "true" \
   "measure-only does not fall back to a cli-parse measurement" "measure-only fell back to cli-parse"
-assert_eq "$(jsonget "$mo_out" '/npm install/.test(j.remediation)')" "false" \
+assert_eq "$(jsonget "$mo_out" 'j.remediation.includes("npm install")')" "false" \
   "measure-only offers no install command" "measure-only remediation offers an install"
 assert_eq "$(tree_hash "$MO_DATA")" "$mo_data_before" \
   "measure-only leaves the data dir byte-identical" "measure-only changed the data dir"
