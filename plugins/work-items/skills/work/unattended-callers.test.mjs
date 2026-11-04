@@ -3,7 +3,8 @@
 // without the flag reaches an ask nobody answers. The lane config's args are
 // checked by .github/actions/resolve-config/live-config.test.mjs; this suite
 // checks the calls the skill bodies write themselves: this skill's CI mode
-// (the work-resolve-issue lane's prompt) and its autonomous invocation, and
+// (reference/ci-mode.md, the work-resolve-issue lane's prompt) and its
+// autonomous invocation, and
 // the merge lane's driver, babysit-loop. A skill "takes --unattended" when its
 // argument-hint lists the flag. A span with arguments is a call; a bare
 // `/<plugin>:<skill>` span names the skill without calling it.
@@ -15,6 +16,7 @@ const ROOT = new URL("../../../../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, ROOT), "utf8");
 
 const WORK = "plugins/work-items/skills/work/SKILL.md";
+const CI_MODE = "plugins/work-items/skills/work/reference/ci-mode.md";
 const LOOP = "plugins/source-control/skills/babysit-loop/SKILL.md";
 const CYCLE = "plugins/source-control/skills/babysit-loop/reference/cycle-shape.md";
 
@@ -64,11 +66,15 @@ test("work --ci: the CI-mode prompt passes --unattended to each skill it calls t
   // procedures to follow and a file the runner writes: the lane loads only
   // this plugin, so neither is a call.
   assertUnattended(
-    `${WORK} CI mode`,
-    between(WORK, "## CI mode", "## "),
+    CI_MODE,
+    between(CI_MODE, "# CI mode", "## "),
     ["debugging:debug", "discovery:research"],
     { exempt: ["source-control:pull-request"] },
   );
+});
+
+test("work --ci: the skill body sends CI mode to the file the check above reads", () => {
+  assert.ok(between(WORK, "## CI mode", "## ").includes("skills/work/reference/ci-mode.md"));
 });
 
 test("work: an autonomous invocation passes --unattended to each later skill that takes it", () => {
