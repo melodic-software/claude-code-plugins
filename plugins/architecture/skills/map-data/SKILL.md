@@ -1,5 +1,5 @@
 ---
-description: "Entity-relationship diagram from committed schema declarations, with no database connection: Prisma models win over a stated subset of Entity Framework fluent mappings, which win over SQL migrations read from a stated subset of statements, and a disagreement is reported. Use when 'map data', 'ERD', 'entity relationship', 'schema diagram', 'cardinality from mappings', or 'which tables relate'. Skip when the question is deployment topology, runtime state, or data volume."
+description: "Entity-relationship diagram from committed schema declarations, no database connection: Prisma models win over a stated subset of Entity Framework fluent mappings, which win over a stated subset of SQL migration statements; disagreements are reported. Use when 'ERD', 'schema diagram', 'cardinality from mappings', 'which tables relate'. Skip for deployment topology, runtime state, or data volume."
 argument-hint: "[--scope module|all|<module>] [--include-columns] [--dialect mermaid|dbml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false

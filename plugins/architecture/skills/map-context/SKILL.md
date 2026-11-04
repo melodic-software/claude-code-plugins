@@ -1,5 +1,5 @@
 ---
-description: "C4 system context of one software system from tracked configuration: operator-stated actors and external systems named by connection strings, base URLs, and broker namespaces, credentials redacted. Use when 'map context', 'system context', 'C4 context', 'context diagram', 'what does this system talk to', 'who uses this system', 'external systems from config'. Skip for many repositories (/architecture:map-landscape) or module depth (/architecture:improve)."
+description: "C4 system context of one software system from tracked configuration: operator-stated actors and external systems named by connection strings, base URLs, and broker namespaces, credentials redacted. Use when 'context diagram', 'what does this system talk to', 'who uses this system'. Skip for many repositories (map-landscape) or module depth (improve)."
 argument-hint: "[system] [--actors <file>] [--focal <name>] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
