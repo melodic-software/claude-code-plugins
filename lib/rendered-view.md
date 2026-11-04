@@ -40,7 +40,9 @@ script written in the session.
 
        It prints one JSON line, then the report line naming the medium and what decided it, then any notice;
        print those lines as they stand. The JSON's `medium` is the one to use: `terminal`, `file` or
-       `artifact`. When `node` is missing, the builder cannot run either: deliver the record.
+       `artifact`. When `node` is missing, the builder cannot run either: deliver the record. When the
+       resolver exits 2 with its usage line, the argument names no medium: report it as unknown and resolve
+       again without `--argument`.
    - **Other lanes.** Read the `rendered-views` cascade surface: `~/.claude/rendered-views.md`, then
      `<repo root>/.claude/rendered-views.md`, then `<repo root>/.claude/rendered-views.local.md`, whichever
      exist. The last layer that states `medium:` wins (`auto`, `terminal`, `file`, `artifact`). A team layer
