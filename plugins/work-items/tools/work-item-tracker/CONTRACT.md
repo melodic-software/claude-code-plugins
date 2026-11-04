@@ -272,8 +272,9 @@ compare-and-set, so two calls that run at the same moment can still both create.
 parent's sub-issues in the target repository with their `closedAt` in one GraphQL query;
 local-markdown reads each child's `closed_at` frontmatter field, which only the file edit that
 closes the item sets (see "local-markdown adapter"), and a closed child without one counts as
-closed earlier. The linear seed does not run the check yet; the gitea seed refuses
-`--parent`.
+closed earlier. The linear seed reads the parent's `children`, paged, with each child's
+`completedAt` and `canceledAt`, and takes the later one that is set as the close time; a closed
+child with neither counts as closed earlier. The gitea seed refuses `--parent`.
 
 `label-provenance` answers who applied each named label and whether that person may grant
 admission. For every `--label`, the adapter takes the most recent application of that label
