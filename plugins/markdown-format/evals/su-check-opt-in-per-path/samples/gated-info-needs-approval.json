@@ -1,7 +1,10 @@
 {
   "pass": [
     {
-      "answer": "tools/ and scripts/ are INFO, gated: markdownlint-cli2 runs there only once you approve that config state; until then their files are neither rewritten nor checked."
+      "answer": "tools/ and scripts/ are gated: markdownlint-cli2 runs there only once you approve that config state."
+    },
+    {
+      "answer": "| tools/.markdownlint-cli2.jsonc | code-capable, gated | No: it runs only after you approve it. |\n| scripts/.markdownlint.cjs | code-capable, gated | No: gated the same way and unapproved. |"
     }
   ],
   "fail": [

@@ -373,17 +373,6 @@
         }
       ],
       "why": "a quoted header read, then a separate sort -o"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "lefthook install"
-          }
-        }
-      ],
-      "why": "the step the lefthook-install decision asks for"
     }
   ],
   "fail": [
