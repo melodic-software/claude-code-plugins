@@ -203,6 +203,18 @@
         }
       ],
       "why": "through -exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "markdownlint-cli2 -h",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "-h is read as a glob and loads the config's code"
     }
   ]
 }

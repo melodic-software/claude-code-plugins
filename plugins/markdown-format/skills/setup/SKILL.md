@@ -70,7 +70,7 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    from a Markdown file's directory to the repository root, with the shim's symlinks followed
    and its physical target required to stay inside the repository's `node_modules` tree. A
    binary or shim the hook would reject must not PASS here. Then confirm the resolved tool
-   actually executes, running no repository code: run it with `--help`, never `--version` or a
+   actually executes, loading no repository config or module: run it with `--help`, never `-h`, `--version` or a
    bare glob. It executed when its first output line is the tool's version banner, whatever the
    exit code (a repo shim can resolve yet still be broken: missing Node interpreter, dangling
    target). Anything else is FAIL, with the execution error in the remediation line. FAIL when
@@ -224,7 +224,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Run the formatter. Editing any `.md` file exercises the batch hook end-to-end, and
   `git commit` exercises the installed pre-commit entry. The only
   execution `check` performs is the `--help` liveness probe of the resolved linter; it never
-  lints, fixes, touches repository content, or runs repository code.
+  lints, fixes, touches repository content, or loads a repository config or module.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Download anything during `check`; network use happens only in an explicitly
   requested `apply install-lint` inside the consumer repository.
