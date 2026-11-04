@@ -1,0 +1,1 @@
+With the harness-memory:audit skill, check whether this repo's CLAUDE.md is in good shape; we moved the module notes out of it last month so it would stay short. Don't change any files, and leave user-level config out of this: only the repo's own files matter. No one is around to answer questions while this runs, so put what you find in your reply.

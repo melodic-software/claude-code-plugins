@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "Breakdown: CLAUDE.md 14 lines, docs/module-guide.md 233 lines.", "why": "per-file row"},
+    {"answer": "| import | 233 | docs/module-guide.md |", "why": "breakdown columns the other way round"},
+    {"answer": "Almost all of it comes from the import of docs/module-guide.md.", "why": "prose"},
+    {"answer": "docs/module-guide.md is imported at launch, so the split saves nothing.", "why": "verb form"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "CLAUDE.md is over budget at 247 lines; shorten it.", "why": "no attribution"},
+    {"answer": "See docs/module-guide.md for the module notes.", "why": "names the file without saying it loads"},
+    {"answer": "The import is the problem.", "why": "no file named"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "harness-memory:audit"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "audit"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "harness-config:audit"}}], "why": "another plugin's audit"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "harness-memory:stateless"}}], "why": "the sibling skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}
