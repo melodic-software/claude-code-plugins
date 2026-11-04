@@ -308,6 +308,51 @@ run rules --root "$comma_repo" >/dev/null 2>&1
 assert_eq "a correct comma-separated rule exits 0" "0" "$?"
 
 # --------------------------------------------------------------------------
+# A rule's patterns match from its base: the directory holding its .claude folder
+# --------------------------------------------------------------------------
+# <glob> <file>...: a repository with one rule at packages/foo, prints its output.
+nested_rule_run() {
+  local glob="$1" dir
+  shift
+  dir="$(fixture_repo "$@")"
+  mkdir -p "$dir/packages/foo/.claude/rules"
+  printf -- '---\npaths:\n  - "%s"\n---\n\n# Nested\n' "$glob" >"$dir/packages/foo/.claude/rules/r.md"
+  commit_all "$dir" nested
+  run rules --root "$dir"
+}
+
+out="$(nested_rule_run '*.xyz' other/only.xyz)"
+assert_eq "a slash-free glob does not match outside its rule's base" "zero-match" "$(row_field "$out" '*.xyz' 6)"
+out="$(nested_rule_run '*.xyz' packages/foo/deep/in.xyz other/out.xyz)"
+assert_eq "and it matches at any depth inside the base, once" "1" "$(row_field "$out" '*.xyz' 5)"
+out="$(nested_rule_run '/*.xyz' root.xyz)"
+assert_eq "a leading slash anchors at the rule's base, not the repository root" "zero-match" "$(row_field "$out" '/*.xyz' 6)"
+out="$(nested_rule_run '/*.xyz' packages/foo/in.xyz packages/foo/deep/no.xyz)"
+assert_eq "and it matches directly in that base only" "1" "$(row_field "$out" '/*.xyz' 5)"
+out="$(nested_rule_run 'src/*.ts' packages/foo/src/a.ts)"
+assert_eq "a base-relative glob is not reported broken" "ok" "$(row_field "$out" 'src/*.ts' 6)"
+out="$(nested_rule_run 'src/*.ts' src/a.ts)"
+assert_eq "and a same-named path at the repository root does not satisfy it" "zero-match" "$(row_field "$out" 'src/*.ts' 6)"
+
+# A base directory is a literal path, so its name holds no regex or glob meaning.
+meta_repo="$(fixture_repo "pkg+[1]/a.ts" "pkgg1/b.ts")"
+mkdir -p "$meta_repo/pkg+[1]/.claude/rules"
+printf -- '---\npaths:\n  - "*.ts"\n---\n\n# Meta\n' >"$meta_repo/pkg+[1]/.claude/rules/r.md"
+commit_all "$meta_repo" meta
+out="$(run rules --root "$meta_repo")"
+assert_eq "a base directory's name is matched literally" "1" "$(row_field "$out" '*.ts' 5)"
+
+# Two rules in one run: each keeps its own base.
+two_repo="$(fixture_repo "a.ts" "packages/foo/b.md")"
+mkdir -p "$two_repo/.claude/rules" "$two_repo/packages/foo/.claude/rules"
+printf -- '---\npaths:\n  - "/*.ts"\n---\n\n# Root\n' >"$two_repo/.claude/rules/root.md"
+printf -- '---\npaths:\n  - "/*.md"\n---\n\n# Nested\n' >"$two_repo/packages/foo/.claude/rules/nested.md"
+commit_all "$two_repo" two
+out="$(run rules --root "$two_repo")"
+assert_eq "a root rule matches from the repository root" "1" "$(row_field "$out" '/*.ts' 5)"
+assert_eq "beside it, a nested rule matches from its own base" "1" "$(row_field "$out" '/*.md' 5)"
+
+# --------------------------------------------------------------------------
 # The brace budget is shared by a rule's whole paths list
 # --------------------------------------------------------------------------
 budget_repo="$(fixture_repo "a.ts")"

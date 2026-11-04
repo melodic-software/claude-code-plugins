@@ -200,6 +200,8 @@ scalar one-single-quoted "'only/**'"
 scalar one-commented 'only/** # why this scope'
 scalar yaml-alias '**/*.ts'
 scalar block-scalar '>'
+scalar yaml-null 'null'
+scalar yaml-tilde '~'
 
 assert_lists "a plain comma-separated string splits" 'src/**/*.ts
 lib/**/*.ts' "$(ip_parse_paths "$pp/comma-plain.md")"
@@ -209,6 +211,8 @@ assert_lists "a one-pattern string is unquoted" 'only/**' "$(ip_parse_paths "$pp
 assert_lists "a plain string drops its trailing comment" 'only/**' "$(ip_parse_paths "$pp/one-commented.md")"
 assert_lists "an unquoted leading * is unparsable YAML, so no pattern" '' "$(ip_parse_paths "$pp/yaml-alias.md")"
 assert_lists "a block-scalar marker is not a pattern" '' "$(ip_parse_paths "$pp/block-scalar.md")"
+assert_lists "a YAML null is not a pattern" '' "$(ip_parse_paths "$pp/yaml-null.md")"
+assert_lists "nor is its tilde spelling" '' "$(ip_parse_paths "$pp/yaml-tilde.md")"
 
 # A circular symlink must not hang or explode the listing.
 circ="$(mktemp -d "$TMP/x.XXXX")"

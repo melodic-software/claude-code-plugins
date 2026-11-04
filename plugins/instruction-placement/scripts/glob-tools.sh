@@ -357,7 +357,8 @@ fi
 # that a teammate would see.
 TRACKED_FILE="$(mktemp)"
 ROWS_FILE="$(mktemp)"
-trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE"' EXIT
+BASE_TRACKED_FILE="$(mktemp)"
+trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE" "$BASE_TRACKED_FILE"' EXIT
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git ls-files -z 2>/dev/null | tr '\0' '\n' | LC_ALL=C sort >"$TRACKED_FILE"
 else
@@ -419,6 +420,23 @@ for idx in "${!PATTERNS[@]}"; do
   if [[ "$budget_key" != "$PREV_BUDGET_KEY" ]]; then
     PREV_BUDGET_KEY="$budget_key"
     RUNNING_EXPANDED=0
+
+    # A rule's patterns match from its base, the directory holding its `.claude`
+    # folder, so a nested rule sees only its own subtree, as paths relative to it.
+    #   Pointer: when deciding what a rule's patterns are relative to, fetch
+    #     https://code.claude.com/docs/en/memory#path-specific-rules live.
+    #   As of: 2026-11-04.
+    #   Recheck trigger: that section changes a project rule's base directory.
+    UNIVERSE="$TRACKED_FILE"
+    case "$source" in
+    */.claude/rules/*)
+      UNIVERSE="$BASE_TRACKED_FILE"
+      IP_BASE="${source%%/.claude/rules/*}/" awk '
+        index($0, ENVIRON["IP_BASE"]) == 1 { print substr($0, length(ENVIRON["IP_BASE"]) + 1) }
+      ' "$TRACKED_FILE" >"$BASE_TRACKED_FILE"
+      ;;
+    *) ;;
+    esac
   fi
 
   if ! brackets_valid "$pattern"; then
@@ -449,7 +467,7 @@ for idx in "${!PATTERNS[@]}"; do
         for exp in "${expansions[@]}"; do
           [[ -z "$exp" ]] && continue
           ere="$(glob_to_ere "$exp")"
-          grep -E "^${ere}$" "$TRACKED_FILE" 2>/dev/null
+          grep -E "^${ere}$" "$UNIVERSE" 2>/dev/null
         done | LC_ALL=C sort -u | grep -c . || true
       )
 

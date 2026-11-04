@@ -145,6 +145,7 @@ ip_parse_paths() {
       }
       if (c ~ /[*@`|>&!%{#]/) next
       sub(/[[:space:]]+#.*$/, "", line)
+      if (line ~ /^(~|null|Null|NULL)$/) next
       emit_list(line)
       next
     }
