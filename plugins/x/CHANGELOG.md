@@ -5,6 +5,12 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.13] - 2026-11-04
+
+### Fixed
+
+- `read` passes a URL found in fetched text through the gate exactly as written: up to the next whitespace, or to the matching close of a quote or Markdown link that opens right before it. A token the gate refuses stays refused, never trimmed into one that passes.
+
 ## [0.4.12] - 2026-11-04
 
 ### Fixed
