@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs plan --scope local"
+          }
+        }
+      ],
+      "why": "local"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'plan --scope shared' SKILL.md"
+          }
+        }
+      ],
+      "why": "a search term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs plan --scope shared"
+          }
+        }
+      ],
+      "why": "plan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs copy --manager plain --scope shared"
+          }
+        }
+      ],
+      "why": "copy"
+    }
+  ]
+}

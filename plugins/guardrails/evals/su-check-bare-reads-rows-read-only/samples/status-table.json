@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Evidence |\n|---|---|---|\n| Bash 5.0+ | PASS | 5.2.21 |\n| jq | PASS | /usr/bin/jq |\n| node | PASS | /usr/bin/node |"
+    },
+    {
+      "answer": "Check | Verdict\n--- | ---\nbash | Pass\njq | Pass\nNode.js | Fail",
+      "why": "no outer pipes, title case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bash 5.2 is fine, jq is at /usr/bin/jq and node is present.",
+      "why": "prose, no table"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Bash 5.0+ | PASS |\n| jq | PASS |",
+      "why": "near miss: no node row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| jq | PASS |\n| node | PASS |",
+      "why": "near miss: no Bash row"
+    }
+  ]
+}

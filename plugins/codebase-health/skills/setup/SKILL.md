@@ -19,11 +19,11 @@ updates rather than overwriting blind.
 ## The config merge model
 
 The audit config resolves as an additive merge of the documented layers. User-global
-(`~/.claude/codebase-health.md`) → team (`.claude/codebase-health.md`) → local overlay
+(`~/.claude/codebase-health.md`) → team (`.claude/codebase-health.md`) → personal override
 (`.claude/codebase-health.local.md`), where a later layer's globs union with (not replace) the
 earlier layer's and example-claims concatenate, **except** that a later layer declaring a dimension
 with empty source lists is an explicit opt-out that *removes* that inherited dimension. This skill
-writes only the **team** file; changes to a higher overlay are the user's to make.
+writes only the **team** file; changes to the user-global layer or the personal override are the user's to make.
 
 ## `check` (read-only)
 
@@ -38,12 +38,12 @@ FAIL. Modify nothing, and do NOT run an audit. That is `/codebase-health:audit`.
    than presenting the team file alone as the effective config.
 2. **Dimension source lists**. For each dimension present in the team file, its declared source lists
    parse and name real paths/globs. A dimension whose source list is malformed or fails to parse is
-   FAIL, naming it. A dimension deliberately zeroed (empty source lists) by an overlay is INFO (an opt-out),
+   FAIL, naming it. A dimension deliberately zeroed (empty source lists) by the local or user-global layer is INFO (an opt-out),
    reported as removed, not broken.
 3. **Tracked, not ignored**, a present team file must be committed to be team-shared: run
    `git check-ignore -v .claude/codebase-health.md`; a non-empty result is FAIL with the matching
-   pattern. The `.local.md` overlay is expected to be ignored. INFO, not FAIL.
-4. **Overlay divergence**. INFO: when a local or user-global overlay changes the team file's effect
+   pattern. The `.local.md` personal override is expected to be ignored. INFO, not FAIL.
+4. **Other-layer divergence**. INFO: when a local or user-global layer changes the team file's effect
    (adds globs, or opts a dimension out with empty source lists), say so explicitly, since `apply`
    writes only the team file.
 
@@ -53,9 +53,9 @@ Run `check`, then interview and write the config. Proceed non-interactively wher
 the repo make the values unambiguous; ask only where a dimension's targets genuinely need the user.
 
 1. **Start from the effective config `check` just reported.** This step writes only the *team* file,
-   so name what a higher overlay contributes. When a local or user-global opt-out zeroes a dimension,
-   a team-scope re-enable will not restore it on this machine, because the overlay keeps removing it;
-   prompt the user to remove or update the opt-out in that overlay too. The interview proposes
+   so name what the local or user-global layer contributes. When a local or user-global opt-out zeroes a dimension,
+   a team-scope re-enable will not restore it on this machine, because that layer keeps removing it;
+   prompt the user to remove or update the opt-out in that layer too. The interview proposes
    changes against that baseline, and nothing is dropped without the user confirming.
 2. **Explore the repo to draft defaults.** Before asking anything, infer candidates:
    - **documentation** primary-sources: doc directories (`docs/`, `README.md`), agent-instruction
@@ -85,10 +85,10 @@ the repo make the values unambiguous; ask only where a dimension's targets genui
    pattern and offer to fix `.gitignore` before reporting success) AND
    `git ls-files --error-unmatch .claude/codebase-health.md` exits 0 (non-zero means un-ignored but
    still untracked, the guaranteed state right after a fresh write, so report "written but
-   untracked: commit it to share with the team", never success). Then **offer the overlay convention**: personal overrides go in
+   untracked: commit it to share with the team", never success). Then **offer the personal override convention**: personal overrides go in
    `.claude/codebase-health.local.md`; recommend the consumer add the recursive `.claude/**/*.local.*`
    line to `.gitignore` if not already covered. A user-global base at `~/.claude/codebase-health.md` is also honored. Layers
-   resolve user-global → team → local overlay, additively.
+   resolve user-global → team → personal override, additively.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no edit"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/case/.work/instruction-placement/main/findings.md", "old_string": "Status: pending", "new_string": "Destination: .claude/rules/csharp.md from CLAUDE.md"}}], "why": "an edit to the findings artifact whose text names instruction files"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/case/CLAUDE.md"}}], "why": "cut a section out of CLAUDE.md"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".claude/rules/git.md"}}], "why": "edited a rule"}
+  ]
+}

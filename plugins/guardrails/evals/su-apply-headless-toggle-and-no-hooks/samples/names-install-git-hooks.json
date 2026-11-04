@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "No. Bare apply installs no git hook; run `/guardrails:setup apply install-git-hooks` for that."
+    },
+    {
+      "answer": "The entries register only with apply install-git-hooks.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, bare apply installs no git hook.",
+      "why": "names no action"
+    },
+    {
+      "answer": "Run install-git-hooks for that.",
+      "why": "near miss: no apply"
+    },
+    {
+      "answer": "Run apply install-git-hooks-now.",
+      "why": "near miss: another word"
+    }
+  ]
+}

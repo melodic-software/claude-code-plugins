@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan --scope local"
+          }
+        }
+      ],
+      "why": "quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs plan --manager plain --scope local"
+          }
+        }
+      ],
+      "why": "a flag before --scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs plan --scope shared"
+          }
+        }
+      ],
+      "why": "shared"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs verify"
+          }
+        }
+      ],
+      "why": "another verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs plan --scope remote; echo --scope local"
+          }
+        }
+      ],
+      "why": "local only in another command"
+    }
+  ]
+}

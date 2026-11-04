@@ -384,7 +384,7 @@ verified, say so and name the lane and rung, so the next run rotates on.
 - **Never declare `type: review-findings` on a scan report.** That frontmatter alone routes a report
   into the `/review:fanout` fix relay; a scan report is intake.
 - **Consumer gotchas extend these.** The pre-computed block holds the `## Gotchas` sections of the
-  bugs config layers (user-global, team, local overlay) in layer order; apply them to this
+  bugs config layers (user-global, team, personal override) in layer order; apply them to this
   invocation. A missing layer is absent, not an error. A generalizable line belongs in this
   shipped skill via an issue, not in the consumer file.
 

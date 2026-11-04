@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "{\"block_cd_prefix_enabled\": \"false\"}"
+    },
+    {
+      "answer": "```json\n{ \"block_cd_prefix_enabled\":\"false\" }\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"block_cd_prefix_enabled\": false}",
+      "why": "near miss: a boolean, not a string"
+    },
+    {
+      "answer": "{\"block_cd_prefix\": \"false\"}",
+      "why": "near miss: wrong key"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "The `miro` plugin isn't enabled in this session, so there is no board to place stickies on.", "why": "plugin not enabled"},
+    {"answer": "No Miro tools are available here.", "why": "no tools"},
+    {"answer": "Miro is absent, so I'll fall back.", "why": "absent"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "I'll render the workshop on a Miro board and share the link.", "why": "assumes Miro"},
+    {"answer": "I'll write the model as a markdown timeline.", "why": "never mentions Miro"}
+  ]
+}

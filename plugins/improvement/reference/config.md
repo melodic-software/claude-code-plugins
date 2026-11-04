@@ -15,7 +15,7 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 |---|---|---|---|
 | 1 | user-global | `~/.claude/improvement.md` | outside the worktree, so no git verdict applies |
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/improvement.md` | must be tracked, the only layer teammates receive |
-| 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/improvement.local.md` | must be gitignored, never staged |
+| 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/improvement.local.md` | must be gitignored, never staged |
 
 Resolution anchors at the repo root, `${CLAUDE_PROJECT_DIR}` when set and otherwise
 `git rev-parse --show-toplevel`, never at the CWD. Every layer that exists is read and merged;
@@ -86,7 +86,7 @@ hard error and never a fabricated reading.
 
 ## Consumer `.gitignore`
 
-One recursive line covers the overlay here and every other cascade surface:
+One recursive line covers the personal override here and every other cascade surface:
 
 ```gitignore
 .claude/**/*.local.*

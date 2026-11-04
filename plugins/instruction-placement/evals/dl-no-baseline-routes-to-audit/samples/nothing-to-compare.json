@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "There is no spine baseline and no findings artifact for branch main, so there is nothing to report movement against.", "why": "both inputs named"},
+    {"answer": "No prior audit exists on this branch. Run /instruction-placement:audit first.", "why": "no prior audit"},
+    {"answer": "The baseline is missing and so is the findings artifact (both absent).", "why": "missing phrasing"},
+    {"answer": "Nothing to compare against. Run `/instruction-placement:audit` to make the first findings artifact.", "why": "the skill's own nothing-to-compare wording"},
+    {"answer": "With neither a baseline nor an artifact, this needs a full audit first.", "why": "neither-nor wording"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "2 moved since 2026-10-01: one new candidate, one broken glob. 4 suppressed.", "why": "reported movement as if a baseline existed"},
+    {"answer": "I audited CLAUDE.md: the React section should be a rule scoped to `web/**/*.tsx`.", "why": "silently ran a full audit"}
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "After the clean I re-run detection and report the final state."
+    },
+    {
+      "answer": "Then check-retirements.sh --manifest runs again to confirm nothing is left."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "After the clean, you are done.",
+      "why": "no re-run"
+    },
+    {
+      "answer": "I re-ran detection before proposing the clean.",
+      "why": "near miss: only before"
+    },
+    {
+      "answer": "Then run install-git-hooks.",
+      "why": "near miss: another step"
+    }
+  ]
+}

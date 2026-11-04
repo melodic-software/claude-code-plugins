@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Then rerun /guardrails:setup check in a fresh session: options are fixed at session start, so this session still shows the old value."
+    },
+    {
+      "answer": "Confirm in a new session; the current one keeps reporting the previous setting."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done: block-cd-prefix is now off.",
+      "why": "claims an unobserved change"
+    },
+    {
+      "answer": "Rerun check to confirm.",
+      "why": "near miss: no fresh session"
+    },
+    {
+      "answer": "Rerun check right away in this session.",
+      "why": "near miss: same session"
+    }
+  ]
+}
