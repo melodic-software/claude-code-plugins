@@ -3,6 +3,10 @@
     {
       "answer": "`/corrections:codify preferences` needs the session-flow plugin, which is not installed here, so I am stopping. Nothing was written.",
       "why": "names the plugin and stops"
+    },
+    {
+      "answer": "This action needs the session-flow plugin. Install it and run /corrections:codify preferences again.",
+      "why": "an install pointer is still a stop"
     }
   ],
   "fail": [
