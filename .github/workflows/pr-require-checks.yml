@@ -6245,17 +6245,21 @@ jobs:
       # it); every other pull request merges through pr-merge's gate or a
       # person, but for the verifier holds below. An unreadable pull request,
       # module, config, file list or discussion fails closed.
-      # IN THE MERGE QUEUE, EVERY AUTHOR PR-VERIFY JUDGES GETS THE VERIFIER
-      # HOLDS: an owner's credentials can queue a pull request with no pass, so
+      # IN THE MERGE QUEUE, ANOTHER AUTHOR PR-VERIFY JUDGES HOLDS ON A FAIL:
+      # an owner's credentials can queue a pull request pr-verify failed, so
       # one whose author resolve-pr.mjs resolvePull judges (no dependency
       # manager, and merge.verify-authors in the hold config's pr-pipeline.yaml
-      # with its trusted-actor list: under `lane-or-owner` the lanes App or a
-      # User or Bot whose id the list holds) runs the same verdict reads below
-      # and merge-holds.mjs's verifier, link and FAIL holds, with no file list
-      # and only its reviews, bodies blanked, so the kill switch, member veto,
-      # hold paths, cost paths and trusted-actor list holds stay the lanes
-      # App's. The same approval of the head lifts them. Any other author, and
-      # every one on a pull request event, exits as before.
+      # with its trusted-actor list: under `lane-or-owner` a User or Bot whose
+      # id the list holds) runs the same verdict reader and holds only on a
+      # FAIL class it reports for the head (verify:fail, verify:earlier-fail,
+      # verify:repeated-fail), by the base module's evidenceHold, owner
+      # decision 2026-11-04 "Hold on FAIL only (Recommended)". No pass, a stale
+      # or untrusted-spec pass, verify:unreadable, verify:too-old and a reader
+      # that does not judge do not hold it. It reads only its reviews, bodies
+      # blanked, and no file list, so the kill switch, member veto, hold paths,
+      # cost paths and trusted-actor list holds stay the lanes App's; a trusted
+      # approval of the head lifts the FAIL hold. Any other author, and every
+      # one on a pull request event, exits as before.
       # WHILE THE LANES KILL SWITCH IS ON A LANES APP PULL REQUEST FAILS, so
       # one armed before it was turned on stops in the merge queue, as the
       # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
@@ -6448,7 +6452,7 @@ jobs:
               echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
               exit 0
             fi
-            echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): its verifier holds are read; the kill switch, member veto and hold paths stay the lanes App's."
+            echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): a pr-verify FAIL at its head holds it; the kill switch, member veto and hold paths stay the lanes App's."
           fi
           # The kill switch, by the base checkout's merge-holds.mjs switchHold:
           # it answers JSON null or the hold's reason, and anything else fails
@@ -6534,7 +6538,7 @@ jobs:
             exit 1
           fi
           # Another judged author's pull request reads only its reviews, each
-          # body blanked: an approval of the head still lifts a verifier hold,
+          # body blanked: an approval of the head still lifts its FAIL hold,
           # and no text vetoes it.
           : >"$RUNNER_TEMP/discussion.jsonl"
           kinds=("issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments")
@@ -6545,6 +6549,49 @@ jobs:
             rows=$(jq -c "$rows_of" <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
+          # Another judged author's pull request holds only on a FAIL class the
+          # verdict reader reports for its head; a reader that does not judge
+          # it, or any other refusal, leaves it to merge.
+          if [ "$lanes" = false ]; then
+            node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            rm -f "$BABYSIT_VERIFY_LISTING"
+            if ! report=$(BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head"); then
+              echo "::notice::babysit_verify_evidence.py could not judge #$pr at $head."
+              report=
+            fi
+            printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
+            refusal=$(jq -r --arg head "$head" 'select(.head == $head) | .refusal | strings' "$RUNNER_TEMP/evidence.json" 2>/dev/null) || refusal=
+            case $refusal in
+            verify:fail | verify:earlier-fail | verify:repeated-fail) ;;
+            *)
+              echo "#$pr: not held: pull requests of an author pr-verify judges, other than the lanes App's, hold only on a FAIL, and the reader reports ${refusal:-none} for $head."
+              exit 0
+              ;;
+            esac
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            out=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              // The module goes last: as the first argument, it would run as main.
+              const [, evidence, discussion, actors, head, number, module] = process.argv;
+              const { evidenceHold, pathLifters, humansOf, fromRest, VERIFIER_TITLE } = await import(pathToFileURL(module).href);
+              const failed = evidenceHold(JSON.parse(readFileSync(evidence, "utf8")), head);
+              if (typeof failed !== "string" || !failed) {
+                throw new Error("no FAIL verdict");
+              }
+              const items = readFileSync(discussion, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
+              const approved = pathLifters(items, humansOf(JSON.parse(readFileSync(actors, "utf8")).actors), head);
+              const text = failed.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+              console.log(approved.length
+                ? `#${number}: no pr-verify FAIL hold: ${approved.join(", ")} approved this head, which lifts '"'"'${text}'"'"'.`
+                : `::error title=${VERIFIER_TITLE}::#${number}: ${text}; push a new head for pr-verify to judge, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue.`);' \
+              "$RUNNER_TEMP/evidence.json" "$RUNNER_TEMP/discussion.jsonl" "$RUNNER_TEMP/trusted-actors.json" "$head" "$pr" "$RUNNER_TEMP/merge-holds.mjs") || {
+              echo "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL ($refusal) of #$pr; re-run this run."
+              exit 1
+            }
+            printf '%s\n' "$out"
+            grep -qE "^#$pr: no pr-verify FAIL hold: " <<<"$out" || exit 1
+            exit 0
+          fi
           verdicts=()
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             ref=$(jq -r '.head.ref // ""' <<<"$pull")
