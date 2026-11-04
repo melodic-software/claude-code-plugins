@@ -3685,4 +3685,18 @@ describe("bodyUnpushablePaths", () => {
     const issue = issueOf({ body: SHAPE_13233("## Evidence").replace("- [ ] A credit stop in this lane", "- [ ] `.github/workflows/upstream-apply-changelog.yml` stops") });
     assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233] });
   });
+
+  test("a deeper heading with no section of its own stays inside the section above it", () => {
+    const wf = [".github/workflows/pr-require-checks.yml"];
+    assert.deepEqual(paths("## Proposed fix\n\n### Option A\n\n- `.github/workflows/pr-require-checks.yml:30` drops the step."), wf);
+    assert.deepEqual(paths("## Evidence\n\n### Run 41760968895\n\nThe step in .github/workflows/pr-require-checks.yml calls it."), []);
+    // A heading at the same level or higher ends the section.
+    assert.deepEqual(paths("### Evidence\n\n## Scope\n\nThe step in .github/workflows/pr-require-checks.yml calls it."), wf);
+    assert.deepEqual(paths("## Fix\n\n## Notes\n\nThe step at .github/workflows/pr-require-checks.yml:30 calls it."), []);
+  });
+
+  test("a suggested-fix-location line counts even under an evidence section", () => {
+    assert.deepEqual(paths("## Evidence\n\n**Suggested fix location**: .github/workflows/pr-require-checks.yml"), [".github/workflows/pr-require-checks.yml"]);
+    assert.deepEqual(paths("## Current behavior\n\n- **Suggested fix location**: `.github/workflows/pr-require-checks.yml:40`"), [".github/workflows/pr-require-checks.yml"]);
+  });
 });

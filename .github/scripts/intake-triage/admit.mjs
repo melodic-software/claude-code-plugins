@@ -1109,7 +1109,8 @@ const sectionOf = (title) => {
 
 // The paths the prose of `body` names that apply-patch refuses under `names`:
 // each line outside a code fence, an evidence section (EVIDENCE_SECTION) and
-// every task-list item (which unpushablePaths reads), read as plainText, less
+// every task-list item (which unpushablePaths reads), a CHANGE_LINE kept even
+// there, read as plainText, less
 // an evidence line, a path cited at a line outside a change section
 // (CHANGE_SECTION) or CHANGE_LINE, and a path named only in a shape that
 // leaves it unmodified (NEGATED), each once. Consecutive prose lines are read
@@ -1122,13 +1123,18 @@ export function bodyUnpushablePaths(body, taskList, names, workflows) {
   const paragraphs = [];
   let open = false;
   let section = null;
+  let depth = 0;
   lines.forEach((raw, index) => {
     const line = plainText(raw);
     const heading = blocks[index] === 0 ? HEADING.exec(raw) : null;
     if (heading) {
-      section = sectionOf(heading[1]);
+      // A deeper heading with no section of its own stays inside the one
+      // that opened (`### Option A` under `## Proposed fix`).
+      const level = raw.trim().match(/^#+/)[0].length;
+      const own = sectionOf(heading[1]);
+      if (own || level <= depth) [section, depth] = own ? [own, level] : [null, 0];
     }
-    if (blocks[index] !== 0 || items.has(index) || EVIDENCE_LINE.test(line) || line.trim() === "" || (section === "evidence" && !heading)) {
+    if (blocks[index] !== 0 || items.has(index) || EVIDENCE_LINE.test(line) || line.trim() === "" || (section === "evidence" && !heading && !CHANGE_LINE.test(line))) {
       open = false;
       return;
     }

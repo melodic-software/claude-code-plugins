@@ -10,4 +10,5 @@ bump: patch
   `Suggested fix location` line. Before, a line citation was read as evidence everywhere, so the
   issue was admitted and its run failed at the patch scan. A path named only under Evidence,
   Steps to reproduce, Actual behavior, Current behavior or Environment no longer refuses the
-  issue.
+  issue, unless it is on a `Suggested fix location` line. A deeper heading with no section of
+  its own (`### Option A` under `## Proposed fix`) stays inside the section above it.
