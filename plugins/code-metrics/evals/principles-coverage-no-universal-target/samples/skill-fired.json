@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "code-metrics:principles", "args": "what is a good coverage number"}}],
+      "why": "the principles skill invoked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "code-metrics:audit-coverage"}}],
+      "why": "a sibling skill, not principles"
+    }
+  ]
+}
