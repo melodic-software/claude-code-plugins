@@ -282,26 +282,8 @@ Several pages from one session run through the `knowledge:docpage-digest-batch` 
 inside a workflow cannot spawn another, so the workflow script itself dispatches each Phase 3
 digest agent, both Phase 4 arms and each correction round as separate agents, and points every one
 at this file and its `context/` spokes. Each page keeps its own slice, checklist and handoff.
-
-1. **Availability.** Launch only when the Workflow tool is in this session's toolset; otherwise run
-   the pages one at a time. The switches that turn workflows off are in
-   [workflows: turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off)
-   (as of 2026-11-03; recheck when those switches are renamed).
-2. **Roles.** When `/multi-agent:route` resolves, pass the `roles` object
-   `/multi-agent:route all session=<alias>` prints; otherwise omit it and the fallbacks apply.
-3. **Verifier B.** When the codex plugin's `codex:codex-rescue` agent is in this session's agent
-   list, pass it as `verifierB`. Without it, or when it returns nothing, the page's verifier B runs
-   as the degraded same-vendor refuter that [context/dual-verification.md](context/dual-verification.md)
-   describes, recorded in its header. Whether that agent resolves inside a workflow is unverified
-   until a run reports `verifierB.mode: cross-vendor`.
-4. **Launch** `Workflow({ name: "knowledge:docpage-digest-batch", args: { pages, workRoot, skillDir, date, verifierB, roles, maxConcurrent } })`.
-   `workRoot` is the root `work-root.mjs` printed, `skillDir` is `${CLAUDE_SKILL_DIR}`, and `date`
-   is today as `YYYY-MM-DD`. An `error` return dispatched nothing. Relaunch `deferred` pages, which
-   were past the per-run cap.
-5. **Read each page's `verification`**, the same value as its checklist line. Re-run an
-   `unverified` page once its cause clears, take a `failed` page to the operator, and treat a
-   `refused` page as a collision. Then run the Phase 5 interview once over the `verified` pages'
-   handoffs.
+Read [context/batch-path.md](context/batch-path.md) before launching it: it owns the launch steps,
+the `args`, and what to do with each page's returned `verification`.
 
 ## Publisher profiles
 
