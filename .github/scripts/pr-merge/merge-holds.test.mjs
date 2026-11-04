@@ -1550,7 +1550,7 @@ test("queueHolds: each hold label holds with ci-status's text", () => {
   for (const [label, want] of [
     ["do-not-merge", "#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."],
     ["needs-human", "#7 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."],
-    ["pr-verify-failed", "#7 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."],
+    ["pr-verify-failed", "#7 carries 'pr-verify-failed': pr-verify failed its head, and a pr-verify pass removes the label, at a new commit or at the same head: once a trusted person edits the body, and only trusted people have edited it since the fail, that head is judged again, so a fail on the body or the issues it links needs only the body fixed, no new commit. The merge queue removes it; re-queue it once the label is off."],
     ["security: outside-actor", "#7 carries 'security: outside-actor': someone outside the organization wrote on it, and only a person removes the label. Re-queue it once the label is off."],
   ]) {
     assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "bug" }, { name: label }] }) }), [want], label);

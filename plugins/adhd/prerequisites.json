@@ -1,0 +1,19 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": ["plugin", "skill:clarify"],
+      "detect": { "any": ["node"] },
+      "degrade": "Without node, the prerequisites checker cannot run and /adhd:clarify cannot run the medium resolver: it says so in one line and its content table picks the medium.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

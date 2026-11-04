@@ -452,10 +452,21 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
@@ -735,6 +746,17 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       # The kill switch and the trigger gate run from the default branch tip,
       # never from a base the PR chose. Full history lets the next check test
       # the gated base SHA's ancestry.
@@ -742,7 +764,7 @@ jobs:
         id: base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
@@ -2333,15 +2355,30 @@ jobs:
             core.setOutput('base-sha', BASE_SHA);
             core.setOutput('prune-branches', PRUNE_BRANCHES);
 
-      - name: Check out the default branch tip
-        id: base
+      - name: Resolve main's tip
+        id: tip
         if: >-
           steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
           && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '')
         continue-on-error: true
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the default branch tip
+        id: base
+        if: >-
+          steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
+          && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '') && steps.tip.outputs.sha != ''
+        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
@@ -2524,12 +2561,24 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve main's tip
+        id: tip
+        if: needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         id: base
         if: needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
           sparse-checkout: |
@@ -3272,14 +3321,26 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Resolve main's tip
+        id: tip
+        continue-on-error: true
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # Code from the default branch tip the event names; the checked base
       # is only data the diff step fetches.
       - name: Check out the default branch tip
+        if: steps.tip.outputs.sha != ''
         id: base
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
@@ -3579,10 +3640,21 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false

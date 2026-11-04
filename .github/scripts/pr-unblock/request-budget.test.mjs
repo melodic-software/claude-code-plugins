@@ -5,11 +5,11 @@ import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mj
 import { budgetedFetch } from "./request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-// Each test gets its own latch on its own clock, so one test's limit neither
-// stops the next nor fails this process.
-const budgeted = (options) =>
+// Each test gets its own latch on its own clock and log, so one test's limit
+// neither stops the next nor fails this process; `fail` sees the latch fail the step.
+const budgeted = ({ fail = () => {}, ...options }) =>
   budgetedFetch({
-    latch: createRateLimitLatch({ now: options.now ?? (() => Date.now()), log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null }),
+    latch: createRateLimitLatch({ now: options.now ?? (() => Date.now()), log: options.log ?? (() => {}), fail, hold: false, limits: () => ({}), stopFile: null }),
     ...options,
   });
 
@@ -90,18 +90,18 @@ function clock(startSeconds) {
 
 test("a 403 or 429 logs GitHub's message and retry-after", async () => {
   const gh = github([
-    { status: 403, body: '{"message":"You have exceeded a secondary rate limit."}', headers: { "retry-after": "60", ...rate(3000) } },
+    { status: 403, body: '{"message":"You have exceeded a secondary rate limit."}', headers: { "retry-after": "10", ...rate(3000) } },
     { status: 200, body: "{}", headers: rate(2999) },
-    { status: 429, body: "not json", headers: { ...rate(0), "x-ratelimit-reset": String(RESET + 120) } },
+    { status: 429, body: "not json", headers: { ...rate(0), "x-ratelimit-reset": String(RESET + 40) } },
     { status: 200, body: "{}", headers: rate(4999) },
   ]);
   const lines = [];
   const time = clock(RESET);
-  const budget = budgeted({ fetch: gh.fetch, log: (line) => lines.push(line), ...time, maxWaitMs: 360_000 });
+  const budget = budgeted({ fetch: gh.fetch, log: (line) => lines.push(line), ...time });
   assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 200);
   assert.equal((await budget.fetch("https://api.example/repos/o/r/y", { headers: {} })).status, 200);
   assert.equal(lines.filter((line) => line.startsWith("::warning::GET returned")).length, 2);
-  assert.equal(lines[0], '::warning::GET returned 403: message="You have exceeded a secondary rate limit." retry-after=60 remaining=3000');
+  assert.equal(lines[0], '::warning::GET returned 403: message="You have exceeded a secondary rate limit." retry-after=10 remaining=3000');
   assert.ok(lines.includes('::warning::GET returned 429: message="" retry-after=none remaining=0'));
 });
 
@@ -145,11 +145,13 @@ test("a rate-limited write is returned at once, marked rateLimited, and never se
       { status: 201, body: "{}", headers: rate(9) },
     ]);
     const lines = [];
+    let failed = 0;
     const time = clock(RESET - 3000);
-    const budget = budgeted({ fetch: gh.fetch, log: (line) => lines.push(line), ...time });
+    const budget = budgeted({ fetch: gh.fetch, log: (line) => lines.push(line), fail: () => (failed += 1), ...time });
     const response = await budget.fetch(url, init);
     assert.equal(response.status, 429, `${init.method} ${url}`);
     assert.equal(response.rateLimited, true, `${init.method} ${url}`);
+    assert.equal(failed, 1, `${init.method} ${url}: a refusal not sent again fails the step`);
     assert.equal(gh.sent.length, 1, `${init.method} ${url}`);
     assert.deepEqual(time.slept, [], `${init.method} ${url}`);
     assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("not sent again")), `${init.method} ${url}`);
@@ -169,7 +171,7 @@ test("a rate-limited GraphQL query is a read, so it waits and is sent once more"
   assert.equal(gh.sent.length, 2);
 });
 
-test("a reset more than a minute away is past the default wait budget and is not waited on", async () => {
+test("a reset more than a minute away is past the wait budget and is not waited on", async () => {
   const gh = github([limited({ "x-ratelimit-reset": String(RESET) }), { status: 200, body: "{}", headers: rate(4999) }]);
   const time = clock(RESET - 61);
   const budget = budgeted({ fetch: gh.fetch, log: () => {}, ...time });
@@ -192,7 +194,7 @@ test("a secondary limit with no retry-after waits one minute", async () => {
 });
 
 // The only guessed stop short enough to wait out is the documented minute; a
-// primary limit with no time is guessed at an hour, past the default cap.
+// primary limit with no time is guessed at an hour, past the cap.
 test("a primary limit with no reset header, a guessed hour, is not waited on or resent", async () => {
   const gh = github([{ status: 403, body: '{"message":"API rate limit exceeded for installation."}', headers: {} }]);
   const time = clock(RESET - 3000);
@@ -217,19 +219,38 @@ test("a reset past the wait cap fails at once and names the reset", async () => 
 
 test("waits are capped across the whole run, not per call", async () => {
   const gh = github([
-    limited({ "retry-after": "200", "x-ratelimit-remaining": "5" }),
+    limited({ "retry-after": "40", "x-ratelimit-remaining": "5" }),
     { status: 200, body: "{}", headers: rate(4999) },
-    limited({ "retry-after": "200", "x-ratelimit-remaining": "5" }),
+    limited({ "retry-after": "40", "x-ratelimit-remaining": "5" }),
   ]);
   const time = clock(RESET - 3000);
-  const budget = budgeted({ fetch: gh.fetch, log: () => {}, ...time, maxWaitMs: 360_000 });
+  const budget = budgeted({ fetch: gh.fetch, log: () => {}, ...time });
   assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 200);
   assert.equal((await budget.fetch("https://api.example/repos/o/r/y", { headers: {} })).status, 403);
-  assert.deepEqual(time.slept, [201_000]);
+  assert.deepEqual(time.slept, [41_000]);
   assert.equal(gh.sent.length, 3);
 });
 
-test("a second rate limit after the wait is returned, with no third request", async () => {
+// Element 1 of the outage posture: the guard fails the step only on a
+// rate limit the read is not sent again after.
+test("a rate-limited read it waits out and sends again fails nothing; one past the wait budget fails the step", async () => {
+  const graphql = JSON.stringify({ query: "query { viewer { login } }" });
+  const reads = [
+    ["https://api.example/repos/o/r/x", { headers: {} }, "core"],
+    ["https://api.example/graphql", { method: "POST", headers: {}, body: graphql }, "graphql"],
+  ];
+  for (const [url, init, resource] of reads) {
+    for (const [secondsToReset, status, failures] of [[45, 200, 0], [61, 403, 1]]) {
+      let failed = 0;
+      const gh = github([limited(rate(0, resource)), { status: 200, body: "{}", headers: rate(4999, resource) }]);
+      const budget = budgeted({ fetch: gh.fetch, log: () => {}, fail: () => (failed += 1), ...clock(RESET - secondsToReset) });
+      assert.equal((await budget.fetch(url, init)).status, status, `${url} ${secondsToReset}s`);
+      assert.equal(failed, failures, `${url} ${secondsToReset}s`);
+    }
+  }
+});
+
+test("a second rate limit past the wait budget is returned, with no third request", async () => {
   const gh = github([limited({ "x-ratelimit-reset": String(RESET) }), limited({ "x-ratelimit-reset": String(RESET + 3600) })]);
   const time = clock(RESET - 60);
   const budget = budgeted({ fetch: gh.fetch, log: () => {}, ...time });

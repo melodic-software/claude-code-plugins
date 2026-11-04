@@ -1,6 +1,6 @@
 ---
 description: "Faithful restructure of one dense, decision-heavy message: one decision at a time, the session's jargon defined, the choices surfaced with operative terms quoted verbatim, and an HTML decision table for decision-dense content. Use when the user says 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here' or 'this is a wall of text'; with no argument it targets the previous assistant response. Changes structure only: a plain-language drop is education:explain, a picture or ELI5 is education:illustrate, a standing session style is adhd:shape."
-argument-hint: "[--medium terminal|file|artifact] [artifact to clarify]"
+argument-hint: "[--medium <medium>] [artifact to clarify]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -25,8 +25,8 @@ so the fidelity rules are hard.
    **Done when** every decision from the target appears in the restructured view and every
    omission is named.
 4. **Choose the medium** per [Rendering](#rendering): resolve `medium`, then the rung.
-   **Done when** the output is on the rung the resolved `medium` and content size name, it names
-   the source of that `medium`, and you claim no artifact that was not produced.
+   **Done when** the output is on the rung the resolved `medium` and content size name, it prints
+   the resolver's report line (or the one line saying why the resolver did not run), and you claim no artifact that was not produced.
 
 ## Empty argument
 
@@ -80,32 +80,30 @@ recommendation the source re-stated as old → new → why keeps all three parts
 
 ### Resolve `medium` first
 
-Before choosing a rung, resolve the `rendered-views` `medium` preference (`auto`, `terminal`,
-`file`, `artifact`, `hosted`). A `--medium` argument naming one of the last four decides on its
-own; `auto` or any other value defers to the layers. Otherwise anchor at the repository root
-(`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`) and read whichever layers
-exist, in order: user-global `~/.claude/rendered-views.md`, team `<root>/.claude/rendered-views.md`,
-overlay `<root>/.claude/rendered-views.local.md`. Outside a work tree, or when the root is your
-home directory, read only the user-global layer. Count the overlay only when all of these hold:
-`git ls-files -- ':(icase).claude/rendered-views.local.md'` prints nothing, `git check-ignore`
-matches it, `.claude` is not a tracked entry or submodule, and neither `.claude` nor the overlay
-is a symlink. Otherwise report the overlay and ignore it. Then:
+Before choosing a rung, run the shared medium resolver. Add `--argument` only when the reader
+passed `--medium`, with the value they gave:
 
-1. **A local value from any layer wins.** `terminal` or `file` keeps the page off claude.ai, even
-   with the Artifact tool present. `terminal` renders terminal markdown. `file` writes the local
-   HTML file, or terminal markdown when no file can be written.
-2. **A publishing value counts only from a layer a checked-out branch cannot write**: the
-   argument, the user-global layer, or the counted overlay. `hosted` is read as `artifact` here,
-   since this skill never sends a page to a page host. `artifact` publishes decision-dense content
-   when the Artifact tool is present and degrades down the table below when it is absent.
-3. **A team-layer `artifact` or `hosted` does not publish on its own.** The team layer can arrive
-   in a checked-out branch, so it can keep a page local but never makes it publish. When no rule-2
-   source sets a publishing value, report the team value and write the local HTML file instead.
-4. **Nothing set** (no layer, or only `auto`) leaves the shipped default, the table below.
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane adhd:clarify --option "${user_config.medium}" [--argument <medium>]
+```
 
-A value outside the five is reported and read as `auto`. Name the source in the output: the
-argument, the layer's path, or "shipped default". Small content (1–2 decisions) stays terminal
-markdown whatever the medium.
+It prints one JSON line, then the report line naming the medium and what decided it, then one line
+per notice; print the report line and each notice line in the output as they stand. The resolver weighs the argument, this
+plugin's `medium` option and the repository's rendered-views convention files, and it never
+publishes on a team file's say-so: leave every settings file to it. A usage error
+(exit 2) means the argument named no medium: say so in one line and run it again without
+`--argument`.
+
+- **The JSON's `medium` is set**: render on that rung of the table below. The resolver has already
+  stepped it down to one this session can reach, and a medium that keeps the view on the machine
+  never publishes, even with the Artifact tool present. When that rung's surface is still absent
+  (no Artifact tool, no writable temp location), step down the table and say why in one line.
+- **The JSON's `medium` is `null`**: no setting decided, so the table below decides by content
+  size and the surfaces present.
+- **`node` is missing, or the resolver fails another way** (any nonzero exit after the retry):
+  say so in one line in place of the report line, and let the table below decide.
+
+Small content (1–2 decisions) stays terminal markdown whatever the medium.
 
 | Content | Surface available | Render as |
 |---|---|---|
