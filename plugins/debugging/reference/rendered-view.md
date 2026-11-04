@@ -25,10 +25,10 @@ script written in the session.
 2. **Offer the view in one sentence.** Build only when the reader accepts and the environment can serve a
    file. A CI or other non-interactive run emits no view: the record stands.
 3. **Resolve `medium`.** The path depends on whether the lane's skill has migrated to the shared medium
-   resolver, not on whether the resolver registers the lane. Only `planning` has migrated today;
-   architecture, discovery and debugging are registered but read the cascade themselves until their own
-   change migrates them.
-   - **Resolver lanes** (`planning`). Run the resolver. `--option` takes this plugin's `medium` option as the
+   resolver, not on whether the resolver registers the lane. `planning` and `debugging` have migrated;
+   architecture and discovery are registered but read the cascade themselves until their own change
+   migrates them.
+   - **Resolver lanes** (`planning`, `debugging`). Run the resolver. `--option` takes this plugin's `medium` option as the
      calling skill states it; add `--argument` only when the reader named a medium in the request:
 
      ```bash
@@ -235,7 +235,8 @@ copyable prompt-fix line).
 
 `/debugging:debug` records its Phase 6 post-mortem in the commit message, the PR description or the project's
 notes. Genre: a post-mortem that a later session or a teammate re-reads. Write the post-mortem first;
-everything in it passes the skill's secret redaction before it reaches the data.
+everything in it passes the skill's secret redaction before it reaches the data. Resolver lane:
+`--lane debugging:debug`.
 
 Build: pipe one JSON object (shape below) to the builder:
 

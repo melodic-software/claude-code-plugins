@@ -18,5 +18,14 @@
   ],
   "metadata": {
     "category": "maintenance"
+  },
+  "userConfig": {
+    "medium": {
+      "type": "string",
+      "title": "Preferred delivery medium",
+      "description": "Where the post-mortem view goes. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact; hosted is read as artifact. A team rendered-views file never publishes.",
+      "default": "auto",
+      "options": ["auto", "terminal", "file", "artifact", "hosted"]
+    }
   }
 }
