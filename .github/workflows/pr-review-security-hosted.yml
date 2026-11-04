@@ -381,6 +381,8 @@ jobs:
         docs/review/**
         .github/workflows/dependabot-fragments.yml
         .github/workflows/eval-browser-dispatch.yml
+        .github/workflows/eval-hill-climb-pass.yml
+        .github/workflows/eval-hill-climb.yml
         .github/workflows/intake-reenter.yml
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml
