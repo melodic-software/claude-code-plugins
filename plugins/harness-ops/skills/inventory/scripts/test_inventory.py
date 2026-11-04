@@ -1339,13 +1339,13 @@ class TestBuiltinAgents(unittest.TestCase):
 
     def test_a_description_bound_to_a_module_constant_resolves(self) -> None:
         # The 2.1.318 comment-thread-analyst shape: `whenToUse` names a string
-        # constant declared in the same module, and a later module imports a
-        # different binding under the same short name.
+        # constant declared in the same module, and later code binds a
+        # different value under the same short name in its own scope.
         src = AGENT_SRC + (
             'var t="Reads one thread",o={agentType:"thread-probe",whenToUse:t,'
             'source:"built-in",maxTurns:6,getSystemPrompt:()=>e()};'
             "export{o as THREAD_PROBE};"
-            'import{t}from"/$bunfs/root/chunk-a.js";var q=t;'
+            "function g(){let t=p(1);return t}"
         )
         rec = self._extract(src)[0]["thread-probe"]
         self.assertEqual(rec["description"], "Reads one thread")
