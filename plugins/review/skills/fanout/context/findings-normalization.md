@@ -13,7 +13,7 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 | `architecture-guardian` | Violations / Risks / Opportunities | high / medium / low | file-only (Violations); none (Risks/Opportunities) |
 | `doc-drift-detector` | Stale / Missing / Aspirational | high / medium / low (table column) | doc-file line (table) |
 | slice-subagents | project's tiers (or baseline) | high / medium / low (template column) | `file:line` (inferred) |
-| `code-review` plugin | none (flat issue list) | none (validation subagents drop unconfirmed issues) | GitHub permalink `#L[s]-L[e]` |
+| `code-review` plugin | none (flat issue list) | none (validation subagents drop unconfirmed issues; → `high` in Stage 2) | GitHub permalink `#L[s]-L[e]` |
 | `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | none | `[file:line]` (inferred) |
 
 Line numbers from LLM reviewers drift. Treat inferred lines as approximate and keep dedup noise-tolerant.
