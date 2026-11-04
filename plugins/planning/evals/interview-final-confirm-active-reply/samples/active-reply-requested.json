@@ -11,7 +11,7 @@
       "why": "yes/no check"
     },
     {
-      "answer": "Contract: export the filtered orders as CSV with UTC timestamps. Writing the Brief now.",
+      "answer": "Summary: export the filtered orders as CSV with UTC timestamps. Writing the Brief now.",
       "why": "asks for no confirmation"
     }
   ]

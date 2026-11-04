@@ -163,6 +163,13 @@ ALLOWLIST = [
         "The Brief cites docs/contracts/loop-lane.",
     ),
     phrase("contract-brief", r"\binterface contracts?\b", "The Brief names an interface contract."),
+    phrase(
+        "contract-brief",
+        r"\b(pr|api|feed|payload|behavioral|presentation|execution|detection)[- ]contracts?\b",
+        "The dispatch brief carries the PR contract forward.",
+    ),
+    phrase("contract-brief", r"\bname[- ]by[- ]contract\b", "The brief follows the name-by-contract rule."),
+    phrase("contract-brief", r"\bcontract case\b", "Contract case for the hand-off once the Brief is locked."),
 ]
 
 
