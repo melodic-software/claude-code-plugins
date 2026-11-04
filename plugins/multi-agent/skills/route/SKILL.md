@@ -1,5 +1,5 @@
 ---
-description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and overlay config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing' or 'is fan-out on Fable', or before a skill launches a workflow that takes args.roles."
+description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and personal override config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing' or 'is fan-out on Fable', or before a skill launches a workflow that takes args.roles."
 argument-hint: "<role|all> [workload] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: false
@@ -117,5 +117,5 @@ Rechecks a default that looks wrong for the current models.
   worker on `sonnet`; `code` keeps the role's model, and any other workload key
   comes from a config layer. A caller that wants the session model for
   mechanical work sets `roles.worker.workloads.mechanical.model: inherit`.
-- Team and overlay layers resolve against the repository root of the working
+- Team and personal override layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.

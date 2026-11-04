@@ -15,7 +15,7 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 |---|---|---|---|
 | 1 | user-global | `~/.claude/bugs.md` | outside the worktree, so no git verdict applies |
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.yaml` for the keys; `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.md` for prose and `## Gotchas` | must be tracked, the only layer teammates receive |
-| 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md` | must be gitignored, never staged |
+| 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md` | must be gitignored, never staged |
 
 The team files sit in `docs/conventions/` whatever convention home the repository binds; a
 repository that binds another home still keeps them there.
@@ -27,7 +27,7 @@ name the layer, resolve as if that layer were absent. Unknown keys are inert. Wh
 config is surfaced to a human, report which layer supplied each value. `/bugs:scan` and `/bugs:write`
 also concatenate each layer's `## Gotchas` section (see below) via
 `scripts/concat-gotchas.sh`, which applies the special-root rule: a root that is home (or an
-ancestor of it) or outside a git work tree has no team or overlay layer.
+ancestor of it) or outside a git work tree has no team layer or personal override.
 
 ## Merge semantics
 
@@ -56,7 +56,7 @@ them. It is therefore not a recognized key, and a layer that sets it is reported
 ## File format
 
 The team keys are plain YAML in `docs/conventions/bugs.yaml`, checked against the schema; the
-team prose sits beside it in `docs/conventions/bugs.md`. The user-global and local-overlay layers
+team prose sits beside it in `docs/conventions/bugs.md`. The user-global and personal override layers
 are Markdown with a fenced YAML block holding the same keys; prose outside the block is the
 consumer's own commentary, except a `## Gotchas` section.
 
@@ -102,7 +102,7 @@ one entry were absent. Do not discard the whole layer.
 
 ## Consumer `.gitignore`
 
-One recursive line covers the overlay here and every other cascade surface:
+One recursive line covers the personal override here and every other cascade surface:
 
 ```gitignore
 .claude/**/*.local.*

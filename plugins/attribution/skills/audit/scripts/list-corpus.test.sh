@@ -192,17 +192,17 @@ assert_contains "legacy returns once the config no longer excludes it" \
   "$(echo "$FIX_OUT" | jq -r '.files[]')" "legacy/old.md"
 
 printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.local.json"
-OVERLAY_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
-assert_not_contains "the local overlay's exclusion applies" \
-  "$(echo "$OVERLAY_OUT" | jq -r '.files[]')" "docs/guide.md"
-assert_contains "the overlay replaces the team value per key" \
-  "$(echo "$OVERLAY_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
+OVERRIDE_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
+assert_not_contains "the personal override's exclusion applies" \
+  "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "docs/guide.md"
+assert_contains "the personal override replaces the team value per key" \
+  "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
 # Per-key override means a later layer REPLACES the value, and an explicit empty
 # array is a value.
 printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.json"
 printf '%s\n' '{"excluded_paths":[]}' >"$CFG_DIR/attribution.local.json"
 CLEAR_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
-assert_contains "an explicit empty overlay clears an inherited exclusion" \
+assert_contains "an explicit empty personal override clears an inherited exclusion" \
   "$(echo "$CLEAR_OUT" | jq -r '.files[]')" "docs/guide.md"
 assert_eq "clearing leaves only the built-in carve-outs declined" \
   "$(echo "$CLEAR_OUT" | jq -r '[.declined[] | select(.reason | test("excluded_paths"))] | length')" "0"
@@ -226,7 +226,7 @@ assert_not_contains "--show-config does not list the shadowed JSON layer" \
   "$YAML_SC" "$CFG_DIR/attribution.json"
 printf '%s\n' 'excluded_paths: []' >"$CONV/attribution.local.yaml"
 YAML_CLEAR="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
-assert_contains "an empty YAML overlay list clears the team exclusion" \
+assert_contains "an empty YAML personal override list clears the team exclusion" \
   "$(echo "$YAML_CLEAR" | jq -r '.files[]')" "legacy/old.md"
 rm -rf "$CONV"
 rm -f "$CFG_DIR/attribution.json"

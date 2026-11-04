@@ -113,7 +113,7 @@ pass). Come from the consuming repo's tracked config, resolved additively across
 
 1. `~/.claude/codebase-health.md` (user-global, optional)
 2. `.claude/codebase-health.md` (team, tracked)
-3. `.claude/codebase-health.local.md` (personal overlay, gitignored)
+3. `.claude/codebase-health.local.md` (personal override, gitignored)
 
 The four bundled dimensions are `documentation`, `configuration`, `code-quality`, and
 `architecture`; the config may tune their globs, remove a dimension, or add custom ones.
@@ -122,7 +122,7 @@ The four bundled dimensions are `documentation`, `configuration`, `code-quality`
 later layer's `primary-sources` and `verification-sources` globs UNION with the earlier layer's (not
 replace), and `example-claims` concatenate with duplicate `claim` text collapsed. A layer removes an
 inherited dimension by declaring it with empty source lists (an explicit opt-out), never by silent
-omission. This keeps a personal overlay purely additive to team config unless it deliberately zeroes a
+omission. This keeps a personal override purely additive to team config unless it deliberately zeroes a
 dimension out.
 
 Settle targets by this ladder:

@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the improvement plugin for this repository. check (default) inspects the .claude/improvement.md config cascade read-only across all three layers, user-global, team, local overlay, and reports the effective evidence-source configuration: which layers exist, what churn window and exclusion patterns resolve, and which Tier 2 MCP telemetry sources are declared. apply interviews the user and writes the team file. Zero config is a valid state. Tier 0 evidence needs nothing configured. Use when: 'set up improvement', 'configure improvement', 'is improvement configured', 'improvement setup', 'declare a telemetry source for the improvement finder', 'tune churn exclusions', or /improvement:find reports Tier 2 as an evidence gap to close. Re-runnable. Safe to invoke again to reconfigure."
+description: "Verify and configure the improvement plugin for this repository. check (default) inspects the .claude/improvement.md config cascade read-only across all three layers, user-global, team, personal override, and reports the effective evidence-source configuration: which layers exist, what churn window and exclusion patterns resolve, and which Tier 2 MCP telemetry sources are declared. apply interviews the user and writes the team file. Zero config is a valid state. Tier 0 evidence needs nothing configured. Use when: 'set up improvement', 'configure improvement', 'is improvement configured', 'improvement setup', 'declare a telemetry source for the improvement finder', 'tune churn exclusions', or /improvement:find reports Tier 2 as an evidence gap to close. Re-runnable. Safe to invoke again to reconfigure."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -25,11 +25,11 @@ then the interview-and-write flow. Any other argument is an error naming these t
 ## The config cascade
 
 Three layers, resolved user-global (`~/.claude/improvement.md`) → team
-(`.claude/improvement.md`, tracked) → local overlay (`.claude/improvement.local.md`,
+(`.claude/improvement.md`, tracked) → personal override (`.claude/improvement.local.md`,
 gitignored), merged per the semantics declared in
 `${CLAUDE_PLUGIN_ROOT}/reference/config.md`: per-key override for scalars, union for
 `churn_exclude`, per-source-name merge for `evidence_sources` with an empty-body opt-out. This
-skill writes only the **team** file; changes to the user-global layer or the overlay are the
+skill writes only the **team** file; changes to the user-global layer or the personal override are the
 user's to make. Anchor every repo-relative read at the repo root (`${CLAUDE_PROJECT_DIR}` when
 set, otherwise `git rev-parse --show-toplevel`), never at the CWD.
 
@@ -58,10 +58,10 @@ per FAIL. Modify nothing, and do NOT run a scan. That is `/improvement:find`.
    `git ls-files --error-unmatch .claude/improvement.md` (non-zero exit is FAIL: the file is
    present but untracked, the state immediately after `apply` writes it, so teammates will not
    receive it until it is committed; report "untracked, commit it" and, if it is staged but
-   uncommitted, say that instead via `git diff --cached --name-only`). The `.local.md` overlay is
-   expected to be gitignored, an overlay that is tracked or staged is FAIL (a personal deviation
-   can reach team history); an ignored overlay is INFO.
-5. **Overlay divergence.** INFO: when the overlay or user-global layer changes the team file's
+   uncommitted, say that instead via `git diff --cached --name-only`). The `.local.md` personal override is
+   expected to be gitignored, a personal override that is tracked or staged is FAIL (a personal deviation
+   can reach team history); an ignored personal override is INFO.
+5. **Other-layer divergence.** INFO: when the personal override or user-global layer changes the team file's
    effect (a different window, extra exclusions, an added or opted-out source), say so
    explicitly, since `apply` writes only the team file.
 
@@ -94,7 +94,7 @@ user.
    `.gitignore` fix) AND `git ls-files --error-unmatch .claude/improvement.md` (non-zero exit
    means the file is un-ignored but still untracked, the guaranteed state right after this
    step writes it, so report "written but untracked: commit it to share with the team", never
-   success). Then offer the overlay
+   success). Then offer the personal override
    convention: personal overrides go in `.claude/improvement.local.md`; recommend the consumer
    add the recursive `.claude/**/*.local.*` line to `.gitignore` if not already covered. But
    never edit their `.gitignore` yourself.
@@ -112,7 +112,7 @@ one paragraph on what was written and how to re-run this setup to reconfigure.
 - Run an improvement scan. That is `/improvement:find`; `check` only inspects config.
 - Install or configure MCP servers. It declares which configured server carries telemetry;
   provisioning the server is the consumer's own MCP setup.
-- Write the user-global layer, the `.local.md` overlay, or the consumer's `.gitignore`. Team
+- Write the user-global layer, the `.local.md` personal override, or the consumer's `.gitignore`. Team
   file only; everything else is recommended, not written.
 - Write machine-local state. Configuration lives in the consumer's tracked file, never in the
   plugin directory or the plugin data directory.
@@ -125,7 +125,7 @@ one paragraph on what was written and how to re-run this setup to reconfigure.
   nonexistent `<subdir>/.claude/improvement.md` and silently reports an absent config. Anchor
   at the root in every self-contained shell call.
 - **The team file is the only thing `apply` writes.** An effective value contributed by the
-  overlay or user-global layer cannot be changed here; say which layer owns it instead of
+  personal override or user-global layer cannot be changed here; say which layer owns it instead of
   writing a team value that the higher layer will keep overriding.
 - **No git verdict on the user-global layer.** `git check-ignore` against a path outside the
   worktree is meaningless (or confidently wrong when the home directory is itself a repo); the tracked/ignored probes apply to the two in-repo layers only.

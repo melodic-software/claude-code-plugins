@@ -9,7 +9,7 @@ whole):
   0. bundled defaults           scripts/config-defaults.json
   1. user-global                ~/.claude/code-metrics.yaml
   2. team                       <repo>/docs/conventions/code-metrics.yaml
-  3. local overlay              <repo>/.claude/code-metrics.local.yaml
+  3. personal override          <repo>/.claude/code-metrics.local.yaml
 
 The team file earlier releases read from the repository's .claude directory
 is not read; /code-metrics:setup check reports it and apply moves its keys.
@@ -198,16 +198,16 @@ def _reset(
 
 
 def merge(
-    base: Any, overlay: Any, layer: str, prefix: str, layers: dict[str, str]
+    base: Any, override: Any, layer: str, prefix: str, layers: dict[str, str]
 ) -> Any:
-    if isinstance(base, dict) and isinstance(overlay, dict):
+    if isinstance(base, dict) and isinstance(override, dict):
         result = dict(base)
-        for key, value in overlay.items():
+        for key, value in override.items():
             dotted = f"{prefix}.{key}" if prefix else key
             result[key] = merge(base.get(key), value, layer, dotted, layers)
         return result
     layers[prefix] = layer
-    return overlay
+    return override
 
 
 def _walk(node: Any, prefix: str, out: dict[str, Any]) -> None:
@@ -273,15 +273,15 @@ def resolve(
     for layer, path in layer_files:
         if not os.path.isfile(path):
             continue
-        overlay = _load_layer(path, warnings)
-        if overlay is None:
+        override = _load_layer(path, warnings)
+        if override is None:
             continue
-        for key in overlay:
+        for key in override:
             if _reserved(key):
                 warnings.append(f"{path}: key {key!r} is reserved and ignored")
-        overlay = {k: v for k, v in overlay.items() if not _reserved(k)}
+        override = {k: v for k, v in override.items() if not _reserved(k)}
         leaves: dict[str, Any] = {}
-        _walk(overlay, "", leaves)
+        _walk(override, "", leaves)
         for key, value in leaves.items():
             reason = _invalid(key, value, defaults, threshold_keys)
             if reason is None:
@@ -291,9 +291,9 @@ def resolve(
                 "dropped and the key resolves from a higher layer or the bundled default"
             )
             parts = key.split(".")
-            _drop(overlay, parts)
+            _drop(override, parts)
             _reset(config, defaults, parts, layers)
-        config = merge(config, overlay, layer, "", layers)
+        config = merge(config, override, layer, "", layers)
         files_read.append(path.replace("\\", "/"))
     if ladder_path:
         known: set[tuple[str, str, str]] = set()
@@ -333,10 +333,10 @@ def resolve(
         for layer, path in files:
             if not os.path.isfile(path):
                 continue
-            overlay = _load_layer(path, warnings)
-            if overlay is None:
+            override = _load_layer(path, warnings)
+            if override is None:
                 continue
-            eco = merge(eco, overlay, layer, "", eco_layers)
+            eco = merge(eco, override, layer, "", eco_layers)
             files_read.append(path.replace("\\", "/"))
         if not eco:
             continue

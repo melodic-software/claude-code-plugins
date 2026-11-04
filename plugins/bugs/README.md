@@ -117,20 +117,20 @@ where its value is stored).
 **Team, the tracked `docs/conventions/bugs.yaml`**, which `/bugs:scan` reads for its lanes
 (`lanes`) and its filing policy (`filing_posture`), checked against
 [`schemas/bugs.schema.json`](schemas/bugs.schema.json). A `## Gotchas` section in the prose file
-beside it, `docs/conventions/bugs.md` (and in the user-global and local overlay layers),
+beside it, `docs/conventions/bugs.md` (and in the user-global and personal override layers),
 concatenates after the bundled gotchas when
 `/bugs:scan` or `/bugs:write` loads. Repo-specific lines stay in the layer; a line that is not
 repo-specific is filed as an issue on this marketplace (`melodic-software/claude-code-plugins`) for
 curation into the shipped skill. The config is layered per the marketplace's
-config-cascade convention, a user-global file, this tracked team file, and a gitignored local
-overlay. All layers are optional: with no config at all, `scan` rotates over bundled generic
+config-cascade convention, a user-global file, this tracked team file, and a gitignored personal
+override. All layers are optional: with no config at all, `scan` rotates over bundled generic
 default lanes. Keys, defaults, layer order, and per-key merge semantics live in
 [`reference/config.md`](reference/config.md), their single home.
 
 Run `/bugs:setup` to work on either surface. `check` (the default) reports both read-only:
 the rendered `output_dir` and which layer supplied each lane config value. `apply` writes the
 tracked file and nothing else. It drafts lane candidates from your repository, confirms them one
-at a time, and never touches settings, `pluginConfigs`, the local overlay, or your `.gitignore`.
+at a time, and never touches settings, `pluginConfigs`, the personal override, or your `.gitignore`.
 
 Project-specific conventions, naming, areas, tracker choice, priority labels, are
 read from the **consuming project's own `CLAUDE.md` / rules**; the plugin imposes

@@ -4,7 +4,7 @@ The review plugin's keys, one row each, with the skill that reads each one. A ke
 user through the plugin's `userConfig` option of the same name and per repository in
 `docs/conventions/review.yaml`, validated by
 [`schemas/review.schema.json`](../schemas/review.schema.json). No `~/.claude` file, `.claude/`
-file or local overlay sets these keys. `/review:setup apply` writes the repository file.
+file or personal override sets these keys. `/review:setup apply` writes the repository file.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|

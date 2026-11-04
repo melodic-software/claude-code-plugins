@@ -62,7 +62,7 @@ repo's tracked config, resolved additively across three layers:
 
 1. `~/.claude/codebase-health.md`. User-global base (optional)
 2. `.claude/codebase-health.md`. Team config (tracked)
-3. `.claude/codebase-health.local.md`. Personal overlay (gitignored)
+3. `.claude/codebase-health.local.md`. Personal override (gitignored)
 
 Each dimension declares `primary-sources` (globs where claims live), `verification-sources` (globs
 where claims are checked against ground truth), and `example-claims` (concrete `{ claim, verify-via }`
@@ -79,7 +79,7 @@ hardcodes a repo's layout.
 /codebase-health:setup apply   # interview + write .claude/codebase-health.md (re-runnable)
 ```
 
-Add the recursive `.claude/**/*.local.*` line to your `.gitignore` so personal overlays stay out of version control while
+Add the recursive `.claude/**/*.local.*` line to your `.gitignore` so personal overrides stay out of version control while
 team config stays tracked.
 
 ## Consumer conventions

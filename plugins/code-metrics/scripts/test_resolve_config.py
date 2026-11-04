@@ -65,7 +65,7 @@ class PositionalLayerTests(unittest.TestCase):
         )
         self.assertIn("thresholds", d)
 
-    def test_local_overlay_overrides_per_key(self) -> None:
+    def test_personal_override_overrides_per_key(self) -> None:
         d = json.loads(run(USER, TEAM, LOCAL).stdout)
         self.assertEqual(d["scope"]["exclude"], ["vendor/**"])
         self.assertEqual(d["complexity"]["cyclomatic"]["reference"], 15)

@@ -106,19 +106,19 @@ function baseReader(root, baseOid, warnings) {
   return { ref: baseOid, root, read: (rel) => gitOut(root, ["show", `${baseOid}:${rel}`]) };
 }
 
-/** Team and overlay apply only inside a working tree that is not home or above it. */
-function layerPaths(root, userFile, teamFiles, overlayFile) {
+/** Team and personal override apply only inside a working tree that is not home or above it. */
+function layerPaths(root, userFile, teamFiles, personalOverrideFile) {
   const home = real(homedir());
   const user = join(home, ".claude", userFile);
   if (!root || within(home, real(root)) || !git(root, ["rev-parse", "--is-inside-work-tree"])) {
-    return { user, root: null, team: [], overlay: null };
+    return { user, root: null, team: [], personalOverride: null };
   }
   const notUser = (p) => real(p) !== real(user);
   return {
     user,
     root,
     team: teamFiles.filter((f) => notUser(join(root, f))),
-    overlay: notUser(join(root, overlayFile)) ? join(root, overlayFile) : null,
+    personalOverride: notUser(join(root, personalOverrideFile)) ? join(root, personalOverrideFile) : null,
   };
 }
 
@@ -262,9 +262,9 @@ export function resolveDigestConfig(baseOid) {
       const team = readTeamDigest(base, TEAM_YAML, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
       if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
     }
-    if (paths.overlay && existsSync(paths.overlay) && personalOverrideApplies(paths.root, paths.overlay, warnings)) {
-      const value = readJsonLayer(paths.overlay, "overlay", warnings);
-      if (value) layers.push({ label: "overlay", path: paths.overlay, value });
+    if (paths.personalOverride && existsSync(paths.personalOverride) && personalOverrideApplies(paths.root, paths.personalOverride, warnings)) {
+      const value = readJsonLayer(paths.personalOverride, "personal-override", warnings);
+      if (value) layers.push({ label: "personal-override", path: paths.personalOverride, value });
     }
   }
   for (const layer of layers) {
