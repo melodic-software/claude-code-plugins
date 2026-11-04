@@ -513,6 +513,38 @@
       "reason": "Manual inspection only; no workflow reads it after the run. A person reads a dispatched eval's results soon after starting it, and 3 days covers a weekend.",
       "scan": "upload"
     },
+    "eval-hill-climb-pass-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-hill-climb.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "eval-hill-climb-proposal-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-hill-climb.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "eval-hill-climb-edit-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-hill-climb-pass.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "eval-hill-climb-win-*": {
+      "retention-days": 3,
+      "readers": [
+        ".github/workflows/eval-hill-climb.yml a person reading a winning edit and its with-versus-without results"
+      ],
+      "reason": "Manual inspection only; no workflow reads it after the run. A person opens a winning edit soon after the run, and 3 days covers a weekend.",
+      "scan": "upload"
+    },
     "tidy-code-upkeep-sweeps": {
       "retention-days": "max",
       "max-reader": ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs",

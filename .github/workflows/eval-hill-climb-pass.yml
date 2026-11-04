@@ -1,0 +1,325 @@
+name: eval-hill-climb-pass
+
+# One measuring pass of eval-hill-climb.yml: `claude plugin eval` on one
+# plugin's deterministic-only suite (deterministic-suite.mjs), filtered to one
+# skill's cases, 3 runs per case per arm under --max-cost-usd 5, on a fresh
+# runner. Pass a and a2 run the skill as merged; pass b first applies the edit
+# eval-hill-climb.yml's scan job approved, verified by its SHA-256.
+#
+# Every pass runs the same way, so the a/a pair measures the noise pass b
+# faces. Pass b runs model-written skill text beside the eval credential, so
+# every pass takes eval-browser-dispatch.yml's pull request posture: a
+# root-owned managed policy denies the eval's reads of process and runner
+# state, a probe proves it before any case runs, env scrub stays on, and no
+# tool is granted beyond the read-only set. Console output, which can carry
+# model text, goes to a file that nothing uploads.
+#
+# The pass uploads its result, summarize.mjs's summary (with its health lines,
+# read from the kept traces) and run-validity.py's verdict, after a credential
+# scan, under a manifest whose SHA-256 is this workflow's output. Pass a also
+# uploads the with-arm traces of each case that scored below 1, for the model
+# step. Lane hardening follows ADR 0049
+# (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
+# the job token can only read, the kill switch is read first, and no write
+# token exists.
+
+on:
+  workflow_call:
+    inputs:
+      plugin:
+        description: Plugin directory name, such as testing.
+        required: true
+        type: string
+      tags:
+        description: Space-separated --tag values; empty passes none.
+        required: false
+        type: string
+        default: ""
+      case:
+        description: Optional --case name glob.
+        required: false
+        type: string
+        default: ""
+      pass:
+        description: a, a2 or b.
+        required: true
+        type: string
+      base-sha:
+        description: The default branch commit every pass measures.
+        required: true
+        type: string
+      edit-artifact-id:
+        description: Pass b only, the scan job's edit artifact.
+        required: false
+        type: string
+        default: ""
+      edit-sha256:
+        description: Pass b only, the SHA-256 the scan job recorded for edit.patch.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN:
+        description: The maintenance role's subscription token.
+        required: true
+    outputs:
+      artifact-id:
+        description: The pass artifact's id.
+        value: ${{ jobs.pass.outputs.artifact-id }}
+      manifest-sha256:
+        description: SHA-256 of the artifact's manifest.sha256.
+        value: ${{ jobs.pass.outputs.manifest-sha256 }}
+
+permissions: {}
+
+jobs:
+  pass:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    cache-mode: read
+    permissions:
+      contents: read # check out the default branch; nothing in this job writes
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
+    env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Stop when the kill switch is on
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          exit 1
+
+      # Only whether the secret is set leaves this step, never its value.
+      - name: Check the credential
+        env:
+          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            echo "::error::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty, so no case runs"
+            exit 1
+          fi
+
+      - name: Download the edit
+        if: inputs.pass == 'b'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ inputs.edit-artifact-id }}
+          path: ${{ runner.temp }}/edit
+
+      # The patch the scan job checked, byte for byte, applied with git's own
+      # path checks; nothing else of the artifact is read.
+      - name: Apply the edit
+        if: inputs.pass == 'b'
+        env:
+          PATCH: ${{ runner.temp }}/edit/edit.patch
+          WANT: ${{ inputs.edit-sha256 }}
+        run: |
+          if [ -L "$PATCH" ] || [ ! -f "$PATCH" ]; then
+            echo "::error::the edit artifact holds no edit.patch"
+            exit 1
+          fi
+          sum=$(sha256sum <"$PATCH")
+          if ! [[ $WANT =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$WANT" ]; then
+            echo "::error::edit.patch does not match the SHA-256 the scan job recorded"
+            exit 1
+          fi
+          git -C .base apply --check "$PATCH"
+          git -C .base apply "$PATCH"
+
+      # validate-cases.py makes no model call; the suite is then copied without
+      # its judged cases.
+      - name: Stage the suite
+        env:
+          DIR: .base/plugins/${{ inputs.plugin }}
+        run: |
+          eval_dir=$(jq -r '.experimental.evals // "evals"' "$DIR/.claude-plugin/plugin.json" 2>/dev/null || echo evals)
+          python3 .base/plugins/evals/skills/validate/scripts/validate-cases.py "$DIR/$eval_dir"
+          split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$DIR" evals-deterministic)
+          echo "$split"
+          if [ "$(jq '.kept | length' <<<"$split")" -eq 0 ]; then
+            echo "::error::the suite has no case with deterministic graders only"
+            exit 1
+          fi
+
+      - name: Create the tool directories
+        run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
+
+      # eval-browser-dispatch.yml's pull request policy, for the same reason:
+      # the eval's Read, Glob and Grep run without the Bash sandbox, and pass b
+      # runs model-written skill text.
+      - name: Deny the eval's reads of process and runner state
+        id: deny
+        run: |
+          runner_root="" pid=$$
+          while [ "${pid:-0}" -gt 1 ]; do
+            exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
+            case "$exe" in */bin/Runner.Worker) runner_root=${exe%/bin/Runner.Worker}; break ;; esac
+            pid=$(awk '/^PPid:/ {print $2}' "/proc/$pid/status" 2>/dev/null)
+          done
+          if [ -z "$runner_root" ]; then
+            echo "::error::no Runner.Worker process above this step, so the runner's directory cannot be denied"
+            exit 1
+          fi
+          work=$(dirname "$RUNNER_WORKSPACE")
+          policy=$(mktemp)
+          jq -n --arg runner "Read(/$runner_root/**)" --arg temp "Read(/$work/_temp/**)" --arg actions "Read(/$work/_actions/**)" \
+            '{permissions: {deny: [
+            "Read(//proc/**)",
+            "Read(//sys/**)",
+            "Read(//etc/claude-code/**)",
+            $runner,
+            "Read(//home/runner/runners/**)",
+            "Read(//home/runner/actions-runner/**)",
+            $temp,
+            $actions,
+            "Read(//home/runner/.config/**)",
+            "Read(//home/runner/.ssh/**)",
+            "Read(//home/runner/.docker/**)",
+            "Read(~/.claude/**)",
+            "Read(~/.claude.json)"
+          ]}}' >"$policy"
+          sudo install -D -m 0644 -o root -g root "$policy" /etc/claude-code/managed-settings.json
+          jq -e '.permissions.deny | index("Read(//proc/**)")' /etc/claude-code/managed-settings.json >/dev/null
+          echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
+
+      - name: Isolate the runner
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      - name: Install the locked root toolchain
+        timeout-minutes: 5
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      # eval-browser-dispatch.yml's probe: the job stops unless the result
+      # records each of the four reads as denied, or if it holds the credential.
+      - name: Probe that the policy denies those reads
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
+        run: |
+          out=$(mktemp)
+          trap 'rm -f "$out"' EXIT
+          claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
+            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format json >"$out" 2>/dev/null || true
+          if grep -qF "$CLAUDE_CODE_OAUTH_TOKEN" "$out"; then
+            echo "::error::the probe's result holds the credential, so no case runs"
+            exit 1
+          fi
+          denied() {
+            jq -e --arg t "$1" --arg p "$2" 'any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs"; exit 1; }
+          }
+          denied Read /proc/self/environ
+          denied Read "$RUNNER_ROOT/.runner"
+          denied Grep /proc/self
+          denied Glob /proc/self
+
+      # Identical flags on every pass. TMPDIR sits outside /tmp, as in
+      # eval-browser-dispatch.yml.
+      - name: Run the pass
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          DIR: .base/plugins/${{ inputs.plugin }}
+          TAGS: ${{ inputs.tags }}
+          CASE: ${{ inputs.case }}
+          OUT: ${{ runner.temp }}/pass
+        run: |
+          export TMPDIR="$HOME/.ev"
+          mkdir -p "$TMPDIR" "$OUT"
+          args=(--trust-plugin --no-publish --model claude-sonnet-5-5 --judge-model claude-opus-5-5
+            --max-cost-usd 5 --runs 3 --scaffold --keep-temp)
+          read -ra tags <<<"$TAGS"
+          for value in "${tags[@]}" "$CASE"; do
+            case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
+          done
+          if [ "${#tags[@]}" -gt 0 ]; then args+=(--tag "${tags[@]}"); fi
+          if [ -n "$CASE" ]; then args+=(--case "$CASE"); fi
+          status=0
+          claude plugin eval "$DIR" --eval-dir evals-deterministic --output-dir "$OUT/run" --json "$OUT/results.json" "${args[@]}" \
+            >"$RUNNER_TEMP/console.log" 2>&1 || status=$?
+          echo "claude plugin eval exited $status"
+
+      # The summary (health lines from the kept traces) and the validity
+      # verdict, read here because the traces stay on this runner. Pass a adds
+      # the with-arm traces of each case below 1 and an index of them.
+      - name: Read the pass
+        id: read
+        env:
+          OUT: ${{ runner.temp }}/pass
+          PLUGIN: ${{ inputs.plugin }}
+          PASS: ${{ inputs.pass }}
+          STAGE: ${{ runner.temp }}/upload
+        run: |
+          mkdir -p "$STAGE"
+          if [ ! -f "$OUT/results.json" ]; then
+            echo "::error::pass $PASS wrote no result"
+            exit 1
+          fi
+          cp "$OUT/results.json" "$STAGE/results.json"
+          node .base/.github/scripts/plugin-eval/summarize.mjs "$OUT/results.json" --plugin "$PLUGIN" >"$STAGE/summary.md" || true
+          python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$OUT/results.json" --runs 3 --scaffolded >"$STAGE/validity.txt" || true
+          tail -n 1 "$STAGE/validity.txt"
+          if [ "$PASS" = a ]; then
+            mkdir -p "$STAGE/traces"
+            jq -r '.cases[]? as $c | ($c.arms.with // []) | to_entries[]
+              | select((.value.score // 0) < 1 and (.value.tracePath // "") != "")
+              | [($c.name // $c.dir // "case"), (.key + 1 | tostring), .value.tracePath] | @tsv' "$OUT/results.json" |
+              while IFS=$'\t' read -r name run trace; do
+                [ -f "$trace" ] && [ ! -L "$trace" ] || continue
+                file="$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_')-$run.jsonl"
+                head -c 4194304 "$trace" >"$STAGE/traces/$file"
+                printf '%s\t%s\t%s\n' "$name" "$run" "traces/$file" >>"$STAGE/traces/index.tsv"
+              done
+          fi
+          sums=$(cd "$STAGE" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
+          printf '%s\n' "$sums" >"$STAGE/manifest.sha256"
+          sum=$(sha256sum <"$STAGE/manifest.sha256")
+          echo "manifest-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+
+      - name: Scan the upload for credentials
+        id: scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/upload/
+
+      - name: Upload the pass
+        id: upload
+        if: steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: eval-hill-climb-pass-${{ inputs.pass }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/upload/
+          retention-days: 1
+          if-no-files-found: error

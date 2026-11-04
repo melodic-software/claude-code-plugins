@@ -395,6 +395,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["docs/review/**", "gate"],
   [".github/workflows/dependabot-fragments.yml", "gate"],
   [".github/workflows/eval-browser-dispatch.yml", "gate"],
+  [".github/workflows/eval-hill-climb-pass.yml", "gate"],
+  [".github/workflows/eval-hill-climb.yml", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
