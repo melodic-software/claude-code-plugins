@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "jq: FAIL. The batch hook reads the edited file paths with jq, so without it the hook does nothing; the session-start probe tells you jq is missing."},
+    {"answer": "This machine has jq, but if it did not, check would report FAIL: the hook needs jq to read which files changed, so nothing would get formatted.", "why": "notes the session differs"}
+  ],
+  "fail": [
+    {"answer": "A missing jq is only INFO; the hook still formats.", "why": "wrong grade and wrong consequence"},
+    {"answer": "jq: FAIL.", "why": "near miss: no consequence"}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "There is no poetry.toml and virtualenvs.in-project is not set, so Poetry would create its environment under its cache directory, not as .venv in this repo."}
+  ],
+  "fail": [
+    {"answer": "Poetry keeps its environment in .venv at the project root, so install-ruff would put Ruff there.", "why": "assumes in-project"},
+    {"answer": "Poetry manages the environment here.", "why": "near miss: no word on where the environment lives"}
+  ]
+}

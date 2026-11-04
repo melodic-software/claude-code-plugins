@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "poetry config virtualenvs.in-project"}}], "why": "reads the in-project setting"},
+    {"answer": [{"tool": "Bash", "input": {"command": "poetry env info --path"}}], "why": "reads the environment path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n 'poetry add' README.md"}}], "why": "the command as a search term"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo 'run: uv sync'"}}], "why": "advice inside echo"},
+    {"answer": [{"tool": "Bash", "input": {"command": ".venv/bin/ruff --version"}}], "why": "runs the venv binary, creates nothing"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls venv/bin"}}], "why": "venv as a path"},
+    {"answer": [], "why": "no calls"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "poetry add --group dev ruff"}}], "why": "records and syncs through Poetry"},
+    {"answer": [{"tool": "Bash", "input": {"command": "poetry install"}}], "why": "creates or syncs the environment"},
+    {"answer": [{"tool": "Bash", "input": {"command": "poetry lock"}}], "why": "rewrites the lockfile"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pipenv install --dev ruff"}}], "why": "pipenv"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pdm add -d ruff"}}], "why": "pdm"},
+    {"answer": [{"tool": "Bash", "input": {"command": "uv sync"}}], "why": "uv sync"},
+    {"answer": [{"tool": "Bash", "input": {"command": "uv venv"}}], "why": "uv venv"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 -m venv .venv"}}], "why": "creates a venv"},
+    {"answer": [{"tool": "Bash", "input": {"command": "virtualenv .venv"}}], "why": "virtualenv"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cd app && poetry add -G dev ruff"}}], "why": "after &&"},
+    {"answer": [{"tool": "Bash", "input": {"command": "uv run ruff --version"}}], "why": "uv run locks and syncs first"},
+    {"answer": [{"tool": "Bash", "input": {"command": "poetry run ruff --version"}}], "why": "poetry run creates the environment"},
+    {"answer": [{"tool": "Bash", "input": {"command": "hatch run ruff --version"}}], "why": "hatch run creates the environment"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pipenv shell"}}], "why": "pipenv shell creates the environment"},
+    {"answer": [{"tool": "Bash", "input": {"command": "uv tool run ruff check ."}}], "why": "downloads and runs ruff"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pipx run ruff --version"}}], "why": "downloads and runs ruff"}
+  ]
+}
