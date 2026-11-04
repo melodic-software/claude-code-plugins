@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call: the 502 decides"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-9999999999999999999-u9.md"}}],
+      "why": "opens the spool of a non-200"
+    }
+  ]
+}

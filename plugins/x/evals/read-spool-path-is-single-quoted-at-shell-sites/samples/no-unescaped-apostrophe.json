@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H \"Content-Type: application/json\" -H \"Accept: text/markdown\" -d '{\"url\":\"https://x.com/fernquill/status/1593572468\"}' -o '/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572468-f3.md' -w '%{http_code}'"}},
+        {"tool": "Bash", "input": {"command": "rm -f '/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572468-f3.md' && rmdir '/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw'"}}
+      ],
+      "why": "the skill's single-quoted form at both sites"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rmdir '/work/.tmp/kai'\"'\"'dev$user`date`/tmp.k3Qx9aZbTw'"}}],
+      "why": "the '\"'\"' form of the apostrophe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fernquill/status/1593572468\"}' -o \"/work/.tmp/kai'dev$user`date`/tmp.k3Qx9aZbTw/x-1593572468-f3.md\" -w '%{http_code}'"}}],
+      "why": "double-quoted: $user and the backtick expand"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm -f /work/.tmp/kai'dev$user`date`/tmp.k3Qx9aZbTw/x-1593572468-f3.md"}}],
+      "why": "bare path at the delete"
+    }
+  ]
+}

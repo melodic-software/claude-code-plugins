@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Returns the full note tweet from step 1 alone, without escalating to Thread Reader App merely because the post is long.",
+      "answer": "Returns the full note tweet from step 1 alone, including the rainwater butts and the compost bays, without escalating to Thread Reader App merely because the post is long or flagged isNoteTweet: the saved Thread Reader App page is never opened and Thread Reader App is never fetched.",
       "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
     }
   ]

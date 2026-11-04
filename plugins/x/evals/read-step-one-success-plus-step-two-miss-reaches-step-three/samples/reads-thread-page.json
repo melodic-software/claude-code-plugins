@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/work/notes/x-4444444444444444444-t9.json"}},
+        {"tool": "Read", "input": {"file_path": "/work/notes/threadreader-4444444444444444444.html"}}
+      ],
+      "why": "step 1 then step 2"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-4444444444444444444-t9.json"}}],
+      "why": "never checks step 2"
+    }
+  ]
+}
