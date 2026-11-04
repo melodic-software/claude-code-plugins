@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-handle-less-i-web-status-link-is-accepted'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'

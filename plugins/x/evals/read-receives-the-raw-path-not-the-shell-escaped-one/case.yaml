@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-receives-the-raw-path-not-the-shell-escaped-one'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'

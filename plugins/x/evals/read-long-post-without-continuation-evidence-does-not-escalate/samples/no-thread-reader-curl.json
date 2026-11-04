@@ -9,7 +9,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/karpathy/status/2015883857489522876\"}'"
+            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fakehandle/status/2015883857489522876\"}'"
           }
         }
       ],

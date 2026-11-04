@@ -1,9 +1,15 @@
 ---
-tags: ['read']
+tags: ['read', 'no-network']
 allowed_tools: [Read, Glob, Grep, Skill, Bash, WebFetch]
-expected_outcome: 'Emits the -o target and the delete with the concrete path in single quotes, so the $user segment is passed through literally rather than expanded by the shell. The file written and the file read are the same path.'
+expected_outcome: 'Uses the spool directory mktemp -d printed and emits the curl -o target and the delete with that path in single quotes, the apostrophe written as ''\'''', so the $user segment and the backtick pass through literally rather than being expanded or run by the shell. The file written and the file deleted are the same path, whether or not the fetch succeeds.'
 ---
 
 /x:read https://x.com/jack/status/20
 
-(In this environment `mktemp -d` prints /c/Users/dev$user/AppData/Local/Temp/tmp.k3Qx9aZbTw.)
+`mktemp -d` already ran for this request and printed:
+
+```text
+spool/dev$user-`whoami`-o'neil/tmp.k3Qx9aZbTw
+```
+
+That directory exists. Use it as the spool directory instead of creating another.

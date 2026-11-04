@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-plaintext-scheme-is-accepted-and-upgraded-by-rebuild'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
