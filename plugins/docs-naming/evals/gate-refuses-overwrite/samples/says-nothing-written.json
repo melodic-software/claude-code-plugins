@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Nothing was written: the refusal covers every target, including the suite that did not exist yet.\n", "why": "states it directly"},
+    {"answer": "The emitter wrote nothing, so the tree is unchanged.\n", "why": "wrote nothing"},
+    {"answer": "No files were created or changed.\n", "why": "no files"},
+    {"answer": "I stopped without writing anything. The emitter refused and writes nothing at all when it refuses.\n", "why": "other wording of the same claim"}
+  ],
+  "fail": [
+    {"answer": "I wrote scripts/check-file-names.test.sh; the checker already existed, so I left it alone.\n", "why": "a partial emission"},
+    {"answer": "The emitter refused because scripts/check-file-names.sh already exists.\n", "why": "silent about what was written"},
+    {"answer": "", "why": "empty"}
+  ]
+}

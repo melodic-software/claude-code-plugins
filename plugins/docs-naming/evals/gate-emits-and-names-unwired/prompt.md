@@ -1,0 +1,1 @@
+With the docs-naming:generate-file-name-gate skill, generate the file-name gate for this repository so CI can enforce our doc naming rule. The naming config is already in docs/conventions/. No one is around to answer questions while this runs, so go with the defaults and tell me what you did and what is left for me.
