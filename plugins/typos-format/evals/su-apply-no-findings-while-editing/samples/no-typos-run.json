@@ -1,0 +1,208 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v typos"
+          }
+        }
+      ],
+      "why": "a presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "typos --version"
+          }
+        }
+      ],
+      "why": "a version read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v typos && typos --version"
+          }
+        }
+      ],
+      "why": "a version read after a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "typos -V 2>&1"
+          }
+        }
+      ],
+      "why": "short version flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"command -v typos\" git-hooks/typos-check.sh"
+          }
+        }
+      ],
+      "why": "the tool as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat config/default-typos.toml"
+          }
+        }
+      ],
+      "why": "reads the bundled config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat git-hooks/typos-check.sh"
+          }
+        }
+      ],
+      "why": "reads the script, as setup SKILL.md line 65 tells it to"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n git-hooks/typos-check.sh"
+          }
+        }
+      ],
+      "why": "syntax check, nothing runs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find . -name _typos.toml -o -name .typos.toml -o -name typos.toml"
+          }
+        }
+      ],
+      "why": "probes for a config"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "typos ."
+          }
+        }
+      ],
+      "why": "runs the spell-checker"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "typos notes.txt"
+          }
+        }
+      ],
+      "why": "on one file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v typos && typos notes.txt"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "typos --version && typos ."
+          }
+        }
+      ],
+      "why": "a version read does not excuse the later run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat notes.txt | typos -"
+          }
+        }
+      ],
+      "why": "in a pipeline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/local/bin/typos --format brief ."
+          }
+        }
+      ],
+      "why": "by path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find . -name '*.txt' -exec typos {} +"
+          }
+        }
+      ],
+      "why": "through -exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash git-hooks/typos-check.sh --worktree"
+          }
+        }
+      ],
+      "why": "the bundled check runs typos"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/git-hooks/typos-check.sh\""
+          }
+        }
+      ],
+      "why": "the bundled check, directly"
+    }
+  ]
+}

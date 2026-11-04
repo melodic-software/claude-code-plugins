@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "It adds no config by itself. A minimal _typos.toml is created only if you explicitly ask, since the plugin imposes no rules of its own."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It adds no config.",
+      "why": "near miss: no explicit-ask rule, no reason"
+    },
+    {
+      "answer": "It creates a minimal _typos.toml for you.",
+      "why": "writes unasked"
+    }
+  ]
+}

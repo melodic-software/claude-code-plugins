@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "typos resolves at /usr/local/bin/typos. Already configured."
+    },
+    {
+      "answer": "typos is missing: install it from https://github.com/crate-ci/typos#install.",
+      "why": "guidance for a missing tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "typos resolves at /usr/local/bin/typos. To install it again, run cargo install typos-cli.",
+      "why": "guidance for a resolved tool"
+    },
+    {
+      "answer": "All PASS. For reference, typos comes from https://github.com/crate-ci/typos#install.",
+      "why": "near miss: a link for a resolved tool"
+    }
+  ]
+}
