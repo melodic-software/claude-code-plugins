@@ -34,14 +34,19 @@ Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify no
 1. **Resolve `markdownlint-cli2`** the way `compress` does: first `command -v markdownlint-cli2`
    (on `PATH`), then `node_modules/.bin/markdownlint-cli2` under the repository root. Report which
    one resolved. FAIL when neither does.
-2. **Run it.** Execute the resolved binary with `--help`, which prints the version banner and
-   returns before it reads any configuration. Never pass `--version`: `markdownlint-cli2` has no
-   such flag, takes it as a glob, loads the repository's markdownlint config and any code it names,
-   and lints the config's `globs`, fixing files when the config sets `fix`. `--help` exits 2 on a
-   working install, so judge the output, not the exit code: PASS when the first line of stdout is
-   the banner, `markdownlint-cli2 v<version> (markdownlint v<version>)`. A shim can resolve and
-   still be broken (a missing Node interpreter, a dangling target), so resolution without the
-   banner is FAIL, with the stderr text in the remediation line.
+2. **Run it.** Execute the resolved binary with `--help` and no other argument. The probe must
+   read no markdownlint configuration and touch no file, so never pass `--version` or any argument
+   but `--help`. Judge the output, never the exit code: PASS when the first line of stdout is the
+   tool's version banner, naming `markdownlint-cli2` and its version. A shim can resolve and still
+   be broken (a missing Node interpreter, a dangling target), so resolution without the banner is
+   FAIL, with the stderr text in the remediation line.
+   - **Pointer**: when the probe's argument handling, help output or exit code is in question,
+     fetch [markdownlint-cli2: Command Line](https://github.com/DavidAnson/markdownlint-cli2#command-line)
+     and the argument parsing in
+     [`markdownlint-cli2.mjs` at v0.24.0](https://github.com/DavidAnson/markdownlint-cli2/blob/v0.24.0/markdownlint-cli2.mjs)
+     live; this decision was derived for markdownlint-cli2 v0.12.0 and later. **As of**:
+     2026-11-04. **Recheck trigger**: a markdownlint-cli2 release changes its argument parsing,
+     its help banner or the exit code of `--help`.
 3. **Repository settings.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
    project root and report each line it prints under its own INFO, PASS or WARN prefix: INFO when
    `docs/conventions/docs-hygiene.yaml` is absent; a WARN for each problem in the file (a value
