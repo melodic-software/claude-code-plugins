@@ -1,0 +1,11 @@
+---
+bump: patch
+---
+
+### Changed
+
+- The setup skill's eval suite moved from `skills/setup/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`: six `su-*` cases converted from the six legacy cases ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
+### Fixed
+
+- The setup skill's `check` now reports `desktop_notification_forward_toasts_enabled`, the fifth toggle, which it left out.

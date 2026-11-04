@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Master off mutes the whole hook; one channel off mutes only that channel."
+    },
+    {
+      "answer": "desktop_notification_enabled=false silences everything, whereas a channel toggle silences just its channel."
+    },
+    {
+      "answer": "With the master off nothing fires at all. A channel toggle removes only that one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Master off mutes the OS toast.",
+      "why": "near miss: one channel"
+    },
+    {
+      "answer": "There is no difference between them.",
+      "why": "false"
+    },
+    {
+      "answer": "Master off mutes everything.",
+      "why": "near miss: no contrast"
+    },
+    {
+      "answer": "One channel off mutes everything.",
+      "why": "near miss: reversed"
+    },
+    {
+      "answer": "Channel toggles override the master toggle.",
+      "why": "false"
+    }
+  ]
+}
