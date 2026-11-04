@@ -398,6 +398,8 @@ jobs:
       # run directory; the deny rules keep /proc, /sys, the runner's temp
       # directory and the home's credential files out of reach as well,
       # and the probe step proves them on a Read of each.
+      # Skill fence: only main's two named skills are allowed, so a skill in the
+      # head that declares hooks is refused under dontAsk, whatever discovers it.
       - name: Capture the change
         id: drive
         if: steps.prompt.outcome == 'success'
@@ -429,7 +431,8 @@ jobs:
             Agent
           allowed-tools: |
             Bash
-            Skill
+            Skill(testing:run-e2e *)
+            Skill(app-control:drive *)
             Agent
             Read(./head/**)
             Read(./capture-run/**)

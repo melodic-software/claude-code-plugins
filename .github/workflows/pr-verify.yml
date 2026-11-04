@@ -2005,6 +2005,7 @@ jobs:
           # The evidence block's capture (buildEvidence): the downloaded
           # e2e-summary.json, no-app when there is none.
           CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
@@ -3930,6 +3931,7 @@ jobs:
           # The evidence block's capture (buildEvidence): the downloaded
           # e2e-summary.json, no-app when there is none.
           CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
@@ -5551,6 +5553,7 @@ jobs:
           # The evidence block's capture (buildEvidence): the downloaded
           # e2e-summary.json, no-app when there is none.
           CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"

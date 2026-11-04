@@ -1086,7 +1086,6 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     assert.equal(input(verdict, "FINAL_LOG_FILE"), "${{ steps.judge-spec.outputs.log-file }}", job);
     assert.equal(input(verdict, "RESULTS_DIR"), "${{ github.workspace }}/pr-verify-data/chunk-results", job);
     assert.equal(input(verdict, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
-    assert.equal(input(verdict, "CONTEXT_FILE"), undefined, job);
     assert.equal(input(verdict, "FINAL_OUTCOME"), "${{ steps.judge-spec.outcome }}", job);
     // Each chunk's step outcome, so a failed step's text is never written.
     for (const block of [verdict, results]) assert.deepEqual(list(block, "JUDGE_OUTCOMES"), SLOTS.map((k) => `\${{ steps.${judgeId(k)}.outcome }}`), job);
@@ -1497,6 +1496,10 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   const allowed = list(driver, "allowed-tools");
   // No file tool is allowed whole, and every path rule names the head, the run directory or main's plugins.
   for (const rule of allowed) assert.doesNotMatch(rule, FILE_TOOL, rule);
+  // Only main's named skills: a head skill's frontmatter hooks would run beside the key.
+  assert.deepEqual(allowed.filter((rule) => rule.startsWith("Skill")), ["Skill(testing:run-e2e *)", "Skill(app-control:drive *)"]);
+  // The default settings allow managed hooks only; no override.
+  assert.doesNotMatch(capStep("Apply the Claude managed settings"), /^ {8}with:$/m);
   assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");
@@ -1534,6 +1537,7 @@ test("the three judge jobs carry identical capture steps, before the prompt, tha
     assert.ok(index("Find the capture", job) > index("Assert the gate and the resolver agree", job), job);
     assert.match(step("Write the prompt and schema", job), /^ {12}prompt=\$\{prompt\/\/CAPTURE_DIR\/\$DATA\/capture\}$/m, job);
     assert.equal(input(step("Write the verdict", job), "CAPTURE_FILE"), "${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json", job);
+    assert.equal(input(step("Write the verdict", job), "CONTEXT_FILE"), "${{ github.workspace }}/pr-verify-data/context.json", job);
     // The cross-run download needs only the jobs' existing actions: read.
     assert.match(jobIn(text, job), /^ {6}actions: read /m, job);
   }
