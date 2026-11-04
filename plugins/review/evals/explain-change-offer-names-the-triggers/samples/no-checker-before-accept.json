@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [], "why": "no calls" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": ".claude-lane/pr/facts.json" } }], "why": "read only" }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Agent", "input": { "subagent_type": "review:brief-reviewer", "prompt": "Rate the risks in pull request 77 ..." } }],
+      "why": "checker dispatched before the reader accepted"
+    }
+  ]
+}
