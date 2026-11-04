@@ -96,7 +96,7 @@ publishes on a team file's say-so: leave every settings file to it. A usage erro
 
 - **The JSON's `medium` is set**: render in that form from the table below. The resolver has already
   stepped it down to one this session can reach, and a medium that keeps the view on the machine
-  never publishes, even with the Artifact tool present. When that rung's surface is still absent
+  never publishes, even with the Artifact tool present. When that form's surface is still absent
   (no Artifact tool, no writable temp location), step down the table and say why in one line.
 - **The JSON's `medium` is `null`**: no setting decided, so the table below decides by content
   size and the surfaces present.
