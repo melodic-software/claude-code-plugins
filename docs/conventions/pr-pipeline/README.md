@@ -2988,7 +2988,10 @@ lanes finished, is left to read the reviews itself; an earlier one in progress i
 seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
 nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
-fails while the queued PR carries `pr-verify-failed`, which a pass at a new commit removes. A
+fails while the queued PR carries `pr-verify-failed`, which a `pr-verify` pass removes, at a new
+commit or at the same head: once a trusted person edits the body, and only trusted people have
+edited it since the FAIL, that head is judged again (`resolve-pr.mjs` reason `body-edited`), so a
+FAIL on the body or the issues it links needs only the body fixed, no new commit. A
 `pull_request` run does not read that label: a red ci-status there stops `pr-verify` from judging
 the next head, so the pass that removes it would never come.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.

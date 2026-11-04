@@ -350,7 +350,7 @@ const personBody = (head) =>
     "- No test covers it.",
     "```",
     "",
-    "This pull request leaves the merge queue, and ci-status holds it out while it carries `pr-verify-failed`. A pr-verify pass at a new commit removes the label.",
+    "This pull request leaves the merge queue, and ci-status holds it out while it carries `pr-verify-failed`. A pr-verify pass removes the label, at a new commit or at this same head: once a trusted person edits the body, and only trusted people have edited it since the fail, this head is judged again, so a fail on the body or the issues it links needs only the body fixed, no new commit.",
   ].join("\n");
 
 test("a fail on a PR a person opened posts one PR comment and the pr-verify-failed label, and no review thread", async () => {

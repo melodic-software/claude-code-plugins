@@ -1545,8 +1545,9 @@ export function humanGatedLabel(tracker) {
 // only a person removes it: no lane or sweep takes it off.
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 
-// The label a pr-verify fail puts on a person's pull request; a pass at a new
-// commit removes it.
+// The label a pr-verify fail puts on a person's pull request; a pass removes
+// it, at a new commit or at the same head judged again after trusted people
+// alone edited the body (resolve-pr.mjs `body-edited`).
 export const PR_VERIFY_FAILED_LABEL = "pr-verify-failed";
 
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
@@ -1563,7 +1564,7 @@ export function labelHolds(labels, tracker, number) {
     names.has("do-not-merge") && `#${number} carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.`,
     names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
     names.has(PR_VERIFY_FAILED_LABEL) &&
-      `#${number} carries '${PR_VERIFY_FAILED_LABEL}': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+      `#${number} carries '${PR_VERIFY_FAILED_LABEL}': pr-verify failed its head, and a pr-verify pass removes the label, at a new commit or at the same head: once a trusted person edits the body, and only trusted people have edited it since the fail, that head is judged again, so a fail on the body or the issues it links needs only the body fixed, no new commit. The merge queue removes it; re-queue it once the label is off.`,
     names.has(OUTSIDE_ACTOR_LABEL) &&
       `#${number} carries '${OUTSIDE_ACTOR_LABEL}': someone outside the organization wrote on it, and only a person removes the label. Re-queue it once the label is off.`,
   ].filter(Boolean);
