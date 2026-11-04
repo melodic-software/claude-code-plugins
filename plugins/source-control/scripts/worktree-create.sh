@@ -802,7 +802,7 @@ worktree_path=$(worktree_path_normalize "$worktree_path")
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
 # the helper's core purpose — see skills/worktree/SKILL.md § "The nesting
-# invariant, verified" for the measured claim, and note that a worktree dropped
+# invariant, dated measurement" for the measured claim, and note that a worktree dropped
 # inside a .git or bare directory additionally mixes the checkout into git
 # metadata, which is a separate and undisputed reason to refuse. The root
 # resolution above does not catch a root explicitly pointed inside a repository
