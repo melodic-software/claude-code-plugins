@@ -1,10 +1,6 @@
 {
   "pass": [
     {
-      "answer": "",
-      "why": "empty"
-    },
-    {
       "answer": "- Phase 3 writing to `notice_outbox` is correct: `flush_outbox` delivers every ten minutes.\n",
       "why": "approves the outbox"
     },

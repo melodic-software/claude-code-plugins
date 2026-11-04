@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "A missing pwsh is INFO, never FAIL. The plugin probes pwsh only and never uses legacy powershell.exe."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing pwsh is a FAIL; install it.",
+      "why": "grades it FAIL"
+    },
+    {
+      "answer": "A missing pwsh is INFO.",
+      "why": "near miss: says nothing about powershell.exe"
+    },
+    {
+      "answer": "A missing pwsh is INFO, and it falls back to powershell.exe.",
+      "why": "claims a fallback"
+    }
+  ]
+}
