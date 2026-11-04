@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| shfmt | PASS |\n| Git pre-commit entry | INFO (declined) |\n\nAlready configured: no change made."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything passes. Do you want me to run apply install-git-hooks anyway?",
+      "why": "asks before proceeding"
+    },
+    {
+      "answer": "Already configured. Should I also install the git pre-commit entry?",
+      "why": "near miss: reports, then asks"
+    }
+  ]
+}

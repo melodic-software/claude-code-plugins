@@ -107,79 +107,39 @@ E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `data_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_DATA_DIR` | Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Unset uses Documents\Gaming\dlss5 under your user profile; it survives plugin uninstall. Changing it after applying the mod to a game means moving the old directory's contents. |
-| `runtime_dll` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_DLL` | Path to your own legitimately obtained nvngx_dlssnr.dll. Leave unset to use runtime\nvngx_dlssnr.dll under the data directory, which setup fills from an installed DLSS 5 title or from the runtime source. The plugin names no source for this file. |
-| `runtime_source` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_SOURCE` | Optional local or UNC path, or plain https:// URL, to a copy of nvngx_dlssnr.dll that you control. Stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. Every copy is hash- or signature-checked before use. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `data_dir` | directory | *(none)* | Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Unset uses Documents\Gaming\dlss5 under your user profile; it survives plugin uninstall. Changing it after applying the mod to a game means moving the old directory's contents. |
+| `runtime_dll` | file | *(none)* | Path to your own legitimately obtained nvngx_dlssnr.dll. Leave unset to use runtime\nvngx_dlssnr.dll under the data directory, which setup fills from an installed DLSS 5 title or from the runtime source. The plugin names no source for this file. |
+| `runtime_source` | string | *(none)* | Optional local or UNC path, or plain https:// URL, to a copy of nvngx_dlssnr.dll that you control. Stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. Every copy is hash- or signature-checked before use. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `gaming@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure gaming@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure gaming@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"data_dir": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install gaming@<marketplace> -s <scope> --config data_dir=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "gaming@<marketplace>": {
-         "options": {
-           "data_dir": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

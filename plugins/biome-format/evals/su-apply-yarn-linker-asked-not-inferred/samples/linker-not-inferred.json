@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "`yarn config get nodeLinker` returned pnp in this repo."
+    },
+    {
+      "answer": "I ran `yarn config get nodeLinker` but yarn is not on PATH here, so the linker is not known.",
+      "why": "a probe that could not run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The yarn.lock is Berry format, so this repo uses pnp, Berry's default.",
+      "why": "inferred from the lockfile"
+    },
+    {
+      "answer": "The linker is node-modules.",
+      "why": "near miss: a linker stated with no probe result"
+    }
+  ]
+}

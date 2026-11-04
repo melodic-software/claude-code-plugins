@@ -30,6 +30,10 @@
     {
       "answer": "`code_writing` is `dispatch` (docs/conventions/implementation.yaml).",
       "why": "is form"
+    },
+    {
+      "answer": "- `code_writing: dispatch` comes from the repo file `docs/conventions/implementation.yaml`, which sets only this key.",
+      "why": "comes-from form"
     }
   ],
   "fail": [

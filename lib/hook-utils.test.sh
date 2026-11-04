@@ -4087,6 +4087,9 @@ bps_refused 'the extglob-on reading runs past the line: a quote it opens can clo
 bps_refused 'the extglob-on reading keeps a pending here-doc body out of commands' \
   $'cat <<EOF; !(x)#; :\ngit reset --hard\nEOF\necho done' \
   'an extglob pattern, which shfmt and bash do not read the same way'
+bps_refused 'a backslash-newline after !(x)# keeps the extglob refusal' \
+  $'!(x)#; git \\\nreset --hard' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
 # shellcheck disable=SC2016  # the substitutions are the command text under test
 {
   bps_bash_hit '$(…) ) leaves a # after it literal' \

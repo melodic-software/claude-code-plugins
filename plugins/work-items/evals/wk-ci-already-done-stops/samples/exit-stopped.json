@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": "{\"exit\": \"stopped\", \"reason\": \"already-done: 1a2b3c4\"}", "why": "stopped"}
+  ],
+  "fail": [
+    {"answer": "{\"exit\": \"done\", \"reason\": \"\"}", "why": "done means committed"}
+  ]
+}

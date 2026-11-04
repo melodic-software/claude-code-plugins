@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "This hook has no consumer-config opt-in gate, unlike sibling formatter plugins such as Ruff and typos, which act only on a repo config."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "go-format has no config.",
+      "why": "near miss: no contrast with the siblings"
+    },
+    {
+      "answer": "Like Ruff and typos, it waits for a repo config.",
+      "why": "wrong"
+    }
+  ]
+}

@@ -23,8 +23,8 @@ const ACTIONS_BOT = { id: 41898282 };
 const config = (addressFeedbackSlot) => `version: 2
 activities:
   resolve-conflicts:
-    skill: source-control:resolve-conflicts
-    args: ci
+    skill: source-control:pull-request
+    args: conflicts --ci --unattended
     prepare: merge-base
     effect: read
     applied-by:

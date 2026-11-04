@@ -3,6 +3,48 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-04
+
+### Changed
+
+- **teach:** the workspace-root ladder reads the `${CLAUDE_PLUGIN_DATA}/workspace-root` pointer file with the Read tool in a call of its own, never chained with `list-workspaces.sh` in one Bash call. The eval sandbox denied that chained call in 4 of 9 with-arm runs of `te-root-declared-substitution` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
+
+## [1.0.3] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [1.0.2] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654); no other change to this plugin.
+
+## [1.0.1] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
+## [1.0.0] - 2026-11-04
+
+### Added
+
+- A `medium` plugin option (default `auto`) sets where `/education:illustrate`'s page and `/education:teach`'s topic lessons go.
+
+### Changed
+
+- `/education:illustrate` and `/education:teach` resolve where their views go through the shared medium resolver (`lib/view-settings.mjs`, lanes `education:illustrate` and `education:teach`) and print the resolver's report line naming the medium and what decided it ([#12682](https://github.com/melodic-software/claude-code-plugins/issues/12682)).
+
+  The settings are a medium named in the request, the plugin's `medium` option, the team file `docs/conventions/rendered-views.yaml` and the personal override `docs/conventions/rendered-views.local.yaml`. A team file can keep a view local but never publishes it.
+
+### Removed
+
+- `/education:illustrate` and `/education:teach` no longer publish on an `artifact` or `hosted` value from `~/.claude/rendered-views.md`, `.claude/rendered-views.md`, `.claude/rendered-views.local.md` or a fenced config block in `docs/conventions/rendered-views.md`
+
+  These sources are retired. A `terminal` or `file` value in one still keeps the view local when the request names no medium and no other setting keeps it local. Each file gives one notice naming its value and where to set it instead.
+
 ## [0.23.3] - 2026-11-04
 
 ### Changed

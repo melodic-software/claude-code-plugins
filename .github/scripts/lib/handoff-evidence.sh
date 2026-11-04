@@ -25,11 +25,13 @@
 #
 # GitHub's jobs listing can return a job's steps empty, or a step's conclusion
 # null, for minutes after the job ends. Job-level fields come at once, so they
-# decide first; a fact only a step can settle is read again after each delay in
-# HANDOFF_EVIDENCE_DELAYS (seconds, default "15 30 60 90 120", about five
-# minutes), and only while it is unsettled. A broker-check whose broker-allowed
-# job is absent or neither succeeded nor skipped answers through its broker
-# step the same way.
+# decide first; a fact only a step can settle is read again, and only while it is
+# unsettled. HANDOFF_EVIDENCE_DELAYS (seconds, default "15 30 60 90 120") caps each
+# wait: full jitter draws it from 0 to its cap. Reads then go on at the last cap
+# until the waits sum to the caps' sum, about five minutes, the lag this exists
+# for, so at worst about seven minutes and at most max_reads reads. A broker-check
+# whose broker-allowed job is absent or neither succeeded nor skipped answers
+# through its broker step the same way.
 #
 # The listing is read a page at a time. A read after the first sends each page
 # it already got with an ETag as a conditional request, and a 304 gives back
@@ -41,9 +43,20 @@
 # Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
 # Outputs: one FACT=true|false line per requested fact, and one log line
-# naming them with the read count. Exit 1, with one
-# ::error line naming what stayed missing and no output, when a fact is still
-# unsettled after the last read; callers read an empty output as a failed read.
+# naming them with the read count. A fact still unsettled after the last read:
+#   - a last read that failed, on fix-docs or fix-docs-subscription, pr-refine.yml's
+#     two reads, holds (outage posture element 2): one ::notice line, no output
+#     and exit 0, after at most 3 failed reads (element 1), and a rate limit's
+#     annotation is a notice too. Empty outputs start no next leg, and
+#     fix-docs-dispatch.mjs reads a leg that handed off with no next leg as this
+#     hold and dispatches the PR again.
+#   - a last read that got the listing, with HANDOFF_EVIDENCE_LAG=notice, set by a
+#     job whose empty outputs start nothing, ends the same way: one ::notice::
+#     line, no output and exit 0.
+#   - anything else fails closed: exit 1, one ::error line naming what stayed
+#     missing and no output, after at most 6 failed reads. Its callers read an
+#     empty output as a failed read; each lane's own job fallbacks depend on it,
+#     pr-unblock's starting its second leg on that read.
 set -euo pipefail
 # In a job, each gh call keeps its rate-limit reading for the job-end
 # api-budget notice (.github/actions/log-api-budget).
@@ -63,6 +76,18 @@ for fact in "$@"; do
 done
 : "${GH_TOKEN:?}" "${GITHUB_REPOSITORY:?}" "${GITHUB_RUN_ID:?}" "${GITHUB_OUTPUT:?}" "${CALLS:?}"
 read -r -a delays <<<"${HANDOFF_EVIDENCE_DELAYS-15 30 60 90 120}"
+window=0
+for cap in "${delays[@]}"; do window=$((window + cap)); done
+
+max_failed=6
+hold=""
+if [[ $CALLS =~ ^fix-docs(-subscription)?$ ]]; then
+  max_failed=3
+  hold=1
+  export API_BUDGET_HOLD=1
+fi
+# A conditional read answered 304 costs no rate limit, but a page with no ETag does.
+max_reads=12
 
 # Per requested fact: "true", "false", or the missing evidence, as one line
 # "fact<TAB>value".
@@ -153,7 +178,9 @@ read_jobs() {
 }
 
 reads=0
-for delay in "${delays[@]}" ""; do
+failed=0
+waited=0
+while :; do
   reads=$((reads + 1))
   missing=""
   # shellcheck disable=SC2310 # read_jobs returns 1 itself on every failed read
@@ -165,15 +192,33 @@ for delay in "${delays[@]}" ""; do
     fi
   else
     missing="the jobs read failed"
+    failed=$((failed + 1))
   fi
   if [[ -z $missing ]]; then
     printf '%s\n' "${answers//$'\t'/=}" >>"${GITHUB_OUTPUT}"
     echo "handoff evidence: $(paste -sd ' ' - <<<"${answers//$'\t'/=}") ($reads read$([[ $reads -eq 1 ]] || echo s))"
     exit 0
   fi
-  [[ -n $delay ]] || break
+  if ((reads <= ${#delays[@]})); then
+    cap=${delays[reads - 1]}
+  elif ((waited < window)); then
+    cap=${delays[-1]}
+  else
+    break
+  fi
+  ((reads < max_reads && failed < max_failed)) || break
+  delay=$(shuf -i "0-$cap" -n 1)
   echo "Read $reads: $missing; reading again in ${delay}s"
   sleep "$delay"
+  waited=$((waited + delay))
 done
+if [[ ${HANDOFF_EVIDENCE_LAG:-} == notice && $missing == missing:* ]]; then
+  echo "::notice::handoff evidence for ${CALLS} still missing after $reads reads: $missing; the outputs stay empty"
+  exit 0
+fi
+if [[ -n $hold && $missing != missing:* ]]; then
+  echo "::notice title=Handoff evidence hold::handoff evidence for ${CALLS} still missing after $reads reads: $missing; no fallback starts, and the next dispatcher tick sends the PR again"
+  exit 0
+fi
 echo "::error::handoff evidence for ${CALLS} still missing after $reads reads: $missing"
 exit 1

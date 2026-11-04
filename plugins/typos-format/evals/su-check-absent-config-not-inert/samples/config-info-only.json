@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| Consumer config | INFO | none found |\n\nThat row never changes whether the check runs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Consumer config | FAIL | none found |",
+      "why": "wrong grade"
+    },
+    {
+      "answer": "Config row: INFO. That is the reason nothing is being checked here.",
+      "why": "near miss: right grade, blames the config"
+    }
+  ]
+}

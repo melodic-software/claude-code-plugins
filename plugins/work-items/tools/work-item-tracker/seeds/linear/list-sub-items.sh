@@ -61,6 +61,8 @@ QUERY='query($id: String!, $first: Int!, $after: String) {
 
 ITEMS='[]'
 CURSOR=""
+SEEN=0
+PAGES=0
 while :; do
   wit_linear_gql "$QUERY" \
     "$(jq -cn --arg id "$PARENT_UUID" --argjson f "$WIT_LINEAR_PAGE_SIZE" --arg a "$CURSOR" \
@@ -89,6 +91,16 @@ while :; do
       exit "$EX_INTERNAL"
     }
   done < <(jq -c '.nodes[]?' <<<"$PAGE")
+  SEEN=$((SEEN + $(jq '(.nodes // []) | length' <<<"$PAGE" 2>/dev/null || echo 0)))
+  PAGES=$((PAGES + 1))
+  # Bounded by the declared list ceiling. A truncated child list would read as "nothing
+  # open" to the closed-children invariant, so passing the ceiling is an error, never a
+  # partial list. Pages are counted too, so a server sending empty pages forever also stops.
+  if ((SEEN > WIT_LINEAR_LIST_ITEMS_MAX || PAGES > WIT_LINEAR_LIST_ITEMS_MAX)); then
+    printf 'list-sub-items.sh: the children of %s passed the declared ceiling of %s items; refusing to report a partial child list\n' \
+      "$PARENT_ID" "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
+    exit "$EX_INTERNAL"
+  fi
   [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$PAGE")" == "true" ]] || break
   CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$PAGE")"
   [[ -n "$CURSOR" ]] || break

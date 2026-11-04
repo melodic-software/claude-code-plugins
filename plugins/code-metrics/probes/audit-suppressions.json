@@ -1,0 +1,121 @@
+{
+  "skill": "code-metrics:audit-suppressions",
+  "plugin": "code-metrics",
+  "skill_dir": "plugins/code-metrics/skills/audit-suppressions",
+  "ranking_note": "The target inventories the lint, type-checker and evidence-disabling directives in code with their rules and justification, while its competitors freeze a count as a CI ceiling, run linters and formatters, or measure size, complexity and typed percentage. The set was authored blind from before descriptions.",
+  "competitors": [
+    "code-metrics:audit",
+    "toolchain:ratchet",
+    "toolchain:lint"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How many eslint-disable comments does the web-client repo have right now, and which rules do they switch off? No CI changes, I only want the list."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before anyone talks about a CI ceiling, tally every noqa and type: ignore in the analytics package so I know the real number."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Someone sprinkled # noqa all over ingest/. Which of those comments give no justification at all?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Did my branch add any @ts-expect-error or eslint-disable lines? Show each one with the rule it silences and why the author gave for it."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Are people dodging our checks in services/payments? Find every istanbul ignore, Stryker disable, nosec and nosemgrep in there."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The linter passes on legacy-api, but I suspect that's only thanks to nolint comments. List them all with the linters they silence."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is type debt hiding behind ignores? Inventory each type: ignore and pyright: ignore in src/models along with its error codes."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a table of every rubocop:disable and shellcheck disable in the repo, saying whether each one has a decent explanation."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which #pragma warning disable lines in our C# projects turn off correctness rules rather than style ones?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Freeze our eslint-disable count at today's value in CI so that any PR adding one fails."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run eslint and prettier on my changed files and fix the formatting. I added a couple of eslint-disable comments along the way."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Lots of type: ignore lines landed in this package lately. How much of it is typed according to mypy, as a percentage?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Ratchet the lint suppressions in the monorepo: check in a ceiling and lower it whenever the count falls."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I suppressed the complexity rule on process_order. What are its actual cyclomatic and cognitive scores?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does ruff pass on this branch now that I removed the noqa comments? Just a quick lint, no full build."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Stop the number of pylint disables from growing. Propose the CI files for a human to merge."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "We suppressed max-lines a while back. Which files in src/ are too long now? Give me lines per file."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Apply the eslint autofixes on this diff so I can drop some of these eslint-disable lines."
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "package-lock.json"
+      ],
+      "why": "another path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "pnpm-lock.yaml"
+      ]
+    },
+    {
+      "answer": [
+        "packages/a/pnpm-lock.yaml"
+      ]
+    }
+  ]
+}

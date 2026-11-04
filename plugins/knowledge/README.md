@@ -141,82 +141,42 @@ convention declared in your own project's `CLAUDE.md` or rules is not applied au
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `library_dir` | directory | `"."` | `CLAUDE_PLUGIN_OPTION_LIBRARY_DIR` | Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); relative values resolve there. video-digest moves its work root here, with watch/relayout-slice.js before close; other artifacts conventions are not auto-applied. |
-| `yt_dlp_js_runtimes` | string | `"node"` | `CLAUDE_PLUGIN_OPTION_YT_DLP_JS_RUNTIMES` | JavaScript runtime yt-dlp uses for YouTube signature deciphering in video-digest. Default 'node'; any other value selects that runtime. Set to 'off' to omit the --js-runtimes flag entirely. |
-| `yt_dlp_cookies_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FILE` | Path to a Netscape-format cookies.txt for authenticated video acquisition (YouTube bot checks; the three login-required X cases). Empty by default (unauthenticated; YouTube adds an automatic browser-cookie fallback on a bot check, and X never iterates browser profiles). Never commit cookie files. |
-| `yt_dlp_cookies_from_browser` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FROM_BROWSER` | Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only, since the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this. |
-| `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | `CLAUDE_PLUGIN_OPTION_MAX_CONCURRENT_ACQUIRES` | Cap on concurrent yt-dlp acquisition runs during a video-digest batch, 1 to 3. Default 1; raising it increases HTTP 429 throttling risk. |
-| `asr_python` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_ASR_PYTHON` | Path to the Python interpreter that imports faster_whisper, probed before python, python3 and py on PATH (video-digest's optional ASR rung). Use it when the default Python refuses pip install --user. Empty by default. Nothing is installed. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `library_dir` | directory | `"."` | Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); relative values resolve there. video-digest moves its work root here, with watch/relayout-slice.js before close; other artifacts conventions are not auto-applied. |
+| `yt_dlp_js_runtimes` | string | `"node"` | JavaScript runtime yt-dlp uses for YouTube signature deciphering in video-digest. Default 'node'; any other value selects that runtime. Set to 'off' to omit the --js-runtimes flag entirely. |
+| `yt_dlp_cookies_file` | string | *(none)* | Path to a Netscape-format cookies.txt for authenticated video acquisition (YouTube bot checks; the three login-required X cases). Empty by default (unauthenticated; YouTube adds an automatic browser-cookie fallback on a bot check, and X never iterates browser profiles). Never commit cookie files. |
+| `yt_dlp_cookies_from_browser` | string | *(none)* | Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only, since the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this. |
+| `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | Cap on concurrent yt-dlp acquisition runs during a video-digest batch, 1 to 3. Default 1; raising it increases HTTP 429 throttling risk. |
+| `asr_python` | string | *(none)* | Path to the Python interpreter that imports faster_whisper, probed before python, python3 and py on PATH (video-digest's optional ASR rung). Use it when the default Python refuses pip install --user. Empty by default. Nothing is installed. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `knowledge@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure knowledge@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure knowledge@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"library_dir": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "knowledge@<marketplace>": {
-         "options": {
-           "library_dir": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

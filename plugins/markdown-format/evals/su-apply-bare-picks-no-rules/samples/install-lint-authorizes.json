@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Bare apply installs nothing. Only `/markdown-format:setup apply install-lint` authorizes the dependency install."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bare apply installs markdownlint-cli2 as a dev dependency when it is missing.",
+      "why": "installs from bare apply"
+    },
+    {
+      "answer": "Bare apply installs nothing; install it yourself with npm.",
+      "why": "no explicit argument named"
+    }
+  ]
+}

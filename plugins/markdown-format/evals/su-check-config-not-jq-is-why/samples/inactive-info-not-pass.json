@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| Markdown config | INFO, inactive: the repository never opted in. Add a markdownlint config. |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Markdown config | PASS: nothing to do. |",
+      "why": "PASS"
+    },
+    {
+      "answer": "| Markdown config | FAIL: no config found. |",
+      "why": "FAIL"
+    }
+  ]
+}

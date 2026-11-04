@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "apply installs nothing. Run one of these yourself, for example `cargo install typos-cli` or `brew install typos-cli`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "apply installs nothing.",
+      "why": "near miss: no method"
+    },
+    {
+      "answer": "apply runs cargo install typos-cli for you.",
+      "why": "apply installs"
+    }
+  ]
+}

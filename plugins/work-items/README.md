@@ -305,90 +305,50 @@ before this setting existed, so set it true to keep that behavior.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `decompose_container_publish` | boolean | *(none)* | `CLAUDE_PLUGIN_OPTION_DECOMPOSE_CONTAINER_PUBLISH` | When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns; the approval gate stays mandatory. Unset or false: the plain ask, with a default answer of no. No default is declared, so unset stays distinct from false. |
-| `triage_repro_count` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_TRIAGE_REPRO_COUNT` | Independent reproductions /work-items:triage needs, each with evidence in its comment, before it marks a bug confirmed. Default 2. The repository's docs/conventions/work-items.yaml overrides this per repo. |
-| `triage_objection_window_hours` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_TRIAGE_OBJECTION_WINDOW_HOURS` | Hours after triage makes an item autonomous-eligible during which the work-loop lane skips it, so a person can object in a reply. 0 (the default) is off. The repository's docs/conventions/work-items.yaml overrides this per repo. |
-| `ai_disclaimer` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_AI_DISCLAIMER` | When true, autonomous work-items lanes (triage, work-loop, attend-queue answers, autonomous filing) start each tracker item and comment they create with the AI disclaimer. Default false, so lanes omit it. The repository's docs/conventions/work-items.yaml overrides this per repo. |
-| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where the /work-items:triage board page and /work-items:morning-brief's status page go. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact; hosted is read as artifact. A team rendered-views file never publishes. |
-| `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once in one plan phase, passed as its --wave-cap ceiling. A fractional value is floored. Unset: implement-dispatch's implement_dispatch_wave_cap option, else its internal default. |
-| `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: a random id made once and kept in the plugin data dir. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
-| `lane_app_slug` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_APP_SLUG` | Slug of the GitHub App whose installation token the work-loop lane runs under, passed as --app-slug to its telemetry upsert so the write identity resolves to <slug>\[bot\]. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
-| `work_loop_item_cap_start` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_START` | Where the work-loop lane's adaptive per-cycle item cap starts. Default 2. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |
-| `work_loop_item_cap_ceiling` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_CEILING` | Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Default 3. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling. |
-| `work_loop_item_cap_floor` | number<br>*min 1* | `1` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_FLOOR` | Lower bound the work-loop lane's adaptive item cap can drop to on dirty items. Default 1. |
-| `work_loop_frontier_item_cap_ceiling` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_FRONTIER_ITEM_CAP_CEILING` | Ceiling on the adaptive cap for frontier-capability-tier items in the work-loop lane, which run at concurrency 1. Default 2; keep it at or below work_loop_item_cap_ceiling. The tier is read from the provider-permissioned label only; no label means the general tier (fail-closed). |
-| `work_loop_no_progress_threshold` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_NO_PROGRESS_THRESHOLD` | Consecutive no-progress cycles (actionable work in view, no item advanced, no PR opened) before the work-loop lane raises its stall escalation. Default 3. The lane escalates and keeps looping. Idle cycles with nothing actionable neither count nor reset. |
-| `work_loop_in_flight_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_IN_FLIGHT_STALE_DAYS` | Age in days, from the PR's createdAt, past which a candidate's open closing PR (draft or ready) stops being silently excluded and the work-loop lane escalates it to the attended queue. Default 14. The drain report names it; the lane stores no state for it. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `decompose_container_publish` | boolean | *(none)* | When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns; the approval gate stays mandatory. Unset or false: the plain ask, with a default answer of no. No default is declared, so unset stays distinct from false. |
+| `triage_repro_count` | number<br>*min 1* | `2` | Independent reproductions /work-items:triage needs, each with evidence in its comment, before it marks a bug confirmed. Default 2. The repository's docs/conventions/work-items.yaml overrides this per repo. |
+| `triage_objection_window_hours` | number<br>*min 0* | `0` | Hours after triage makes an item autonomous-eligible during which the work-loop lane skips it, so a person can object in a reply. 0 (the default) is off. The repository's docs/conventions/work-items.yaml overrides this per repo. |
+| `ai_disclaimer` | boolean | `false` | When true, autonomous work-items lanes (triage, work-loop, attend-queue answers, autonomous filing) start each tracker item and comment they create with the AI disclaimer. Default false, so lanes omit it. The repository's docs/conventions/work-items.yaml overrides this per repo. |
+| `medium` | string | `"auto"` | Where the /work-items:triage board page and /work-items:morning-brief's status page go. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact; hosted is read as artifact. A team rendered-views file never publishes. |
+| `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once in one plan phase, passed as its --wave-cap ceiling. A fractional value is floored. Unset: implement-dispatch's implement_dispatch_wave_cap option, else its internal default. |
+| `lane_instance` | string | *(none)* | Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: a random id made once and kept in the plugin data dir. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
+| `lane_app_slug` | string | *(none)* | Slug of the GitHub App whose installation token the work-loop lane runs under, passed as --app-slug to its telemetry upsert so the write identity resolves to <slug>\[bot\]. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
+| `work_loop_item_cap_start` | number<br>*min 1* | `2` | Where the work-loop lane's adaptive per-cycle item cap starts. Default 2. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |
+| `work_loop_item_cap_ceiling` | number<br>*min 1* | `3` | Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Default 3. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling. |
+| `work_loop_item_cap_floor` | number<br>*min 1* | `1` | Lower bound the work-loop lane's adaptive item cap can drop to on dirty items. Default 1. |
+| `work_loop_frontier_item_cap_ceiling` | number<br>*min 1* | `2` | Ceiling on the adaptive cap for frontier-capability-tier items in the work-loop lane, which run at concurrency 1. Default 2; keep it at or below work_loop_item_cap_ceiling. The tier is read from the provider-permissioned label only; no label means the general tier (fail-closed). |
+| `work_loop_no_progress_threshold` | number<br>*min 1* | `3` | Consecutive no-progress cycles (actionable work in view, no item advanced, no PR opened) before the work-loop lane raises its stall escalation. Default 3. The lane escalates and keeps looping. Idle cycles with nothing actionable neither count nor reset. |
+| `work_loop_in_flight_stale_days` | number<br>*min 1* | `14` | Age in days, from the PR's createdAt, past which a candidate's open closing PR (draft or ready) stops being silently excluded and the work-loop lane escalates it to the attended queue. Default 14. The drain report names it; the lane stores no state for it. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `work-items@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure work-items@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure work-items@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"decompose_container_publish": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install work-items@<marketplace> -s <scope> --config decompose_container_publish=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "work-items@<marketplace>": {
-         "options": {
-           "decompose_container_publish": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

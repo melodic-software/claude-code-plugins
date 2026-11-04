@@ -548,6 +548,22 @@ class AffectedSet(AffectedBase):
         verdict = self.check()
         self.assertEqual(verdict.failures, ())
         self.assertEqual(self.remediate(verdict)["quarantine"]["issues"], [9001])
+        listings = [
+            a for c in self.gh.calls for a in c if a.startswith(f"repos/{REPO}/issues?")
+        ]
+        self.assertTrue(listings, "the check and the filer list quarantine issues")
+        self.assertTrue(
+            all("state=open" in a for a in listings),
+            f"only open quarantine issues count, so no closed one is listed: {listings}",
+        )
+
+    def test_an_open_quarantine_issue_takes_the_new_sighting(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-12T09:00:00Z")
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        report = self.remediate(verdict)["quarantine"]
+        self.assertEqual((report["issues"], report["comments"]), ([], [501]))
 
     def test_a_quarantine_issue_someone_else_opened_counts_for_nothing(self) -> None:
         # An outsider's expired issue would demote, and an open one would take

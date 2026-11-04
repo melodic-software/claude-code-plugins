@@ -189,7 +189,7 @@ import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
-import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
+import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
 
@@ -706,19 +706,23 @@ const ROUTE_TEXT = {
   close: "It closes the issue as completed.",
   fail: "It removed `agent-ready` and added no label.",
 };
-// The pull request a blocked-by-pr reason names: its first `#<n>` (or the
-// full-width `＃<n>`) other than the issue itself, or "".
+// The pull request a blocked-by-pr reason names, or the issue a
+// blocked-by-issue reason names: its first `#<n>` (or the full-width `＃<n>`)
+// other than the issue itself, or "".
 export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
 // pushbackSecurity's stop line, which leaves the question's kind to intake.
 const PUSHBACK_SECURITY_WHY =
   "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; if the run names it again once this intake round is spent, the issue reaches a person";
-function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", why = "", neutral = false }) {
+function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", after = "", why = "", neutral = false }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
     `<!-- work-resolve-issue outcome=${exit}${neutral ? " security" : ""}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
     `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
     ...(why ? [why] : []),
+    // Outside the quoted run words, whose `#` reads full-width, so intake
+    // triage reads the blocker as a plain issue reference.
+    ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "wait"
@@ -762,6 +766,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
     removeLabels: KEPT.has(route) ? [] : (ROUTE_REMOVES[route] ?? ["agent-ready"]),
     ...(pr && { pr }),
+    ...(after && { after }),
     ...(route === "park" && { admission: parkReason(stop, why || stopWhy(shown)) }),
   };
 }
@@ -789,10 +794,11 @@ function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: gi
   const shown = spent ? "retry-spent" : stop;
   const route = spent ? stopRoute(shown) : given;
   const pr = route === "wait" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
+  const after = route === "intake" && shown === "blocked-by-issue" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
   const plan =
     route === "hold"
       ? handBack({ ...args, reason: stopReasonCode(shown), spentSecurity, word: shown === "security-risk" ? heldWord(args.outcome) : "" })
-      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, why, neutral: security });
+      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, after, why, neutral: security });
   return { ...plan, stop, stopArgs: args, ...(why && { why }) };
 }
 
@@ -1886,10 +1892,34 @@ function restartMarkers({ comments, events, bot, humans, runId, outcome }) {
     .filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready" && humans.has(event.actor?.id))
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
   return comments
-    .map((comment) => (comment.user?.login === bot ? { ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) } : null))
+    .map((comment) => (comment.user?.login === bot ? { ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at), fault: faultComment(comment.body) } : null))
     .filter((marker) => marker?.outcome === outcome && marker.run !== runId && marker.at > since);
 }
 export const countRestarts = (args) => restartMarkers(args).length;
+
+// Whether a stop comment names a fault row, on the line after its marker
+// (stopPlan). A marker with no such line counts as no fault.
+const FAULT_STOPS = Object.keys(STOP_ROUTES).filter(stopFault).map(stopLine);
+const faultComment = (body) => {
+  const line = String(body ?? "").split(/\r?\n/, 2)[1] ?? "";
+  return FAULT_STOPS.some((stop) => line.startsWith(stop));
+};
+
+// Whether a retry past its cap holds rather than taking retry-spent's route
+// (docs/outage-posture-audit.md, element 4): a fault is no evidence about the
+// issue, so while this stop and every counted retry were faults, the lane stops
+// nothing. It posts no marker, so work-unblock's sweep restarts the issue on the
+// stranded backoff, past its cap on retry markers. That needs this run to have
+// made no branch of its own, which with no marker the next run would open a PR
+// from (findPrior's reuse), its failed checks and all, so such a stop still
+// takes the route. A cap of 0 counts no retry, so it takes the route too.
+const spentOnFaults = (plan, markers, runId, limits) =>
+  plan.action === "retry" &&
+  stopFault(plan.stop) &&
+  markers.length > 0 &&
+  markers.length >= stopRetries(plan.stop, limits["stop-retries"]) &&
+  markers.every((marker) => marker.fault) &&
+  (!plan.stopArgs.branch || laneBranch(plan.issueNumber).exec(plan.stopArgs.branch)?.[1] !== runId);
 
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs).
@@ -1980,9 +2010,16 @@ export const staleComment = (branch) =>
   `${staleMarker(branch)}\nThis run started fresh from the default branch instead of resuming \`${branch}\`, which is behind it. That branch keeps the earlier run's commits until the next run on this issue deletes it, when no pull request uses it.`;
 
 // --find-prior: reads the facts findPrior decides on and writes its step
-// outputs. Any failed read, or an answer of the wrong shape, fails the step,
-// so the mint never follows it.
+// outputs. A failed read, or an answer of the wrong shape, holds
+// (docs/outage-posture-audit.md, element 2): green with a notice and
+// proceed=false, so no model runs and no mint follows, with no branch to reuse
+// or prune. agent-ready stays and no marker goes up, so work-unblock's sweep
+// starts the issue again. The re-derive fails instead: its job continues on the
+// error, and that failure is what withholds the run's branch claim
+// (pr-run-activity-read.yml).
 export async function findPriorMain({ env = process.env, fetch = globalThis.fetch, sleep } = {}) {
+  const keepBehind = env.FIND_PRIOR_KEEP_BEHIND === "true";
+  let reading = false;
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
       throw new Error("ISSUE_NUMBER is not an issue number");
@@ -1996,6 +2033,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
+    reading = true;
     const appComments = (await paginate(github, `${repo}/issues/${issueNumber}/comments`)).filter((comment) => comment.user?.login === bot);
     const markers = appComments
       .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
@@ -2045,7 +2083,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
         Array.isArray(comparison.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
       branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, behindBy: comparison.behind_by, tip, tipAt, pulls, commits });
     }
-    const keepBehind = env.FIND_PRIOR_KEEP_BEHIND === "true";
+    reading = false;
     const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers, keepBehind });
     const runs = prior.action === "run" || prior.action === "resume";
     // A stopped run's leftover branches, deleted by work-resolve-issue.yml's
@@ -2090,7 +2128,13 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     );
     return 0;
   } catch (error) {
-    console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    const message = String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ");
+    if (reading && !keepBehind) {
+      appendFileSync(env.GITHUB_OUTPUT, "proceed=false\n");
+      console.log(`::notice title=report-outcome::could not read this issue's earlier work (${message}); the model is skipped, and a later run reads it again`);
+      return 0;
+    }
+    console.log(`::error title=report-outcome::${message}`);
     return 1;
   }
 }
@@ -2142,7 +2186,8 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // neither the lanes App nor a listed human opened, and an already-done close
 // that doneEvidence does not prove, retry instead. A retry, wait or intake
 // first counts its own outcome's markers since a listed human last added
-// agent-ready: past its cap it takes retry-spent's route (security-risk's hold
+// agent-ready: past its cap it holds when every retry was a fault
+// (spentOnFaults), and otherwise takes retry-spent's route (security-risk's hold
 // for an intake round that is a pushbackSecurity stop), so an issue intake
 // keeps sending back cannot loop. An earlier round's security reading does not
 // carry over: intake triage re-judged it before admitting the issue again. A
@@ -2184,6 +2229,10 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     });
   if (COUNTED.has(plan.action)) {
     const counted = { ...(await read()), outcome: plan.exit };
+    if (spentOnFaults(plan, restartMarkers(counted), runId, limits)) {
+      console.log(`::notice title=report-outcome::issue #${plan.issueNumber} stopped on a fault (${plan.stop}), and every retry since a person last added agent-ready was one too; it keeps agent-ready and a later run tries again`);
+      return;
+    }
     plan = capRetries(plan, countRestarts(counted), limits);
   }
   // Every plan above is final here, rebuilt or not, so each takes the run's tags.
@@ -2388,11 +2437,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // failed compare leaves its file list unread, which holds the PR.
     const issueTitle = typeof issue.title === "string" ? issue.title : "";
     const issueLabels = (issue.labels ?? []).map((label) => label.name);
-    // A labeler that cannot be read holds the PR, like an unreadable denied-path list.
+    // A labeler that cannot be read is null, which opens no PR (below). A trusted
+    // list that cannot be read holds the PR, like an unreadable denied-path list.
     const humanMerge =
       issueLabels.includes(HUMAN_MERGE_LABEL) &&
       (await paginate(github, `${repo}/issues/${issueNumber}/events`)
-        .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }))
+        .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }), () => null)
         .catch(() => true));
     const listedHumans = () => readHumansOrNone(env.TRUSTED_ACTORS);
     const limits = readLimits(resolvedPath);
@@ -2487,6 +2537,14 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           ? `report-outcome: issue #${issueNumber} stopped on the lane's funding; it waits`
           : `report-outcome: issue #${issueNumber} stopped on the usage limit; restart after ${plan.resets}`,
       );
+      return 0;
+    }
+    // Whether a person merges this PR is unknown, so it holds
+    // (docs/outage-posture-audit.md, element 2): no PR, and no marker, so the
+    // branch stays unreported, work-unblock's sweep starts the issue again, and
+    // that run opens the PR from it.
+    if (plan.action === "open-pr" && humanMerge === null) {
+      console.log(`::notice title=report-outcome::could not read who added ${HUMAN_MERGE_LABEL} to issue #${issueNumber}; no PR opens from ${plan.branch}, and a later run reads it again`);
       return 0;
     }
     if (plan.action === "open-pr") {

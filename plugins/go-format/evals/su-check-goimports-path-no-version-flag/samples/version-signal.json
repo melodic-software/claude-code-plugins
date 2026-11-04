@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Path: /usr/local/bin/goimports. goimports has no --version flag, so the closest signal is the first line of `goimports -h`: `usage: goimports [flags] [path ...]`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "goimports is version 0.24.0, from `goimports --version`.",
+      "why": "invents the flag"
+    },
+    {
+      "answer": "goimports resolves at /usr/local/bin/goimports.",
+      "why": "near miss: a path, no version signal"
+    },
+    {
+      "answer": "goimports has no --version flag, so I cannot say.",
+      "why": "near miss: no help line, no path"
+    }
+  ]
+}

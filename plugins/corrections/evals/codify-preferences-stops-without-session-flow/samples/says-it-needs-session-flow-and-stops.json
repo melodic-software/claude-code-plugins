@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "`/corrections:codify preferences` needs the session-flow plugin, which is not installed here, so I am stopping. Nothing was written.",
+      "why": "names the plugin and stops"
+    },
+    {
+      "answer": "This action needs the session-flow plugin. Install it and run /corrections:codify preferences again.",
+      "why": "an install pointer is still a stop"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This action needs the session-flow plugin, which is missing. excerpts.jsonl is here though, so I used it: ISO dates, 2 sessions against a threshold of 2. Proposed a line for your user CLAUDE.md.",
+      "why": "names the plugin, then goes on"
+    },
+    {
+      "answer": "No audit-sessions store exists. Running /session-flow:audit-sessions creates it; run that and try again.",
+      "why": "the missing-store stop, not the plugin gate"
+    },
+    {
+      "answer": "The excerpts skill could not be found, so I cannot read your sessions. Stopping.",
+      "why": "stops without naming the plugin"
+    },
+    {
+      "answer": "This action needs the session-flow plugin. If you paste the preferences you keep repeating, I can propose lines from those instead.",
+      "why": "names the plugin, then offers another route"
+    }
+  ]
+}

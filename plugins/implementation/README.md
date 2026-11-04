@@ -166,85 +166,45 @@ options. Resolution and the root rule: [`reference/config.md`](reference/config.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once in one wave, counting rows from every plan phase in it. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation. |
-| `verify_mechanical_phases` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VERIFY_MECHANICAL_PHASES` | When on, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. Off (default) keeps the mechanical carve-out. True here or in a repository's docs/conventions/implementation.yaml wins. |
-| `drain_cadence` | string | `"on-arrival"` | `CLAUDE_PLUGIN_OPTION_DRAIN_CADENCE` | When /implementation:implement-dispatch reads worker returns. on-arrival (default): each return as it comes in. batched: held until the orchestrator step in progress finishes, for long multi-wave runs. A repository's docs/conventions/implementation.yaml drain_cadence key overrides this value. |
-| `code_writing` | string | `"inline"` | `CLAUDE_PLUGIN_OPTION_CODE_WRITING` | Who writes the code in /implementation:implement. inline (default): this session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: implement-dispatch workers write every plan phase. A repository's docs/conventions/implementation.yaml code_writing key overrides it. |
-| `per_unit_check` | string | `"pilot"` | `CLAUDE_PLUGIN_OPTION_PER_UNIT_CHECK` | How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it. |
-| `integration_posture` | string | `"by-kind"` | `CLAUDE_PLUGIN_OPTION_INTEGRATION_POSTURE` | How far /implementation:implement reshapes surrounding code without an approved plan. by-kind (default): a feature redesigns the code it lands in as if built in from the start, a fix or config change stays minimal, a refactor keeps the plan's scope. day-one: all redesign. minimal: all stay minimal. |
-| `refactor_compat` | string | `"same-wave"` | `CLAUDE_PLUGIN_OPTION_REFACTOR_COMPAT` | What an /implementation:implement refactor does with the old shape. same-wave (default): update all call sites and remove it in that same change, unless code outside the repository relies on it. deprecate: keep an adapter with a removal condition. A repository's implementation.yaml overrides it. |
-| `competing_attempts` | string | `"suggest"` | `CLAUDE_PLUGIN_OPTION_COMPETING_ATTEMPTS` | What /implementation:implement-dispatch does with a plan phase marked multi-shape. suggest (default): offer several attempts with a cost line. auto: run them without asking. off: one attempt, as for any phase. A repository's docs/conventions/implementation.yaml key overrides it. |
-| `competing_attempt_count` | number<br>*min 2, max 5* | `3` | `CLAUDE_PLUGIN_OPTION_COMPETING_ATTEMPT_COUNT` | How many attempts /implementation:implement-dispatch runs for a multi-shape phase when competing attempts run: a whole number from 2 to 5, default 3. A repository's docs/conventions/implementation.yaml key overrides it. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | Maximum worker rows /implementation:implement-dispatch runs at once in one wave, counting rows from every plan phase in it. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation. |
+| `verify_mechanical_phases` | boolean | `false` | When on, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. Off (default) keeps the mechanical carve-out. True here or in a repository's docs/conventions/implementation.yaml wins. |
+| `drain_cadence` | string | `"on-arrival"` | When /implementation:implement-dispatch reads worker returns. on-arrival (default): each return as it comes in. batched: held until the orchestrator step in progress finishes, for long multi-wave runs. A repository's docs/conventions/implementation.yaml drain_cadence key overrides this value. |
+| `code_writing` | string | `"inline"` | Who writes the code in /implementation:implement. inline (default): this session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: implement-dispatch workers write every plan phase. A repository's docs/conventions/implementation.yaml code_writing key overrides it. |
+| `per_unit_check` | string | `"pilot"` | How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it. |
+| `integration_posture` | string | `"by-kind"` | How far /implementation:implement reshapes surrounding code without an approved plan. by-kind (default): a feature redesigns the code it lands in as if built in from the start, a fix or config change stays minimal, a refactor keeps the plan's scope. day-one: all redesign. minimal: all stay minimal. |
+| `refactor_compat` | string | `"same-wave"` | What an /implementation:implement refactor does with the old shape. same-wave (default): update all call sites and remove it in that same change, unless code outside the repository relies on it. deprecate: keep an adapter with a removal condition. A repository's implementation.yaml overrides it. |
+| `competing_attempts` | string | `"suggest"` | What /implementation:implement-dispatch does with a plan phase marked multi-shape. suggest (default): offer several attempts with a cost line. auto: run them without asking. off: one attempt, as for any phase. A repository's docs/conventions/implementation.yaml key overrides it. |
+| `competing_attempt_count` | number<br>*min 2, max 5* | `3` | How many attempts /implementation:implement-dispatch runs for a multi-shape phase when competing attempts run: a whole number from 2 to 5, default 3. A repository's docs/conventions/implementation.yaml key overrides it. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `implementation@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure implementation@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure implementation@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"implement_dispatch_wave_cap": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install implementation@<marketplace> -s <scope> --config implement_dispatch_wave_cap=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "implementation@<marketplace>": {
-         "options": {
-           "implement_dispatch_wave_cap": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

@@ -107,12 +107,16 @@
 //
 // On `schedule`, and on `workflow_run` after a work-resolve-issue run
 // finishes, it sweeps instead: every issue closed since the last
-// successful scheduled run that ran its labeling step began (less
-// SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS back; the full window when that
-// cannot be shown) goes through the same rules, so an issue a bot closed (a
-// pull request merge), which starts no close run, is still picked up. A
-// swept close counts only when a listed human or a merge made it. Overlapping
-// windows are harmless: an issue already labeled is left alone, and one whose
+// successful scheduled run that ran its labeling step and read its closed
+// listing began (less SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS back; the full
+// window when that cannot be shown) goes through the same rules, so an issue a
+// bot closed (a pull request merge), which starts no close run, is still picked
+// up. A swept close counts only when a listed human or a merge made it. A
+// listing the sweep cannot read holds: a notice and a green exit, no read or
+// write after a failed closed listing, and the next sweep's window stays back,
+// so it reads the closes this one missed. A read or write that fails for one
+// issue still ends the run red, which keeps the window back the same way.
+// Overlapping windows are harmless: an issue already labeled is left alone, and one whose
 // label was removed (by a person, or by a lane's pushback) is not labeled
 // again until the lanes App or a listed human adds `status: ready` after the
 // newest removal (admit.mjs removalStands). A removal by the lanes App that
@@ -356,6 +360,11 @@ const BREAKER = "kill-switch";
 // The refused jobs' logs on 2026-10-24 were 45 KB (broker-check) and 94 KB
 // (apply-issue-patch); a longer one is left unread.
 const LOG_CAP_BYTES = 1_048_576;
+// The line a sweep prints once it has read the closed-issue listing, and that
+// line in a raw job log, stamp first. A held sweep ends as green as a full one,
+// so this line alone lets the next sweep's window start from it.
+const LISTED_LINE = "label-unblocked: read the closed-issue listing";
+const LISTED = new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ${LISTED_LINE}$`);
 // work-unblock.yml's job and its step that runs this script. The kill switch
 // and a lane the config turns off skip the step and leave the run green, so
 // only this step's success shows a sweep ran.
@@ -435,6 +444,10 @@ export async function checkCloser(env, actions) {
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=label-unblocked::#${number}: ${escapeCommand(error?.message ?? error)}`);
+// A failed listing is no verdict on any issue (outage posture element 2): the
+// sweep holds, with this notice, and the next tick reads it again.
+const reportHold = (what, error) =>
+  console.log(`::notice title=label-unblocked::the ${what} listing failed (${escapeCommand(error?.message ?? error)}); holding, and the next sweep reads it again`);
 
 const isLabel = (event, kind) => event.event === kind && String(event.label?.name).toLowerCase() === LABEL;
 
@@ -569,10 +582,11 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
 
 // Where the sweep's window starts and why: SWEEP_MARGIN_MIN before the last
 // successful scheduled run of this workflow (not the current one), no further
-// back than LOOKBACK_HOURS, and only when that run's SWEEP_STEP succeeded.
-// Anything else (an unreadable listing, no steps, a skipped step) gives the
+// back than LOOKBACK_HOURS, and only when that run's SWEEP_STEP succeeded and
+// its log shows it read the closed-issue listing (LISTED). Anything else (an
+// unreadable listing or log, no steps, a skipped step, a held sweep) gives the
 // full window, so a failed read re-processes and never skips.
-async function sweepSince({ actions, repo, now, runId }) {
+async function sweepSince({ actions, jobLog, repo, now, runId }) {
   const widest = now - LOOKBACK_HOURS * HOUR_MS;
   if (!actions) {
     return { since: widest, why: "no Actions token to read the last sweep" };
@@ -597,12 +611,19 @@ async function sweepSince({ actions, repo, now, runId }) {
       throw new Error("the last successful run has no usable id");
     }
     const jobs = await jobLister(actions, repo)(last);
-    const swept = namedJobs(jobs, SWEEP_JOB).some((job) =>
+    const swept = namedJobs(jobs, SWEEP_JOB).find((job) =>
       (job?.steps ?? []).some((step) => step?.name === SWEEP_STEP && step.conclusion === "success"),
     );
-    return swept
+    if (!swept) {
+      return { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step` };
+    }
+    if (!RUN_ID.test(String(swept.id))) {
+      throw new Error("the last sweep's job has no usable id");
+    }
+    const log = await jobLog(repo, swept.id, { maxBytes: LOG_CAP_BYTES });
+    return String(log ?? "").split("\n").some((line) => LISTED.test(line))
       ? { since: from, why: `the last sweep started ${at}` }
-      : { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step` };
+      : { since: widest, why: `the last sweep, started ${at}, held or shows no read of its listing` };
   } catch (error) {
     return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})` };
   }
@@ -814,8 +835,8 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
       (item) => !item.pull_request && NUMBER.test(String(item.number)),
     );
   } catch (error) {
-    reportError("deferred", error);
-    return 1;
+    reportHold(DEFERRED_LABEL, error);
+    return 0;
   }
   const closes = new Map();
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: waiting.map((item) => Number(item.number)), humans, appId });
@@ -1967,8 +1988,8 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
       (item) => !item.pull_request && NUMBER.test(String(item.number)),
     );
   } catch (error) {
-    reportError("restart", error);
-    return 1;
+    reportHold(LABEL, error);
+    return 0;
   }
   for (const issue of open) {
     const listed = {};
@@ -2310,9 +2331,18 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
       jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
     }
-    const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
-    const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];
+    const window = sweep ? await sweepSince({ actions, jobLog, repo, now, runId: env.GITHUB_RUN_ID }) : null;
+    let closed = sweep ? [] : [Number(event.issue.number)];
     if (sweep) {
+      // Nothing else runs on a close list this sweep could not read. This run
+      // ends green but prints no LISTED_LINE, so the next window stays back.
+      try {
+        closed = await closedSince(github, repo, new Date(window.since));
+      } catch (error) {
+        reportHold("closed-issue", error);
+        return 0;
+      }
+      console.log(LISTED_LINE);
       const minutes = Math.round((now - window.since) / 60_000);
       console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${minutes} minutes (${window.why})`);
     }
@@ -2342,8 +2372,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       try {
         listed = (await paginate(github, `/repos/${repo}/issues?state=open&sort=updated&direction=asc`)).filter((item) => !item.pull_request && NUMBER.test(String(item.number)));
       } catch (error) {
-        reportError("open", error);
-        failed += 1;
+        reportHold("open", error);
       }
       if (listed) {
         failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, mirror: mirrorTo });

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. The SessionStart probe looks on PATH and then walks up from the session cwd at most eight directories, while the hook walks from the edited file to the repo root and refuses a committed node_modules."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, both use the same resolution.",
+      "why": "assumes they match"
+    },
+    {
+      "answer": "The probe resolves biome separately.",
+      "why": "near miss: names no difference"
+    }
+  ]
+}

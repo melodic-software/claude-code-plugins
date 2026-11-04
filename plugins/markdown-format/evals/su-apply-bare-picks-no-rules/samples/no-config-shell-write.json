@@ -1,0 +1,164 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .markdownlint.jsonc"
+          }
+        }
+      ],
+      "why": "reads it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -q drafts/notes.md"
+          }
+        }
+      ],
+      "why": "asks git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n default .markdownlint.jsonc 2>/dev/null"
+          }
+        }
+      ],
+      "why": "a discarded stderr"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,5p .gitignore"
+          }
+        }
+      ],
+      "why": "sed without -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i s/a/b/ notes.txt; echo .gitignore"
+          }
+        }
+      ],
+      "why": "the sed target is another file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > notes.txt <<'EOF'\n> .gitignore\nEOF"
+          }
+        }
+      ],
+      "why": "the name in a heredoc body"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n '> .gitignore' notes.txt"
+          }
+        }
+      ],
+      "why": "the redirect shape inside a quoted search term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '{}' > .markdownlint.jsonc"
+          }
+        }
+      ],
+      "why": "creates a config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' >> \".markdownlint-cli2.jsonc\""
+          }
+        }
+      ],
+      "why": "a double-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo x > '.gitignore'"
+          }
+        }
+      ],
+      "why": "a single-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'a: 1' > docs/.markdownlint.yaml"
+          }
+        }
+      ],
+      "why": "a nested target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .markdownlint.json <<'EOF'\n{}\nEOF"
+          }
+        }
+      ],
+      "why": "a heredoc into the config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' | tee -a .gitignore"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/a;b//' .gitignore"
+          }
+        }
+      ],
+      "why": "in place, with a semicolon in the expression"
+    }
+  ]
+}

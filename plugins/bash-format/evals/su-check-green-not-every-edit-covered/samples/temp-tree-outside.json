@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The OS temp tree counts as outside even under `CLAUDE_PROJECT_DIR`, unless the project root itself lives under temp."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Temp directories are outside the project.",
+      "why": "near miss: neither the nesting rule nor the exception"
+    },
+    {
+      "answer": "A temp directory inside the project is covered, like any other project path.",
+      "why": "wrong"
+    }
+  ]
+}

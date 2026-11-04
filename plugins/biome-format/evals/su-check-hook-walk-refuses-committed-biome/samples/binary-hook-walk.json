@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The hook walks up from packages/vendored/src toward the repo root, skips the committed copy and runs the root node_modules/.bin/biome. PATH is only tried if that walk finds nothing."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`command -v biome` finds biome on PATH, so the hook runs that one.",
+      "why": "a bare PATH probe, not the hook's walk"
+    },
+    {
+      "answer": "The hook runs a biome from node_modules.",
+      "why": "near miss: no root copy named and no order against PATH"
+    }
+  ]
+}

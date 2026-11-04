@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. Nothing gates on a config existing: the check runs with or without one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, add a _typos.toml to turn the check on.",
+      "why": "inert"
+    },
+    {
+      "answer": "You have no config, which is fine.",
+      "why": "near miss: does not answer whether the check runs"
+    }
+  ]
+}

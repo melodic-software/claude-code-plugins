@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "demo.sh"
+      ],
+      "why": "the scaffold's file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "demo.sh",
+        ".shellcheckrc"
+      ],
+      "why": "created at the root"
+    },
+    {
+      "answer": [
+        "scripts/.shellcheckrc"
+      ],
+      "why": "created nested"
+    }
+  ]
+}

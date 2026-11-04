@@ -193,6 +193,15 @@ reads the file itself, through a script where the key names one below.
   level supplied the value. The `userConfig` option declares `ready` as its default, so a
   substituted `ready` is reported as the default level (same result) and a substituted `draft` as
   the `userConfig` level.
+- `review_venue`: which venue reviews a pull request, `auto`, `local`, `ci` or `both`; the
+  meaning of each is in
+  [review-venue.md](../skills/pull-request/reference/review-venue.md#read-the-setting). Resolved
+  like `pr_open_state`, lowest first: the default, `auto`; the `review_venue` `userConfig` value;
+  `review_venue` in `docs/conventions/source-control.yaml`, read at the pull request's base
+  branch and honored only when that base is the base repository's default branch, since `ci`
+  turns local reviews off. `skills/pull-request/scripts/read-review-venue.sh` resolves it. A value
+  other than the four at the level that supplied it resolves to `auto`, with a notice naming the
+  level. A repository level the reader cannot read or trust is skipped with a notice.
 - `sync_stale_base`: `true` or `false`, whether
   [`push-branch.sh`](../skills/pull-request/scripts/push-branch.sh) merges the pull request's
   base into a branch behind it on overlapping paths just before it pushes (the script header

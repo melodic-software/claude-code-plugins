@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        ".yarn/install-state.gz"
+      ],
+      "why": "another path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".yarnrc.yml"
+      ]
+    },
+    {
+      "answer": [
+        "packages/a/.yarnrc.yml"
+      ]
+    }
+  ]
+}

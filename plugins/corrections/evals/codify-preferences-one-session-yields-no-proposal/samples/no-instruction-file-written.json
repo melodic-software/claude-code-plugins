@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/codify/main/20261104T120000Z-proposal.md",
+            "content": "- Write dates as ISO 8601.\n"
+          }
+        }
+      ],
+      "why": "the proposal, which names the target only in its text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/sandbox/.claude/CLAUDE.md",
+            "content": "- Write dates as ISO 8601.\n"
+          }
+        }
+      ],
+      "why": "the user target, which the person writes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/AGENTS.md",
+            "content": "- Write dates as ISO 8601.\n"
+          }
+        }
+      ],
+      "why": "a repository file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/sandbox/.claude/rules/dates.md",
+            "content": "- Write dates as ISO 8601.\n"
+          }
+        }
+      ],
+      "why": "a user rule file"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Only node is a FAIL-class prerequisite: every handler in hooks.json launches through `node hooks/exec-bash.mjs`, so without it the hooks never start. Everything else is INFO."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node and pwsh would both be FAIL.",
+      "why": "grades pwsh FAIL"
+    },
+    {
+      "answer": "node is FAIL.",
+      "why": "near miss: not the only one, no reason"
+    }
+  ]
+}

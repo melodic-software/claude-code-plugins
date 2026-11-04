@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. packages/vendored/node_modules is tracked, and the hook treats a committed node_modules as the repository's code, not your install, so it keeps walking."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, the closest node_modules/.bin/biome wins, so it runs packages/vendored/node_modules/.bin/biome.",
+      "why": "credits the committed binary"
+    },
+    {
+      "answer": "No, the hook would not use that one.",
+      "why": "near miss: no reason given"
+    }
+  ]
+}

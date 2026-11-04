@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: wk-ci-already-done-stops
+description: "CI mode on an issue whose work already landed on the default branch: the run commits nothing and stops with an already-done: reason citing the commit SHA, the routing code in the last step of the section. A run needs --scaffold and --allow-tools Bash,Write,Edit."
+tags: [work, ci-mode, must-not]
+plugins: ["../.."]
+expected_outcome: "The run reads scratch/issue.json, finds from docs/setup.md and git log that the fix already landed on the default branch, changes and commits nothing, and writes scratch/work-outcome.json with exit stopped and a reason opening already-done: that cites the commit SHA."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:work --issue 830 --ci\n\nThe scratchpad directory is `scratch` in the working directory, and the checkout is the default branch. No forge or tracker is reachable in this session. The runner's commit tool is `git add` then `git commit`. The runner names no checks."
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 420
+graders:
+  - name: exit-stopped
+    type: regex
+    pattern: '"exit"\s*:\s*"stopped"'
+    target: { source: file, path: scratch/work-outcome.json }
+  - name: already-done-cites-sha
+    type: regex
+    pattern: '"reason"\s*:\s*"already-done:(?:[^"\\]|\\.)*\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b'
+    target: { source: file, path: scratch/work-outcome.json }
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+  - name: no-commit
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\s+commit\b'
+    min: 0
+    max: 0

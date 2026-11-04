@@ -151,8 +151,10 @@ places no container is refused. `--live` is refused.
 Each `map-*` skill offers an interactive view of its JSON record after the report: a filter that
 traces an id through every row naming it, and rows that open to their fields and citations. The markdown
 and the record stay authoritative. The page is a checked-in template plus the record as escaped data, so
-repository text never becomes markup or script. Where it is delivered comes from the `medium` key of the
-`rendered-views` cascade (`file` when unset). The procedure is in `reference/rendered-view.md`.
+repository text never becomes markup or script. Where it is delivered, and where the `improve` deepening
+report goes, comes from the shared medium resolver, which reads the plugin's `medium` option and the
+`rendered-views` files in `docs/conventions` (a local file when none sets it). The procedure is in
+`reference/rendered-view.md`.
 
 ## Record a decision
 
@@ -239,6 +241,44 @@ above.
 /plugin marketplace add melodic-software/claude-code-plugins
 /plugin install architecture@melodic-software
 ```
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `medium` | string | `"auto"` | Where the map-* views and the improve report go. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact (the improve report stays a local file); hosted is read as artifact. A team rendered-views file never publishes. |
+
+### How to set these
+
+Set the options above for `architecture@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

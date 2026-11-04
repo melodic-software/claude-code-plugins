@@ -10,8 +10,7 @@ stress-test, and validation chain; the decision record travels with the pull req
 introduced this document.
 
 This directory is the source of truth for the concern. The shared chrome and token
-reference lives in the adopting plugins (canonical copy:
-`plugins/visualization/reference/html-chrome.html`). Where a record and the
+reference lives in the adopting plugins (canonical copy: `lib/html-chrome.html`). Where a record and the
 diagrams and media it cites live together is the
 [record-bundle convention](../record-bundle/README.md). Notable changes to this
 contract are logged in `CHANGELOG.md`.
@@ -207,6 +206,14 @@ from the one the browser runs. It checks the runtime body by hash before any oth
    - **No binding outside page text.** The validator refuses every `data-rv-*`
      attribute on `<html>`, `<head>`, `<title>`, `<meta>`, `<style>`, and `<script>`,
      and the runtime skips those elements, so data never becomes CSS, metadata, or code.
+   - **Two client-only bindings.** A `button[data-rv-theme]` (`system`, `light` or
+     `dark`, the shared chrome's toggle) sets or clears `data-theme` on the root element
+     and `aria-pressed` on the toggle's buttons; system, the default, follows the
+     reader's color-scheme preference, and nothing is stored. An `option[data-rv-shows]`
+     of a `select[data-rv-choice]` names the example blocks (`data-rv-example`) it
+     selects: picking it shows them and hides the blocks the select's other options
+     name (the redraw binding). Both act on template tokens only, never on data, and
+     make no network call.
    - **One builder-written title.** The single exception is the page title. Given a
      `title`, the builder replaces the text of the one `<title>` in the template's
      `<head>` with that string as escaped plain text: format characters such as bidi
@@ -584,13 +591,15 @@ Emitters that resolve `medium` through the shared resolver (see The `rendered-vi
 keeping their shipped default only when no scope sets it: `adhd:clarify`. Its output prints the
 resolver's report line and notices.
 
+`architecture:improve` resolves `medium` through the shared resolver (lane `architecture`, see
+"The `rendered-views` settings") and publishes nothing: `terminal` skips the HTML report and leaves
+the candidate artifact; every other value writes the local report.
+
 Emitters that resolve `medium` from the argument, then the cascade, and publish nothing themselves.
 None has a `medium` option, so no
 plugin dial sits between the argument and the cascade. Each names the source of `medium`, or
 "shipped default", and keeps its shipped behavior when no layer sets one:
 
-- `architecture:improve`: `terminal` skips the HTML report and leaves the candidate artifact;
-  every other value writes the local report.
 - `education:teach` (topic mode): `terminal` writes `lesson.md`; `file` keeps the host-aware
   format choice and drops the artifact-share offer; `artifact` and `hosted` keep the offer.
 - `prototype:explore-directions`: the mockup stays a local file at every value; `terminal` and
@@ -794,15 +803,19 @@ convention's instruction-size budget applies to the lines a lane adds for it.
 
 ## The shared chrome reference
 
-Canonical copy: `plugins/visualization/reference/html-chrome.html`. A second adopting
-plugin copies it byte-identical to the same path within its own root
-(`reference/html-chrome.html`) and registers the cluster in
-`scripts/cross-plugin-source-registry.txt` in the same change; the drift checker rejects
-a registration while only one plugin carries the file, which is why the first adoption
-shipped unregistered by design. `adhd:clarify` is the second adopter
-(`plugins/adhd/reference/html-chrome.html`), so the cluster is now registered. Skills cite the
-reference inline by role (their plugin's own copy), never by a repository path an installed
-consumer cannot resolve.
+Canonical copy: `lib/html-chrome.html`. `scripts/sync-shared-copies.sh` generates each
+adopting plugin's `reference/html-chrome.html` from it, with the generated-file header after
+the doctype; edit the canonical, then rerun the script. An adopting plugin registers its copy
+in `scripts/shared-copies.txt` and its path in `scripts/check-html-assets.sh`. The
+visualization, adhd and planning plugins carry it. Skills cite the reference inline by role
+(their plugin's own copy), never by a repository path an installed consumer cannot resolve.
+
+The chrome is one for every page family: the system/light/dark toggle (system by default,
+`button[data-rv-theme]`), the comment box (`textarea[data-rv-note]` under a labeled
+heading), and the accessibility floor. A page offers no other theme choice: no team or user
+theme override, no accent or palette picker. A built view copies the chrome's toggle and
+comment markup and its `rv-chrome` style rules verbatim, and its plugin's tests compare them
+with the plugin's copy of the chrome.
 
 The chrome's ivory page background (`--ivory`) is the sanctioned default background for a
 view built on it, so no skill's "styles to leave out" list names a cream or off-white
@@ -867,7 +880,7 @@ lane. A skill runs its `resolve` command and never reads the files itself.
 
 **Decision.** Do not vendor the 31 html-effectiveness corpus templates (20 gallery +
 11 unknowns). The derived chrome and token reference
-(`plugins/visualization/reference/html-chrome.html`) is the sanctioned shared piece.
+(`lib/html-chrome.html`) is the sanctioned shared piece.
 Per-genre page-shape is served by pointers to the public gallery, not by copies in
 this tree.
 

@@ -138,81 +138,41 @@ consuming repo is refused. Declare an in-repo root in the project's own CLAUDE.m
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `explain_starting_rung` | string | `"plain"` | `CLAUDE_PLUGIN_OPTION_EXPLAIN_STARTING_RUNG` | Where /education:explain starts on its ladder. plain (default): an everyday analogy with no jargon, then higher rungs on request. peer: a precise one-sentence definition and full detail, with the plain version offered. docs/conventions/education.yaml overrides this. |
-| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where illustrate's page and teach's topic lessons go. auto (default): each skill's shipped default; terminal: no page, teach writes lesson.md; file: a local file; artifact or hosted: illustrate publishes an Artifact, teach offers one. A team rendered-views file never publishes. |
-| `quiz_policy` | string | `"on-request"` | `CLAUDE_PLUGIN_OPTION_QUIZ_POLICY` | When quiz-me offers a post-work comprehension quiz. off never offers; on-request (default) offers only when asked; always offers after each completed change; above-threshold offers when the change is large. Governs offer cadence only: a report is never generated without your confirmation. |
-| `report_library_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_REPORT_LIBRARY_DIR` | Where quiz-me stores generated reports and quizzes. Unset uses the plugin's own persistent data directory; set it to a corpus checkout to redirect the library root there. Artifacts never land in the consuming repo's tree. |
-| `workspace_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKSPACE_ROOT` | Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the Documents folder's Claude Learning home (topic mode only), then plugin data. A value inside the consuming repo is refused. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `explain_starting_rung` | string | `"plain"` | Where /education:explain starts on its ladder. plain (default): an everyday analogy with no jargon, then higher rungs on request. peer: a precise one-sentence definition and full detail, with the plain version offered. docs/conventions/education.yaml overrides this. |
+| `medium` | string | `"auto"` | Where illustrate's page and teach's topic lessons go. auto (default): each skill's shipped default; terminal: no page, teach writes lesson.md; file: a local file; artifact or hosted: illustrate publishes an Artifact, teach offers one. A team rendered-views file never publishes. |
+| `quiz_policy` | string | `"on-request"` | When quiz-me offers a post-work comprehension quiz. off never offers; on-request (default) offers only when asked; always offers after each completed change; above-threshold offers when the change is large. Governs offer cadence only: a report is never generated without your confirmation. |
+| `report_library_dir` | directory | *(none)* | Where quiz-me stores generated reports and quizzes. Unset uses the plugin's own persistent data directory; set it to a corpus checkout to redirect the library root there. Artifacts never land in the consuming repo's tree. |
+| `workspace_root` | directory | *(none)* | Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the Documents folder's Claude Learning home (topic mode only), then plugin data. A value inside the consuming repo is refused. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `education@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure education@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure education@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"explain_starting_rung": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install education@<marketplace> -s <scope> --config explain_starting_rung=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "education@<marketplace>": {
-         "options": {
-           "explain_starting_rung": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

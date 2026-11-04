@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "docs/.markdownlint.jsonc governs docs/; tools/.markdownlint-cli2.jsonc governs tools/; scripts/.markdownlint.cjs governs scripts/."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/.markdownlint.jsonc governs docs/.",
+      "why": "misses two"
+    },
+    {
+      "answer": "Configs: docs/.markdownlint.jsonc, tools/.markdownlint-cli2.jsonc, scripts/.markdownlint.cjs.",
+      "why": "no scope"
+    }
+  ]
+}

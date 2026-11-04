@@ -18,7 +18,8 @@ name: pr-unblock-dispatch
 # that changes a Markdown file, carries no hold label and never had a fix-docs
 # check run, whoever opened it except Dependabot, the release App and the
 # standards-sync App, at most limits.fix-docs-per-run per run, from its own
-# logged GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs).
+# logged GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs);
+# limits.fix-docs-per-run 0 (this repository's value) turns it off.
 #
 # It also runs half-hourly, five minutes after each
 # maintenance-reconcile-lost-runs tick, so a PR whose reconciler re-run failed

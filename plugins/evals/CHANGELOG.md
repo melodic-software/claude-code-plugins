@@ -1,5 +1,32 @@
 # Changelog: evals
 
+## [0.16.0] - 2026-11-04
+
+### Added
+
+- `plugin-eval/scripts/win-test.py` decides whether a proposed skill edit beats the unchanged skill. It reads two results of the skill as merged (an A/A pair) and one with the edit, scores cases with `noise-report.py`, and leaves out each case a `summarize.mjs` health line reads `skill loaded: no` or `unknown`. It stops at the first gate that fails, by name and with its numbers: an unfinished pass, a run-validity verdict other than VALID, a pass over its cost ceiling, fewer than 3 cases, no headroom (a with-arm mean of 0.95 or higher), an A/A interval that excludes 0, or a case that drops by a third. An edit wins only when the lower end of its with-arm interval is at least +0.05 and above the A/A interval's upper end. `eval-hill-climb.yml` runs it (#12035).
+
+## [0.15.12] - 2026-11-04
+
+### Changed
+
+- `max_cost_usd` option description points at the CLI's command options instead of restating what the flag bounds.
+
+## [0.15.11] - 2026-11-04
+
+### Changed
+
+- plugin-eval: the cloud route cites the page section that holds the host description and the one
+  that holds the package list.
+
+## [0.15.10] - 2026-11-04
+
+### Changed
+
+- plugin-eval: the hub's new "Route per environment" table states, for Windows native, WSL2, a
+  Claude cloud session and GitHub Actions, what runs today, the route, the recorded run or that
+  none is recorded, and each row's pointer, as-of date and recheck trigger.
+
 ## [0.15.9] - 2026-11-04
 
 ### Changed

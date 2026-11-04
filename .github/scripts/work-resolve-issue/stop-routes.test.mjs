@@ -7,10 +7,22 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { causeName, HOLD_CLASSES, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
+import { causeName, HOLD_CLASSES, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const KNOWN_NAMES = JSON.parse(readFileSync(new URL("./known-names.json", import.meta.url), "utf8"));
+
+// A fault says nothing about the issue: a runner, job or crash, not what the
+// run wrote or decided, which a retry can repeat for a reason in the issue.
+test("a stop is a fault only when the lane's machinery failed, never for what the run wrote", () => {
+  for (const reason of ["outcome-unread", "issue-file", "scan-refused-fault", "patch-apply-failed"]) {
+    assert.equal(stopFault(reason), true, reason);
+    assert.equal(stopRoute(reason), "retry", reason);
+  }
+  for (const reason of ["outcome-invalid", "patch-invalid", "stopped", "done-no-commit", "check-failed", "security-risk", "no-such-reason"]) {
+    assert.equal(stopFault(reason), false, reason);
+  }
+});
 
 test("a reason the table does not list names no owner reason, so it fails, to no person", () => {
   assert.equal(stopRoute("no-such-reason"), "fail");
@@ -67,6 +79,28 @@ test("a stop with no code, a done or delivered issue, a wait on a pull request a
   for (const code of ["already-done", "report-delivered", "blocked-by-pr"]) {
     assert.equal(runCode(`${code}: why`), code);
   }
+});
+
+// An ordering stop names no owner reason ("When work stops for the owner",
+// docs/contracts/loop-lane/README.md): intake triage writes the blocked-by
+// edge, so admission waits for the blocker.
+test("a blocked-by-issue code goes back through intake once, and an intent-change code still holds", () => {
+  assert.equal(runCode("blocked-by-issue #13187 must land first"), "blocked-by-issue");
+  assert.equal(runCode("blocked-by-issue: #13187 must land first"), "blocked-by-issue");
+  assert.equal(stopRoute("blocked-by-issue"), "intake");
+  assert.equal(stopRetries("blocked-by-issue", 2), 1);
+  assert.equal(stopReasonCode("blocked-by-issue"), "none");
+  assert.equal(runCode("intent-change: must land after the sibling part #13187"), "intent-change");
+  assert.equal(stopRoute("intent-change"), "hold");
+  // Owner Q4: intake removes agent-ready, so a security mention after the
+  // code still reaches a person, as it does with no code.
+  assert.equal(runCode("blocked-by-issue: #5 rotates the leaked token"), "security-risk");
+  assert.equal(runCode("rotates the leaked token"), "security-risk");
+});
+
+test("the issue lane's prompt names the blocked-by-issue code", () => {
+  const prompt = readFileSync(new URL("../../../plugins/work-items/skills/work/reference/ci-mode.md", import.meta.url), "utf8");
+  assert.ok(prompt.includes("`blocked-by-issue`"), "ci-mode.md names blocked-by-issue");
 });
 
 test("a spent cap never retries again", () => {
@@ -217,6 +251,54 @@ test("an ending reason that names a secret noun as a capability keeps its route"
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
     assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
+// A technical sense of a secret noun names no secret, so an ending reason
+// keeps its route. Each reason below held as security-risk on a real stop.
+test("an ending reason that names a token or credential only in a technical sense keeps its route", () => {
+  for (const reason of [
+    "host-only: the eval needs paid model calls on the role's subscription token",
+    "host-only: shipped the bytes-per-token re-pin; the rest needs a desktop run",
+    "host-only: This CI lane has no Azure credentials",
+    "host-only: it needs a dequeue step with a pull-requests: write token",
+    "host-only: it requires the token-spending admission and dispatch workflows",
+    "host-only: the `merge` job, whose token has no `statuses: read`, cannot read it",
+    "host-only: the token's permissions do not cover the workflow write",
+  ]) {
+    assert.equal(runCode(reason), "host-only", reason);
+    assert.equal(securityWord(reason), "", reason);
+  }
+  // A secret value, an exposure or a credential path still holds beside a technical sense.
+  for (const reason of [
+    "host-only: the subscription token was pasted into the log",
+    "host-only: a write token leaked in the fixture",
+    "host-only: the per-token pricing note sits beside an exposed API key",
+    "host-only: has no credentials, and the secret is in ~/.aws/credentials",
+    "host-only: the token is ghp_ in the commit",
+    "host-only: the OAuth token is in the public run log",
+    "host-only: the session token sits in the issue body",
+    "host-only: a write token was sent to an external URL",
+    "host-only: the token has no expiry and sits in the public issue",
+    "host-only: the subscription token is stored in plaintext",
+    "host-only: a pull-requests: write token, now in the public log",
+    "host-only: the token's permissions appear in the output with its value",
+    "host-only: the write token the lane uses is in the public run log",
+    "host-only: the subscription token; it is in the public run log",
+    "host-only: (a write token) sits in the public issue body",
+    "host-only: a write token, so anyone can read it in the public log",
+    "host-only: the model token cannot expire and sits in the issue body",
+    "host-only: the subscription token to use is in the issue body",
+    "host-only: the write token cannot read it, and it is in the public log",
+    "host-only: the public run log now holds the write token.",
+    "host-only: the issue body contains the subscription token",
+    "host-only: anyone reading the public issue can see the model token",
+    "host-only: the public log includes the read token",
+    "host-only: the output token is in the public run log",
+    "host-only: the checkout input token sits in the issue body",
+    "host-only: the step's output token appears in the public job log",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
   }
 });
 

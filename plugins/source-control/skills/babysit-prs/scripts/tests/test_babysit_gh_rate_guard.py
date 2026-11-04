@@ -364,6 +364,20 @@ class HeadroomShares(GuardCase):
         gh.gh_capture(["api", "repos/o/r/pulls/2"])
         self.assertEqual(len(self.sent), 2)
 
+    def test_with_the_read_floor_stop_a_read_below_the_floor_is_not_sent(self) -> None:
+        self.answer(0, head(200, **core(1)) + "{}")
+        self.answer(0, head(200, **core(1)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertTrue(gh.low_headroom("github-token"))
+        with mock.patch.dict(os.environ, {gh.READ_FLOOR_STOP_ENV: "1"}):
+            with self.assertRaises(gh.ReadsFloored):
+                gh.gh_capture(["api", "repos/o/r/pulls/2"])
+            with self.assertRaises(gh.ReadsFloored):
+                gh.gh_capture(["api", "repos/o/r/actions/artifacts", "--paginate", "--slurp"])
+        self.assertEqual(len(self.sent), 1)
+        gh.gh_capture(["api", "repos/o/r/pulls/3"])
+        self.assertEqual(len(self.sent), 2)
+
 
 class AShallowInstallPath(unittest.TestCase):
     """A copy of the scripts too shallow for the repository root (fewer than

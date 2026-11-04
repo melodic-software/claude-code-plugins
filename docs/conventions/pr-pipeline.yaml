@@ -32,8 +32,11 @@ activities:
     # request. It runs no command and holds no write token: the read runner
     # merges the base tip before the skill and hands the skill's resolutions
     # on as a patch, which apply-conflict-patch commits with both parents.
-    skill: source-control:resolve-conflicts
-    args: ci
+    skill: source-control:pull-request
+    # The skill's CI mode for a base merge's conflicts: reads the runner's
+    # conflicts.json, resolves each conflicted path in place, runs no command,
+    # and leaves a path it cannot resolve with its markers, which escalates it.
+    args: conflicts --ci --unattended
     # pr-unblock.yml's resolve-conflicts-select job, which runs only base
     # code, merges the base tip and decides clean, conflicted or escalate
     # before any model turn; the read runner merges the same base again and
@@ -1051,8 +1054,9 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # fix-docs runs one pr-unblock-dispatch run starts, matching fix-ci-per-run.
-  fix-docs-per-run: 2
+  # fix-docs runs one pr-unblock-dispatch run starts. 0 turns CI fix-docs off,
+  # the owner's decision in #7576 (D100, Q158); set 1 or more to turn it on.
+  fix-docs-per-run: 0
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12
@@ -1599,6 +1603,10 @@ merge:
       - glob: ".github/workflows/dependabot-fragments.yml"
         class: gate
       - glob: ".github/workflows/eval-browser-dispatch.yml"
+        class: gate
+      - glob: ".github/workflows/eval-hill-climb-pass.yml"
+        class: gate
+      - glob: ".github/workflows/eval-hill-climb.yml"
         class: gate
       - glob: ".github/workflows/intake-reenter.yml"
         class: gate

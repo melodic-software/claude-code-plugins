@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "typos --version"
+          }
+        }
+      ],
+      "why": "the step 2 read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v typos && typos --version"
+          }
+        }
+      ],
+      "why": "after a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/local/bin/typos -V"
+          }
+        }
+      ],
+      "why": "by path, short flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v typos"
+          }
+        }
+      ],
+      "why": "the pre-computed probe, no version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"typos --version\" SKILL.md"
+          }
+        }
+      ],
+      "why": "the command as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "typos notes.txt"
+          }
+        }
+      ],
+      "why": "runs the checker, no version"
+    }
+  ]
+}

@@ -243,9 +243,9 @@ durable local store (one redacted record per session, incremental, retention-bou
 reports per-session metrics against a shipped reference baseline, shows this store's p90 beside
 each threshold and marks a stale baseline, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
-applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
-preferences two or more sessions show, and hands each one you confirm to `/corrections:codify` for
-a user-scope file, never a repository file. The `correction` action has the session's model judge
+applies a finding. `/corrections:codify preferences` reads the stored excerpts of your own typed
+turns through the `excerpts-only` consumer mode, for a line in a user-scope file, never a repository
+file. The `correction` action has the session's model judge
 which stored short turns corrected the agent and reports them in a separate, unranked `Judged`
 section beside the measured findings. The `trends` action reads the health scores `retro` records
 and shows how they move across sessions, with delivery metrics beside them when the work-items
@@ -255,7 +255,6 @@ plugin is installed.
 /session-flow:audit-sessions                                # collect, then sweep every session
 /session-flow:audit-sessions sweep --since 2026-09-01       # a date window
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
-/session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to corrections:codify
 /session-flow:audit-sessions correction --since 2026-09-01  # model-judged corrections, reported unranked
 /session-flow:audit-sessions trends                         # cross-session score history and delivery metrics
 ```
@@ -584,95 +583,55 @@ value.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `observer_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED` | Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way. |
-| `observer_analysis_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED` | When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection. |
-| `observer_analysis_model` | string | `"claude-opus-5-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost. |
-| `observer_analysis_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT` | Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md. |
-| `observer_analysis_bare` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE` | Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md. |
-| `observer_idle_seconds` | number | `900` | `CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS` | How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript. |
-| `observer_poll_seconds` | number<br>*min 1* | `5` | `CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS` | How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over. |
-| `observer_max_seconds` | number | `86400` | `CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS` | Absolute cap on observer lifetime; default 86400 (24 hours). Reaching it exits without running analysis: it is a safety valve, not an end signal. The idle threshold is the intended terminator. |
-| `audit_sessions_retention_days` | number<br>*min 0* | `180` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_RETENTION_DAYS` | How long audit-sessions keeps a session's record in its local store after the session ended; default 180. 0 keeps every record. Collect drops older records and never ingests a session already past the window. |
-| `audit_sessions_excerpt_chars` | number<br>*min 0, max 600* | `240` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_EXCERPT_CHARS` | Longest redacted excerpt of a short typed turn that audit-sessions stores; default 240, maximum 600. 0 stores no excerpt text at all. Redaction always runs first and cannot be turned off. |
-| `audit_sessions_excerpt_words` | number<br>*min 1, max 200* | `60` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_EXCERPT_WORDS` | A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections. |
-| `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_MIN_COUNT` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
-| `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_VERSIONS` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
-| `worker_continuation` | string | `"resume"` | `CLAUDE_PLUGIN_OPTION_WORKER_CONTINUATION` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
-| `wip_commit` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WIP_COMMIT` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
-| `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
-| `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
-| `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
-| `recommend_skills_exclude` | string | `"none"` | `CLAUDE_PLUGIN_OPTION_RECOMMEND_SKILLS_EXCLUDE` | Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped. |
-| `orient_catch_up_word_cap` | number<br>*min 150* | `250` | `CLAUDE_PLUGIN_OPTION_ORIENT_CATCH_UP_WORD_CAP` | Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `observer_enabled` | boolean | `false` | Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way. |
+| `observer_analysis_enabled` | boolean | `true` | When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection. |
+| `observer_analysis_model` | string | `"claude-opus-5-5"` | Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost. |
+| `observer_analysis_effort` | string | `"medium"` | Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md. |
+| `observer_analysis_bare` | boolean | `false` | Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md. |
+| `observer_idle_seconds` | number | `900` | How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript. |
+| `observer_poll_seconds` | number<br>*min 1* | `5` | How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over. |
+| `observer_max_seconds` | number | `86400` | Absolute cap on observer lifetime; default 86400 (24 hours). Reaching it exits without running analysis: it is a safety valve, not an end signal. The idle threshold is the intended terminator. |
+| `audit_sessions_retention_days` | number<br>*min 0* | `180` | How long audit-sessions keeps a session's record in its local store after the session ended; default 180. 0 keeps every record. Collect drops older records and never ingests a session already past the window. |
+| `audit_sessions_excerpt_chars` | number<br>*min 0, max 600* | `240` | Longest redacted excerpt of a short typed turn that audit-sessions stores; default 240, maximum 600. 0 stores no excerpt text at all. Redaction always runs first and cannot be turned off. |
+| `audit_sessions_excerpt_words` | number<br>*min 1, max 200* | `60` | A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections. |
+| `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
+| `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
+| `worker_continuation` | string | `"resume"` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
+| `wip_commit` | boolean | `false` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
+| `transcript_scope` | string | `"worktree"` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
+| `retro_lenses` | string | `"1"` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
+| `cloud_route` | string | `"offer"` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
+| `recommend_skills_exclude` | string | `"none"` | Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped. |
+| `orient_catch_up_word_cap` | number<br>*min 150* | `250` | Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `session-flow@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure session-flow@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure session-flow@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"observer_enabled": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install session-flow@<marketplace> -s <scope> --config observer_enabled=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "session-flow@<marketplace>": {
-         "options": {
-           "observer_enabled": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->

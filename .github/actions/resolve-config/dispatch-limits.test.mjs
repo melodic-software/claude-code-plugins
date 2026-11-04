@@ -199,9 +199,11 @@ test("an unreadable base tracker config holds adopted owner PRs only, and no ado
 
 test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches", async () => {
   const pulls = [docsPull(61), docsPull(62), docsPull(63)];
-  assert.match(LIVE, /^ {2}fix-docs-per-run: 2$/m, "the live config sets the per-run cap");
-  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
-  const one = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 1");
+  assert.match(LIVE, /^ {2}fix-docs-per-run: 0$/m, "the live config turns CI fix-docs off (#7576, D100)");
+  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40"] });
+  const two = LIVE.replace(/^ {2}fix-docs-per-run: 0$/m, "  fix-docs-per-run: 2");
+  assert.deepEqual(await run(two, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
+  const one = LIVE.replace(/^ {2}fix-docs-per-run: 0$/m, "  fix-docs-per-run: 1");
   assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "61"] });
 });
 

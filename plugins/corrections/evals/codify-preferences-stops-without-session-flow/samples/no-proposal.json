@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        ".work/notes.md"
+      ],
+      "why": "not a proposal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".work/codify/main/20261104T120000Z-proposal.md"
+      ],
+      "why": "the gate did not stop the run"
+    }
+  ]
+}

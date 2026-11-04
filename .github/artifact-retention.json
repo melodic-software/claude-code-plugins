@@ -513,6 +513,38 @@
       "reason": "Manual inspection only; no workflow reads it after the run. A person reads a dispatched eval's results soon after starting it, and 3 days covers a weekend.",
       "scan": "upload"
     },
+    "eval-hill-climb-pass-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-hill-climb.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "eval-hill-climb-proposal-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-hill-climb.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "eval-hill-climb-edit-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-hill-climb-pass.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "eval-hill-climb-win-*": {
+      "retention-days": 3,
+      "readers": [
+        ".github/workflows/eval-hill-climb.yml a person reading a winning edit and its with-versus-without results"
+      ],
+      "reason": "Manual inspection only; no workflow reads it after the run. A person opens a winning edit soon after the run, and 3 days covers a weekend.",
+      "scan": "upload"
+    },
     "tidy-code-upkeep-sweeps": {
       "retention-days": "max",
       "max-reader": ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs",
@@ -545,6 +577,14 @@
       ],
       "reason": "Read by its own run; 1 day is the minimum. The scan job uploads it only after its scans of the plan, the branch diffs and the publish text are clean.",
       "scan": "plaintext"
+    },
+    "key-credit-stop-upstream-apply-changelog.yml-model": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/upstream-apply-changelog.yml gate's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention), and its \"Report the credit skip\" step reads the marker's upload time"
+      ],
+      "reason": "The marker only says the model's key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
     },
     "upstream-apply-changelog-done-*": {
       "retention-days": "max",

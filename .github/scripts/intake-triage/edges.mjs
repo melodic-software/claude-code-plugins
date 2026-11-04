@@ -10,7 +10,8 @@
 // issue in this repository, not a pull request and not the issue itself, and
 // the edge is not there yet. The POST body's `issue_id` is the blocker's REST
 // `id`, read from the blocker itself. GitHub answering 403, 429 or 5xx on a
-// read or write for an edge leaves that edge missed, not the run stopped.
+// read or write for an edge leaves that edge missed, not the run stopped; the
+// write is sent again once on a 5xx first (createGitHub's resendOnce).
 // When any edge misses, the edges this run wrote are deleted again, so the
 // work-unblock lane, which reads only native edges, never sees a partial set;
 // an edge that was already there stays.
@@ -137,8 +138,8 @@ const unwritable = (error) => error instanceof GitHubError && (error.status === 
 // the run's edges still standing, unwritten the ones it deleted after a miss,
 // undeleted the ones whose delete failed. Any other API error on a read or
 // write stops it.
-export async function writeEdges({ github, repository, number, blockers }) {
-  const { result, ids } = await addEdges({ github, repository, number, blockers });
+export async function writeEdges({ github, repository, number, blockers, log = console.log }) {
+  const { result, ids } = await addEdges({ github, repository, number, blockers, log });
   if (result.missed.length === 0) {
     return result;
   }
@@ -160,7 +161,12 @@ export async function writeEdges({ github, repository, number, blockers }) {
   return result;
 }
 
-async function addEdges({ github, repository, number, blockers }) {
+// GitHub's 422 for an edge whose reverse exists. UNVERIFIED wording: matched on
+// "cycle" or "circular", from an owner's report of the refusal, not a
+// recorded answer.
+const CYCLE = /\b(cycle|circular)/i;
+
+async function addEdges({ github, repository, number, blockers, log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const ids = [];
   const result = { written: [], skipped: [], missed: [], unwritten: [], undeleted: [] };
@@ -221,12 +227,34 @@ async function addEdges({ github, repository, number, blockers }) {
       skip(blocker, "no issue id");
     } else {
       try {
-        await github("POST", `${base}/dependencies/blocked_by`, { issue_id: issue.id });
+        // Safe to send twice: the edge was read as absent above, and a second
+        // copy after a 5xx that GitHub did apply is refused, which the 422
+        // branch reads back as the run's own edge.
+        await github("POST", `${base}/dependencies/blocked_by`, { issue_id: issue.id }, {}, { resendOnce: true });
         result.written.push(blocker);
         ids.push({ blocker, id: issue.id });
       } catch (error) {
-        if (error instanceof GitHubError && error.status === 422) {
-          skip(blocker, "GitHub refused the edge");
+        if (error instanceof GitHubError && error.status === 422 && CYCLE.test(`${error.message} ${error.detail ?? ""}`)) {
+          // The reverse edge exists, as when a person reversed an order a
+          // re-triage's verdict still names: skipped, not retried, not failed.
+          log(`::notice title=apply-verdict::blocked-by edge not written: #${number} blocked by #${blocker}, GitHub refused it as a cycle (the reverse edge exists)`);
+          skip(blocker, "GitHub refused it as a cycle");
+        } else if (error instanceof GitHubError && error.status === 422) {
+          // A resend refused because the first copy landed: the edge is this
+          // run's, so a later miss deletes it with the rest.
+          let landed = false;
+          try {
+            landed = (await paginate(github, `${base}/dependencies/blocked_by`)).some((found) => found?.number === blocker);
+          } catch (readError) {
+            miss(blocker, readError);
+            continue;
+          }
+          if (landed) {
+            result.written.push(blocker);
+            ids.push({ blocker, id: issue.id });
+          } else {
+            skip(blocker, "GitHub refused the edge");
+          }
         } else {
           miss(blocker, error);
         }

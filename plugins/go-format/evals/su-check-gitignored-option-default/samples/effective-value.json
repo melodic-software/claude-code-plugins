@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| go_format_lint_gitignored | INFO | false (default) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`go_format_lint_gitignored` controls this.",
+      "why": "near miss: names the option, gives no value"
+    },
+    {
+      "answer": "The option is set to true.",
+      "why": "wrong value in this eval, where it is unset"
+    }
+  ]
+}

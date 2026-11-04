@@ -118,7 +118,7 @@ pointer.
 | C16 | Baseline-suppression rules: where a written project rule conflicts with a default smell, the project rule wins, and nothing a linter or formatter already checks is reported | `code-review:38-41` | D |
 | C17 | PR-variant agent brief: the current-state field reports what the attached change already does, and the brief lists the work remaining on that change | `AGENT-BRIEF.md:148-183` | B |
 | C18 | "Refer by name" narration — human-facing text names tickets by title, never bare ids | `wayfinder:15-17` | W |
-| C19 | Out-of-scope map section semantics — scope not sharpness lands it there; out-of-scope fog never graduates; a wrongly scoped existing ticket is closed with one linking line | `wayfinder:95-101` | W |
+| C19 | Out-of-scope map section semantics: an item goes there for its scope, never for how sharp it is; out-of-scope fog never graduates; a wrongly scoped existing ticket is closed with one linking line | `wayfinder:95-101` | W |
 | C20 | Map-as-index doctrine: each decision is recorded only on its own ticket, and the map gives a one-line gist and a link | `wayfinder:23` | W |
 | C21 | One-skill-per-call phrasing: a step that uses two skills makes a separate call for each | `.agents/invocation.md` (post-#878) | X |
 | C22 | User-invoked-target lint plus human-relay phrasing — never Skill-tool-invoke a user-invocable-only target; say "tell the user to run /X" | skills-repo PR #880 | X |
@@ -161,7 +161,7 @@ consumer-configurable throughout.
 
 - **C5 ADOPTED**: prefactor look-ahead at decompose time ("make the change easy, then make the easy change"); prefactor slices are blockers of the slices they unblock. Qualitative — no token folklore.
 - **C6 ADOPTED**: "one fresh context window" granularity bar alongside S/M/L. Qualitative only; folklore token figures remain excluded-by-default.
-- **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch. Upstream v1.3 added a parallel executor for the integration-branch idea (`implement-spec`, with an open frontier defect, upstream issue #936); ours adapts it as `/work-items:ship run`, attended only (SSOT `implement-spec` row).
+- **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, the batches go on one shared integration branch, and each blocks a closing integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch. Upstream v1.3 added a parallel executor for the integration-branch idea (`implement-spec`, with an open frontier defect, upstream issue #936); ours adapts it as `/work-items:ship run`, attended only (SSOT `implement-spec` row).
 - **C8 ADOPTED**: "work the frontier" phrasing in the present/report step (unblocked slices first).
 - **C17 ADOPTED**: PR-variant brief in `plugins/work-items/reference/agent-brief.md` (current-behavior-of-the-diff, finish-what-exists). Does not replace the bug/feature template.
 
@@ -393,7 +393,7 @@ condition) belongs to the invocation-reach tracked strand in
   `domain-modeling` rewording (`domain-modeling/SKILL.md:3`, PR #848) had nothing to add. A
   one-shot comparison, not a re-evaluation trigger. Annotated 2026-10-04: upstream reworded the
   trigger again before v1.3.0 (`e12e7ec`, `54bc6b6`, then `d80fa0f` for the `GLOSSARY.md` rename);
-  it now fires on discussing codebase terminology or editing a `GLOSSARY.md` or an ADR. C23 holds
+  it now fires when the talk turns to codebase terms, or when a `GLOSSARY.md` or an ADR is being written or changed. C23 holds
   for the glossary half. The ADR clause is a deliberate REJECT: `curate-language` owns no ADRs and
   surfaces consequential decisions to the planning workflow (`curate-language/SKILL.md:107-108`).
 

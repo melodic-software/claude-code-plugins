@@ -18,9 +18,10 @@
 // The needs-triage floor label is no triage label: it lands on open whether
 // or not intake runs. github-actions[bot] issues are left out: the lane
 // sweep's can quote fork-controlled log lines. Per issue, one comment holds the runs
-// dispatched and, once read, whether each reached intake; after 2 that reached intake and left it untriaged (a run the
+// dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
-// dispatches) the sweep labels it needs-triage
+// dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
+// a network error or a deferred triage) the sweep labels it needs-triage
 // and rewrites that comment to hand it to a maintainer, listing the runs. It
 // files no issue. No model. The count is per triage cycle: a work-unblock
 // hand-back comment the lanes App posted after the state comment's last edit
@@ -49,8 +50,13 @@ const MAX_HANDED = 5;
 const MAX_CHECKED = 20;
 const MAX_ISSUE_PAGES = 15;
 const COMMENT_PAGES = 3;
-// A run counts as an attempt only when it reached intake (reachedIntake).
+// A run counts as an attempt only when it reached intake (reachedIntake) and
+// its verdict did not stop on a transient answer (classifyRun).
 const ATTEMPTS = 2;
+// judgment: about a day of hourly sweeps. Past this many runs that stopped on a
+// transient answer, each further one counts as an attempt, so a fault that
+// never clears still reaches a person.
+export const TRANSIENT_LIMIT = 24;
 export const RUN_LIMIT = 6;
 const MIN_AGE_MS = 3_600_000;
 const BOT = "github-actions[bot]";
@@ -59,9 +65,10 @@ const BOT = "github-actions[bot]";
 // filing was under way; both stop the sweep too.
 export const FILING = "?";
 export const HANDED = "handed";
-// Each run id in `runs=` may carry `+` (it reached intake) or `-` (it did not),
-// so a finished run's jobs are read once; an unmarked id is unread.
-const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,+-]*) filed=([0-9]*|\?|handed) -->/;
+// Each run id in `runs=` may carry `+` (it reached intake and counts), `~` (it
+// reached intake and stopped on a transient answer) or `-` (it did not reach
+// intake), so a finished run is read once; an unmarked id is unread.
+const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,+~-]*) filed=([0-9]*|\?|handed) -->/;
 // work-unblock's comment when it hands an issue back to triage after its lane
 // PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker),
 // the issue lane's when a stop's intake route sends it back
@@ -118,7 +125,7 @@ export function readState(comments, appId = null) {
         commentId: c.id,
         runs: entries.map((e) => Number.parseInt(e, 10)),
         filed: m[2] === FILING || m[2] === HANDED ? m[2] : m[2] ? Number(m[2]) : null,
-        reached: new Map(entries.filter((e) => /[+-]$/.test(e)).map((e) => [Number.parseInt(e, 10), e.endsWith("+")])),
+        reached: new Map(entries.filter((e) => /[+~-]$/.test(e)).map((e) => [Number.parseInt(e, 10), e.at(-1)])),
       };
     }
   }
@@ -126,15 +133,18 @@ export function readState(comments, appId = null) {
 }
 
 // `details` lists each run as {id, conclusion}, for the hand-off; `reached`
-// maps each run read so far to whether it reached intake.
-const runEntry = (reached) => (id) => `${id}${reached.has(id) ? (reached.get(id) ? "+" : "-") : ""}`;
+// maps each run read so far to its mark (classifyRun).
+const runEntry = (reached) => (id) => `${id}${reached.get(id) ?? ""}`;
 export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reached = new Map() }) =>
   `<!-- claude-lane triage-sweep runs=${runs.map(runEntry(reached)).join(",")} filed=${filed ?? ""} -->\n` +
   (filed === HANDED
     ? [
         `Intake triage did not triage this issue after ${runs.length} dispatches, ${HANDED_TEXT} and labeled it needs-triage for a maintainer. Triage it by hand, and read the runs for why intake did not:`,
         "",
-        ...details.map((r) => `- ${repoUrl}/actions/runs/${r.id} (${r.conclusion ?? "unknown"}${r.reached === false ? ", intake did not run" : ""})`),
+        ...details.map(
+          (r) =>
+            `- ${repoUrl}/actions/runs/${r.id} (${r.reached === "~" ? "a transient stop: a GitHub 5xx, a network error or a deferred triage" : `${r.conclusion ?? "unknown"}${r.reached === "-" ? ", intake did not run" : ""}`})`,
+        ),
       ].join("\n")
     : filed === FILING
     ? `Intake triage did not triage this issue after ${runs.length} dispatches; the sweep labeled it needs-triage for a maintainer.`
@@ -152,15 +162,73 @@ export const reachedIntake = (jobs) =>
     (j) => /^intake-triage(?: \/ |$)/.test(String(j.name ?? "")) && j.status === "completed" && !["skipped", "cancelled"].includes(j.conclusion),
   );
 
-// `reached` counts the runs that reached intake; unread, every run counts.
-// RUN_LIMIT bounds the runs that never did: the sweep's own kill-switch check
-// stops it while the switch is on, so only a gate that keeps skipping intake
-// (a long upstream degradation, a born-triaged read that keeps failing) gets there.
-export function decide({ state, latest, reached = state.runs.length }) {
+// A run's mark, from its jobs and one annotations read (`annotations(path)`
+// returns a check run's annotation list): `-` when it never reached intake,
+// `~` when it stopped on a transient answer, `+` otherwise, so whatever cannot
+// be told apart counts. Transient is either:
+// - apply-verdict failed or succeeded, and every failure annotation and every
+//   "not written" warning it left names a GitHub 5xx, a timeout or a network
+//   failure (runs 41814429466 and 41814435576: "failed with status 500",
+//   "GitHub answered 500"); or
+// - apply-verdict was skipped because the reusable's apply job deferred an
+//   otherwise clean triage on a permission denial (run 41807993284), which
+//   writes nothing so that a later run retries it.
+// No open-incident signal is read: the run's own upstream check skips intake
+// while githubstatus.com lists Actions in an outage, which marks it `-`, and
+// nothing records an API incident at the time a run ran.
+const TRANSIENT = /failed with status 5\d\d\b|GitHub answered 5\d\d\b|\bfetch failed\b|aborted due to timeout/;
+// apply-verdict joins several write failures into one annotation (its
+// missedAnnotation), so a note is transient only when every status it reports
+// is a 5xx: "GitHub answered 500" beside "GitHub answered 403" counts. A note
+// that reports no status is read by TRANSIENT alone (a timeout, a reset).
+const STATUS = /(?:failed with status|GitHub answered) (\d{3})\b/g;
+const transientNote = (message) => {
+  const statuses = [...message.matchAll(STATUS)].map((m) => m[1]);
+  return statuses.length > 0 ? statuses.every((code) => code.startsWith("5")) : TRANSIENT.test(message);
+};
+const DEFERRED = "permission denial(s) on an otherwise clean triage";
+const EXIT_LINE = /^Process completed with exit code \d+\.$/;
+const checkRunPath = (job) => {
+  const id = /\/check-runs\/([0-9]+)$/.exec(String(job?.check_run_url ?? ""))?.[1];
+  return id ? `/check-runs/${id}/annotations?per_page=100` : null;
+};
+export async function classifyRun(jobs, annotations) {
+  if (!reachedIntake(jobs)) return "-";
+  const apply = jobs.find((j) => j.name === "apply-verdict" && j.status === "completed");
+  if (apply?.conclusion === "skipped") {
+    const reusable = jobs.find((j) => /^intake-triage \/ .*-apply$/.test(String(j.name ?? "")) && j.conclusion === "success");
+    const path = checkRunPath(reusable);
+    if (!path) return "+";
+    const notes = (await annotations(path)) ?? [];
+    return notes.some((a) => a?.annotation_level === "warning" && String(a.message ?? "").includes(DEFERRED)) ? "~" : "+";
+  }
+  const path = ["failure", "success"].includes(apply?.conclusion) ? checkRunPath(apply) : null;
+  if (!path) return "+";
+  const notes = ((await annotations(path)) ?? [])
+    .filter((a) => a?.annotation_level === "failure" || (a?.annotation_level === "warning" && /not written/.test(String(a.message ?? ""))))
+    .filter((a) => !EXIT_LINE.test(String(a.message ?? "")));
+  return notes.length > 0 && notes.every((a) => transientNote(String(a.message ?? ""))) ? "~" : "+";
+}
+
+// What the marks add up to: `attempts` the runs that count (an unread run
+// counts), `dispatches` the runs RUN_LIMIT sees. The first TRANSIENT_LIMIT
+// transient runs count toward neither; each one past them counts toward both.
+export function tally(runs, marks) {
+  const all = runs.map((id) => marks.get(id) ?? "+");
+  const forgiven = Math.min(all.filter((m) => m === "~").length, TRANSIENT_LIMIT);
+  return { attempts: all.filter((m) => m !== "-").length - forgiven, dispatches: runs.length - forgiven };
+}
+
+// `reached` counts the attempts; unread, every run counts. RUN_LIMIT bounds
+// the runs that never reached intake: the sweep's own kill-switch check stops
+// it while the switch is on, so only a gate that keeps skipping intake (a long
+// upstream degradation, a born-triaged read that keeps failing) gets there.
+// `dispatches` leaves out the transient runs tally forgives.
+export function decide({ state, latest, reached = state.runs.length, dispatches = state.runs.length }) {
   if (state.filed) return "stop";
   if (state.runs.length === 0) return "dispatch";
   if (latest?.status !== "completed") return "wait";
-  return reached >= ATTEMPTS || state.runs.length >= RUN_LIMIT ? "hand" : "dispatch";
+  return reached >= ATTEMPTS || dispatches >= RUN_LIMIT ? "hand" : "dispatch";
 }
 
 const FILED_TITLE = /^Intake triage left #([1-9][0-9]*) untriaged after /;
@@ -296,9 +364,9 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${state.runs.at(-1)}`) : null;
       // A run the API no longer has counts as finished.
       const finished = state.runs.length > 0 && latest === null ? { status: "completed" } : latest;
-      // Once the runs could hand the issue off, read whether each run the state
-      // has not recorded reached intake. A read that finds no run counts the
-      // run and is recorded; one that fails counts it for this pass only.
+      // Once the runs could hand the issue off, read each run the state has
+      // not recorded (classifyRun). A read that finds no run counts the run
+      // and is recorded; one that fails counts it for this pass only.
       const known = new Map(state.reached);
       const reached = new Map(known);
       // At RUN_LIMIT the issue is handed off whatever the reads say, so with the
@@ -308,17 +376,17 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         for (const id of state.runs.filter((r) => !known.has(r))) {
           try {
             const answer = await call("GET", `/repos/${repo}/actions/runs/${id}/jobs?per_page=100`);
-            known.set(id, answer === null || reachedIntake(answer.jobs));
+            known.set(id, answer === null ? "+" : await classifyRun(answer.jobs ?? [], (path) => call("GET", `/repos/${repo}${path}`)));
             reached.set(id, known.get(id));
           } catch (error) {
             if (/call budget/.test(error.message)) throw error;
-            reached.set(id, true);
+            reached.set(id, "+");
           }
         }
       }
       // Unread, every run counts.
-      const count = state.runs.filter((id) => reached.get(id) ?? true).length;
-      let action = decide({ state, latest: finished, reached: count });
+      const { attempts, dispatches } = tally(state.runs, reached);
+      let action = decide({ state, latest: finished, reached: attempts, dispatches });
       if (action === "wait") result.waiting.push(number);
       if (action === "dispatch" && result.dispatched.length >= MAX_DISPATCHES) action = "stop";
       if (action === "hand" && result.handed.length >= MAX_HANDED) action = "stop";
@@ -338,7 +406,9 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         continue;
       }
       // Never start a run the budget left cannot record, or a hand-off it cannot finish.
-      if ((action === "dispatch" && remaining() < 2) || (action === "hand" && remaining() < state.runs.length + 1)) {
+      // A hand-off reads each run's conclusion but a transient one's.
+      const reads = state.runs.filter((id) => id !== state.runs.at(-1) && reached.get(id) !== "~").length;
+      if ((action === "dispatch" && remaining() < 2) || (action === "hand" && remaining() < reads + 2)) {
         result.truncated = `stopped at #${number}: too little call budget left`;
         break;
       }
@@ -364,7 +434,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (action === "hand") {
         const runs = [];
         for (const id of state.runs) {
-          const run = id === state.runs.at(-1) ? latest : await call("GET", `/repos/${repo}/actions/runs/${id}`);
+          const run = id === state.runs.at(-1) ? latest : reached.get(id) === "~" ? null : await call("GET", `/repos/${repo}/actions/runs/${id}`);
           runs.push({ id, conclusion: run?.conclusion ?? null, reached: reached.get(id) });
         }
         // The label first, then the record that stops later passes: a failed

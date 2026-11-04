@@ -66,7 +66,8 @@ test("live config: resolve-conflicts applies to a conflicting ready PR with prep
   assert.equal(slot.prepare, "merge-base");
   assert.equal(slot.effect, "read");
   assert.deepEqual(slot["applied-by"], { patch: "apply-conflict-patch" });
-  assert.equal(slot.skill, "source-control:resolve-conflicts");
+  assert.equal(slot.skill, "source-control:pull-request");
+  assert.equal(slot.args, "conflicts --ci --unattended");
 });
 
 test("live config: resolve-conflicts holds no write token; its push job may only write its branch", () => {
@@ -216,6 +217,8 @@ test("live config: every lane call of a skill that takes --unattended passes it"
     }
   }
   for (const activity of [
+    `${CONFIG_PATH}#resolve-conflicts`,
+    `${EXAMPLE_PATH}#resolve-conflicts`,
     `${CONFIG_PATH}#address-feedback`,
     `${CONFIG_PATH}#review-dependency`,
     `${CONFIG_PATH}#fix-ci`,
@@ -699,6 +702,11 @@ test("live config: fix-docs applies to a Markdown change and waits on do-not-mer
     skipReason("pr-refine", "fix-docs", { labels: ["do-not-merge"] }),
     "awaiting-human",
   );
+});
+
+test("live config: CI fix-docs is off, fix-docs-per-run 0 (#7576, D100)", () => {
+  const { limits } = resolve(FILES, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+  assert.equal(limits["fix-docs-per-run"], 0);
 });
 
 test("live config: fix-docs does not apply to a draft PR", () => {

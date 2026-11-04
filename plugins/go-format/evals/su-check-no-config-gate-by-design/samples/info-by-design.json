@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "INFO: no consumer-config probe, by design. It is not a gap."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: no repo config probe; this is a coverage gap to fix.",
+      "why": "graded a gap"
+    },
+    {
+      "answer": "There is no config probe.",
+      "why": "near miss: says nothing on by design or the grade"
+    }
+  ]
+}

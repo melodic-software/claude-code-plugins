@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "The marker goes under the git common directory in `powershell-format/trust-approvals`."
+    },
+    {
+      "answer": "It is recorded at .git/powershell-format/trust-approvals.",
+      "why": "sentence-final period"
+    },
+    {
+      "answer": "<common>\\powershell-format\\trust-approvals",
+      "why": "Windows separators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Approval is stored in a trust-approvals folder.",
+      "why": "near miss: no plugin directory"
+    },
+    {
+      "answer": "powershell-format/trust-approvals-old",
+      "why": "a different name"
+    },
+    {
+      "answer": "powershell-format/trust-approvals.json",
+      "why": "a file, not the store"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

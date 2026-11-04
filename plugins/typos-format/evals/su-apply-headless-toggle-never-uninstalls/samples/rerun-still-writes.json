@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Against an installed plugin the rerun prints already installed and still writes the value."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It prints already installed, so it does nothing.",
+      "why": "near miss: no write"
+    },
+    {
+      "answer": "Run the install command with --config.",
+      "why": "near miss: never says what happens on an installed plugin"
+    }
+  ]
+}

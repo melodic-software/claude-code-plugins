@@ -6,8 +6,14 @@
 // line per check on stdout, progress on stderr. Without Docker it prints
 // "SKIP: docker not available" and exits 0.
 //
-// usage: node plugins/sql-server/integration/read-path.mjs
-// needs: Docker, openssl, and the plugin's dependencies (npm ci --prefix plugins/sql-server)
+// With --azure-server it runs the same checks against an existing, empty Azure
+// SQL Database named app on that logical server instead: it signs in as the
+// Azure CLI's account, which must be the server's Microsoft Entra admin, and
+// creates a read-only and a write contained user there (target.mjs).
+//
+// usage: node plugins/sql-server/integration/read-path.mjs [--azure-server <server>.database.windows.net]
+// needs: the plugin's dependencies (npm ci --prefix plugins/sql-server); locally
+// Docker and openssl, on Azure an `az login` and SQL authentication enabled
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { APP_NAME } from '../src/executor.mjs';
 import { checkStatement } from '../src/statement.mjs';
 import { REQUIRES_USER_INTERACTION, WRITE_NOT_OPTED_IN } from '../src/tools.mjs';
+import { OUT_OF_SCOPE_REFUSAL, fingerprintQuery, fixtureBatches, parseTarget } from './target.mjs';
 
 const PLUGIN_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const IMAGE = 'mcr.microsoft.com/mssql/server:2022-latest';
@@ -69,7 +76,6 @@ const ATTEMPTS = [
 // A refusal for a missing grant names a permission; any other error (a parse
 // error, a dropped connection) does not count as the login refusing.
 const PERMISSION_REFUSAL = /permission/i;
-const DATABASE_REFUSAL = /not able to access the database/i;
 
 const SESSION_PROBE = `SELECT s.transaction_isolation_level AS isolation, s.lock_timeout AS lockTimeout,
   @@TRANCOUNT AS openTransactions, CAST(@@OPTIONS & 16384 AS int) AS xactAbort,
@@ -85,23 +91,6 @@ const EXPECTED_SESSION = {
   db: 'app',
   app: APP_NAME,
 };
-
-// Read as sa: what any write, DDL or grant would change.
-const FINGERPRINT = `SELECT
-  (SELECT COUNT(*) FROM app.sys.objects WHERE is_ms_shipped = 0) AS appObjects,
-  (SELECT COUNT(*) FROM app.sys.columns AS c JOIN app.sys.objects AS o ON o.object_id = c.object_id WHERE o.is_ms_shipped = 0) AS appColumns,
-  (SELECT COUNT(*) FROM app.dbo.items) AS itemRows,
-  (SELECT CHECKSUM_AGG(CHECKSUM(id, name)) FROM app.dbo.items) AS itemChecksum,
-  (SELECT CAST(current_value AS bigint) FROM app.sys.sequences WHERE name = N'counter') AS counter,
-  (SELECT CAST(is_disabled AS int) FROM app.sys.triggers WHERE name = N'items_audit') AS triggerDisabled,
-  (SELECT COUNT(*) FROM app.sys.database_principals) AS appPrincipals,
-  (SELECT COUNT(*) FROM app.sys.database_role_members) AS appRoleMembers,
-  (SELECT COUNT(*) FROM app.sys.database_permissions) AS appPermissions,
-  (SELECT COUNT(*) FROM other.sys.objects WHERE is_ms_shipped = 0) AS otherObjects,
-  (SELECT COUNT(*) FROM other.dbo.ledger) AS ledgerRows,
-  (SELECT CHECKSUM_AGG(CHECKSUM(id, amount)) FROM other.dbo.ledger) AS ledgerChecksum,
-  (SELECT COUNT(*) FROM sys.databases) AS databases,
-  (SELECT COUNT(*) FROM sys.server_principals) AS logins;`;
 
 class SetupError extends Error {}
 
@@ -148,11 +137,18 @@ function writeTls(dir) {
   return { tls, cert, conf };
 }
 
-function connect(tedious, { port, userName, password, ca, database = 'master' }) {
+const sqlLogin = (userName, password) => ({ type: 'default', options: { userName, password } });
+
+// endpoint: { server, port, ca?, connectTimeout }. Azure's certificate chains
+// to a public root, so only the container passes a ca.
+function connect(tedious, { endpoint: { server, port, ca, connectTimeout }, authentication, database }) {
   const connection = new tedious.Connection({
-    server: 'localhost',
-    authentication: { type: 'default', options: { userName, password } },
-    options: { port, database, encrypt: true, cryptoCredentialsDetails: { ca }, connectTimeout: 10_000, rowCollectionOnRequestCompletion: false },
+    server,
+    authentication,
+    options: {
+      port, database, encrypt: true, connectTimeout, rowCollectionOnRequestCompletion: false,
+      ...(ca === undefined ? {} : { cryptoCredentialsDetails: { ca } }),
+    },
   });
   connection.on('error', () => {});
   return new Promise((resolve, reject) => {
@@ -200,50 +196,22 @@ async function waitForServer(tedious, container, options) {
   }
 }
 
-async function createFixtures(sa, tedious, readerPassword, writerPassword) {
-  for (const sql of [
-    `CREATE LOGIN [${READER}] WITH PASSWORD = N'${readerPassword}';`,
-    `CREATE LOGIN [${WRITER}] WITH PASSWORD = N'${writerPassword}';`,
-    'CREATE DATABASE [app];',
-    'CREATE DATABASE [other];',
-    'USE [app];',
-    'CREATE TABLE dbo.items (id int NOT NULL PRIMARY KEY, name nvarchar(50) NOT NULL);',
-    "INSERT INTO dbo.items (id, name) VALUES (1, N'one'), (2, N'two'), (3, N'three');",
-    'CREATE SEQUENCE dbo.counter AS int START WITH 1 INCREMENT BY 1;',
-    // After one use, current_value moves on any further NEXT VALUE FOR.
-    'SELECT NEXT VALUE FOR dbo.counter;',
-    'CREATE TRIGGER dbo.items_audit ON dbo.items AFTER INSERT AS SET NOCOUNT ON;',
-    `CREATE USER [${READER}] FOR LOGIN [${READER}];`,
-    `ALTER ROLE db_datareader ADD MEMBER [${READER}];`,
-    // An UPDATE with a WHERE clause reads the table, so the writer reads too.
-    `CREATE USER [${WRITER}] FOR LOGIN [${WRITER}];`,
-    `ALTER ROLE db_datareader ADD MEMBER [${WRITER}];`,
-    `ALTER ROLE db_datawriter ADD MEMBER [${WRITER}];`,
-    'USE [other];',
-    'CREATE TABLE dbo.ledger (id int NOT NULL PRIMARY KEY, amount int NOT NULL);',
-    'INSERT INTO dbo.ledger (id, amount) VALUES (1, 100);',
-    'USE [master];',
-  ]) {
-    await batch(sa, tedious, sql);
-  }
-}
-
-// Read as sa between calls: a plugin session left holding a transaction.
+// Read as the admin between calls: a plugin session left holding a transaction.
 const OPEN_PLUGIN_TRANSACTIONS = `SELECT COUNT(*) FROM sys.dm_exec_sessions
 WHERE program_name = N'${APP_NAME.replaceAll("'", "''")}' AND open_transaction_count > 0;`;
 
-async function openPluginTransactions(sa, tedious) {
-  const { rows } = await batch(sa, tedious, OPEN_PLUGIN_TRANSACTIONS);
+async function openPluginTransactions(admin, tedious) {
+  const { rows } = await batch(admin, tedious, OPEN_PLUGIN_TRANSACTIONS);
   return rows[0][0];
 }
 
-async function fingerprint(sa, tedious) {
-  const { columns, rows } = await batch(sa, tedious, FINGERPRINT);
+async function fingerprint(admin, tedious, target) {
+  const { columns, rows } = await batch(admin, tedious, fingerprintQuery(target));
   return Object.fromEntries(columns.map((column, i) => [column, rows[0][i]]));
 }
 
-async function itemRows(sa, tedious) {
-  const { rows } = await batch(sa, tedious, 'SELECT id, name FROM app.dbo.items ORDER BY id;');
+async function itemRows(admin, tedious) {
+  const { rows } = await batch(admin, tedious, 'SELECT id, name FROM app.dbo.items ORDER BY id;');
   return JSON.stringify(rows);
 }
 
@@ -324,8 +292,55 @@ function pluginFiles(dir) {
   });
 }
 
+// Starts the container and returns its endpoint and an sa connection to master.
+async function startLocal(tedious, dir, container, saPassword) {
+  const { tls, cert, conf } = writeTls(dir);
+  const ca = readFileSync(cert, 'utf8');
+  if (spawnSync('docker', ['image', 'inspect', IMAGE], { stdio: 'ignore' }).status !== 0) {
+    log(`pulling ${IMAGE}`);
+    run('docker', ['pull', IMAGE]);
+  }
+  log(`starting ${container}`);
+  // The sa password reaches docker through its environment, never its argv.
+  run('docker', ['run', '--detach', '--name', container, '-e', 'ACCEPT_EULA=Y', '-e', 'MSSQL_PID=Developer', '-e', 'MSSQL_SA_PASSWORD',
+    '-p', '127.0.0.1::1433', '-v', `${tls}:/opt/mssql-tls:ro`, '-v', `${conf}:/var/opt/mssql/mssql.conf`, IMAGE],
+  { env: { ...process.env, MSSQL_SA_PASSWORD: saPassword }, quiet: true });
+  const port = Number(run('docker', ['port', container, '1433/tcp'], { quiet: true }).split('\n')[0].split(':').at(-1));
+  if (!Number.isInteger(port) || port <= 0) throw new SetupError(`cannot read the container's published port`);
+  const endpoint = { server: 'localhost', port, ca, connectTimeout: 10_000 };
+  log(`waiting for SQL Server on 127.0.0.1:${port}`);
+  const admin = await waitForServer(tedious, container, { endpoint, authentication: sqlLogin('sa', saPassword), database: 'master' });
+  return { endpoint, admin, cert, conf };
+}
+
+// Connects to app as the Azure CLI's signed-in account, the server's Entra
+// admin. A serverless database resuming from pause can take about a minute.
+async function connectAzure(tedious, target) {
+  let identity;
+  try {
+    identity = await import('@azure/identity');
+  } catch (error) {
+    throw new SetupError(`cannot load @azure/identity; run npm ci --prefix plugins/sql-server first (${error.message})`);
+  }
+  const endpoint = { server: target.server, port: 1433, connectTimeout: 90_000 };
+  log('connecting to the Azure SQL Database app as the Azure CLI account');
+  const authentication = { type: 'token-credential', options: { credential: new identity.AzureCliCredential() } };
+  const admin = await connect(tedious, { endpoint, authentication, database: 'app' })
+    .catch((error) => { throw new SetupError(`cannot connect as the Entra admin: ${error.message}`); });
+  return { endpoint, admin };
+}
+
 async function main() {
-  if (!dockerAvailable()) {
+  let target;
+  try {
+    target = parseTarget(process.argv.slice(2));
+  } catch (error) {
+    console.log(`FAIL: setup: ${error.message}`);
+    return 2;
+  }
+  const local = target.kind === 'local';
+  const outOfScope = OUT_OF_SCOPE_REFUSAL[target.kind];
+  if (local && !dockerAvailable()) {
     console.log('SKIP: docker not available');
     return 0;
   }
@@ -336,11 +351,11 @@ async function main() {
   const writerPassword = newPassword();
   const container = `sql-server-read-path-${randomBytes(4).toString('hex')}`;
   const dir = mkdtempSync(join(tmpdir(), 'sql-server-read-path-'));
-  let sa;
+  let admin;
   let client;
   let tedious;
   const cleanup = () => {
-    spawnSync('docker', ['rm', '--force', '--volumes', container], { stdio: 'ignore' });
+    if (local) spawnSync('docker', ['rm', '--force', '--volumes', container], { stdio: 'ignore' });
     rmSync(dir, { recursive: true, force: true });
   };
   const interrupted = () => {
@@ -352,35 +367,23 @@ async function main() {
 
   try {
     tedious = await loadTedious();
-    const { tls, cert, conf } = writeTls(dir);
-    const ca = readFileSync(cert, 'utf8');
-
-    if (spawnSync('docker', ['image', 'inspect', IMAGE], { stdio: 'ignore' }).status !== 0) {
-      log(`pulling ${IMAGE}`);
-      run('docker', ['pull', IMAGE]);
+    const setup = local ? await startLocal(tedious, dir, container, saPassword) : await connectAzure(tedious, target);
+    const { endpoint, cert, conf } = setup;
+    admin = setup.admin;
+    for (const sql of fixtureBatches(target, { reader: READER, readerPassword, writer: WRITER, writerPassword })) {
+      await batch(admin, tedious, sql);
     }
-    log(`starting ${container}`);
-    // The sa password reaches docker through its environment, never its argv.
-    run('docker', ['run', '--detach', '--name', container, '-e', 'ACCEPT_EULA=Y', '-e', 'MSSQL_PID=Developer', '-e', 'MSSQL_SA_PASSWORD',
-      '-p', '127.0.0.1::1433', '-v', `${tls}:/opt/mssql-tls:ro`, '-v', `${conf}:/var/opt/mssql/mssql.conf`, IMAGE],
-    { env: { ...process.env, MSSQL_SA_PASSWORD: saPassword }, quiet: true });
-    const port = Number(run('docker', ['port', container, '1433/tcp'], { quiet: true }).split('\n')[0].split(':').at(-1));
-    if (!Number.isInteger(port) || port <= 0) throw new SetupError(`cannot read the container's published port`);
-
-    log(`waiting for SQL Server on 127.0.0.1:${port}`);
-    sa = await waitForServer(tedious, container, { port, userName: 'sa', password: saPassword, ca });
-    await createFixtures(sa, tedious, readerPassword, writerPassword);
-    const before = await fingerprint(sa, tedious);
-    if (before.itemRows !== 3 || before.ledgerRows !== 1) throw new SetupError(`the fixtures are not in place: ${JSON.stringify(before)}`);
+    const before = await fingerprint(admin, tedious, target);
+    if (before.itemRows !== 3 || (local && before.ledgerRows !== 1)) throw new SetupError(`the fixtures are not in place: ${JSON.stringify(before)}`);
 
     const configPath = join(dir, 'config.json');
     writeFileSync(configPath, `${JSON.stringify({
       schemaVersion: 1,
       defaults: { requestTimeoutMs: 20_000, lockTimeoutMs: LOCK_TIMEOUT_MS },
       environments: {
-        local: {
-          server: 'localhost',
-          port,
+        [target.kind]: {
+          server: endpoint.server,
+          ...(local ? { port: endpoint.port } : {}),
           databases: ['app'],
           auth: { type: 'sql-login', user: { env: 'SQL_READ_PATH_USER' }, password: { env: 'SQL_READ_PATH_PASSWORD' } },
           write: {
@@ -395,7 +398,7 @@ async function main() {
     const registration = {
       type: 'stdio',
       command: process.execPath,
-      args: [join(PLUGIN_ROOT, 'src', 'launch.mjs'), '--config', configPath, '--environment', 'local'],
+      args: [join(PLUGIN_ROOT, 'src', 'launch.mjs'), '--config', configPath, '--environment', target.kind],
     };
     const writeRegistration = { ...registration, args: [...registration.args, '--write'] };
     writeFileSync(registrationPath, `${JSON.stringify({
@@ -410,7 +413,7 @@ async function main() {
       SQL_READ_PATH_PASSWORD: readerPassword,
       SQL_WRITE_PATH_USER: WRITER,
       SQL_WRITE_PATH_PASSWORD: writerPassword,
-      NODE_EXTRA_CA_CERTS: cert,
+      ...(local ? { NODE_EXTRA_CA_CERTS: cert } : {}),
     };
     const transcripts = [];
     async function startClient(serverRegistration, label) {
@@ -479,14 +482,14 @@ async function main() {
         }
         const drift = await sessionDrift(`${label} (round ${round})`);
         if (drift) failures['S1/S2'].push(drift);
-        const open = await openPluginTransactions(sa, tedious);
+        const open = await openPluginTransactions(admin, tedious);
         if (open !== 0) failures['S1/S2'].push(`after ${label} (round ${round}) ${open} plugin session(s) held an open transaction`);
       }
     }
     // The guarantee does not rest on the reject list: each write sent past it
     // must meet a permission refusal from the login itself.
     const writes = ATTEMPTS.filter((attempt) => attempt.write);
-    const reader = await connect(tedious, { port, userName: READER, password: readerPassword, ca, database: 'app' });
+    const reader = await connect(tedious, { endpoint, authentication: sqlLogin(READER, readerPassword), database: 'app' });
     try {
       for (let round = 1; round <= ROUNDS; round += 1) {
         for (const { label, sql } of writes) {
@@ -501,7 +504,7 @@ async function main() {
     } finally {
       reader.close();
     }
-    const afterWrites = await fingerprint(sa, tedious);
+    const afterWrites = await fingerprint(admin, tedious, target);
     for (const change of changed(before, afterWrites)) failures['S1/S2'].push(`the database changed: ${change}`);
     passes['S1/S2'] = `each of ${ATTEMPTS.length} write, DDL and session-state attempts through query was refused on all ${ROUNDS} rounds ` +
       `(${byList} by the reject list, ${byLogin} by a permission refusal), each of ${writes.length} writes sent past the reject list ` +
@@ -522,7 +525,7 @@ async function main() {
     for (const sql of ['SELECT id, amount FROM other.dbo.ledger', 'SELECT name FROM other.sys.tables']) {
       const outcome = await call('query', { sql });
       if (!outcome.isError) failures.S5.push(`${sql} reached the second database`);
-      else if (!DATABASE_REFUSAL.test(outcome.text)) failures.S5.push(`${sql} failed without the login being refused the database: ${outcome.text}`);
+      else if (!outOfScope.pattern.test(outcome.text)) failures.S5.push(`${sql} failed without being refused by ${outOfScope.by}: ${outcome.text}`);
     }
     const listed = await call('list_objects', {});
     if (listed.isError) {
@@ -531,10 +534,10 @@ async function main() {
       const names = listed.data.objects.map((object) => object.name);
       if (!names.includes('items') || names.includes('ledger')) failures.S5.push(`list_objects returned ${names.join(', ')}`);
     }
-    const afterScope = await fingerprint(sa, tedious);
+    const afterScope = await fingerprint(admin, tedious, target);
     for (const change of changed(before, afterScope)) failures.S5.push(`the database changed: ${change}`);
     passes.S5 = 'the registration confined to app was refused the second database by the allow-list on every tool, ' +
-      'and by the read-only login on three-part names';
+      `and by ${outOfScope.by} on three-part names`;
 
     // S4, first on the registration without --write.
     const flag = (tool) => tool._meta?.[REQUIRES_USER_INTERACTION];
@@ -546,7 +549,7 @@ async function main() {
     const updateOne = { sql: "UPDATE dbo.items SET name = N'uno' WHERE id = 1", expectedRows: 1 };
     const refused = await call('write', updateOne);
     if (!refused.isError || refused.text !== WRITE_NOT_OPTED_IN) failures.S4.push(`write without --write was not refused for the opt-in: ${refused.text}`);
-    for (const change of changed(afterScope, await fingerprint(sa, tedious))) failures.S4.push(`the write refused without --write changed the database: ${change}`);
+    for (const change of changed(afterScope, await fingerprint(admin, tedious, target))) failures.S4.push(`the write refused without --write changed the database: ${change}`);
     await stopClient();
 
     // Then on the registration with --write.
@@ -561,20 +564,20 @@ async function main() {
       failures.S4.push(`the write affecting the expected 1 row did not commit it: ${committed.text}`);
     }
     const expectedItems = JSON.stringify([[1, 'uno'], [2, 'two'], [3, 'three']]);
-    const afterCommit = await itemRows(sa, tedious);
+    const afterCommit = await itemRows(admin, tedious);
     if (afterCommit !== expectedItems) failures.S4.push(`after the committed write dbo.items held ${afterCommit}, not ${expectedItems}`);
-    let held = await openPluginTransactions(sa, tedious);
+    let held = await openPluginTransactions(admin, tedious);
     if (held !== 0) failures.S4.push(`after the committed write ${held} plugin session(s) held an open transaction`);
-    const committedState = await fingerprint(sa, tedious);
+    const committedState = await fingerprint(admin, tedious, target);
 
     const mismatch = await call('write', { sql: "UPDATE dbo.items SET name = N'all'", expectedRows: 1 });
     if (!mismatch.isError || !mismatch.text.includes('rolled back: the statement affected 3 rows, not the expected 1')) {
       failures.S4.push(`the write affecting 3 rows against expectedRows 1 did not roll back with a tool error: ${mismatch.text}`);
     }
-    const afterMismatch = await itemRows(sa, tedious);
+    const afterMismatch = await itemRows(admin, tedious);
     if (afterMismatch !== expectedItems) failures.S4.push(`after the rolled-back write dbo.items held ${afterMismatch}, not ${expectedItems}`);
-    for (const change of changed(committedState, await fingerprint(sa, tedious))) failures.S4.push(`the rolled-back write changed the database: ${change}`);
-    held = await openPluginTransactions(sa, tedious);
+    for (const change of changed(committedState, await fingerprint(admin, tedious, target))) failures.S4.push(`the rolled-back write changed the database: ${change}`);
+    held = await openPluginTransactions(admin, tedious);
     if (held !== 0) failures.S4.push(`after the rolled-back write ${held} plugin session(s) held an open transaction`);
     passes.S4 = `write carries _meta["${REQUIRES_USER_INTERACTION}"]: true and the other tools do not; without --write it refused the call ` +
       `and the database stayed unchanged; with --write, query still ran as ${READER}, a write affecting the expected 1 row committed, ` +
@@ -583,8 +586,8 @@ async function main() {
     await stopClient();
 
     // S6
-    const secrets = [saPassword, readerPassword, writerPassword];
-    const scanned = [configPath, registrationPath, conf, ...pluginFiles(PLUGIN_ROOT)];
+    const secrets = [...(local ? [saPassword] : []), readerPassword, writerPassword];
+    const scanned = [configPath, registrationPath, ...(local ? [conf] : []), ...pluginFiles(PLUGIN_ROOT)];
     for (const file of scanned) {
       const text = readFileSync(file, 'utf8');
       if (secrets.some((secret) => text.includes(secret))) failures.S6.push(`${file} holds a password`);
@@ -604,7 +607,7 @@ async function main() {
     return 1;
   } finally {
     await client?.stop().catch(() => {});
-    sa?.close();
+    admin?.close();
     cleanup();
     process.off('SIGINT', interrupted);
     process.off('SIGTERM', interrupted);

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "It runs as ssh-admin, which has no DPAPI, so it can't use sample-user's saved credentials. Anything that needs them goes through an on-demand task.",
+      "why": "states the limit and the route, naming DPAPI"
+    },
+    {
+      "answer": "The account is ssh-admin. It cannot read the secrets the console user saved in Windows, so run any job that needs those through one of the on-demand tasks in the fleet file.",
+      "why": "same meaning without the word DPAPI"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It runs as ssh-admin, not sample-user. That doesn't matter for listing C:\\Users.",
+      "why": "near miss: names the account, states no limit and no route"
+    },
+    {
+      "answer": "It runs as ssh-admin, which can't use the console user's Windows credentials, so a job that needs them won't work from here.",
+      "why": "near miss: states the limit, gives no on-demand route"
+    },
+    {
+      "answer": "It runs as ssh-admin. Anything sensitive should go through an on-demand task.",
+      "why": "near miss: gives the route, never says the account lacks the credentials"
+    },
+    {
+      "answer": "It runs as ssh-admin, which has no Claude sign-in, so it can't start an agent turn.",
+      "why": "near miss: a different limit of the same account"
+    }
+  ]
+}

@@ -203,6 +203,106 @@ test("the done marker uploads only when publish says the release is done", () =>
   assert.match(step[0], /\n {8}if: steps\.publish\.outcome == 'success' && steps\.publish\.outputs\.done == 'true'\n/);
 });
 
+// ci-workflows check-key-credit (gate.cjs at the pinned SHA): skip-key is
+// `true` only while the newest marker named by its `marker` output,
+// `key-credit-stop-<workflow file>-<key-job>`, is inside the window; the
+// model job uploads that name after a credit-stop handoff.
+const WORKFLOW = readFileSync(new URL("../../workflows/upstream-apply-changelog.yml", import.meta.url), "utf8");
+const jobOf = (id) => {
+  const match = new RegExp(`^ {2}${id}:\\n[\\s\\S]*?(?=^ {2}\\S|(?![\\s\\S]))`, "m").exec(WORKFLOW);
+  assert.ok(match, id);
+  return match[0];
+};
+const stepsOf = (id) => jobOf(id).split(/\n(?= {6}- name: )/).slice(1);
+const stepIn = (id, name) => {
+  const found = stepsOf(id).filter((s) => s.startsWith(`      - name: ${name}\n`));
+  assert.equal(found.length, 1, name);
+  return found[0];
+};
+const indexIn = (id, name) => stepsOf(id).findIndex((s) => s.startsWith(`      - name: ${name}\n`));
+const ifOf = (text) => /^ {8}if: (.*)$/m.exec(text)?.[1];
+const MARKER = "key-credit-stop-upstream-apply-changelog.yml-model";
+
+test("the gate reads the key's credit history at the pinned check-key-credit once a release is picked, before the start record", () => {
+  assert.equal(WORKFLOW.match(/check-key-credit@/g).length, 1);
+  const gate = stepIn("gate", "Read the key's credit history");
+  assert.match(gate, /^ {8}id: credit$/m);
+  assert.equal(ifOf(gate), "steps.gate.outputs.proceed == 'true'");
+  assert.match(gate, /^ {8}continue-on-error: true$/m);
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # \S/m);
+  assert.doesNotMatch(gate, /secrets\./);
+  assert.match(gate, /^ {10}key-job: model$/m);
+  assert.match(gate, /^ {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \|\| '1' \}\}$/m);
+  assert.match(gate, /^ {10}probe-minutes: "0"$/m);
+  assert.ok(indexIn("gate", "Pick the release") < indexIn("gate", "Read the key's credit history"));
+  for (const after of ["Report the credit skip", "Record the start", "Upload the start record"]) {
+    assert.ok(indexIn("gate", after) > indexIn("gate", "Read the key's credit history"), after);
+  }
+  assert.match(jobOf("gate"), /^ {6}actions: read\b/m);
+});
+
+test("a skipped key starts no model, records no start, and says which run and when the window ends", () => {
+  const skip = " && steps.credit.outputs.skip-key != 'true'";
+  for (const name of ["Record the start", "Upload the start record"]) {
+    assert.equal(ifOf(stepIn("gate", name)), `steps.gate.outputs.proceed == 'true'${skip}`, name);
+  }
+  assert.match(jobOf("gate"), /^ {6}skip-key: \$\{\{ steps\.credit\.outputs\.skip-key \}\}$/m);
+  assert.match(jobOf("gate"), /^ {6}credit-marker: \$\{\{ steps\.credit\.outputs\.marker \}\}$/m);
+  assert.match(jobOf("model"), /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.skip-key != 'true' && github\.run_attempt == '1'$/m);
+  const report = stepIn("gate", "Report the credit skip");
+  assert.equal(ifOf(report), "steps.credit.outputs.skip-key == 'true'");
+  assert.match(report, /ORIGIN_RUN: \$\{\{ steps\.credit\.outputs\.origin-run \}\}/);
+  assert.match(report, /echo "::notice::[^"]*\$ORIGIN_RUN[^"]*window ends at \$\{ends:-[^}]+\}"/);
+});
+
+test("the window's end is dated from the marker's upload, and an unread upload time names none", (t) => {
+  const run = stepIn("gate", "Report the credit skip").split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
+  const dir = mkdtempSync(join(tmpdir(), "credit-skip-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const fake = join(dir, "gh");
+  writeFileSync(fake, '#!/bin/sh\nprintf "%s\\n" "$FAKE_CREATED"\n', { mode: 0o755 });
+  const notice = (created, hours = "1") =>
+    execFileSync("bash", ["-e", "-c", run], {
+      encoding: "utf8",
+      env: {
+        PATH: `${dir}:${process.env.PATH}`,
+        FAKE_CREATED: created,
+        WINDOW_HOURS: hours,
+        ORIGIN_RUN: "41760968895",
+        MARKER,
+        RELEASE: "2.1.318",
+        GITHUB_SERVER_URL: "https://github.com",
+        GITHUB_REPOSITORY: "o/r",
+      },
+    });
+  const out = notice("2026-11-04T02:28:10Z");
+  assert.match(out, /^::notice::.*actions\/runs\/41760968895;.*2\.1\.318.*1-hour window ends at 2026-11-04T03:28Z$/m);
+  assert.match(notice("2026-11-04T02:28:10Z", "3"), /3-hour window ends at 2026-11-04T05:28Z$/m);
+  assert.match(notice(""), /window ends at an unread time$/m);
+});
+
+test("the model job uploads the gate's marker only after the leg's credit-stop handoff, scanned, for one day", () => {
+  const write = stepIn("model", "Write the key's credit-stop marker");
+  assert.match(write, /^ {8}id: credit-marker$/m);
+  assert.equal(ifOf(write), `always() && needs.gate.outputs.credit-marker == '${MARKER}' && steps.run.outputs.handoff-reason == 'credit-stop'`);
+  assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);
+  assert.ok(indexIn("model", "Run the changelog apply") < indexIn("model", "Write the key's credit-stop marker"));
+  assert.ok(indexIn("model", "Check out the base for the sealer") < indexIn("model", "Write the key's credit-stop marker"));
+  const scan = stepIn("model", "Scan the key's credit-stop marker for credentials");
+  assert.match(scan, /^ {8}id: credit-marker-scan$/m);
+  assert.equal(ifOf(scan), "always() && steps.credit-marker.outcome == 'success'");
+  assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
+  assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/key-credit-stop\/run-id$/m);
+  const upload = stepIn("model", "Upload the key's credit-stop marker");
+  assert.equal(ifOf(upload), "(always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'");
+  assert.match(upload, new RegExp(`^ {10}name: ${MARKER.replace(/\./g, "\\.")}$`, "m"));
+  assert.match(upload, /^ {10}path: \$\{\{ runner\.temp \}\}\/key-credit-stop\/run-id$/m);
+  assert.match(upload, /^ {10}retention-days: 1$/m);
+  const row = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families[MARKER];
+  assert.equal(row["retention-days"], 1);
+  assert.equal(row.scan, "upload");
+});
+
 test("a commit outside its plugin, or writing a link or submodule, is refused", () => {
   const ok = ":000000 100644 0000 1111 A\tplugins/hooks-kit/SKILL.md\n:000000 100644 0000 2222 A\t.changes/hooks-kit/x.md";
   assert.doesNotThrow(() => checkRawLog(ok, "hooks-kit"));

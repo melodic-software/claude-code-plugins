@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/excerpts.jsonl"
+          }
+        }
+      ],
+      "why": "the file the prompt names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/sandbox/.claude/projects/p/s.jsonl"
+          }
+        }
+      ],
+      "why": "a transcript"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/d/audit-sessions/store/v1/sessions/p/s.json"
+          }
+        }
+      ],
+      "why": "a store record"
+    }
+  ]
+}

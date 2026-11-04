@@ -71,8 +71,8 @@ activities:
     reads-untrusted: false
     inputs: [pr, head-sha]
   resolve-conflicts:
-    skill: source-control:resolve-conflicts
-    args: ci                      # no gates; escalates instead of asking
+    skill: source-control:pull-request
+    args: conflicts --ci --unattended  # no gates; escalates instead of asking
     prepare: merge-base           # the runner merges the base tip before the skill
     effect: read                  # no write token: the resolutions leave as a patch
     applied-by:

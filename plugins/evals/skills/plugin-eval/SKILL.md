@@ -100,8 +100,7 @@ rather than measuring anything, and the route.
 - `absent` or `unknown`: the backend is missing. On Linux or WSL2, install each missing package,
   restart Claude Code, and confirm with `/sandbox`. Otherwise: WSL2, a Linux host with
   `bubblewrap` and `socat`, macOS, or a Claude cloud session, whose host and missing packages come
-  from fetching [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools)
-  live and applying the matching table row.
+  from fetching [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#whats-available-in-cloud-sessions) (host) and [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) live and applying the matching table row.
 - `not-ready`: the backend is present and the packages resolve; the cause is the named links, and
   the route is to resolve them or run on a host without them. Never suggest repointing
   `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. On `platform: wsl2` with `DOCKER_CONFIG` unset (the swap changes only `~/.docker`) and every link (or `~/.docker` itself) pointing under `/mnt/`, also offer, asking first, to run the CLI through the link swap (`<skill-dir>` there is `${CLAUDE_SKILL_DIR}`), so the run sees no links: [sandboxes.md, Docker link swap](reference/sandboxes.md#docker-link-swap).
@@ -112,6 +111,15 @@ validator's `READ_ONLY_TOOLS`). `suite_tools` is `read-only` when every case's `
 inside that set; otherwise it lists the gated tools, which are exactly the ones needing an
 `--allow-tools` grant. Neither a case nor a skill's own `allowed-tools` can widen that grant; an
 ungranted tool is removed and reported on stderr as `not granted`.
+
+### Route per environment
+
+| Environment | Runs today, and the route | Recorded run | Pointer | As of | Recheck when |
+|---|---|---|---|---|---|
+| Windows native | Read the pointer for whether this host has a backend, then apply the backend table: without one, a suite requesting `Bash`, `PowerShell`, `Write` or `Edit` takes the refusal above and its route, and one requesting none of them meets no refusal | None: no run is recorded yet | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-11-04 | That section names a Windows backend, or a run here is recorded |
+| WSL2 | Any suite once the backend is `present`, with Run step 3's `TMPDIR`. Docker Desktop's links make it `not-ready`: take that route's link swap | Through the swap on Docker Desktop's own store, one `Bash`-granting case; also `Bash`-granting runs where a `TMPDIR` under `/tmp` or `/var/tmp` left the workspace read-only and one under home or `/run/user/<uid>` did not | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); [records.md](reference/records.md#sandbox-and-credential-store) | 2026-11-04 | That section adds or drops a package or WSL note, or a release note touches sandbox credential exclusion |
+| Claude cloud session | Unverified: in the session, take the `absent` route's cloud clause, then the backend table | None: no run is recorded, and whether the CLI runs there is unverified | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-11-04 | That page's "What's available in cloud sessions" section changes its host description, Installed tools changes its package list, or a run here is recorded |
+| GitHub Actions | In melodic-software/claude-code-plugins, dispatch [`eval-browser-dispatch.yml`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/eval-browser-dispatch.yml) on main under the [CI](#ci) rules and keep its `env-scrub` input on, since off gives Bash subprocesses the Claude credentials. It passes no `--threshold`, so the job goes red below the [CLI's default](https://code.claude.com/docs/en/plugin-evals#command-options). [Issue 6649](https://github.com/melodic-software/claude-code-plugins/issues/6649) tracks the suite job. Elsewhere, write a job from [CI](#ci) and [ci.md](reference/ci.md) | With `TMPDIR` moved out of `/tmp` ([PR 12643](https://github.com/melodic-software/claude-code-plugins/pull/12643)), a `Bash,Write` case scored 1.00 in one run with `env-scrub` on, its graders matching a `git merge` call and the file that merge brings in ([run](https://github.com/melodic-software/claude-code-plugins/actions/runs/41706844559)). The earlier pass, also `env-scrub` on, logged only sandbox refusals under `/tmp` ([record](https://github.com/melodic-software/claude-code-plugins/issues/6649#issuecomment-6589725145)) | [Issue 6649](https://github.com/melodic-software/claude-code-plugins/issues/6649); <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci> | 2026-11-04 | Issue 6649 closes, that workflow's run step changes, or that section changes its runner requirements |
 
 ### Worktree isolation
 
@@ -303,7 +311,7 @@ Read in this order. Stopping early at any step is the finding.
    without-arm one is not read. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
-   probe's denial; a sandbox network denial in an invocation probe, control or `no-network` case; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control), Bash denial paths, A/B gating,
+   probe's denial; a sandbox network denial in an invocation probe, control or `no-network` case; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control; a finished without-arm run's search naming only the plugin it lacks), Bash denial paths, A/B gating,
    the 0-turn `context: fork` run the gate passes, and invocation-probe misses and tools: [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
@@ -470,7 +478,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | `eval_tmpdir` 24-character bound and its refusal | [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) `sun_path`; sandbox-runtime's bridge sockets and the 63- and 24-character pair in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start) | 2026-10-31 | sandbox-runtime renames its bridge sockets, a release note touches `plugin eval` sandbox paths or `TMPDIR`, or a `<dir>` within the bound fails with the bridge-socket error |
 | Sandbox network denial report, read by the permission denials check | [Sandboxing, The unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing#the-unsandboxed-retry-escape-hatch) says only that the result names the denied host; no page documents the report's format, observed in a with-arm Bash result on Claude Code 2.1.317 (issue #12988), its shape kept in `scripts/fixtures/run-validity/traces/network-denied.jsonl` | 2026-11-04 | That page documents the violation report, a release note touches sandbox violation reporting, or a kept trace shows a network denial the check missed |
-| Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
+| Cloud route host and packages | [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#whats-available-in-cloud-sessions) (host), [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) | 2026-11-04 | That section changes its host description or package list |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
 | Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.316 ([records.md](reference/records.md#worktrees)) | 2026-10-31 | A release note touches worktree isolation or `plugin eval` |
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
