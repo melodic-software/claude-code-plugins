@@ -21,6 +21,14 @@
     {
       "answer": "| Probe | Result |\n|---|---|\n| Tracker binding | PASS |\n| Schedule validity | INFO: duplicate id dependency-review (rows 1 and 2) |",
       "why": "names the duplicate but reports it as INFO, not FAIL"
+    },
+    {
+      "answer": "| Probe | Result (PASS/FAIL/INFO) |\n|---|---|\n| Schedule validity | INFO: duplicate id dependency-review (rows 1 and 2) |",
+      "why": "FAIL appears only in the column legend, not on the duplicate's row"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| jq entry gate | FAIL: jq not found |\n| Schedule validity | INFO: duplicate id dependency-review (rows 1 and 2) |",
+      "why": "FAIL belongs to another probe's row; the duplicate is reported as INFO"
     }
   ]
 }
