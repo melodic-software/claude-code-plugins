@@ -7057,9 +7057,11 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   };
   assert.equal(legFrom(listing({ posted: false })), false, "a superseded call starts no next leg");
   assert.equal(legFrom(listing({ reportRan: false })), true, "a credit stop or an empty key starts the next leg");
+  // A failed read holds green with no output, which starts no second leg.
   const failed = readPosted(t, step, listing({ posted: true }), { fail: true });
-  assert.notEqual(failed.status, 0);
+  assert.equal(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
+  assert.equal(starts(failed.outputs.posted ?? "", failed.outputs.allowed ?? "", failed.outputs["handed-off"] ?? ""), false);
 });
 
 // #8890 for fix-docs's push job: patch-state, patch-sha256, patch-attempt,

@@ -10,7 +10,7 @@ import { test } from "node:test";
 
 import { emptyRecord, isHandled, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
-import { dispatchDocsFixes, docsRunState, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
+import { dispatchDocsFixes, docsRunState, heldHandoff, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
 const CHECK = "pr-refine / fix-docs";
@@ -291,9 +291,8 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
 const ran = (id, number, conclusion) => ({ id, status: "completed", conclusion, display_title: `pr-refine fix-docs #${number}` });
 
 test("a PR whose fix-docs run completed without a check run is not dispatched again, and its head is recorded without a history read", async () => {
-  // success: the run job stopped at its trigger gate or emitted an empty head;
-  // failure: a job failed before the report posted anything.
-  for (const conclusion of ["success", "failure", "skipped"]) {
+  // success: the run job stopped at its trigger gate or emitted an empty head.
+  for (const conclusion of ["success", "skipped"]) {
     const record = emptyRecord();
     record.docsRuns.set(pr(54).headRefOid, ["9"]);
     const { api, lines } = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, conclusion)] }, { record });
@@ -319,6 +318,97 @@ test("a PR whose only fix-docs run was lost without a check run is dispatched on
   const going = await run({ pages: [[pr(56)]], workflowRuns: [{ id: 15, status: "in_progress", display_title: "pr-refine fix-docs #56" }, ran(13, 56, "cancelled")] });
   assert.deepEqual(numbers(going.api), [], "the retry already going holds the dispatch");
   assert.equal(isHandled(going.record, CHECK, pr(56).headRefOid), false);
+});
+
+// A fix-docs run's status and latest jobs as the REST listings name them:
+// pr-refine.yml's fix-docs call's jobs are `fix-docs / <job>`
+// (pr-run-activity-read.yml's broker-check, broker-allowed, run and report).
+const job = (name, conclusion, status = "completed") => ({ name, status, conclusion });
+const ended = (...jobs) => ({ status: "completed", jobs });
+// fix-docs-head found a person's hold: the call never started.
+const HELD = ended(job("fix-docs-head", "success"), job("fix-docs", "skipped"));
+
+// Outage posture element 3: the next tick is the probe. A red run names no
+// cause (a read that failed, or a broker that refused, both end red), so at most
+// limits.limit-stops-per-head (3, README's limits table) go again before it ends
+// the PR, which bounds a refusal; a red run that posted its check is ended by
+// that check, not by its conclusion.
+test("a red fix-docs run with no check run does not end the PR: the next run dispatches it, until three red runs do", async () => {
+  const reds = (...ids) => ids.map((id) => ran(id, 54, "failure"));
+  for (const runs of [reds(9), reds(10, 9)]) {
+    const { api, record, result } = await run({ pages: [[pr(54)]], workflowRuns: runs });
+    assert.deepEqual(numbers(api), ["54"], `${runs.length} red`);
+    assert.equal(isHandled(record, CHECK, pr(54).headRefOid), false, `${runs.length} red`);
+    assert.equal(result.failed, 0);
+    assert.equal(api.calls.history.length, 1, "a red run may have posted its check on an earlier commit");
+  }
+  const done = await run({ pages: [[pr(54)]], workflowRuns: reds(11, 10, 9) });
+  assert.deepEqual(numbers(done.api), []);
+  assert.ok(isHandled(done.record, CHECK, pr(54).headRefOid));
+  const lower = await run({ pages: [[pr(54)]], workflowRuns: reds(10, 9) }, { maxRunsPerHead: 2 });
+  assert.deepEqual(numbers(lower.api), [], "maxRunsPerHead sets the bound");
+});
+
+test("a red fix-docs run does not outlive a run that ended, or the check run it posted", async () => {
+  const settled = await run({ pages: [[pr(54)]], workflowRuns: [ran(10, 54, "skipped"), ran(9, 54, "failure")] });
+  assert.deepEqual(numbers(settled.api), []);
+  assert.ok(isHandled(settled.record, CHECK, pr(54).headRefOid));
+  const checked = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, "failure")], histories: { 54: history([1]) } });
+  assert.deepEqual(numbers(checked.api), []);
+  assert.ok(isHandled(checked.record, CHECK, pr(54).headRefOid));
+});
+
+// handoff-evidence.sh's hold ends the run green with no check. Job conclusions
+// tell it from a decline: pr-refine.yml starts the next leg on any handoff a read
+// settled, so a leg that handed off with no next leg is a read that held.
+const leg = (name, scan) => [job(`${name} / broker-allowed`, "success"), job(`${name} / run`, "success"), job(`${name} / scan`, scan)];
+const HANDED_OFF = ended(job("fix-docs-head", "success"), ...leg("fix-docs", "skipped"), job("fix-docs-handoff", "success"), job("fix-docs-subscription", "skipped"));
+
+test("heldHandoff: a leg that handed off with no next leg held; a scan that ran, a next leg that ran or a leg never allowed did not", () => {
+  assert.equal(heldHandoff(HANDED_OFF), true);
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), job("fix-docs-subscription / run", "skipped"))), true, "a next leg all skipped never ran");
+  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "success"))), true, "a handoff's scan job may be unlisted");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "skipped"), job("fix-docs-fallback", "skipped"))), true, "the second leg's read held");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "success"), job("fix-docs-subscription", "skipped"))), false, "a decline or a supersede scans");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "success"))), false, "the next leg ran and scanned");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "skipped"), ...leg("fix-docs-fallback", "success"))), false, "the third leg ran");
+  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "skipped"), job("fix-docs / run", "success"))), false, "no broker allow");
+  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "failure"))), false, "a run job that failed");
+  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), ...leg("fix-docs-subscription", "skipped"), ...leg("fix-docs-fallback", "skipped"))), false, "the last leg has no next one to hold back");
+  assert.equal(heldHandoff(HELD), false, "a person's hold never started the call");
+  assert.equal(heldHandoff(null), false, "a run that is gone");
+});
+
+test("a green fix-docs run that held on a failed handoff read is dispatched again, until three such runs end the PR", async () => {
+  const green = (...ids) => ids.map((id) => ran(id, 54, "success"));
+  const runJobs = new Map([9, 10, 11].map((id) => [id, HANDED_OFF]));
+  const again = await run({ pages: [[pr(54)]], workflowRuns: green(10, 9), runJobs });
+  assert.deepEqual(numbers(again.api), ["54"]);
+  assert.equal(isHandled(again.record, CHECK, pr(54).headRefOid), false);
+  const done = await run({ pages: [[pr(54)]], workflowRuns: green(11, 10, 9), runJobs });
+  assert.deepEqual(numbers(done.api), []);
+  assert.ok(isHandled(done.record, CHECK, pr(54).headRefOid));
+  const mixed = await run({ pages: [[pr(54)]], workflowRuns: [ran(10, 54, "failure"), ...green(9)], runJobs }, { maxRunsPerHead: 2 });
+  assert.deepEqual(numbers(mixed.api), [], "a red run and a held one count together");
+});
+
+test("a green fix-docs run that scanned ends the PR, and a run that did not go green costs no job read", async () => {
+  const runJobs = new Map([[9, ended(...leg("fix-docs", "success"))], [10, HANDED_OFF]]);
+  const scanned = await run({ pages: [[pr(54)]], workflowRuns: [ran(10, 54, "success"), ran(9, 54, "success")], runJobs });
+  assert.deepEqual(numbers(scanned.api), [], "a held run after one that scanned changes nothing");
+  assert.ok(isHandled(scanned.record, CHECK, pr(54).headRefOid));
+  const skipped = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, "skipped")], runJobs });
+  assert.deepEqual(skipped.api.calls.jobs, []);
+});
+
+test("a run whose jobs cannot be read holds the PR with a warning: not dispatched, not recorded, nothing fails", async () => {
+  for (const [error, why] of [[Object.assign(new Error("502"), { rateLimited: false }), "could not be read"], [Object.assign(new Error("limited"), { rateLimited: true }), "are rate limited"]]) {
+    const { api, lines, record, result } = await run({ pages: [[pr(54), pr(55)]], workflowRuns: [ran(9, 54, "success")], runJobs: new Map([[9, error]]) });
+    assert.deepEqual(numbers(api), ["55"], why);
+    assert.equal(isHandled(record, CHECK, pr(54).headRefOid), false, why);
+    assert.equal(result.failed, 0, why);
+    assert.ok(lines.includes(`::warning::#54: a pr-refine.yml run's jobs ${why} (${error.message}); no fix-docs dispatched, a later run retries`), lines.join("\n"));
+  }
 });
 
 test("a same-repository PR whose fix-docs dispatch stopped at the trigger gate does not take a dispatch slot on later runs", async () => {
@@ -357,11 +447,6 @@ test("every listing page is read", async () => {
   assert.deepEqual(numbers((await run({ pages: [[pr(70)], [pr(71)]] })).api), ["70", "71"]);
 });
 
-// A fix-docs run's status and latest jobs as the REST listings name them:
-// pr-refine.yml's fix-docs call's jobs are `fix-docs / <job>`
-// (pr-run-activity-read.yml's broker-check, broker-allowed, run and report).
-const job = (name, conclusion, status = "completed") => ({ name, status, conclusion });
-const ended = (...jobs) => ({ status: "completed", jobs });
 // The broker allowed it and its run job emitted an empty head: no check posted.
 const EMPTY_HEAD = ended(
   job("fix-docs-head", "success"),
@@ -380,8 +465,6 @@ const REFUSED = ended(
   job("fix-docs / report", "success"),
   job("fix-docs-handoff", "success"),
 );
-// fix-docs-head found a person's hold: the call never started.
-const HELD = ended(job("fix-docs-head", "success"), job("fix-docs", "skipped"));
 const GOING = { status: "in_progress", jobs: [job("fix-docs-head", "success"), job("fix-docs / broker-check", null, "in_progress")] };
 
 test("docsRunState: only a succeeded broker-allowed job counts; a run that ended without one, or is gone, is done; any other is going", () => {

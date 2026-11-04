@@ -374,6 +374,30 @@ An eighth part 2 change fixed work-unblock's listing gap, with tests
   and a rate limit past the guard's budget does too until the workflow sets `API_BUDGET_HOLD=1`.
   Either red run is left out of `sweepSince`, so the window stays back.
 
+A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
+
+- **pr-refine, element 1.** Each `handoff-evidence.sh` wait is drawn at random from 0 to its cap
+  (full jitter), for every caller. Reads go on at the last cap until the waits reach the caps' sum,
+  so a listing that lags keeps its five minutes: at most 12 reads and about seven minutes. A
+  `fix-docs` call stops after 3 failed reads; other callers keep 6, since pr-unblock starts a second
+  model leg on a failed read. The head-SHA read is the workflow's (row below).
+- **pr-refine, element 2.** A `fix-docs` or `fix-docs-subscription` read that stays unknown holds:
+  one `::notice::`, no output, exit 0, and a rate limit's annotation is a notice (the script sets
+  `API_BUDGET_HOLD=1` for these two calls). The script scopes this by `CALLS`, since a workflow edit
+  is out of this lane's reach and every other caller reads a red job or empty output its own way, so
+  they still fail closed.
+- **pr-refine, element 3.** `fix-docs-dispatch.mjs` no longer ends a PR on a red run with no check. It
+  dispatches again until `limit-stops-per-head` runs went red or held, which bounds a broker refusal,
+  since red names no cause. A held run ends green, so the dispatcher reads a green run's jobs: a leg
+  that handed off with no next leg held. That is up to two more REST reads for each candidate head
+  with a green run. An outage past that many runs still ends the PR.
+
+Element 4 stays open: `decide.mjs` needs a kind that posts nothing, and the posting code in
+`report-check-run.mjs` needs to honor it (the Remaining row). A neutral check is not the fix, since
+babysit counts neutral as passing. A broker failure on pr-refine does not reach `decide.mjs`: off
+`pull_request` the report job posts no check on it (`.github/workflows/pr-run-activity-read.yml`,
+`Choose the head the check is posted on`).
+
 Two parts of the work-unblock rows stay open, for the reasons in the table:
 
 - **Element 3.** The breaker records are not redundant state. The sweep counts them to back a
@@ -397,7 +421,7 @@ again, since it has no cron.
 | work-unblock | 2 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (a failed read for one issue still ends the run red); part 2 fixed the failed listings |
 | work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |
 | work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`, somewhere to keep an `etag` between runs) |
-| pr-refine | 1, 2, 3, 4 | script | `.github/scripts/lib/handoff-evidence.sh`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs`, `.github/actions/report-check-run/decide.mjs` |
+| pr-refine | 4 | script | `.github/actions/report-check-run/decide.mjs`, `report-check-run.mjs` (post nothing, with a notice, when `pr-refine / fix-docs` has a green run job and scan job and no verdict, which only a failed verdict download leaves); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs` |
 | pr-refine | 1, 2, 4, 5 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
 | pr-review, pr-review-security, pr-verify | 3, 5 | script | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
