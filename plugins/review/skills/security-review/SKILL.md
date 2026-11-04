@@ -293,9 +293,10 @@ eligible for skip 2. Compare the base and head manifests:
   sending repository or session content off the machine (publishing, uploading, posting, an
   external write), with one exception: a view `medium` key is a selector when all of these hold,
   each cited by file and line: the code that reads it passes the value to that plugin's
-  `lib/view-settings.mjs` resolver; the diff neither adds nor changes that plugin's
-  `lib/view-settings.mjs` or `lib/view-settings.test.mjs`; and at head that
-  `lib/view-settings.test.mjs` holds the test block "a publishing value counts only from a
+  `lib/view-settings.mjs` resolver; the diff neither adds nor changes, in that plugin's `lib/`
+  or the repository-root `lib/`, `view-settings.mjs`, any module it imports from `./` (with
+  their own `./` imports), or `view-settings.test.mjs`; and at head a `view-settings.test.mjs`
+  in one of those two directories holds the test block "a publishing value counts only from a
   trusted scope". In every other case a `medium` key with a value that publishes is not a
   selector. A selector gets one summary line,
   `manifest userConfig.<key>: pass, advisory, <what the value picks and the file and line that
