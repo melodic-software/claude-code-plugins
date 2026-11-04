@@ -112,19 +112,21 @@ A `TMPDIR` outside the system temp directory avoids that too.
 
 ## Auto memory
 
-Auto memory stays on inside a run, and its directory sits in the run's config directory, which the
-sandbox denies. A case whose prompt invites saving state (a pause, a handoff) can send the no-plugin
-arm into a memory Write that is denied in every run, and the validity gate fails that write (a
-write in the config directory is never set aside: [reading-results.md](reading-results.md)). Such a
-case names `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in its description, and the run step adds it after
-`TMPDIR=<dir>` in the `env` prefix, for every case of that run. A case's own `env` cannot carry it,
-since only `EVAL_*` keys pass there.
+A case whose prompt invites saving state (a pause, a handoff) runs with auto memory off. Otherwise the
+no-plugin arm can write its notes to auto memory, the run denies that write, and the validity gate
+counts the denial, since it never sets aside a write in the config directory
+([reading-results.md](reading-results.md)). Such a case names `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`
+in its description, and [SKILL.md, Run](../SKILL.md#run) step 3 adds it to the CLI's `env` prefix,
+so it applies to every case of that run. Set it in the shell that launches the run, never in the
+case's own `env` field, whose accepted keys the docs row below defines.
 
 - **Pointer:** the `env` row of
-  <https://code.claude.com/docs/en/plugin-evals#prompt-md-fields> for what a run inherits, and
+  <https://code.claude.com/docs/en/plugin-evals#prompt-md-fields> for what a run inherits from the
+  shell and what a case's `env` accepts, and
   <https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory> for the variable. Probe:
-  `ho-wip-commit-on-pause` in [#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296),
-  denied in all three no-plugin runs with auto memory on.
+  `ho-wip-commit-on-pause` in [#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296):
+  its no-plugin runs were denied an auto-memory write in all three runs with auto memory on, and
+  in none with it off.
 - **As of:** 2026-11-04.
 - **Recheck when:** either section changes, or a release note gives `plugin eval` runs their own
   auto-memory setting.

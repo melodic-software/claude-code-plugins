@@ -253,7 +253,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    script first, since it runs as you outside the sandbox (see Gotchas), then add `--scaffold`.
    Without it those cases run against an unstaged workspace, both arms score the same, and their
    delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
-   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a directory of at most 24 characters outside the system temp directories that you create first, on disk (for example `$HOME/.ev` when that stays within 24 characters; not the `/run/user` tmpfs, which kept sandboxes can fill). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
+   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a directory of at most 24 characters outside the system temp directories that you create first, on disk (for example `$HOME/.ev` when that stays within 24 characters; not the `/run/user` tmpfs, which kept sandboxes can fill). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). When a case's description asks for `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, add it to the same `env` prefix: [sandboxes.md, Auto memory](reference/sandboxes.md#auto-memory).
 
    Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
