@@ -379,9 +379,9 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev = await events(), last = ev[ev.length - 1] || {};
     ok("Ctrl+Enter in the note saves the armed choice once, with the note", ev.length === n0 + 1 && last.id === "Q10" && last.text === "Fine by me.", JSON.stringify({n0, n: ev.length, last}));
-    await page.click("#qhead"); await page.keyboard.press("m"); await page.waitForSelector("#noteText");
-    const panelHint = await page.$eval("#noteText", t => t.nextElementSibling.querySelector(".kbd").textContent);
-    await page.click("#noteText"); await page.keyboard.type("A note from the composer check."); const m0 = (await events()).length;
+    await page.click("#qhead"); await page.keyboard.press("m"); await page.waitForSelector("#rv-comment-text");
+    const panelHint = await page.$eval("#rv-comment-text", t => t.closest(".rv-comment").nextElementSibling.querySelector(".kbd").textContent);
+    await page.click("#rv-comment-text"); await page.keyboard.type("A note from the composer check."); const m0 = (await events()).length;
     await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const mv = await events(), ml = mv[mv.length - 1] || {};
     ok("Ctrl+Enter in the Notes panel sends one note, and the panel names the key the composer's way", mv.length === m0 + 1 && ml.kind === "note" && ml.text === "A note from the composer check." && panelHint === QS_HINT("send"), JSON.stringify({m0, n: mv.length, ml, panelHint}));

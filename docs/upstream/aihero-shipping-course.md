@@ -101,7 +101,7 @@ pointer.
 | Id | Candidate | Upstream source | Lane |
 |---|---|---|---|
 | C1 | No-interview spec mode: the spec is written from what the session already holds, with no questions asked | `to-spec:7` | A |
-| C2 | Sketch the test seams before writing the spec, prefer existing seams, confirm them with the user ("the ideal number is one" excluded) | `to-spec:15-17` | A → C |
+| C2 | Sketch the test seams before writing the spec, prefer existing seams, confirm them with the user (upstream's claim that a single seam is best is excluded) | `to-spec:15-17` | A → C |
 | C3 | Spec template sections, notably **Testing Decisions** as a first-class section with prior-art test pointers, and implementation content framed as decisions-made | `to-spec:21-75` | A |
 | C4 | The spec is published to the tracker, born ready-for-agent (upstream has no approval gate on the publish — that part excluded) | `to-spec:19` | A |
 | C5 | Prefactor look-ahead at decomposition time; prefactor slices become blockers of what they unblock | `to-tickets:23,34` | B |
@@ -121,7 +121,7 @@ pointer.
 | C19 | Out-of-scope map section semantics: an item goes there for its scope, never for how sharp it is; out-of-scope fog never graduates; a wrongly scoped existing ticket is closed with one linking line | `wayfinder:95-101` | W |
 | C20 | Map-as-index doctrine: each decision is recorded only on its own ticket, and the map gives a one-line gist and a link | `wayfinder:23` | W |
 | C21 | One-skill-per-call phrasing: a step that uses two skills makes a separate call for each | `.agents/invocation.md` (post-#878) | X |
-| C22 | User-invoked-target lint plus human-relay phrasing — never Skill-tool-invoke a user-invocable-only target; say "tell the user to run /X" | skills-repo PR #880 | X |
+| C22 | User-invoked-target lint plus human-relay phrasing — never Skill-tool-invoke a user-invocable-only target; relay the command for the user to run instead | skills-repo PR #880 | X |
 | C23 | Domain-modeling trigger phrasing keyed on concrete artifacts | `domain-modeling/SKILL.md:3` (PR #848) | X |
 
 No "archive-your-specs" wording exists upstream in the skills repo — the nearest is
@@ -140,11 +140,11 @@ consumer-configurable throughout.
   conversation plan without re-interviewing. No new entry path added.
 - **C2 PARTIAL**: seam-sketch-before-spec accepted as doctrine direction but ROUTED to lane C
   (#2936), where it lands alongside C9 (the pre-agreed-seam gate — same doctrine family, one
-  landing surface across planning:design / tdd:principles / testing:plan). The "ideal number
-  of seams is one" numeric absolutism is REJECTED (folklore-figure posture).
+  landing surface across planning:design / tdd:principles / testing:plan). The numeric
+  absolutism that a single seam is best is REJECTED (folklore-figure posture).
 - **C3 PARTIAL**: container body = the Brief **verbatim** (our spec template), plus an optional
   `## Testing decisions` section with prior-art test pointers — that section is the adopted
-  delta. The "LONG, numbered, extremely extensive" directive stays excluded (worse-than-us
+  delta. The directive demanding long, numbered and exhaustive content stays excluded (worse-than-us
   list).
 - **C4 ADOPTED (gate-added variant only)**: the spec publishes to the tracker as a `work-map`
   container with slices as native sub-items (`work-items:decompose` "Container lifecycle") —
@@ -159,7 +159,7 @@ consumer-configurable throughout.
 
 ## Lane B (#2935)
 
-- **C5 ADOPTED**: prefactor look-ahead at decompose time ("make the change easy, then make the easy change"); prefactor slices are blockers of the slices they unblock. Qualitative — no token folklore.
+- **C5 ADOPTED**: prefactor look-ahead at decompose time (reshape the code first so the wanted change becomes simple, then make it); prefactor slices are blockers of the slices they unblock. Qualitative — no token folklore.
 - **C6 ADOPTED**: "one fresh context window" granularity bar alongside S/M/L. Qualitative only; folklore token figures remain excluded-by-default.
 - **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, the batches go on one shared integration branch, and each blocks a closing integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch. Upstream v1.3 added a parallel executor for the integration-branch idea (`implement-spec`, with an open frontier defect, upstream issue #936); ours adapts it as `/work-items:ship run`, attended only (SSOT `implement-spec` row).
 - **C8 ADOPTED**: "work the frontier" phrasing in the present/report step (unblocked slices first).
@@ -188,8 +188,8 @@ given, and one disposal venue does not exist.
   hard consent gate (tests wait for a confirmed seam) is therefore **softened
   deliberately**: an unattended run cannot obtain confirmation, so a boundary implementation picks
   that the plan never named becomes a `DEVIATIONS.md` entry reviewed at PR time — this repo's
-  existing unattended-assumption mechanism — rather than a blocking stop. The "ideal number of
-  seams is one" absolutism stays REJECTED (Lane A's folklore-figure posture).
+  existing unattended-assumption mechanism — rather than a blocking stop. The absolutism that a
+  single seam is best stays REJECTED (Lane A's folklore-figure posture).
 - **C10 ALREADY-PRESENT (prose)** — the tautological-test anti-pattern is carried at
   `plugins/tdd/skills/principles/reference/anti-patterns-khorikov.md:96,270` and, in checklist
   form, at `plugins/testing/skills/write/context/write.md:78` ("expected values are independently
@@ -384,8 +384,8 @@ condition) belongs to the invocation-reach tracked strand in
   carrying `disable-model-invocation: true` and found **zero** explicit "via the Skill tool"
   violations. A follow-up pass reworded operative slash-command instructions aimed at
   user-invoked-only targets in `repo-fleet-hygiene:audit` and `harness-ops` (`inventory`,
-  `audit-performance`, `audit-install-state`) to the canonical human-relay form, "tell the user
-  to run /X". Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
+  `audit-performance`, `audit-install-state`) to the canonical human-relay form, which hands the
+  user the command to run. Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
   target resolution is not cheap under the single skills-root model — so the doctrine lines in
   the two authoring surfaces carry the rule rather than a check.
 - **C23 ALREADY-PRESENT**: `domain-driven-design:curate-language` triggers already key on

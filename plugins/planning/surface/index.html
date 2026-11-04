@@ -21,6 +21,7 @@
   --display:Georgia,"Times New Roman",serif;
   --rail-w:310px; --fly-w:440px; --strip-w:42px; --min-text:14px;
   --pad:18px; --gap:14px;
+  --bg:var(--ground); --fg:var(--ink); /* the canonical chrome's rules read --bg, --fg and --muted */
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -455,8 +456,21 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   #pinBtn{display:none}
 }
 @media (prefers-reduced-motion: reduce){*,*::before{animation:none!important;transition:none!important}}
+/* rv-chrome:begin */
+.rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+.rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+.rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+.rv-theme button + button { border-left: 1px solid var(--muted); }
+.rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+.rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+.rv-comment { display: grid; gap: 0.4rem; }
+.rv-comment h2 { margin: 0; }
+.rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+.rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+/* rv-chrome:end */
+.rv-theme{font-size:13px}
+.rv-comment h2{font:600 15px/1.3 var(--sans)}
 </style>
-<style id="themeOverride"></style>
 </head>
 <body>
 <div class="app">
@@ -473,6 +487,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           <button class="mlink sep" id="revBtn" title="Show the answered questions to review" hidden></button>
           <button class="mlink sep assume" id="assumeCount" hidden></button>
           <button class="mlink sep assume" id="wrapChip" hidden title="Open the list of what is still undone"></button></div>
+        <div class="rv-theme" role="group" aria-label="Theme"><button type="button" data-rv-theme="system" aria-pressed="true">System</button><button type="button" data-rv-theme="light" aria-pressed="false">Light</button><button type="button" data-rv-theme="dark" aria-pressed="false">Dark</button></div>
         <button class="tbtn" id="sumBtn" title="Summary and wrap-up (w)" aria-keyshortcuts="w">Summary</button>
       </div>
     </div>
@@ -567,6 +582,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 <dialog id="keysDlg" aria-labelledby="keysTitle"><h3 id="keysTitle">Keyboard shortcuts</h3><div class="keys" id="keysBody"></div>
   <p class="kbd">Single keys work only outside text boxes and only when shortcuts are on. Plain Enter never saves.</p>
   <div class="arow"><button class="act" id="keysClose" aria-keyshortcuts="Escape">Close</button></div></dialog>
+<template id="rvComment">
+<section class="rv-comment" aria-labelledby="rv-comment-h">
+<h2 id="rv-comment-h">Comment</h2>
+<label for="rv-comment-text">Your comment for the session</label>
+<textarea id="rv-comment-text" data-rv-note="comment" placeholder="Say what should change, or ask a question"></textarea>
+</section>
+</template>
 <script src="/question-shape.js"></script>
 <script>
 (function(){
@@ -586,7 +608,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const LABEL = {open: "Open", accept: "Accepted", hedged: "Hedged", alt: "Alternative", own: "Own answer", defer: "Deferred", wait: "Pending research", need: "Needs your answer", sup: "Superseded", arch: "Archived", prop: "Proposed"};
   const DEC = new Set(["accept", "alt", "own", "defer", "hedged", "reopen"]);
   const SUMMARY = "__summary";
-  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30, readingWindow: 180, frontierLock: "confirm", requireDepends: false, orderThreshold: 25};
+  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30, readingWindow: 180, frontierLock: "confirm", requireDepends: false, orderThreshold: 25};
   const RESTART = "Restart the server to enable this.";
   const NOT_LISTENING = "No session is listening; type next in the terminal";
   const FIRST_WAKE = "approve any prompt in the terminal, or type next"; // the header's instruction while no watcher has ever polled
@@ -624,7 +646,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: null, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteToast: "", noteQueued: [], noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, loaded: false, replies: {}, noteSeen: 0, noteToast: "", noteQueued: [], noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -1862,10 +1884,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     body.innerHTML = '<div class="fscope">Free-text notes for Claude, not tied to a question. Each note wakes Claude. Notes never count as open items.</div>' +
       (fold ? '<div class="arow"><button type="button" class="tbtn small" data-notenewest="1">Jump to newest note</button></div>' : "") +
       '<div class="nthread">' + (nt.length ? nt.map(noteHtml).join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
-      '<textarea id="noteText" rows="3" placeholder="A note for Claude. Enter adds a line; Ctrl+Enter sends."' + (S.api >= 2 ? "" : " disabled") + ">" + esc(draft) + "</textarea>" +
       '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : QuestionShape.keyHint("send")) + '</span></div><div class="toast" id="noteToast">' + esc(noteToastText()) + "</div>"; // held in state, so a re-render on a state push keeps it
-    const ta = $("noteText"), nk = noteBox(ta, "send"); ta.nextElementSibling.append(nk.count); Kit.grow(ta);
-    const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
+    const th = body.querySelector(".nthread");
+    th.after($("rvComment").content.cloneNode(true)); // the canonical chrome's comment box is this panel's composer
+    const ta = $("rv-comment-text"); ta.value = draft; ta.disabled = S.api < 2;
+    const nk = noteBox(ta, "send"); ta.closest(".rv-comment").nextElementSibling.append(nk.count); Kit.grow(ta);
+    if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
   function renderTerms(body){
     const g = (S.doc.glossary || []).slice().sort((a, b) => a.term.localeCompare(b.term));
@@ -1881,7 +1905,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       row("shortcuts", "Single-key shortcuts", sel("shortcuts", [["true", "On"], ["false", "Off"]])) +
       row("undoSeconds", "Undo window (seconds)", num("undoSeconds", 0, 60)) +
       row("checkpoint", "Question-count checkpoint (0 is off)", num("checkpoint", 0, 500)) +
-      row("theme", "Theme", sel("theme", [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]])) +
       row("density", "Density", sel("density", [["compact", "Compact"], ["comfortable", "Comfortable"]])) +
       row("minText", "Minimum text size in visuals (px)", num("minText", 10, 32)) +
       row("displayName", "Name on your lines", ro("displayName")) +
@@ -1938,15 +1961,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   $("fsView").addEventListener("pointerup", () => { FS.drag = null; $("fsView").classList.remove("drag"); });
 
   // ---------- theme and settings ----------
-  function applyTheme(theme){
-    const sig = JSON.stringify(theme || {}); if (sig === S.themeSig) return; S.themeSig = sig;
-    const ok = o => Object.entries(o || {}).filter(([k, v]) => /^--[a-z0-9-]+$/i.test(k) && /^[^;{}<>]*$/.test(String(v))).map(([k, v]) => k + ":" + v).join(";");
-    const light = ok(theme && theme.light), dark = ok(theme && theme.dark);
-    $("themeOverride").textContent = (light ? ":root{" + light + "}" : "") + (dark ? '@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){' + dark + '}}:root[data-theme="dark"]{' + dark + "}" : "");
+  /** The header's System, Light and Dark toggle is the page's only theme choice. Nothing stores it, so a reload opens on System. */
+  function setTheme(choice){
+    if (choice === "system") document.documentElement.removeAttribute("data-theme");
+    else if (choice === "light" || choice === "dark") document.documentElement.setAttribute("data-theme", choice);
+    else return;
+    document.querySelectorAll("button[data-rv-theme]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.rvTheme === choice)));
+    if (S.fly === "visuals") renderFly(); // a framed visual copies the page's colors when it renders
   }
   function applySettings(){
-    const m = setting("theme");
-    if (m === "light" || m === "dark") document.documentElement.setAttribute("data-theme", m); else document.documentElement.removeAttribute("data-theme");
     document.body.classList.toggle("comfy", setting("density") === "comfortable");
     document.documentElement.style.setProperty("--min-text", (+setting("minText") || 14) + "px");
   }
@@ -2053,7 +2076,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const data = await res.json().catch(() => ({}));
     if (res.status === 403) {
       if (S.sel && Q[S.sel]) lsSet("draft:" + S.sel, $("note").value);
-      const nt = $("noteText"); if (nt) lsSet("noteDraft", nt.value);
+      const nt = $("rv-comment-text"); if (nt) lsSet("noteDraft", nt.value);
       S.toastBad = true; S.toast = "Server restarted. Reloading; your notes are kept."; renderToast();
       setTimeout(() => location.reload(), 1200);
       throw Object.assign(new Error("restarted"), {quiet: true});
@@ -2343,7 +2366,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
   }
   async function sendNote(){
-    const ta = $("noteText"); if (!ta) return;
+    const ta = $("rv-comment-text"); if (!ta) return;
     const text = ta.value.trim();
     const say = (msg, q) => { if (S.fly !== "notes") { msg = ""; q = []; } S.noteToast = msg; S.noteQueued = q || []; const t = $("noteToast"); if (t) t.textContent = noteToastText(); }; // a send that finishes after the panel closed holds nothing
     if (!text) { say("Write a note first."); return; }
@@ -2434,7 +2457,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.replies = {};
     S.doc.questions.forEach(q => (q.history || []).forEach(h => { if (h.by === "claude" && h.replyTo) S.replies[h.replyTo] = h; }));
     (S.doc.notes || []).forEach(h => { if (h.replyTo) S.replies[h.replyTo] = h; });
-    applyTheme(data.theme); applySettings();
+    applySettings();
     clearTimeout(thawTimer); const thaw = wrapFreeze(); if (thaw) thawTimer = setTimeout(renderAll, thaw + 50);
     const changed = [];
     if (S.revs) S.doc.questions.forEach(q => { if (!(q.id in S.revs) || (q.rev || 0) > S.revs[q.id]) changed.push(q.id); });
@@ -2467,7 +2490,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!S.busy && q && lsGet("draft:" + S.sel, null) === null && !typing) fillNote();
     renderDetail({flash: changed.includes(S.sel)});
     if (S.fly && (S.fly !== "settings")) {
-      const nt = $("noteText"), keep = nt && document.activeElement === nt;
+      const nt = $("rv-comment-text"), keep = nt && document.activeElement === nt;
       if (!keep) renderFly();
     }
     restoreFocus(f); // a state push keeps focus on the same control
@@ -2499,7 +2522,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!S.loaded) return;
     renderAnswer(); // answer controls follow the connection: off while nothing can be saved, back on reconnect
     if (S.fly !== "notes") return;
-    if (document.activeElement !== $("noteText")) { renderFly(); return; }
+    if (document.activeElement !== $("rv-comment-text")) { renderFly(); return; }
     const b = document.querySelector("[data-sendnote]"); if (!b || S.api < 2) return; // typing: update Send note in place so the draft keeps focus
     b.disabled = closed(); b.nextElementSibling.textContent = closed() ? closedWhy() : QuestionShape.keyHint("send");
   }
@@ -2531,6 +2554,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   document.addEventListener("pointerdown", () => { viaKeys = false; }, true);
   document.addEventListener("click", e => {
     const t = e.target;
+    const rt = t.closest("button[data-rv-theme]"); if (rt) { setTheme(rt.dataset.rvTheme); return; }
     if (t.name === "choice") { arm(+t.value, viaKeys); return; } // click, not change: the pre-checked Your answer row fires no change
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
@@ -2630,7 +2654,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   document.addEventListener("input", e => {
     if (e.target.id === "note") { if (S.sel && Q[S.sel]) lsSet("draft:" + S.sel, e.target.value); Kit.grow(e.target); renderAnswer(); }
     else if (e.target.id === "search") { S.search = e.target.value; renderRail(); }
-    else if (e.target.id === "noteText") { lsSet("noteDraft", e.target.value); Kit.grow(e.target); }
+    else if (e.target.id === "rv-comment-text") { lsSet("noteDraft", e.target.value); Kit.grow(e.target); }
     else if (e.target.id === "offText") S.offDraft = e.target.value;
     else if (e.target.id === "looseReply") S.looseDraft = e.target.value;
     else if (e.target.id === "propText") S.propDraft = e.target.value;
@@ -2658,7 +2682,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
    *  never behind a dialog or a full-screen visual. */
   function ctrlEnter(target, shift){
     if (dialogOpen() || !$("fs").hidden) return;
-    if (target.id === "noteText") sendNote();
+    if (target.id === "rv-comment-text") sendNote();
     else if (target.id === "propText") proposalAct("edit");
     else if (S.sel === SUMMARY || !Q[S.sel] || stateOf(Q[S.sel]) === "prop") return;
     else if (shift) { if ($("note").value.trim()) send("ask"); else toast("Write your question in the note first.", true); }

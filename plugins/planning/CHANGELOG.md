@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.3] - 2026-11-04
+
+### Fixed
+
+- `plan` now says to make the checklist copy and the PLAN.md skeleton by reading the template and
+  writing the file with the Write tool, never `cp`, `sed` or a shell redirect from a plugin file,
+  which a sandbox that denies writes sourced from the plugin root refuses.
+
 ## [2.3.2] - 2026-11-04
 
 ### Changed
