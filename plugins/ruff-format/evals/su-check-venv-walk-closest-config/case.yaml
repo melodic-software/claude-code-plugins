@@ -17,7 +17,7 @@ graders:
     arm: 'with-only'
   - name: 'ruff-resolved-from-venv'
     type: 'regex'
-    pattern: '(?<![\w.-])\.venv[\\/]+bin[\\/]+ruff(?![\w.-])'
+    pattern: '(?<![\w.-])\.venv[\\/]+bin[\\/]+ruff(?![\w-]|\.\w)'
     target: 'last_message'
   - name: 'closest-config-wins'
     type: 'llm'

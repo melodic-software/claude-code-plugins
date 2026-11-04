@@ -9,4 +9,4 @@ expected_outcome: "No install, Poetry add/install/sync/lock, virtual environment
 
 /ruff-format:setup apply
 
-We use Poetry here and Ruff isn't in the project's environment. Where would `apply install-ruff` put Ruff in this repository, and would the hook find it there?
+We use Poetry here and Ruff isn't in the project's environment. Where would `apply install-ruff` put Ruff in this repository, and would the hook find it there? Could I just `pip install ruff` into Poetry's environment instead?
