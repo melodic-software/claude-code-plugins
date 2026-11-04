@@ -32,6 +32,7 @@ appended. Two layouts have been observed:
 | Single run | 2.1.228 (PE32+, Windows) | one ~25 MB printable run under a `// @bun @bytecode @bun-cjs` header |
 | Fragmented bytecode | 2.1.263 (ELF, Linux) | ~3,200 printable runs from 256 bytes to several MB, scattered through ~214 MB after the first `// @bun` marker |
 | Fragmented bytecode | 2.1.284 (ELF, Linux) | ~4,200 runs joining to ~45 MB, ~243 MB file; registrar `ps` by ESM export |
+| Fragmented bytecode | 2.1.318 (ELF, Linux) | ~6,000 runs joining to ~59 MB, ~338 MB file; 43 whole modules under 256 bytes, each one exported constant |
 
 In the fragmented layout the registrations sit in small runs (the `doctor` registration in about
 1.3 KB), the hoisted name constants sit megabytes ahead of the calls that use them, and the export
@@ -57,6 +58,21 @@ floor is counted, never silently lost. `({name: "` with a space is message prose
 string table (2.1.284 carries two) and is not counted. The floor
 is what keeps the pass cheap; measured on 2.1.263, 256 bytes recovers every named surface in about
 4 seconds, while a 64 KiB floor recovers 13 of 33 names and a 1-byte floor takes a minute.
+
+A whole module is kept below the floor: a printable run that opens with `// @bun`, not preceded by
+a printable byte (`MODULE_RUN_RE`). 2.1.318 ships one-constant modules of about 220 bytes,
+
+```js
+// @bun @bytecode
+// (c) Anthropic PBC. ...
+// Version: 2.1.318
+var Vf="WebSearch",GDi="allow_web_search";
+export{Vf,GDi};
+```
+
+and the tools that import `Vf` resolved no name while the floor dropped them (8 tools, among them
+`WebSearch`, `TodoWrite`, `Monitor`, `ExitPlanMode`). `sources.binary.module_runs_below_floor`
+counts the modules kept this way.
 
 A build with no marker at all falls back to the largest run around an anchor, which is what the
 single-run layout needed.
@@ -157,6 +173,14 @@ resolved with every canary missing.
 
 A `/` starts a regex after a spread (`[.../^[\\/]{2}/.test(e)]`) and after the `of` of a for-of
 head (`x of`, `] of`); any other `of` is a minified name, so `${of/1000}` divides.
+
+Each module (from one `\n// @bun` header to the next) is tokenized from a clean state: no brace,
+string, template or comment stays open past a module boundary. The region joins modules with
+bytecode string-table text, which is not JavaScript and can open a brace or a quote that other
+text closes far later. In 2.1.318 such text after the runtime header opened a brace at 5.46 MB that
+closed at 58.57 MB, near the end of the 58.7 MB source. Every top-level binding inside looked
+function-local, so `_redeclared_later` rejected it and the workflow, tool and plugin lanes lost
+their canaries. A misread is now confined to the module it happens in.
 
 A call to the registrar identifier whose object carries no `name:` is another module's function
 sharing the minified name, not a registration; it is counted in `same_identifier_calls_skipped` and
@@ -404,9 +428,9 @@ an export of it.
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`; 13 on 2.1.312, which adds `cc-plugin-claude-platform` and `cc-plugin-easel`), each with one registration, and only `cc-plugin-claude-test`, `cc-plugin-plugin-authoring` and `cc-plugin-claude-platform` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286, 2.1.287, 2.1.296 and 2.1.312 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty but the accepted floors below. Derived per run, so no document restates the roster | 2026-10-28, Claude Code 2.1.312 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
-| Accepted floor: `cc-plugin-claude-test`'s `gate_flags` stays partial, so the lane's partial-plugin advisory names it. Its `isAvailable:He` is a function declaration whose flag test is `ie.isOn()`, an object method calling `ct()`, which builds a state object from `pt({answer:()=>Fn(Te,!1),...})` with `Te="tengu_mellow_hollerith"`: four hops past the one identifier the gate rule follows, and the answer also turns on the signed-in login | `inventory.py --binary-only` on the 2.1.296 linux-x64 native build: `partial: ["gate_flags"]`, `gate_flags: null` | 2026-10-28, Claude Code 2.1.296; unchanged on 2.1.312, where the gate is `function wo(){...&&An.isOn()}` and the flag constant is imported | the claude-test gate reads the flag through a direct `f(FLAG,DEFAULT)` call, or the advisory names another field of it |
-| Accepted floor: `cc-plugin-claude-platform`'s `skills` stays partial, so the advisory names it. The field is `get skills(){return vot(l)&&!Kfe("claude-api")?e??=p():void 0}`, and `p()` returns `[{...d,isEnabled:...}]` where `d` is built at run time by `claudeApiSkillDefinition`, loaded from another module through `import.meta.require`: a per-session getter over a runtime-built object | `inventory.py --binary-only` on the 2.1.312 linux-x64 native build: `partial: ["skills"]`, `skills: []` | 2026-10-28, Claude Code 2.1.312 | the field becomes an array of object literals, or the advisory names another field of it |
+| The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`; 13 on 2.1.312, which adds `cc-plugin-claude-platform` and `cc-plugin-easel`; 14 on 2.1.318), each with one registration, and only `cc-plugin-claude-test`, `cc-plugin-plugin-authoring` and `cc-plugin-claude-platform` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286, 2.1.287, 2.1.296, 2.1.312 and 2.1.318 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty but the accepted floors below. Derived per run, so no document restates the roster | 2026-11-04, Claude Code 2.1.318 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
+| Accepted floor: `cc-plugin-claude-test`'s `gate_flags` stays partial, so the lane's partial-plugin advisory names it. Its `isAvailable:He` is a function declaration whose flag test is `ie.isOn()`, an object method calling `ct()`, which builds a state object from `pt({answer:()=>Fn(Te,!1),...})` with `Te="tengu_mellow_hollerith"`: four hops past the one identifier the gate rule follows, and the answer also turns on the signed-in login | `inventory.py --binary-only` on the 2.1.296 linux-x64 native build: `partial: ["gate_flags"]`, `gate_flags: null` | 2026-10-28, Claude Code 2.1.296; unchanged on 2.1.312, where the gate is `function wo(){...&&An.isOn()}` and the flag constant is imported, and on 2.1.318 | the claude-test gate reads the flag through a direct `f(FLAG,DEFAULT)` call, or the advisory names another field of it |
+| Accepted floor: `cc-plugin-claude-platform`'s `skills` stays partial, so the advisory names it. The field is `get skills(){return vot(l)&&!Kfe("claude-api")?e??=p():void 0}`, and `p()` returns `[{...d,isEnabled:...}]` where `d` is built at run time by `claudeApiSkillDefinition`, loaded from another module through `import.meta.require`: a per-session getter over a runtime-built object | `inventory.py --binary-only` on the 2.1.312 linux-x64 native build: `partial: ["skills"]`, `skills: []` | 2026-10-28, Claude Code 2.1.312; unchanged on 2.1.318 (`get skills(){return hmt(l)&&!T_e("claude-api")?e??=p():void 0}`) | the field becomes an array of object literals, or the advisory names another field of it |
 
 ### 12. Resolve bindings with a parser, when selected
 
@@ -730,7 +754,9 @@ check failed, and each maps to one edit:
 |---|---|---|
 | `builtin_commands` broken: canary commands absent | Source found but parsing yields little | Confirm `joined_bytes` looks right; if so the object shape changed, so re-derive from a known command |
 | `bundled_skills` broken: registrar lookup failed | All three routes missed | Read the export shape around `registerBundledSkill` and add a fourth route |
-| `plugin_backed` broken: canary absent | The `pluginName` field moved | Re-derive `extract_plugin_backed` from `security-review` |
+| `plugin_backed` broken: canary absent | The `pluginName` field moved, or the object's `name` took a form `resolve_field` does not follow (2.1.318: `name:$gr`, an imported constant, which it follows) | Re-derive `extract_plugin_backed` from `security-review` |
+| Several lanes break at once and one brace pair spans most of the source | Text joined between modules opened a brace or quote | Confirm each module still opens with `// @bun`; `build_brace_map` resets at those headers, so a pair crossing one means the header moved |
+| Names imported from another module stay unresolved, and `export{X}` of that name is nowhere in the source | The exporting module is a run under the floor without a `// @bun` header at its start | Read the raw bytes around the binding; extend `MODULE_RUN_RE` to the new module opening |
 | broken: joined region under 1 MB | Packer layout changed | Add the new marker to `BUNDLE_MARKERS`, or lower the floor after measuring it |
 | `bundled_skills` degraded: unrecognized registrar export | A new registration path may exist | Inspect it; add to `KNOWN_REGISTRAR_EXPORTS` if it funnels into the known registrar, otherwise extract it |
 | `bundled_skills` degraded: computed names unresolved | A binding shape the locality rule does not see | Report as a floor; extend `_KEBAB_BINDING_RE` only if the count grows |
