@@ -658,19 +658,30 @@ jobs:
             name=$(basename "$dir")
             results="$OUT/$name/results.json"
             if [ ! -f "$results" ]; then
+              why=$(cat "$OUT/$name/exit-code" 2>/dev/null || echo "the run did not start")
               printf '### Plugin eval: %s\n\nNo result was written (%s).\n\nResult: NOT COMPARABLE\n\n' \
-                "$name" "$(cat "$OUT/$name/exit-code" 2>/dev/null || echo "the run did not start")" >>"$GITHUB_STEP_SUMMARY"
+                "$name" "$why" >>"$GITHUB_STEP_SUMMARY"
+              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::No result was written (${why//[$'\r\n%']/ })."
               failed=1
               continue
             fi
             summary="$OUT/$name/summary.md"
-            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" >"$summary" || failed=1
+            annotation="$OUT/$name/annotation.txt"
+            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" --annotation "$annotation" >"$summary" || failed=1
             cat "$summary" >>"$GITHUB_STEP_SUMMARY"
             echo >>"$GITHUB_STEP_SUMMARY"
             token=$(openssl rand -hex 16)
             echo "::stop-commands::$token"
             cat "$summary"
             echo "::$token::"
+            # summarize.mjs escapes the command it writes; it prints outside
+            # the stop-commands block so the runner reads it.
+            # No file at all: summarize.mjs could not read the result (exit 2).
+            if [ -s "$annotation" ]; then
+              head -n 1 "$annotation"
+            elif [ ! -e "$annotation" ]; then
+              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::The result could not be read."
+            fi
           done <<<"$SUITES"
           exit "$failed"
 

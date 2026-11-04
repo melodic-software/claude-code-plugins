@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.6] - 2026-11-04
+
+### Changed
+
+- The harness-config audit starts far fewer processes per run: each settings file and the hook inventory are read in one `jq` call instead of one per field, which matters most on Git for Windows, where each process start is expensive (#13229). Its findings and rows are unchanged.
+
 ## [3.0.5] - 2026-11-04
 
 ### Fixed

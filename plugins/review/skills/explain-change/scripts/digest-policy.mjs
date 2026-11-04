@@ -23,7 +23,7 @@ import { join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupVisibility, prFromFacts } from "./repo-visibility.mjs";
 import { SECRET_PATTERNS, findSecret, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
-import { findRoot, gateExplicit, overlayApplies, resolveMedium as resolveViewMedium } from "../../../lib/view-settings.mjs";
+import { findRoot, gateExplicit, personalOverrideApplies, resolveMedium as resolveViewMedium } from "../../../lib/view-settings.mjs";
 import { mediumOf, reportLines } from "../../../lib/view-registry.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -262,7 +262,7 @@ export function resolveDigestConfig(baseOid) {
       const team = readTeamDigest(base, TEAM_YAML, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
       if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
     }
-    if (paths.overlay && existsSync(paths.overlay) && overlayApplies(paths.root, paths.overlay, warnings)) {
+    if (paths.overlay && existsSync(paths.overlay) && personalOverrideApplies(paths.root, paths.overlay, warnings)) {
       const value = readJsonLayer(paths.overlay, "overlay", warnings);
       if (value) layers.push({ label: "overlay", path: paths.overlay, value });
     }

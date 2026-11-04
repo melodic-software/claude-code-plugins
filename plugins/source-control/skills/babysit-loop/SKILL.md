@@ -164,7 +164,7 @@ issues** in the target repository. This deliberately outlives the worker lane's 
 closed or PR'd), so the merge lane merges the tail. Lane-infrastructure issues never gate
 the drain: the per-lane telemetry tracking issues (the `Lane telemetry: <lane>` title contract,
 this lane's and any sibling's) are excluded from the 0-open-issues evaluation, exactly as the
-work-items lanes exclude them. The **drain-terminal state** (per the convention) also ends the
+work-items lanes exclude them. Neither exit counts a snapshot issue marked `cordoned: true` ([cycle-shape](reference/cycle-shape.md) step 1 names the list). The **drain-terminal state** (per the convention) also ends the
 loop: every remaining open item human-gated, escalated, or `C5` on the issue-author provenance
 test (`work-classes.md`) and no PR in flight. Report and stop cleanly; never idle forever.
 Untrusted intake counts as human-gated for that exit even without a role label. Exit uses the cycle-start snapshot, only when confirmed complete ([cycle-shape](reference/cycle-shape.md) step 1; a failed or partial read is never an empty queue); mid-cycle intake is reported, never chased.
@@ -495,5 +495,5 @@ token in them would reach the Bash tool unsubstituted, with no such variable to 
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain: the worker lane
   may still be authoring; only 0 open PRs AND 0 open non-excluded issues (or the drain-terminal
   state) ends the loop.
-- **Drain issue-author provenance.** Apply the `work-classes.md` issue-author `C5` test to every non-excluded open issue in the drain snapshot; failures are human-gated for the terminal exit.
+- **Drain issue-author provenance.** Apply the `work-classes.md` issue-author `C5` test to every non-excluded open issue in the drain snapshot (telemetry and cordoned issues are the excluded ones); failures are human-gated for the terminal exit.
 - **An open telemetry issue is the lane operating, not backlog.** Never work, close, or wait on a `Lane telemetry: <lane>` issue, and never count one against the drain exit.

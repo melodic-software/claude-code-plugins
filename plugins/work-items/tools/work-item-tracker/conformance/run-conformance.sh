@@ -338,6 +338,8 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   assert_eq "list-items rows carry created_at as a UTC timestamp or null" "true" \
     "$(jq '[.items[] | has("created_at") and (.created_at == null
       or (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))] | all' <<<"$WIT_OUT")"
+  assert_eq "list-items rows carry milestone as a name or null" "true" \
+    "$(jq '[.items[] | .milestone == null or (.milestone | type == "string" and length > 0)] | all' <<<"$WIT_OUT")"
   wit_case "list-items --label nobody carries" 0 list-items --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
   assert_truncated_flag "list-items --label"
   assert_eq "list-items --label nobody carries holds no items" "0" "$(jq '.items | length' <<<"$WIT_OUT")"

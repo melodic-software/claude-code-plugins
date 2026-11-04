@@ -394,7 +394,7 @@ describe("a pull request branch cannot silence its own digest", () => {
     assert.equal(result.action, "offer");
     assert.deepEqual(result.triggers, ["risk-path"]);
     assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
-    assert.match(result.warnings.join("\n"), /overlay .*tracked/);
+    assert.match(result.warnings.join("\n"), /personal override \S+: tracked in git/);
   });
   test("with no base ref the team layer is ignored", () => {
     const result = run({ ...facts, baseRefOid: undefined });
@@ -498,7 +498,7 @@ describe("a case-variant overlay a pull request tracks is ignored and fires risk
     assert.equal(result.action, "offer");
     assert.deepEqual(result.triggers, ["risk-path"]);
     assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
-    assert.match(result.warnings.join("\n"), /overlay .*tracked/);
+    assert.match(result.warnings.join("\n"), /personal override \S+: tracked in git/);
   });
 });
 

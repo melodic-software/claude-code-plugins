@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The drain exits. #701's milestone is listed in cordoned-milestones, so it is dropped from the exit evaluation, and #702 is closed. The lane writes its final report, adds the post-snapshot intake report, and stops cleanly. It does not escalate or work #701.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#701 is open with no linked PR, so the drain stays open and the next cycle works it.",
+      "why": "holds the drain open on a cordoned item"
+    },
+    {
+      "answer": "#701 is cordoned, so I escalate it to the human-gated role and stop at the drain-terminal state.",
+      "why": "escalates a cordoned item"
+    }
+  ]
+}

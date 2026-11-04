@@ -55,7 +55,7 @@ an earlier one key by key:
    base commit, the `json config` block in `docs/conventions/review-digest.md` is read, else
    `.claude/review-digest.json`. A present YAML file wins whole: an invalid value in it falls to the
    layer below, never to the old location.
-3. overlay `.claude/review-digest.local.json`
+3. personal override `.claude/review-digest.local.json`
 
 The result names the layer that supplied each value (`team <commit>:<path>`, `user-global <path>`,
 `overlay <path>`, or `default`). Quote glob values in the YAML file (`"**/hooks/**"`), since a plain
@@ -64,8 +64,8 @@ The result names the layer that supplied each value (`team <commit>:<path>`, `us
 The team layer, and the rendered-views team file, are read from the pull request's base commit
 (`baseRefOid`), never the working tree, so a checked-out pull request cannot configure its own
 digest. When that commit is not in the clone, the team layer is skipped with a warning. The
-overlay applies only when untracked, in any letter case, and is refused when `.claude` or the
-overlay is a symlink, or when `.claude` is itself a tracked entry (a submodule or a tracked file) or
+personal override applies only when untracked, in any letter case, and is refused when `.claude` or the
+personal override is a symlink, or when `.claude` is itself a tracked entry (a submodule or a tracked file) or
 holds a `.git`; one that is not gitignored is reported and still applied.
 
 An explicit `--policy` argument beats every layer. An unknown key is inert, and an invalid value

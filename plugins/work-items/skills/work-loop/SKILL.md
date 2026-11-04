@@ -479,7 +479,7 @@ claimable, never closed by this lane, openness means the map exists), are exclud
 cycle-start snapshot, the intake sweep, the exit evaluation, and the post-snapshot intake report.
 The loop never works, closes, or waits on them; an open telemetry issue is the lane operating, not
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog
-blocking drain exit.
+blocking drain exit. [reference/mode-drain.md](reference/mode-drain.md) "Cordoned items" owns the drain exits' other exclusion.
 
 ## Next
 

@@ -3,6 +3,16 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.3] - 2026-11-04
+
+### Fixed
+
+- `/bugs:scan`: a gate always passes an effort, its role's or the session's level when that is
+  higher, so it holds the session's effort wherever the harness places it. Hunters still pass none,
+  and the skill claims no level for them: `CLAUDE_CODE_SUBAGENT_MODEL` or a mod's `agent.spawn` can
+  place a spawn on another model, where the session level does not apply. The run metadata labels
+  a stage that passed none `unset`.
+
 ## [0.18.2] - 2026-11-03
 
 ### Changed

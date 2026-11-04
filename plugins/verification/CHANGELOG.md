@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1] - 2026-11-04
+
+### Changed
+
+- Shared setup-apply library synced: its offer and write messages now say personal override where they said overlay or personal overlay (#13187). Behavior is unchanged.
+
 ## [0.19.0] - 2026-11-03
 
 ### Added

@@ -34,7 +34,7 @@
 # ENFORCEMENT ≠ DRAFTING — the policy-floor contract:
 #   Enforcement reads the TEAM-TRACKED layer: the files above. The user-global
 #   (`~/.claude/source-control.md`) and gitignored local
-#   (`.claude/source-control.local.md`) overlays are DRAFTING inputs the model
+#   (`.claude/source-control.local.md`) personal overrides are DRAFTING inputs the model
 #   merges per `reference/config-resolution.md`; a blocking gate never reads
 #   them. "Is regex A stricter than B" is undecidable, so no merge of a personal
 #   pattern with a team one could honor "tighten only".
@@ -415,7 +415,7 @@ check_yaml_dialect
 # commit-msg hooks, CI — read with one sed). When declared, that file is
 # authoritative for the machine keys it carries; a key it omits falls back to
 # the markdown H2. The pointer is honored from the TEAM file only (same policy
-# floor — a gitignored overlay must not redirect the gate), and a
+# floor — a gitignored personal override must not redirect the gate), and a
 # declared-but-broken pointer FAILS CLOSED to no-enforcement with a diagnostic
 # rather than silently re-reading markdown values migration may have retired.
 #

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.8] - 2026-11-04
+
+### Changed
+
+- Shared config-cascade library synced: comments now call the personal layer the personal override (#13187). No behavior or printed text changed.
+
 ## [0.16.7] - 2026-11-03
 
 ### Changed

@@ -93,6 +93,25 @@ set -uo pipefail
 # every string comparison below.
 jqs() { jq "$@" 2>/dev/null | tr -d '\r'; }
 
+# read_fields <array>: NUL-terminated fields on stdin into <array>, each the text
+# $(jqs -r ...) would have returned for it. A batched read costs one jq where
+# per-field calls cost a jq, a tr and their forks each, and on Git for Windows
+# those process starts are most of a run's wall clock.
+read_fields() {
+  local -n _rf_out="$1"
+  local _rf_x
+  _rf_out=()
+  while IFS= read -r -d '' _rf_x; do
+    _rf_x="${_rf_x//$'\r'/}"
+    while [[ "$_rf_x" == *$'\n' ]]; do _rf_x="${_rf_x%$'\n'}"; done
+    _rf_out+=("$_rf_x")
+  done
+}
+# A jq prelude for read_fields: f(g) is g's first output as text, or "" when g
+# fails or has none, so one field's error leaves the others intact; fields ends
+# the program by writing them NUL-terminated under jq -j.
+FIELDS_JQ='def f(g): first((try g catch empty), "") | tostring; def fields: map(. + "\u0000") | add;'
+
 usage() {
   cat <<'EOF'
 audit-engine.sh — decide every deterministic audit row and emit the result.
@@ -433,7 +452,7 @@ row() {
 
 # --- Scopes ------------------------------------------------------------------
 
-SCOPES_JSON='[]'
+SCOPE_ROWS=()
 declare -A SCOPE_STATE=()
 probe_scope() {
   # probe_scope <label> <path> -> sets SCOPE_STATE[label] to absent|unreadable|invalid|ok
@@ -448,7 +467,7 @@ probe_scope() {
     state=ok
   fi
   SCOPE_STATE[$label]="$state"
-  SCOPES_JSON="$(jq -c --arg l "$label" --arg p "$path" --arg s "$state" '. + [{label:$l,path:$p,state:$s}]' <<<"$SCOPES_JSON")"
+  SCOPE_ROWS+=("$label" "$path" "$state")
 }
 probe_scope project "$SETTINGS"
 probe_scope local "$LOCAL"
@@ -467,6 +486,8 @@ if [[ "${SCOPE_STATE[project]}" == "absent" ]]; then
   exit 2
 fi
 
+SCOPES_JSON="$(jq -cn '$ARGS.positional as $a | [range(0; $a | length; 3) | {label: $a[.], path: $a[. + 1], state: $a[. + 2]}]' --args "${SCOPE_ROWS[@]}")"
+
 # jqf <file> <filter> [jq args]: read a JSON scope with CRLF stripped.
 jqf() {
   local f="$1"
@@ -475,9 +496,15 @@ jqf() {
 }
 
 # ejq <jq args>: jq with Git Bash argument conversion off, so a program or
-# value holding `=/` reaches jq unrewritten; CRLF is stripped from compact or
-# base64 output only, where a CR can only be a line ending.
-ejq() { MSYS2_ARG_CONV_EXCL='*' jq "$@" 2>/dev/null | tr -d '\r'; }
+# value holding `=/` reaches jq unrewritten. Only for compact or base64 output,
+# where jq escapes a CR inside a value, or for jq -j fields read_fields cleans.
+# Native jq takes -b to write LF on Windows, so no tr has to follow it.
+JQ_LF=()
+case "${OSTYPE:-}" in
+msys* | cygwin*) JQ_LF=(-b) ;;
+*) ;;
+esac
+ejq() { MSYS2_ARG_CONV_EXCL='*' jq ${JQ_LF[@]+"${JQ_LF[@]}"} "$@" 2>/dev/null; }
 
 # Shared jq definitions over the user, project and local scopes (category A's
 # consent receipts and category E's plugin rows); `enabled` is the merged
@@ -531,6 +558,42 @@ LOCAL_OK=0
 [[ "${SCOPE_STATE[local]}" == "ok" ]] && LOCAL_OK=1
 USER_OK=0
 [[ -n "$USER_SETTINGS" && "${SCOPE_STATE[user]:-absent}" == "ok" ]] && USER_OK=1
+
+# What categories A, B, H and I ask of a settings file, read in one jq per file.
+# A field outside its key's presence check stays empty.
+declare -A FACT=()
+FACT_NAMES=(has_mcp has_hooks local_deny broad_allow allow_commit allow_fetch allow_stash
+  has_denied has_match has_effort effort has_fallback fb_raw fb_dedup
+  has_avail avail_mix avail_len enforce has_deep deep)
+FACT_JQ="$FIELDS_JQ"'
+  def allow: (.permissions.allow // [])[];
+  def allows($w): [allow | select(startswith("Bash(" + $w))] | length > 0;
+  def when($k; g): if has($k) then g else empty end;
+  [f(has("mcpServers")), f(has("hooks")), f((.permissions.deny // []) | length),
+   f([allow | select(. == "Bash(git *)" or . == "Bash(git:*)")] | join("\n")),
+   f(allows("git commit")), f(allows("git fetch")), f(allows("git stash")),
+   f(has("deniedModels")), f(has("availableModelsMatch")),
+   f(has("effortLevel")), f(when("effortLevel"; .effortLevel | tostring)),
+   f(has("fallbackModel")),
+   f(when("fallbackModel"; .fallbackModel | if type=="array" then length else 1 end)),
+   f(when("fallbackModel"; .fallbackModel | if type=="array" then (reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) else 1 end)),
+   f(has("availableModels")),
+   f(when("availableModels"; .availableModels | if type=="array" then . else [] end | map(tostring) | . as $l | [ $l[] | select(test("^(opus|sonnet|haiku|fable)$")) ] as $fams | [ $fams[] | . as $f | select(any($l[]; . != $f and (ascii_downcase | contains($f)))) ] | join(","))),
+   f(when("availableModels"; .availableModels | if type=="array" then length else 0 end)),
+   f(if has("enforceAvailableModels") then (.enforceAvailableModels|tostring) else "" end),
+   f(has("disableDeepLinkRegistration")),
+   f(when("disableDeepLinkRegistration"; .disableDeepLinkRegistration | tostring))] | fields'
+load_facts() {
+  local file="$1" i=0 name vals=()
+  read_fields vals < <(tr -d '\r' <"$file" | ejq -j "$FACT_JQ")
+  for name in "${FACT_NAMES[@]}"; do
+    FACT[$file:$name]="${vals[i]:-}"
+    i=$((i + 1))
+  done
+}
+[[ $PROJECT_OK -eq 1 ]] && load_facts "$SETTINGS"
+[[ $LOCAL_OK -eq 1 ]] && load_facts "$LOCAL"
+[[ $USER_OK -eq 1 ]] && load_facts "$USER_SETTINGS"
 MCP_OK=0
 [[ "${SCOPE_STATE[mcp]}" == "ok" ]] && MCP_OK=1
 
@@ -753,7 +816,7 @@ acquire_page() {
   local slug="$1" manifest="${2:-$DOCS_MANIFEST}" rec raw=""
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
     raw="$DOCS_DIR/$slug.md"
-    rec="$(jq -cn --arg s "$slug" --arg l "$raw" --argjson b "$(wc -c <"$raw" | tr -d ' ')" --argjson n "$(awk 'END { print NR }' "$raw")" \
+    rec="$(jq -cn --arg s "$slug" --arg l "$raw" --argjson b "$(wc -c <"$raw")" --argjson n "$(awk 'END { print NR }' "$raw")" \
       --arg h "$(sha256_hex <"$raw")" \
       '{slug:$s,url_or_path:$l,source:"docs-dir",bytes:$b,state:"read",reason:"",sha256:$h,content_type:null,lines:$n,retrieved:null}')"
   else
@@ -763,11 +826,16 @@ acquire_page() {
     [[ "$(jq -r '.state' <<<"$rec")" == read ]] && raw="$DOCS_TMP/fetch/$slug.md"
   fi
   if [[ -n "$raw" ]]; then
-    mkdir -p "$(dirname "$DOCS_TMP/$slug.md")"
+    [[ "$slug" != */* ]] || mkdir -p "$DOCS_TMP/${slug%/*}"
     tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/$slug.md"
     PAGE_FILE[$slug]="$DOCS_TMP/$slug.md"
   fi
-  DOCS_PAGES_JSON="$(jq -c --argjson r "$rec" '. + [$r]' <<<"$DOCS_PAGES_JSON")"
+  rec="${rec%$'\r'}"
+  if [[ "$DOCS_PAGES_JSON" == '[]' ]]; then
+    DOCS_PAGES_JSON="[$rec]"
+  else
+    DOCS_PAGES_JSON="${DOCS_PAGES_JSON%]},$rec]"
+  fi
 }
 acquire_page settings-reference
 acquire_page env-vars
@@ -974,17 +1042,17 @@ if [[ $PROJECT_OK -eq 1 ]]; then
   else
     row A schema-present ok none "$SURF_SETTINGS" "present:\$schema" "\$schema present and pointing at the published schema" -
   fi
-  if [[ "$(jqf "$SETTINGS" -r 'has("mcpServers")')" == "true" ]]; then
+  if [[ "${FACT[$SETTINGS:has_mcp]:-}" == "true" ]]; then
     row A mcp-in-settings finding error "$SURF_SETTINGS" "misplaced-key:mcpServers" "mcpServers belongs in .mcp.json, not settings.json" /mcpServers
   else
     row A mcp-in-settings ok none "$SURF_SETTINGS" "absent:mcpServers" "no mcpServers key in settings.json" -
   fi
 fi
 if [[ $LOCAL_OK -eq 1 ]]; then
-  if [[ "$(jqf "$LOCAL" -r 'has("mcpServers")')" == "true" ]]; then
+  if [[ "${FACT[$LOCAL:has_mcp]:-}" == "true" ]]; then
     row A mcp-in-local finding error "$SURF_LOCAL" "misplaced-key:mcpServers" "mcpServers belongs in .mcp.json, not settings.local.json" /mcpServers
   fi
-  if [[ "$(jqf "$LOCAL" -r 'has("hooks")')" == "true" ]]; then
+  if [[ "${FACT[$LOCAL:has_hooks]:-}" == "true" ]]; then
     row A hooks-in-local finding info "$SURF_LOCAL" "personal-key:hooks" "hooks in settings.local.json are personal, not team configuration" /hooks
   fi
 fi
@@ -1276,29 +1344,45 @@ if [[ -x "$SCRIPT_DIR/check-hook-coverage.sh" || -f "$SCRIPT_DIR/check-hook-cove
     bash "$SCRIPT_DIR/check-hook-coverage.sh" --json 2>/dev/null)"
   inventory_exit=$?
   if [[ $inventory_exit -ne 2 ]] && jq empty <<<"$inv_out" 2>/dev/null; then
-    INVENTORY_JSON="$(tr -d '\r' <<<"$inv_out")"
+    INVENTORY_JSON="${inv_out//$'\r'/}"
   fi
 fi
-INVENTORY_STATE="$(jqs -r '.inventory // "none"' <<<"$INVENTORY_JSON")"
+# Every field the rows below read from the inventory, from one jq call.
+INV_F=()
+read_fields INV_F < <(ejq -j "$FIELDS_JQ"'
+  def lever_value($k): [.levers[]? | select(.key==$k)] | map("\(.scope)=\(.value|tostring)") | join(", ");
+  def mod_rows($k): [.mod_plane[]? | select(.key==$k) | [.scope, (.value|tojson)] | @tsv] | join("\n");
+  [f(.inventory // "none"),
+   f([.levers[]? | select(.key=="disableAllHooks" and (.value==true or .value=="true"))] | length),
+   f([.levers[]? | select(
+     (.key=="allowManagedHooksOnly" and (.value==true or .value=="true"))
+     or (.key=="strictPluginOnlyCustomization" and (
+       (.value==true or .value=="true")
+       or ((.value|type)=="array" and ((.value|index("hooks")) != null))
+     ))
+   )] | length),
+   f(.lever_state // "complete"),
+   f(.managed_scope // false),
+   f([.plugins[]? | [.plugin, .status, (.path // "")] | @tsv] | join("\n")),
+   f([.hooks[]? | [.source, .event, .matcher, .command, ((.timeout // "-") | tostring), (.type // "command"), ((.if // "-") | if . == "" then "-" else . end), ((.args // []) | tojson)] | @tsv] | join("\n")),
+   f([.divergence[]? | . + {mk: (.plugin | split("@") | .[1] // "")}] | group_by(.mk) | map([.[0].mk, (length|tostring), .[0].loaded, .[0].cached] | @tsv) | join("\n")),
+   f(lever_value("disableAllHooks")), f(lever_value("allowManagedHooksOnly")), f(lever_value("strictPluginOnlyCustomization")),
+   f(mod_rows("prependPlugins")), f(mod_rows("appendPlugins")), f(mod_rows("disableSideloadFlags")),
+   f(mod_rows("allowManagedModsOnly")), f(mod_rows("allowModsToOverrideDenyRules"))] | fields' <<<"$INVENTORY_JSON")
+INVENTORY_STATE="${INV_F[0]:-}"
+INV_PLUGINS="${INV_F[5]:-}" INV_HOOKS="${INV_F[6]:-}" INV_DIVERGENCE="${INV_F[7]:-}"
+declare -A INV_LEVER=([disableAllHooks]="${INV_F[8]:-}" [allowManagedHooksOnly]="${INV_F[9]:-}" [strictPluginOnlyCustomization]="${INV_F[10]:-}")
+declare -A INV_MOD=([prependPlugins]="${INV_F[11]:-}" [appendPlugins]="${INV_F[12]:-}" [disableSideloadFlags]="${INV_F[13]:-}"
+  [allowManagedModsOnly]="${INV_F[14]:-}" [allowModsToOverrideDenyRules]="${INV_F[15]:-}")
 
 # Lever reading: a hook one of these has switched off is not coverage. An
 # unread lever is not an unset lever: when a settings scope did not parse, the
 # inventory reports the lever state unknown and the narrowing is unavailable,
 # because a lever that disables every hook may be sitting in the file nothing
 # could read.
-LEVER_DISABLE_ALL="$(jqs -r '[.levers[]? | select(.key=="disableAllHooks" and (.value==true or .value=="true"))] | length' <<<"$INVENTORY_JSON")"
-# strictPluginOnlyCustomization locks hooks only when it is true or its array
-# names "hooks". An array of only "mcp" blocks user and project MCP servers and
-# leaves hooks running. v2.1.257 closed the /mcp reconnect bypass for a lock
-# that loads after startup.
-LEVER_MANAGED="$(jqs -r '[.levers[]? | select(
-  (.key=="allowManagedHooksOnly" and (.value==true or .value=="true"))
-  or (.key=="strictPluginOnlyCustomization" and (
-    (.value==true or .value=="true")
-    or ((.value|type)=="array" and ((.value|index("hooks")) != null))
-  ))
-)] | length' <<<"$INVENTORY_JSON")"
-LEVER_STATE="$(jqs -r '.lever_state // "complete"' <<<"$INVENTORY_JSON")"
+LEVER_DISABLE_ALL="${INV_F[1]:-}"
+LEVER_MANAGED="${INV_F[2]:-}"
+LEVER_STATE="${INV_F[3]:-}"
 HOOKS_LIVE=1
 HOOKS_LIVE_REASON="a suppression lever is set, so the hook is not live"
 if [[ "$LEVER_STATE" != "complete" ]]; then
@@ -1358,7 +1442,7 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
       COVERED_BY[$pat]="$pkey $m_hook (levers: ${levers:-none})"
     done < <(jqs -r '.patterns[]?' <<<"$entry")
   done <<<"$entries"
-done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$INVENTORY_JSON")
+done <<<"$INV_PLUGINS"
 
 # --- Declared unattended-push lane (narrowing 1, ask-rules family only) ------
 # A permissions.ask rule prompts even in auto mode and is auto-denied under
@@ -1430,7 +1514,6 @@ ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under
 progress B "permissions (${#BASELINE_ORDER[@]} baseline patterns)"
 
 if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
-  allow_json="$(jqf "$SETTINGS" -c '(.permissions.allow // [])')"
   # Whether each baseline pattern is in its list, one true/false line per
   # pattern in BASELINE_ORDER, from one jq call.
   b_args=()
@@ -1486,9 +1569,9 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
       ;;
     *) ;;
     esac
-  done < <(jq -r '.[]' <<<"$allow_json")
+  done <<<"${FACT[$SETTINGS:broad_allow]:-}"
   for want in "git commit" "git fetch" "git stash"; do
-    if jq -e --arg w "$want" '[.[] | select(startswith("Bash(" + $w))] | length > 0' <<<"$allow_json" >/dev/null; then
+    if [[ "${FACT[$SETTINGS:allow_${want#git }]:-}" == "true" ]]; then
       row B allow-completeness ok none "$SURF_SETTINGS" "present-allow:$want" "an allow rule for $want exists" -
     else
       row B allow-completeness finding info "$SURF_SETTINGS" "missing-allow:$want" "no allow rule for $want; under auto mode the classifier decides it, so this is a convenience, never a gap" /permissions/allow
@@ -1496,7 +1579,7 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
   done
 fi
 if [[ $LOCAL_OK -eq 1 ]]; then
-  local_deny="$(jqf "$LOCAL" -r '(.permissions.deny // []) | length')"
+  local_deny="${FACT[$LOCAL:local_deny]:-}"
   if [[ "${local_deny:-0}" != "0" ]]; then
     row B deny-in-local finding error "$SURF_LOCAL" "misplaced-rules:permissions.deny" "$local_deny deny rule(s) in settings.local.json, where they are ignored; move them to settings.json" /permissions/deny
   else
@@ -1618,7 +1701,7 @@ declare -A PLUGIN_PATH=()
 while IFS=$'\t' read -r pkey pstatus ppath; do
   [[ -n "$pkey" ]] || continue
   PLUGIN_PATH["plugin:$pkey"]="${ppath//\\//}"
-done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$INVENTORY_JSON")
+done <<<"$INV_PLUGINS"
 
 while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   [[ -n "$src" ]] || continue
@@ -1698,11 +1781,11 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   # Empty middle fields carry a "-" sentinel: `read` with a tab IFS folds
   # consecutive tabs, so a hook with no timeout would otherwise shift its type
   # into the timeout column and drop out of every check above.
-done < <(jqs -r '.hooks[]? | [.source, .event, .matcher, .command, ((.timeout // "-") | tostring), (.type // "command"), ((.if // "-") | if . == "" then "-" else . end), ((.args // []) | tojson)] | @tsv' <<<"$INVENTORY_JSON")
+done <<<"$INV_HOOKS"
 
 # Lever state is reported, never judged.
 for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
-  lv="$(jqs -r --arg k "$lever" '[.levers[]? | select(.key==$k)] | map("\(.scope)=\(.value|tostring)") | join(", ")' <<<"$INVENTORY_JSON")"
+  lv="${INV_LEVER[$lever]}"
   if [[ -n "$lv" && "$lever" == "strictPluginOnlyCustomization" ]]; then
     detail="$(jqs -r --arg k "$lever" '
       [.levers[]? | select(.key==$k)] | .[0].value as $v |
@@ -1740,7 +1823,7 @@ fi
 # Mod-plane keys are reported, never judged, except where a scope Claude Code
 # does not read for that key carries one: that copy changes nothing.
 declare -A SURF_BY_SCOPE=([project]="$SURF_SETTINGS" [local]="$SURF_LOCAL" [user]="$SURF_USER")
-MANAGED_SCOPE="$(jqs -r '.managed_scope // false' <<<"$INVENTORY_JSON")"
+MANAGED_SCOPE="${INV_F[4]:-}"
 for key in prependPlugins appendPlugins disableSideloadFlags allowManagedModsOnly allowModsToOverrideDenyRules; do
   case "$key" in
   prependPlugins | appendPlugins)
@@ -1763,7 +1846,7 @@ for key in prependPlugins appendPlugins disableSideloadFlags allowManagedModsOnl
     ;;
   *) ;;
   esac
-  set_rows="$(jqs -r --arg k "$key" '.mod_plane[]? | select(.key==$k) | [.scope, (.value|tojson)] | @tsv' <<<"$INVENTORY_JSON")"
+  set_rows="${INV_MOD[$key]}"
   if [[ -z "$set_rows" ]]; then
     row D mod-plane ok none "settings" "mod-key-unset:$key" "$key unset in every scope read" -
     continue
@@ -1787,7 +1870,7 @@ esac
 while IFS=$'\t' read -r mk count example_loaded example_cached; do
   [[ -n "$mk" ]] || continue
   row E cache-divergence finding info "marketplace:$mk" "cache-vs-loaded:$mk" "$count plugin(s) from $mk load from the marketplace directory (for example $example_loaded) while the registry cache holds an older snapshot (for example $example_cached); a tool resolving through the registry reads the snapshot, the session does not" "$mk"
-done < <(jqs -r '[.divergence[]? | . + {mk: (.plugin | split("@") | .[1] // "")}] | group_by(.mk) | .[] | [.[0].mk, (length|tostring), .[0].loaded, .[0].cached] | @tsv' <<<"$INVENTORY_JSON")
+done <<<"$INV_DIVERGENCE"
 
 # --- Category E: plugins -------------------------------------------------------
 
@@ -2283,17 +2366,20 @@ check_h() {
   # https://code.claude.com/docs/en/settings-reference#deniedmodels live.
   # As of: 2026-10-10. Recheck trigger: either section reads its key outside
   # managed settings.
-  for key in deniedModels availableModelsMatch; do
-    if [[ "$(jqf "$file" -r "has(\"$key\")")" == "true" ]]; then
-      row H managed-only-model-policy finding warning "$surface" "$key-outside-managed" "$key is set outside managed settings, where Claude Code ignores it, so this model policy is not in force" "/$key"
-    fi
-  done
-  if [[ "$(jqf "$file" -r 'has("effortLevel")')" == "true" ]]; then
-    documented_value H effort-level effortLevel "$(jqf "$file" -r '.effortLevel | tostring')" "$surface"
+  if [[ "${FACT[$file:has_denied]:-}" == "true" ]]; then
+    key=deniedModels
+    row H managed-only-model-policy finding warning "$surface" "$key-outside-managed" "$key is set outside managed settings, where Claude Code ignores it, so this model policy is not in force" "/$key"
   fi
-  if [[ "$(jqf "$file" -r 'has("fallbackModel")')" == "true" ]]; then
-    raw="$(jqf "$file" -r '.fallbackModel | if type=="array" then length else 1 end')"
-    dedup="$(jqf "$file" -r '.fallbackModel | if type=="array" then (reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) else 1 end')"
+  if [[ "${FACT[$file:has_match]:-}" == "true" ]]; then
+    key=availableModelsMatch
+    row H managed-only-model-policy finding warning "$surface" "$key-outside-managed" "$key is set outside managed settings, where Claude Code ignores it, so this model policy is not in force" "/$key"
+  fi
+  if [[ "${FACT[$file:has_effort]:-}" == "true" ]]; then
+    documented_value H effort-level effortLevel "${FACT[$file:effort]:-}" "$surface"
+  fi
+  if [[ "${FACT[$file:has_fallback]:-}" == "true" ]]; then
+    raw="${FACT[$file:fb_raw]:-}"
+    dedup="${FACT[$file:fb_dedup]:-}"
     cap="$(fallback_cap)"
     if [[ -z "$SR" ]]; then
       row H fallback-chain not-inspectable none "$surface" "fallbackModel-cap" "$SR_UNREAD_WHY; how many fallback models the chain keeps is not known" -
@@ -2308,16 +2394,16 @@ check_h() {
       fi
     fi
   fi
-  if [[ "$(jqf "$file" -r 'has("availableModels")')" == "true" ]]; then
-    mix="$(jqf "$file" -r '.availableModels | if type=="array" then . else [] end | map(tostring) | . as $l | [ $l[] | select(test("^(opus|sonnet|haiku|fable)$")) ] as $fams | [ $fams[] | . as $f | select(any($l[]; . != $f and (ascii_downcase | contains($f)))) ] | join(",")')"
+  if [[ "${FACT[$file:has_avail]:-}" == "true" ]]; then
+    mix="${FACT[$file:avail_mix]:-}"
     if [[ -n "$mix" ]]; then
       row H available-models finding warning "$surface" "availableModels-wildcard-mix:$mix" "a family wildcard ($mix) sits beside a specific model of the same family; the specific entry disables the wildcard" /availableModels
     fi
-    avail_len="$(jqf "$file" -r '.availableModels | if type=="array" then length else 0 end')"
+    avail_len="${FACT[$file:avail_len]:-}"
   else
     avail_len=0
   fi
-  enforce="$(jqf "$file" -r 'if has("enforceAvailableModels") then (.enforceAvailableModels|tostring) else "" end')"
+  enforce="${FACT[$file:enforce]:-}"
   if [[ "$enforce" == "true" && "${avail_len:-0}" -eq 0 ]]; then
     # Gated on the first "Requires Claude Code vX.Y.Z" in the key's section: on
     # an older CLI the key is not read at all, so the missing list costs nothing.
@@ -2343,8 +2429,8 @@ progress I "deep-link registration"
 
 check_i() {
   local file="$1" surface="$2"
-  if [[ "$(jqf "$file" -r 'has("disableDeepLinkRegistration")')" == "true" ]]; then
-    documented_value I deep-link-value disableDeepLinkRegistration "$(jqf "$file" -r '.disableDeepLinkRegistration | tostring')" "$surface"
+  if [[ "${FACT[$file:has_deep]:-}" == "true" ]]; then
+    documented_value I deep-link-value disableDeepLinkRegistration "${FACT[$file:deep]:-}" "$surface"
   fi
 }
 [[ $PROJECT_OK -eq 1 ]] && check_i "$SETTINGS" "$SURF_SETTINGS"

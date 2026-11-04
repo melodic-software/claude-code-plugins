@@ -381,6 +381,17 @@ threat model: throughput phase"):
 > Phase: maximum throughput until open issues and open PRs both reach 0. Hardening (re-adding holds, pins, reviews) is deferred to after that, as configuration edits.
 <!-- spellchecker:on -->
 
+**The phase's zero** counts open pull requests and open issues outside cordoned milestones. A
+milestone in `cordoned-milestones` in
+[`admission-rules.json`](../../../.github/actions/resolve-config/admission-rules.json), the one
+place those names live, holds issues open on purpose, so they never hold the phase open. A drain
+exit counts the same way (§4). The owner's answer on 2026-11-04 (#13252), asked whether to exclude
+the milestone from the count, with exclusion recommended:
+
+<!-- spellchecker:off -->
+> gjo w/ recomendations
+<!-- spellchecker:on -->
+
 Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps, and so
 is the issue lane's hold on a patch carrying a credential shape or not proven clear of one
 (`patch-credential` and `scan-refused-output` in
@@ -806,17 +817,24 @@ here rather than left as an unstated assumption:
   to. Security work trips them most often, and frontier is the tier every security-surface work
   class routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
   mid-run, or a cycle can stop on a refusal, with nothing in the lane noticing.
-- **Usage-credit consent.** In non-interactive mode, the shape every unattended lane runs in, a
-  Fable request that would bill usage credits bills them without a consent prompt.
 - **Pointer:** for the fallback targets, the categories without one, and the provider setup, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
   and
-  [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads);
-  for usage-credit consent, see
-  [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits).
+  [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads).
 - **As of:** 2026-10-10.
-- **Recheck trigger:** a model gains or loses a fallback target, a new model on Claude Code's model
-  page runs safety classifiers, or non-interactive mode starts asking for usage-credit consent.
+- **Recheck trigger:** a model gains or loses a fallback target, or a new model on Claude Code's
+  model page runs safety classifiers.
+- **Usage-credit consent, by launch shape.** We treat only a CI lane (`claude-code-action` or
+  `claude -p`) as able to spend usage credits on Fable unasked. A local lane launches with
+  `claude --bg` (`lane-launcher.sh`), so we treat a usage-credit stop there as a turn that ended
+  with nothing spent, and check a stalled Fable local lane for one first; no lane detects it.
+  Whether `--permission-prompts none` changes this for a `--bg` lane is UNVERIFIED.
+- **Pointer:** when judging whether a lane can bill usage credits unasked, fetch
+  [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits)
+  live.
+- **As of:** 2026-11-04.
+- **Recheck trigger:** that section changes which session shapes hold or skip the consent prompt,
+  or a lane changes its launch shape.
 
 **Independence, where a dispatch stands in for human ratification.** The one dispatch that resolves
 a blocker in place of a human decision, the explicit-`autopilot` merge-authority exception (above),
@@ -876,7 +894,8 @@ Every loop lane holds these, whatever single-pass mechanic it wraps.
 no activity-timeout stop) or *drain* (stops when its backlog is empty). Drain carries a **terminal
 state**: when every remaining open item is human-gated or escalated and no PR is in flight, the lane
 reports and stops cleanly rather than idling forever. Without it, an overnight drain deadlocks on
-the first unanswered escalation.
+the first unanswered escalation. An issue in a cordoned milestone (§2, "The phase's zero") is not
+backlog to either exit; a repository without `admission-rules.json` has no cordoned milestones.
 
 A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**,
 which we treat as binding both launch shapes (§5), idle backoff notwithstanding. Pointer:
@@ -1122,7 +1141,7 @@ none of them depends on the sandbox:
 
 - the unattended merge gate reads its rung at the pull request's base SHA
 - the trusted internal bot list binds only from the target repository's default branch
-- the binding's local overlay accepts only lease, auth and `docs` keys, which keeps the overlay from
+- the binding's personal override accepts only lease, auth and `docs` keys, which keeps the personal override from
   reshaping team state but does not stop a lane editing the team binding itself
 
 Pointer: when judging whether a deny rule stops a lane writing a file, fetch [Configure sandboxing](https://code.claude.com/docs/en/sandboxing#configure-sandboxing)

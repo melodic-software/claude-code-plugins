@@ -287,6 +287,28 @@ class TestIntegrity(unittest.TestCase):
         )
         self.assertEqual(got["status"], "ok")
 
+    def test_the_continue_in_projects_export_is_a_known_registrar(self) -> None:
+        # 2.1.318: `function Ke(){Sl({name:SQn,...})}export{Ke as
+        # registerContinueInProjectsSkill}` calls the bundled-skill registrar.
+        def advisories(export: str) -> list[str]:
+            src = self._src(f"function Ke(){{}}export{{Ke as {export}}};")
+            got = inv.check_integrity(
+                src,
+                self._commands(src),
+                {"a": {}},
+                {"registrations_seen": 1, "resolved": 1},
+            )
+            return got["lanes"]["bundled_skills"]["advisories"]
+
+        self.assertEqual(advisories("registerContinueInProjectsSkill"), [])
+        self.assertEqual(
+            advisories("registerFooSkill"),
+            [
+                "unrecognized registrar-shaped exports: registerFooSkill - a new "
+                "registration path may exist and this run may under-report"
+            ],
+        )
+
     def test_canary_missing_breaks_the_builtin_lane_only(self) -> None:
         # One rule for one state: a broken lane beside a healthy one is a
         # degraded run whose advisory names the lane, never a broken run that
@@ -535,6 +557,31 @@ class TestReadBundleRegionRule(unittest.TestCase):
         )
         _, meta = inv.read_bundle(self._write(layout))
         self.assertEqual(meta["runs_below_floor"], 0)
+
+    def test_read_bundle_keeps_a_module_below_the_floor(self) -> None:
+        # 2.1.318 ships one-constant modules of about 220 bytes that tools
+        # import; a short run that is not a module stays below the floor.
+        module = (
+            b"// @bun @bytecode\n// Version: 2.1.318\n"
+            b'var Vf="WebSearch",GDi="allow_web_search";\nexport{Vf,GDi};\n'
+        )
+        layout = (
+            self.MARKER
+            + self.BIG
+            + self.GAP
+            + module
+            + self.GAP
+            + b'var zz="not a module";'
+            + self.GAP
+            + self.DOCTOR
+            + b"b" * 300
+        )
+        src, meta = inv.read_bundle(self._write(layout))
+        assert src is not None
+        self.assertIn(module.decode("latin1"), src)
+        self.assertNotIn("not a module", src)
+        self.assertEqual(meta["runs"], 3)
+        self.assertEqual(meta["module_runs_below_floor"], 1)
 
     def test_read_bundle_rejects_a_region_under_one_megabyte(self) -> None:
         src, meta = inv.read_bundle(self._write(self.MARKER + self.DOCTOR + b"b" * 300))
@@ -850,7 +897,27 @@ class TestPluginBacked(unittest.TestCase):
             'pluginName:"security-review",pluginCommand:"security-review"};'
         )
         self.assertEqual(
-            inv.extract_plugin_backed(src), {"security-review": "security-review"}
+            inv.extract_plugin_backed(src, inv.build_brace_map(src)),
+            {"security-review": "security-review"},
+        )
+
+    def test_a_name_imported_as_a_constant_resolves(self) -> None:
+        # 2.1.318: `din=lin({name:$gr,...})`, `$gr` bound in another module.
+        call = (
+            'var din=lin({name:$gr,description:"Complete a security review",'
+            'pluginName:"security-review",pluginCommand:"security-review"});'
+        )
+        imported = _modules(
+            'var Sxi="explain-usage",$gr="security-review";export{Sxi,$gr};',
+            'import{$gr}from"/$bunfs/root/chunk-a.js";' + call,
+        )
+        unbound = _modules(call)
+        self.assertEqual(
+            inv.extract_plugin_backed(imported, inv.build_brace_map(imported)),
+            {"security-review": "security-review"},
+        )
+        self.assertEqual(
+            inv.extract_plugin_backed(unbound, inv.build_brace_map(unbound)), {}
         )
 
 
@@ -2153,6 +2220,79 @@ class TestModuleScopedResolution(unittest.TestCase):
             _tool(_modules(nested), "Projects")["description_source"], "unresolved"
         )
         self.assertEqual(_tool(body, "Projects")["description_source"], "unresolved")
+
+
+# In 2.1.318 string-table text joined after a module header opened a brace
+# that later text closed, 53 MB on. A regex after `)` is read as division,
+# which misreads these valid modules the same way: a `/{/` leaves a `{` open
+# for a later `/}/` to close, and a `/"/` opens a string the next module's
+# first quote closes. A reader tokenizing across module boundaries reads
+# every module in between as one block or with its quotes inverted.
+TABLE_WRAPS = {
+    "none": ((), ()),
+    "brace": (("if(a)/{/.test(b);",), ("if(a)/}/.test(b);",)),
+    "quote": (('if(a)/"/.test(b);',), ()),
+}
+
+
+class TestModuleBoundaryTokenizing(unittest.TestCase):
+    """Each module is tokenized from a clean state (2.1.318 shapes)."""
+
+    def _wrapped(self, *body: str) -> list[tuple[str, str]]:
+        return [
+            (label, _modules(*before, *body, *after))
+            for label, (before, after) in TABLE_WRAPS.items()
+        ]
+
+    def test_an_unclosed_quote_does_not_swallow_the_next_module(self) -> None:
+        for wrap, src in self._wrapped("var T={b:1};"):
+            with self.subTest(wrap=wrap):
+                braces = inv.build_brace_map(src)
+                self.assertEqual(
+                    braces.pairs.get(src.index("T={") + 2), src.index("};")
+                )
+
+    def test_tool_names_imported_between_table_fragments_resolve(self) -> None:
+        for wrap, src in self._wrapped(
+            'var Fe="Bash";export{Fe};',
+            'import{Fe}from"/$bunfs/root/chunk-b.js";'
+            '$t({name:Fe,searchHint:"run shell commands",maxResultSizeChars:1});',
+        ):
+            with self.subTest(wrap=wrap):
+                tools, notes = inv.extract_builtin_tools(src, inv.build_brace_map(src))
+                self.assertEqual(sorted(tools), ["Bash"])
+                self.assertNotIn("unresolved_names", notes)
+
+    def test_a_workflow_registered_between_table_fragments_resolves(self) -> None:
+        for wrap, src in self._wrapped(
+            'function jJs(o,e,r){Or().bundledWorkflows.push({source:"built-in",...e,'
+            "script:o,disableModelInvocation:r?.disableModelInvocation})}export{jJs};",
+            'import{jJs}from"/$bunfs/root/chunk-a.js";'
+            'var i="deep-research",e=i,t="Deep research harness";function l(){return!0}'
+            "function a(){jJs(`x`,{name:e,description:t},{disableModelInvocation:l})}"
+            "export{a as initBundledWorkflows};",
+        ):
+            with self.subTest(wrap=wrap):
+                flows, notes = inv.extract_bundled_workflows(
+                    src, inv.build_brace_map(src)
+                )
+                self.assertEqual(sorted(flows), ["deep-research"])
+                self.assertEqual(
+                    flows["deep-research"]["description"], "Deep research harness"
+                )
+                self.assertEqual(
+                    (notes["registrations_seen"], notes["resolved"]), (1, 1)
+                )
+
+    def test_plugins_registered_between_table_fragments_resolve(self) -> None:
+        for wrap, src in self._wrapped(*_plugin_modules()):
+            with self.subTest(wrap=wrap):
+                plugins, notes = inv.extract_builtin_plugins(
+                    src, inv.build_brace_map(src)
+                )
+                self.assertIn("cc-plugin-sec-default", plugins)
+                self.assertIn("cc-plugin-agents-md", plugins)
+                self.assertEqual(notes["loaded_not_registered"], [])
 
 
 class TestAgentAndToolIntegrity(unittest.TestCase):

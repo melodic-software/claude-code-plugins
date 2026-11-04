@@ -69,7 +69,8 @@
         {"path": "plugins/songwriting/skills/**", "reason": "songwriting's research text uses overlay in its musical sense"},
         {"phrase": "\\bagentic[- ]overlays?\\b", "reason": "developer-experience's agentic overlay harness is not the config cascade's personal layer"},
         {"path": "plugins/testing/skills/audit/evals/judge-calibration/**", "reason": "testing's judge-calibration fixtures are verbatim copies of other plugins' code"},
-        {"phrase": "\\b(css|ui|video|image|visual|modal)[- ]overlays?\\b", "reason": "a visual overlay, not the config cascade's personal layer"}
+        {"phrase": "\\b(css|ui|video|image|visual|modal)[- ]overlays?\\b", "reason": "a visual overlay, not the config cascade's personal layer"},
+        {"phrase": "\\badr/[0-9]{4}-[a-z0-9-]*overlay[a-z0-9-]*\\.md\\b", "reason": "a link to an ADR file, whose name is history like the docs/adr/ files this checker excludes"}
       ]
     },
     {

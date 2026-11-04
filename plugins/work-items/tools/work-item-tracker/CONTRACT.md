@@ -496,7 +496,8 @@ Normalized item object:
   "blocked_by_wont_do_count": 0,
   "parent_id": null,
   "url": "https://…",
-  "created_at": "2026-03-01T10:00:00Z"
+  "created_at": "2026-03-01T10:00:00Z",
+  "milestone": null
 }
 ```
 
@@ -508,6 +509,10 @@ Normalized item object:
   linear `createdAt`); local-markdown records one at `create-item`, and its items created
   before that read `null`. Additive field: an adapter written before it emits none, which a
   reader treats as `null`.
+- `milestone` is the item's milestone title as the provider names it, or `null` when it has
+  none. The GitHub adapter reads it; local-markdown and the gitea, jira and linear seeds always
+  emit `null`. Additive field: an adapter written before it emits none, which a reader treats
+  as `null`.
 - `type` is the native issue-type NAME (the type axis, org-defined `Task`/`Bug`/
   `Feature`), or `null` when the item has none. On GitHub it is the native Issue Type
   (`create-item --type` sets it; requires push access, silently dropped otherwise);
@@ -1161,8 +1166,8 @@ throwaway target.
 adapter through the core CLI only: every verb, valid + invalid input, exit-code +
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
 capability-gated skips (declared-unsupported verbs asserted to exit `6`), and the list
-contract: `list-items` rows carry `created_at` as a UTC timestamp or `null`, and `--label` with a
-label no item carries returns no items. Bindings live
+contract: `list-items` rows carry `created_at` as a UTC timestamp or `null` and `milestone` as a
+name or `null`, and `--label` with a label no item carries returns no items. Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
 and teardown.
 

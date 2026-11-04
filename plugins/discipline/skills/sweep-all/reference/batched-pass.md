@@ -92,7 +92,7 @@ unchanged and bind every member.
 
    - **Pointer**: when deciding whether the session running this pass can
      spawn forks at all, fetch
-     [Turn fork mode on or off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
+     [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
      live. **As of**: 2026-10-11. **Recheck trigger**: that section changes
      which sessions have fork mode on by default, or how
      `CLAUDE_CODE_FORK_SUBAGENT` overrides it.

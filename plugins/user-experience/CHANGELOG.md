@@ -3,6 +3,12 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.5] - 2026-11-04
+
+### Changed
+
+- Shared config-cascade library synced: comments now call the personal layer the personal override (#13187). No behavior or printed text changed.
+
 ## [0.4.4] - 2026-11-04
 
 ### Changed

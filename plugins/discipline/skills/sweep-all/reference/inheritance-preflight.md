@@ -1,11 +1,11 @@
 # Preflight: proving the fan-out inherits
 
-**Every harness claim in this file was verified 2026-09-06 against Claude Code 2.1.263**, reading
-<https://code.claude.com/docs/en/sub-agents> and <https://code.claude.com/docs/en/env-vars> as
-fetched that day. Recheck trigger: either page stops carrying a quoted span below, either page
-states a different fork-mode default, or a release note names fork mode, subagent tool filtering,
-or `CLAUDE_CODE_FORK_SUBAGENT`. The same stamp covers the fork claims in
-[`batched-pass.md`](batched-pass.md), which cites it rather than repeating it;
+**Every documented harness claim in this file was verified 2026-11-04, with Claude Code 2.1.318 the
+latest release**, reading <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>
+and <https://code.claude.com/docs/en/env-vars#variables> as fetched that day. Recheck trigger: either page stops
+carrying a quoted span below, either page changes what turns fork mode off, or a release note names
+fork mode, subagent tool filtering, or `CLAUDE_CODE_FORK_SUBAGENT`. The same stamp covers the fork
+claims in [`batched-pass.md`](batched-pass.md), which cites it rather than repeating it;
 [`../SKILL.md`](../SKILL.md) carries its own pointer records.
 
 What [`../SKILL.md`](../SKILL.md) runs before step 1 of a full-batch pass, to establish rather than
@@ -18,36 +18,44 @@ their remedies to the working tree**. That is the failure this preflight exists
 to prevent: a correctness pass whose failure mode is confident, invented
 corrections applied to real files.
 
-**Stage 1. Read your own tool schemas. Zero dispatch, diagnostic only.** Two
-documented sentences pair up: fork mode "removes the `run_in_background`
-parameter from the `Agent` tool", while `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`
-set to `1` removes it from "Bash and subagent tools"
-(<https://code.claude.com/docs/en/sub-agents>,
-<https://code.claude.com/docs/en/env-vars>). So `Agent` still carrying it means
-fork mode is not env-var-enabled; `Agent` lacking it **while `Bash` keeps it**
-excludes the disabled-background-tasks cause and leaves fork mode as the
-remaining documented explanation; both lacking it says nothing about fork mode.
-**This stage never gates**, the docs tie the removal to the env-var path and
-say nothing about what the server-side rollout does to the parameter, so no
-branch is conclusive in either direction. It explains what stage 2 finds; it
-never replaces stage 2 and never aborts on its own.
+**Stage 1. Read your own tool schemas. Zero dispatch, diagnostic only.** Read
+one thing: whether the `Agent` tool offers the `fork` type in this session.
+Offered means stage 2 can try; not offered predicts a failed canary and points
+the report at what turns forks off. We do not read `run_in_background` on
+`Agent` or `Bash` as a fork-mode signal: the docs relate fork mode to what a
+call that leaves that parameter out does, which only a dispatched call shows,
+and this stage dispatches nothing. **This stage never gates**: no page says how
+fork mode shows in a tool schema, so neither reading is conclusive. It explains
+what stage 2 finds; it never replaces stage 2 and never aborts on its own.
 
-**Stage 1b. Explicit fork-off short-circuit (zero dispatch).** When
-`CLAUDE_CODE_FORK_SUBAGENT` is explicitly `0`, fork mode is documented as off
-"in every kind of session"
-(<https://code.claude.com/docs/en/env-vars>). Do not dispatch the canary or any
-member. Take the degrade path immediately (below). When the variable is unset,
-the documented default is on in interactive sessions and off in non-interactive
-mode and the Agent SDK, and the interactive default needs Claude Code v2.1.232
-or later. A default is not a runtime guarantee, and neither is an explicit `1`,
-so in every case but the explicit `0` above stage 2 remains the authoritative
-test.
+- **Pointer**: when explaining a missing `fork` type, fetch
+  [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
+  and [Agent tool behavior](https://code.claude.com/docs/en/tools-reference#agent-tool-behavior)
+  live; for how fork mode relates to an omitted `run_in_background`, fetch
+  [the SDK's Agent tool reference](https://code.claude.com/docs/en/agent-sdk/python#agent) live.
+- **As of**: 2026-11-04
+- **Recheck trigger**: a page documents how fork mode shows in the `Agent` tool's
+  schema, or makes the parameter's presence in a schema depend on fork mode.
+
+**Stage 1b. Explicit fork-off short-circuit (zero dispatch).** We read
+`CLAUDE_CODE_FORK_SUBAGENT` explicitly `0` as fork mode off. Do not dispatch the
+canary or any member. Take the degrade path immediately (below). Every other
+state, unset included, proves nothing: a default is not a runtime guarantee, so
+in every case but the explicit `0` above stage 2 remains the authoritative test.
+
+- **Pointer**: when stating which sessions and versions have fork mode on by
+  default, fetch
+  [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
+  and the [`CLAUDE_CODE_FORK_SUBAGENT` row](https://code.claude.com/docs/en/env-vars#variables)
+  live.
+- **As of**: 2026-11-04
+- **Recheck trigger**: that section or row changes what turns fork mode off.
 
 **Stage 2, an inheritance-proof canary. The decider, and it costs one fork.**
 Dispatch ONE fork alone, ahead of the first wave, that answers the proof
 question and **nothing else**. No corrector, no audit, no ledger. Gate the
 whole fan-out on it. Skip this stage only when stage 1b already short-circuited
-on `CLAUDE_CODE_FORK_SUBAGENT=0`; unset and `1` always run it.
+on `CLAUDE_CODE_FORK_SUBAGENT=0`; every other state runs it.
 
 It is deliberately not folded into a member's real audit, which would look free
 and is not: a fork inherits everything the session holds when it spawns, so a
@@ -66,7 +74,7 @@ question. All four are required:
   in a `CLAUDE.md`: a non-fork subagent's initial context still contains "every
   level of the CLAUDE.md hierarchy the main conversation loads" plus the
   delegation message you write
-  (<https://code.claude.com/docs/en/sub-agents>). Nor derivable from this
+  (<https://code.claude.com/docs/en/sub-agents#what-loads-at-startup>). Nor derivable from this
   plugin.
 - **The dispatch prompt neither contains nor paraphrases the answer**. Else a
   non-inheriting subagent answers it from the prompt alone.
@@ -87,7 +95,7 @@ question. All four are required:
 When the conversation offers no detail meeting all four, a thin session that
 opened straight into a full batch over an already-dirty tree. Do not degrade.
 **Mint one.** "A fork inherits everything the main session has at the moment it
-spawns" (<https://code.claude.com/docs/en/sub-agents>), so emit a fresh
+spawns" (<https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>), so emit a fresh
 high-entropy value into the transcript as an ordinary main-thread tool result
 BEFORE the canary spawns, and ask for it back. It is unguessable by
 construction, exists in no file, and a non-inheriting subagent cannot produce
@@ -136,19 +144,16 @@ audit runs.
 - Invoke any single corrector directly for its full audit+correct loop in this
   context (the shared method's normal per-corrector path, one discipline at a
   time).
-- Re-run this skill after fork mode is available (`CLAUDE_CODE_FORK_SUBAGENT=1`
-  or a harness build where fork dispatch succeeds).
+- Re-run this skill once fork dispatch can succeed here: clear what turned forks
+  off (stage 1b's pointer names the switches), or use a harness build where fork
+  dispatch succeeds.
 - At conversation start with nothing to audit yet, mode 1 alone is sufficient; no full batch was needed.
 
 That is the same position `setup` reports as the full-batch prerequisite; this
 runbook is where it executes.
 
-**What is gated, and what is not documented.** `CLAUDE_CODE_FORK_SUBAGENT` set
-to `1` enables fork-spawning and `0` disables it "overriding any server-side
-rollout", and a staged rollout can enable it without the variable
-(<https://code.claude.com/docs/en/env-vars>,
-<https://code.claude.com/docs/en/sub-agents>). What the harness does when the
-`fork` type is requested while fork mode is OFF is **not documented on any
-current page**. Subagents may come back with no inherited conversation, but
+**What is not documented.** What the harness does when the `fork` type is
+requested while fork mode is OFF is **not documented on any current page**.
+Subagents may come back with no inherited conversation, but
 that is an observation, not a contract; the preflight does not rest on it,
 proving inheritance positively rather than predicting the shape of its absence.

@@ -17,7 +17,7 @@
 //                 check below applies to the resolved directory.
 //   --yes         the operator has seen the diff or the offer and confirmed it;
 //                 needed to change a file that already exists, to write a
-//                 pointer region and the overlay ignore line into a repository
+//                 pointer region and the personal override ignore line into a repository
 //                 that has none, and to write into a --home no pointer names.
 //                 A missing settings file is created without it.
 //   --home <dir>  the convention home to offer when the repository binds none:
@@ -1114,7 +1114,7 @@ function main(config, argv) {
   // is one the repository already had: our file is listed in an index there.
   const indexRel = (state === "bound" || opts.home !== null) && home !== DEFAULT_HOME ? `${home}/${INDEX_NAME}` : null;
 
-  // The pointer region and the overlay ignore line, planned before anything is
+  // The pointer region and the personal override ignore line, planned before anything is
   // written: { file, existing, proposed } per file, proposed null for no change.
   const eolOf = (text) => {
     const crlf = (text.match(/\r\n/g) ?? []).length;
@@ -1466,7 +1466,7 @@ function main(config, argv) {
     }
   }
 
-  // An unbound repository is offered the pointer region and the overlay ignore
+  // An unbound repository is offered the pointer region and the personal override ignore
   // line, written in the same step as the file.
   // Without --yes nothing in the offer is written, so a plan the writer would
   // refuse (a symlinked AGENTS.md or .gitignore) does not stop the settings
@@ -1498,7 +1498,7 @@ function main(config, argv) {
           `  - add a convention-home region naming \`${home}\` to ${region.file}${region.existing === null ? " (created: neither AGENTS.md nor CLAUDE.md exists)" : ""}`,
           ignore.proposed === null
             ? `  - leave .gitignore as it is (it already holds ${ignore.line})`
-            : `  - add the overlay ignore line ${ignore.line} to .gitignore so personal <concern>.local.* files stay untracked`,
+            : `  - add the personal override ignore line ${ignore.line} to .gitignore so personal <concern>.local.* files stay untracked`,
           `Nothing is always-loaded: the region is one pointer line. ${pending ? "Nothing was written" : "Neither was written"}. Re-run with --yes once the operator confirms,`,
           `with --home <dir> to name a different home, or with --decline to record that this repository declines a home.`,
           "",
@@ -1583,11 +1583,11 @@ function main(config, argv) {
   }
   if (offer !== null) {
     // The ignore line goes in before the pointer, so no repository ever binds a
-    // home without ignoring its personal overlay.
+    // home without ignoring its personal override.
     const { region, ignore } = offer;
     if (ignore.proposed !== null) {
       writeFile(".gitignore", ignore.proposed, ignore.existing);
-      process.stdout.write(printable(`wrote .gitignore: added ${ignore.line} (personal overlay files stay untracked)\n`));
+      process.stdout.write(printable(`wrote .gitignore: added ${ignore.line} (personal override files stay untracked)\n`));
     }
     writeFile(region.file, region.proposed, region.existing);
     process.stdout.write(printable(`wrote ${region.file}: added a convention-home region naming \`${home}\`\n`));

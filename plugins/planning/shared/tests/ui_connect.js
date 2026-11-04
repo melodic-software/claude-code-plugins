@@ -166,7 +166,8 @@ async function main() {
     const item = ann.page.locator(".vf-apreq", { hasText: "Which step drops most?" });
     await item.locator(".vf-self-copy").click();
     await until(ann.page, () => /Prompt copied/.test(document.body.innerText));
-    const copied = await ann.page.evaluate(() => navigator.clipboard.readText());
+    // The Windows clipboard hands a copied LF back as CRLF.
+    const copied = (await ann.page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
     const cb = block(copied);
     ok("the copied prompt quotes the question and the request inside its own marked data block",
       !!cb && cb.inside.includes(`Question Q1: ${QUESTION}`) && cb.inside.includes("My request (Ask): Which step drops most?"), copied.slice(0, 120));

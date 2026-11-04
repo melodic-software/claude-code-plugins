@@ -243,13 +243,13 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    `userConfig` knobs.
    The proven shape is a single tracked file `.claude/<plugin>.md` (Markdown, for model-facing
    guidance) or `.claude/<plugin>.yaml` (structured rules), each with a gitignored `*.local.*` personal
-   overlay and an optional `~/.claude/<plugin>.md` user-global. The precedent is the official
+   override and an optional `~/.claude/<plugin>.md` user-global. The precedent is the official
    **security-guidance** plugin (<https://code.claude.com/docs/en/security-guidance>): it reads
    `.claude/claude-security-guidance.md` (project), `~/.claude/claude-security-guidance.md` (user), and
    `.claude/claude-security-guidance.local.md` (gitignored personal override), loading every location
    that exists and concatenating them. The **folder form** `.claude/<plugin>/**` (many files, one per
    concern) is the PRECEDENT-EXTENSION: the first-party precedent uses single files, so a plugin that
-   needs a directory of config extends the shape by one increment, keeping the same overlay and
+   needs a directory of config extends the shape by one increment, keeping the same personal override and
    resolution rules.
    - **Concern-named folder for multi-plugin-consumed config.** When a tracked-config concern is
      consumed by MORE THAN ONE plugin, name the folder by the concern, not a plugin
@@ -275,7 +275,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      splits config across *plugins* (concern axis); this splits it across *audiences* within one plugin
      (profile axis), and the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
      [`ai-briefing`](ai-briefing-design.md).
-   - **Resolution + override semantics, overlay naming, and the recommended consumer `.gitignore`
+   - **Resolution + override semantics, personal override naming, and the recommended consumer `.gitignore`
      line** are owned by [`docs/contracts/config-cascade/`](contracts/config-cascade/README.md).
      The layering axis is cross-cutting, so it is contracted once there rather than restated per
      seam. A surface declares its own keys and schema here or in its own owner doc, and points there
@@ -1219,7 +1219,7 @@ surfaces named exhaustively, because this plugin READS more than most, and that 
   That is an advisory, model-honored defense, stated honestly as such.
 - **MCP servers (2).** None.
 - **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
-  (+ user-global `~/.claude/plugin-quality.md` and `.local` overlay, a sanctioned operator-home
+  (+ user-global `~/.claude/plugin-quality.md` and `.local` personal override, a sanctioned operator-home
   read per criterion 4's carve-out), keys documented in the plugin's `reference/config.md`.
 - **Cache isolation (4).** Reads that leave the plugin's own directory, each justified: (a) the
   audited plugin's installed source under the plugin cache and its marketplace registration, which

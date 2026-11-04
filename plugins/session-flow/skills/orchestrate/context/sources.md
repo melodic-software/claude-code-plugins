@@ -228,14 +228,10 @@ the user stopped refuses later messages, one reason imperative 4 respawns after 
 either value. A worker stopped with `TaskStop` can be resumed once its run has exited; outside an
 interrupt, the setting decides whether it is.
 
-- **Pointer**: for what a resumed worker keeps, see
-  <https://code.claude.com/docs/en/sub-agents#resume-subagents>; for a user-stopped worker
-  refusing messages, see
-  <https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background>; for
-  resuming after `TaskStop`, see
-  <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>.
-- **As of**: 2026-10-04
-- **Recheck trigger**: any of those sections changes what a resumed worker keeps, how a stopped
+- **Pointer**: for what a resumed worker keeps, a user-stopped worker refusing messages and
+  resuming after `TaskStop`, see <https://code.claude.com/docs/en/sub-agents#resume-subagents>.
+- **As of**: 2026-11-04
+- **Recheck trigger**: that section changes what a resumed worker keeps, how a stopped
   worker answers a message, or whether a `TaskStop`-ed worker can be resumed.
 
 ## Imperative 6: SURFACE DRIFT

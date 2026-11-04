@@ -3,6 +3,12 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.4] - 2026-11-04
+
+### Changed
+
+- Shared config-cascade library synced: comments now call the personal layer the personal override (#13187). No behavior or printed text changed.
+
 ## [0.16.3] - 2026-11-04
 
 ### Fixed

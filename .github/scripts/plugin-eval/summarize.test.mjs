@@ -3,12 +3,13 @@
 // two-arm case with no delta are each NOT COMPARABLE, never a score.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { verdicts } from "./summarize.mjs";
+import { summarize, verdicts } from "./summarize.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => join(HERE, "fixtures", name);
@@ -112,4 +113,35 @@ test("--redact prints no case name, error or partial reason, and keeps the verdi
   assert.equal(scored.status, 0, scored.stderr);
   assert.doesNotMatch(scored.stdout, /writes-a-test/);
   assert.match(scored.stdout, /Result: PASS$/m);
+});
+
+test("--annotation writes one escaped ::error naming each case that is not PASS", () => {
+  const dir = mkdtempSync(join(tmpdir(), "summarize-"));
+  try {
+    const file = join(dir, "annotation.txt");
+    const errored = run(fixture("errored.json"), "--plugin", "x,y:z", "--annotation", file);
+    assert.equal(errored.status, 1, errored.stderr);
+    const text = readFileSync(file, "utf8");
+    assert.equal(text.split("\n").filter(Boolean).length, 1);
+    assert.match(text, /^::error title=Plugin eval verdict%3A x%2Cy%3Az::NOT COMPARABLE\. NOT COMPARABLE: writes-a-test \(with-arm run 1 errored: timeout\)\n$/);
+    const redacted = run(fixture("errored.json"), "--redact", "--annotation", file);
+    assert.equal(redacted.status, 1);
+    assert.match(readFileSync(file, "utf8"), /NOT COMPARABLE: case 1 \(with-arm run 1 errored: \(redacted\)\)/);
+    const scored = run(fixture("scored.json"), "--annotation", file);
+    assert.equal(scored.status, 0, scored.stderr);
+    assert.equal(readFileSync(file, "utf8"), "");
+    assert.equal(run(fixture("scored.json"), "--annotation").status, 2);
+    // An unreadable result writes no file, so the step reports the suite as not run.
+    const missing = join(dir, "unread.txt");
+    assert.equal(run(fixture("absent.json"), "--annotation", missing).status, 2);
+    assert.equal(existsSync(missing), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an annotation's line breaks and percent signs are escaped", () => {
+  const { annotation } = summarize({ cases: [{ name: "a\nb", aggregates: {}, arms: { with: [{ error: "50%\r\n::warning::x" }] } }] }, { plugin: "p" });
+  assert.equal(annotation.split("\n").length, 1);
+  assert.match(annotation, /a%0Ab \(with-arm run 1 errored: 50%25%0D%0A::warning::x\)$/);
 });

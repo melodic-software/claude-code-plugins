@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: ho-wip-commit-on-pause
-description: 'Handoff WIP commit: in a repository whose docs/conventions/session-flow.yaml sets wip_commit: true, a user-typed /session-flow:handoff that asks to pause makes one local chore(wip): commit of the tracked change, staged from a NUL-separated path list with git add -u --pathspec-from-file, and never pushes. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'Handoff WIP commit: in a repository whose docs/conventions/session-flow.yaml sets wip_commit: true, a user-typed /session-flow:handoff that asks to pause makes one local chore(wip): commit of the tracked change, staged from a NUL-separated path list with git add -u --pathspec-from-file, and never pushes. A run needs --scaffold, --allow-tools Bash Write Edit, and CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 in its environment: with auto memory on, the no-plugin arm writes its handoff into the session''s auto-memory directory, which the eval sandbox denies.'
 tags: [handoff, wip-commit]
 plugins: ["../.."]
 expected_outcome: 'The run resolves wip_commit to true from the conventions file, runs the refusal checks (none holds on the feature branch), stages src/retry.ts with git add -u --pathspec-from-file=<list> --pathspec-file-nul, commits it with a chore(wip): subject, records the SHA in the save-point, and ends with the railed resume prompt. It never pushes.'

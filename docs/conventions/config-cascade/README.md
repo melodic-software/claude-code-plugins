@@ -27,9 +27,9 @@ Moved to [this section](../../contracts/config-cascade/README.md#merge-semantics
 
 Moved to [this section](../../contracts/config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion).
 
-## Overlay naming and the consumer .gitignore
+## Personal override naming and the consumer .gitignore
 
-Moved to [this section](../../contracts/config-cascade/README.md#overlay-naming-and-the-consumer-gitignore).
+Moved to [this section](../../contracts/config-cascade/README.md#personal-override-naming-and-the-consumer-gitignore).
 
 ## Expression doctrine: which surfaces are files, and which are convention docs
 
@@ -63,9 +63,9 @@ Moved to [this section](../../contracts/config-cascade/README.md#implementers).
 
 Moved to [this section](../../contracts/config-cascade/README.md#root-rule-by-surface).
 
-### Overlay spelling drift
+### Personal override spelling drift
 
-Moved to [this section](../../contracts/config-cascade/README.md#overlay-spelling-drift).
+Moved to [this section](../../contracts/config-cascade/README.md#personal-override-spelling-drift).
 
 ## Surfaces listed for later adoption
 

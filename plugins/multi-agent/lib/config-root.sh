@@ -15,7 +15,7 @@
 #             ~/.claude/<surface> as the team layer.
 #   non-repo  no root, or a root outside any git working tree.
 #   repo      anything else.
-# Team and overlay layers apply only to `repo`. `home` wins over `repo`: a
+# Team and personal override layers apply only to `repo`. `home` wins over `repo`: a
 # dotfiles checkout at $HOME is still home.
 
 # Lowercase without `${x,,}`, which Bash 3.2 (stock macOS) rejects.

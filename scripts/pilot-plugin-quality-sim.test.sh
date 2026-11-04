@@ -7,7 +7,7 @@
 #   1. resolver exit 1 before any pointer region exists
 #   2. apply's region write appends to a POPULATED AGENTS.md; the surrounding
 #      prose stays byte-identical and the resolver then resolves the home
-#   3. the manifest detects the retired tracked file and the retired overlay
+#   3. the manifest detects the retired tracked file and the retired personal override
 #      (exit 1, exact TSV rows)
 #   4. --clean on the migrate record refuses without --i-migrated
 #   5. --clean with --i-migrated cleans; the delete record cleans; re-run clean
@@ -88,7 +88,7 @@ run_checker() {
 # --- Fixture: a consumer repo mid-migration -----------------------------------
 # Populated AGENTS.md (real prose, including a backticked path OUTSIDE any
 # region, which must never be read as a pointer), the retired tracked config
-# with known keys, and a pre-existing overlay.
+# with known keys, and a pre-existing personal override.
 fixture="$TEST_TMPDIR/consumer"
 mkdir -p "$fixture/.claude"
 
@@ -190,7 +190,7 @@ assert_exit "case 5: r001 cleans with --i-migrated" 0 "$RC"
 assert_file_absent "case 5: the retired tracked file is gone" "$fixture/.claude/plugin-quality.md"
 run_checker --manifest "$MANIFEST" --clean plugin-quality-r002 --root "$fixture"
 assert_exit "case 5: r002 (delete) cleans without a migrate gate" 0 "$RC"
-assert_file_absent "case 5: the retired overlay is gone" "$fixture/.claude/plugin-quality.local.md"
+assert_file_absent "case 5: the retired personal override is gone" "$fixture/.claude/plugin-quality.local.md"
 run_checker --manifest "$MANIFEST" --root "$fixture"
 assert_exit "case 5: re-run detection is clean" 0 "$RC"
 assert_eq "case 5: no rows after cleanup" "" "$OUT"

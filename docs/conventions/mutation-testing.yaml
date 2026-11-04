@@ -4,7 +4,7 @@
 # that changes a file in `mutate`. That workflow's trigger,
 # .github/workflows/post-merge-select-mutation-range.yml, lists the same globs
 # as its paths filter; .github/scripts/post-merge-test-mutation/report.test.mjs
-# fails when the two lists differ. The lane writes a local overlay,
+# fails when the two lists differ. The lane writes a personal override,
 # .claude/mutation-testing.local.md, with diff-target set to the push's
 # previous head, so each run mutates the lines that push changed.
 #
@@ -25,7 +25,7 @@ diff-target: main
 
 # Code the runners in scripts/run-test-file.sh can test. PowerShell is left
 # out: that runner does not run Pester suites. docs/conventions/ holds this
-# config and .claude/ the lane's overlay and the arid record, which the model
+# config and .claude/ the lane's personal override and the arid record, which the model
 # may not edit.
 mutate:
   - "**/*.sh"

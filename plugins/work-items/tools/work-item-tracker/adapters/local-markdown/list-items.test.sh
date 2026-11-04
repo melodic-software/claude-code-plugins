@@ -72,5 +72,7 @@ grep -v '^created_at: ' "$STORE/5.md" >"$STORE/5.md.old"
 mv "$STORE/5.md.old" "$STORE/5.md"
 assert_eq "an item without the field reads created_at null" "null" \
   "$(jq -c '.items[0].created_at' <<<"$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area: ci")")"
+assert_eq "a row carries milestone as null: this adapter has no milestones" "true" \
+  "$(jq -c '.items[0] | has("milestone") and .milestone == null' <<<"$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area: ci")")"
 
 [[ $FAILED -eq 0 ]] || exit 1

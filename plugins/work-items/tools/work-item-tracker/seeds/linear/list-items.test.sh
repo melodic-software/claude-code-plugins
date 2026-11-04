@@ -45,6 +45,7 @@ assert_eq "listing → exit 0" "0" "$rc"
 assert_eq "envelope schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
 assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_eq "item id is fully qualified" "linear:acme/ENG#12" "$(jq -r '.items[0].id' <<<"$(lin_out)")"
+assert_eq "a row carries milestone as null" "true" "$(jq -c '.items[0] | has("milestone") and .milestone == null' <<<"$(lin_out)")"
 # The filter travels as a VARIABLE, never interpolated into the query text.
 assert_contains "teams travel in the filter variable" "$(lin_bodies)" '"team":{"key":{"in":["ENG"]}}'
 assert_contains "an explicit page size is sent" "$(lin_bodies)" '"first":50'

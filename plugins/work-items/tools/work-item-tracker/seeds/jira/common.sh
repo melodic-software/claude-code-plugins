@@ -444,5 +444,6 @@ readonly WIT_JIRA_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
     blocked_by_wont_do_count: ([blockers[] | select(done and class == "wont_do")] | length),
     parent_id: (if (.fields.parent.key // null) == null then null else (.fields.parent.key | qualify) end),
     url: ("https://" + $site + "/browse/" + .key),
-    created_at: (.fields.created | wit_utc_ts)
+    created_at: (.fields.created | wit_utc_ts),
+    milestone: null
   }'
