@@ -1400,13 +1400,14 @@ command. Our conclusion, with the per-surface rules left at the pointer: a subag
 not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
 allowlist that permits only an older Opus) or on the inherited session model (a blocked cheap pin,
 which is then not cheap), with no error either way. A skill or command lane with a blocked pin stays
-on the session model, never below it. A design whose correctness needs a tier therefore needs a
+on the session model, never below it, unless it runs in a subagent, which makes it a subagent lane.
+A design whose correctness needs a tier therefore needs a
 mechanism that is not a frontmatter pin.
 
 - **Pointer:** for how a blocked override is handled on each surface, see
   [model config: restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection)
   and [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
-- **As of:** 2026-08-10.
+- **As of:** 2026-11-04.
 - **Recheck trigger:** either page's blocked-override behavior for a subagent, skill, or command
   changes.
 
@@ -1831,8 +1832,9 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
   `Setup` event, skill-scoped hooks.
 - [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): constraints, release
   tags, bundles.
-- [Claude Code settings](https://code.claude.com/docs/en/settings): settings scopes, precedence, and
-  the special storage and read scopes of `pluginConfigs`.
+- [Claude Code settings](https://code.claude.com/docs/en/settings): settings scopes and precedence.
+- [Settings reference: `pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs):
+  its storage and read scopes.
 - `melodic-software/standards` `standards/engineering/shareable-artifact-design.md`: the
   artifact-agnostic consumer-facing design doctrine the design boundary, configuration ownership,
   and setup contract above specialize for plugins.

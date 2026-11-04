@@ -7,6 +7,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.0.2] - 2026-11-04
+
+### Fixed
+
+- `/context-budget:audit` lever catalogue: `enableArtifact` is no longer described as ignored in a
+  project file, and `disableArtifact` is marked deprecated rather than an organization lock. The
+  `/config` workflows toggle is named as writing `enableWorkflows`. `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS`
+  is now a documented row, not an undocumented measurement route. `skillOverrides` is no longer the
+  only lever for claude.ai-synced skills, beside `syncClaudeAiSkills`. The `defaultEnabled` probe
+  records that both reference pages disagree with it.
+
 ## [1.0.1] - 2026-11-03
 
 ### Changed

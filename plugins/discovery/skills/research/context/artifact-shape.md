@@ -107,8 +107,9 @@ exits 0, and the parent re-runs it in the acceptance gate ([`dispatch.md`](dispa
 restatement and eligibility checks").
 
 The check finds a claim only by its ID, so two cases stay with the verifier under row 12: a table
-row that restates a claim with no ID and no quote, which the check cannot tie to a claim and
-cannot tell from a process or source row that restates none; and an index lead-in whose scope
+row or sentence that restates a claim without its ID or a quote of it, even on a line that cites
+another claim, which the check cannot tie to the claim it restates and cannot tell from a process
+or source line that restates none; and an index lead-in whose scope
 outruns the claims it points at, where a cited claim's qualifier rules the sentence out. The
 verifier, not the check, grades both.
 

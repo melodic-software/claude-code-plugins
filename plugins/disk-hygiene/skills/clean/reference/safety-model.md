@@ -458,7 +458,7 @@ point generated state and the belt's admitted `--data-root` at an attacker-chose
 additional marketplaces "so that people who open the repository, or everyone your managed
 settings reach, get the marketplace without adding it themselves"
 ([extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)).
-Scope is `Any file`. A `directory` source is "for development only". Project-scope entries were
+Scope is `Any file`. Project-scope entries were
 already declined because repository content is hostile to this guard. User-scope is declined too:
 the key's documented purpose is repo-or-org registration, and distinguishing user-scope from
 project-scope in a skill-frontmatter hook would add a settings-merge parser this belt does not
@@ -576,15 +576,14 @@ and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
-Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207, and a project or
+Claude Code honors that key only from user, managed, and `--settings` scope, and a project or
 local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That scoping is verified
 2026-09-06 against Claude Code 2.1.263 and the plugins reference, whose statement now lives at
-`https://code.claude.com/docs/en/settings-reference#pluginconfigs` (read 2026-10-07, Claude Code
-2.1.292), which gives `pluginConfigs` the scope "User or managed", states that entries in a
-project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
-were read before v2.1.207. The settings guide
+`https://code.claude.com/docs/en/settings-reference#pluginconfigs` (read 2026-11-04), which gives
+`pluginConfigs` the scope "User or managed" and states that project and local entries are ignored.
+The settings guide
 (`https://code.claude.com/docs/en/settings#change-a-setting-for-one-session`) says `--settings` "can set
-any key your user settings file can set", so `--settings` is a read source too (as of 2026-10-07). Recheck
+any key your user settings file can set", so `--settings` is a read source too (as of 2026-11-04). Recheck
 when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs` scope
 changes, or when that page stops carrying the ignored-project-scope statement. The **user** file is located
 from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge): the
@@ -780,8 +779,10 @@ marker-free commands differ from the watchdog: they proceed unchecked with a onc
 `systemMessage` notice to the user rather than an `ask`. The Stop detector is kept as the end-of-turn
 backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
 <https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
-exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
-a prompt even in auto mode) and, re-read 2026-10-24,
+exit 0 with no `permissionDecision` proceeds through the normal permission flow; what a hook `ask`
+does in auto mode is read at
+[PreToolUse `ask` decisions in auto mode](https://code.claude.com/docs/en/hooks#pretooluse-ask-decisions-in-auto-mode),
+as of 2026-11-04) and, re-read 2026-10-24,
 <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> (in a
 `-p` run with no permission host a request that would prompt is denied); recheck when either page
 changes PreToolUse exit-code or `ask` semantics, or that headless section changes what a `-p` run
@@ -810,13 +811,13 @@ mode, 2.1.307) and
 hook `ask` under `bypassPermissions`: <https://code.claude.com/docs/en/permission-modes> says
 "Allow rules have no effect in `bypassPermissions`", and its "Actions no mode auto-approves" list
 names "Tools matched by an explicit ask rule" and critical-path `rm` and `rmdir`, not a hook `ask`;
-<https://code.claude.com/docs/en/hooks> lists `permissionDecision` as allow/deny/ask/defer with no
-statement about permission modes. Upstream
+<https://code.claude.com/docs/en/hooks> lists `permissionDecision` as allow/deny/ask/defer and has
+a section on `ask` in auto mode, none on `bypassPermissions`. Upstream
 [anthropics/claude-code#37420](https://github.com/anthropics/claude-code/issues/37420) (a hook `ask`
 resets bypass mode; closed as not planned 2026-04-20) and
 [#79356](https://github.com/anthropics/claude-code/issues/79356) (a hook `ask` and `permissions.ask`
 not enforced on the PowerShell tool in default mode; closed as not planned 2026-09-21) leave the
-behavior undocumented. **As of:** 2026-10-22 for the probes; 2026-09-30 for the two doc pages.
+behavior undocumented. **As of:** 2026-10-22 for the probes; 2026-11-04 for the two doc pages.
 **Recheck:** a Claude Code changelog entry that names PreToolUse `ask` or `bypassPermissions`, a
 change to the "Actions no mode auto-approves" list, or a probe of the PowerShell tool under interactive
 resume.

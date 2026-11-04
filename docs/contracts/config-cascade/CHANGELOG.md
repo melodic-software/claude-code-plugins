@@ -2,7 +2,7 @@
 
 Notable changes to the config-cascade contract. The contract is versioned by
 `contract_version` (SemVer) and governs the layering axis (layer set, precedence, override
-semantics, overlay naming) and, from 1.2, expression form (dedicated file vs convention doc bound
+semantics, personal override naming) and, from 1.2, expression form (dedicated file vs convention doc bound
 by a pointer line). Per-concern keys and schema are versioned by their own owner docs and
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
@@ -11,6 +11,14 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **The personal layer is called the personal override.** The contract, its consumer gotchas,
+  `docs/conventions/config-cascade` and the shared lib (`config-cascade.mjs`, `view-settings.mjs`,
+  `setup-apply.mjs`, `config-root.sh`, `resolve-convention-pattern.sh`) say personal override where
+  they said overlay or personal overlay, matching the medium resolver's notices (#13187). The
+  exported `overlayApplies` is `personalOverrideApplies`, and view-settings' and setup-apply's
+  printed text changed with it. Wording and one rename only: the layer set, precedence, the
+  `.local.` file names and every behavior are unchanged, so `contract_version` stays. The plugins
+  that carry the synced copies record it in their own changelog fragments.
 - **`planning`'s interview page settings move onto the ADR 0075 scopes.** The `interview_page`
   keys are read from `<home>/planning.yaml` and the personal `<home>/planning.local.yaml` by
   `surface/interview_server.py`, with no `userConfig` option; the planning Implementers and

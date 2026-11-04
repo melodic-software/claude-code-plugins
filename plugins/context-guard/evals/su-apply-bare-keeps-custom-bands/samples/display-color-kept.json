@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "display_color stays as \"teal\"."
+    },
+    {
+      "answer": "Unrecognized keys such as display_color are preserved."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "display_color was removed because the plugin does not recognize it.",
+      "why": "removed"
+    },
+    {
+      "answer": "display_color was normalized to a default color.",
+      "why": "near miss: value changed"
+    },
+    {
+      "answer": "The file was rewritten from the template.",
+      "why": "near miss: implies the key is gone"
+    }
+  ]
+}

@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.2] - 2026-11-04
+
+### Fixed
+
+- `/code-tidying:audit-dead-code` now loads for a plain "find the dead code and delete it" request; it still only reports, and deletion stays with `/code-tidying:tidy`.
+
 ## [0.39.1] - 2026-11-03
 
 ### Fixed

@@ -416,10 +416,9 @@ Two facts decide the invocation form:
   through the session shell snapshot's final `export PATH=` line
   ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)).
 - **The path form cannot match a bare-name allow rule.** Before matching Bash rules Claude Code
-  strips only a fixed wrapper set: `timeout`, `time`, `nice`, `nohup`, `stdbuf`, the shell
-  builtins `command` and `builtin`, and zsh's `noglob`
-  ([permissions](https://code.claude.com/docs/en/permissions#process-wrappers)).
-  `bash` is not among them, so `bash "…/scripts/source-control-babysit-merge" …` matches as a `bash`
+  strips only a fixed wrapper set, read at
+  [permissions](https://code.claude.com/docs/en/permissions#process-wrappers).
+  `bash` is not among them (as of 2026-11-04), so `bash "…/scripts/source-control-babysit-merge" …` matches as a `bash`
   command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
   not cover these invocations, and cannot while the wrappers have no bare name, so **what happens next is the permission mode's call, not the allow rule's.** Six modes
   exist, named by the config values hooks and settings use: `default`, `acceptEdits`, `plan`,
@@ -465,8 +464,7 @@ Two facts decide the invocation form:
 **Verification record for this block.** The claims above are verified 2026-09-06 against Claude
 Code 2.1.263. The wrapper-strip list and the read-only carve-out come from
 [permissions](https://code.claude.com/docs/en/permissions#process-wrappers), which states that the
-list "is built in and is not configurable". `xargs` is not on it, so a bare `xargs` prefix is not
-stripped and a rule written for the inner command does not match. The mode names, the `manual` alias from v2.1.200, the `acceptEdits`
+list "is built in and is not configurable". The mode names, the `manual` alias from v2.1.200, the `acceptEdits`
 filesystem set, and the plan-mode branch on `useAutoModeDuringPlan` being on by default come from
 [permission modes](https://code.claude.com/docs/en/permission-modes#available-modes). The plugin
 `bin/` PATH claim rests on

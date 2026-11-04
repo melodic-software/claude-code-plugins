@@ -275,9 +275,10 @@ than a capability to build on, on this platform. Two substitutes look attractive
 
 - A **`~/.local/bin` shim**: a static shim pins a version-numbered install path that changes on every
   plugin update.
-- **`env.PATH` in user settings**, which does reach the Bash tool's shell (`env` is applied "to
-  subprocesses Claude Code spawns", [settings](https://code.claude.com/docs/en/settings)): it carries
-  the same version-pinned-path rot, and overriding `PATH` wholesale in settings is its own hazard.
+- **`env.PATH` in user settings**, which does reach the Bash tool's shell (read what `env` covers at
+  [settings reference: `env`](https://code.claude.com/docs/en/settings-reference#env), as of
+  2026-11-04; recheck when that entry stops covering subprocesses): it carries the same
+  version-pinned-path rot, and overriding `PATH` wholesale in settings is its own hazard.
 
 One candidate is untested rather than rejected. Bash rules accept a wildcard in any position,
 including leading, so a rule anchored on the wrapper's own name rather than on the interpreter could

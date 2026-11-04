@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.1] - 2026-11-04
+
+### Fixed
+
+- `/source-control:babysit-prs` safety reference reads the Bash wrapper-strip list at its pointer instead of restating it, which had `xargs` wrong.
+- `/source-control:worktree` no longer says project hooks do not run in a `claude -p` session as the reason its probe passes `--settings`.
+
 ## [8.1.0] - 2026-11-04
 
 ### Changed

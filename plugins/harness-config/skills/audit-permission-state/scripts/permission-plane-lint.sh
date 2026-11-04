@@ -16,6 +16,8 @@
 #   finding <severity> [<check>] <scope> <detail>
 #   lint summary findings=<n> checks_run=<n>
 #
+#   scope     a reader scope, or project:toplevel for the root's shared file
+#
 #   severity  error | warning   (review plugin's severity vocabulary)
 #
 # Checks, each citing the mechanic it follows from — see reference/criteria.md:
@@ -141,11 +143,16 @@ function specifier_body(text,   i, n, depth, ch, start) {
   return substr(text, start + 1)
 }
 
+# The name the file of a record goes by in findings. The reader may report two project
+# files, and neither value replaces the other, so the root file is its own entry.
+# A managed drop-in does replace an earlier value, so every other scope stays
+# last-wins.
+function scope_of(s, surface) { return (s == "project" && surface == "toplevel") ? "project:toplevel" : s }
 $1 == "rule" {
-  rules[++n_rules] = $2 SUBSEP $4 SUBSEP text_of(5)
+  rules[++n_rules] = scope_of($2, $3) SUBSEP $4 SUBSEP text_of(5)
   next
 }
-$1 == "conf" { conf[$2 SUBSEP $4] = text_of(5); next }
+$1 == "conf" { conf[scope_of($2, $3) SUBSEP $4] = text_of(5); next }
 $1 == "NOTE:" { next }
 NF >= 3 {
   n_surfaces++
@@ -179,11 +186,11 @@ END {
   # .claude/settings.json or .claude/settings.local.json." Before v2.1.207 it
   # also read local settings, so a local-scope section was live on an older
   # harness -- the finding says so rather than implying it never worked.
-  split("project local startdir-local", dead_automode, " ")
+  split("project project:toplevel local startdir-local", dead_automode, " ")
   for (i in dead_automode) {
     s = dead_automode[i]
     if ((s SUBSEP "autoModePresent") in conf) {
-      extra = (s == "project") ? "" : " (read from local settings before v2.1.207, so this may have been live on an older harness)"
+      extra = (s ~ /^project/) ? "" : " (read from local settings before v2.1.207, so this may have been live on an older harness)"
       finding("error", "C2-autoMode", s, "an autoMode section here is never read: the classifier reads autoMode from user settings, managed settings, and inline --settings/SDK JSON only" extra)
     }
   }
@@ -207,8 +214,11 @@ END {
   # "Not read from shared project settings." That names .claude/settings.json
   # specifically, so a local-settings occurrence is NOT claimed dead here --
   # claiming it would be asserting a restriction the page does not state.
-  if (("project" SUBSEP "useAutoModeDuringPlan") in conf)
-    finding("error", "C2-planMode", "project", "useAutoModeDuringPlan is not read from shared project settings — move it to user settings, where it takes effect")
+  split("project project:toplevel", shared_files, " ")
+  for (i in shared_files) {
+    if ((shared_files[i] SUBSEP "useAutoModeDuringPlan") in conf)
+      finding("error", "C2-planMode", shared_files[i], "useAutoModeDuringPlan is not read from shared project settings — move it to user settings, where it takes effect")
+  }
 
   # --- C5: disableAutoMode typed as a boolean --------------------------------
   #
@@ -217,7 +227,7 @@ END {
   # JSON and does nothing, which is the worst possible outcome for a lock-out
   # switch: the operator believes auto mode is disabled and it is not. Checked
   # at BOTH documented key paths, in EVERY scope: it is not managed-only.
-  split("managed user project local startdir-local", all_scopes, " ")
+  split("managed user project project:toplevel local startdir-local", all_scopes, " ")
   split("disableAutoMode permissions.disableAutoMode", disable_keys, " ")
   for (i in all_scopes) {
     for (j in disable_keys) {

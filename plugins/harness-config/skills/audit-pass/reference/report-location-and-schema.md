@@ -37,19 +37,22 @@ while excluding its `findings.json`, which is the same unfalsifiable-idempotence
   ([plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), verified 2026-10-07; recheck when that section names a setting that
   relocates it), and no documented setting relocates it.
 
-  **`{id}` is derived, and deriving it wrong loses the report.** Same page, verbatim: `{id}` is *"the
-  plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced by `-`"*, with
-  the worked example that a plugin installed as `formatter@my-marketplace` lands in
-  `~/.claude/plugins/data/formatter-my-marketplace/`, because the `@` becomes `-`. A wrong derivation writes
-  the report where the next run will not look for it, which is also how `--resume` loses a partial.
+  **`{id}` is derived, and deriving it wrong loses the report.** Take the character rule from the
+  pointer below rather than from memory. A wrong derivation writes the report where the next run
+  will not look for it, which is also how `--resume` loses a partial.
 
-  **`${CLAUDE_PLUGIN_DATA}` is not in the Bash tool's environment. Do not try to expand it from a
-  shell.** The same page scopes the export precisely: *"All three are exported as environment variables
-  to hook processes and to MCP and LSP server subprocesses."* The Bash tool is none of those. The token
-  does substitute in **skill content**, which is how a resolved path reaches you in this file, but
-  `echo "$CLAUDE_PLUGIN_DATA"` inside a Bash call yields an empty string. Use the path already
-  substituted into the text you are reading, or rebuild it from `~/.claude/plugins/data/` plus the
-  mangled identifier above.
+  **Do not expand `${CLAUDE_PLUGIN_DATA}` from a shell.** We treat it as absent from the Bash tool's
+  environment and as substituted in **skill content**, which is how a resolved path reaches you in
+  this file. Use the path already substituted into the text you are reading, or rebuild it from
+  `~/.claude/plugins/data/` plus the identifier the pointer's rule produces.
+
+  - **Pointer**: when deriving `{id}`, or deciding where the token resolves, fetch
+    [plugin manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+    and [where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+    live.
+  - **As of**: 2026-11-04
+  - **Recheck trigger**: either section changes the character rule, or exports the variable to the
+    Bash tool.
 
   It is therefore **outside** a target below `~` and **inside** any
   target at or above it. The default path is *usually* outside the scan set and is **not

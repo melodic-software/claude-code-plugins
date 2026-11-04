@@ -1,5 +1,29 @@
 # Changelog: discovery plugin
 
+## [1.4.9] - 2026-11-04
+
+### Fixed
+
+- **`research`: the verifier's row 12 also owns a sentence that restates a claim without its ID.**
+  The restatement check finds a claim only by its ID, so a sidecar sentence that restates one claim
+  on a line that cites another passed it. `artifact-shape.md` and the `research-verifier` agent now
+  name that case beside ID-less table rows
+  ([#13200](https://github.com/melodic-software/claude-code-plugins/issues/13200)).
+
+## [1.4.8] - 2026-11-04
+
+### Fixed
+
+- **`research`: a sidecar abstract must quote one of its claims, and the index must mirror it
+  unchanged.** An abstract that named no claim ID escaped the restatement check, so a seed abstract
+  could drop its claim's exception in both the sidecar and its index copy. Now
+  `scripts/check-restatement-labels.py` fails a sidecar that declares a claim with an `id:` but
+  whose abstract quotes none of its claims as `M1: "<claim>"`, and fails an index abstract bullet,
+  `- <section>: <abstract>`, that is missing or differs from the sidecar's value byte for byte.
+  Table rows that restate a claim with no ID, and index lead-ins whose scope outruns their
+  pointers, stay with the verifier under row 12
+  ([#13200](https://github.com/melodic-software/claude-code-plugins/issues/13200)).
+
 ## [1.4.7] - 2026-11-04
 
 ### Changed

@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.4] - 2026-11-04
+
+### Fixed
+
+- `/playbooks:boris` tip 64 links the environment variables page, which owns `CLAUDE_CODE_AUTO_COMPACT_WINDOW`.
+
 ## [0.28.3] - 2026-11-04
 
 ### Changed

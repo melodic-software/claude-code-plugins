@@ -4,6 +4,13 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.6.4] - 2026-11-04
+
+Wording only; the principle, the three anti-patterns, and the correct pattern are unchanged.
+
+- **`env.PATH` substitute:** the pointer for what `env` covers moves to the settings reference's
+  `env` entry, since the settings page no longer carries that text.
+
 ## [1.6.3] - 2026-10-24
 
 Evidence only; the principle, the three anti-patterns, and the correct pattern are unchanged.

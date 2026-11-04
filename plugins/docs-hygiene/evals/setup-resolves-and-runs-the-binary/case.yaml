@@ -1,0 +1,51 @@
+schema_version: "1.1"
+name: setup-resolves-and-runs-the-binary
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: probes-path-then-node-modules
+    type: llm
+    criteria: 'PASS only if the trace shows the run checking PATH for markdownlint-cli2 (command -v, which or type) before it looks for node_modules/.bin/markdownlint-cli2 under the repository root. FAIL if it looks only in one place, or checks node_modules/.bin first.'
+    focus: trace
+    arm: with-only
+  - name: ran-help-probe
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?markdownlint-cli2(?:\\"|'')?\s+--help\b'
+    arm: with-only
+  - name: banner-in-trace
+    type: llm
+    criteria: 'PASS only if the trace holds a Bash call that runs markdownlint-cli2 with --help and whose output begins with the version banner naming markdownlint-cli2 and v0.24.0. FAIL if every such call errored (command not found, exit 127, not a valid shim) or printed no banner, or if no such call ran.'
+    focus: trace
+    arm: with-only
+  - name: pass-from-banner
+    type: llm
+    criteria: 'PASS only if the reply reports markdownlint-cli2 as PASS, says it resolved from node_modules/.bin, and grounds the PASS in the version banner on the first line of output, not in the exit code (--help exits 2). FAIL if it reports FAIL or WARN for markdownlint-cli2, calls the exit code 2 a failure, or gives no PASS or FAIL for it.'
+    focus: last_message
+    arm: with-only
+  - name: no-version-flag
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?markdownlint-cli2(?:\\"|'')?\s+(?:[^"\\;&|]|\\[^n])*?--version\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?\b(?:(?:npm|pnpm|yarn|bun)\s+(?:-\S+\s+)*(?:i|install|add|ci)\b|npx\b|curl\b|wget\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

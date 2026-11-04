@@ -51,7 +51,12 @@ you cannot inspect it, don't assume it is empty.
   the env var dictates and call out the disagreement so the user can align them.
 - **Store location.** If any scope sets `autoMemoryDirectory`, the effective directory is that
   override (highest-precedence scope wins), not the slug-derived default the snapshot printed.
-  Expand `~/` and report the real path, plus whether `MEMORY.md` and topic files exist there.
+  Expand `~/` and report the real path, plus whether `MEMORY.md` and topic files exist there. A
+  winning project or local value applies only under the conditions at
+  [Storage location](https://code.claude.com/docs/en/memory#storage-location) (workspace trust and
+  read blocking; as of 2026-11-04; recheck when that section changes when a repository-supplied
+  value is honored): when one of them may not hold, report the value as configured and possibly
+  not in effect.
 - **Store contents.** Report the `MEMORY.md` line count and topic-file count at the effective
   directory (re-list if the effective dir differs from the default).
 

@@ -36,8 +36,8 @@ permissions page. Recheck when either page's precedence list adds, drops or reor
 | Scope | Why it is its own member |
 | --- | --- |
 | `managed` | Highest precedence. Four surfaces per OS, not one file. See below |
-| `user` | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. Where Claude Code's own "Always allow" path writes, so it accumulates the most rules |
-| `project` | `.claude/settings.json` at the repository root |
+| `user` | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. Applies in every project, so a broad rule here reaches furthest. The record below says where a prompt approval lands |
+| `project` | `.claude/settings.json` in the session's primary working directory, which the reader takes as its own working directory. A session started in a subdirectory or a worktree reads that directory's file, not the repository root's. Below the root the reader also reports the root's file as the `toplevel` surface, because a Bash `cd` moves the reader and not the session and it cannot tell the two apart: one of the two may be over-reported, a start directory that is neither is not read, and the lint names the root file `project:toplevel` |
 | `local` | `.claude/settings.local.json`, resolved **through worktrees to the main checkout**, so anchoring on the worktree root looks where the file is not. Four documented conditions keep it beside `settings.json` instead, and the reader resolves all four: no enclosing git repository, a repository root equal to `$HOME`, a Windows host, and a repository root, `.git` or `.claude` entry owned by another user |
 | `startdir-local` | A pre-v2.1.211 copy left in the session's start directory. Not a fallback: when both exist the repository root wins on a shared key, **but permission rules from both stay in effect**, so both are live |
 
@@ -52,6 +52,19 @@ It treats the Agent SDK's `resolveSettings()` helper as reading the start-direct
 - **As of**: 2026-09-06, Claude Code 2.1.263
 - **Recheck trigger**: that section names a different version boundary or drops the start-directory
   case, or a release note names where `settings.local.json` is read from.
+
+The reader treats the primary working directory as the one input to both project files: it reads the
+shared file there and resolves the local file's repository root from there. It cannot see a session's
+`/cd` or a Bash `cd`, so it names the directory it used in a note, and an audit run from somewhere
+else reports that directory's file.
+
+- **Pointer**: when deciding where the shared file is read from or where a prompt approval lands,
+  fetch the same section and
+  [permissions: permission system](https://code.claude.com/docs/en/permissions#permission-system)
+  live.
+- **As of**: 2026-11-04
+- **Recheck trigger**: that section moves the shared file away from the primary working directory,
+  or the permissions section changes which file a prompt approval is saved to.
 
 ### The four start-directory conditions, and the one that is not detectable
 
@@ -73,17 +86,19 @@ than guessing at it.
 ### Cloud sessions read a different scope set
 
 The reader treats user settings and project local settings (`~/.claude/settings.json` and
-`.claude/settings.local.json`) as not read in a cloud session. Of the managed sources, the reader
-counts only server-managed settings there; device files and MDM profiles stay on the operator's
-machine. So a user-scope record in a cloud session describes the container's file, never the
-operator's, and reporting it without that framing invites the wrong conclusion.
+`.claude/settings.local.json`) as not read in a cloud session, and device files and MDM profiles as
+staying on the operator's machine. So a user-scope record in a cloud session describes the
+container's file, never the operator's, and reporting it without that framing invites the wrong
+conclusion. The reader cannot tell which kind of cloud session it is in, so its note also sends the
+operator to the pointer for two cases: the managed file a self-hosted runner image can carry, and
+the project cloud threads that take no permission rules from a repository's shared file.
 
 The reader detects a cloud session only by `CLAUDE_CODE_REMOTE` set to `true`, the only entrypoint
 variable it branches on. `CLAUDE_CODE_ENTRYPOINT` is not documented and is never read.
 
 - **Pointer**: [Settings in cloud sessions](https://code.claude.com/docs/en/settings#settings-in-cloud-sessions)
   and the `CLAUDE_CODE_REMOTE` row of [Environment variables](https://code.claude.com/docs/en/env-vars).
-- **As of**: 2026-09-12
+- **As of**: 2026-11-04
 - **Recheck trigger**: the cloud-session scope set changes or the variable is documented
   differently.
 
@@ -344,7 +359,7 @@ fixed all three.
 | `C6-contentField` | Fires on a `Tool(param:value)` rule naming the tool's primary content field. The fields the lint checks, by tool: Bash and PowerShell `command`; Read, Edit, Write `file_path`; Grep, Glob `path`; NotebookEdit `notebook_path`; WebFetch `url`. We treat such a rule as ignored with a startup warning. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter) |
 | `C6-allowParam` | Fires on an **allow** rule in `Tool(param:value)` form, since we treat parameter matching as a deny-and-ask feature only; allow rules keep each tool's own specifier syntax. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter). An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command. `WebFetch(domain:host)` is the documented WebFetch form and `Bash(npm:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
 | `C6-uncoveredPath` | Fires on a path rule whose tool is `Write`, `NotebookEdit`, `Glob`, or the retired `MultiEdit`, since we treat file access as decided by `Read(path)` and `Edit(path)` rules alone; such a rule is accepted, never consulted, and warned about at startup (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception). Pointer: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit). **As of** 2026-10-13. **Recheck when** that section stops naming `MultiEdit` or changes which tools path rules cover |
-| `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Known gap:** in a deny or ask rule a mid-pattern `:*` with NO space after it, as in `Bash(git:*push)`, is not reported. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any tool ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter)), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
+| `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Known gap:** in a deny or ask rule a mid-pattern `:*` with NO space after it, as in `Bash(git:*push)`, is not reported. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any built-in tool, and an `mcp__` rule with parentheses in a settings file as a separate case this row does not judge ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter), as of 2026-11-04; recheck when that section changes which tools it covers or how settings files treat such a rule), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
 | `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)`. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. **As of** 2026-11-03. **Recheck when** that section changes how parentheses in a specifier or text after one are read |
 | `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing. One such deny used to fail every file edit; that is not the current behavior |
 

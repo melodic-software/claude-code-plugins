@@ -141,9 +141,9 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | User `CLAUDE.md` | Every session, unless the file is over the size limit the second pointer names, which skips it | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load); [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) |
 | Project `CLAUDE.md` / `CLAUDE.local.md` | Every session in that tree, after user scope, under the same size limit | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) |
 | Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it, **and, under `claude-md-and-agents-md`, even where one does**, in both cases only where the session reads `AGENTS.md` natively at all | Every session in that tree | [memory: AGENTS.md](https://code.claude.com/docs/en/memory#agents-md); [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load) |
-| Nested `CLAUDE.md` in a subdirectory | On demand, when Claude works with a file there | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) |
+| Nested `CLAUDE.md` in a subdirectory | On demand, once Claude works with a file there | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) |
 | `.claude/rules/*` without `paths` | Every session | [memory: set up rules](https://code.claude.com/docs/en/memory#set-up-rules) |
-| `.claude/rules/*` with `paths` | Only when a matching file is read | [memory: path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) |
+| `.claude/rules/*` with `paths` | Only once Claude works with a matching file; read the triggers from the pointer | [memory: path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) |
 | Skill body | Only once invoked, then for the rest of the session | [skills: skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) |
 | Auto memory `MEMORY.md` | Every **main** session, only its loaded portion, and **not** in a subagent, except a fork | [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) |
 | A subagent's **own** auto memory `MEMORY.md` (its `memory` field) | Every dispatch of **that** subagent, only its loaded portion, never the main session, and never another agent's | [subagents: enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory) |
@@ -162,7 +162,7 @@ preload limit from those sections when it runs. This table copies none of them, 
 moved without an edit here.
 
 - **Pointer**: when deciding whether a surface is resident, fetch the section its row names live.
-- **As of**: 2026-10-11
+- **As of**: 2026-11-04
 - **Recheck trigger**: a row's section is renamed or removed, or it adds or drops a condition on
   when that surface loads.
 
@@ -306,13 +306,12 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live (as of 2026-10-11;
   recheck when its matcher values change).
 - **Exit-2 stderr is turn-scoped error feedback, not a standing directive, and only some events
-  have an act to block.** Exit-2 stderr reaches Claude as an error message
-  ([hooks: exit code 2](https://code.claude.com/docs/en/hooks#exit-code-2), as of 2026-10-11;
-  recheck when that section stops feeding exit-2 stderr back to Claude), so it is not nothing;
-  but it is a one-turn message, never a standing rule. Whether it also carries a *gate* is
-  event-specific, and the sole authority on that is the hooks page's
+  have an act to block.** Where exit-2 stderr goes varies by event, so read whether Claude, the user
+  or nobody sees it from the table below; at most it is a one-turn message, never a standing rule.
+  Whether it also carries a *gate* is event-specific too, and the sole authority on both is the hooks
+  page's
   [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
-  table (as of 2026-10-11; recheck when the table is renamed, removed or restructured, or its
+  table (as of 2026-11-04; recheck when the table is renamed, removed or restructured, or its
   `SubagentStop`, `PostToolUse` or `PreToolUse` row changes, the three cited below). Its rows are not
   reproduced here in either direction: the event set grows, so any list
   copied into this file becomes a closed partition that silently misgrades the next event added.

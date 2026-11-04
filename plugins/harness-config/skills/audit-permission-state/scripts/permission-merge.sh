@@ -62,7 +62,8 @@ Records: "effective <kind> scopes=<a,b> precedence_basis=<token> <rule text>",
 "carveout <kind> source=<scope>:<surface> [bare] <rule text>", and "CAVEAT: <text>".
 
 With --merge-only the reader's own NOTE records are dropped, including the one
-stating where the server-managed settings cache lives. Read both sections when
+stating where the server-managed settings cache lives, except the one saying the
+set can over-report a project file. Read both sections when
 the question is what the machine's permission state actually is.
 
 Reads only. Exits 2 when the input carries no scope records at all.
@@ -127,7 +128,10 @@ function emit_inert(ikind, itext, tag) {
 # diff reads autoMode.classifyAllShell from them, and without it a narrow shell
 # rule that auto mode actually suspends is reported as kept. Dropping them made
 # a documented flag combination silently invert the answer, with no warning.
-{ if (passthrough || $1 == "conf") print }
+#
+# So does the reader note that it read two project files: the merged set can
+# over-report one of them, and scopes=project does not say which.
+{ if (passthrough || $1 == "conf" || ($1 == "NOTE:" && /can over-report/)) print }
 
 $1 == "rule" {
   kind = $4

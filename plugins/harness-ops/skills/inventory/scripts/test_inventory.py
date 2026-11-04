@@ -1337,6 +1337,20 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertIs(agents["Explore"]["model_invocable"], True)
         self.assertIs(agents["Explore"]["user_invocable"], True)
 
+    def test_a_description_bound_to_a_module_constant_resolves(self) -> None:
+        # The 2.1.318 comment-thread-analyst shape: `whenToUse` names a string
+        # constant declared in the same module, and later code binds a
+        # different value under the same short name in its own scope.
+        src = AGENT_SRC + (
+            'var t="Reads one thread",o={agentType:"thread-probe",whenToUse:t,'
+            'source:"built-in",maxTurns:6,getSystemPrompt:()=>e()};'
+            "export{o as THREAD_PROBE};"
+            "function g(){let t=p(1);return t}"
+        )
+        rec = self._extract(src)[0]["thread-probe"]
+        self.assertEqual(rec["description"], "Reads one thread")
+        self.assertEqual(rec["description_source"], "constant")
+
     def test_an_unresolved_type_is_counted(self) -> None:
         src = AGENT_SRC + (
             'var UU={agentType:qq9,whenToUse:"u",source:"built-in",'

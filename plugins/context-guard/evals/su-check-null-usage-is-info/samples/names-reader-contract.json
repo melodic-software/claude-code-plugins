@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "The reader contract owns that rule."
+    },
+    {
+      "answer": "See reference/reader-contract.md, Capability detection (fail-open)."
+    },
+    {
+      "answer": "It is owned by the reader-contract.",
+      "why": "sentence-final"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The setup skill owns that rule.",
+      "why": "another document"
+    },
+    {
+      "answer": "See the reader contracts index.",
+      "why": "near miss: plural"
+    },
+    {
+      "answer": "See reader-contract-v2.",
+      "why": "near miss: another name"
+    }
+  ]
+}

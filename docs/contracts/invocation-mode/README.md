@@ -45,7 +45,7 @@ of its cited page no longer matching the bullet re-derives it here):
 - **Multi-repo product:** consumers do not memorize 200+ skill names; model-side discoverability
   is part of what this marketplace sells. This inverts upstream's solo-operator premise.
 - **Listing budget is manageable, not a forcing function:** every skill name is always listed;
-  only descriptions are dropped (least-invoked first) under the listing budget
+  only descriptions are dropped, in the order ADR 0016 records, under the listing budget
   (`skillListingBudgetFraction`), with a per-entry cap (`skillListingMaxDescChars`); the current
   figures and their source records are in `/playbooks:skill-authoring` `## Descriptions`.
   The per-skill `skillOverrides: "name-only"` lever reaches project/user skills only, and plugin
@@ -61,9 +61,10 @@ out of the listing. The class list stays at three; no skill takes `true` for lis
 reasons, each measured rather than assumed:
 
 - **The harness already does what the flip would do, and keeps what the flip destroys.** Under
-  overflow Claude Code drops descriptions "starting with the skills you invoke least", while the
-  listing "always contains every skill name". A rarely invoked operator audit, the proposed
-  population, is therefore already first in line for name-only, and it stays model-invocable and
+  overflow Claude Code drops descriptions by a usage score that sheds a never-invoked skill first
+  ([ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md)), while
+  the listing "always contains every skill name". A rarely invoked operator audit, the proposed
+  population, is therefore already near the front of the line for name-only, and it stays model-invocable and
   chainable. The flip frees at most that skill's name on top, and pays the whole cost the first
   bullet above names.
 - **Flipping the whole candidate set leaves the verdict unchanged.** The 21 listing-eligible
@@ -86,14 +87,17 @@ through `/plugin`, not editing its frontmatter. A never-invoked count also measu
 history, so it is not evidence that a skill is operator-only. A skill whose timing or side effects
 really are the human's call already fits class (i) on those grounds, and cost plays no part.
 
-Verification record. Claim: overflow drops the least-invoked descriptions first and keeps every
-name; plugin skills ignore `skillOverrides`; `/skill-doctor` routes plugin skills to `/plugin`.
-Basis: <https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short", "Override
+Verification record. Claim: overflow keeps every name and sheds a never-invoked skill's description
+first, by the scorer ADR 0016 records from the binary, whose order differs from the skills page's
+sentence on drop order; plugin skills ignore `skillOverrides`; `/skill-doctor` routes plugin skills
+away from `skillOverrides`. Basis:
+[ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md) for the
+order, <https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short", "Override
 skill visibility from settings", "Find unused skills"), and for the figures
 `bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills` at `0fc60e845` (211
-listing-eligible skills). As of: 2026-09-28. Recheck: the skills page changing its drop order or
-its plugin-skill lever, or a fleet audit's re-run moving the flipped-set arithmetic past a
-documented budget.
+listing-eligible skills). As of: 2026-11-04 for the page; the scorer as ADR 0016 dates it. Recheck:
+the skills page changing its drop order or its plugin-skill lever, a changelog entry naming the
+listing scorer, or a fleet audit's re-run moving the flipped-set arithmetic past a documented budget.
 
 ## Exception classes (the only reasons to write `true`)
 
@@ -271,7 +275,8 @@ exactly that case. It is now graded, and the verdict is a flip.
 user-invoked skills, and rejects it on two grounds: the always-in-context listing already does that
 job, and a router reaching into the deliberately-hidden `true` set would defeat the exception
 classes. Neither reaches this skill. The first is false here by measurement: ADR 0016 records the
-listing omitting every `true` skill and dropping ~82% of descriptions least-invoked-first, which is
+listing omitting every `true` skill and dropping ~82% of descriptions, a never-invoked skill's first
+by the usage score its 2026-08-31 revision records, which is
 the whole reason this skill resolves from the installed catalog instead. The second turns on
 *naming* versus *reaching*: `recommend-skills` renders a menu and explicitly does not execute what the
 human picks, and both surfaces the router verdict itself blesses as the answer to the human-side
@@ -321,7 +326,7 @@ scales with the live model's context window via `skillListingBudgetFraction` and
 documented `SLASH_COMMAND_TOOL_CHAR_BUDGET` fallback a consumer's `settings.json` can move. `/doctor`
 in a live session is the authoritative resolved cost. At any plausible resolved budget the aggregate
 still overflows by an order of magnitude, which is all this paragraph needs. Under overflow Claude
-Code drops the least-invoked skills' descriptions to **name-only** first, a
+Code drops descriptions to **name-only** in a
 drop order a never-invoked skill sits at the front of. The floor this flip establishes is therefore
 name-only visibility, not description matching. That floor is still strictly above where `true`
 sat: `disable-model-invocation: true` removes the skill from context *entirely*, name included,
