@@ -233,12 +233,12 @@ fixture repo with the leftover present yields the row) and the clean path (`--cl
 exactly that artifact and a re-run is clean; for `migrate`, that `--clean` without `--i-migrated`
 refuses). The validator (`scripts/validate-plugin-contracts.mjs`) fails a plugin whose manifest has
 a record no case names. A case names an id in either source: a plugin suite case
-(`evals/<case>/`: the `prompt.md` body, `case.yaml` outside description keys and comments, or a
-`graders/*.md` body; checked with `/evals:validate`), or a legacy setup
-`skills/setup/evals/evals.json` case (its name, prompt, expected_output, or expectations). A
-`description` in any spelling, frontmatter, the directory name, and `evals/results/` and
-`evals/mocks/` never count, since descriptions are where authors list dropped expectations. The
-check fails closed: a `description:` line inside another key's block scalar is dropped too. New
+(`evals/<case>/`: the `prompt.md` body, a `graders/*.md` body, or a block-style `prompt`,
+`criteria`, `expected_outcome`, `pattern`, `input_match`, `match` or `path` value in `case.yaml`;
+checked with `/evals:validate`), or a legacy setup `skills/setup/evals/evals.json` case (its name,
+prompt, expected_output, or expectations). Nothing else in a suite case counts: not a
+`description` (where authors list dropped expectations), a grader name, frontmatter, a comment, a
+flow-style value, the directory name, or `evals/results/` and `evals/mocks/`. New
 cases use the suite format. The eval is what
 turns "we retired X" from a claim into a probe a reviewer can run; it costs minutes at authoring
 time and is the coverage the prose-only alternative could never offer.

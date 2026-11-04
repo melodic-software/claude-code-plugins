@@ -945,7 +945,39 @@ r002_fixture <<'YAML'
 graders: [
   {name: g, type: regex, pattern: 'alpha-r002 [ok]'}]
 YAML
-r002_covered "an id in a multi-line flow collection with no description still covers"
+r002_uncovered "an id in a flow collection does not count, even with no description (fails closed)"
+
+r002_fixture <<'YAML'
+graders: &g [{name: h, type: regex, pattern: clean,
+  description: x
+  alpha-r002}]
+YAML
+r002_uncovered "an id after an anchored flow collection's description is not covered"
+
+r002_fixture <<'YAML'
+graders: [{name: it's, rule: {a: o'k}},
+  description: x
+  alpha-r002]
+YAML
+r002_uncovered "an id after apostrophes that hide a flow bracket is not covered"
+
+r002_fixture <<'YAML'
+graders:
+  - name: g
+    type: llm
+    criteria: |
+      The reply names alpha-r002 and
+      the command that removes it.
+YAML
+r002_covered "an id in a block-scalar criteria value covers"
+
+r002_fixture <<'YAML'
+graders:
+  - name: alpha-r002
+    type: regex
+    pattern: clean
+YAML
+r002_uncovered "an id only in a grader name is not covered"
 
 r002_fixture <<'YAML'
 description:

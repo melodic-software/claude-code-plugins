@@ -745,59 +745,31 @@ function textCoversRetirementId(text, id) {
   return new RegExp(`(?:^|[^A-Za-z0-9-])${escapeRegExp(id)}(?:[^A-Za-z0-9-]|$)`).test(text);
 }
 
-// YAML text without comments and without any `description` key, at any depth
-// and in any spelling (plain, quoted, flow-mapping, `? ` explicit), along with
-// its continuation lines: anything blank or indented past the key, plus `- `
-// or `: ` lines at the key's own column. Authors list dropped expectations in
-// descriptions, so they never count as coverage. A flow collection that spans
-// lines is judged whole, by bracket depth outside quotes: it is dropped when
-// any of its lines mentions `description`. It fails closed: a line reading
-// `description:` inside another key's block scalar is dropped too.
-function withoutYamlDescriptions(text) {
-  const flowDelta = (line) => {
-    const bare = line.replace(/'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/g, "");
-    return (bare.match(/[[{]/g)?.length ?? 0) - (bare.match(/[\]}]/g)?.length ?? 0);
-  };
+// The probe text of a case.yaml: only the values of the keys that state what
+// a run is asked or graded on (PROBE_KEYS), written in block style. Selecting
+// what counts, rather than stripping descriptions, means no YAML spelling of a
+// description (quoted, flow, anchored, explicit, commented) can count. It fails
+// closed: a flow-style value, or a plain scalar wrapped past its first line,
+// counts only its first line or nothing.
+const PROBE_KEYS = ["prompt", "criteria", "expected_outcome", "pattern", "input_match", "match", "path"];
+function caseYamlProbeText(text) {
+  const keyLine = new RegExp(`^(\\s*(?:-\\s+)?)(?:${PROBE_KEYS.join("|")})\\s*:(?:\\s+(.*))?$`);
   const kept = [];
-  let skip = null;
-  let flow = null;
-  const flushFlow = () => {
-    if (!flow.lines.some((l) => /description/.test(l))) kept.push(...flow.lines);
-    flow = null;
-  };
-  for (const raw of text.replace(/^﻿/, "").split(/\r?\n/)) {
-    if (/^\s*#/.test(raw)) continue;
-    const line = raw.replace(/\s#.*$/, "");
-    const column = line.search(/\S/);
-    if (flow) {
-      flow.lines.push(line);
-      flow.depth += flowDelta(line);
-      if (flow.depth <= 0) flushFlow();
-      continue;
+  let block = null;
+  for (const line of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    if (block !== null) {
+      if (line.trim() === "" || line.search(/\S/) > block) {
+        kept.push(line);
+        continue;
+      }
+      block = null;
     }
-    if (skip) {
-      const own = column === skip.column && skip.ownColumn.test(line.trim());
-      if (line.trim() === "" || column > skip.column || own) continue;
-      skip = null;
-    }
-    if (/^\s*(?:-\s+)?(?:[^\s:#][^:#]*:\s+)?[[{]/.test(line) && flowDelta(line) > 0) {
-      flow = { depth: flowDelta(line), lines: [line] };
-      continue;
-    }
-    if (!/(?:^|[\s{,?\-"'])description["']?\s*:|^\s*\?\s+["']?description\b/.test(line)) {
-      kept.push(line);
-      continue;
-    }
-    const key = /^(\s*(?:[-?]\s+)?)["']?description["']?\s*(:?)(.*)$/.exec(line);
+    const key = keyLine.exec(line);
     if (!key) continue;
-    const explicit = key[1].trim() === "?";
-    const empty = key[3].trim() === "";
-    skip = {
-      column: explicit ? column : key[1].length,
-      ownColumn: explicit ? /^:/ : empty ? /^-(?:\s|$)/ : /$^/,
-    };
+    const value = (key[2] ?? "").replace(/\s#.*$/, "").trim();
+    if (/^[|>]/.test(value)) block = key[1].length;
+    else if (!/^[[{&*!]/.test(value)) kept.push(value);
   }
-  if (flow) flushFlow();
   return kept.join("\n");
 }
 
@@ -807,7 +779,7 @@ function markdownBody(text) {
 }
 
 // One haystack per plugin suite case (evals/<case>/): the prompt.md body,
-// case.yaml outside description keys and comments, and graders/*.md bodies.
+// case.yaml's probe values (caseYamlProbeText), and graders/*.md bodies.
 // Frontmatter, samples/, scaffolds, and the results/ and mocks/ trees are not
 // the probe, so they never count; neither does the directory name.
 function suiteCaseHaystacks(suiteRoot) {
@@ -816,7 +788,7 @@ function suiteCaseHaystacks(suiteRoot) {
     const parts = relative(suiteRoot, path).split(sep);
     if (parts[0] === "results" || parts[0] === "mocks") continue;
     let text;
-    if (parts.length === 2 && parts[1] === "case.yaml") text = withoutYamlDescriptions(read(path));
+    if (parts.length === 2 && parts[1] === "case.yaml") text = caseYamlProbeText(read(path));
     else if (parts.length === 2 && parts[1] === "prompt.md") text = markdownBody(read(path));
     else if (parts.length === 3 && parts[1] === "graders" && parts[2].endsWith(".md")) {
       text = markdownBody(read(path));
@@ -1021,8 +993,7 @@ for (const manifestPath of retirementManifests) {
   // path), so every id needs an eval naming it (mechanism-validation, hybrid
   // item 1). A legacy setup evals.json case covers it through its name,
   // prompt, expected_output or expectations; a plugin suite case through its
-  // prompt.md body, case.yaml outside description keys and comments, or its
-  // graders/*.md bodies.
+  // prompt.md body, case.yaml's probe values, or its graders/*.md bodies.
   const evalsPath = join(pluginRoot, plugin, "skills", "setup", "evals", "evals.json");
   const suiteRoot = join(pluginRoot, plugin, "evals");
   const haystacks = [];
