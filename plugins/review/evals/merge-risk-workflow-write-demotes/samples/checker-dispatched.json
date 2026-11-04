@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": ".claude-lane/pr/facts.json" } },
+        { "tool": "Agent", "input": { "description": "Blind merge-risk check", "subagent_type": "review:brief-reviewer", "prompt": "Rate the merge risk of pull request 88 of acme/storefront by the rubric in ..." } }
+      ],
+      "why": "plugin-qualified checker"
+    },
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "subagent_type": "brief-reviewer", "prompt": "Rate the merge risk of pull request 88 ..." } }
+      ],
+      "why": "bare agent name"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no calls" },
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "subagent_type": "Explore", "prompt": "Rate the merge risk of pull request 88 ..." } }
+      ],
+      "why": "Explore, which the skill forbids for the checker"
+    },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": ".claude-lane/pr/pr.diff" } }
+      ],
+      "why": "no checker dispatched"
+    }
+  ]
+}

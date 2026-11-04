@@ -39,8 +39,9 @@ permissions: {}
 
 # A running run is never cancelled: one cancelled after it force-resets
 # release/dependabot-fragments can leave an empty pull request with auto-merge
-# armed. A newer run may still replace a pending one; each run starts from main,
-# so the run that does go sees every merge.
+# armed. A newer run may still replace a pending one; each run starts from
+# main's live tip, never the commit that started it, so the run that does go,
+# a re-run included, sees every merge and every fragment already landed.
 concurrency:
   group: dependabot-fragments
   cancel-in-progress: false
@@ -61,10 +62,20 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
+          ref: ${{ steps.tip.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Find merged Dependabot updates with no fragment

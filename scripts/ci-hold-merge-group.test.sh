@@ -178,7 +178,7 @@ expect "unlabeled queued pull request passes" 0 1 6419 "$QUEUE" "enhancement,ci"
 expect "pull request with no labels passes" 0 1 6419 "$QUEUE" "" 0
 expect "do-not-merge fails the run" 1 1 6419 "$QUEUE" "ci,do-not-merge" 0 "::error::#6419 carries the 'do-not-merge' label"
 expect "needs-human fails the run" 1 1 6419 "$QUEUE" "ci,needs-human" 0 "::error::#6419 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request"
-expect "pr-verify-failed fails the run" 1 1 6419 "$QUEUE" "ci,pr-verify-failed" 0 "::error::#6419 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."
+expect "pr-verify-failed fails the run" 1 1 6419 "$QUEUE" "ci,pr-verify-failed" 0 "::error::#6419 carries 'pr-verify-failed': pr-verify failed its head, and a pr-verify pass removes the label, at a new commit or at the same head: once a trusted person edits the body, and only trusted people have edited it since the fail, that head is judged again, so a fail on the body or the issues it links needs only the body fixed, no new commit. The merge queue removes it; re-queue it once the label is off."
 expect "a label that only contains the name does not hold" 0 1 6419 "$QUEUE" "do-not-merge-later,not-do-not-merge,needs-human-later,pr-verify-failed-later" 0
 expect "ref without refs/heads/ is read" 1 1 6419 "gh-readonly-queue/main/pr-6419-$SHA" "do-not-merge" 0
 expect "base branch with a slash is read" 1 1 12 "refs/heads/gh-readonly-queue/release/v2/pr-12-$SHA" "do-not-merge" 0

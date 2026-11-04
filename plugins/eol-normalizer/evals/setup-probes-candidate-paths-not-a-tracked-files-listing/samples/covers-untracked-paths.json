@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Yes. `git check-attr eol -- notes/draft.md` reports `eol: lf`: check-attr answers for any path, tracked or not, and the hook normalizes the first write to a new file exactly as it does an edit to a tracked one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Only once you commit it: the rule applies to tracked files.",
+      "why": "wrong answer"
+    },
+    {
+      "answer": "Yes, notes/draft.md resolves to eol: lf.",
+      "why": "near miss: no why for untracked paths or a first write"
+    }
+  ]
+}

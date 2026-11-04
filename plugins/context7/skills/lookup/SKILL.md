@@ -39,12 +39,13 @@ ctx7 library "<name>" "<question>"
 MSYS_NO_PATHCONV=1 ctx7 docs "<libraryId>" "<question>"
 ```
 
-Or through the MCP server, when configured:
+Or through the MCP server, when configured: `mcp__context7__resolve-library-id`, then
+`mcp__context7__query-docs` with the resolved ID.
 
-```text
-mcp__context7__resolve-library-id(libraryName: "...", query: "...")
-mcp__context7__query-docs(libraryId: "/org/project", query: "...")
-```
+- **Pointer**: for each MCP tool's parameters, fetch
+  [Context7: MCP Tools](https://github.com/upstash/context7#mcp-tools) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section renames a tool or changes which parameters it requires.
 
 - Always resolve first; the docs step rejects anything but a resolved ID, unless the user supplied one in `/org/project` form.
 - One concept per query; run a separate lookup per independent topic, and at most 3 lookup commands per topic. When Context7 does not cover it, answer from training knowledge and say so.
@@ -79,6 +80,10 @@ never hand a `${…}` token from those files to the Bash tool.
 ## Gotchas
 
 - **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs`, and `ctx7 search --library /org/project`, with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
+  - **Pointer**: for how an MSYS2-based shell rewrites a `/org/project` argument, see
+    [MSYS2: Automatic Unix ⟶ Windows Path Conversion](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion).
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: that section changes which arguments are converted.
 - The CLI has no flag for content depth; for more per call, use the MCP server.
 - Never run `ctx7 setup`, or `ctx7 skills install` if a guide names it: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
 - This skill retrieves library docs only. Architecture decisions and other questions that need cross-checked sources go to a research workflow.

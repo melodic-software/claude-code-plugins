@@ -4700,7 +4700,9 @@ def _answered(
         return report | {"cache": failed}
 
 
-def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
+def _settle(
+    repo: str, path: str, code_sha: str, *, idle: bool = False, fresh: bool = False
+) -> int:
     """`settle`: whether this run's post-merge report at `path`, its check
     run by the code at commit `code_sha`, stands for the check at the default
     branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
@@ -4711,6 +4713,10 @@ def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     any read, the verifying runs (two reads) before `settle_shared`, and the
     quarantine issues and pins after it. The report checks run again last,
     so their clock is never earlier than it was with the room's rule first.
+    With `fresh` as well, this job's own check just made the report from the
+    verifying runs as they are, so their two reads are skipped, as a sweep
+    arms on the report post-merge-dispatch just made with no idle rule; the
+    report checks and the quarantine and pin reads still apply.
     Prints `{"reuse", "reason", "outcome"}`, `outcome` being how
     `settle_shared` settled (None when it did not run); exit 0 when it
     stands, else 1, and the caller runs the check."""
@@ -4721,7 +4727,9 @@ def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
         reason = "post-merge answer code-changed"
     elif shared is not None:
         try:
-            reason = _settle_reason(repo, shared, idle=idle, outcome=outcome)
+            reason = _settle_reason(
+                repo, shared, idle=idle, fresh=fresh, outcome=outcome
+            )
         except (RuntimeError, ValueError, OSError) as exc:
             reason = f"unreadable: {exc}"
     print(
@@ -4737,6 +4745,7 @@ def _settle_reason(
     shared: merge_policy.SharedPostMerge,
     *,
     idle: bool,
+    fresh: bool = False,
     outcome: dict[str, str | None],
 ) -> str | None:
     """`_settle`'s refusal for a readable report, `outcome` filled by
@@ -4751,13 +4760,17 @@ def _settle_reason(
     config = merge_policy._default_branch_config(repo, default)
     if not config.agent_identity:
         return "no agent identity"
-    if idle and (
-        refused := idle_tick(
-            postmerge.idle_runs_refusal(
-                repo,
-                shared,
-                default,
-                confirm_wait_minutes=config.confirm_wait_minutes,
+    if (
+        idle
+        and not fresh
+        and (
+            refused := idle_tick(
+                postmerge.idle_runs_refusal(
+                    repo,
+                    shared,
+                    default,
+                    confirm_wait_minutes=config.confirm_wait_minutes,
+                )
             )
         )
     ):
@@ -6023,7 +6036,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
     rule for the merge job's reuse of this run's report, which never reads it
     again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
-    earlier tick's report, which must also pass `postmerge.idle_refusal`."""
+    earlier tick's report, which must also pass `postmerge.idle_refusal`;
+    `--fresh` with it, for a report this job's check just made, skips that
+    rule's verifying runs (`idle_runs_refusal`)."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -6062,6 +6077,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--postmerge-result", required=True)
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
+    settle.add_argument("--fresh", action="store_true")
     legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
     legacy.add_argument("--repo", required=True)
     legacy.add_argument("--branch", default="main")
@@ -6090,8 +6106,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             parser.error("head and --base-sha must be full commit SHAs")
         return _capped_close_main(args, now)
     if args.command == "settle":
+        if args.fresh and not args.idle_tick:
+            parser.error("--fresh needs --idle-tick")
         return _settle(
-            args.repo, args.postmerge_result, args.code_sha, idle=args.idle_tick
+            args.repo,
+            args.postmerge_result,
+            args.code_sha,
+            idle=args.idle_tick,
+            fresh=args.fresh,
         )
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)

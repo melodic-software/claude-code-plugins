@@ -4,7 +4,7 @@ edit the canonical source, then rerun the script. -->
 # Rendered views of a skill's record
 
 How a view lane offers an interactive view of the record its skill wrote. The lanes that carry this file:
-planning (`/planning:plan`, `/planning:brainstorm`), architecture (the `map-*` skills), discovery
+planning (`/planning:plan`, `/planning:brainstorm`, `/planning:design`), architecture (the `map-*` skills), discovery
 (`/discovery:blindspot`) and debugging (`/debugging:debug`). Each lane's section below names its record,
 build command and data shape. `<plugin-root>` is the plugin's root directory, the one that holds
 `.claude-plugin/`: the path the calling skill gave for this file, cut before its first `skills/` or
@@ -28,17 +28,9 @@ script written in the session.
    resolver, not on whether the resolver registers the lane. Only `planning` has migrated today;
    architecture, discovery and debugging are registered but read the cascade themselves until their own
    change migrates them.
-   - **Resolver lanes** (`planning`). Run the resolver. `--option` takes this plugin's `medium` option as the
-     calling skill states it; add `--argument` only when the reader named a medium in the request:
-
-     ```bash
-     node "<plugin-root>/lib/view-settings.mjs" resolve --lane <lane> --option "<medium option>" [--argument terminal|file|artifact]
-     ```
-
-     It prints one JSON line, then the report line naming the medium and what decided it, then any notice;
-     print those lines as they stand. The JSON's `medium` is the one to use: `terminal`, `file` or `artifact`.
-     Do not read the rendered-views convention files yourself. When `node` is missing, the builder cannot run
-     either: deliver the record.
+   - **Resolver lanes** (`planning`). The lane's build command runs the resolver, the publish gate and
+     delivery in one call: follow its section in place of steps 3 and 5, and step 4's rule for a missing
+     `node` or a non-zero exit still applies. Do not read the rendered-views convention files yourself.
    - **Other lanes.** Read the `rendered-views` cascade surface: `~/.claude/rendered-views.md`, then
      `<repo root>/.claude/rendered-views.md`, then `<repo root>/.claude/rendered-views.local.md`, whichever
      exist. The last layer that states `medium:` wins (`auto`, `terminal`, `file`, `artifact`). A team layer
@@ -69,31 +61,54 @@ script written in the session.
 
 ## Planning
 
-`/planning:plan` records `PLAN.md`; `/planning:brainstorm` records the conversation list or `brainstorm.md`.
-Genre: plans presented for approval, and option spreads. Resolver lane: `--lane planning`.
+`/planning:plan` records `PLAN.md`; `/planning:brainstorm` records the conversation list or `brainstorm.md`;
+`/planning:design` records `PLAN.md`'s `## Design` section. Genre: plans presented for approval, option
+spreads, and designs handed to the plan. Resolver lane: `--lane planning`.
 
-Build: pipe one JSON object (shapes under "Data shapes") to the builder; use `brainstorm` in place of `plan`
-for the brainstorm view:
+Resolve, build and deliver in one call. The builder runs the shared medium resolver
+(`lib/view-settings.mjs`, the same resolution as its `resolve` command), runs the publish gate over a
+publishing medium, builds the page unless the medium shows none, and hands it to the medium's entry in the
+registry (`lib/view-registry.mjs`). Pipe one JSON object (shapes under "Data shapes") for the plan or
+brainstorm view:
 
 ```bash
-node "<plugin-root>/scripts/build-view.mjs" plan <<'JSON'
+node "<plugin-root>/scripts/build-view.mjs" plan --option "<medium option>" --visibility "<visibility>" <<'JSON'
 {"title": "...", "goal": "...", "blast": "...", "phases": [{"status": "TODO", "name": "...", "what": "...", "needs": "none", "criteria": ["..."]}]}
 JSON
 ```
 
-A plan or brainstorm session reads repository files, issue text and fetched pages, which is why the builder
-is the only way to the page.
+- `plan` names the view: `brainstorm` for the brainstorm view; `design --record "<PLAN.md path>"` for the
+  design view, which reads the record's `## Design` section and takes no stdin.
+- `--option` takes this plugin's `medium` option as the calling skill states it. Add
+  `--argument "<medium>"` only when the reader named a medium in the request.
+- `--visibility` is the visibility of the repository the record draws on
+  (`gh repo view --json visibility -q .visibility`), or `NONE` when it draws on none. Left out, the
+  shipped default stays local.
 
-Reply ids: `phases-2` is the second phase in `PLAN.md`; `candidates-3` is the third candidate in the list.
-Approval of a plan is stated in the conversation, at the approval gate.
+A planning session reads repository files, issue text and fetched pages, which is why the builder is the
+only way to the page.
+
+The builder prints one JSON line, then the report line naming the medium and what decided it, then one line
+per notice. Print the report and notice lines as they stand, then deliver what the JSON names:
+
+- `publish` set: publish that file with the Artifact tool and give the link, as step 5 says for `artifact`.
+  When the Artifact tool is unavailable, hand back `page` and say why in one line.
+- Otherwise `page` set: hand back that path.
+- Neither: no page was built, and the record stands.
+
+Reply ids: `phases-2` is the second phase in `PLAN.md`; `candidates-3` is the third candidate in the list;
+`sections-2` is the second `###` subsection of `## Design`. Approval of a plan is stated in the conversation,
+at the approval gate.
 
 ### Connect a view to the session
 
-Planning only: it ships the view server. Either view's reply can reach this session instead of being
-pasted. In the plan view the reader ticks phases, picks a verdict (`change`, `question`, `approve`), adds a
-note, and sends. In the brainstorm view the reader ticks the candidates that resonate, adds a note, and
-sends. Only for `file` (or `auto`) with the reader at this machine: the page is served from `127.0.0.1`.
-Skip it for `artifact`, and when python3 or curl is missing; the copied reply still closes the loop.
+Planning only: it ships the view server. A view's reply can reach this session instead of being pasted. In
+the plan view the reader ticks phases, picks a verdict (`change`, `question`, `approve`), adds a note, and
+sends. In the brainstorm view the reader ticks the candidates that resonate, adds a note, and sends. In the
+design view the reader ticks the sections they question, adds a note, and sends. Only when the delivery was
+a local page (`page` set, no `publish`) with the reader at this machine: the page is served from
+`127.0.0.1`. Skip it for a published view, and when python3 or curl is missing; the copied reply still
+closes the loop.
 
 1. Start the view server on a new data dir under the OS temp directory, never beside the record
    (`ensure-running` creates it private):
@@ -103,7 +118,8 @@ Skip it for `artifact`, and when python3 or curl is missing; the copied reply st
    ```
 
    It prints one JSON line: `url`, `origin`, `page` and `watch`.
-2. Build the page into `page`, naming `origin` (`brainstorm` in place of `plan` for the brainstorm view):
+2. Build the page into `page`, naming `origin` (`brainstorm`, or `design --record "<PLAN.md path>"`, in
+   place of `plan` for the other views):
 
    ```bash
    node "<plugin-root>/scripts/build-view.mjs" plan --connect "<origin>" --out "<page>" <<'JSON'
@@ -124,6 +140,8 @@ Skip it for `artifact`, and when python3 or curl is missing; the copied reply st
    - Brainstorm view: resolve `candidates-N` against the candidate list. The ticks are the reader's
      reaction, not a locked scope: reply with the scope you would propose and its route (brainstorm step 5),
      and lock nothing until the reader confirms it in the conversation.
+   - Design view: resolve `sections-N` against `## Design`. A change to a contract, boundary or verdict
+     routes back through `/planning:design`; the view edits nothing.
 6. Write `<data_dir>/ops.json` with the Write tool,
    `{"replies": [{"seq": 1, "text": "..."}], "handled": [2]}`, a reply of at most 4000 characters per event
    you answer and `handled` for the rest, then run the event line's `next` as a background Bash task. It
@@ -140,18 +158,22 @@ With no session listening, the page says so and its copy and save controls still
 ### Other optional views
 
 The interview's read-only decision table, the PRD pitch view and the design topology view are written
-by the session, not the builder, and are only ever local files. Before writing one, resolve `medium` as
-step 3 above does, passing a medium the reader names in the request as `--argument`. Then:
+by the session, not the builder, and are only ever local files. Before writing one, run the shared medium
+resolver, passing a medium the reader names in the request as `--argument`, and print its notice lines:
 
-- `terminal`: write no file. The interview renders the same table inline as a fenced markdown table;
-  the PRD and design steps skip the view.
-- `file`, `artifact` or `hosted`: write the local file. These views are never published, so say that a
-  publishing value was read as `file`.
-- `auto`, an empty value or no value: the skill's shipped default. Any other value is reported and read
-  as `auto`.
+```bash
+node "<plugin-root>/lib/view-settings.mjs" resolve --lane planning --option "<medium option>" [--argument "<medium>"]
+```
 
-Name the source of `medium` with the view or its absence: the request, the layer's path, or "shipped
-default". The interview's `page` surface follows the `surface` option, not `medium`.
+Its JSON line then decides:
+
+- `page` false: write no file, and print the report line as it stands. The interview renders the same
+  table inline as a fenced markdown table; the PRD and design steps skip the view.
+- `page` true: write the local file. These views are never published, so when `publishes` is true, print
+  the report line with `file` in place of the medium and keep what decided it, as in
+  `view: file (plugin default)`; otherwise print it as it stands.
+
+The interview's `page` surface follows the `surface` option, not `medium`.
 
 ### Data shapes
 
@@ -163,6 +185,10 @@ Every field is plain text. List order is the numbering in the record.
 
 `brainstorm`: `title`, `problem`, and `candidates` ordered cheapest first, each with `effort`, `name`, `what`,
 `where` (the files or mechanisms it touches), and `impact`.
+
+`design`: no JSON. The builder reads the `PLAN.md` that `--record` names: its level-one heading as the title,
+the text before the first `###` subsection of `## Design`, and each subsection's lines as written. A record
+with no `## Design` section exits 1.
 
 ## Architecture
 

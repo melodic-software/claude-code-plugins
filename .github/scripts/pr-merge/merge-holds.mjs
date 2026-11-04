@@ -175,7 +175,7 @@ export function linkHold(record, body, closing, repo) {
   return null;
 }
 // babysit_merge_policy.BLOCKER_ASSOCIATIONS.
-const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+export const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 // The pull request's author and the editors of its body, for personWrote.
 export const BODY_WRITERS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -1544,8 +1544,9 @@ export function humanGatedLabel(tracker) {
 // only a person removes it: no lane or sweep takes it off.
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 
-// The label a pr-verify fail puts on a person's pull request; a pass at a new
-// commit removes it.
+// The label a pr-verify fail puts on a person's pull request; a pass removes
+// it, at a new commit or at the same head judged again after trusted people
+// alone edited the body (resolve-pr.mjs `body-edited`).
 export const PR_VERIFY_FAILED_LABEL = "pr-verify-failed";
 
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
@@ -1562,7 +1563,7 @@ export function labelHolds(labels, tracker, number) {
     names.has("do-not-merge") && `#${number} carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.`,
     names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
     names.has(PR_VERIFY_FAILED_LABEL) &&
-      `#${number} carries '${PR_VERIFY_FAILED_LABEL}': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+      `#${number} carries '${PR_VERIFY_FAILED_LABEL}': pr-verify failed its head, and a pr-verify pass removes the label, at a new commit or at the same head: once a trusted person edits the body, and only trusted people have edited it since the fail, that head is judged again, so a fail on the body or the issues it links needs only the body fixed, no new commit. The merge queue removes it; re-queue it once the label is off.`,
     names.has(OUTSIDE_ACTOR_LABEL) &&
       `#${number} carries '${OUTSIDE_ACTOR_LABEL}': someone outside the organization wrote on it, and only a person removes the label. Re-queue it once the label is off.`,
   ].filter(Boolean);
@@ -1649,7 +1650,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     const lifters = approved.length ? approved : lifted.lifters;
     // A body hold is not judged here: the lanes App's hold line puts on the
     // `do-not-merge` label, which ci-status's label steps hold on. A member's
-    // veto comment still holds, since nothing labels it.
+    // veto comment holds twice: enable-auto-merge labels it `do-not-merge` on
+    // its next reader run, and this read holds it until then and whenever the
+    // label is off.
     const reasons = holds("", items, files, holdPaths, lifters, decision, true, widened, pathHolds);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {

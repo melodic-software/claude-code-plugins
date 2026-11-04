@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "| Migration | HIGH | 0012 drops orders.coupon_code |",
+      "why": "migration area at HIGH"
+    },
+    {
+      "answer": "| Reversibility | CRITICAL | DROP COLUMN loses every stored code; a revert does not restore it | agreed |",
+      "why": "rubric area name"
+    },
+    {
+      "answer": "- **Data loss**: HIGH, the migration drops coupon_code",
+      "why": "list row"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "| Migration | MEDIUM | drops orders.coupon_code |\n| Cart logic | HIGH | new pricing path |",
+      "why": "migration below HIGH; HIGH on another row"
+    },
+    {
+      "answer": "| Cart | HIGH | discount math moved |",
+      "why": "HIGH on a row that is not about the column"
+    },
+    {
+      "answer": "Here is how to configure a coupon in the admin panel.",
+      "why": "answer to a different question"
+    }
+  ]
+}
