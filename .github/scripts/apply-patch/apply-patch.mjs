@@ -30,6 +30,8 @@
 //           hold and required labels), commits the tree through the Git Data
 //           API, checks the tree hash, and moves the PR branch with
 //           force: false or creates the new branch, which fails if it exists.
+//           A PR branch another push moved past the gated head, before the
+//           write or by the write's 422, skips superseded-sha.
 //           Under a merge row (parents [head, base]) the checkout holds the
 //           merge of the pinned base the write runner just ran (prepare.sh):
 //           the patch applies to the conflict tree T0, never the head; only
@@ -337,11 +339,14 @@ export function loadRules(baseDir) {
 
 const laneBranch = (lane, issue) => new RegExp(`^${lane}/issue-${issue}-[1-9][0-9]*-[1-9][0-9]*$`);
 
+const movedFrom = (head, tip) => `the PR branch moved from ${head} to ${tip}; the patch is superseded`;
+
 // Where a target's commit goes. `row` names the row it reads; `number` the
 // push argument that names its PR or issue, and `env` the script step
 // variables it needs past the shared ones (its number first); `held` re-reads
 // what stops the commit; `ready` checks the ref before any write; `write`
-// moves or makes it.
+// moves or makes it. Each of the last two answers why the patch is superseded
+// when another push moved the ref, else nothing.
 export const TARGETS = {
   pr: {
     row: (prepare) => prepare || "default",
@@ -362,12 +367,26 @@ export const TARGETS = {
     },
     async ready(api, ref, head) {
       const tip = await api.readBranch(ref);
-      if (tip !== head) {
-        throw new Error(`the PR branch moved from ${head} to ${tip}; the patch is not pushed`);
+      return tip === head ? "" : movedFrom(head, tip);
+    },
+    // force: false refuses anything but a fast-forward from the gated head. A
+    // 422 is superseded only when a re-read shows another commit on the branch;
+    // any other refusal, or a re-read that fails, keeps GitHub's answer.
+    async write(api, ref, commit, head) {
+      try {
+        await api.updateRef(`heads/${ref}`, commit, false);
+        return "";
+      } catch (error) {
+        if (error.status !== 422) {
+          throw error;
+        }
+        const tip = await api.readBranch(ref).catch(() => head);
+        if (tip === head || tip === commit) {
+          throw error;
+        }
+        return movedFrom(head, tip);
       }
     },
-    // force: false refuses anything but a fast-forward from the gated head.
-    write: (api, ref, commit) => api.updateRef(`heads/${ref}`, commit, false),
   },
   issue: {
     row: () => "issue",
@@ -891,7 +910,11 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       log(`the ${row.target} is held; the merge is dropped`);
       return { outcome: "held" };
     }
-    await target.ready(api, headRef, headSha);
+    const movedEarly = await target.ready(api, headRef, headSha);
+    if (movedEarly) {
+      log(movedEarly);
+      return { outcome: "superseded" };
+    }
     for (const { path, sha } of uploads) {
       const stored = await api.createBlob(git(["cat-file", "blob", sha]).toString("base64"));
       if (stored !== sha) {
@@ -904,7 +927,11 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       throw new Error(`GitHub built tree ${built}, not the merge tree ${tree}; nothing is committed`);
     }
     const commit = await api.createCommit(message, tree, [headSha, merge.baseSha]);
-    await target.write(api, headRef, commit);
+    const movedLate = await target.write(api, headRef, commit, headSha);
+    if (movedLate) {
+      log(movedLate);
+      return { outcome: "superseded" };
+    }
     const after = await api.readBranch(headRef);
     if (after !== commit) {
       throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
@@ -1096,7 +1123,11 @@ export async function push({
     log(`the ${row.target} is held; the patch is dropped`);
     return { outcome: "held" };
   }
-  await target.ready(api, headRef, headSha);
+  const movedEarly = await target.ready(api, headRef, headSha);
+  if (movedEarly) {
+    log(movedEarly);
+    return { outcome: "superseded" };
+  }
   const treeEntries = entries.filter((entry) => ZERO.test(entry.newSha)).map((entry) => ({ path: entry.path, mode: entry.oldMode, type: "blob", sha: null }));
   for (const { entry, bytes } of blobs) {
     const sha = await api.createBlob(bytes.toString("base64"));
@@ -1111,7 +1142,11 @@ export async function push({
     throw new Error(`GitHub built tree ${built}, not the applied tree ${tree}; nothing is committed`);
   }
   const commit = await api.createCommit(message, tree, [headSha]);
-  await target.write(api, headRef, commit);
+  const movedLate = await target.write(api, headRef, commit, headSha);
+  if (movedLate) {
+    log(movedLate);
+    return { outcome: "superseded" };
+  }
   const after = await api.readBranch(headRef);
   if (after !== commit) {
     throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
@@ -1163,7 +1198,7 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = g
     });
     if (!response.ok) {
       const answer = await failedAnswer(response, token);
-      throw new Error(`${method} ${path} returned ${response.status}${answer ? `: ${answer}` : ""}`);
+      throw Object.assign(new Error(`${method} ${path} returned ${response.status}${answer ? `: ${answer}` : ""}`), { status: response.status });
     }
     return { data: await response.json(), link: response.headers.get("link") ?? "" };
   }

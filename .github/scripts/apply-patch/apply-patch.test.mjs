@@ -1660,11 +1660,95 @@ test("a draft set during the run drops the fix uncommitted", async (t) => {
   assert.deepEqual(writes(api), []);
 });
 
-test("a PR branch that moved before the write is not updated", async (t) => {
+test("a PR branch that moved before the write is superseded, with nothing written", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
   const api = fakeApi(fix.repo, fix.head, { branch: "e".repeat(40) });
-  await assert.rejects(ciPush(fix, api), /moved/);
+  const lines = [];
+  assert.deepEqual(await ciPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "superseded" });
+  assert.deepEqual(writes(api), []);
   assert.equal(api.calls.some((call) => call.updateRef), false);
+  assert.deepEqual(lines, [`the PR branch moved from ${fix.head} to ${"e".repeat(40)}; the patch is superseded`]);
+});
+
+// A PR branch whose ref update GitHub answers with `status`, through the real
+// request path, and whose reads answer `tips` in turn; the last repeats.
+function refusedWrite(fix, tips, status = 422, message = "Update is not a fast forward") {
+  const api = fakeApi(fix.repo, fix.head);
+  const reads = [...tips];
+  api.readBranch = async () => {
+    api.calls.push("readBranch");
+    const tip = reads.length > 1 ? reads.shift() : reads[0];
+    if (tip instanceof Error) {
+      throw tip;
+    }
+    return tip;
+  };
+  const fetch = async () => new Response(JSON.stringify({ message }), { status });
+  api.updateRef = createGitHubApi({ token: "lane-token", repository: "o/r", apiUrl: "https://api", fetch, sleep: async () => {} }).updateRef;
+  return api;
+}
+
+test("a ref update answered 422 on a branch the re-read shows moved is superseded", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const lines = [];
+  const api = refusedWrite(fix, [fix.head, "e".repeat(40)]);
+  assert.deepEqual(await ciPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "superseded" });
+  assert.deepEqual(lines, [`the PR branch moved from ${fix.head} to ${"e".repeat(40)}; the patch is superseded`]);
+});
+
+test("a ref update answered 422 on a branch that did not move fails with GitHub's message", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const refusal = { message: 'PATCH git/refs/heads/feat/x returned 422: {"message":"Validation Failed"}' };
+  await assert.rejects(ciPush(fix, refusedWrite(fix, [fix.head], 422, "Validation Failed")), refusal);
+  // The commit the write was to set proves no one else moved the branch.
+  await assert.rejects(ciPush(fix, refusedWrite(fix, [fix.head, "c".repeat(40)], 422, "Validation Failed")), refusal);
+});
+
+test("a 422 whose re-read fails stays red with GitHub's message, not the read's", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = refusedWrite(fix, [fix.head, new Error("GET git/ref/heads/feat/x returned 404")]);
+  await assert.rejects(ciPush(fix, api), { message: 'PATCH git/refs/heads/feat/x returned 422: {"message":"Update is not a fast forward"}' });
+});
+
+test("a refused ref update other than a 422 fails without a re-read, even on a moved branch", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = refusedWrite(fix, [fix.head, "e".repeat(40)], 403, "Resource not accessible by integration");
+  await assert.rejects(ciPush(fix, api), { message: 'PATCH git/refs/heads/feat/x returned 403: {"message":"Resource not accessible by integration"}' });
+  assert.equal(api.calls.filter((call) => call === "readBranch").length, 1);
+});
+
+test("main exits 0 and writes superseded-sha for a moved branch and for a 422 on one, and throws on any other 422", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const base = scratch(t);
+  mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
+  cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
+  const out = scratch(t);
+  const env = {
+    BASE_DIR: base,
+    PATCH_PREPARE: "",
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: fix.head,
+    PATCH_HEAD_SHA: fix.head,
+    HEAD_REF: "feat/x",
+    LANE: "pr-unblock",
+    PATCH_ACTIVITY: "fix-docs",
+    PATCH_FILE: fix.patchFile,
+    PATCH_SHA256: fix.sum,
+    HOLD_LABELS: "[]",
+    SKIP_REASON_FILE: join(out, "skip"),
+    ESCALATION_REASON_FILE: join(out, "escalation"),
+  };
+  const run = (api) => main([], env, { api, cwd: fix.repo, gitBin: "git", log: () => {} });
+  for (const api of [fakeApi(fix.repo, fix.head, { branch: "e".repeat(40) }), refusedWrite(fix, [fix.head, "e".repeat(40)])]) {
+    rmSync(env.SKIP_REASON_FILE, { force: true });
+    assert.equal(await run(api), 0);
+    assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "superseded-sha\n");
+  }
+  rmSync(env.SKIP_REASON_FILE);
+  await assert.rejects(run(refusedWrite(fix, [fix.head], 422, "Validation Failed")), /returned 422: \{"message":"Validation Failed"\}/);
+  assert.throws(() => readFileSync(env.SKIP_REASON_FILE), /ENOENT/);
 });
 
 test("a tree GitHub builds differently from the applied one is not committed", async (t) => {
@@ -2634,6 +2718,24 @@ test("under the merge-base row a head that moved since the select job skips supe
   const api = fakeApi(fix.repo, fix.head);
   assert.deepEqual(await mergePush(fix, api, { patchHeadSha: "b".repeat(40) }), { outcome: "superseded" });
   assert.deepEqual(api.calls, []);
+});
+
+test("under the merge-base row a branch that moved before the write, or a 422 on one, is superseded", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n") });
+  const early = fakeApi(fix.repo, fix.head, { branch: "e".repeat(40) });
+  assert.deepEqual(await mergePush(fix, early), { outcome: "superseded" });
+  assert.deepEqual(writes(early), []);
+  assert.deepEqual(await mergePush(fix, refusedWrite(fix, [fix.head, "e".repeat(40)])), { outcome: "superseded" });
+  await assert.rejects(mergePush(fix, refusedWrite(fix, [fix.head], 422, "Validation Failed")), /returned 422: \{"message":"Validation Failed"\}/);
+});
+
+test("issue target: a createRef answered 422 stays red with no re-read of the branch", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  const fetch = async () => new Response(JSON.stringify({ message: "Reference already exists" }), { status: 422 });
+  api.createRef = createGitHubApi({ token: "lane-token", repository: "o/r", apiUrl: "https://api", fetch, sleep: async () => {} }).createRef;
+  await assert.rejects(pushIssue(fix, api), { message: 'POST git/refs returned 422: {"message":"Reference already exists"}' });
+  assert.ok(!callNames(api).includes("readBranch"));
 });
 
 test("select under the merge-base row: a clean merge proceeds with no patch, an empty patch is unresolved-conflict, and a moved head skips", (t) => {
