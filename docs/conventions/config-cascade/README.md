@@ -59,9 +59,9 @@ Moved to [this section](../../contracts/config-cascade/README.md#semantics-at-a-
 
 Moved to [this section](../../contracts/config-cascade/README.md#implementers).
 
-### Root rule by surface
+### Root rule by plugin
 
-Moved to [this section](../../contracts/config-cascade/README.md#root-rule-by-surface).
+Moved to [this section](../../contracts/config-cascade/README.md#root-rule-by-plugin).
 
 ### Personal override spelling drift
 

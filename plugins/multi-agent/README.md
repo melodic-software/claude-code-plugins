@@ -131,7 +131,7 @@ and its evidence: [`reference/routing-rubric.md`](reference/routing-rubric.md).
 
 ## Configuration
 
-One surface, layered user-global (`~/.claude/multi-agent.yaml`), team
+One configuration, layered user-global (`~/.claude/multi-agent.yaml`), team
 (`docs/conventions/multi-agent.yaml`) and a gitignored personal override
 (`.claude/multi-agent.local.yaml`), each overriding the bundled defaults per
 key. `/multi-agent:setup` writes any of the three. Keys, values and layering:

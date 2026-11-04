@@ -1060,7 +1060,7 @@ otherwise escalate a lane for obeying the guard exactly. Only cycles the lane wa
 counted, so the detector measures a lane failing to move a queue it could have moved.
 When an increment
 brings the counter to the stall threshold, default **3** consecutive no-progress cycles (a lane
-may expose the threshold on its own config surface), the lane **escalates and keeps looping**: a
+may expose the threshold as its own config key), the lane **escalates and keeps looping**: a
 stalled lane is usually a signal about the queue, not a reason to terminate. The stall escalation
 rides §2's contract unchanged (role label + machine-marked comment), a loop-health signal on the
 one channel, not a second channel and not a new guardrail event class. At most one stall escalation

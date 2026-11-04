@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "# Build notes\n\nThe nightly build needs the container registry login first.\n", "why": "as scaffolded"}
+  ],
+  "fail": [
+    {"answer": "", "why": "deleted or emptied"},
+    {"answer": "# Build notes\n", "why": "note cut down"}
+  ]
+}

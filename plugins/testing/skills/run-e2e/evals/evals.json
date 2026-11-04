@@ -21,7 +21,7 @@
       "files": [],
       "narration": true,
       "expectations": [
-        "Reads every layer of the config surface and merges recording and browser_mode per key",
+        "Reads every layer of .claude/testing/e2e.md and merges recording and browser_mode per key",
         "Reports which layer supplied each effective value",
         "Delegates the drive loop to a subagent instead of driving the browser in its own context",
         "Passes the resolved browser_mode and recording through to the executor",

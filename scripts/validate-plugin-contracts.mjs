@@ -239,7 +239,7 @@ for (const path of setupSkills) {
     if (trackedConfigOwners?.has(plugin)) {
       fail(
         path,
-        "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config surface registered in docs/contracts/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
+        "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config registered in docs/contracts/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
       );
     }
     // The one carve-out surface with a manifest-side counterpart. Any claim

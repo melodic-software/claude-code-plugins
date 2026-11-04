@@ -8,7 +8,7 @@ fix them, open a PR, or file an issue on its own.
 |---|---|
 | `/bugs:write` | Turns an informal defect description, one you already observed, into the five-field report. |
 | `/bugs:scan` | Hunts for defects **nobody has observed yet** in resting code, verifies each candidate adversarially, and reports what survives. |
-| `/bugs:setup` | `check` inspects both configuration surfaces read-only; `apply` writes the tracked lane config `scan` reads. |
+| `/bugs:setup` | `check` inspects both configuration files read-only; `apply` writes the tracked lane config `scan` reads. |
 
 Invoke `/bugs:write <description>` (or let Claude reach for it
 when you describe a defect). The five fields are:

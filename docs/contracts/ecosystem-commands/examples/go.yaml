@@ -26,7 +26,7 @@ gates:
   # trigger-globs alone never selects an ecosystem under auto-targeting, so without a `globs` entry
   # a change touching only that file would never reach this gate outside `/toolchain:check go` or
   # `check all`. The entries below are this example's application of that rule to buf's own
-  # configuration surface, which is what an example can know; editing any one alone can strand or
+  # configuration files, which is what an example can know; editing any one alone can strand or
   # orphan generated output:
   #   - `*.proto` — the sources themselves.
   #   - `buf.gen.yaml` — which plugins run and where they write.

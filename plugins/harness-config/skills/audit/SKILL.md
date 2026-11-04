@@ -434,7 +434,7 @@ as fixed patterns here.
 
 ## Boundary, the bundled `update-config` skill
 
-Both surfaces handle `settings.json` files, so a request about settings can mean either.
+Both skills handle `settings.json` files, so a request about settings can mean either.
 
 - **`update-config` (bundled skill)**: edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
   automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
