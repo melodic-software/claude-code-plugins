@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2] - 2026-11-03
+
+### Changed
+
+- `codify-person-note-appends-row-from-file` scores `runs-buffer-append` and `appends-from-file-and-reports` in the with-plugin arm only, because the no-plugin baseline cannot call the plugin's bundled `buffer.sh`.
+
 ## [0.11.1] - 2026-11-03
 
 ### Changed

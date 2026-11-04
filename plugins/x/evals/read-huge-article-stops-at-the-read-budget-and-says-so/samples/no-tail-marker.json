@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This is a partial result: I stopped at the 256 KB read budget, around Station 26, so I can't give you the sign-off or its reference code.",
+      "why": "prose, stops at the budget"
+    },
+    {
+      "answer": "**Partial:** read through `## Station 25` of about 4.4 MB. The reference code is past the budget.",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The article logs 450 stations of routine tide readings. Its sign-off gives the reference code KX-7731-TARNWICK.",
+      "why": "the likely no-plugin answer: reads to EOF and quotes the code"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| Reference | kx7731 Tarnwick |",
+      "why": "table, lowercase variant"
+    }
+  ]
+}

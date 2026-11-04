@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/w/notes/x-8888888888888888888-h2.md", "limit": 700}}, {"tool": "Read", "input": {"file_path": "/w/notes/x-8888888888888888888-h2.md", "offset": 700, "limit": 700}}],
+      "why": "measured with-plugin slices inside the first 256 KB"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/w/notes/x-8888888888888888888-h2.md", "offset": 2000, "limit": 600}}],
+      "why": "last slice that still ends near 256 KB"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/w/notes/x-8888888888888888888-h2.md", "offset": 46350}}],
+      "why": "jumps to the tail for the reference code"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/w/notes/x-8888888888888888888-h2.md", "limit": 4000}}],
+      "why": "one slice of about 370 KB, past the budget"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/w/notes/x-8888888888888888888-h2.md", "offset": 3000, "limit": 2000}}],
+      "why": "reads on past the budget"
+    }
+  ]
+}

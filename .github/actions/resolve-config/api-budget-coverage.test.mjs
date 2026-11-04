@@ -33,7 +33,6 @@ const WORKFLOWS = new URL(".github/workflows/", ROOT);
 const NO_LOG = "no job-end log-api-budget step";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
-const LAST_REPORT = ".github/scripts/pr-merge/last-report.mjs";
 const ALLOWED = new Map([
   // No checkout to load the log-api-budget action from, and no contents: read
   // to check one out with; each counts its own POSTs and writes the api-calls
@@ -80,18 +79,6 @@ const ALLOWED = new Map([
   [
     "post-merge-demotion-alert.yml:alert",
     ".github/scripts/post-merge-demotion-alert/failing-checks.mjs runs gh outside a counted helper (1 call site)",
-  ],
-  [
-    "pr-merge.yml:enable-auto-merge",
-    `${LAST_REPORT} runs gh outside a counted helper (1 call site)`,
-  ],
-  [
-    "pr-merge.yml:merge",
-    ".github/scripts/pr-merge/rotation.mjs runs gh outside a counted helper (1 call site)",
-  ],
-  [
-    "pr-merge.yml:post-merge-dispatch",
-    `${LAST_REPORT} runs gh outside a counted helper (1 call site)`,
   ],
 ]);
 

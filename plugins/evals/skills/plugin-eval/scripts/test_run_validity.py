@@ -12,8 +12,9 @@ structural lines of its kept traces, with no answer text:
     r2-clean-runs.json  one run per arm per case, taken from the runs of that same
                         result that pass every check, so it must come out VALID
     traces/             clean.jsonl stands in for every trace with no denial;
-                        self-*.jsonl are hand-written traces of a run denied a
-                        read or search of its plugin copy, with made-up paths
+                        self-*.jsonl are hand-written traces of a run reading or
+                        searching its plugin copy, with made-up paths: denied in
+                        all but self-lookup-allowed.jsonl
 
 The other tests copy a fixture into a temporary directory and change one field.
 
@@ -1867,6 +1868,12 @@ class RunValidityTest(unittest.TestCase):
             ("self-glob-escape.jsonl", [("../other/**/SKILL.md", "skills/**/SKILL.md")]),
         ):
             self.assertSelfSearchWarnsOnlyWithFlag(fixture, replace)
+
+    def test_an_allowed_read_glob_and_grep_of_the_plugin_copy_passes_without_the_flag(self):
+        proc = self.self_search("self-lookup-allowed.jsonl", flag=False)
+        self.assertIn("check permission denials: PASS", proc.stdout)
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertNotIn(self.SELF_SEARCH, proc.stdout)
 
     def test_a_denied_search_outside_the_plugin_copy_still_fails(self):
         proc = self.self_search("self-search-outside.jsonl")

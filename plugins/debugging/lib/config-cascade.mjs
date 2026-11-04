@@ -274,24 +274,32 @@ function parseInto(layer, text) {
   }
 }
 
-/** True when the Markdown file holds a ```<lang> config block outside any other fence. */
-function hasConfigBlock(path) {
-  if (!fileState(path, true).ok) return false;
-  let text;
-  try {
-    text = readFileSync(path, "utf8");
-  } catch {
-    return false;
-  }
+/** The body of the first ```<lang> config block outside any other fence in a Markdown text, running to
+ * the end when unclosed; null when there is none. */
+export function configBlockBody(text) {
   let fence = null; // the open fence's marker run, backticks or tildes
+  let body = null;
   for (const line of text.split(/\r\n|\r|\n/)) {
     const run = line.match(/^(`{3,}|~{3,})/)?.[0];
     if (fence) {
-      if (run?.[0] === fence[0] && run.length >= fence.length && line.trimEnd().length === run.length) fence = null;
-    } else if (/^```[A-Za-z0-9_-]+ config\s*$/.test(line)) return true;
+      if (run?.[0] === fence[0] && run.length >= fence.length && line.trimEnd().length === run.length) {
+        if (body) return body.join("\n");
+        fence = null;
+      } else body?.push(line);
+    } else if (/^```[A-Za-z0-9_-]+ config\s*$/.test(line)) [fence, body] = ["```", []];
     else if (run) fence = run;
   }
-  return false;
+  return body?.join("\n") ?? null;
+}
+
+/** True when the Markdown file holds a ```<lang> config block outside any other fence. */
+function hasConfigBlock(path) {
+  if (!fileState(path, true).ok) return false;
+  try {
+    return configBlockBody(readFileSync(path, "utf8")) !== null;
+  } catch {
+    return false;
+  }
 }
 
 /** A Markdown text as [{heading, text}], split at each H2 outside a code fence; the first entry holds

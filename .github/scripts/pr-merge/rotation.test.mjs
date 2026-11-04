@@ -4,14 +4,17 @@
 // on main sets that position (a pull_request_target run runs the PR base
 // branch's copy). The cursor is found from the workflow's own run list.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
 
+import { fakeGhDownload } from "./gh-download.fixture.mjs";
 import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
-import { main, rotate, sharedReads } from "./rotation.mjs";
+import { ghDownload, main, rotate, sharedReads } from "./rotation.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -264,4 +267,59 @@ test("a write through the shared reads is sent every time, never answered from t
   assert.deepEqual(await actions("POST", url), { ok: 1 });
   assert.deepEqual(await actions("POST", url), { ok: 2 });
   assert.deepEqual(sent, [`POST ${url}`, `POST ${url}`]);
+});
+
+// The routes are api-budget.bash's templating of the two API URLs gh logs
+// (log-api-budget.test.mjs's verdict download records the same two); the
+// download host is off GitHub's API, so it is no request.
+test("ghDownload counts each API request gh run download sends in the job's api-calls notice", () => {
+  const run = tempDir("rotation-download-");
+  try {
+    const bin = fakeGhDownload(run, "cursor.json", '{"last":7}');
+    const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+    const download = ghDownload({ repo: "o/r", token: "t", dir: run, env });
+    assert.equal(download(41), '{"last":7}');
+    assert.equal(download(41), '{"last":7}', "a second read of the same run downloads nothing");
+    assert.equal(readFileSync(join(run, "gh-calls"), "utf8").split("\n").filter(Boolean).length, 1);
+    assert.equal(
+      readFileSync(join(run, "api-budget", "github-token"), "utf8"),
+      "request repos/{repo}/actions/runs/{n}/artifacts\nrequest repos/{repo}/actions/artifacts/{n}/{x}\n",
+    );
+    const lib = fileURLToPath(new URL("../../actions/log-api-budget/api-budget.bash", import.meta.url));
+    const calls = execFileSync("bash", ["-c", '. "$0"; api_budget_emit_calls github-token', lib], { encoding: "utf8", env });
+    assert.equal(calls, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0 core-unread=2\n");
+  } finally {
+    rmSync(run, { recursive: true, force: true });
+  }
+});
+
+test("ghDownload runs gh run download until the rate guard holds a stop, then sends nothing and fails", () => {
+  const run = tempDir("rotation-download-");
+  try {
+    const bin = fakeGhDownload(run, "cursor.json", "{}");
+    const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+    assert.equal(ghDownload({ repo: "o/r", token: "t", dir: run, env })(40), "{}");
+    writeFileSync(join(run, "api-budget", "stop"), `* ${Math.floor(Date.now() / 1000) + 600}\n`);
+    assert.throws(() => ghDownload({ repo: "o/r", token: "t", dir: run, env })(41), /Command failed/);
+    assert.deepEqual(readFileSync(join(run, "gh-calls"), "utf8").split("\n").filter(Boolean).map((args) => args.split(" ")[2]), ["40"], "the refused download never ran gh");
+    assert.equal(readFileSync(join(run, "api-budget", "github-token"), "utf8").split("\n").filter(Boolean).length, 2, "only run 40's requests");
+  } finally {
+    rmSync(run, { recursive: true, force: true });
+  }
+});
+
+test("a graphql or search stop does not refuse gh run download, which spends core", () => {
+  const run = tempDir("rotation-download-");
+  try {
+    const bin = fakeGhDownload(run, "cursor.json", "{}");
+    const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+    assert.equal(ghDownload({ repo: "o/r", token: "t", dir: run, env })(40), "{}");
+    const until = Math.floor(Date.now() / 1000) + 600;
+    writeFileSync(join(run, "api-budget", "stop"), `graphql ${until}\nsearch ${until}\n`);
+    assert.equal(ghDownload({ repo: "o/r", token: "t", dir: run, env })(41), "{}");
+    writeFileSync(join(run, "api-budget", "stop"), `core ${until}\n`);
+    assert.throws(() => ghDownload({ repo: "o/r", token: "t", dir: run, env })(42), /Command failed/);
+  } finally {
+    rmSync(run, { recursive: true, force: true });
+  }
 });
