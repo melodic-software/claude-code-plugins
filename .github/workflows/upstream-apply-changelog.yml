@@ -177,6 +177,8 @@ jobs:
           WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
           RELEASE: ${{ steps.gate.outputs.release }}
         run: |
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           created=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN/artifacts?name=$MARKER" --jq '.artifacts[0].created_at // empty' || true)
           ends=""
           if [ -n "$created" ] && [[ $WINDOW_HOURS =~ ^[0-9]+$ ]] && start=$(date -u -d "$created" +%s); then
