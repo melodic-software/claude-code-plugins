@@ -114,7 +114,52 @@ export function verdict({ ownHits, procScan, fileHits }) {
   return { clean, canary: procScan.canarySeen, read: procScan.read, hits, exit: !procScan.canarySeen ? 2 : hits.length ? 1 : 0 };
 }
 
+// The file-tool half of the probe, from the probe leg's execution file (the
+// CLI's stream-json messages, run-claude-cli's execution-file output): for
+// each target path, whether a Read call on it was `refused` (its tool result
+// is an error, or the result message lists it in permission_denials),
+// `read` (a result that is no error), `unknown` (no result at all) or
+// `not tried`. Only every target refused is clean.
+export function fileReach(messages, targets) {
+  const paths = new Map();
+  const errors = new Map();
+  const denied = new Set();
+  for (const message of Array.isArray(messages) ? messages : []) {
+    const content = message?.message?.content;
+    for (const block of Array.isArray(content) ? content : []) {
+      if (block?.type === "tool_use" && block.name === "Read") paths.set(block.id, block.input?.file_path);
+      if (block?.type === "tool_result") errors.set(block.tool_use_id, block.is_error === true);
+    }
+    if (message?.type === "result" && Array.isArray(message.permission_denials)) {
+      for (const denial of message.permission_denials) denied.add(denial?.tool_use_id);
+    }
+  }
+  const reach = targets.map((target) => {
+    const ids = [...paths].filter(([, file]) => file === target).map(([id]) => id);
+    const each = ids.map((id) => (denied.has(id) || errors.get(id) === true ? "refused" : errors.has(id) ? "read" : "unknown"));
+    const status = ids.length === 0 ? "not tried" : ["read", "unknown"].find((s) => each.includes(s)) ?? "refused";
+    return { target, status };
+  });
+  return { clean: reach.length > 0 && reach.every(({ status }) => status === "refused"), reach };
+}
+
+// `reads <execution file> <path>...`: exits 0 only when every path's Read was
+// refused, and prints each path's status, never a file's content.
+function reads(argv) {
+  let messages;
+  try {
+    messages = JSON.parse(readFileSync(argv[3], "utf8"));
+  } catch {
+    console.log("capture-probe: the probe leg's execution file is missing or not JSON");
+    return 1;
+  }
+  const { clean, reach } = fileReach(messages, argv.slice(4));
+  console.log(`capture-probe: driver file tools: ${reach.map(({ target, status }) => `${target} ${status}`).join(", ")}`);
+  return clean ? 0 : 1;
+}
+
 export async function main({ env = process.env, cwd = process.cwd(), procRoot = "/proc", argv = process.argv } = {}) {
+  if (argv[2] === "reads") return reads(argv);
   const resultFile = argv[2] || path.join(cwd, "capture-probe.json");
   const canary = randomBytes(16).toString("hex");
   const child = spawn("sleep", ["30"], { env: { PATH: env.PATH ?? "/usr/bin:/bin", [CANARY]: canary }, stdio: "ignore" });

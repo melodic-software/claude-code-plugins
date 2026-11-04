@@ -75,6 +75,14 @@ const FALLBACK_READY = [
 // env only (resolve-pr.mjs takeReads).
 const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
 const CARRY_ENV = ["          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json", CARRIED];
+// The capture ids each later job takes from the job before it (find-capture.mjs).
+const FOUND = {
+  [KEY]: undefined,
+  [SUB]: "${{ needs.check-intent.outputs.capture }}",
+  [FB]: "${{ needs.check-intent-subscription.outputs.capture }}",
+};
+const foundLine = (job) => `          FOUND_CAPTURE: ${FOUND[job]}`;
+const CAPTURE_OUTPUT = (comment) => [comment, "      capture: ${{ steps.capture.outputs.carry }}"];
 const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
 // The key job's credit gate: a key it skipped runs no pre-judge setup.
 const KEY_SKIP = " && steps.credit.outputs.skip-key != 'true'";
@@ -535,7 +543,7 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [CARRIED, ...Array(SLOTS.length + 1).fill(`          fallback-reason: ${FALLBACK_REASON}`)],
+    [CARRIED, foundLine(SUB), ...Array(SLOTS.length + 1).fill(`          fallback-reason: ${FALLBACK_REASON}`)],
   );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
@@ -549,6 +557,7 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
       "      reads: ${{ steps.carry.outputs.reads }}",
       "      skip-key: ${{ steps.credit.outputs.skip-key }}",
       ...WAKE_OUTPUTS,
+      ...CAPTURE_OUTPUT("      # For the later judge jobs: the capture this job found (find-capture.mjs)."),
       "",
     ].join("\n"),
   );
@@ -561,6 +570,7 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
       `      handoff-reason: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`,
       `      leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "sub-leg")} }}`,
       ...WAKE_OUTPUTS,
+      ...CAPTURE_OUTPUT("      # For check-intent-fallback: the capture this job found (find-capture.mjs)."),
       "",
     ].join("\n"),
   );
@@ -598,7 +608,7 @@ test("the fallback job runs only on the subscription job's clean handoff, on a f
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    Array(SLOTS.length + 1).fill(`          fallback-reason: ${FB_REASON}`),
+    [foundLine(FB), ...Array(SLOTS.length + 1).fill(`          fallback-reason: ${FB_REASON}`)],
   );
 });
 
@@ -679,6 +689,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
       .map((s) =>
         lines(s.block)
           .replace(`\n${CARRY_ENV.join("\n")}`, "")
+          .replace(/\n {10}FOUND_CAPTURE: .*$/m, "")
           .replace(`if: steps.agree.outcome == 'success'${NOT_CARRIED}`, "if: steps.agree.outcome == 'success'")
           .replace(KEY_SKIP, "")
           .replace(`\n${FALLBACK_PRESENT}`, "")
@@ -1274,7 +1285,7 @@ test("the capture workflow and its job can write nothing", () => {
   assert.deepEqual(jobIds(CAPTURE_TEXT), [CAP]);
   const granted = blockOf(jobIn(CAPTURE_TEXT, CAP), "permissions", 4).trim().split("\n").map((line) => line.trim().split(" #")[0]);
   assert.deepEqual(granted, ["contents: read", "pull-requests: read", "actions: read"]);
-  assert.doesNotMatch(CAPTURE_TEXT, /:\s*write\b|write-all|id-token/);
+  assert.doesNotMatch(CAPTURE_TEXT, /^\s*[a-z-]+:\s*write\b|write-all|id-token/m);
   assert.match(jobIn(CAPTURE_TEXT, CAP), /^ {4}cache-mode: read$/m);
 });
 
@@ -1315,13 +1326,14 @@ test("the capture gates run first, then the reach probe after runner isolation a
   for (const name of [PROBE, PROBE_CHECK]) assert.doesNotMatch(capStep(name), /continue-on-error/, name);
   const probe = capStep(PROBE);
   assert.match(probe, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
-  assert.equal(input(probe, "tools"), "Bash");
-  assert.equal(input(probe, "allowed-tools"), "Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)");
+  assert.deepEqual(list(probe, "tools"), ["Bash", "Read"]);
+  assert.equal(list(probe, "allowed-tools")[0], "Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)");
+  assert.ok(!list(probe, "allowed-tools").includes("Bash"));
   assert.equal(input(probe, "permission-mode"), "dontAsk");
   assert.match(capStep(PROBE_CHECK), /\.clean == true and \.canary == true and \.hits == \[\]/);
   // Head code comes only after the probe passed, and nothing before it names the head.
   assert.match(capStep(HEAD_CHECKOUT), /^ {8}if: steps\.probe-check\.outcome == 'success'$/m);
-  for (const s of CAP_STEPS.slice(0, capIndex(HEAD_CHECKOUT))) assert.doesNotMatch(s.block, /^ {10}ref: .*head-sha|^ {10}path: head$|\/head\b|git (?:-C \S+ )?fetch/m, s.name);
+  for (const s of CAP_STEPS.slice(0, capIndex(HEAD_CHECKOUT))) assert.doesNotMatch(s.block, /^ {10}ref: .*head-sha|^ {10}path: head$|\$GITHUB_WORKSPACE\/head\b|git (?:-C \S+ )?fetch/m, s.name);
   const checkouts = CAP_STEPS.filter((s) => /uses: actions\/checkout@/.test(s.block));
   assert.deepEqual(checkouts.map((s) => s.name), ["Check out the default branch tip", HEAD_CHECKOUT]);
   assert.equal(input(checkouts[0].block, "ref"), "${{ steps.tip.outputs.sha }}");
@@ -1425,7 +1437,7 @@ test("with no app set the capture stops with a note, and an app or retention it 
 
 test("the collected capture is run-e2e's summary and its listed regular files, or a blocked summary saying why", { skip: process.platform === "win32" && "bash step" }, () => {
   const workspace = realpathSync(tempDir("capture-collect-"));
-  const runDir = path.join(workspace, "head", ".work", "e2e");
+  const runDir = path.join(workspace, "capture-run");
   mkdirSync(path.join(runDir, "login"), { recursive: true });
   writeFileSync(path.join(runDir, "login", "shot.png"), "png");
   writeFileSync(path.join(workspace, "secret.txt"), "outside");
@@ -1451,16 +1463,71 @@ test("the collected capture is run-e2e's summary and its listed regular files, o
   const outside = path.join(tempDir("capture-outside-"), "e2e-summary.json");
   writeFileSync(outside, JSON.stringify(summary));
   writeFileSync(output, JSON.stringify({ summary: outside }));
-  assert.deepEqual(collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: output }).summary, blocked("blocked", "the summary is outside the workspace"));
+  assert.deepEqual(collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: output }).summary, blocked("blocked", "the summary is outside the run directory"));
+  // Inside the workspace but outside the run directory, the head included.
+  const inHead = path.join(workspace, "head", "e2e-summary.json");
+  mkdirSync(path.dirname(inHead), { recursive: true });
+  writeFileSync(inHead, JSON.stringify(summary));
+  writeFileSync(output, JSON.stringify({ summary: inHead }));
+  assert.deepEqual(collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: output }).summary, blocked("blocked", "the summary is outside the run directory"));
   writeFileSync(output, JSON.stringify({ summary: "" }));
   assert.deepEqual(collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: output }).summary, blocked("blocked", "run-e2e wrote no e2e-summary.json"));
+});
+
+// The driver holds the key, so its file tools stay off /proc (its own and its
+// parent's environ), /sys, the runner's temp directory and the home's
+// credential files, and write only in the head and the run directory.
+// Rules per https://code.claude.com/docs/en/permissions: `//` is an absolute
+// path, deny beats allow, Edit rules cover every editing tool, and dontAsk
+// denies what no allow rule names; --restricted confines the file tools to
+// the working directories (https://code.claude.com/docs/en/cli-reference).
+const FENCE = [
+  "Read(//proc/**)",
+  "Read(//sys/**)",
+  "Read(/${{ runner.temp }}/**)",
+  "Read(~/.config/**)",
+  "Read(~/.git-credentials)",
+  "Edit(//proc/**)",
+  "Edit(/${{ runner.temp }}/**)",
+  "Edit(./.base/**)",
+];
+const FILE_TOOL = /^(?:Read|Edit|Write|Glob|Grep|NotebookEdit)$/;
+test("the driver's file tools are fenced to the head and the run directory, and the probe tries the fence", () => {
+  const driver = capStep(DRIVER);
+  const allowed = list(driver, "allowed-tools");
+  // No file tool is allowed whole, and every path rule names the head, the run directory or main's plugins.
+  for (const rule of allowed) assert.doesNotMatch(rule, FILE_TOOL, rule);
+  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
+  assert.equal(input(driver, "permission-mode"), "dontAsk");
+  const denied = list(driver, "disallowed-tools");
+  for (const rule of FENCE) assert.ok(denied.includes(rule), rule);
+  assert.deepEqual(list(driver, "add-dirs"), ["head", "capture-run"]);
+  // The probe leg carries the same fence and tries it.
+  const probe = capStep(PROBE);
+  for (const rule of FENCE) assert.ok(list(probe, "disallowed-tools").includes(rule), `probe: ${rule}`);
+  for (const rule of allowed.filter((r) => r.startsWith("Read("))) assert.ok(list(probe, "allowed-tools").includes(rule), `probe: ${rule}`);
+  const probePrompt = capStep("Write the probe prompt");
+  assert.match(probePrompt, /^ {12}echo ' {4}\/proc\/self\/environ'$/m);
+  assert.match(probePrompt, /^ {12}echo " {4}\$PROMPT_FILE"$/m);
+  assert.match(capStep(PROBE_CHECK), /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE"; then\n {12}echo "::error::.*"\n {12}exit 1$/m);
+  assert.equal(input(capStep(PROBE_CHECK), "EXECUTION_FILE"), "${{ steps.probe.outputs.execution-file }}");
+  assert.equal(input(capStep(PROBE_CHECK), "PROMPT_FILE"), input(probePrompt, "PROMPT_FILE"));
+  // The run directory: made before the legs, named to the driver, and the only place the collect step takes a summary from.
+  assert.match(probePrompt, /^ {10}mkdir -p "\$GITHUB_WORKSPACE\/capture-run"$/m);
+  assert.match(capStep("Write the capture prompt and schema"), /Its run directory is"\n {12}echo "\$GITHUB_WORKSPACE\/capture-run: write e2e-summary\.json/);
+  assert.match(capStep("Collect the capture"), /^ {12}"\$GITHUB_WORKSPACE"\/capture-run\/\*\) ;;$/m);
 });
 
 test("the three judge jobs carry identical capture steps, before the prompt, that never fail the job", () => {
   const find = step("Find the capture");
   const download = step("Download the capture");
   for (const job of JOBS) {
-    assert.equal(step("Find the capture", job), find, job);
+    // Identical but for the ids the job before it found, which it takes
+    // instead of reading them again (find-capture.mjs CARRIED).
+    const carried = FOUND[job];
+    assert.equal(input(step("Find the capture", job), "FOUND_CAPTURE"), carried, job);
+    const uncarried = (block) => block.replace(/^ {10}# The ids .*\n {10}FOUND_CAPTURE: .*\n/m, "");
+    assert.equal(uncarried(step("Find the capture", job)), find, job);
     assert.equal(step("Download the capture", job), download, job);
     assert.equal(index("Download the capture", job), index("Find the capture", job) + 1, job);
     assert.equal(index("Write the prompt and schema", job), index("Download the capture", job) + 1, job);
@@ -1472,6 +1539,9 @@ test("the three judge jobs carry identical capture steps, before the prompt, tha
   }
   for (const block of [find, download]) assert.match(block, /^ {8}continue-on-error: true$/m);
   assert.match(find, /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m);
+  assert.equal(input(find, "UPSTREAM_CREATED_AT"), "${{ github.event.workflow_run.created_at }}");
+  // The ids go on from the job that found them, so a later job reads no listing.
+  for (const job of [KEY, SUB]) assert.match(jobText(job), /^ {6}capture: \$\{\{ steps\.capture\.outputs\.carry \}\}$/m, job);
   assert.match(find, /node \.base\/\.github\/scripts\/pr-verify\/find-capture\.mjs$/m);
   assert.match(download, /^ {8}if: steps\.capture\.outputs\.artifact-id != ''$/m);
   assert.equal(input(download, "artifact-ids"), "${{ steps.capture.outputs.artifact-id }}");

@@ -121,6 +121,8 @@ jobs:
       # For wake-pr-merge: the pull request, and the verdict once it uploaded.
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
+      # For the later judge jobs: the capture this job found (find-capture.mjs).
+      capture: ${{ steps.capture.outputs.carry }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -434,6 +436,7 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
         run: |
           CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
           export CAPTURE_APP
@@ -2143,6 +2146,8 @@ jobs:
       # For wake-pr-merge: the pull request, and the verdict once it uploaded.
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
+      # For check-intent-fallback: the capture this job found (find-capture.mjs).
+      capture: ${{ steps.capture.outputs.carry }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -2379,6 +2384,9 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          # The ids check-intent found, so this job reads none.
+          FOUND_CAPTURE: ${{ needs.check-intent.outputs.capture }}
         run: |
           CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
           export CAPTURE_APP
@@ -4254,6 +4262,9 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          # The ids the subscription job found, so this job reads none.
+          FOUND_CAPTURE: ${{ needs.check-intent-subscription.outputs.capture }}
         run: |
           CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
           export CAPTURE_APP

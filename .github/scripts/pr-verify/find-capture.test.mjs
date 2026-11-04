@@ -59,9 +59,26 @@ test("a completed capture run of this upstream run gives its artifact id", async
   const { github, calls, options } = fake({ listings: [[run()]] });
   assert.deepEqual(await findCapture(github, ids, options), { artifactId: "5001", runId: "900" });
   assert.deepEqual(calls, [
-    `GET /repos/${REPO}/actions/workflows/pr-verify-capture.yml/runs?event=workflow_run&branch=main&per_page=50`,
+    `GET /repos/${REPO}/actions/workflows/pr-verify-capture.yml/runs?event=workflow_run&branch=main&per_page=50&page=1`,
     `GET /repos/${REPO}/actions/runs/900/artifacts?name=pr-capture-41-${HEAD}&per_page=10`,
   ]);
+  // The listing starts at the upstream run's creation.
+  const since = fake({ listings: [[run()]] });
+  await findCapture(since.github, { ...ids, createdAt: "2026-11-03T10:00:00Z" }, since.options);
+  assert.equal(since.calls[0], `GET /repos/${REPO}/actions/workflows/pr-verify-capture.yml/runs?event=workflow_run&branch=main&created=%3E%3D2026-11-03T10%3A00%3A00Z&per_page=50&page=1`);
+});
+
+// The review repro (#13053): a later judge job asks hours after the capture,
+// when 50 capture runs of other pull requests fill the first page.
+test("a capture run past the first page is still found", async () => {
+  const others = Array.from({ length: 50 }, (_, i) => run({ id: 2000 + i, display_title: `pr-verify-capture ${1000 + i} ${HEAD}` }));
+  const { github, calls, options } = fake({ listings: [others, [run()]] });
+  assert.deepEqual(await findCapture(github, ids, options), { artifactId: "5001", runId: "900" });
+  assert.match(calls[1], /&page=2$/);
+  // A short page ends the listing: no second page is read.
+  const short = fake({ listings: [others.slice(0, 49)] });
+  assert.equal((await findCapture(short.github, ids, short.options)).reason, "no capture run was started for this head");
+  assert.ok(short.calls.every((call) => call.endsWith("&page=1")));
 });
 
 test("a run that is not this file's on main by workflow_run for this upstream run and head is never taken", async () => {
@@ -118,7 +135,7 @@ test("main writes the ids only for a found capture, reads nothing with no app, a
   const found = env();
   const { github, options } = fake({ listings: [[run()]] });
   await main(found, { github, ...options });
-  assert.equal(readFileSync(found.GITHUB_OUTPUT, "utf8"), "artifact-id=5001\nrun-id=900\n");
+  assert.equal(readFileSync(found.GITHUB_OUTPUT, "utf8"), "artifact-id=5001\nrun-id=900\ncarry=900:5001\n");
   const noApp = env({ CAPTURE_APP: "" });
   let called = false;
   await main(noApp, { github: async () => { called = true; } });
@@ -130,4 +147,30 @@ test("main writes the ids only for a found capture, reads nothing with no app, a
   const malformed = env({ HEAD_SHA: "not-a-sha" });
   await main(malformed, { github, ...options });
   assert.equal(readFileSync(malformed.GITHUB_OUTPUT, "utf8"), "");
+});
+
+test("a later judge job takes the ids the earlier one found and reads nothing", async () => {
+  const dir = tempDir("find-capture-carry-");
+  const run = async (carried) => {
+    const output = path.join(dir, `out-${Math.random()}`);
+    writeFileSync(output, "");
+    let calls = 0;
+    const github = async () => {
+      calls += 1;
+      return { workflow_runs: [] };
+    };
+    let clock = 0;
+    await main(
+      { GITHUB_OUTPUT: output, GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, UPSTREAM_RUN_ID: UPSTREAM, PR_NUMBER: PR, HEAD_SHA: HEAD, CAPTURE_APP: "claude-code", FOUND_CAPTURE: carried },
+      { github, now: () => clock, sleep: async (ms) => { clock += ms; } },
+    );
+    return { output: readFileSync(output, "utf8"), calls };
+  };
+  assert.deepEqual(await run("900:5001"), { output: "artifact-id=5001\nrun-id=900\ncarry=900:5001\n", calls: 0 });
+  // Anything else is no carry: the job looks for itself.
+  for (const carried of ["", "900", "900:5001:7", "0:5001", "900:x", "900:5001\nartifact-id=1"]) {
+    const result = await run(carried);
+    assert.ok(result.calls > 0, JSON.stringify(carried));
+    assert.equal(result.output, "", JSON.stringify(carried));
+  }
 });

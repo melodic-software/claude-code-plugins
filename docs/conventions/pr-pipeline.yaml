@@ -1640,6 +1640,8 @@ merge:
         class: gate
       - glob: ".github/workflows/pr-unblock.yml"
         class: gate
+      - glob: ".github/workflows/pr-verify-capture.yml"
+        class: gate
       - glob: ".github/workflows/pr-verify.yml"
         class: gate
       - glob: ".github/workflows/release-publish-plugins.yml"
