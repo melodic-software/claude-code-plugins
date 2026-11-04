@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "The hooks exit through their enabled-gate before probing anything, so with the plugin off nothing needs actionlint."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It is reported as INFO.",
+      "why": "near miss: no reason"
+    }
+  ]
+}

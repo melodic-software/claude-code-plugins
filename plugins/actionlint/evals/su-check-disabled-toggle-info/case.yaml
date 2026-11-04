@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: su-check-disabled-toggle-info
+graders:
+  - name: 'downgrade-to-info'
+    type: 'llm'
+    criteria: 'The reply says that with actionlint_enabled off, a missing actionlint is reported as INFO, not FAIL, so the plugin is not broken. A reply that keeps a missing node as FAIL, or notes that this session''s own toggle value or PATH differs from the supposed state, still passes.'
+    focus: 'last_message'
+  - name: 'enabled-gate-reason'
+    type: 'llm'
+    criteria: 'The reply gives the reason for the downgrade: the plugin''s hooks exit through their enabled-gate before probing anything, so a deliberately disabled plugin does not need actionlint.'
+    focus: 'last_message'
+  - name: 'reenable-restores-fail'
+    type: 'llm'
+    criteria: 'The reply says that turning actionlint_enabled back on restores FAIL for the probes it downgraded, such as the missing actionlint.'
+    focus: 'last_message'
+  - name: 'toggle-value-semantics'
+    type: 'llm'
+    criteria: 'The reply says an unexpanded or empty actionlint_enabled value means the default true, and that any value other than true disables the hooks.'
+    focus: 'last_message'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

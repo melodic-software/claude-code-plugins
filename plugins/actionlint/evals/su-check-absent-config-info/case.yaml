@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: su-check-absent-config-info
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'config-absent-is-info'
+    type: 'llm'
+    criteria: 'The reply says the missing .github/actionlint.yaml is INFO, not a FAIL, because the config is optional and actionlint runs with its built-in defaults without one, so its absence is not why workflow lint is not happening.'
+    focus: 'last_message'
+  - name: 'auto-discovered-not-owned'
+    type: 'llm'
+    criteria: 'The reply says actionlint finds a config in the repository on its own when one exists, and that the plugin ships or manages no actionlint config.'
+    focus: 'last_message'
+  - name: 'no-config-offer'
+    type: 'llm'
+    criteria: 'The reply does not offer to create or write an actionlint config for the user. Saying the user may add one to tune actionlint is allowed.'
+    focus: 'last_message'
+  - name: 'names-real-cause'
+    type: 'llm'
+    criteria: 'Instead of the absent config, the reply names at least one real reason workflow lint would not run: the git pre-commit entry is not installed in this repository (the fix is /actionlint:setup apply install-git-hooks), actionlint_end_of_turn is off by default so only the pre-commit entry lints, actionlint or node is missing from PATH, or actionlint_enabled is off.'
+    focus: 'last_message'
+  - name: 'no-config-yaml'
+    type: 'file_exists'
+    path: '**/actionlint.yaml'
+    exists: false
+  - name: 'no-config-yml'
+    type: 'file_exists'
+    path: '**/actionlint.yml'
+    exists: false
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
