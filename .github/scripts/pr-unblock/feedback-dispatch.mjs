@@ -829,10 +829,12 @@ const connectionLost = (error) => error?.name === "TypeError" && error.message =
 // Rounds one tick sends (judgment: five bounds the extra dispatches and their
 // reads per tick well under the GITHUB_TOKEN's 1,000 requests an hour).
 export const SWEEP_TICK_CAP = 5;
-// Time after which the sweep decides no further PR, so the decision in
-// flight (one verifier read, VERIFY_CAP_TIMEOUT_MS), the sends and the record
-// uploads fit in the dispatch job's 10 timeout-minutes with its setup steps
-// (judgment).
+// Time after which the sweep decides no further PR. The gate trusts a
+// dispatched run only if it was created within 10 minutes of this run's start
+// (check-trusted-trigger.mjs WINDOW_MS), and the dispatch job's timeout is 10
+// minutes too: setup (18 s on run 41759929522), this budget, the decision in
+// flight (one verifier read, VERIFY_CAP_TIMEOUT_MS) and the sends leave about
+// 2.5 minutes of margin (judgment).
 export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
 
 // The sweep, in pass order: each open lanes App PR into main with a fix
