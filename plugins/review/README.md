@@ -151,13 +151,17 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
 1. `bash plugins/review/evals/revert-cases.sh list` prints one row per revert pair: original
    pull request, original commit, revert pull request (`-` for a direct commit), revert commit,
    then the pair count. A revert is a `revert:` or `revert(<scope>):` subject or a
-   `This reverts commit <sha>` body line. The script skips a pair whose original names no pull
+   `This reverts commit <sha>` body line; when neither names its original, each merged
+   non-revert pull request the message names by number is tried, so one revert can list several
+   pairs, and a message can name one it did not undo, which the verifier below rejects. The
+   script skips a pair whose original names no pull
    request, whose revert removes no line the original added, or whose original no longer
    reverses cleanly onto the revert's parent, and prints each skip with its reason on stderr.
 2. `bash plugins/review/evals/revert-cases.sh build <original> <revert> <slug>` writes
-   `evals/revert-<pr>-<slug>/` and its fixtures: the files holding those lines at the base and
-   the merge, the original commit message as the pull request context, and a regex grader on
-   those lines. Its `case.yaml` records the pull request, the revert and the lines, matched by
+   `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures.tar.gz`: the
+   files holding those lines at the base and the merge, and the original commit message as the
+   pull request context. They are an archive because they are byte copies of history that
+   repository lints must not judge. Its `case.yaml` records the pull request, the revert and the lines, matched by
    their text. A verifier agent then checks the lines against the revert and drops any that only
    repeat a reverted line's text. `build` writes the lines to three places, and nothing rebuilds
    one from another, so the verifier drops each line from all three: the `# lines:` comment in
@@ -239,13 +243,15 @@ Review criteria and findings location route through your own project context: re
 criteria docs and severity vocabulary override the bundled baseline, and a documented
 findings location in your `CLAUDE.md`/rules overrides the default path.
 
-Two settings, each set per user through the option below or per repository in
+Three settings, each set per user through the option below or per repository in
 `docs/conventions/review.yaml` (written by `/review:setup apply`). `downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
 for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
 layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
 whether `/review:fanout run-everything` runs one reviewer agent per concern (`lens`, the default)
 or sends one review prompt to each model tier the role map names (`model`), or runs the lens roster
-with the Codex reviewer as its model-diversity panel (`codex`). Keys, values and resolution:
+with the Codex reviewer as its model-diversity panel (`codex`). `fanout_act_on_cap` decides how
+many rows under each `### Spec` and `### Standards` heading of a `/review:fanout` report are marked
+act on (default `2`); every other row stays in the report. Keys, values and resolution:
 [`reference/config.md`](reference/config.md).
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -260,6 +266,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `connected_page_guard_enabled` | boolean | `true` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
 | `downstream_probe` | string | `"run"` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
+| `fanout_act_on_cap` | number<br>*min 1* | `2` | How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option. |
 | `medium` | string | `"auto"` | Where /review:explain-change sends a digest page. auto (default): the shipped artifact default, which the publish gate keeps local for a non-public repository or a credential-shaped diff; terminal: no page; file: a local file; artifact: publish anyway; hosted: the shared page host. |
 
 ### How to set these

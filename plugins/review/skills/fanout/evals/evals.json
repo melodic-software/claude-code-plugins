@@ -657,6 +657,21 @@
         "Does NOT list Codex under the ## Surfaces Ran entry, and ends the ## Surfaces line with the codex: skipped status",
         "Still launches the review:fanout-sweep workflow with args.diversity \"lens\" and persists the findings"
       ]
+    },
+    {
+      "id": 52,
+      "name": "fanout-act-on-cap-applies-per-heading",
+      "prompt": "/review:fanout\n\n[Scenario: a reviewable branch of 40 changed lines under billing/, none of them in docs/conventions/; the commit says it adds late fees to overdue invoices. The skill text shows the user option as the literal placeholder ${user_config.fanout_act_on_cap}. The setup-apply --check run prints `PASS downstream_probe: (unset)`, `PASS fanout_diversity: (unset)` and `PASS fanout_act_on_cap: (unset)`. After normalization the merged ranks are: 1, billing/fees.py:12, the late fee is never added to the invoice total (spec); 2, billing/fees.py:30, the fee rounds with float math (standards); 3, billing/fees.py:18, invoices due today are charged as overdue (spec); 4, billing/fees.py:22, a paid invoice can still be charged (spec); 5, billing/fees.py:41, a magic number for the fee rate (standards).]",
+      "expected_output": "Reports `fanout_act_on_cap: 2 (default)`. The persisted report's ## By axis lists ranks 1, 3 and 4 under ### Spec and ranks 2 and 5 under ### Standards. Each row ends with an Act on cell: under ### Spec, ranks 1 and 3 read yes and rank 4 reads no; under ### Standards, ranks 2 and 5 both read yes, since the count starts again under each heading. All five rows stay in ## Findings and in ## By axis.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the line `fanout_act_on_cap: 2 (default)`",
+        "Under ### Spec, the rows for ranks 1 and 3 end with Act on yes and the row for rank 4 ends with Act on no",
+        "Under ### Standards, the rows for ranks 2 and 5 both end with Act on yes, so rank 5 is act on although four rows outrank it overall",
+        "Keeps all five findings in ## Findings and in ## By axis, dropping none for being past the cap",
+        "Does NOT treat the literal ${user_config.fanout_act_on_cap} placeholder as a value"
+      ]
     }
   ]
 }

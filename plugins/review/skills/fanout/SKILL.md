@@ -67,6 +67,14 @@ lines and when the repository file is read at all: "Resolution" and "Root rule" 
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). Report one line,
 `fanout_diversity: <value> (<layer>)`, for example `fanout_diversity: lens (default)`.
 
+**`fanout_act_on_cap` (both review modes).** How many rows under each `## By axis` heading
+Step 2 marks act on. Resolve it before Step 2 from the same layers and with the same skip rules as
+`fanout_diversity`: the default `2`; the user option `${user_config.fanout_act_on_cap}` (a
+literal, unexpanded placeholder means unset; a value that is not a whole number of at least 1 is
+invalid: name it and drop that layer); the `PASS fanout_act_on_cap:` line of the `--check` run
+above, which the default mode runs for this key alone. Report one line, `fanout_act_on_cap: <value> (<layer>)`, for example
+`fanout_act_on_cap: 2 (default)`.
+
 ## Step 0: Mode
 
 Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the remaining mode token:
@@ -143,6 +151,12 @@ The report lists the findings again under `## By axis`, after `## By dimension`,
 before `### Standards` (shape: [`findings-file-shape.md`](../../reference/findings-file-shape.md)
 "Findings-file shape"). Fanout reviews the code against its stated purpose; it does not review a
 spec or plan document.
+
+**Act on.** Under each of `### Spec` and `### Standards` on its own, the first
+`fanout_act_on_cap` rows in merged-rank order get `yes` in a last `Act on` cell and every later row
+gets `no`. The count restarts at the second heading, so with a cap of 2 the first two Standards
+rows read `yes` whatever their merged rank. A row listed under `## Dismissed` reads `no` and is
+not counted. Every row stays in the report.
 
 **Dismissed.** The report gains a `## Dismissed` section after `## By axis`: one line per
 finding this step demoted, giving its rank, its location and the reason in one sentence taken from
