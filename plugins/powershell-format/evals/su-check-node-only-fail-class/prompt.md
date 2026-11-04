@@ -4,7 +4,7 @@ tags: [powershell-format, setup, check, read-only, narration, must-not, no-netwo
 max_turns: 16
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
-expected_outcome: "install.mjs verify and the read-only pwsh module probe run; no install, formatter or analyzer run, Write or Edit; the reply is a PASS/FAIL/INFO table and says node is the only FAIL-class prerequisite because every hook launches through it, a process-id fnm path is ephemeral and FAIL with the persisted PATH reported separately, pwsh is INFO with no powershell.exe fallback, the module probe chains behind pwsh and only inspects, and the plugin needs no jq."
+expected_outcome: "The node probe, install.mjs verify and the read-only pwsh module probe run; no install, formatter or analyzer run, Write or Edit; the reply is a PASS/FAIL/INFO table and says node is the only FAIL-class prerequisite because every hook launches through it, a process-id fnm path is ephemeral and FAIL with the persisted PATH reported separately, pwsh is INFO with no powershell.exe fallback, the module probe chains behind pwsh and only inspects, and the plugin needs no jq."
 ---
 
 /powershell-format:setup check

@@ -203,6 +203,17 @@
         }
       ],
       "why": "a later --help does not excuse the uninstall"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin configure powershell-format@example-marketplace --values-stdin < values.json\nclaude plugin list --help"
+          }
+        }
+      ],
+      "why": "a --help on a later line does not excuse the write"
     }
   ]
 }
