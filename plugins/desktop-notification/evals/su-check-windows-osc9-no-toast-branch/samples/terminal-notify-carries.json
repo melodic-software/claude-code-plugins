@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "terminal_notify (OSC 9) carries attention there."
+    },
+    {
+      "answer": "On Windows the OSC 9 channel does the alerting; Windows Terminal honors it."
+    },
+    {
+      "answer": "The terminal-notify channel carries it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing carries attention on Windows.",
+      "why": "false"
+    },
+    {
+      "answer": "A PowerShell toast script carries attention there.",
+      "why": "near miss: invented channel"
+    },
+    {
+      "answer": "os_toast carries attention through WinRT.",
+      "why": "near miss: the absent channel"
+    },
+    {
+      "answer": "Only the audible bell carries attention there.",
+      "why": "near miss: wrong channel"
+    },
+    {
+      "answer": "A terminal channel does.",
+      "why": "near miss: unnamed"
+    }
+  ]
+}

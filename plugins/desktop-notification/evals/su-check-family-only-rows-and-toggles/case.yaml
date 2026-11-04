@@ -1,0 +1,70 @@
+schema_version: "1.1"
+name: su-check-family-only-rows-and-toggles
+graders:
+  - name: 'notify-send-probe'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:command\s+-[vV]\s+|which\s+|type\s+(?:-\w+\s+)*|hash\s+)(?:[^\s\"&;|]+\s+)*?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?notify-send(?![\w./-])|(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?notify-send(?:\s|\\\\\\n)+--version\b)'
+    min: 1
+  - name: 'bash-version-probe'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:(?:echo|printf|test)\b|\[\[?)(?:(?!\\n)[^\"\\;&|]|\\.)*?\$\{?BASH_VERS|(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?bash(?:\.exe)?(?:\s|\\\\\\n)+--version\b)'
+    min: 1
+  - name: 'no-osascript-probe'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:command\s+-[vV]\s+|which\s+|type\s+(?:-\w+\s+)*|hash\s+)(?:[^\s\"&;|]+\s+)*?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?|(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?)osascript(?![\w./-])'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'status-table'
+    type: 'regex'
+    pattern: '\|[^\n]*\b(?:PASS|FAIL|INFO)\b[^\n]*\|'
+    target: 'last_message'
+  - name: 'node-fail-consequence'
+    type: 'llm'
+    criteria: 'The reply grades the missing node as FAIL and says that without node the hook does not launch, so no notification fires.'
+    focus: 'last_message'
+  - name: 'jq-fail-consequence'
+    type: 'llm'
+    criteria: 'The reply grades the missing jq as FAIL and says that without jq the hook drops every notification.'
+    focus: 'last_message'
+  - name: 'old-bash-is-info'
+    type: 'llm'
+    criteria: 'The reply grades Bash 4.4 as INFO, not FAIL, and says notifications still fire.'
+    focus: 'last_message'
+  - name: 'toggle-values'
+    type: 'llm'
+    criteria: 'The reply gives a value (on, off, true, false or default) for each of the five toggles: the master desktop_notification_enabled, the bell channel, the terminal_notify channel, the os_toast channel and forward_toasts.'
+    focus: 'last_message'
+  - name: 'unexpanded-means-true'
+    type: 'llm'
+    criteria: 'The reply says a toggle value that is unexpanded or empty means the default, true.'
+    focus: 'last_message'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\.exe)?(?:\\"|'')?(?:(?:\s|\\t|\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\b)(?:(?!\\t|\\\\\\n)[^\s"&;|])+)*?(?:\s|\\t|\\\\\\n)+)?(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\.\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\b|pacman(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+-S\w*|(?:mise|asdf|rtx|aqua)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+up\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:npx|uvx)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\b)|Install-(?:Module|PSResource)\b|(?:pwsh|powershell)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?:(?:[^"\\]|\\.)*?(?:[{(;|=&]|\\n|(?<![\w-])-[Cc]\w*(?:\s|\\t|\\\\\\n)))?(?:\s|(?:\\"|''))*(?:[\w.]+\\\\)?Install-(?:Module|PSResource)\b|curl(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;|\'']|\\(?!["n])[\s\S]))*?(?:\s|\\t|\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\b|--remote-name(?:-all)?\b)(?!=?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|[02-9]>>?(?:\s|\\t|\\\\\\n)*[^\s"\\;&|>]+|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|\|(?!\|)|\\(?!["n])[\s\S]|[^"\\&;|''>])*?(?<![02-9&])&?>{1,2}(?!>|&[\d-])(?!&?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;\'']|\\(?!["n])[\s\S]))*?(?<!\|)\|(?!\|)(?:\s|\\t|\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\b)[^\s|]|wget(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?!(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:--spider\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\s|\\t|\\\\\\n)*)(?:\\"|'')?(?:-|/dev/null|NUL)(?=\\"|''|[\s"|;&>]|\\[nt])))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:\\"|'')?https?://|(?:bash|dash|zsh|sh|source|\.)(?:\s+-\S+)*\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\"|'')?\$\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-plugin-cli-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?claude(?:\.exe)?(?:\\\"|'')?(?:(?:\s|\\\\\\n)+-[^\s\"\\]+)*(?:\s|\\\\\\n)+plugins?(?:\s|\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\b(?!\s+--help\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

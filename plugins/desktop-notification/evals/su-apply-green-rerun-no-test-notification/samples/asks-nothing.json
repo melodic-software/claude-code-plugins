@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Check found no FAIL. Already configured."
+    },
+    {
+      "answer": "| node | PASS |\n| jq | PASS |\nAlready configured; nothing changed."
+    },
+    {
+      "answer": "Already configured. A permission prompt exercises the hook."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which action do you want?",
+      "why": "asks"
+    },
+    {
+      "answer": "Should I run check or apply?",
+      "why": "near miss: the action was given"
+    },
+    {
+      "answer": "Already configured. Want me to fire a test notification?",
+      "why": "near miss: asks after reporting"
+    },
+    {
+      "answer": "Confirm before I proceed.",
+      "why": "near miss: asks to confirm"
+    },
+    {
+      "answer": "Do you want me to re-run it?",
+      "why": "near miss: asks instead of running"
+    }
+  ]
+}

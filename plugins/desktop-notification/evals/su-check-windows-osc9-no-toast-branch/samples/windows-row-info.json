@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "The row is INFO on Windows."
+    },
+    {
+      "answer": "| os_toast (Windows) | INFO | no toast branch |"
+    },
+    {
+      "answer": "check reports INFO there, never a FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The row is FAIL on Windows.",
+      "why": "wrong grade"
+    },
+    {
+      "answer": "The row is PASS on Windows.",
+      "why": "near miss: wrong grade"
+    },
+    {
+      "answer": "FAIL until a toast module is installed.",
+      "why": "near miss: a missing prerequisite"
+    },
+    {
+      "answer": "It is a WARN.",
+      "why": "near miss: not a verdict check has"
+    },
+    {
+      "answer": "check skips that row on Windows.",
+      "why": "near miss: no grade"
+    }
+  ]
+}

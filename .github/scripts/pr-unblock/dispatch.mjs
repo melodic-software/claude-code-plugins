@@ -13,7 +13,7 @@
 // limit stop, a usage limit or a refused credential, stops counting once its
 // limit resets, and the skip names its class and reset; a failed run until
 // limit-stops-per-head failures stand on the head, a skip while held once
-// the hold is gone, and a select job's own lane-stopped skip once the base tip
+// the hold is gone, a head-lag stop (the gate's lagging PR read) at once, and a select job's own lane-stopped skip once the base tip
 // was committed after it started, since the head then merges another base),
 // and dispatches pr-unblock.yml on main for at most maxDispatch of them,
 // lowest PR number first, heads retried on a moved base last. Authors are
@@ -56,7 +56,7 @@ import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
-import { anyHandles, cappedAt, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
+import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyCapReader } from "./verify-cap.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
@@ -85,6 +85,14 @@ export const DEFAULTS = Object.freeze({
 
 // The run id form the record's readers accept.
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+
+// The log line that names a head-lag stop on the head as the cause of this
+// dispatch (limit-stop.mjs lagStopsRelease).
+function lagRefire(log, node, checkName, existing, handled) {
+  if (!handled && existing.some(headLagStop)) {
+    log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
+  }
+}
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
 // A merge commit on a Dependabot head stops Dependabot's own rebases, which
@@ -246,7 +254,7 @@ export async function dispatchConflicting({
         continue;
       }
       let existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      const options = { limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true };
       // A push job that stopped on a reason routed to a failing status
       // releases the head's earlier checks: the next run retries the same
       // head, a fresh model session, until limit-stops-per-head such stops
@@ -268,6 +276,7 @@ export async function dispatchConflicting({
         existing = existing.filter((run) => !(laneStop(run) && Date.parse(run.started_at ?? "") < committedAt));
       }
       handled = anyHandles(existing, { now, ...options });
+      lagRefire(log, node, checkName, existing, handled);
       // Handled only because a limit stop has not reset: the log names it.
       waiting = handled && !anyHandles(existing, { now: Infinity, ...options }) ? pendingStop(existing, { now, limits }) : null;
       if (permanentlyHandles(existing, options)) {
@@ -401,7 +410,7 @@ export async function dispatchSharedCopies({
         continue;
       }
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      const options = { limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true };
       if (permanentlyHandles(existing, options)) {
         const capped = cappedAt(existing, options);
         if (capped > 0) {
@@ -419,6 +428,7 @@ export async function dispatchSharedCopies({
         log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
         continue;
       }
+      lagRefire(log, node, checkName, existing, false);
     } catch (error) {
       log(`::warning::#${node.number}: could not read its refusal, check runs or runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
       continue;

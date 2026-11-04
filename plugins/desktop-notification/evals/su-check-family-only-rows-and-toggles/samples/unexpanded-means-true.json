@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Unexpanded or empty means the default, true."
+    },
+    {
+      "answer": "A value still showing its user_config token, or blank, reads as the default true."
+    },
+    {
+      "answer": "If it arrives empty or as the raw token, check treats the toggle as on, which is the default."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unexpanded means false.",
+      "why": "reversed"
+    },
+    {
+      "answer": "An empty value means off.",
+      "why": "near miss: reversed for empty"
+    },
+    {
+      "answer": "An unexpanded value is a FAIL: the option is not configured.",
+      "why": "near miss: a defect, not the default"
+    },
+    {
+      "answer": "Unexpanded means default true; empty means off.",
+      "why": "near miss: half right"
+    },
+    {
+      "answer": "Check reports whatever is in settings.",
+      "why": "does not answer"
+    }
+  ]
+}

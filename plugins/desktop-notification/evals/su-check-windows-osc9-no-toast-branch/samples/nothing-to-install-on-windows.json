@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": "They need to install nothing."
+    },
+    {
+      "answer": "Nothing to install on Windows. On this Linux machine notify-send is missing: sudo apt install libnotify-bin.",
+      "why": "this host's own row"
+    },
+    {
+      "answer": "No package: there is nothing to add for this."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install BurntToast with Install-Module.",
+      "why": "a toast package"
+    },
+    {
+      "answer": "Install libnotify through WSL.",
+      "why": "near miss: the Linux branch's tool"
+    },
+    {
+      "answer": "Get a Windows build of notify-send with choco.",
+      "why": "near miss: the Linux branch's tool"
+    },
+    {
+      "answer": "Nothing is required, but install SnoreToast for toasts.",
+      "why": "near miss: still prescribes"
+    },
+    {
+      "answer": "I can install a toast package for you if you like.",
+      "why": "near miss: offers an install"
+    }
+  ]
+}

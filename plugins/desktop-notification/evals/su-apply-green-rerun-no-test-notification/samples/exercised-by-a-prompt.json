@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "A permission_prompt or idle_prompt exercises the hook end to end."
+    },
+    {
+      "answer": "Trigger a permission prompt, or leave the session idle until the idle prompt."
+    },
+    {
+      "answer": "It runs when Claude Code raises a permission or idle prompt."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run notify-send test.",
+      "why": "near miss: bypasses the hook"
+    },
+    {
+      "answer": "Pipe some JSON into desktop-notification.sh.",
+      "why": "near miss: fires it by hand"
+    },
+    {
+      "answer": "I sent you a test notification.",
+      "why": "false"
+    },
+    {
+      "answer": "Run /desktop-notification:setup check again.",
+      "why": "near miss: check fires nothing"
+    },
+    {
+      "answer": "Use osascript to display a notification.",
+      "why": "near miss: bypasses the hook"
+    }
+  ]
+}
