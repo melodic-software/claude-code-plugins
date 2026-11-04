@@ -2156,6 +2156,8 @@ SPEND_JQ="$LANE_DEFS"'
 '
 
 LANES_PARTIAL=0
+# Runs a single day's search still left out after the per-day re-read.
+LANE_RUNS_SHORT=0
 CALLER_JOB_RE='^([a-z0-9][a-z0-9-]*) / '
 # fetch_lane_runs_by_day WORKFLOW SINCE_EPOCH: replaces $WORK/lane.page with one runs search per
 # UTC day from SINCE_EPOCH's day through today.
@@ -2166,6 +2168,7 @@ fetch_lane_runs_by_day() {
   : >"$WORK/lane.days"
   while day="$(from_epoch "$e")" && day="${day%%T*}" && [[ ! "$day" > "$today" ]]; do
     gh_read "$WORK/lane.day" api --paginate "repos/$REPO/actions/workflows/$(urlencode "$wf")/runs?created=$day&per_page=100" || return 1
+    LANE_RUNS_SHORT=$((LANE_RUNS_SHORT + $(jq -s '[(.[0].total_count // 0) - ([.[].workflow_runs[]?] | length), 0] | max' "$WORK/lane.day" 2>/dev/null || echo 0)))
     cat "$WORK/lane.day" >>"$WORK/lane.days"
     e=$((e + 86400))
   done
@@ -2293,6 +2296,7 @@ print_lanes() {
     return
   }
   echo "$rows"
+  ((LANE_RUNS_SHORT)) && echo "  PARTIAL: $LANE_RUNS_SHORT runs not listed: a lane passed the runs search's result cap in one day"
   ((LANES_PARTIAL)) && echo "  PARTIAL: annotations read for $LANE_READ_LIMIT runs, the newest 3 of each lane and then failed runs first; $LANES_PARTIAL more were not read (raise --lane-read-limit)"
   rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
     --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$KEYS_JQ" 2>&1)" || {

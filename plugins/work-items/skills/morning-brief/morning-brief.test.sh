@@ -1300,7 +1300,10 @@ EOF
 cat >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
 {"total_count": 2, "workflow_runs": [{"id": 99, "html_url": "http://x/runs/99", "event": "push", "display_title": "main", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
 EOF
-for d in 13 14 15 16 17 18 20; do
+# 07-18 reports one run its own search left out, as a day past the cap would.
+printf '%s\n' '{"total_count": 1, "workflow_runs": []}' \
+  >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=2026-07-18&per_page=100").json"
+for d in 13 14 15 16 17 20; do
   printf '%s\n' '{"total_count": 0, "workflow_runs": []}' \
     >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=2026-07-$d&per_page=100").json"
 done
@@ -1344,6 +1347,8 @@ OUT_REST="$(run_stub rest)"
 RC_REST=$?
 assert_contains "rest: lanes read live, keeping only lane workflows that exist" "$(section "$OUT_REST" "== Lanes")" \
   "intake-triage.yml  runs=1  failed=1 [rate-limit 1, max-turns 0, auth 0, other 0]  limit-stops=1  restarts=0"
+assert_contains "rest: a day its own search still cut short marks the Lanes section PARTIAL" "$(section "$OUT_REST" "== Lanes")" \
+  "PARTIAL: 1 runs not listed: a lane passed the runs search's result cap in one day"
 assert_contains "rest: pr-review-main.yml is a default lane workflow, its capped week re-read by day" "$(section "$OUT_REST" "== Lanes")" \
   "pr-review-main.yml  runs=2  failed=0 [rate-limit 0, max-turns 0, auth 0, other 0]  limit-stops=0  restarts=0"
 assert_contains "rest: the activity comes from the caller job of the job that carries the record" "$(section "$OUT_REST" "== Lanes")" \
