@@ -379,7 +379,8 @@ SEARCH_COMMANDS = ("find", "grep", "egrep", "fgrep")
 FIND_NAME_TESTS = ("-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename")
 FIND_VALUE_TESTS = ("-type", "-maxdepth", "-mindepth")
 FIND_NEGATIONS = ("!", "-not")
-# No -o or negation: either widens the match past the plugin's name.
+# No -o: it widens the match past the plugin's name. A negation (FIND_NEGATIONS)
+# is accepted only before a name or path test, where it narrows the search.
 FIND_CONNECTIVES = ("-a", "-and", "-print", "-xdev")
 GREP_SEARCH_FLAGS = "rRIilLnsHhwFEcoqx"
 SEARCH_TERM_ENDS = "*.^$/"
