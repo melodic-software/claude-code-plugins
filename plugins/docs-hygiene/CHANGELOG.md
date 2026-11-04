@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.5.3] - 2026-11-04
+
+### Changed
+
+- Shared setup-apply library synced: its offer and write messages now say personal override where they said overlay or personal overlay (#13187). Behavior is unchanged.
+
 ## [2.5.2] - 2026-11-04
 
 ### Fixed

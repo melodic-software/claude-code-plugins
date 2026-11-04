@@ -3,6 +3,16 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.6] - 2026-11-04
+
+### Changed
+
+- Shared config-cascade library synced: the personal layer is now called the personal override in comments and in view-settings' warnings, and `overlayApplies` is `personalOverrideApplies` (#13187). Behavior is unchanged.
+
+### Fixed
+
+- inventory: reads the Claude Code 2.1.318 bundle. The brace reader tokenizes each module from a clean state, so string-table text joined after a module header no longer leaves a brace or quote open across later modules. The region rule keeps a module run shorter than the 256-byte floor, so one-constant modules such as `var Vf="WebSearch";export{Vf};` are read. A plugin-backed command whose `name` is an imported constant resolves, and `registerContinueInProjectsSkill` is a known bundled-skill registrar. On 2.1.318 the `plugin_backed`, `bundled_workflows`, `builtin_tools` and `builtin_plugins` lanes resolve their canaries again, and every built-in tool name resolves.
+
 ## [8.4.5] - 2026-11-04
 
 ### Fixed

@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.0] - 2026-11-04
+
+### Added
+
+- The tracker seam's normalized item object carries an additive `milestone` field: the milestone title on the GitHub adapter (`get-item` and `list-items`, GraphQL and REST reads), `null` on local-markdown and the gitea, jira and linear seeds.
+
+### Changed
+
+- `/work-items:work-loop` no longer lets an item in a cordoned milestone hold a `--drain` exit, reading the row's `milestone` and the names from `cordoned-milestones` in the target's `admission-rules.json`.
+
+- Shared config-cascade library synced: the personal layer is now called the personal override in comments and in view-settings' warnings, and `overlayApplies` is `personalOverrideApplies` (#13187). Behavior is unchanged.
+
 ## [11.0.7] - 2026-11-04
 
 ### Changed

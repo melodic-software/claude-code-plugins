@@ -5,6 +5,19 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.24.9] - 2026-11-04
+
+### Changed
+
+- Shared setup-apply library synced: its offer and write messages now say personal override where they said overlay or personal overlay (#13187). Behavior is unchanged.
+
+### Fixed
+
+- `sweep-all` preflight: stage 1 no longer reads `run_in_background` as a fork-mode signal, since the
+  docs relate fork mode only to what a dispatched call that omits it does; it reads whether the
+  `Agent` tool offers the `fork` type and still never gates. Stage 1b and the closing note drop the stale default and rollout wording and
+  point at the docs section. Stage 2 stays the decider.
+
 ## [0.24.8] - 2026-11-04
 
 ### Fixed
