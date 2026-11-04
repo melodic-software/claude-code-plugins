@@ -122,7 +122,7 @@ The retired `.claude/interview-surface.json` is never read for a value. When it 
 | `shortcuts` | `true` | the single off switch for single-key shortcuts |
 | `undoSeconds` | `5` | 0 to 60 |
 | `checkpoint` | `0` (off) | 0 to 500 |
-| `theme` | `auto` | `auto`, `light`, `dark` |
+| `theme` | `auto` | `auto`, `light`, `dark`; the page does not apply it and shows no Settings row for it (see [Theme](#theme)) |
 | `density` | `compact` | `compact`, `comfortable` |
 | `minText` | `14` | 10 to 32 |
 | `displayName` | `You` | personal file, user file or session only |
@@ -136,7 +136,11 @@ The retired `.claude/interview-surface.json` is never read for a value. When it 
 | `requireDepends` | `false` | `true` turns `add` and `add-round`'s warnings on a question with no `dependsOn`, or one naming a question open in its own round, into refusals |
 | `orderThreshold` | `25` | 0 to 1000 open questions; above it the header's Answering order panel lists the open questions with prerequisites first (topological by `dependsOn`), then the most transitive dependents, then the lower id. Advisory: it changes no state and no `frontierLock` check |
 
-The team, personal and user files also take `themeTokens` (`{"light": {...}, "dark": {...}}`). `browserCommand` (a program or argv list that receives the URL) is read only from a user file passed as `--user-settings` on that same `ensure-running` call. The user file a running server recorded keeps supplying every other setting, but never the opener, so `--open` alone uses the default browser. An invalid value is named in a note printed by `ensure-running`. In the team or personal file it drops that layer and the key resolves its default, never the team value (ADR 0075); in the user or session file the layer below still applies. Theme tokens layer per token: the data dir's `theme.json`, then the user file's `themeTokens`, then the personal file's, then the team file's, then the built-in set.
+The team, personal and user files also take `themeTokens` (`{"light": {...}, "dark": {...}}`). `browserCommand` (a program or argv list that receives the URL) is read only from a user file passed as `--user-settings` on that same `ensure-running` call. The user file a running server recorded keeps supplying every other setting, but never the opener, so `--open` alone uses the default browser. An invalid value is named in a note printed by `ensure-running`. In the team or personal file it drops that layer and the key resolves its default, never the team value (ADR 0075); in the user or session file the layer below still applies. Theme tokens layer per token: the data dir's `theme.json`, then the user file's `themeTokens`, then the personal file's, then the team file's, then the built-in set. The server still resolves them into the state's `theme` field, and the page applies none of them.
+
+### Theme
+
+The page copies three parts of the plugin's canonical chrome, `../reference/html-chrome.html`, verbatim: the theme toggle, the comment box, and the CSS rules between the `rv-chrome:begin` and `rv-chrome:end` markers. `test_page_chrome.py` checks that the copies match. The header's System, Light and Dark toggle is the page's only theme choice. It opens on System, which follows the browser's color-scheme preference; Light and Dark pin the page by setting `data-theme` on the root element. Nothing stores the choice, so a reload opens on System again. The `theme` setting, `themeTokens` and `theme.json` no longer change the page. The chrome's comment box is the Notes panel's composer, and Send note delivers its text as a note.
 
 ## Differences from the shared page
 
