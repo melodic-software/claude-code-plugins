@@ -81,6 +81,7 @@ KNOWN_REGISTRAR_EXPORTS = frozenset(
         "registerBundledSkillSessionReset",
         "registerClaudeApiSkill",
         "registerClaudeCodeSkill",
+        "registerContinueInProjectsSkill",
         "registerCoworkSetupSkill",
         "registerLoopSkill",
         "registerRunSkill",
@@ -114,6 +115,10 @@ BUNDLE_MARKERS = (b"// @bun @bytecode @bun-cjs", b"// @bun @bun-cjs", b"// @bun"
 # below it the regex costs minutes and above it registrations go missing.
 MIN_RUN_BYTES = 256
 RUN_RE = re.compile(rb"[\t\n\r\x20-\x7e]{%d,}" % MIN_RUN_BYTES)
+# A whole module below the floor is still taken: a printable run that opens
+# with the module header. A module holding one exported constant
+# (`var Vf="WebSearch";export{Vf};` under the header) fits under the floor.
+MODULE_RUN_RE = re.compile(rb"(?<![\t\n\r\x20-\x7e])// @bun[\t\n\r\x20-\x7e]*")
 # Every registration literal, of any registrar, opens with `({name:`. Counting
 # it in the raw region against the joined source is how a registration that
 # sits in a run below the floor is counted rather than silently lost. Minified
@@ -364,7 +369,8 @@ def _select_region(
     """Apply the region rule to raw bytes; the legacy longest-run path is the fallback.
 
     Region rule: from the first bundle marker to end of file, every printable
-    run of at least `MIN_RUN_BYTES`, joined with newlines. A build with no
+    run of at least `MIN_RUN_BYTES`, and every shorter run that opens with a
+    module header (`MODULE_RUN_RE`), joined with newlines. A build with no
     marker at all falls back to the largest printable run around a known
     anchor, which is what every build before the bytecode layout needed.
     """
@@ -381,19 +387,25 @@ def _select_region(
             module_spans.append((0, len(src)))
         return src, meta
 
-    matches = list(RUN_RE.finditer(data, first))
-    runs = [m.group(0) for m in matches]
+    matches = [(m.start(), m.group(0)) for m in RUN_RE.finditer(data, first)]
+    small = [
+        (m.start(), m.group(0))
+        for m in MODULE_RUN_RE.finditer(data, first)
+        if len(m.group(0)) < MIN_RUN_BYTES
+    ]
+    if small:
+        matches = sorted(matches + small)
+    runs = [run for _, run in matches]
     joined = b"\n".join(runs)
     if module_spans is not None or module_paths is not None:
         graph, sources = _graph_modules(data)
         outside = 0
         at = 0
-        for m in matches:
-            run = m.group(0)
-            if module_paths is not None and m.start() in sources:
-                module_paths[at] = sources[m.start()]
+        for start, run in matches:
+            if module_paths is not None and start in sources:
+                module_paths[at] = sources[start]
             if module_spans is not None and run.startswith(BUNDLE_MARKERS[-1]):
-                if sources and m.start() not in graph:
+                if sources and start not in graph:
                     outside += 1
                 else:
                     module_spans.append((at, at + len(run)))
@@ -404,9 +416,11 @@ def _select_region(
     meta["bundle_offset"] = first
     meta["region_rule"] = (
         f"first bundle marker to end of file; printable runs of at least "
-        f"{MIN_RUN_BYTES} bytes joined with newlines"
+        f"{MIN_RUN_BYTES} bytes, and shorter runs opening with a module header, "
+        "joined with newlines"
     )
     meta["runs"] = len(runs)
+    meta["module_runs_below_floor"] = len(small)
     meta["joined_bytes"] = len(joined)
     in_region = sum(1 for _ in REGISTRATION_TOKEN_RE.finditer(data, first))
     in_joined = sum(1 for _ in REGISTRATION_TOKEN_RE.finditer(joined))
@@ -539,15 +553,29 @@ def build_brace_map(s: str) -> BraceMap:
     window around a match routinely spans two neighboring objects and mixes
     their fields. Tracking real brace depth is what keeps each command's fields
     attributed to that command.
+
+    Each module (`_chunk_starts`) is tokenized on its own, from a clean
+    state: the region joins modules with bytecode string tables, whose text
+    can leave a brace or a quote open, and a module boundary is where that
+    text ends.
     """
-    stack: list[int] = []
     pairs: dict[int, int] = {}
+    starts = _chunk_starts(s)
+    for k, lo in enumerate(starts):
+        hi = starts[k + 1] if k + 1 < len(starts) else len(s)
+        _brace_pairs(s, lo, hi, pairs)
+    return BraceMap(pairs=pairs, opens=sorted(pairs))
+
+
+def _brace_pairs(s: str, lo: int, n: int, pairs: dict[int, int]) -> None:
+    """Add to `pairs` every matched {...} pair in `s[lo:n]`."""
+    stack: list[int] = []
     # Brace depth at which each open template `${` substitution began. The
     # substitution is ordinary code (it can hold regex literals, nested
     # templates, and object literals), so the main loop tokenizes it; the `}`
     # that returns to that depth resumes the template's literal text.
     templates: list[int] = []
-    i, n = 0, len(s)
+    i = lo
     prev_sig = "\n"
     prev_word = ""
 
@@ -557,11 +585,11 @@ def build_brace_map(s: str) -> BraceMap:
             i += 1
             continue
         if c == "/" and i + 1 < n and s[i + 1] == "/":
-            j = s.find("\n", i)
+            j = s.find("\n", i, n)
             i = n if j < 0 else j + 1
             continue
         if c == "/" and i + 1 < n and s[i + 1] == "*":
-            j = s.find("*/", i + 2)
+            j = s.find("*/", i + 2, n)
             i = n if j < 0 else j + 2
             continue
         if c in "\"'":
@@ -627,8 +655,6 @@ def build_brace_map(s: str) -> BraceMap:
                 pairs[stack.pop()] = i
         prev_sig, prev_word = c, ""
         i += 1
-
-    return BraceMap(pairs=pairs, opens=sorted(pairs))
 
 
 def _scan_template_text(s: str, i: int, n: int) -> tuple[int, bool]:
@@ -3691,16 +3717,22 @@ def _same_registration(a: dict[str, Any], b: dict[str, Any]) -> bool:
     return all(a.get(k) == b.get(k) for k in keys)
 
 
-def extract_plugin_backed(src: str) -> dict[str, str]:
-    """Commands the build registers as plugin-backed (`pluginName`)."""
+_PLUGIN_NAME_RE = re.compile(r'(?<![\w$])pluginName:"([a-z0-9-]+)"')
+
+
+def extract_plugin_backed(src: str, braces: BraceMap) -> dict[str, str]:
+    """Commands the build registers as plugin-backed (`pluginName`), keyed by
+    the command name of the object literal that carries the field. The name
+    is read by `resolve_field`, so a constant (`name:$gr`, imported from the
+    module binding `$gr="security-review"`) resolves like a literal."""
     out: dict[str, str] = {}
-    pattern = re.compile(
-        r'name:"([a-z0-9][a-z0-9:_-]{1,40})"'
-        r'((?:(?!name:")[\s\S]){0,900}?)'
-        r'pluginName:"([a-z0-9-]+)"'
-    )
-    for m in pattern.finditer(src):
-        out[m.group(1)] = m.group(3)
+    for m in _PLUGIN_NAME_RE.finditer(src):
+        enc = braces.enclosing(m.start())
+        if enc is None:
+            continue
+        name = resolve_field(src, braces, enc[0], "name")
+        if name and name["value"] and _NAME_OK.fullmatch(name["value"]):
+            out[name["value"]] = m.group(1)
     return out
 
 
@@ -6550,7 +6582,7 @@ def extract_binary(src: str, meta: dict[str, Any]) -> dict[str, Any]:
     tools, tool_notes = extract_builtin_tools(src, braces)
     plugins, plugin_notes = extract_builtin_plugins(src, braces)
     plugin_notes["mods_flag_in_bundle"] = MODS_ROLLOUT_FLAG in src
-    plugin_backed = extract_plugin_backed(src)
+    plugin_backed = extract_plugin_backed(src, braces)
 
     for name, plugin in plugin_backed.items():
         if name in commands:
