@@ -1678,104 +1678,64 @@ letters, or resolves to a filesystem root protects nothing; the rest of the list
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `secret_pattern_detection_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED` | Blocks writes containing high-confidence secret or credential patterns. On by default. |
-| `secret_pattern_detection_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ALLOWED_ROOTS` | Comma-separated absolute directories; a Write, Edit or NotebookEdit whose real path is strictly under one is not scanned for secrets. Empty by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details. |
-| `secret_pattern_detection_skip_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED` | When true, a Write, Edit or NotebookEdit to a file its own repository ignores is not scanned for secrets. Off by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details. |
-| `hardcoded_path_check_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED` | Blocks writes containing hardcoded machine-specific paths. On by default. |
-| `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Blocks git hook-bypass attempts: --no-verify, core.hooksPath=, and hook-manager env-var disables for a configurable set (lefthook, husky, pre-commit and simple-git-hooks by default). On by default. |
-| `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0 or false (e.g. lefthook,husky). Empty, the default, uses the built-in set: lefthook, husky, pre_commit, simple_git_hooks. |
-| `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Blocks irreversible git operations: push --force, reset --hard, clean -f, worktree-wide checkout or restore discards, and a push --force-with-lease that leases against a value git resolves at push time. On by default. The README's Option details define the lease case. |
-| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus the PowerShell ps-unparsable-* sink tokens the README's Option details list. Empty, the default, blocks all. |
-| `block_credential_read_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED` | Blocks a command whose output is a credential: git credential fill, gh auth token, a token-shaped variable echoed, and an interpreter (python -c, node -e) reading .env, .netrc, ~/.ssh/id_* or ~/.aws/credentials. cat is left to Read() deny rules. Off by default: precision below the bar. |
-| `block_credential_read_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ALLOW` | Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read. Empty, the default, blocks all. |
-| `block_cross_domain_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CROSS_DOMAIN_ENABLED` | Denies a Bash or PowerShell global git identity write (git config --global user.email and kin, a ~/.gitconfig write). In an identity domain (identity-domains.json) also denies naming another domain's path, using its marker, or gh/az without the domain's config dir. On by default. |
-| `block_unresolved_pr_merge_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_UNRESOLVED_PR_MERGE_ENABLED` | Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default. |
-| `merge_guard_ignored_checks` | string | `"github-actions:merge"` | `CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS` | Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default, github-actions:merge, is the pr-merge lane's own merge job, which runs as the merger rather than as a gate. Empty judges every check. |
-| `block_fix_request_post_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_FIX_REQUEST_POST_ENABLED` | Blocks an agent from posting the PR-fix lane fix request (a line starting "PR-fix lane: please fix this finding") to GitHub through gh, curl or a GitHub MCP write tool. Only the owner posts it, in the GitHub UI. On by default. |
-| `block_github_post_content_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_GITHUB_POST_CONTENT_ENABLED` | Blocks a Bash or PowerShell gh or curl command whose GitHub post body holds a secret or a hardcoded machine path, using the secret-pattern-detection and hardcoded-path-check patterns; their options also turn off their half here. On by default. |
-| `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Blocks writes to a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in shell commands and Write/Edit file paths alike. On by default. The Git for Windows exception is in the README's Option details. |
-| `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Blocks a leaking MSYS path-conversion suppressor on Windows: an exported MSYS_NO_PATHCONV or MSYS2_ARG_CONV_EXCL, or one prefixed on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). On by default. What it does not match is in the README's Option details. |
-| `block_cd_prefix_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CD_PREFIX_ENABLED` | Denies a Bash command that opens with cd <path> followed by &&, ; or a newline and then runs git or writes to a relative path, with the reason to use git -C <abs path>. cd . and a cd to the current directory pass. On by default. |
-| `block_root_delete_target_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED` | Blocks a recursive delete (rm, Remove-Item, rd /s) of a filesystem, home, drive or UNC root, an empty or bare-variable operand, a protected tree (.git, repo or worktree root, ~/.claude, other sessions' scratchpads), or a path outside the repo, temp, the scratchpad and allowed roots. On by default. |
-| `block_root_delete_target_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS` | Comma-separated absolute directories; a recursive delete passes when its real path is strictly under one. An entry like D:/worktrees/.tmp-* allows only direct children whose name extends that prefix. Empty by default; adds to the temp roots and scratchpad. Limits: README Option details. |
-| `block_root_delete_target_protected_trees` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES` | Comma-separated absolute directories a recursive delete never removes, even under the repo or an allowed root: the directory, anything under it, and a directory holding it are refused. Empty by default; adds to the built-in protected trees. Limits: README Option details. |
-| `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Blocks git commit -m when the message holds a $ or a backtick the shell would expand (single-quote it, or pipe it via -F -); a plain message passes, multi-line included. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase. |
-| `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits a -m message the shell would expand. Empty, the default, permits none. |
-| `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Blocks a commit subject or gh pr create --title off the team-tracked pattern in docs/conventions/source-control.yaml, or for one release in .claude/source-control.md. On by default; with no tracked or personal pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
-| `git_hooks_notice_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_GIT_HOOKS_NOTICE_ENABLED` | At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. Turning it off also silences the session-start notice that jq is missing. On by default. |
-| `workflow_resilience_check_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED` | Advises on Workflow fan-out with no wave cap of its own; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
-| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `secret_pattern_detection_enabled` | boolean | `true` | Blocks writes containing high-confidence secret or credential patterns. On by default. |
+| `secret_pattern_detection_allowed_roots` | string | *(none)* | Comma-separated absolute directories; a Write, Edit or NotebookEdit whose real path is strictly under one is not scanned for secrets. Empty by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details. |
+| `secret_pattern_detection_skip_gitignored` | boolean | `false` | When true, a Write, Edit or NotebookEdit to a file its own repository ignores is not scanned for secrets. Off by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details. |
+| `hardcoded_path_check_enabled` | boolean | `true` | Blocks writes containing hardcoded machine-specific paths. On by default. |
+| `block_no_verify_enabled` | boolean | `true` | Blocks git hook-bypass attempts: --no-verify, core.hooksPath=, and hook-manager env-var disables for a configurable set (lefthook, husky, pre-commit and simple-git-hooks by default). On by default. |
+| `block_no_verify_hook_manager_prefixes` | string | *(none)* | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0 or false (e.g. lefthook,husky). Empty, the default, uses the built-in set: lefthook, husky, pre_commit, simple_git_hooks. |
+| `block_dangerous_git_enabled` | boolean | `true` | Blocks irreversible git operations: push --force, reset --hard, clean -f, worktree-wide checkout or restore discards, and a push --force-with-lease that leases against a value git resolves at push time. On by default. The README's Option details define the lease case. |
+| `block_dangerous_git_allow` | string | *(none)* | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus the PowerShell ps-unparsable-* sink tokens the README's Option details list. Empty, the default, blocks all. |
+| `block_credential_read_enabled` | boolean | `false` | Blocks a command whose output is a credential: git credential fill, gh auth token, a token-shaped variable echoed, and an interpreter (python -c, node -e) reading .env, .netrc, ~/.ssh/id_* or ~/.aws/credentials. cat is left to Read() deny rules. Off by default: precision below the bar. |
+| `block_credential_read_allow` | string | *(none)* | Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read. Empty, the default, blocks all. |
+| `block_cross_domain_enabled` | boolean | `true` | Denies a Bash or PowerShell global git identity write (git config --global user.email and kin, a ~/.gitconfig write). In an identity domain (identity-domains.json) also denies naming another domain's path, using its marker, or gh/az without the domain's config dir. On by default. |
+| `block_unresolved_pr_merge_enabled` | boolean | `true` | Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default. |
+| `merge_guard_ignored_checks` | string | `"github-actions:merge"` | Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default, github-actions:merge, is the pr-merge lane's own merge job, which runs as the merger rather than as a gate. Empty judges every check. |
+| `block_fix_request_post_enabled` | boolean | `true` | Blocks an agent from posting the PR-fix lane fix request (a line starting "PR-fix lane: please fix this finding") to GitHub through gh, curl or a GitHub MCP write tool. Only the owner posts it, in the GitHub UI. On by default. |
+| `block_github_post_content_enabled` | boolean | `true` | Blocks a Bash or PowerShell gh or curl command whose GitHub post body holds a secret or a hardcoded machine path, using the secret-pattern-detection and hardcoded-path-check patterns; their options also turn off their half here. On by default. |
+| `block_windows_drive_tmp_enabled` | boolean | `true` | Blocks writes to a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in shell commands and Write/Edit file paths alike. On by default. The Git for Windows exception is in the README's Option details. |
+| `block_exported_msys_pathconv_enabled` | boolean | `true` | Blocks a leaking MSYS path-conversion suppressor on Windows: an exported MSYS_NO_PATHCONV or MSYS2_ARG_CONV_EXCL, or one prefixed on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). On by default. What it does not match is in the README's Option details. |
+| `block_cd_prefix_enabled` | boolean | `true` | Denies a Bash command that opens with cd <path> followed by &&, ; or a newline and then runs git or writes to a relative path, with the reason to use git -C <abs path>. cd . and a cd to the current directory pass. On by default. |
+| `block_root_delete_target_enabled` | boolean | `true` | Blocks a recursive delete (rm, Remove-Item, rd /s) of a filesystem, home, drive or UNC root, an empty or bare-variable operand, a protected tree (.git, repo or worktree root, ~/.claude, other sessions' scratchpads), or a path outside the repo, temp, the scratchpad and allowed roots. On by default. |
+| `block_root_delete_target_allowed_roots` | string | *(none)* | Comma-separated absolute directories; a recursive delete passes when its real path is strictly under one. An entry like D:/worktrees/.tmp-* allows only direct children whose name extends that prefix. Empty by default; adds to the temp roots and scratchpad. Limits: README Option details. |
+| `block_root_delete_target_protected_trees` | string | *(none)* | Comma-separated absolute directories a recursive delete never removes, even under the repo or an allowed root: the directory, anything under it, and a directory holding it are refused. Empty by default; adds to the built-in protected trees. Limits: README Option details. |
+| `block_noncanonical_commit_enabled` | boolean | `true` | Blocks git commit -m when the message holds a $ or a backtick the shell would expand (single-quote it, or pipe it via -F -); a plain message passes, multi-line included. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase. |
+| `block_noncanonical_commit_allow` | string | *(none)* | Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits a -m message the shell would expand. Empty, the default, permits none. |
+| `block_convention_gate_enabled` | boolean | `true` | Blocks a commit subject or gh pr create --title off the team-tracked pattern in docs/conventions/source-control.yaml, or for one release in .claude/source-control.md. On by default; with no tracked or personal pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
+| `git_hooks_notice_enabled` | boolean | `true` | At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. Turning it off also silences the session-start notice that jq is missing. On by default. |
+| `workflow_resilience_check_enabled` | boolean | `false` | Advises on Workflow fan-out with no wave cap of its own; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
+| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `guardrails@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure guardrails@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure guardrails@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"secret_pattern_detection_enabled": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install guardrails@<marketplace> -s <scope> --config secret_pattern_detection_enabled=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "guardrails@<marketplace>": {
-         "options": {
-           "secret_pattern_detection_enabled": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

@@ -138,90 +138,50 @@ emoji. A user instruction against emoji wins over this option, and the page is t
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview asks its rounds: terminal (default, inline) or page (a local 127.0.0.1 page the session watches). Unset: terminal, and the interview names the other available surfaces in one line. |
-| `question_pacing` | string | `"round"` | `CLAUDE_PLUGIN_OPTION_QUESTION_PACING` | How /planning:interview asks a frontier: round (default, every ready question in one message) or single (one per message, largest blast radius first). Asking for the other pacing in a session overrides it there; a repository's planning.yaml in its convention home overrides this value. |
-| `use_ask_user_question` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_ASK_USER_QUESTION` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call instead of inline prose. Default: inline prose (dictation-friendly). |
-| `use_emoji_question_markers` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
-| `shared_session_open_browser` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SHARED_SESSION_OPEN_BROWSER` | When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on. |
-| `tunnel_hostname` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_TUNNEL_HOSTNAME` | Hostname of a named Cloudflare tunnel for /planning:interview shared sessions (such as interview.example.com), so the guest link survives a restart. One session serves it at a time; others get a quick tunnel. Empty (default): a quick tunnel, whose link changes on restart. Setup: shared/README.md. |
-| `tunnel_token_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_TUNNEL_TOKEN_FILE` | Absolute path, or one starting with ~/, of a file holding the named tunnel's token, readable only by you; cloudflared runs from it. Used only when tunnel_hostname is set. Default: empty. |
-| `tunnel_api_token_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_TUNNEL_API_TOKEN_FILE` | Absolute path, or one starting with ~/, of a file holding a Cloudflare API token with Cloudflare One Connector: cloudflared Write (it can change every tunnel in the account), readable only by you; sessions check connectors and route the tunnel to their port. Empty: port 8765. See shared/README.md. |
-| `plan_store` | string | `"local"` | `CLAUDE_PLUGIN_OPTION_PLAN_STORE` | Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value. |
-| `plan_reader` | string | `"step-by-step"` | `CLAUDE_PLUGIN_OPTION_PLAN_READER` | How much of an approved plan /planning:plan publishes: step-by-step (default, the whole plan), standard (Brief, design, phase outline) or guardrails (Brief and design). A --reader argument overrides it per run; a repository's docs/conventions/planning.yaml plan_reader key overrides this value. |
-| `phase_order` | string | `"composed"` | `CLAUDE_PLUGIN_OPTION_PHASE_ORDER` | How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value. |
-| `scaffold_stubs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SCAFFOLD_STUBS` | When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value. |
-| `time_units` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TIME_UNITS` | When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value. |
-| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where planning views go. auto (default): plan, brainstorm and design views go to a private Artifact, kept by the publish gate for a non-public repository or credential-shaped record; PRD and interview views stay local. terminal: no page; file: local; artifact: publish anyway; hosted = artifact. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `surface` | string | `"terminal"` | Where /planning:interview asks its rounds: terminal (default, inline) or page (a local 127.0.0.1 page the session watches). Unset: terminal, and the interview names the other available surfaces in one line. |
+| `question_pacing` | string | `"round"` | How /planning:interview asks a frontier: round (default, every ready question in one message) or single (one per message, largest blast radius first). Asking for the other pacing in a session overrides it there; a repository's planning.yaml in its convention home overrides this value. |
+| `use_ask_user_question` | boolean | `false` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call instead of inline prose. Default: inline prose (dictation-friendly). |
+| `use_emoji_question_markers` | boolean | `false` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
+| `shared_session_open_browser` | boolean | `true` | When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on. |
+| `tunnel_hostname` | string | *(none)* | Hostname of a named Cloudflare tunnel for /planning:interview shared sessions (such as interview.example.com), so the guest link survives a restart. One session serves it at a time; others get a quick tunnel. Empty (default): a quick tunnel, whose link changes on restart. Setup: shared/README.md. |
+| `tunnel_token_file` | string | *(none)* | Absolute path, or one starting with ~/, of a file holding the named tunnel's token, readable only by you; cloudflared runs from it. Used only when tunnel_hostname is set. Default: empty. |
+| `tunnel_api_token_file` | string | *(none)* | Absolute path, or one starting with ~/, of a file holding a Cloudflare API token with Cloudflare One Connector: cloudflared Write (it can change every tunnel in the account), readable only by you; sessions check connectors and route the tunnel to their port. Empty: port 8765. See shared/README.md. |
+| `plan_store` | string | `"local"` | Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value. |
+| `plan_reader` | string | `"step-by-step"` | How much of an approved plan /planning:plan publishes: step-by-step (default, the whole plan), standard (Brief, design, phase outline) or guardrails (Brief and design). A --reader argument overrides it per run; a repository's docs/conventions/planning.yaml plan_reader key overrides this value. |
+| `phase_order` | string | `"composed"` | How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value. |
+| `scaffold_stubs` | boolean | `false` | When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value. |
+| `time_units` | boolean | `false` | When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value. |
+| `medium` | string | `"auto"` | Where planning views go. auto (default): plan, brainstorm and design views go to a private Artifact, kept by the publish gate for a non-public repository or credential-shaped record; PRD and interview views stay local. terminal: no page; file: local; artifact: publish anyway; hosted = artifact. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `planning@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure planning@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure planning@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"surface": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install planning@<marketplace> -s <scope> --config surface=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "planning@<marketplace>": {
-         "options": {
-           "surface": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 
