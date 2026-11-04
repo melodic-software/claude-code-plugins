@@ -99,7 +99,6 @@ CHUNK = 20
 MAIN_PATHS = (
     "docs/conventions/pr-pipeline.yaml",
     "docs/conventions/source-control.yaml",
-    ".claude/source-control.md",
     ".github/standards/trusted-actors/trusted-actors.json",
     *tracker_binding.PATHS,
     ".github/workflows/pr-merge.yml",

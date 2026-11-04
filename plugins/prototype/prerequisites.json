@@ -1,0 +1,19 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": ["skill:explore-directions", "skill:pressure-test"],
+      "detect": { "any": ["node"] },
+      "degrade": "Without node, /prototype:explore-directions and /prototype:pressure-test cannot run the medium resolver: each says so in one line and keeps its shipped default, and pressure-test's audience routing still picks the shell.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

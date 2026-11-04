@@ -2,21 +2,19 @@
 """Per-target-repository resolution of the babysit repository-policy keys.
 
 Seven keys (`POLICY_KEYS`) are read from the TARGET repository's tracked
-`docs/conventions/source-control.yaml` on its default branch, and for one
-release from the `## <key>` section of its `.claude/source-control.md` when the
-YAML lacks the key. Both are read through the contents API with no `ref`, so
-neither the launching checkout's working tree nor a personal layer (user-global,
-local overlay) can supply a value. A YAML the shared reader rejects is an error,
-never a reason to read the legacy file. The operator's `userConfig` value is the
-deprecated fallback, merged per key by the modes `merge_repo_config` documents.
-The review bot logins, settle minutes and trigger phrase stay `userConfig`-only:
-a repository declaration of any of them is ignored. The fetch and the merge are
-separate so the merge is unit-testable without a network seam.
+`docs/conventions/source-control.yaml` on its default branch, through the
+contents API with no `ref`, so neither the launching checkout's working tree nor
+a personal layer (user-global, local overlay) can supply a value. A YAML the
+shared reader rejects is an error. The retired `.claude/source-control.md` is
+not read. The operator's `userConfig` value is the deprecated fallback, merged
+per key by the modes `merge_repo_config` documents. The review bot logins,
+settle minutes and trigger phrase stay `userConfig`-only: a repository
+declaration of any of them is ignored. The fetch and the merge are separate so
+the merge is unit-testable without a network seam.
 
-Four babysit-loop keys (`LOOP_KEYS`) resolve here too, from the same files in
-the same order. Any `babysit_loop_*` key in either file counts as tracked
-adoption. `loop-keys OWNER/REPO` prints the four with the layer that supplied
-each value.
+Four babysit-loop keys (`LOOP_KEYS`) resolve here too, from the same file. Any
+`babysit_loop_*` key in it counts as tracked adoption. `loop-keys OWNER/REPO`
+prints the four with the layer that supplied each value.
 """
 
 from __future__ import annotations
@@ -25,7 +23,6 @@ import argparse
 import base64
 import binascii
 import json
-import math
 import re
 import subprocess
 import sys
@@ -36,7 +33,6 @@ from babysit_classify import normalize_login_set
 from babysit_gh import gh_capture, gh_http_status, is_owner_repo_pair
 from babysit_util import is_json_object
 
-CONFIG_PATH = ".claude/source-control.md"
 YAML_CONFIG_PATH = "docs/conventions/source-control.yaml"
 
 UNION_KEYS = (
@@ -66,10 +62,6 @@ KEYS = (
 # The keys a repository supplies, whose team home is `YAML_CONFIG_PATH`.
 POLICY_KEYS = (*UNION_KEYS, SKIP_DOWNGRADE, *OVERRIDE_KEYS)
 MERGE_METHODS = ("squash", "merge", "rebase")
-
-HEADING_RE = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
-H2_PREFIX = "## "
-FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
 # Each key's deprecated `userConfig` value arrives as this CLI flag's parsed dest.
 FLAG_DESTS = {
@@ -109,7 +101,6 @@ LOOP_DEFAULTS = {
     "babysit_loop_grace_window_minutes": "30",
 }
 # The layer names a resolved loop key reports, as config-resolution.md lists them.
-LEGACY_LAYER = f"{CONFIG_PATH} (legacy)"
 DEFAULT_LAYER = "default"
 
 GhRunner = Callable[[list[str]], subprocess.CompletedProcess[str]]
@@ -149,21 +140,6 @@ def _split_list(lines: list[str]) -> frozenset[str]:
     return frozenset(item for item in items if item)
 
 
-def _settle_seconds(raw: str) -> int | None:
-    """Whole seconds of a settle value, or None unless it is at least one second.
-
-    Mirrors the merge gate's own check, so NaN, infinity, and sub-second values
-    never reach the floor comparison.
-    """
-    try:
-        minutes = float(raw)
-    except ValueError:
-        return None
-    if not math.isfinite(minutes) or round(minutes * 60) < 1:
-        return None
-    return round(minutes * 60)
-
-
 def _check_merge_method(layer: RepoLayer) -> None:
     method = layer.get("babysit_merge_method")
     if method is not None and method not in MERGE_METHODS:
@@ -201,50 +177,6 @@ def parse_yaml_policy(text: str, yaml_values: YamlReader | None = None) -> RepoL
             shape = "a list" if key in LIST_KEYS else "a scalar value"
             raise RepoConfigError(f"{key} is not {shape}")
     _check_merge_method(layer)
-    return layer
-
-
-def parse_repo_config(text: str) -> RepoLayer:
-    """The ten keys' values from a markdown body of `## <key>` H2 sections.
-
-    Other sections (the convention and loop-lane keys) are ignored, as are
-    headings inside fences. A duplicate section, a present-but-empty section, a
-    near-miss heading (a key name at another level, in another case, or with
-    extra text), or an invalid scalar raises `RepoConfigError`.
-    """
-    sections: dict[str, list[str]] = {}
-    current: list[str] | None = None
-    in_fence = False
-    for raw in text.removeprefix("﻿").replace("\r\n", "\n").split("\n"):
-        if FENCE_RE.match(raw):
-            in_fence = not in_fence
-            continue
-        heading = None if in_fence else HEADING_RE.match(raw)
-        if heading:
-            title = heading.group(1)
-            current = None
-            if raw.startswith(H2_PREFIX) and title in KEYS:
-                if title in sections:
-                    raise RepoConfigError(f"duplicate `## {title}` section")
-                current = sections[title] = []
-            elif any(key in title.casefold() for key in KEYS):
-                raise RepoConfigError(f"near-miss heading {raw.strip()!r}")
-        elif current is not None and raw.strip():
-            current.append(raw.strip())
-
-    layer: RepoLayer = {}
-    for key, lines in sections.items():
-        if key in LIST_KEYS:
-            values = _split_list(lines)
-            layer[key] = normalize_login_set(values) if key in LOGIN_KEYS else values
-        else:
-            layer[key] = lines[0].strip("`").strip() if lines else ""
-        if not layer[key]:
-            raise RepoConfigError(f"`## {key}` section has no value")
-    _check_merge_method(layer)
-    settle = layer.get(REVIEW_SETTLE)
-    if isinstance(settle, str) and _settle_seconds(settle) is None:
-        raise RepoConfigError(f"{REVIEW_SETTLE} {settle!r} is not at least one second")
     return layer
 
 
@@ -413,34 +345,19 @@ def fetch_repo_config(
     gh_runner: GhRunner | None = None,
     yaml_values: YamlReader | None = None,
 ) -> RepoLayer:
-    """The repository layer from the default branch; empty when neither file
-    exists.
+    """The `POLICY_KEYS` values `YAML_CONFIG_PATH` carries on the default
+    branch; empty when the file is absent.
 
-    Per `POLICY_KEYS` key: `YAML_CONFIG_PATH`, else, for one release, the
-    `## <key>` section of `CONFIG_PATH`. The legacy file is read only when the
-    YAML lacks one of the seven keys; its review-pair and trigger-phrase
-    sections still reach `merge_repo_config`, which ignores them with a note.
     The fetch contract is `_fetch_file`'s. A YAML `parse_yaml_policy` refuses
-    raises `RepoConfigError` without reading the legacy file, and so does a
-    legacy file `parse_repo_config` refuses.
+    raises `RepoConfigError`.
     """
-    layer: RepoLayer = {}
     yaml_text = _fetch_file(owner_repo, YAML_CONFIG_PATH, gh_runner)
-    if yaml_text is not None:
-        try:
-            layer = parse_yaml_policy(yaml_text, yaml_values)
-        except RepoConfigError as exc:
-            raise RepoConfigError(f"{owner_repo}: {YAML_CONFIG_PATH}: {exc}") from exc
-    if all(key in layer for key in POLICY_KEYS):
-        return layer
-    text = _fetch_file(owner_repo, CONFIG_PATH, gh_runner)
-    if text is None:
-        return layer
+    if yaml_text is None:
+        return {}
     try:
-        legacy = parse_repo_config(text)
+        return parse_yaml_policy(yaml_text, yaml_values)
     except RepoConfigError as exc:
-        raise RepoConfigError(f"{owner_repo}: {CONFIG_PATH}: {exc}") from exc
-    return {**legacy, **layer}
+        raise RepoConfigError(f"{owner_repo}: {YAML_CONFIG_PATH}: {exc}") from exc
 
 
 _cache: dict[str, RepoLayer | RepoConfigError] = {}
@@ -503,40 +420,6 @@ class LoopConfig:
     adopted: bool
 
 
-def parse_loop_sections(text: str) -> tuple[dict[str, str], bool]:
-    """The `LOOP_KEYS` values from a legacy markdown body of `## <key>` H2
-    sections, and whether any `## babysit_loop_*` H2 is present (tracked
-    adoption). Headings inside fences are ignored; a duplicate or empty
-    section raises `RepoConfigError`. Values are checked by the caller.
-    """
-    sections: dict[str, list[str]] = {}
-    current: list[str] | None = None
-    in_fence = False
-    adopted = False
-    for raw in text.removeprefix("﻿").replace("\r\n", "\n").split("\n"):
-        if FENCE_RE.match(raw):
-            in_fence = not in_fence
-            continue
-        heading = None if in_fence else HEADING_RE.match(raw)
-        if heading:
-            title = heading.group(1)
-            current = None
-            if raw.startswith(H2_PREFIX) and title.startswith(LOOP_PREFIX):
-                adopted = True
-                if title in LOOP_KEYS:
-                    if title in sections:
-                        raise RepoConfigError(f"duplicate `## {title}` section")
-                    current = sections[title] = []
-        elif current is not None and raw.strip():
-            current.append(raw.strip())
-    layer: dict[str, str] = {}
-    for key, lines in sections.items():
-        if not lines:
-            raise RepoConfigError(f"`## {key}` section has no value")
-        layer[key] = lines[0].strip("`").strip()
-    return layer, adopted
-
-
 def _loop_value(key: str, value: str, where: str) -> str:
     allowed = LOOP_KEYS[key]
     if allowed is None:
@@ -597,14 +480,13 @@ def resolve_loop_keys(
 ) -> LoopConfig:
     """The four loop keys from the target repository's default branch.
 
-    Per key: `docs/conventions/source-control.yaml`, else the `## <key>`
-    section of `.claude/source-control.md` (the one-release compatibility
-    read), else the default. The merge rung's default is `c2-mechanical` once
-    either file carries any `babysit_loop_*` key, one of these four or not
-    (tracked adoption), and `human-only` before. A YAML the shared reader rejects, an invalid value in the layer
-    that supplies a key, and every fetch failure `_fetch_file` names raise
-    `RepoConfigError`: the caller treats the team layer as unreadable and
-    fails closed. Neither file is read from any working tree.
+    Per key: `docs/conventions/source-control.yaml`, else the default. The
+    merge rung's default is `c2-mechanical` once that file carries any
+    `babysit_loop_*` key, one of these four or not (tracked adoption), and
+    `human-only` before. A YAML the shared reader rejects, an invalid value,
+    and every fetch failure `_fetch_file` names raise `RepoConfigError`: the
+    caller treats the team layer as unreadable and fails closed. The file is
+    never read from any working tree.
     """
     yaml_values = yaml_values or _shared_yaml_values
     values: dict[str, str] = {}
@@ -625,22 +507,9 @@ def resolve_loop_keys(
                 sources[key] = YAML_CONFIG_PATH
             elif re.search(rf"^{key}[ \t]*:", yaml_text, re.M):
                 # The reader prints nothing for an empty or non-scalar value,
-                # which must not fall through to the legacy file.
+                # which must not fall through to the default.
                 raise RepoConfigError(f"{where}: {key} is not a scalar value")
         adopted = bool(values or LOOP_YAML_KEY_RE.search(yaml_text))
-    if len(values) < len(LOOP_KEYS):
-        legacy_text = _fetch_file(owner_repo, CONFIG_PATH, gh_runner)
-        if legacy_text is not None:
-            try:
-                legacy, legacy_adopted = parse_loop_sections(legacy_text)
-            except RepoConfigError as exc:
-                raise RepoConfigError(f"{owner_repo}: {CONFIG_PATH}: {exc}") from exc
-            adopted = adopted or legacy_adopted
-            for key, value in legacy.items():
-                if key not in values:
-                    where = f"{owner_repo}: {CONFIG_PATH}"
-                    values[key] = _loop_value(key, value, where)
-                    sources[key] = LEGACY_LAYER
     defaults = {
         **LOOP_DEFAULTS,
         LOOP_MERGE: "c2-mechanical" if adopted else "human-only",
@@ -662,7 +531,7 @@ def main(argv: list[str] | None = None) -> int:
     loop = commands.add_parser(
         "loop-keys",
         help="print the four babysit_loop_* keys as JSON, with the layer that "
-        f"supplied each: {YAML_CONFIG_PATH}, {LEGACY_LAYER} or {DEFAULT_LAYER}; "
+        f"supplied each: {YAML_CONFIG_PATH} or {DEFAULT_LAYER}; "
         "exit 1 when the repository's config cannot be read",
         allow_abbrev=False,
     )

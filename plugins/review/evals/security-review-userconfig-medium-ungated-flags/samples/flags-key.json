@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.medium: flag, hosted makes lib/send.mjs post the page to an external host with no resolver gating it\n\nseverity: IMPORTANT",
+      "why": "flags the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.medium: pass, advisory, picks the digest medium\n\ncritical-findings: 0",
+      "why": "treats an ungated publishing medium as advisory"
+    }
+  ]
+}

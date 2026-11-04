@@ -33,7 +33,7 @@ Filled instance for the repository in use as of 2026-07-25.
   of it: `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
   `context/**` (57 directories), `references/**`, nested `reference/**`, and
   `templates/**`. But the two most behavioral files sit outside it:
-  `.claude/source-control.md` supplies the merge rung, and root `CLAUDE.md`
+  `docs/conventions/source-control.yaml` supplies the merge rung, and root `CLAUDE.md`
   supplies the operating rules every agent in this repo loads. Not even
   `README.md` is safe to exclude by name here:
   `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
@@ -96,7 +96,7 @@ So the two knobs are independent, and both are needed for "merge things
 overnight without me":
 
 - **Tier `autopilot`**: in the prompt below. Already maximal.
-- **Merge rung**: one line in `.claude/source-control.md` on `main`.
+- **Merge rung**: one line in `docs/conventions/source-control.yaml` on `main`.
   Now `c2-mechanical`, because unattended auto-merge launches at C2 only
   (#6202, "Amendment (auto-merge-safe-prs)", item 22). A raise follows the
   path #1388 prescribed: amend the guardrail contract first, then flip the
@@ -136,9 +136,9 @@ machines; neither on the attended box.
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Runtime surfaces in this repo: **every tracked markdown file**
-> (`git ls-files '*.md'`). The plugin tree is the bulk of it, plus
-> `.claude/source-control.md` (this lane's merge rung) and root
-> `CLAUDE.md` / `AGENTS.md`. No filename is exempt by convention:
+> (`git ls-files '*.md'`). The plugin tree is the bulk of it, plus root
+> `CLAUDE.md` / `AGENTS.md`; this lane's merge rung sits in
+> `docs/conventions/source-control.yaml`. No filename is exempt by convention:
 > `tools/work-item-tracker/adapters/github/README.md` is the GitHub
 > adapter's operations reference.
 >
@@ -420,7 +420,7 @@ terminals mutating the same row.
 > (`git ls-files '*.md'`). The plugin tree is the bulk of it (`SKILL.md`,
 > `agents/*.md`, `commands/*.md`, and every `reference/**`, `references/**`,
 > `context/**`, `templates/**` file at any depth), but it is not the edge:
-> `.claude/source-control.md` supplies this lane's merge rung, and root
+> `docs/conventions/source-control.yaml` supplies this lane's merge rung, and root
 > `CLAUDE.md` / `AGENTS.md` supply operating rules every agent loads. No
 > filename is exempt by convention either: this repo's
 > `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
@@ -516,7 +516,7 @@ to the template re-renders here too.
 > (`git ls-files '*.md'`). The plugin tree is the bulk of it (`SKILL.md`,
 > `agents/*.md`, `commands/*.md`, and every `reference/**`, `references/**`,
 > `context/**`, `templates/**` file at any depth), but it is not the edge:
-> `.claude/source-control.md` supplies the merge lane's rung, and root
+> `docs/conventions/source-control.yaml` supplies the merge lane's rung, and root
 > `CLAUDE.md` / `AGENTS.md` supply operating rules every agent loads. No
 > filename is exempt by convention either: this repo's
 > `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's

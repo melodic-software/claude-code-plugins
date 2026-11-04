@@ -627,8 +627,8 @@ class PerRepoPolicyTests(unittest.TestCase):
     def test_two_repositories_resolve_different_effective_policy(self) -> None:
         result = self._snapshot(
             {
-                "owner/strict": "## babysit_approval_downgrade_logins\n- claude\n",
-                "owner/plain": "## babysit_merge_method\nsquash\n",
+                "owner/strict": "babysit_approval_downgrade_logins:\n  - claude\n",
+                "owner/plain": "babysit_merge_method: squash\n",
             },
             [("owner/plain", 1), ("owner/strict", 2)],
         )
@@ -640,7 +640,7 @@ class PerRepoPolicyTests(unittest.TestCase):
 
     def test_repository_declaration_adds_to_the_userconfig_flag(self) -> None:
         result = self._snapshot(
-            {"owner/strict": "## babysit_approval_downgrade_logins\n- other-bot\n"},
+            {"owner/strict": "babysit_approval_downgrade_logins:\n  - other-bot\n"},
             [("owner/strict", 2), ("owner/plain", 1)],
             approval_downgrade_logins="claude",
         )
@@ -658,7 +658,7 @@ class PerRepoPolicyTests(unittest.TestCase):
         self.assertEqual([pr["key"] for pr in result["prs"]], ["owner/plain#1"])
         self.assertEqual(len(result["errors"]), 1)
         self.assertTrue(result["errors"][0].startswith("owner/broken#3: "))
-        self.assertIn(".claude/source-control.md", result["errors"][0])
+        self.assertIn("docs/conventions/source-control.yaml", result["errors"][0])
         self.assertFalse(result["complete"])
         self.assertEqual(snapshot.exit_code_for(result), 1)
 
@@ -668,10 +668,10 @@ class PerRepoPolicyTests(unittest.TestCase):
         RepoConfigFake(
             {
                 "owner/a": (
-                    "## babysit_review_trigger_phrase\n@bot review\n\n"
-                    "## babysit_review_bot_logins\n- bot\n\n"
-                    "## babysit_review_settle_minutes\n5\n\n"
-                    "## babysit_review_gate_context\ngate-a\n"
+                    'babysit_review_trigger_phrase: "@bot review"\n'
+                    "babysit_review_bot_logins:\n  - bot\n"
+                    "babysit_review_settle_minutes: 5\n"
+                    "babysit_review_gate_context: gate-a\n"
                 )
             }
         ).install(self)

@@ -14,8 +14,7 @@ Inspect and configure the source-control plugin per the uniform setup contract
 `check` reports the effective configuration, `apply` writes it. Two configuration surfaces:
 
 1. The commit-subject / PR-title convention config, layered across a user-global file, the tracked
-   team file (`docs/conventions/source-control.yaml`, with `.claude/source-control.md` read for a key
-   it lacks during one release), and a gitignored personal overlay and merged per key by
+   team file (`docs/conventions/source-control.yaml`), and a gitignored personal overlay and merged per key by
    [../../reference/config-resolution.md](../../reference/config-resolution.md). Resolved first by
    `/source-control:commit` and `/source-control:pull-request` before they fall back to inference or
    the bundled Conventional Commits default. Conventional Commits is genuinely optional, some orgs
@@ -54,8 +53,7 @@ tell why `/source-control:commit` behaves as it does.
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, team and
 overlay are **not applicable**
 ([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade #4672):
-do not read `${REPO_ROOT}/docs/conventions/source-control.yaml`, its legacy markdown compatibility
-read, or the overlay as the team layer,
+do not read `${REPO_ROOT}/docs/conventions/source-control.yaml` or the overlay,
 report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
 or `project root is not inside a git repository`), and resolve user-global only.
 `parse-branch-issue.sh` prints the same note on stderr. Git
@@ -103,14 +101,15 @@ Per-layer verdicts:
 - **Team** (`REPO_ROOT/docs/conventions/source-control.yaml`): present → PASS. **FAIL** when
   excluded by `.gitignore`. Teammates would never receive the shared convention; report the matching
   rule. Absent → INFO, remediable by `apply`. Per key, `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$REPO_ROOT" <key>`
-  prints `yaml`, `legacy-md` or `none`: report a `legacy-md` key as WARN (read through the
-  compatibility read for one release; `apply` migrates it into the YAML), and name the supplying
-  file in `won by`. The probe does not check trackedness, so first run
-  `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"` and
-  `git ls-files --error-unmatch -- ":/.claude/source-control.md"`: a team file git does not track
-  supplies no key, so never name it in `won by`, and report it as untracked instead.
-- **Legacy team file** (`REPO_ROOT/.claude/source-control.md`, the compatibility read): present →
-  report which keys it still contributes (the `babysit_*` keys stay there); apply the same ignore check.
+  prints `yaml` or `none`; name the supplying file in `won by`. The probe does not check
+  trackedness, so first run `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"`:
+  a team file git does not track supplies no key, so never name it in `won by`, and report it as
+  untracked instead.
+- **Retired team file** (`REPO_ROOT/.claude/source-control.md`): when
+  `git ls-files --error-unmatch -- ":/.claude/source-control.md"` exits 0 → WARN: no longer read
+  by source-control; name the `## <key>` sections it still carries. `apply` copies every key the
+  schema declares into `docs/conventions/source-control.yaml` and removes its section; delete the
+  file once it carries none.
 - **Local overlay ignore rule** (the recursive `.claude/**/*.local.*`, covering
   `REPO_ROOT/.claude/source-control.local.md`): probe the ignore rule whether or
   not the overlay file exists. The rule's job is to be in place **before** the
@@ -150,7 +149,7 @@ diagnostics:
   unexpectedly blocked or allowed, so surface it here, naming the resolver's diagnostic and the
   remediation (restore the file, fix the pointer, or `apply` to rewrite it).
 - **Shadowed markdown → WARN.** A neutral file resolves (via pointer or the well-known default) **and**
-  the legacy markdown file still carries a markdown-H2 `subject_pattern`/`pr_title_pattern` for the
+  the retired `.claude/source-control.md` still carries a markdown-H2 `subject_pattern`/`pr_title_pattern` for the
   same key: the neutral value wins (rungs 1–2 over rung 3) and the stale markdown is inert but
   misleading. Recommend `apply` to retire the duplicate (migration removes it), per
   [reference/apply-convention.md](reference/apply-convention.md) "Migration retires duplicates".

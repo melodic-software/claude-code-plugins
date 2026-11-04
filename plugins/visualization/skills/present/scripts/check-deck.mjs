@@ -8,14 +8,15 @@
 // publish would send. Prints one JSON object.
 //
 //   check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2
-//                  [--argument terminal|file|artifact|hosted] [--option <plugin medium option>]
-// Exit 0 decided (read `medium`), 1 a deck refused, 2 usage or an unreadable root.
+//                  [--argument <medium>] [--option <plugin medium option>]
+// Exit 0 decided (read `publishes`, and `medium` for the name), 1 a deck refused, 2 usage or an
+// unreadable root.
 
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publishGate } from "../../../lib/publish-gate.mjs";
-import { reportLines } from "../../../lib/view-registry.mjs";
+import { mediumOf, reportLines } from "../../../lib/view-registry.mjs";
 import { findRoot, gateExplicit, resolveMedium } from "../../../lib/view-settings.mjs";
 
 // ------------------------------------------------------------ K2 allowlist
@@ -217,8 +218,8 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   const { argument = null, option = null, home, project = findRoot(), dataDir = process.env.CLAUDE_PLUGIN_DATA || null } = layers;
   const resolution = resolveMedium({ lane: "visualization:present", argument, userConfig: option, projectRoot: project }, { ...(home ? { userHome: home } : {}), dataDir });
   const { medium, preferred, decidedBy } = resolution;
-  if (medium === "terminal" || medium === "file") {
-    return { exit: 0, result: { medium, class: cls, reason: `${decidedBy} sets medium: ${medium}`, report: reportLines(resolution) } };
+  if (!mediumOf(medium)?.publishes) {
+    return { exit: 0, result: { medium, publishes: false, class: cls, reason: `${decidedBy} sets medium: ${medium}`, report: reportLines(resolution) } };
   }
   // The lane reads hosted as artifact: a deck is many files on a Slides type, never one page, so it is never sent to a page host.
   const explicit = gateExplicit(resolution);
@@ -229,7 +230,7 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   const named = gate.medium === "artifact" ? { title } : {};
   // The report names the medium the deck goes to: when the gate keeps it local, the gate decided.
   const report = reportLines(gate.medium === medium ? resolution : { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}` });
-  return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, report } };
+  return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, publishes: Boolean(mediumOf(gate.medium)?.publishes), report } };
 }
 
 function main(argv) {
@@ -241,13 +242,13 @@ function main(argv) {
   for (let i = 0; i < rest.length; i += 1) {
     const next = rest[i + 1];
     if (rest[i] === "--class" && ["K0", "K1", "K2"].includes(next)) cls = rest[++i];
-    else if (rest[i] === "--argument" && ["terminal", "file", "artifact", "hosted"].includes(next)) argument = rest[++i];
+    else if (rest[i] === "--argument" && mediumOf(next)) argument = rest[++i];
     else if (rest[i] === "--option" && next !== undefined) option = rest[++i];
     else bad = true;
   }
   if (bad || !root || !visibility || visibility.startsWith("--") || !cls) {
     process.stderr.write(
-      "usage: check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2 [--argument terminal|file|artifact|hosted] [--option <value>]\n",
+      "usage: check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2 [--argument <medium>] [--option <value>]\n",
     );
     return 2;
   }

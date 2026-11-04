@@ -1,4 +1,4 @@
-# test-scope: .claude/source-control.md .github/workflows/*
+# test-scope: docs/conventions/source-control.yaml .github/workflows/*
 """Table tests for the unattended-merge diff risk scorer.
 
 `babysit_risk.score` is a pure function, so every case builds a `RiskInput` and
@@ -2549,7 +2549,8 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
             ".claude/rules/cost-claims.md",
             "plugins/x/.claude/rules/a.md",
             ".claude/ai-slop.json",
-            ".claude/source-control.md",
+            # The team layer the babysit loop reads keeps the same hold.
+            "docs/conventions/source-control.yaml",
             ".claude-lane/profile.json",
             # Every name and depth under .claude (owner decision Q11).
             ".claude/output-styles/terse.md",

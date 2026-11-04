@@ -5,7 +5,7 @@
       "id": 1,
       "name": "process-to-diagram-picks-form-and-medium",
       "prompt": "We just walked through the checkout flow: the cart validates stock, then reserves inventory, then charges payment, then on success emits an order-placed event, and on payment failure releases the reservation. visualize this.",
-      "expected_output": "Infers the target (the checkout flow just described), picks a mermaid flowchart (or sequence) as the form, and picks a medium: because the terminal shows a mermaid fence as source rather than a rendered diagram, it either emits the mermaid source for the terminal or renders it on a page (Artifact if that surface is available, else a local HTML file). It does not claim the terminal renders the diagram as a picture, and it does not restate chart/diagram craft.",
+      "expected_output": "Infers the target (the checkout flow just described), picks a mermaid flowchart (or sequence) as the form, and picks a medium: because the terminal shows a mermaid fence as source rather than a rendered diagram, it either emits the mermaid source for the terminal or renders it on a page, stepping down the fallback chain when the publishing surface is unavailable. It does not claim the terminal renders the diagram as a picture, and it does not restate chart/diagram craft.",
       "files": [],
       "expectations": [
         "Infers the checkout flow as the target without being told the form explicitly",
@@ -68,9 +68,10 @@
       "id": 6,
       "name": "file-preference-never-publishes",
       "prompt": "/visualize file — make a dashboard of the release metrics for this sensitive project.",
-      "expected_output": "Honors the explicit `file` medium: renders the dashboard as a self-contained local HTML file on the machine and never publishes an Artifact, even if the Artifact surface is available. Reports the file path.",
+      "expected_output": "Passes the argument to the shared medium resolver as `--argument file` and prints its report line, `view: file (argument)`. Honors the explicit `file` medium: renders the dashboard as a self-contained local HTML file on the machine and never publishes an Artifact, even if the Artifact surface is available. Reports the file path.",
       "files": [],
       "expectations": [
+        "Runs the shared medium resolver with `--argument file` and prints the report line naming the argument as what decided the medium",
         "Honors the `file` argument/preference and renders a local self-contained HTML file",
         "Never publishes an Artifact when the preference is `file`, even if that surface is available",
         "Reports the local file path"

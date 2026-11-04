@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.medium: pass, advisory, picks the digest medium; skills/digest/SKILL.md:5 passes it to lib/view-settings.mjs\n\ncritical-findings: 0",
+      "why": "the advisory summary line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.medium: flag, hosted publishes the digest\n\nseverity: IMPORTANT",
+      "why": "a flag, not the advisory line"
+    },
+    {
+      "answer": "manifest userConfig.medium: pass\n\ncritical-findings: 0",
+      "why": "a plain pass without the advisory note"
+    }
+  ]
+}

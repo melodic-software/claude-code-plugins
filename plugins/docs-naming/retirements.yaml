@@ -13,6 +13,7 @@ content_match: '"file_names"'
 action: migrate
 successor: "the team layer is now docs-naming.yaml under the convention home, its keys the old file_names keys at top level: when that file does not exist, setup apply seeds it from the old file; when it exists, add only the keys it lacks so the new file wins; have the operator confirm the result, then clean"
 note: "retired team config name; the file-name skills moved to docs-naming, which reads this file for one release and warns"
+status: report-only
 ---
 id: docs-naming-r002
 retired: 2026-10-01
@@ -23,3 +24,4 @@ content_match: '"file_names"'
 action: migrate
 successor: "the personal overlay is now docs-naming.local.yaml under the convention home, its keys the old file_names keys at top level: write the keys it lacks into it so the new file wins; have the operator confirm the result, then clean"
 note: "retired personal overlay name; the file-name skills moved to docs-naming, which reads this file for one release and warns"
+status: report-only

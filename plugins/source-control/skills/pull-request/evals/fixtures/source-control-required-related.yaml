@@ -1,0 +1,6 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml that requires a repo-declared
+# Related section. A generic example, not any one repo's policy.
+pr_body_required_sections:
+  - Summary
+  - Test plan
+  - Related

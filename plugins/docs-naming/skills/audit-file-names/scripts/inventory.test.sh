@@ -11,6 +11,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/inventory.sh"
 BUILD="$SCRIPT_DIR/fixtures/build-fixture.sh"
+EDIT_CONFIG="$SCRIPT_DIR/fixtures/edit-config.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -69,7 +70,8 @@ assert_contains "a code file is exempt by extension" "$out" "EXEMPT	docs/tool.py
 assert_lacks "an already-legal dotted stem is not an offender" "$out" "docs/v1.2.schema.json	docs/"
 assert_lacks "a legal historical record is not an offender" "$out" "OFFENDER	docs/adr/0001-historical.md"
 assert_eq "no collision is reported on the clean tree" "0" "$(printf '%s\n' "$out" | grep -c '^COLLISION')"
-assert_contains "the scanned count and roots are reported" "$out" "SCANNED	8	docs"
+# The eight files of fixtures/tree/docs plus the team layer, docs/conventions/docs-naming.yaml.
+assert_contains "the scanned count and roots are reported" "$out" "SCANNED	9	docs"
 
 # --- read-only ---------------------------------------------------------------
 
@@ -89,15 +91,12 @@ assert_eq "a collision still exits 0: it is a finding, not a crash" "0" "$(
 # --- configuration is read, never assumed ------------------------------------
 
 root="$(new_fixture)"
-jq '.file_names.exempt_basenames = ["README.md"] | .file_names.exempt_extensions = []' \
-  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+bash "$EDIT_CONFIG" "$root" '.file_names.exempt_basenames = ["README.md"] | .file_names.exempt_extensions = []'
 out="$(bash "$SUT" --root "$root")"
 assert_lacks "an extension dropped from the config is no longer exempt" "$out" "EXEMPT	docs/tool.py"
 
 root="$(new_fixture)"
-jq '.file_names.roots = ["build"]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+bash "$EDIT_CONFIG" "$root" '.file_names.roots = ["build"]'
 out="$(bash "$SUT" --root "$root")"
 assert_eq "a different root inventories a different tree" "0" "$(printf '%s\n' "$out" | grep -c '^OFFENDER')"
 assert_contains "the reported roots follow the configuration" "$out" "SCANNED	1	build"
@@ -111,9 +110,7 @@ for f in tools/Notes_Here.md tools/LOUD.MD tools/fixtures/Kept_Name.md docs/fixt
 done
 git -C "$root" add -A
 git -C "$root" commit -qm extra
-jq '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**"]}]' \
-  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+bash "$EDIT_CONFIG" "$root" '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**"]}]'
 out="$(bash "$SUT" --root "$root")"
 assert_contains "a markdown file outside docs is an offender" "$out" "OFFENDER	tools/Notes_Here.md	tools/notes-here.md"
 assert_contains "the extension filter matches in any case" "$out" "OFFENDER	tools/LOUD.MD	tools/loud.md"
@@ -121,7 +118,7 @@ assert_contains "a root's exempt path is exempt" "$out" "EXEMPT	tools/fixtures/K
 assert_contains "a path another root claims stays judged" "$out" "OFFENDER	docs/fixtures/Judged_Name.md	docs/fixtures/judged-name.md"
 assert_lacks "an extension the root does not claim is out of scope" "$out" "tools/Other_File.txt"
 assert_lacks "a tools/ script is out of the markdown root" "$out" "tools/gen.sh"
-assert_contains "the reported roots label the extension filter" "$out" "SCANNED	14	docs,. (*.md)"
+assert_contains "the reported roots label the extension filter" "$out" "SCANNED	15	docs,. (*.md)"
 
 # The same under a root below the repository root, where git would match an
 # exclude glob against the wrong base: an exempt glob that matches nothing
@@ -133,9 +130,7 @@ for ex in '**/zzz/**' '**/fixtures/**'; do
   printf 'x\n' >"$root/tools/fixtures/Kept_Name.md"
   git -C "$root" add -A
   git -C "$root" commit -qm extra
-  jq --arg ex "$ex" '.file_names.roots += [{"path": "tools", "extensions": ["md"], "exempt_paths": [$ex]}]' \
-    "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  bash "$EDIT_CONFIG" "$root" --arg ex "$ex" '.file_names.roots += [{"path": "tools", "extensions": ["md"], "exempt_paths": [$ex]}]'
   out="$(bash "$SUT" --root "$root")"
   assert_contains "a nested root still judges its offender ($ex)" "$out" "OFFENDER	tools/Notes_Here.md	tools/notes-here.md"
   if [[ "$ex" == '**/zzz/**' ]]; then
@@ -148,15 +143,13 @@ done
 # A root git refuses must fail the audit, never empty the scan for every root.
 for bad in '"../x"' '{"path": ".", "exempt_paths": ["/abs/**"]}'; do
   root="$(new_fixture)"
-  jq --argjson r "$bad" '.file_names.roots += [$r]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  bash "$EDIT_CONFIG" "$root" --argjson r "$bad" '.file_names.roots += [$r]'
   bash "$SUT" --root "$root" >/dev/null 2>&1
   assert_eq "a root outside the repository fails the audit ($bad)" "2" "$?"
 done
 
 root="$(new_fixture)"
-jq '.file_names.roots = ["nowhere"]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+bash "$EDIT_CONFIG" "$root" '.file_names.roots = ["nowhere"]'
 out="$(bash "$SUT" --root "$root" 2>"$TEST_TMPDIR/err")"
 rc=$?
 assert_eq "an empty root still exits 0" "0" "$rc"
@@ -197,8 +190,7 @@ assert_eq "a root that is not a git repository exits 2" "2" "$(
 )"
 
 root="$(new_fixture)"
-jq '.file_names.rule = "SCREAMING_SNAKE"' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+bash "$EDIT_CONFIG" "$root" '.file_names.rule = "SCREAMING_SNAKE"'
 assert_eq "an unimplemented rule exits 2 rather than guessing" "2" "$(
   bash "$SUT" --root "$root" >/dev/null 2>&1
   printf '%s' "$?"

@@ -63,27 +63,28 @@
     {
       "id": 6,
       "name": "team-terminal-medium-keeps-tui-for-product-driver",
-      "prompt": "Prototype our loan renewal rules so our product manager can click through what happens when a reserved copy is renewed. (Fixture: the repo's tracked .claude/rendered-views.md says 'medium: terminal'; no user-global layer or overlay exists; no --medium argument was given and the request does not ask for a TUI or an HTML demo by name.)",
-      "expected_output": "With no explicit shell request, resolves medium from the rendered-views layers, reads medium: terminal from the team layer, and builds the terminal app rather than the HTML demo shell the product-manager audience would otherwise select. Names the team layer as the source of the shell choice.",
+      "prompt": "Prototype our loan renewal rules so our product manager can click through what happens when a reserved copy is renewed. (Fixture: the repo's tracked docs/conventions/rendered-views.yaml says 'medium: terminal'; no personal override or retired rendered-views file exists; no --medium argument was given and the request does not ask for a TUI or an HTML demo by name.)",
+      "expected_output": "With no explicit shell request, runs the shared resolver (lib/view-settings.mjs resolve --lane prototype:pressure-test --option \"\") before routing by audience. Its JSON reports that the medium shows no page, so it builds the terminal app rather than the HTML demo shell the product-manager audience would otherwise select. The handoff prints the resolver's report line, which names the team scope as what decided it, and reads no rendered-views file itself.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves medium from the rendered-views layers before routing by audience",
+        "Runs lib/view-settings.mjs resolve with --lane prototype:pressure-test before routing by audience",
         "Builds the terminal app, not the HTML demo shell",
-        "Names the team layer .claude/rendered-views.md as the source of the shell choice"
+        "Prints the resolver's report line, naming the team scope as the source of the shell choice",
+        "Does not read the rendered-views convention files itself"
       ]
     },
     {
       "id": 7,
       "name": "file-medium-keeps-tui-for-engineer",
-      "prompt": "Prototype this reducer for the checkout cart so I can poke at the state transitions from my terminal. (Fixture: ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no --medium argument was given and the request does not ask for a TUI or an HTML demo by name.)",
-      "expected_output": "Resolves medium from the rendered-views layers and reads medium: file from the user-global layer. Because file overrides nothing about the shell, the audience routing still decides: the driver is a developer with a terminal, so it builds the terminal app, not the HTML demo shell.",
+      "prompt": "Prototype this reducer for the checkout cart so I can poke at the state transitions from my terminal. (Fixture: the untracked, gitignored personal override docs/conventions/rendered-views.local.yaml contains only 'medium: file'; no other rendered-views scope or retired file exists; no --medium argument was given and the request does not ask for a TUI or an HTML demo by name.)",
+      "expected_output": "Runs the shared resolver (lib/view-settings.mjs resolve --lane prototype:pressure-test --option \"\") and prints its report line. Whatever medium resolves, the shell comes out the same: a medium that shows a page overrides nothing, so the audience routing decides, and the driver is a developer with a terminal, so it builds the terminal app, not the HTML demo shell.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves medium from the rendered-views layers before routing by audience",
+        "Runs lib/view-settings.mjs resolve with --lane prototype:pressure-test before routing by audience",
         "Builds the terminal app, not the HTML demo shell",
-        "Does not treat medium: file as a request for the HTML demo shell"
+        "Does not treat the resolved medium as a request for the HTML demo shell"
       ]
     }
   ]
