@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## [8.50.10] - 2026-11-04
+
+### Changed
+
+- The `resolve-conflicts` activity in `docs/conventions/pr-pipeline.yaml` and the
+  `claude-code-plugins.yaml` example now runs `source-control:pull-request` with
+  `args: conflicts --ci --unattended` in place of `source-control:resolve-conflicts` with
+  `args: ci`. The activity keeps its name, so the grant files keyed on it are unchanged.
+
 ## [8.50.9] - 2026-11-04
 
 ### Fixed

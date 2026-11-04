@@ -1931,6 +1931,87 @@ class RunValidityTest(unittest.TestCase):
             self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
             self.assertVerdict(proc, "INVALID", 1)
 
+    LACKED = "for the plugin a finished without-arm run lacks, not counted"
+
+    def absent_search(self, tool, tool_input, plugin="markdown-format", arm="without",
+                      finished=True):
+        """The clean result at one run per arm, suite.plugins naming plugin (a
+        directory that does not exist, so its name is its basename), and
+        measurable-criterion's `arm` run traced by one denied tool call."""
+        call = json.dumps(tool_input)
+        lines = [
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill","Bash","Grep","Glob"]}',
+            '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"s1","name":"%s","input":%s}]}}'
+            % (tool, call),
+            '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s1",'
+            '"is_error":true,"content":"Permission to use %s has been denied by your'
+            ' permission settings."}]}}' % tool,
+        ]
+        if finished:
+            lines.append(
+                '{"type":"result","subtype":"success","is_error":false,"permission_denials":'
+                '[{"tool_name":"%s","tool_use_id":"s1","tool_input":%s}]}' % (tool, call)
+            )
+        trace = self.dir / "absent-search.jsonl"
+        trace.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": "/tmp/eval-nop/plugins/" + plugin}]
+        data["cases"][1]["arms"][arm][0]["tracePath"] = str(trace)
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "1")
+
+    def test_a_without_arm_search_naming_only_its_absent_plugin_warns(self):
+        home = "/tmp/eval-nop/run/home"
+        for plugin, tool, tool_input in (
+            ("markdown-format", "Bash", {"command": "find / -ipath '*markdown-format*'"}),
+            ("biome-format", "Bash", {"command": "grep -rIl biome-format %s" % home}),
+            ("markdown-format", "Bash",
+             {"command": "find / -iname '*Markdown-Format*' -type d 2>/dev/null | head -20"}),
+            ("biome-format", "Bash", {"command": "grep -rl -e '^biome-format' %s" % home}),
+            ("biome-format", "Grep", {"pattern": "biome-format", "path": home}),
+            ("markdown-format", "Glob", {"pattern": "**/*markdown-format*/**"}),
+        ):
+            proc = self.absent_search(tool, tool_input, plugin)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied search " + self.LACKED, proc.stdout)
+            self.assertIn("search naming only the plugin it lacks", proc.stdout)
+
+    def test_any_other_without_arm_denial_still_fails(self):
+        home = "/tmp/eval-nop/run/home"
+        for tool, tool_input in (
+            # Another path or term, or a search that does more than search.
+            ("Bash", {"command": "cat /etc/hosts"}),
+            ("Bash", {"command": "find / -name '*.pem'"}),
+            ("Bash", {"command": "grep -rIl biome-format %s" % home}),
+            ("Bash", {"command": "find / -ipath '*markdown-format*' -exec cat {} +"}),
+            ("Bash", {"command": "find / -ipath '*markdown-format*' -delete"}),
+            ("Bash", {"command": "find / -ipath '*markdown-format*' > %s/out" % home}),
+            ("Bash", {"command": "find / -ipath '*markdown-format*'; cat /etc/hosts"}),
+            ("Bash", {"command": "find / -ipath '*markdown-format*' | xargs cat"}),
+            ("Bash", {"command": "find / -name markdown-format | head /etc/shadow"}),
+            ("Bash", {"command": "find / -name markdown-format -o -type f"}),
+            ("Bash", {"command": "find / ! -name markdown-format"}),
+            ("Bash", {"command": "rg -r markdown-format secret-token"}),
+            ("Bash", {"command": "find / -ipath *markdown-format*"}),
+            ("Bash", {"command": "grep -rIl -f /etc/patterns %s" % home}),
+            ("Bash", {"command": "grep -rIl markdown-format.md %s" % home}),
+            ("Bash", {"command": "find $HOME -ipath '*markdown-format*'"}),
+            ("Read", {"file_path": "/tmp/eval-nop/plugins/markdown-format/SKILL.md"}),
+            ("Grep", {"pattern": "format", "path": home}),
+            ("Glob", {"pattern": "/etc/**/*markdown-format*"}),
+        ):
+            proc = self.absent_search(tool, tool_input)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.LACKED, proc.stdout)
+        # The same search in the with-arm, or in a without-arm run that never finished.
+        for kwargs in ({"arm": "with"}, {"finished": False}):
+            proc = self.absent_search(
+                "Bash", {"command": "find / -ipath '*markdown-format*'"}, **kwargs
+            )
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.LACKED, proc.stdout)
+
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
         trace.write_text(
