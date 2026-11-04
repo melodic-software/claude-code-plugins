@@ -3,6 +3,15 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.5] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js`, `view-builder.mjs` and `reference/rendered-view.md` synced
+  ([#12656](https://github.com/melodic-software/claude-code-plugins/issues/12656)). The runtime
+  gains a copy binding for planning's page-input block, and the reference's Planning section gains
+  the Reader input procedure. This plugin's views and steps are unchanged.
+
 ## [2.0.4] - 2026-11-04
 
 ### Changed
