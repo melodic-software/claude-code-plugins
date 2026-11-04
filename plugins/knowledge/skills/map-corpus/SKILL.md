@@ -3,6 +3,7 @@ description: "Verified, classified map of a multi-resource documentation corpus 
 argument-hint: "<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Workflow(knowledge:docpage-digest-batch)"]
 ---
 
 **Arguments.** `<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N]`. Full form: <topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N] [--granularity deep|section] [--include <glob>...] [--exclude <glob>...]
@@ -196,12 +197,24 @@ resources get digests); the parent's invariant governs each downstream run untou
 ## Phase 5. Queue and handoff
 
 1. `queue.json`: the approved queue. Every `in-corpus` resource in map order with its canonical
-   URL, snapshot hash, and verdict tallies.
+   URL, snapshot hash, verdict tallies, and `verification` (steps 3-4).
 2. `mapper-handoff.md`: per-classification tallies, every `uncertain` verdict with evidence, the
    `companion` and `referenced-external` lists, and any all-`not-relevant` resource (a candidate
    to drop from the queue. Flag, never silently drop).
 3. Hand the queue to **N runs of `/knowledge:docpage-digest`, each invoked via the Skill tool**, unrenamed, unmodified, one URL per run, each under its own contract.
-4. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
+   With more than one URL and the Workflow tool available, launch the
+   `knowledge:docpage-digest-batch` workflow over the queue instead, as `/knowledge:docpage-digest`
+   describes under Batch path. Each queue entry carries `verification`,
+   `unverified: not run: awaiting digest` until a digest reports, then the page's checklist
+   `Verification status` value.
+4. Once the runs return, write each queue entry's `verification` from the slice checklist's
+   `Verification status` line, after a Skill-tool run or, for a batch run, after the check
+   `/knowledge:docpage-digest` lists under Batch path. Only that check writes `verified`, so a page
+   whose check never ran reads `unverified: awaiting-check`. A batch page with no slice or no
+   checklist takes its `verification` from the workflow result's page entry, which never says
+   `verified`. An entry the workflow result lists under `deferred` or `rejected` was not run: write
+   that entry's `verification` value, `unverified: not run: <reason>`, with that list's reason.
+5. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
    otherwise present and stop.
 
 Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase, work root).
