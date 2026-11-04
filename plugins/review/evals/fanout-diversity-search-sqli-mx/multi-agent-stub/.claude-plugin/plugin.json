@@ -1,0 +1,5 @@
+{
+  "name": "multi-agent",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the multi-agent plugin: the route skill with the role map its bundled defaults resolve to when no config layer exists, with no scripts or hooks."
+}
