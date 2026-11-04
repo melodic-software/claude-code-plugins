@@ -1,4 +1,4 @@
-# docs-naming configuration surface
+# docs-naming configuration
 
 ## Contents
 
