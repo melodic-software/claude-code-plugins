@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.2] - 2026-11-04
+
+### Fixed
+
+- `babysit_gh.py` counts the GitHub requests of every call that gives no header block (a binary artifact download, a subcommand other than `gh api`, a bare `--paginate`). In a job that names its token, such a call runs with `GH_DEBUG=1`, each request to a GitHub API URL becomes a `request <route>` line in the token's api-budget file, and stderr comes back without the debug lines, as `api_budget_traced` does for the shell wrapper. The job's api-calls notice no longer leaves those requests out.
+
 ## [7.0.1] - 2026-11-04
 
 ### Fixed
