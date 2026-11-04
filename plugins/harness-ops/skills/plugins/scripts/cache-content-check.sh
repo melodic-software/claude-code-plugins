@@ -285,7 +285,8 @@ split_lines_to() {
 # Command substitution cannot hold a NUL, so `tr` turns each NUL into a newline
 # and each newline into SOH (0x01). A path can hold either of those bytes, so
 # when SOH shows up in the capture, which happens only for a path carrying a
-# newline or an SOH, the records are read with `mapfile -d ''` instead.
+# newline or an SOH, the records are read with `mapfile -d ''` instead. The
+# test file's space/tab/glob and newline/SOH path cases cover one branch each.
 spool_records_to() {
   local __sr_text
   # Byte-wise: a BSD `tr` in a UTF-8 locale stops at an invalid byte sequence.
