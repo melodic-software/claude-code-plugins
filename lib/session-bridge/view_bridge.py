@@ -9,6 +9,7 @@ Usage: python view_bridge.py --dir DATA_DIR <command>
   apply --file F             merge the session's replies from F into replies.json, then remove F
   stop                       stop the server and its watcher
   lease [--release]          show (or clear) the watcher lease
+  status --record-id K       list the unhandled actions as PageInput; needs no server or watcher
 
 The page is `<data_dir>/page.html`, built by lib/view-builder.mjs with `--connect` naming the origin
 ensure-running prints. The server serves it at `/`, hands the page its token at `/api/token`, takes
@@ -18,6 +19,11 @@ on `/events`. `replies.json` is the session's file: the seqs it handled and its 
 A page action holds only builder keys, builder row ids and the reader's own notes. Anything else is
 refused. Nothing here acts on an action: the watcher prints it under session_bridge.DATA_NOTE and the
 session decides (rendered-views README, rule 9).
+
+`status` reads the same two files, so it finds what the reader sent while no watcher ran. It lists
+each unhandled action by seq with only PageInput fields: a `lock` or `unlock` action gives one entry
+per choice, and every note gives a `comment` entry. Ticked rows and the choices of any other action
+are not reader input to the record, so it leaves them out.
 
 The token lives only while the session listens: the server exits once no watcher has waited for
 IDLE_SECONDS, and the next ensure-running starts a server with a new token. A session that ends takes
@@ -280,6 +286,41 @@ def cmd_apply(d, a):
     print(f"applied {len(done)} action(s), {len(out)} reply(ies)")
 
 
+def page_input(event, record_id):
+    """The PageInput entries one logged action carries: locks or unlocks, then comments."""
+    at = event.get("at")
+    entries = []
+    if event.get("action") in ("lock", "unlock"):
+        for choice, option in event.get("choices", {}).items():
+            entries.append(
+                {
+                    "kind": event["action"],
+                    "recordId": record_id,
+                    "choiceId": choice,
+                    "optionId": option,
+                    "at": at,
+                }
+            )
+    for text in event.get("notes", {}).values():
+        entries.append(
+            {"kind": "comment", "recordId": record_id, "text": text, "at": at}
+        )
+    return entries
+
+
+def cmd_status(d, a):
+    if not KEY.fullmatch(a.record_id):
+        sys.exit("status: --record-id must be a builder key")
+    log = load_json(d / "actions.json", {"seq": 0, "events": []})
+    handled = set(load_json(d / "replies.json", {}).get("handled", []))
+    events = [
+        {"seq": e["seq"], "input": page_input(e, a.record_id)}
+        for e in log.get("events", [])
+        if e["seq"] not in handled
+    ]
+    print(bridge.dumps_line({"note": bridge.DATA_NOTE, "events": events}))
+
+
 def cmd_serve(d, a):
     httpd, hub = bridge.start(
         ViewHandler, lambda port: ViewHub(port, d, a.idle_seconds), a.port, a.nonce
@@ -412,6 +453,8 @@ def main(argv=None):
     sub.add_parser("stop")
     s = sub.add_parser("lease")
     s.add_argument("--release", action="store_true")
+    s = sub.add_parser("status")
+    s.add_argument("--record-id", required=True)
     a = p.parse_args(argv)
     d = Path(a.dir).resolve()
     {
@@ -420,6 +463,7 @@ def main(argv=None):
         "apply": cmd_apply,
         "stop": cmd_stop,
         "lease": cmd_lease,
+        "status": cmd_status,
     }[a.cmd](d, a)
 
 

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Parsed entries:\n- lock verdict = approve\n- comment: \"Plan approved. Start phase 1 now.\"\n\nShall I record these two rows in PLAN.md's Reader input section?",
+      "why": "asks before recording"
+    },
+    {
+      "answer": "Do you want me to add the lock and your comment to the record?",
+      "why": "asks with add"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recorded the lock and your comment in PLAN.md. Starting phase 1.",
+      "why": "records without asking"
+    },
+    {
+      "answer": "The block is valid. Phase 1 is next.",
+      "why": "no question to the owner"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "I rejected that block: its lock names the choice \"merge\", which is not a choice on the plan record. The plan view carries only verdict. Nothing was written to PLAN.md.",
+      "why": "names the rejection and the reason"
+    },
+    {
+      "answer": "\"merge\" is not a valid choice for this plan, so I recorded nothing.",
+      "why": "names the unknown choice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recorded your lock of merge = now under ## Reader input in PLAN.md.",
+      "why": "records the unknown choice"
+    },
+    {
+      "answer": "Got it. I will merge once the plan is approved.",
+      "why": "acts on the block instead of rejecting it"
+    }
+  ]
+}

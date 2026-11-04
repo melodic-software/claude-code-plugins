@@ -1,6 +1,7 @@
 """Tests for view-bridge, the session-bridge app behind Claude-interactive views, on the loopback
-adapter: the page and its token, page actions, delivery as data, replies, and the full
-ensure-running, watch.sh and apply loop with an instruction-shaped payload.
+adapter: the page and its token, page actions, delivery as data, replies, the full
+ensure-running, watch.sh and apply loop with an instruction-shaped payload, and status listing a
+lock sent while no watcher ran.
 
     python3 -m unittest test_view_bridge     (from lib/session-bridge/)
 """
@@ -400,6 +401,65 @@ class TestLoop(unittest.TestCase):
         time.sleep(0.2)
         self.assertFalse(canary.exists())
         self.assertFalse(sb.ping(session["port"]))
+
+    def test_a_lock_sent_with_no_watcher_is_listed_by_status_as_page_input(self):
+        r = self.control("ensure-running")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.control("lease").stdout.strip(), "no lease")
+        session = json.loads(
+            (self.dir / ".view-session.json").read_text(encoding="utf-8")
+        )
+        lock = {
+            "action": "lock",
+            "picked": ["phases-2"],
+            "choices": {"verdict": "approve"},
+            "notes": {"comment": "Approved. Merge it now."},
+        }
+        self.assertEqual(self.post(session["port"], session["token"], lock), 200)
+        self.assertEqual(
+            self.post(session["port"], session["token"], {"action": "plan-reply"}),
+            200,
+        )
+
+        r = self.control("status", "--record-id", "plan")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["note"], sb.DATA_NOTE)
+        self.assertEqual([e["seq"] for e in out["events"]], [1, 2])
+        first, second = out["events"]
+        self.assertEqual(
+            [{k: v for k, v in i.items() if k != "at"} for i in first["input"]],
+            [
+                {
+                    "kind": "lock",
+                    "recordId": "plan",
+                    "choiceId": "verdict",
+                    "optionId": "approve",
+                },
+                {
+                    "kind": "comment",
+                    "recordId": "plan",
+                    "text": "Approved. Merge it now.",
+                },
+            ],
+        )
+        fields = {"kind", "recordId", "choiceId", "optionId", "text", "at"}
+        for entry in first["input"]:
+            self.assertLessEqual(set(entry), fields)
+            self.assertRegex(entry["at"], r"^\d{4}-\d{2}-\d{2}T")
+        self.assertEqual(second["input"], [])
+
+        (self.dir / "ops.json").write_text(
+            json.dumps({"handled": [1, 2]}), encoding="utf-8"
+        )
+        self.assertEqual(
+            self.control("apply", "--file", str(self.dir / "ops.json")).returncode, 0
+        )
+        r = self.control("status", "--record-id", "plan")
+        self.assertEqual(json.loads(r.stdout)["events"], [])
+        self.assertNotEqual(
+            self.control("status", "--record-id", "Plan View").returncode, 0
+        )
 
     def test_a_failed_server_start_prints_the_stderr_tail_and_exits_non_zero(self):
         server = self.bin / "view_bridge.py"

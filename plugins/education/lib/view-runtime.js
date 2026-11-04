@@ -10,7 +10,8 @@
 //   written to an attribute, a URL, a selector, or a form control's value.
 // - Every id the runtime assigns is built from a template key and a list
 //   position, never from data, so a copied payload carries no data text.
-// - Payloads hold the reader's own input and those ids, nothing else.
+// - Payloads hold the reader's own input and those ids, nothing else (a
+//   page-input block adds the time it was copied).
 // - No storage. The one URL it makes is a blob: URL for a download.
 // - Network only on a page built with --connect: its policy names one
 //   session-bridge origin (http://127.0.0.1:<port>), and the runtime talks to
@@ -153,6 +154,19 @@
     return lines.join("\n");
   };
 
+  // A copy button that also names its record (data-rv-record) copies the reader's choices as a
+  // fenced page-input block, one PageInput JSON object per line: a lock per choice, a comment per
+  // note. Each line opens with a brace, so no text the reader typed can close the fence.
+  const inputBlock = (recordId) => {
+    const at = new Date().toISOString();
+    const { choices, notes } = collect();
+    const lines = [
+      ...Object.entries(choices).map(([choiceId, optionId]) => ({ kind: "lock", recordId, choiceId, optionId, at })),
+      ...Object.values(notes).map((text) => ({ kind: "comment", recordId, text, at })),
+    ].map((entry) => JSON.stringify(entry));
+    return ["```page-input", ...lines, "```"].join("\n");
+  };
+
   const status = (text) => {
     for (const el of document.querySelectorAll("[data-rv-status]")) {
       el.textContent = text;
@@ -167,7 +181,8 @@
   };
 
   const copy = (button) => {
-    const text = payload(button.getAttribute("data-rv-copy"));
+    const record = button.getAttribute("data-rv-record");
+    const text = record !== null && KEY.test(record) ? inputBlock(record) : payload(button.getAttribute("data-rv-copy"));
     showPayload(text);
     try {
       navigator.clipboard.writeText(text).then(

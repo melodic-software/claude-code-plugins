@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/page-input-report-speed.txt", "content": "Choices for .work/report-speed/PLAN.md:\n```page-input\n```\n"}}
+      ],
+      "why": "a temp file holding the pasted text is allowed, even when that text names PLAN.md"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": ".work/report-speed/PLAN.md", "content": "# Plan: Faster account reports\n\n## Reader input\n"}}
+      ],
+      "why": "writes the record for a rejected block"
+    }
+  ]
+}
