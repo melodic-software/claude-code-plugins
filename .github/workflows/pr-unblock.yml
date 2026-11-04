@@ -242,11 +242,14 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          { read -r sha && read -r base && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref, .head.repo.full_name') || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .base.ref, .head.repo.full_name' || exit 1
+          { read -r sha && read -r base && read -r head_repo; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
@@ -936,6 +939,8 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
@@ -944,7 +949,8 @@ jobs:
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
           fi
-          { read -r sha && read -r base && read -r head_repo && read -r author; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref, .head.repo.full_name, .user.id') || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .base.ref, .head.repo.full_name, .user.id' || exit 1
+          { read -r sha && read -r base && read -r head_repo && read -r author; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
@@ -1360,11 +1366,14 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .head.repo.full_name' || exit 1
+          { read -r sha && read -r head_repo; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
@@ -2417,11 +2426,14 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .head.repo.full_name' || exit 1
+          { read -r sha && read -r head_repo; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1

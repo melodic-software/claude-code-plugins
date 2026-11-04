@@ -14,7 +14,7 @@ See M1 (HIGH (single source)).
 
 ## Sidecars
 
-- perf: Example Vendor's performance-mode page states the mode trades protection for speed (M1, HIGH (single source)).
+- perf: M1 (HIGH (single source)): "Example Vendor's performance-mode page states the mode gives faster performance with less protection"
 
 ## Next-stage handoff
 

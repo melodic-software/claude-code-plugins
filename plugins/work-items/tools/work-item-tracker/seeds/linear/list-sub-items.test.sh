@@ -73,6 +73,38 @@ assert_eq "paged children → exit 0" "0" "$rc"
 assert_eq "both pages collected" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_contains "the cursor is sent on the second call" "$(lin_bodies)" '"after":"cursor-1"'
 
+# --- the children walk is bounded by the declared ceiling ---
+# A server that keeps answering hasNextPage:true with a fresh cursor must not loop
+# forever, and a list cut at the ceiling must not be reported as complete. A fixture copy
+# of the adapter declares a ceiling of 2; the last route repeats, so one page is endless.
+FIX_ADAPTER="$LIN_FIX/adapter"
+mkdir -p "$FIX_ADAPTER"
+cp "$D"/*.sh "$FIX_ADAPTER/"
+jq '.limits.list_items_max = 2' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
+seed_children "[$(lin_issue_json 20 started)]" true "always-more"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-sub-items.sh" "linear:acme/ENG#12")"
+assert_eq "an endless children feed stops → exit 1" "1" "$rc"
+assert_eq "and emits no child list" "" "$(lin_out)"
+assert_contains "stderr names the parent and the ceiling" "$(lin_err)" "children of linear:acme/ENG#12 passed the declared ceiling of 2"
+assert_eq "the walk stopped one page past the ceiling" "3" "$(grep -c 'children(' <<<"$(lin_requests)")"
+
+# Empty pages that keep promising more stop too.
+seed_children '[]' true "always-more"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-sub-items.sh" "linear:acme/ENG#12")"
+assert_eq "an endless feed of empty pages stops → exit 1" "1" "$rc"
+assert_eq "and emits no child list for empty pages" "" "$(lin_out)"
+assert_eq "the empty-page walk stopped one page past the ceiling" "3" "$(grep -c 'children(' <<<"$(lin_requests)")"
+
+# Exactly the ceiling is a complete list; one past it on the last page is not.
+seed_children "[$(lin_issue_json 20 started),$(lin_issue_json 21 started)]"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-sub-items.sh" "linear:acme/ENG#12")"
+assert_eq "exactly the ceiling → exit 0" "0" "$rc"
+assert_eq "with both children" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
+seed_children "[$(lin_issue_json 20 started),$(lin_issue_json 21 started),$(lin_issue_json 22 started)]"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-sub-items.sh" "linear:acme/ENG#12")"
+assert_eq "one past the ceiling on a last page → exit 1" "1" "$rc"
+assert_eq "and emits no child list past the ceiling" "" "$(lin_out)"
+
 # --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5")"

@@ -1155,9 +1155,11 @@ the rules that only tighten in
   or post-merge-failure, that either filer opened, that was never edited, and that a later green
   full run on main cleared by the merge gate's own rule (`_recovered_at`: attempt 1, a schedule or
   a github-actions[bot] dispatch, created after the record, at a commit ahead of its SHA and on
-  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
-  `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
-  outside the charset, or not filed; a fix issue reopened on a
+  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix issue not delivered to intake triage gets
+  a hidden marker comment on it and on its record, a quarantine issue one on the issue, and a check
+  whose fix issue could not be filed or reopened one on the record; each alert run retries what a marker names until it succeeds, with
+  the failing run staying red, and adds no label. A record gets `needs-human` when a failing check got
+  no fix issue because it was over the cap or outside the charset; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
   It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
@@ -3384,7 +3386,12 @@ match the filed sub-issues; a split by hand when its body has a task list whose 
 cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
 work, unless a split record took it because the comment was last written before the record. A
 parent left open goes through admission's rules like any issue, and a Size Large one is refused
-with `SIZE_SPLIT_DONE`.
+with `SIZE_SPLIT_DONE`, except a finished parent: every sub-issue closed as completed by a close
+`subIssueLeftOpen` accepts (`admit.mjs` `finishedParent`). Admission takes that one at any Size
+for one issue-lane run that checks the parent's own done-when and closes it `verified-done` or
+parks it `verify-unmet` (`.github/scripts/work-resolve-issue/stop-routes.json`), and work-unblock
+sends one already parked on `SIZE_SPLIT_DONE` back to intake once its sub-issues finish
+(`label-unblocked.mjs` `reenterFinished`).
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh

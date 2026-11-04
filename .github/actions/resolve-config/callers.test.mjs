@@ -6480,10 +6480,15 @@ test("pr-unblock.yml: resolve-conflicts-select skips a PR whose base is not the 
   const dir = tempDir("pr-unblock-base-");
   // A stand-in gh answering the pulls read's --jq with the head SHA, base ref and head repository.
   writeFileSync(join(dir, "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "${"d".repeat(40)}" "$FAKE_BASE" o/r\n`, { mode: 0o755 });
+  // The step sources its read helper from the default-branch checkout at .base.
+  const work = join(dir, "work");
+  mkdirSync(work);
+  symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(work, ".base"));
   const head = (base) => {
     const out = join(dir, `out-${base.replaceAll("/", "-")}`);
     writeFileSync(out, "");
     const run = spawnSync("bash", ["-c", step("head").run], {
+      cwd: work,
       encoding: "utf8",
       env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, FAKE_BASE: base, PR_NUMBER: "10981", GITHUB_REPOSITORY: "o/r", DEFAULT_BRANCH: "main", GITHUB_OUTPUT: out },
     });

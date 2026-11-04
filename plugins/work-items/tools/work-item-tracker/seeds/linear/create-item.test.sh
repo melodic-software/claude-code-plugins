@@ -191,6 +191,25 @@ rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "refused children read → exit 4" "4" "$rc"
 assert_no_create "and nothing is created when the children read fails"
 
+# The children walk is bounded by the declared ceiling: a truncated child list would read
+# as "no duplicate", so an endless feed stops with an error and creates nothing. A fixture
+# copy of the adapter declares a ceiling of 2; the last route repeats, so one page is endless.
+FIX_ADAPTER="$LIN_FIX/adapter"
+mkdir -p "$FIX_ADAPTER"
+cp "$D"/*.sh "$FIX_ADAPTER/"
+jq '.limits.list_items_max = 2' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
+lin_reset
+lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
+lin_data 'teams(filter:' "$TEAM_NODE"
+lin_seed_issue 12 started
+lin_data 'children(' "$(jq -cn --argjson n "[$(child_node 40 started 'other work')]" \
+  '{issue: {children: {nodes: $n, pageInfo: {hasNextPage: true, endCursor: "always-more"}}}}')"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/create-item.sh" --title "child" --parent "linear:acme/ENG#12")"
+assert_eq "an endless children feed stops → exit 1" "1" "$rc"
+assert_no_create "and nothing is created past the ceiling"
+assert_contains "stderr names the parent and the ceiling" "$(lin_err)" "children of linear:acme/ENG#12 passed the declared ceiling of 2"
+assert_eq "the walk stopped one page past the ceiling" "3" "$(grep -c 'children(' <<<"$(lin_requests)")"
+
 # --- ids are validated and RESOLVED before the item is created ---
 # The links are separate operations, so a bad id found afterwards would leave a created
 # item whose declared relationships were never written — an item that then looks ready.
