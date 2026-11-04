@@ -58,7 +58,7 @@ an earlier one key by key:
 3. personal override `.claude/review-digest.local.json`
 
 The result names the layer that supplied each value (`team <commit>:<path>`, `user-global <path>`,
-`personal override <path>`, or `default`). Quote glob values in the YAML file (`"**/hooks/**"`), since a plain
+`personal-override <path>`, or `default`). Quote glob values in the YAML file (`"**/hooks/**"`), since a plain
 `*` opens an alias.
 
 The team layer, and the rendered-views team file, are read from the pull request's base commit
