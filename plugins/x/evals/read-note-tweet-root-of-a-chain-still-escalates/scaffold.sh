@@ -21,8 +21,8 @@ cat >notes/threadreader-3333333333333333333.html <<'HTML'
 <h1>Thread by @someone</h1>
 <div class="tweet" data-tweet="1">How we rebuilt the Gorsefield lifeboat slipway in eleven weeks, start to finish. 1/</div>
 <div class="tweet" data-tweet="2">The survey found the piles sound, so only the deck and the lower apron needed replacing. 2/</div>
-<div class="tweet" data-tweet="3">We poured the apron in four tides, using a cofferdam borrowed from the Thornmouth harbour board. 3/</div>
-<div class="tweet" data-tweet="4">The first launch off the new slipway was on 3 October, with the whole village on the harbour wall. 4/4</div>
+<div class="tweet" data-tweet="3">We poured the apron in four tides, using a cofferdam borrowed from the Thornmouth harbor board. 3/</div>
+<div class="tweet" data-tweet="4">The first launch off the new slipway was on 3 October, with the whole village on the harbor wall. 4/4</div>
 </div>
 </body>
 </html>
