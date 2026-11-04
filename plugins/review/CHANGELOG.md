@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.3.8] - 2026-11-04
+
+### Changed
+
+- The plugin now calls the config cascade's personal layer the personal override (the overlay name is retired); the `explain-change` digest policy labels that layer's source `personal-override` instead of `overlay` (#13191).
+
 ## [7.3.7] - 2026-11-04
 
 ### Changed
