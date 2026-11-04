@@ -16,6 +16,23 @@
         }
       ],
       "why": "§2.7's resolve-remote --push and fetch, then the create"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "BRANCH=$(git -C \"../eval-worker\" branch --show-current)\nif [[ -z \"$BRANCH\" ]]; then\n  echo \"create: not on a named branch\" >&2\n  exit 1\nfi\nbash \"/plugins/source-control/skills/pull-request/scripts/push-branch.sh\" --check --dir \"../eval-worker\" \"$BRANCH\" || exit 1"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --draft --head \"$BRANCH\" --title 'feat: quote CSV cells' --body-file /tmp/pr-body.md"
+          }
+        }
+      ],
+      "why": "create-open-pr.md's push-branch.sh --check, which pushes nothing, then the create"
     }
   ],
   "fail": [
@@ -51,6 +68,17 @@
         }
       ],
       "why": "the normal create path's push step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/source-control/skills/pull-request/scripts/push-branch.sh\" --dir ../eval-worker feat/csv-quote-cells && bash \"/plugins/source-control/skills/pull-request/scripts/push-branch.sh\" --check --dir ../eval-worker feat/csv-quote-cells"
+          }
+        }
+      ],
+      "why": "a push before a later --check call in the same command"
     }
   ]
 }

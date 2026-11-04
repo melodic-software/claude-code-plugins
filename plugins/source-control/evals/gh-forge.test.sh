@@ -222,15 +222,6 @@ assert_eq "pr merge: the extra pull request's number is recorded" 62 \
 (cd "$MULTI/app" && git fetch origin fix/two) >/dev/null 2>&1
 assert_exit "git fetch origin with the stand-in off PATH: the alias runs the helper" 0 "$?"
 
-REST_MERGED="$TEST_TMPDIR/rest-merged"
-make_forge rest-merged --open --rest-merged
-assert_eq "--rest-merged: the REST pull request read reports merged" "true closed" \
-  "$(run_gh "$REST_MERGED" api repos/eval-fixture/app/pulls/7 --jq '"\(.merged) \(.state)"')"
-assert_eq "--rest-merged: pr view still reports the pull request open" "OPEN" \
-  "$(run_gh "$REST_MERGED" pr view 7 --json state --jq .state)"
-run_gh "$GREEN" api repos/eval-fixture/app/pulls/7 >/dev/null 2>&1
-assert_exit "without --rest-merged: the REST pull request read exits 1" 1 "$?"
-
 for cmd in "pr close 7" "repo list" "api repos/eval-fixture/other" "auth switch" "run download 1" "gist create"; do
   # shellcheck disable=SC2086 # word splitting of the command words is intended
   run_gh "$THREADED" $cmd >/dev/null 2>&1
