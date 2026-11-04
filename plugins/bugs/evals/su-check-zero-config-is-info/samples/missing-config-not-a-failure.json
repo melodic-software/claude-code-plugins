@@ -1,0 +1,1 @@
+{"pass":[{"answer":"| INFO | docs/conventions/bugs.yaml | absent; zero config is a working state, scan uses the bundled default lanes |","why":"INFO"}],"fail":[{"answer":"| FAIL | docs/conventions/bugs.yaml | missing; run /bugs:setup apply to create it |","why":"absence called a failure"}]}

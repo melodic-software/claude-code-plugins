@@ -1,0 +1,1 @@
+{"pass":[{"answer":"Commit it so teammates receive it.","why":"commit"},{"answer":"Run git add docs/conventions/bugs.yaml.","why":"git add"}],"fail":[{"answer":"Everything looks fine.","why":"no remediation"}]}
