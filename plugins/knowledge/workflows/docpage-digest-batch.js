@@ -586,9 +586,9 @@ async function setup(url, i) {
     'below. Before the first write, resolve the post-redirect URL and apply the slug guard: when your ' +
     'canonical URL or slug differs from these, write nothing and return status failed with your canonical ' +
     'URL, because the batch path does not follow a redirect. When the slice already holds this same page, keep its ' +
-    'snapshot as the Phase 1 resume guard says, untick Phases 3, 4 and 5 on the checklist, and set its ' +
-    '"Verification status" line to ' + AWAITING + ': this workflow runs them again whatever an earlier ' +
-    'run ticked. Return the slug, the canonical URL, the ' +
+    'snapshot as the Phase 1 resume guard says and untick Phases 3, 4 and 5 on the checklist: this workflow runs ' +
+    'them again whatever an earlier run ticked. Whether the slice is new or not, set the checklist\'s ' +
+    '"Verification status" line to ' + AWAITING + '. Return the slug, the canonical URL, the ' +
     'digest-agent model the profile maps this page to ("none" when no mapping applies), and one entry per ' +
     'SOURCES.md digest-map row: its unit as NN-slug (the digests/NN-slug.md name without the directory or ' +
     'extension) and its START-END lines. A collision refusal returns status refused; anything else that ' +

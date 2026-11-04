@@ -724,9 +724,10 @@ test('a page carries claimed with its derived slug and slice, whatever replies s
   assert.equal(page.slice, '/repo/.work/docs-example-com-page1-35f597d5')
 })
 
-test('a rerun\'s setup is told to clear the earlier status on the checklist', async () => {
+test('setup is told to record the awaiting status on a new slice and on a rerun', async () => {
   const { calls } = await run({ ...BASE, pages: pagesOf(1) })
   assert.ok(calls.find(c => c.opts.label === 'p1:setup').prompt.includes('"Verification status" line to unverified: awaiting-check'))
+  assert.ok(calls.find(c => c.opts.label === 'p1:setup').prompt.includes('Whether the slice is new or not'))
 })
 
 test('every verifier prompt asks for the lines the check script reads', async () => {
