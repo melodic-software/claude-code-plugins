@@ -933,6 +933,8 @@ test("main records fix-docs dispatches beside the others, capped by limits.fix-d
   assert.deepEqual(capped, { code: 0, output: "run-ids=9170 9171\n" });
   const fallback = await runMain({ pages: [[]], docsPulls });
   assert.deepEqual(fallback, { code: 0, output: "run-ids=9171 9172\n" }, "with no fix-docs limit the default of 2 holds");
+  const off = await runMain({ pages: [[pr(170)]], docsPulls }, { ...LIMIT_DEFAULTS, "fix-docs-per-run": 0 });
+  assert.deepEqual(off, { code: 0, output: "run-ids=9170\n" }, "0 sends no fix-docs and leaves the others");
 });
 
 // main against a fake API whose run listing fails with `error`, holding one

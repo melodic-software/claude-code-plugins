@@ -124,6 +124,18 @@ test("a ready PR a person opened that changes Markdown is dispatched pr-refine.y
   assert.ok(lines.includes("fix-docs listing page 1: rateLimit.cost=3 remaining=4990"), "the listing's cost is logged");
 });
 
+test("maxDispatch 0 turns fix-docs off: one log line, nothing sent, no GitHub call", async () => {
+  const touched = [];
+  const api = new Proxy({}, { get: (_, name) => touched.push(name) && (() => assert.fail(`${String(name)} called`)) });
+  const lines = [];
+  const result = await dispatchDocsFixes({ api, runId: "4242", log: (line) => lines.push(line), maxDispatch: 0, record: emptyRecord() });
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.deepEqual(lines, ["fix-docs is off (fix-docs-per-run: 0)"]);
+  assert.deepEqual(touched, []);
+  const on = await run({ pages: [[pr(5), pr(6)]] }, { maxDispatch: 1 });
+  assert.deepEqual(numbers(on.api), ["5"], "1 still sends one");
+});
+
 test("a run listing that cannot be read, rate-limited or not, defers with a warning and fails nothing", async () => {
   const limited = Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
   const deferred = await run({ pages: [[pr(5)]], workflowRuns: limited });

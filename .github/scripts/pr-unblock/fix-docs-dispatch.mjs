@@ -15,7 +15,8 @@
 // commits, and a PR with one on any of them is done for good: its head goes
 // into the dispatch record so the next run skips that read. A run older than
 // that window, or a force-push that dropped its commit, costs one more run.
-// At most `fix-docs-per-run` dispatches per dispatcher run. Logs carry PR
+// At most `fix-docs-per-run` dispatches per dispatcher run; 0 sends none and
+// makes no GitHub call. Logs carry PR
 // numbers, SHAs, run ids and counts only.
 //
 // A run whose model leg emitted an empty head, or that stopped at its trigger
@@ -182,6 +183,10 @@ export async function dispatchDocsFixes({
   gateLabel = null,
   appSenderId,
 }) {
+  if (maxDispatch === 0) {
+    log("fix-docs is off (fix-docs-per-run: 0)");
+    return { dispatched: [], failed: 0 };
+  }
   const candidates = [];
   let after;
   for (let page = 1; ; page += 1) {
