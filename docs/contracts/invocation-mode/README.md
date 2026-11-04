@@ -275,7 +275,8 @@ exactly that case. It is now graded, and the verdict is a flip.
 user-invoked skills, and rejects it on two grounds: the always-in-context listing already does that
 job, and a router reaching into the deliberately-hidden `true` set would defeat the exception
 classes. Neither reaches this skill. The first is false here by measurement: ADR 0016 records the
-listing omitting every `true` skill and dropping ~82% of descriptions least-invoked-first, which is
+listing omitting every `true` skill and dropping ~82% of descriptions, a never-invoked skill's first
+by the usage score its 2026-08-31 revision records, which is
 the whole reason this skill resolves from the installed catalog instead. The second turns on
 *naming* versus *reaching*: `recommend-skills` renders a menu and explicitly does not execute what the
 human picks, and both surfaces the router verdict itself blesses as the answer to the human-side

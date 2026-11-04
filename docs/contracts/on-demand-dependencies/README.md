@@ -1,7 +1,7 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
 Version: 2.4.1
-Last updated: 2026-11-02
+Last updated: 2026-11-04
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
 manifest and lockfile, install from them on demand into the plugin's data directory, and fail

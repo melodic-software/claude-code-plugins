@@ -43,7 +43,9 @@ assert_eq "a quoted path leaves the plain import on its line" \
 
 # --- The forms the page's example block shows keep working ---
 assert_eq "a plain import resolves against the file" "$DIR/README" "$(imports_of 'See @README for details')"
-assert_eq "trailing punctuation is not part of the path" "$DIR/a.md" "$(imports_of 'See @a.md.')"
+# A pin, not a page value: the page says nothing about trailing punctuation, so
+# this holds the walker's existing behavior through the rewrite.
+assert_eq "pin: trailing punctuation is not part of the path" "$DIR/a.md" "$(imports_of 'See @a.md.')"
 
 # --- The walk reaches a file behind an escaped space ---
 mkdir -p "$DIR/Design Docs"

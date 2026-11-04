@@ -165,8 +165,8 @@ arm A and vice versa.
 them from token deltas. Registered in **exec (`args`-array) form** per
 <https://code.claude.com/docs/en/hooks> (raw markdown, fetched 2026-08-11): "Set `args` whenever the
 hook references a path placeholder, since each element is passed as one argument with no quoting."
-Delivered with `claude -p --settings <file>` so the trace hook comes from the probe's own file, not
-from anything the fixture commits;
+Delivered with `claude -p --settings <file>`. Our reading today, not the run's record: the flag
+keeps the trace hook in the probe's own file rather than in anything the fixture commits, and
 [Workspace trust](https://code.claude.com/docs/en/hooks#workspace-trust) says which settings-file
 hooks a `-p` session runs (as of 2026-11-04; recheck when that section changes what a `-p` session
 runs).
