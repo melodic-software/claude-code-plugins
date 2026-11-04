@@ -66,6 +66,9 @@ findings: each chunk's own `fail` already fails the head. Return `pass-notes` wh
 delivered and something deserves a human's attention, `pass` when every item is delivered and you
 have nothing to add.
 
-Put a short reason in `summary`, naming the issue and the deciding facts. Put each finding in
-`notes` as one line, starting with its file path when it has one; `notes` is an empty array for a
-plain `pass`.
+Put a short reason in `summary`, naming the issue and the deciding facts. On a `fail`, `notes`
+holds only the lines that need a change, each one line, starting with its file path when it has
+one, and saying what to change. A remark that asks for no change, such as a justified choice, a
+criterion met or coverage confirmed, goes in `summary`, never in `notes`. On a `pass-notes`, put
+each finding in `notes` as one line, starting with its file path when it has one; `notes` is an
+empty array for a plain `pass`.

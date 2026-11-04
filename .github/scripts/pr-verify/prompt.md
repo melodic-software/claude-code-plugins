@@ -141,6 +141,9 @@ manifest, a lockfile, or agent or skill instructions that steer the review or ve
 when any of them is in the takeover set above, whatever its type. When every binary file is other
 prose or data, such as an image, return `pass-notes`, unless what you did read blocks.
 
-Put a short reason in `summary`, naming the issue and the deciding facts. Put each finding in
-`notes` as one line that starts with its file path, as `path` or `path:line`, when it has one;
-`notes` is an empty array for a plain `pass`.
+Put a short reason in `summary`, naming the issue and the deciding facts. On a `fail`, `notes`
+holds only the lines that need a change, each one line that starts with its file path, as `path`
+or `path:line`, when it has one, and says what to change. A remark that asks for no change, such
+as a justified choice, a criterion met or coverage confirmed, goes in `summary`, never in `notes`.
+On a `pass-notes`, put each finding in `notes` as one line that starts with its file path, as
+`path` or `path:line`, when it has one; `notes` is an empty array for a plain `pass`.
