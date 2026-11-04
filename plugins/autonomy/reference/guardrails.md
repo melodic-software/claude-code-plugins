@@ -19,9 +19,9 @@ instantiation of it. The playbook names the obligation, and this contract suppli
 | Class | Min isolation (unattended) | Verification | Verification topology | Merge policy | Cost tier | Escalation |
 |---|---|---|---|---|---|---|
 | C1 | L2 (exfil surface remains) | output-shape checks | 1 checker | n/a; artifacts via queue audit trail | economy | low |
-| C2 | L2 | deterministic blocking | 1 checker | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | economy | gate failure → human |
-| C3 | L2 | deterministic blocking + AI review (advisory, promotable per [the security-review policy](guardrails/security-review.md)) | 2 distinct checkers, 1 a model judge | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | standard | divergence/failed verify → human |
-| C4 | L2 | deterministic blocking + AI review blocking | 3 distinct checkers, 2 vendor-disjoint model judges | auto-merge ELIGIBLE after the `C3-auto-merge` promotion; ships human-gated | premium | divergence/failed verify → human |
+| C2 | L2 | deterministic blocking | 1 checker | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | economy | gate failure → owning lane |
+| C3 | L2 | deterministic blocking + AI review (advisory, promotable per [the security-review policy](guardrails/security-review.md)) | 2 distinct checkers, 1 a model judge | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | standard | divergence/failed verify → owning lane |
+| C4 | L2 | deterministic blocking + AI review blocking | 3 distinct checkers, 2 vendor-disjoint model judges | auto-merge ELIGIBLE after the `C3-auto-merge` promotion; ships human-gated | premium | divergence/failed verify → owning lane |
 | C5 | L3 | full gates + zero secret exposure | 3 distinct checkers, 2 vendor-disjoint model judges | human merge always | standard | always |
 
 ### Classes
@@ -53,7 +53,8 @@ instantiation of it. The playbook names the obligation, and this contract suppli
   never merges `C5`.
 - **Cost tier**: contract vocabulary (`economy` | `standard` | `premium`); the org binds
   tiers to model instances. Policy vocabulary only. Cost enforcement is out of scope.
-- **Escalation**: when a run must summon a human; event classes and routing below.
+- **Escalation**: where a run hands an event: to the lane that owns the follow-up, or to a
+  person only under the stop rule below; event classes and routing below.
 
 ## Glance-layer rule
 
@@ -96,7 +97,7 @@ leaf carries this note in context.
 
 Unanimity is not a matrix column: every transition a run takes without a human, merge and
 every stage before it, requires unanimous agreement among the checkers the class declares,
-and one dissent hands the item to the human gate and raises `verification-divergence` below.
+and one dissent withholds the transition and raises `verification-divergence` below.
 It is a fixed invariant, not a knob, so no cell above can express it. The
 [verification-topology](guardrails/verification-topology.md) leaf carries it in context,
 including what is enforced at binding-validity time today and what is deferred.
@@ -105,25 +106,38 @@ including what is enforced at binding-validity time today and what is deferred.
 
 Six escalation event classes:
 
-| Event class | Fires when |
-|---|---|
-| `gate-failure` | a blocking verification gate fails |
-| `verification-divergence` | a verification outcome diverges from the expected or claimed result, or two checkers of one class disagree |
-| `admission-rejection` | the admission seam rejects a signal as an audited rejection |
-| `demotion` | contrary evidence automatically demotes a promoted cell |
-| `structural-plan-approval` | an org-bound step asks a human to approve a `C4` item's plan; no shipped step raises it |
-| `untrusted-provenance` | always, for every `C5` item |
+| Event class | Fires when | Stops for a person |
+|---|---|---|
+| `gate-failure` | a blocking verification gate fails | only under the stop rule |
+| `verification-divergence` | a verification outcome diverges from the expected or claimed result, or two checkers of one class disagree | only under the stop rule |
+| `admission-rejection` | the admission seam rejects a signal as an audited rejection | only under the stop rule |
+| `demotion` | contrary evidence automatically demotes a promoted cell | only under the stop rule |
+| `structural-plan-approval` | an org-bound step asks a human to approve a `C4` item's plan; no shipped step raises it | only when the plan changes intent or the primary design |
+| `untrusted-provenance` | always, for every `C5` item | always: a kept trust control |
 
-**Routing obligation.** Every event class has an org-bound route in the security binding.
-Escalation routes are a security-sensitive axis, so they bind on the governance surface, and
-an absent or invalid binding fail-closes per the binding contract.
+**Stop rule.** An event class names what happened, not who acts on it. An event stops for a
+person only when it carries one of three reasons: the original intent or vision changes, a
+finding alters intent, vision or the primary design, or a HIGH or CRITICAL security or cost
+risk. Any other event goes to the lane that owns the follow-up: a failed gate or a dissent to
+the lane doing the work, and a demotion to its fix issues through intake, the cell re-earning
+from run evidence ([work classes](guardrails/work-classes.md)). An audited rejection stays
+final on the audit trail; a follow-up enters intake only as a new signal. A trust control the
+org keeps, such as `untrusted-provenance`, stops for a person whatever the reason. An org
+records its stop rule and kept controls in its own governance docs.
+
+**Routing obligation.** Every event class has one org-bound route in the security binding: the
+queue of the lane that owns its follow-up, or the human gate for a class that always stops.
+The lane on that route applies the human-gated label only when a stop-rule reason or a kept
+control applies. Escalation routes are a security-sensitive axis, so they bind on the
+governance surface, and an absent or invalid binding fail-closes per the binding contract.
 
 **Payload.** The work-item reference plus the trace link: every escalation carries the item
 it concerns and the trace context joining it into the one causal tree, so the evidence behind
 the escalation is queryable from the event.
 
-**Mechanism.** The governed queue itself: an escalation lands as a human-gated work item on
-the one queue, with an optional channel notification delivered through the trigger contract's
+**Mechanism.** The governed queue itself: an escalation lands as a work item on the one
+queue, on its bound route, human-gated only when the stop rule or a kept control sends it to
+a person, with an optional channel notification delivered through the trigger contract's
 closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)).
 
 **The one-channel invariant.** No second escalation channel exists. It is this contract's
