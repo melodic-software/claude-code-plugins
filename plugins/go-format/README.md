@@ -26,11 +26,14 @@ the pre-commit entry reports it.
   has no meaningful config-divergence axis when left unconfigured. Running it does not impose a
   style choice a repo hasn't made, the same reasoning that makes `gofmt` itself safe to run
   unconditionally.
-- **Skips generated files.** A file whose leading comment/blank-line block contains Go's
-  canonical `// Code generated ... DO NOT EDIT.` marker is left untouched, in the session and at
-  commit. This includes files where a copyright/license header (a `//` or `/* */` block) precedes
-  the marker, common for `addlicense`/`goheader` output. `goimports` itself has no awareness of
-  that convention, so the plugin adds the guard itself.
+- **Skips generated files.** A file whose leading comment/blank-line block carries Go's
+  generated-code marker is left untouched, in the session and at commit. This includes files
+  where a copyright/license header (a `//` or `/* */` block) precedes the marker, common for
+  `addlicense`/`goheader` output. The plugin applies this guard itself. For the marker's exact
+  form, see
+  [go command: Generate Go files by processing source](https://pkg.go.dev/cmd/go#hdr-Generate_Go_files_by_processing_source)
+  (as of 2026-11-03; recheck when that section changes the marker's pattern or where it must
+  appear).
 - **Leaves gitignored files alone.** By default a `.go` file the repository gitignores is not
   rewritten in the session, since a rewrite of an ignored file has no git checkout to undo it. A
   tracked file that matches an ignore pattern stays in scope. Set `go_format_lint_gitignored=true`
@@ -71,14 +74,10 @@ fails with the install command, a person gets a one-line notice, and
   node the hooks do not start and nothing is enforced.
 - **jq** on `PATH`. The batch row reads the file paths with it. Absent: the row does nothing.
   [Install jq](https://jqlang.org/download/).
-- **goimports** on `PATH`. Like `typos-format`, `goimports` has no
-  per-repo dependency-manager convention. It is conventionally
-  `go install`ed to the machine-global `$GOPATH/bin`. It is never
-  downloaded on the fly; if it is not present, the batch row skips the files, and the
-  SessionStart probe reports the gap.
-  [Install](https://pkg.go.dev/golang.org/x/tools/cmd/goimports):
-  `go install golang.org/x/tools/cmd/goimports@latest` (requires a
-  [Go toolchain](https://go.dev/dl/)).
+- **goimports** on `PATH`. It is never downloaded on the fly; if it is not present, the batch
+  row skips the files, and the SessionStart probe reports the gap. For how to install it, see
+  [goimports: Overview](https://pkg.go.dev/golang.org/x/tools/cmd/goimports#pkg-overview)
+  (as of 2026-11-03; recheck when that page changes its install command).
 - **`go` on `PATH` (optional).** Used only to resolve the `-local` grouping
   prefix (`go list -m`). Absent: `goimports` still formats and fixes imports, just
   without the `-local` grouping (its plain default behavior).

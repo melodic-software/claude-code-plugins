@@ -24,8 +24,8 @@ button is pressed, or preloading a font in React with `ReactDOM`.
 The deletion test proposes; the evals decide. Whether a model needs a line cannot be read off the
 text: a rule's stated reason can carry behavior, and a plausible explanation for a regression can
 be wrong. Unsure whether a line matters? Run the skill with the line and without it, and compare
-the two versions with `/evals:plugin-eval`. A cut to an existing skill ships only when its evals show no loss
-([Measurement](#measurement)).
+the two versions with `/evals:plugin-eval`. A cut to an existing skill ships only when its evals show no loss,
+except the pointer swap that **Cutting text** exempts ([Measurement](#measurement)).
 
 ## Frontmatter
 
@@ -281,8 +281,11 @@ precedence rule at the top of this page). Cut text from a shipped skill by this 
 (by hand or with `/docs-hygiene:compress`), label what it changed with
 `/docs-hygiene:compress compare`, then run the skill's cases with the removed text and without it
 (`/evals:plugin-eval --baseline <before.json> --margin <m>`). The cut ships only under step 6's
-non-inferiority rule; otherwise the removed text stays. A cut to a description also re-measures
-triggering on the probes (steps 3 and 4).
+non-inferiority rule; otherwise the removed text stays. Replacing a restated upstream fact with a
+pointer to its live upstream section, as the
+[upstream-pointer rule](https://github.com/melodic-software/claude-code-plugins/blob/main/.claude/rules/skill-bodies-state-current-rules.md)
+requires, needs no eval run; a removed sentence giving a reason the skill acts on still does, or it
+stays. A cut to a description also re-measures triggering on the probes (steps 3 and 4).
 
 **Re-auditing shipped skills.** On each model release, re-audit every shipped skill against this
 page on the new model, since a line the previous model needed may now fail the deletion test. Each

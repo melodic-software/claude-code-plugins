@@ -38,7 +38,7 @@ Smart auto-detect when action is empty: read pre-computed context, classify stat
 
 Apply across every action. Violating any risks losing the working 2.8.0 setup or stranding the user with an upgraded Kindle that can't be downgraded without re-extracting from a different machine.
 
-- **Never open Kindle for PC while the firewall block is disabled UNLESS the user is actively syncing new books AND has the keyfinder ready to run immediately afterward.** Amazon stages 2.9.x installers aggressively; one open window with internet access is enough to cache an installer that auto-runs on next launch.
+- **Never open Kindle for PC while the firewall block is disabled UNLESS the user is actively syncing new books AND has the keyfinder ready to run immediately afterward.** Amazon stages installers aggressively; one open window with internet access is enough to cache an installer that auto-runs on next launch.
 - **Never run the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`.** This is the auto-update payload that breaks key extraction. Delete it whenever it appears.
 - **Never recommend `--no-confirm` flags or batch-confirm cleanup.** Each reversal is independent; some harder to redo than others (re-pinning Kindle 2.8.0 is easy; re-syncing 50 books isn't). This holds when the user asks for "yes to all": never write, run or hand over a script or command that pipes `yes`, skips the prompts or loops over the reversals without asking.
 - **Never send any of these scripts, keys, or extracted files outside the user's machine.** Personal-use scope only.
