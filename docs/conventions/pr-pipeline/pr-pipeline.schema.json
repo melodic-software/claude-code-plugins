@@ -178,10 +178,10 @@
         },
         "fix-docs-per-run": {
           "type": "integer",
-          "minimum": 1,
+          "minimum": 0,
           "maximum": 20,
           "default": 2,
-          "description": "fix-docs dispatches one pr-unblock-dispatch run sends at most."
+          "description": "fix-docs dispatches one pr-unblock-dispatch run sends at most; 0 turns CI fix-docs off."
         },
         "admission-factor": {
           "type": "number",

@@ -701,6 +701,11 @@ test("live config: fix-docs applies to a Markdown change and waits on do-not-mer
   );
 });
 
+test("live config: CI fix-docs is off, fix-docs-per-run 0 (#7576, D100)", () => {
+  const { limits } = resolve(FILES, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+  assert.equal(limits["fix-docs-per-run"], 0);
+});
+
 test("live config: fix-docs does not apply to a draft PR", () => {
   assert.equal(skipReason("pr-refine", "fix-docs", { draft: true }), "not-applicable");
 });
