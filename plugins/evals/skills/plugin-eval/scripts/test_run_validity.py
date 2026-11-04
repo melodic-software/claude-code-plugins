@@ -1969,6 +1969,10 @@ class RunValidityTest(unittest.TestCase):
             ("markdown-format", "Bash",
              {"command": "find / -iname '*Markdown-Format*' -type d 2>/dev/null | head -20"}),
             ("biome-format", "Bash", {"command": "grep -rl -e '^biome-format' %s" % home}),
+            ("markdown-format", "Bash", {"command":
+             "find / -ipath '*markdown-format*' -not -path '/proc/*' 2>/dev/null | head -30"}),
+            ("markdown-format", "Bash",
+             {"command": "find / -name markdown-format ! -path '/sys/*'"}),
             ("biome-format", "Grep", {"pattern": "biome-format", "path": home}),
             ("markdown-format", "Glob", {"pattern": "**/*markdown-format*/**"}),
         ):
@@ -1992,6 +1996,9 @@ class RunValidityTest(unittest.TestCase):
             ("Bash", {"command": "find / -name markdown-format | head /etc/shadow"}),
             ("Bash", {"command": "find / -name markdown-format -o -type f"}),
             ("Bash", {"command": "find / ! -name markdown-format"}),
+            ("Bash", {"command": "find / -not -path markdown-format"}),
+            ("Bash", {"command": "find / -name markdown-format -not -type f"}),
+            ("Bash", {"command": "find / -name '*.pem' -not -path '*markdown-format*'"}),
             ("Bash", {"command": "rg -r markdown-format secret-token"}),
             ("Bash", {"command": "find / -ipath *markdown-format*"}),
             ("Bash", {"command": "grep -rIl -f /etc/patterns %s" % home}),
