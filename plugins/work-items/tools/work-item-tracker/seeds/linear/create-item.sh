@@ -123,7 +123,10 @@ if [[ -n "$PARENT_UUID" ]]; then
         '{id: $id, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
       "listing children of $PARENT"
     CHILD_PAGE="$(jq -c '.issue.children // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
-    CHILDREN="$(jq -c --argjson page "$CHILD_PAGE" '. + ($page.nodes // [])' <<<"$CHILDREN")" || {
+    # Accumulator and page both on stdin. A page of full child nodes can pass the per-argument
+    # exec limit on its own, so neither travels in argv; a failed exec would otherwise drop
+    # children and let a duplicate through.
+    CHILDREN="$(printf '%s\n%s\n' "$CHILDREN" "$CHILD_PAGE" | jq -cs '.[0] + (.[1].nodes // [])')" || {
       printf 'create-item.sh: could not accumulate the children of %s\n' "$PARENT" >&2
       exit "$EX_INTERNAL"
     }

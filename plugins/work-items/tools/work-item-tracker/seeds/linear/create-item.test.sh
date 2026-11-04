@@ -151,6 +151,24 @@ rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "differently titled child → exit 0" "0" "$rc"
 assert_contains "and a new issue is created beside it" "$(lin_requests)" "issueCreate"
 
+# A match on the second children page still blocks: the walk follows endCursor. Routes
+# sharing a pattern are call-ordered, so the second children seeding is page 2.
+CHILDREN_P1="$(jq -cn --argjson n "[$(child_node 40 started 'other work')]" \
+  '{issue: {children: {nodes: $n, pageInfo: {hasNextPage: true, endCursor: "c1"}}}}')"
+CHILDREN_P2="$(jq -cn --argjson n "[$(child_node 44 started child)]" \
+  '{issue: {children: {nodes: $n, pageInfo: {hasNextPage: false, endCursor: null}}}}')"
+lin_reset
+lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
+lin_data 'teams(filter:' "$TEAM_NODE"
+lin_seed_issue 12 started
+lin_data 'children(' "$CHILDREN_P1"
+lin_data 'children(' "$CHILDREN_P2"
+rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
+assert_eq "same-titled child on page 2 → exit 0" "0" "$rc"
+assert_no_create "and no issue is created for a sibling on a later page"
+assert_eq "stdout is the page-2 child" "linear:acme/ENG#44" "$(jq -r '.id' <<<"$(lin_out)")"
+assert_contains "the second page was requested with the cursor" "$(lin_bodies)" '"after":"c1"'
+
 # Without --parent nothing is read and the item is created as before.
 seed_create "[$(child_node 40 started child)]"
 rc="$(lin_run "$S" --title "child")"
