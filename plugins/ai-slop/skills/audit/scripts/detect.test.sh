@@ -32,8 +32,9 @@ export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
-# A fixture root that carries a team or overlay config layer must be a git working
-# tree: config-cascade step 2 gives a non-repo root no team or overlay layer.
+# A fixture root that carries a team config layer or personal override must be a git
+# working tree: config-cascade step 2 gives a non-repo root no team layer or personal
+# override.
 make_repo() {
   git init -q "$1" >/dev/null 2>&1
 }
@@ -555,7 +556,7 @@ assert_not_contains "phrase hygiene: empty-string element does not flood clean p
 
 # Wholesale replacement includes the empty override: a later layer's explicit
 # `"phrase_add": []` clears the inherited list (key presence decides, not value
-# emptiness). The local overlay is the later layer.
+# emptiness). The personal override is the later layer.
 CLRREPO="$TEST_TMPDIR/phrase-clear"
 mkdir -p "$CLRREPO/.claude"
 make_repo "$CLRREPO"
@@ -734,8 +735,8 @@ assert_contains "show-config: names the supplying layer" "$out" "$cfgdir/ai-slop
 assert_contains "show-config: effective threshold shown" "$out" "threshold_ai_vocabulary=999"
 assert_contains "show-config: disabled rules shown" "$out" "disabled_rules=rule-significance-inflation"
 
-# Config-cascade step 2: a home or non-repo root has no team or overlay layer, and
-# the user-global file is read once, never again as team.
+# Config-cascade step 2: a home or non-repo root has no team layer or personal
+# override, and the user-global file is read once, never again as team.
 HOMEROOT="$TEST_TMPDIR/home-root"
 mkdir -p "$HOMEROOT/.claude"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 777 } }' >"$HOMEROOT/.claude/ai-slop.json"
@@ -906,12 +907,12 @@ assert_contains "yaml: a flow-sequence list is read" "$out" "excluded_paths=vend
 assert_contains "yaml: a per-rule glob list names its layer" "$out" "rule_allowed_paths[rule-ai-vocabulary]=docs/marketing/** [layer: $YREPO/docs/conventions/ai-slop.yaml]"
 assert_not_contains "yaml: an empty per-rule list leaves the rule unexempted" "$out" "rule_allowed_paths[rule-em-dash]"
 
-# The personal YAML overlay refines the team YAML per key and is named for what it set.
+# The personal YAML override refines the team YAML per key and is named for what it set.
 printf '%s\n' 'thresholds:' '  copulative_avoidance: 7' 'disabled_rules: []' >"$YREPO/docs/conventions/ai-slop.local.yaml"
 out="$(CLAUDE_PROJECT_DIR="$YREPO" bash "$DETECT" --show-config 2>&1)"
-assert_contains "yaml: the overlay supplies its own scalar" "$out" "threshold_copulative_avoidance=7 (rule rule-copulative-avoidance) [layer: $YREPO/docs/conventions/ai-slop.local.yaml]"
-assert_contains "yaml: the team YAML still supplies the key the overlay left" "$out" "threshold_ai_vocabulary=2.5 (rule rule-ai-vocabulary) [layer: $YREPO/docs/conventions/ai-slop.yaml]"
-assert_contains "yaml: an explicit empty list in the overlay clears the team list" "$out" "disabled_rules= [layer: $YREPO/docs/conventions/ai-slop.local.yaml]"
+assert_contains "yaml: the personal override supplies its own scalar" "$out" "threshold_copulative_avoidance=7 (rule rule-copulative-avoidance) [layer: $YREPO/docs/conventions/ai-slop.local.yaml]"
+assert_contains "yaml: the team YAML still supplies the key the personal override left" "$out" "threshold_ai_vocabulary=2.5 (rule rule-ai-vocabulary) [layer: $YREPO/docs/conventions/ai-slop.yaml]"
+assert_contains "yaml: an explicit empty list in the personal override clears the team list" "$out" "disabled_rules= [layer: $YREPO/docs/conventions/ai-slop.local.yaml]"
 
 # phrase_remove alone names its own layer on the model_phrases line, not only phrase_add's.
 printf '%s\n' 'phrase_remove:' '  - "(the|my) honest take"' >"$YREPO/docs/conventions/ai-slop.local.yaml"

@@ -22,12 +22,12 @@ One layer, the team's, resolved through the pointer line:
 ## Retired layers
 
 This surface migrated from a three-layer dedicated-file cascade. A convention-doc surface has one
-layer and **no overlay channel**; the old layers are retired, each with its own detection story:
+layer and **no personal override channel**; the old layers are retired, each with its own detection story:
 
 | Old layer | Path | Retirement |
 |---|---|---|
 | team (tracked) | `.claude/plugin-quality.md` | record `plugin-quality-r001` (migrate). While present it is read as **authority** and every migrated skill WARNs on every run (the sanctioned dual-read window); setup `apply` carries its values into the topic doc and cleans it, operator-gated. |
-| local overlay | `.claude/plugin-quality.local.md` | record `plugin-quality-r002` (delete). Never read; setup `check` WARNs while it exists rather than silently ignoring it. |
+| personal override | `.claude/plugin-quality.local.md` | record `plugin-quality-r002` (delete). Never read; setup `check` WARNs while it exists rather than silently ignoring it. |
 | user-global | `~/.claude/plugin-quality.md` | machine scope, outside the retirement manifest by contract. Never read; setup `check` WARNs in prose when it exists. |
 
 ## Resolution order

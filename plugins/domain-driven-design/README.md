@@ -24,7 +24,7 @@ boundaries are missing.
 - **Settings.** `glossary_file` and `glossary_map_file` set those two names. They
   resolve through the config cascade: the plugin default, `userConfig`, the team file
   `docs/conventions/domain-driven-design.yaml` (schema
-  `schemas/domain-driven-design.schema.json`) and the personal overlay
+  `schemas/domain-driven-design.schema.json`) and the personal override
   `docs/conventions/domain-driven-design.local.yaml`. Each is a file name, never a path.
 - **No persistent state, no network.**
 

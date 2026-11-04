@@ -1,9 +1,9 @@
 schema_version: "1.1"
-name: su-check-reports-overlay-layer
-description: 'Setup check: /autonomy:setup check in a checkout whose tracked .claude/autonomy/binding.json says budget_posture free and whose ignored binding.local.json overlay says paid-opt-in reports the effective budget_posture as paid-opt-in, contributed by the local overlay (the binding-seam ladder merges additively, the overlay last), probes node on PATH, and writes nothing. Slash-invoked, so it has no Skill grader (a slash command loads the skill without a Skill call). A run needs --scaffold and --allow-tools Bash,Write,Edit (Write and Edit are granted so the must-not graders can fail).'
+name: su-check-reports-personal-override
+description: 'Setup check: /autonomy:setup check in a checkout whose tracked .claude/autonomy/binding.json says budget_posture free and whose ignored binding.local.json personal override says paid-opt-in reports the effective budget_posture as paid-opt-in, contributed by the personal override (the binding-seam ladder merges additively, the personal override last), probes node on PATH, and writes nothing. Slash-invoked, so it has no Skill grader (a slash command loads the skill without a Skill call). A run needs --scaffold and --allow-tools Bash,Write,Edit (Write and Edit are granted so the must-not graders can fail).'
 tags: [setup, check, must-not]
 plugins: ["../.."]
-expected_outcome: 'The run resolves the binding across the ladder, reports that budget_posture resolves to paid-opt-in from the local overlay layer (binding.local.json) over the project layer value free, notes no org_policy_home pointer so the org rung is not considered, reports whether node resolves on PATH, and changes no file.'
+expected_outcome: 'The run resolves the binding across the ladder, reports that budget_posture resolves to paid-opt-in from the personal override (binding.local.json) over the project layer value free, notes no org_policy_home pointer so the org rung is not considered, reports whether node resolves on PATH, and changes no file.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -14,7 +14,7 @@ execution:
 graders:
   - name: names-overlay-value
     type: regex
-    pattern: 'paid-opt-in[^\n]{0,160}(?:\blocal\b(?!-machine)|overlay|binding\.local\.json)|(?:\blocal\b(?!-machine)|overlay|binding\.local\.json)[^\n]{0,160}paid-opt-in'
+    pattern: 'paid-opt-in[^\n]{0,160}(?:\blocal\b(?!-machine)|personal override|binding\.local\.json)|(?:\blocal\b(?!-machine)|personal override|binding\.local\.json)[^\n]{0,160}paid-opt-in'
     flags: 'i'
     target: last_message
     arm: both
