@@ -461,7 +461,9 @@ jobs:
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the
-      # gate and the broker with one list call and no download.
+      # gate and the broker with one list call and no download. A sweep tick
+      # sends up to five rounds (feedback-dispatch.mjs SWEEP_TICK_CAP), each
+      # recorded by its own numbered steps below.
       - name: Name the dispatched-run record
         id: record
         if: always() && steps.dispatch.outputs.run-id != ''
@@ -492,6 +494,138 @@ jobs:
         with:
           name: ${{ steps.record.outputs.name }}
           path: ${{ runner.temp }}/pr-feedback-dispatched.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 2
+        id: record-2
+        if: always() && steps.dispatch.outputs.run-id-2 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-2 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-2 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::run-id-2 or the upstream run id is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-2.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 2 for credentials
+        id: scan-upload-2
+        if: >-
+          always() && steps.dispatch.outputs.run-id-2 != '' && steps.record-2.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-2.json
+
+      - name: Record dispatched run 2
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-2 != '' && steps.record-2.outcome == 'success') && steps.scan-upload-2.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-2.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-2.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 3
+        id: record-3
+        if: always() && steps.dispatch.outputs.run-id-3 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-3 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-3 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::run-id-3 or the upstream run id is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-3.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 3 for credentials
+        id: scan-upload-3
+        if: >-
+          always() && steps.dispatch.outputs.run-id-3 != '' && steps.record-3.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-3.json
+
+      - name: Record dispatched run 3
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-3 != '' && steps.record-3.outcome == 'success') && steps.scan-upload-3.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-3.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-3.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 4
+        id: record-4
+        if: always() && steps.dispatch.outputs.run-id-4 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-4 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-4 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::run-id-4 or the upstream run id is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-4.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 4 for credentials
+        id: scan-upload-4
+        if: >-
+          always() && steps.dispatch.outputs.run-id-4 != '' && steps.record-4.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-4.json
+
+      - name: Record dispatched run 4
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-4 != '' && steps.record-4.outcome == 'success') && steps.scan-upload-4.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-4.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-4.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Name the dispatched-run record 5
+        id: record-5
+        if: always() && steps.dispatch.outputs.run-id-5 != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id-5 }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-5 }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::run-id-5 or the upstream run id is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-5.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan upload 5 for credentials
+        id: scan-upload-5
+        if: >-
+          always() && steps.dispatch.outputs.run-id-5 != '' && steps.record-5.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched-5.json
+
+      - name: Record dispatched run 5
+        if: >-
+          (always() && steps.dispatch.outputs.run-id-5 != '' && steps.record-5.outcome == 'success') && steps.scan-upload-5.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record-5.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched-5.json
           retention-days: 1
           if-no-files-found: error
 
