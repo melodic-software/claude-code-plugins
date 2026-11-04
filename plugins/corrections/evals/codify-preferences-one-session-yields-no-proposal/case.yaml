@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: 'codify-preferences-one-session-yields-no-proposal'
-plugins: ["../..", "../../../session-flow"]
+plugins: ["../..", "session-flow-stub"]
 context:
   scaffold_script: scaffold.sh
 graders:
