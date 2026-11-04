@@ -73,7 +73,11 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    actually executes, running no repository code: run it with `--help`, never `--version` or a
    bare glob. It executed when its first output line is the tool's version banner, whatever the
    exit code (a repo shim can resolve yet still be broken: missing Node interpreter, dangling
-   target). Anything else is FAIL, with the execution error in the remediation line. FAIL when nothing the hook would accept resolves.
+   target). Anything else is FAIL, with the execution error in the remediation line. FAIL when
+   nothing the hook would accept resolves.
+   - **Probe**: [`markdownlint-cli2` `--help` and `--version`](https://github.com/melodic-software/claude-code-plugins/issues/13201#issuecomment-6630609726).
+     **As of**: 2026-11-04. **Recheck trigger**: a `markdownlint-cli2` release changes what `--help`
+     prints first, or adds a `--version` flag.
 5. **Consumer markdownlint config, the opt-in.** This is what activates the plugin, not a
    style detail. Mirror the gates' `md_config_state` walk: from a Markdown file's directory
    up to the repo root, so nested configs apply to nested files and the opt-in is per-path (a
