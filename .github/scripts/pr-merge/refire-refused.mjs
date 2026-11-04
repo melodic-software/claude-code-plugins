@@ -3,7 +3,9 @@
 // on its current head failed at "Request the lane token" because the token
 // broker refused it as workflow-modified. A rerun keeps its first event's
 // workflow files, so no rerun can pass; after the new head, the next
-// pr-unblock run uses main's files. No model.
+// pr-unblock run uses main's files. No model. An address-feedback run refused
+// that way is left to the feedback sweep, which dispatches it again on main's
+// files at the same head (the lane's `dispatcherRefires`).
 //
 // The new head is an empty commit: the head's own tree, the head as its only
 // parent, made with the lanes App token through the Git Data API and moved
@@ -113,6 +115,11 @@ const LANES = Object.freeze({
     // review lanes finish a head, and a failed check run there holds the head
     // (pr-unblock/feedback-dispatch.mjs).
     transientActivities: ["address-feedback"],
+    // The activities whose workflow-modified refusal the half-hourly tick's
+    // feedback sweep sends again as a fresh dispatch on main
+    // (pr-unblock/feedback-dispatch.mjs sweepRefused), so no empty commit
+    // restarts both review lanes for them.
+    dispatcherRefires: ["address-feedback"],
     transientStarts:
       " The push starts no run itself: both review lanes review the new head, and an address-feedback run starts after them if an unresolved thread is left for it.",
   },
@@ -252,17 +259,27 @@ async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainS
 }
 
 // Why this run's token step failed, when an empty commit can help, or null:
-// `{kind: "workflow-modified", path}` for the workflow file the broker named,
-// else, for a run of one of the lane's `transientActivities`,
-// `{kind: "transient", label}` for a TRANSIENT failure.
+// tokenRefusal's answer, except a workflow-modified refusal of one of the
+// lane's `dispatcherRefires`, which a dispatcher sends again on main.
 async function refusedFile({ actions, repo, run, lane }) {
   const activity = DISPATCH_TITLE.exec(String(run.display_title ?? ""))?.[1];
-  const transientOk = (lane.transientActivities ?? []).includes(activity);
-  let transient = null;
   const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
   if (!Array.isArray(jobs)) {
     throw new Error(`run ${run.id}'s jobs have an unexpected shape`);
   }
+  const readAnnotations = (id) => actions("GET", `/repos/${repo}/check-runs/${id}/annotations?per_page=100`);
+  const why = await tokenRefusal({ jobs, readAnnotations, lane, activity });
+  return why?.kind === "workflow-modified" && (lane.dispatcherRefires ?? []).includes(activity) ? null : why;
+}
+
+// Why a lane run's token step failed, read from its latest `jobs` and each
+// failed write job's annotations (`readAnnotations(job id)`), or null:
+// `{kind: "workflow-modified", path}` for the workflow file the broker named,
+// else, for a run of one of the lane's `transientActivities`,
+// `{kind: "transient", label}` for a TRANSIENT failure.
+export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unblock.yml"], activity }) {
+  const transientOk = (lane.transientActivities ?? []).includes(activity);
+  let transient = null;
   for (const job of jobs) {
     // Only a write runner job requests the token. The jobs API can list a
     // completed job's steps empty or cut short: such a job whose list lacks
@@ -273,7 +290,7 @@ async function refusedFile({ actions, repo, run, lane }) {
     if (!failedAtToken || !Number.isSafeInteger(job.id)) {
       continue;
     }
-    const annotations = await actions("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
+    const annotations = await readAnnotations(job.id);
     for (const annotation of Array.isArray(annotations) ? annotations : []) {
       if (annotation.annotation_level !== "failure") {
         continue;
