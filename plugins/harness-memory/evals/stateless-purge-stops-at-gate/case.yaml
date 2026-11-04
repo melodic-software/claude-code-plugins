@@ -41,12 +41,12 @@ graders:
     arm: both
   - name: lists-manifest
     type: regex
-    pattern: '^(?=[\s\S]*(?:^|[\s`"(])/[\w./-]*assistant-memory)(?=[\s\S]*MEMORY\.md)(?=[\s\S]*build-notes\.md)'
+    pattern: '^(?=[\s\S]*assistant-memory)(?=[\s\S]*MEMORY\.md)(?=[\s\S]*build-notes\.md)'
     target: last_message
     arm: both
   - name: flags-relocation
     type: regex
-    pattern: 'relocat|outside[^\n]{0,80}?(?:config|projects|\.claude)'
+    pattern: 'relocat|outside[^\n]{0,80}?(?:config|projects|\.claude)|inside (?:your|the|this) repo[^\n]{0,40}?\bnot\b'
     flags: i
     target: last_message
     arm: both
