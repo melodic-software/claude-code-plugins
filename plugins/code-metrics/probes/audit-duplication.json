@@ -1,0 +1,121 @@
+{
+  "skill": "code-metrics:audit-duplication",
+  "plugin": "code-metrics",
+  "skill_dir": "plugins/code-metrics/skills/audit-duplication",
+  "ranking_note": "The target reports repeated source code as clone groups with their locations, while its competitors consolidate repeated markdown prose, count lines or complexity, or compare a metric against a captured baseline. The set was authored blind from before descriptions.",
+  "competitors": [
+    "code-metrics:audit",
+    "docs-hygiene:extract-ssot",
+    "verification:measure"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I think the handlers in orders-api/src/routes were pasted from each other. Show me which blocks repeat and exactly where each copy sits."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put a number on how much repeated code my branch introduces. No baseline needed, just today's figure."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "src/billing and src/invoicing feel like the same TypeScript written twice. Is there actually repeated logic between them?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do a DRY pass over the code in packages/checkout: list groups of identical or near-identical blocks and where each one lives. Don't change anything yet."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our generated protocol stubs are copied on purpose and the repo says so. Leaving those out, how many clone groups are there across the whole codebase?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is utils/date_helpers.py so big because someone pasted the same functions several times? Show me the repeated blocks, not a line count."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The same retry helper keeps turning up in our Go services. Find every place that block of code appears under services/, with line numbers."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How much copy-and-paste is in the C# under src/Reports? I want it as clone groups and total lines."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Are the new Python lines in my diff just repeats of code that already exists in ingest/?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The same branch-protection paragraph is duplicated in five rule files. Pull it into one doc and make the others cite it."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "We suspect duplication has bloated this repo, but for now just list lines per file and flag anything over 1000."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Capture a baseline of the code's shape before I refactor the importer to remove duplicated paths, then compare afterwards to prove it improved."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "DRY this prose: our ADRs and skill bodies duplicate the same timeout value, so every bump touches several markdown files."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This parser in legacy/ got copied around and it's hard to follow. What are its cyclomatic and cognitive complexity per function?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "README and CONTRIBUTING both carry a duplicate of the release checklist. Make one source of truth and migrate the references to it."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I removed the duplicated handlers yesterday. Did complexity go down compared with the numbers we captured before the change?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The duplicated DTOs in packages/api made me wonder about typing. What percentage is typed and how many anys are in there?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "After deleting the duplicated cache code, is the search endpoint any faster? Benchmark it before and after."
+    }
+  ]
+}
