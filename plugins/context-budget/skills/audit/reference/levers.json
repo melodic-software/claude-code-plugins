@@ -79,7 +79,7 @@
       "categoryBasis": "Settings row documented; removal (not refusal) verified against the binary's enablement predicate and by measured differencing.",
       "conditions": null,
       "posture": "recommendable-on-fit",
-      "scope": "Settings key at any scope including managed; env var (truthiness, not literal 1); also a /config toggle.",
+      "scope": "Settings key at any scope including managed, reaching everyone that file reaches; env var (truthiness, not literal 1). The /config Dynamic workflows toggle writes a different key, enableWorkflows, to user settings, and settings-reference#enableworkflows is the route for one operator.",
       "detection": "disableWorkflows in settings scopes; CLAUDE_CODE_DISABLE_WORKFLOWS in the environment; Workflow's presence in the baseline tool list.",
       "measurement": "attribute --tools Workflow prices the removal; snapshot before/after the setting confirms the wiring.",
       "emittedConfig": "{\"disableWorkflows\": true}",
@@ -89,36 +89,36 @@
       "citations": [
         "https://code.claude.com/docs/en/workflows",
         "https://code.claude.com/docs/en/settings-reference#disableworkflows",
+        "https://code.claude.com/docs/en/settings-reference#enableworkflows",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-23",
+      "verified": "2026-11-04",
       "recheckTrigger": "The workflows page changes its disable mechanisms, or denying/disabling Workflow stops moving the prefix bucket."
     },
     {
       "id": "disable-artifact",
-      "title": "disableArtifact / CLAUDE_CODE_DISABLE_ARTIFACT (and the enableArtifact /config row)",
+      "title": "enableArtifact / CLAUDE_CODE_DISABLE_ARTIFACT (and the deprecated disableArtifact)",
       "mechanism": "Disables the Artifact tool; uniquely, the disableArtifact family also removes the companion artifact-* skills from the listing, which a permissions.deny of the tool leaves behind.",
       "category": "removes-weight",
       "categoryBasis": "Settings and env rows documented; tool-plus-skills removal versus deny-leaves-skills measured at the verified version.",
       "conditions": null,
       "posture": "recommendable-on-fit",
-      "scope": "User or managed. Do not emit either key into project `.claude/settings.json`: enableArtifact is ignored there, and a project disableArtifact is overridden by any higher-precedence file rather than acting as a lock. enableArtifact: false is the user-scope form (the /config Artifacts row); disableArtifact is the org-wide lock (managed). Env var CLAUDE_CODE_DISABLE_ARTIFACT is equivalent for one session.",
+      "scope": "Any settings file can turn the tool off and none can turn it back on. enableArtifact: false at user scope is the one-operator form (the /config Artifacts row writes it); a project or managed file reaches everyone that file reaches. disableArtifact is deprecated: a true still counts as enableArtifact: false. Env var CLAUDE_CODE_DISABLE_ARTIFACT turns it off for one session.",
       "detection": "disableArtifact/enableArtifact across scopes; CLAUDE_CODE_DISABLE_ARTIFACT in the environment; Artifact in the baseline tool list; artifact-* rows in the skill listing.",
       "measurementScope": "unmeasurable-in-this-session-kind",
       "measurement": "Artifact is interactive-only, so attribute --tools Artifact is not a measurement in the headless session this skill runs. Do not publish that route's zero. Price the lever only in a session kind where Artifact is a candidate. A headless Skills delta of 0 means the companion artifact-* skills never entered the listing, not that the lever is inert.",
       "emittedConfig": "{\"enableArtifact\": false}",
       "caveats": [
         "Prefer this over a bare-name deny for never-publishes-artifacts operators: the deny is the weaker trim, leaving the companion skill descriptions listed.",
-        "Emit at user scope (`~/.claude/settings.json`). A project write is the wrong scope: enableArtifact is ignored there and a project disableArtifact is not a lock.",
-        "enableArtifact requires v2.1.196+; managed disableArtifact takes precedence over a user's enableArtifact."
+        "Emit at user scope (`~/.claude/settings.json`) for one operator's trim. A project write turns the tool off for everyone who clones the repository, and no other file can turn it back on, so that is a team decision and not a token saving to offer."
       ],
       "citations": [
         "https://code.claude.com/docs/en/settings-reference#disableartifact",
         "https://code.claude.com/docs/en/settings-reference#enableartifact",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-23",
-      "recheckTrigger": "The settings reference changes either artifact key's semantics or scope restrictions."
+      "verified": "2026-11-04",
+      "recheckTrigger": "The settings reference changes either artifact key's semantics or scope, or lets a file turn the tool back on."
     },
     {
       "id": "disable-web-fetch",
@@ -148,25 +148,26 @@
     {
       "id": "include-git-instructions",
       "title": "includeGitInstructions: false / CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS",
-      "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description. The env var overrides the settings key (binary predicate at the verified version: a set env wins; otherwise includeGitInstructions defaults true).",
+      "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description, and the git status snapshot. The env var takes precedence over the settings key for one session.",
       "category": "removes-weight",
-      "categoryBasis": "Settings row documented; the env override is implemented in the binary but is not on the public env-vars page. Measured at the verified version — the saving lands in the System tools bucket, not System prompt, because the text lives in a tool description.",
+      "categoryBasis": "Settings and env-vars rows documented. Measured at the verified version — the saving lands in the System tools bucket, not System prompt, because the text lives in a tool description. Where the snapshot's saving lands was not measured.",
       "conditions": null,
       "posture": "recommendable-on-fit",
       "scope": "Settings key (recommended emitted config); env var CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS as the headless measurement route (no settings write).",
       "detection": "includeGitInstructions across settings scopes; CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the environment.",
-      "measurement": "snapshot with and without CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the spawned environment (no settings write); watch System tools, not System prompt (the docs describe it as a system-prompt lever; the measured landing bucket differs — report what measures).",
+      "measurement": "snapshot with and without CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the spawned environment (no settings write); watch System tools for the instructions and report every other bucket that moves.",
       "emittedConfig": "{\"includeGitInstructions\": false}",
       "caveats": [
         "Trades away built-in commit/PR guidance; a repo relying on it should keep it or replace it with its own conventions.",
-        "The env form is the measurement route (headless, no settings write) and is unverified-undocumented as a public env-vars row; keep the settings key as the recommended emitted config.",
+        "The env form is the measurement route (headless, no settings write); keep the settings key as the recommended emitted config.",
         "Headless sdk-mode /context may omit a System prompt category at this version; prompt-text deltas then surface only in the buckets that move (System tools here)."
       ],
       "citations": [
-        "https://code.claude.com/docs/en/settings-reference#includegitinstructions"
+        "https://code.claude.com/docs/en/settings-reference#includegitinstructions",
+        "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-23",
-      "recheckTrigger": "The settings row's wording changes, the env override disappears from the binary, or the measured delta stops landing in System tools."
+      "verified": "2026-11-04",
+      "recheckTrigger": "The settings row or the env-vars CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS row changes, or the measured delta stops landing in System tools."
     },
     {
       "id": "simple-system-prompt",
@@ -224,7 +225,7 @@
       "categoryBasis": "The mechanism removes a skill from the listing. Whether that saves tokens is resolved on this machine: while the listing cap is saturated, freed space redistributes and the measured saving is zero; below the cap the Skills bucket moves. The cap is a character budget (skillListingBudgetFraction of the window, and skillListingMaxDescChars), not the Skills token total.",
       "conditions": "While the skill listing is over its budget cap, disabling individual skills changes WHICH skills get full descriptions, not what is paid. Below the cap it removes weight. Resolve by measurement: if the baseline listing shows collapsed rows, the cap is binding.",
       "posture": "recommendable-on-fit",
-      "scope": "Settings key; the only lever reaching claude.ai-synced skills.",
+      "scope": "Settings key, one skill at a time. To drop every claude.ai-synced skill on a machine, syncClaudeAiSkills: false is the other route (user, local or managed only).",
       "detection": "skillOverrides across scopes; collapsed rows in the baseline skill listing indicate cap saturation.",
       "measurement": "snapshot before/after an override; compare the Skills bucket AND note the System tools artifact (see comparability rules — the listing changed, so System tools deltas are not tool-attributable).",
       "emittedConfig": "{\"skillOverrides\": {\"<skill-name>\": \"off\"}}",
@@ -234,9 +235,10 @@
       ],
       "citations": [
         "https://code.claude.com/docs/en/settings-reference#skilloverrides",
+        "https://code.claude.com/docs/en/settings-reference#syncclaudeaiskills",
         "https://code.claude.com/docs/en/skills"
       ],
-      "verified": "2026-08-23",
+      "verified": "2026-11-04",
       "recheckTrigger": "The skills page's visibility-override section changes reach (plugin skills included, say), or the listing budget mechanism changes."
     },
     {
@@ -289,7 +291,7 @@
     {
       "id": "plugin-disable",
       "title": "enabledPlugins (per-plugin, four scopes)",
-      "mechanism": "Enables/disables a plugin (\"name@marketplace\": boolean) at managed/user/project/local scope. A plugin no scope names does not load, whatever its defaultEnabled; the plugins reference says it falls back to defaultEnabled.",
+      "mechanism": "Enables/disables a plugin (\"name@marketplace\": boolean) at managed/user/project/local scope. A plugin no scope names does not load, whatever its defaultEnabled (probe below); the settings and manifest references say it falls back to defaultEnabled.",
       "category": "removes-weight",
       "categoryBasis": "Key and scopes documented. The split is measured: agent definitions are uncapped and shrink proportionally; the skill listing is budget-capped and measured zero change even with most plugins disabled.",
       "conditions": "Removes weight on the Custom agents row (and any MCP servers the plugin ships). On the Skills row, zero while the listing is over cap — the honest benefit there is routing accuracy.",
@@ -300,7 +302,7 @@
       "emittedConfig": "{\"enabledPlugins\": {\"<plugin>@<marketplace>\": false}}",
       "caveats": [
         "A plugin shipping an MCP server can also cost the prompt cache on toggle — the one component type whose enable/disable forces a full prefix re-read when its tools load into the prefix.",
-        "Claim: an installed plugin loads only when an enabledPlugins scope sets it true; defaultEnabled does not decide an absent key. Basis: claude plugin list --json on Claude Code 2.1.280, in a fixture config directory, reported disabled every installed plugin no scope named, including one whose marketplace entry and one whose plugin.json set defaultEnabled true; settings-reference#enabledplugins agrees (an unlisted marketplace plugin starts false), plugins-reference#defaultenabled states the fallback. As of 2026-09-23, re-measured 2026-09-28. Recheck: a Claude Code release that applies the fallback, or either doc section changing.",
+        "Claim: an installed plugin loads only when an enabledPlugins scope sets it true; defaultEnabled does not decide an absent key. Basis: claude plugin list --json on Claude Code 2.1.280, in a fixture config directory, reported disabled every installed plugin no scope named, including one whose marketplace entry and one whose plugin.json set defaultEnabled true. settings-reference#enabledplugins and manifest-reference#defaultenabled both state the fallback, so this probe disagrees with both (read 2026-11-04). As of 2026-09-23, re-measured 2026-09-28. Recheck: a Claude Code release that applies the fallback, or either doc section changing.",
         "Every value must be a Boolean. Claim: one non-Boolean value (\"yes\", 1) makes Claude Code skip every enabledPlugins entry in that file, so its true siblings read disabled too, while other scopes still decide. Basis: the same fixture probe on Claude Code 2.1.280; claude doctor lists the value under Invalid settings. As of 2026-09-28. Recheck: a release that honors the Boolean siblings, or settings#fix-a-broken-settings-file naming per-entry handling for this key."
       ],
       "citations": [
@@ -310,7 +312,7 @@
         "https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled",
         "https://code.claude.com/docs/en/settings#fix-a-broken-settings-file"
       ],
-      "verified": "2026-09-28",
+      "verified": "2026-11-04",
       "recheckTrigger": "The plugins/settings pages change the key or its precedence, agent listings become budget-capped like skills, or a Claude Code release applies the defaultEnabled fallback to a plugin no scope names."
     },
     {

@@ -203,6 +203,24 @@ else
   fail "only norm-false-comment and norm-eligible should count (2 skills, 10 chars): $out"
 fi
 
+# 9c. Boolean frontmatter accepts `yes`, `no`, `on`, `off`, `1` and `0` in any
+#     letter case beside `true` and `false`
+#     (https://code.claude.com/docs/en/skills#frontmatter-reference). The true
+#     spellings leave the listing; the false spellings stay in it, and each
+#     false skill contributes 5 chars, so the aggregate proves which counted.
+for spelling in yes YES On on 1; do
+  make_skill "$TMP/dmi-spell-root" "spell-true-$spelling" "9999999999999999999999999" "" "$spelling"
+done
+for spelling in no OFF off 0; do
+  make_skill "$TMP/dmi-spell-root" "spell-false-$spelling" "12345" "" "$spelling"
+done
+out="$(run "$TMP/dmi-spell-root" 2>&1)"
+if grep -q 'over 4 listing-eligible skill(s)' <<<"$out" && grep -q 'aggregate: 20 chars' <<<"$out"; then
+  pass "every documented boolean spelling of disable-model-invocation is honored"
+else
+  fail "only the 4 false spellings should count (4 skills, 20 chars): $out"
+fi
+
 # 10. A nonnumeric override is an environment error (exit 2), never a silent
 #     awk coercion to zero (which fabricated a 0-char budget and a bogus
 #     overflow WARN while still exiting 0) and never an undocumented exit 1.

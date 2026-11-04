@@ -360,9 +360,8 @@ context can reach the command is unprobed; `lanes` `context/refresh.md` owns tha
 **Monitors need a restart.** We treat `/reload-plugins` as refreshing skills, agents, hooks, MCP
 and LSP servers in-process, but not monitors. Recommend bare `/reload-plugins` by default; call out
 a session restart only when an updated plugin ships a monitor. Pointer:
-[`/reload-plugins`](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins) and
-[Monitors](https://code.claude.com/docs/en/plugins/components#monitors). As of: 2026-10-07. Recheck trigger: the reload summary stops listing
-monitors as needing a restart.
+[plugin loading: which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update).
+As of: 2026-11-04. Recheck trigger: that section stops saying monitors require a session restart.
 
 **An install can now activate itself, but not the installs this skill issues.** An install started
 from the in-session `/plugin` interface reports its activation state, and this skill reads two
@@ -564,8 +563,10 @@ milliseconds) into the version directory, and the marker survived the marketplac
 the background sweep as removing a marked directory about 14 days later, running only while at
 least one plugin is installed, and removing a cache folder only once it holds no directory or
 symlink. So a removed marketplace's tree is swept on the same clock as any other orphaned version,
-marketplace folder included, provided the machine keeps any plugin installed. The docs say nothing
-about marketplace removal itself; the marker is our observation that connects the two. The sweep
+marketplace folder included, provided the machine keeps any plugin installed.
+[`plugin marketplace remove`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove)
+states what removal deletes and does not name this tree (read 2026-11-04); the marker is our
+observation that connects the two. The sweep
 does visit a removed marketplace's cache folders: the Claude Code 2.1.270 debug log (2026-09-14,
 recorded on [#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
 folder-retention pass keeping two removed marketplaces' folders because each still held content.

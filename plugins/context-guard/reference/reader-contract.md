@@ -432,9 +432,9 @@ session itself can know.
 
 **The docs publish the default thresholds; we state no figure.** The default depends on the model,
 the window it runs with, and the environment. This is a documentation pointer, not something read
-at run time: the docs' default-thresholds table,
+at run time: the docs' default-thresholds section,
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-10-10. **Recheck trigger:** that table changes, or its section is renamed or
+**As of:** 2026-11-04. **Recheck trigger:** that section's thresholds change, or it is renamed or
 removed. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
 implies a percentage default that no page publishes as a number. **Pointer:** when deciding what
 that variable does, fetch
@@ -468,9 +468,9 @@ precedence.
 
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
-| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above). Set, the module reads the window the engine settled on and, when it is smaller than the model's window, publishes it as `bands.auto_compact_window`, which the shell resolver reads too (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds section (pointer above). Set, the module reads the window the engine settled on and, when it is smaller than the model's window, publishes it as `bands.auto_compact_window`, which the shell resolver reads too (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
 | `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window. The snapshot cannot see that window, and the surface is not probed, so we never assume a subagent shares the session's trigger. | [sub-agents: Set the auto-compact window for one subagent](https://code.claude.com/docs/en/sub-agents#set-the-auto-compact-window-for-one-subagent) |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window ahead of the setting, the command, and the flag, unless Claude Code ignores its value. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables); [model-config: values and warnings](https://code.claude.com/docs/en/model-config#claude_code_auto_compact_window-values) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. `DISABLE_AUTO_COMPACT` leaves the manual `/compact` command available. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `DISABLE_COMPACT` | environment variable | A separate, broader switch the plugin does not read. The env-vars page documents it as: "Set to `1` to disable all compaction: both automatic compaction and the manual `/compact` command". It turns off manual `/compact` too, which `DISABLE_AUTO_COMPACT` does not. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |

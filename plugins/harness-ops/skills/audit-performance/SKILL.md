@@ -338,9 +338,12 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
   record and its fields are observed harness behavior, not documented, so treat the shape as
   unstable; basis: 41 such records in one session supplied every per-hook duration an audit
   produced, and [hooks](https://code.claude.com/docs/en/hooks.md) contains neither
-  `stop_hook_summary` nor `durationMs`; verified 2026-09-27; recheck when the hooks page
-  documents a per-hook timing record, or when a filtered transcript returns no
-  `stop_hook_summary` record in a session whose Stop hooks ran.
+  `stop_hook_summary` nor `durationMs`; verified 2026-11-04. For a session the operator can
+  start again, [debug hooks](https://code.claude.com/docs/en/hooks#debug-hooks) documents
+  per-hook durations in the debug log; the transcript record stays the route for a session that
+  already ran without debug logging. Recheck when the hooks page documents per-hook timing in
+  transcript records, or when a filtered transcript returns no `stop_hook_summary` record in a
+  session whose Stop hooks ran.
   For other events' hooks, filter to the timing fields:
   `jq -c 'select(.type == "attachment") | .attachment | select(.type == "hook_success" or .type == "hook_non_blocking_error") | {hookEvent, hookName, command, durationMs}' <session>.jsonl`.
   `/harness-ops:observability hooks <session>.jsonl` reads both shapes and owns the record of
