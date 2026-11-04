@@ -1,0 +1,22 @@
+{
+  "ran-check-attr": [
+    {
+      "use": "command_position"
+    },
+    "git(?:\\.exe)?(?![\\w.\\-/])",
+    {
+      "use": "token_argument"
+    },
+    "\\bcheck-attr\\b"
+  ],
+  "no-ls-files": [
+    {
+      "use": "command_position"
+    },
+    "git(?:\\.exe)?(?![\\w.\\-/])",
+    {
+      "use": "token_argument"
+    },
+    "\\bls-files\\b"
+  ]
+}
