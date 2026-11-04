@@ -313,9 +313,11 @@ eligible for skip 2. Compare the base and head manifests:
   that plugin's `skills/` or `agents/`. It is not inert when the key's value reaches a hook, an MCP,
   LSP or monitor server, a channel, a script or any other code file, whether as
   `${user_config.<key>}` or as the `CLAUDE_PLUGIN_OPTION_<KEY>` environment variable the plugin's
-  code reads. An inert key gets one summary line, `manifest userConfig.<key>: pass, inert, <the
-  file and line that reads it>`, treated like a selector's line: no inline comment, no `severity:`
-  line, nothing in the findings total or `critical-findings: <n>`, and never `hold`. Basis: owner
+  code reads. Nor is it inert when the skill or agent text puts the value into a command, a tool
+  input or an argument the session runs; only prose the model reads counts. An inert key gets one
+  summary line, `manifest userConfig.<key>: pass, inert, <the file and line that reads it>`,
+  treated like a selector's line: no inline comment, no `severity:` line, nothing in the findings
+  total or `critical-findings: <n>`, and never `hold`. Basis: owner
   decision Q3, 2026-11-04, in the owner-decisions record of `melodic-software/architecture`.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
