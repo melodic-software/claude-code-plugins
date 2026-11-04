@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "To opt in, add a [tool.ruff] section to pyproject.toml or a ruff.toml; the plugin ships no rules of its own."}
+  ],
+  "fail": [
+    {"answer": "Want me to create a minimal ruff.toml so formatting starts?", "why": "offers to write a config"},
+    {"answer": "I can add a [tool.ruff] section to your pyproject.toml if you like.", "why": "near miss: offer phrased as an edit"}
+  ]
+}

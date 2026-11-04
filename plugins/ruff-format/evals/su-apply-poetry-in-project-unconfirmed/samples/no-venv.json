@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing created"},
+    {"answer": ["pyproject.toml", "poetry.lock", "src/demo/__init__.py"], "why": "the scaffold's files"}
+  ],
+  "fail": [
+    {"answer": [".venv/pyvenv.cfg"], "why": "created an in-project environment"},
+    {"answer": ["env/pyvenv.cfg"], "why": "created an environment under another name"}
+  ]
+}

@@ -103,26 +103,29 @@ manufacturing a finding to justify the pass is the failure this whole method is 
 the artifact for a rendered view. The artifact stays the source of truth and the rendering is a
 second presentation of it, never a place a finding appears first.
 
-**Resolve `medium` before the offer.** The `rendered-views` preference is one of `auto`, `terminal`,
-`file`, `artifact` or `hosted`. A `--medium` argument naming one decides. Otherwise read whichever
-layers exist, in order: user-global `~/.claude/rendered-views.md`, team
-`<root>/.claude/rendered-views.md`, overlay `<root>/.claude/rendered-views.local.md`. `<root>` is
-`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`; outside a work tree, read only
-the user-global layer. The last layer that sets `medium` wins. Count the overlay only when
-`git ls-files` does not list it and `git check-ignore` matches it; otherwise report it and ignore it.
-This plugin has no `medium` option, so no rung sits between the argument and the layers. `terminal`
-drops the offer: layers 1 and 2 are the whole report. `file` keeps the offer and, when it is taken,
-passes `file` to `visualization:visualize` as its argument, so no rung of that skill publishes the
-view. When `medium` came from the `--medium` argument, the offer, when taken, passes that value to
-`visualization:visualize` as its argument too, so the argument's rung is never lost to a lower rung
-of that skill. Any other value from a layer or the shipped default, or none, keeps the offer, and
-`visualization:visualize` picks the rung itself, since it reads the same layers; a value outside
-the five is reported. Name the
-source of `medium` in the terminal summary: the argument, the layer's path, or "shipped default".
+**Resolve `medium` before the offer** with the shared medium resolver. This plugin has no `medium`
+option, so `--option` stays empty; add `--argument` only when the run has a `--medium` value:
+
+```bash
+node "<plugin-root>/lib/view-settings.mjs" resolve --lane overengineering:audit --option "" [--argument <the --medium value>]
+```
+
+It prints one JSON line, then the report line naming the medium and what decided it, then any
+notice; print the report line and the notices in the terminal summary as they stand. Leave the
+rendered-views convention files to the resolver: it weighs the argument and each scope, and never
+publishes on a team file's say-so. On exit 2 with `--argument`, report the `--medium` value and run
+it again without `--argument`. On exit 2 without it, or when `node` is missing, report that in one
+line and take the `null` row.
+
+| The JSON | Offer |
+|---|---|
+| `page` is `false` | None: layers 1 and 2 are the whole report. |
+| `medium` is `null` (no setting decided) | Offered; when taken, `visualization:visualize` picks the medium itself. |
+| `page` is `true` | Offered; when taken, passes the JSON's `medium` to `visualization:visualize` as its argument. |
 
 **Documented fallback when that plugin is not installed: skip it.** Say nothing beyond a single line
-noting that the optional rendered view was unavailable, and do not substitute a hand-built HTML file,
-an inline chart, or an extra markdown file. Layers 1 and 2 are complete on their own; a substitute
+noting that the optional rendered view was unavailable (none when the JSON's `page` is `false`),
+and do not substitute a hand-built HTML file, an inline chart, or an extra markdown file. Layers 1 and 2 are complete on their own; a substitute
 built here would be a third record to keep in sync, which is exactly what the single-source-of-truth
 rule forbids.
 

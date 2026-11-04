@@ -310,6 +310,8 @@ def _send(
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
     include = not binary and _includes_headers(args)
+    token = _api_budget_token(env_overrides)
+    traced = guarded and not include and token is not None
     proc = run_command(
         ["gh", "api", "-i", *args[1:]] if include else ["gh", *args],
         allowed_executables=("gh",),
@@ -317,15 +319,18 @@ def _send(
             timeout_seconds if timeout_seconds is not None else _default_timeout_seconds
         ),
         check=False,
-        env_overrides=env_overrides,
+        env_overrides={**(env_overrides or {}), "GH_DEBUG": "1"}
+        if traced
+        else env_overrides,
         binary=binary,
     )
     status, headers = None, {}
     if include:
         status, headers, proc.stdout = _split_headers(proc.stdout)
-        token = _api_budget_token(env_overrides)
         if token and status is not None:
             _api_budget_write(token, status, headers, api_route(_endpoint(args)))
+    elif traced and token:
+        proc.stderr = _api_budget_trace(token, proc.stderr)
     if guarded:
         _guard_response(limits_pool, args, proc, status, headers, binary=binary)
     return proc, headers
@@ -996,6 +1001,51 @@ def _api_budget_line(
         for key, pattern in _API_BUDGET_VALUES.items()
     ]
     return f"{status} {' '.join(values)} {route}\n"
+
+
+# api-budget.bash's api_budget_traced port. A call that gives no header block
+# (a binary download, a subcommand other than `api`, a bare --paginate) runs
+# with GH_DEBUG=1, which logs only head lines per request, never headers or
+# bodies. Each request to a GitHub API URL (a redirect to a download host is
+# not one) becomes a `request <route>` line in the token's file, so the job's
+# api-calls notice counts it; the debug lines are then dropped from stderr.
+_TRACE_API_URL = re.compile(r"https://((api|uploads)\.github\.com|[^/]+/api)/")
+_TRACE_DROP = re.compile(r"\* (Using proxy|Skipping TLS verification): |\[git[] ]")
+
+
+def _api_budget_trace(token: str, stderr: str) -> str:
+    """stderr without what GH_DEBUG=1 adds, after appending one `request`
+    line per API request to the token's file. Never raises on the write."""
+    kept: list[str] = []
+    routes: list[str] = []
+    open_requests = 0
+    last = ""
+    for line in stderr.splitlines():
+        if line.startswith("* Request at "):
+            open_requests += 1
+        elif line.startswith("* Request took "):
+            open_requests = max(open_requests - 1, 0)
+        elif line.startswith("* Request to "):
+            parts = line.split()
+            if len(parts) >= 4 and _TRACE_API_URL.match(parts[3]):
+                routes.append(api_route(parts[3]))
+        elif _TRACE_DROP.match(line) or (open_requests and line.startswith("* ")):
+            pass
+        elif line.startswith("lookup ") and last.startswith("error connecting to "):
+            last = ""
+        else:
+            kept.append(line)
+            last = line
+    if routes:
+        try:
+            path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
+                handle.writelines(f"request {route}\n" for route in routes)
+        except OSError:
+            pass
+    text = "\n".join(kept)
+    return text + "\n" if text and stderr.endswith("\n") else text
 
 
 # A reading's route, for the job-end api-routes notice: rate-guard.mjs's

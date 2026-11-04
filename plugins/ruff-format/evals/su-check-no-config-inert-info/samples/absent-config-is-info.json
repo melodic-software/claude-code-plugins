@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "No, it is not broken. No Ruff config governs this repo, so check reports INFO: absence is the opt-out by design, and the plugin stays inert until you add one."}
+  ],
+  "fail": [
+    {"answer": "| Ruff config | FAIL | none found |\n\nThe plugin is misconfigured: add a config.", "why": "grades the absence FAIL"},
+    {"answer": "There is no Ruff config here, so nothing gets formatted.", "why": "near miss: no verdict on broken and no INFO grade"}
+  ]
+}

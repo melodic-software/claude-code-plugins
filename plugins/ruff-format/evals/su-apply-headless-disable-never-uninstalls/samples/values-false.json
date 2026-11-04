@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "`{\"ruff_format_enabled\": \"false\"}`"
+    },
+    {
+      "answer": "{\"ruff_format_enabled\":\"false\"}",
+      "why": "no space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"ruff_format_enabled\": false}",
+      "why": "unquoted boolean; every value is a string"
+    },
+    {
+      "answer": "ruff_format_enabled=false",
+      "why": "the --config form, not the JSON"
+    },
+    {
+      "answer": "{\"ruff_format_enabled\": \"true\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
