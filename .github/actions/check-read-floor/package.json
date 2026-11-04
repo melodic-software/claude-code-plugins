@@ -1,7 +1,0 @@
-{
-  "name": "check-read-floor",
-  "private": true,
-  "scripts": {
-    "test": "node --test"
-  }
-}

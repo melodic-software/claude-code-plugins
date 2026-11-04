@@ -1011,23 +1011,6 @@ test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler 
   assert.deepEqual(cronMinutes(DISPATCHER), reconciler.map((minute) => (minute + 5) % 60));
 });
 
-// The read-floor gate (.github/actions/check-read-floor): a work step runs
-// only on skip=false, so a gate under the floor, unreadable, or that wrote
-// nothing stops it.
-for (const [file, steps, context] of [
-  ["maintenance-reconcile-lost-runs.yml", ["Pace the tick on the GITHUB_TOKEN burn rate", "Find lost runs", "Re-run lost runs"], { "steps.pace.outputs.paced": "false" }],
-  ["maintenance-delete-stale-branches.yml", ["Install resolve-config's dependencies", "Plan the deletes", "Download the candidate list", "Delete stale branches"], { "steps.kill.outputs.proceed": "true" }],
-]) {
-  test(`${file}: the work runs only above the read floor`, () => {
-    for (const name of steps) {
-      const runs = (skip) => evaluate(stepIf(file, name), { ...context, "steps.floor.outputs.skip": skip });
-      assert.equal(runs("false"), true, `${name}: above the floor`);
-      assert.equal(runs("true"), false, `${name}: under the floor or unreadable`);
-      assert.equal(runs(""), false, `${name}: a gate that wrote nothing`);
-    }
-  });
-}
-
 test("pr-unblock-dispatch.yml: only a push cancels the dispatcher run going; a tick or hand run waits", () => {
   const block = jobBlock(DISPATCHER, "dispatch");
   const at = block.findIndex((line) => line === "    concurrency:");

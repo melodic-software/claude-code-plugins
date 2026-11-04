@@ -25,9 +25,7 @@ name: maintenance-delete-stale-branches
 # The schedule deletes; a manual run is a dry-run unless dry-run is set to
 # false, and a dry-run starts no delete job. How to stop it: set the
 # organization or repository lanes kill-switch variable to anything but
-# "false"; each job checks it. Each job also reads and deletes nothing while
-# the GITHUB_TOKEN pool is under its read floor or cannot be read
-# (.github/actions/check-read-floor).
+# "false"; each job checks it.
 
 on:
   schedule:
@@ -101,18 +99,11 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or deleted"
 
-      # Under the GITHUB_TOKEN pool's read floor, or with the pool unreadable,
-      # nothing is read or deleted.
-      - name: Check the read floor
-        id: floor
-        if: steps.kill.outputs.proceed == 'true'
-        uses: ./.base/.github/actions/check-read-floor # zizmor: ignore[self-repository]
-
       # cleanup.mjs reads the branch-cleanup leaf through the base's
       # resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
-        if: steps.kill.outputs.proceed == 'true' && steps.floor.outputs.skip == 'false'
+        if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       # A workflow token's REST limit is per repository per hour
@@ -122,7 +113,7 @@ jobs:
       # stopping at the cap.
       - name: Plan the deletes
         id: plan
-        if: steps.kill.outputs.proceed == 'true' && steps.floor.outputs.skip == 'false'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           STAGE: plan
           GITHUB_TOKEN: ${{ github.token }}
@@ -195,29 +186,23 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing deleted"
 
-      # Checked again, like the kill switch.
-      - name: Check the read floor
-        id: floor
-        if: steps.kill.outputs.proceed == 'true'
-        uses: ./.base/.github/actions/check-read-floor # zizmor: ignore[self-repository]
-
       # The delete stage checks the list against the configured cap.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
-        if: steps.kill.outputs.proceed == 'true' && steps.floor.outputs.skip == 'false'
+        if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       # This run's own plan job wrote it; the delete stage still refuses a
       # list over the cap or with an entry it does not expect.
       - name: Download the candidate list
-        if: steps.kill.outputs.proceed == 'true' && steps.floor.outputs.skip == 'false'
+        if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ needs.plan.outputs.candidates }}
           path: ${{ runner.temp }}/branch-cleanup-candidates
 
       - name: Delete stale branches
-        if: steps.kill.outputs.proceed == 'true' && steps.floor.outputs.skip == 'false'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           STAGE: delete
           GITHUB_TOKEN: ${{ github.token }}
@@ -233,7 +218,7 @@ jobs:
       # Uploaded after a failed step too, so every line written before a
       # delete survives.
       - name: Upload the ledger
-        if: always() && steps.kill.outputs.proceed == 'true' && steps.floor.outputs.skip == 'false'
+        if: always() && steps.kill.outputs.proceed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: branch-cleanup-ledger-${{ github.run_id }}-${{ github.run_attempt }}

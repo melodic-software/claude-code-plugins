@@ -40,19 +40,6 @@ test("each job checks the kill switch before every step that reads or deletes", 
   }
 });
 
-test("each job checks the read floor after the kill switch, and every step that reads or deletes waits on skip=false", () => {
-  for (const [name, steps] of [
-    ["plan", ["Install resolve-config's dependencies", "Plan the deletes"]],
-    ["delete", ["Install resolve-config's dependencies", "Download the candidate list", "Delete stale branches", "Upload the ledger"]],
-  ]) {
-    const body = job(name);
-    const gate = step(body, "Check the read floor");
-    assert.match(gate, /id: floor\n {8}if: steps\.kill\.outputs\.proceed == 'true'\n {8}uses: \.\/\.base\/\.github\/actions\/check-read-floor /, name);
-    assert.ok(body.indexOf("- name: Check the kill switch") < body.indexOf("- name: Check the read floor"), name);
-    for (const s of steps) assert.match(step(body, s), /&& steps\.floor\.outputs\.skip == 'false'\n/, `${name}: ${s}`);
-  }
-});
-
 test("only the plan stage reads issue and pull request text; the delete stage takes the plan job's list", () => {
   assert.match(step(job("plan"), "Plan the deletes"), /STAGE: plan\n/);
   assert.match(step(job("delete"), "Delete stale branches"), /STAGE: delete\n/);
@@ -84,7 +71,7 @@ test("a manual run is a dry-run unless set and starts no delete job, and the sch
 
 test("the ledger artifact uploads after a failed step too", () => {
   const body = step(job("delete"), "Upload the ledger");
-  assert.match(body, /if: always\(\) && steps\.kill\.outputs\.proceed == 'true' && steps\.floor\.outputs\.skip == 'false'/);
+  assert.match(body, /if: always\(\) && steps\.kill\.outputs\.proceed == 'true'/);
   assert.match(body, /path: \$\{\{ runner\.temp \}\}\/branch-cleanup-ledger\.jsonl/);
 });
 
