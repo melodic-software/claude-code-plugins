@@ -47,7 +47,8 @@
 #                   id anywhere passes `ids=0`, with a `warning=criteria-without-ids`
 #                   line when it has criteria; an item reading `none ...` is not one
 #   behaviors       `## Plan` opens with a `### Behavior` list: its first `###`
-#                   heading is that one. Each item is `- B<n>: <claim> (AC<i>, ...)`; an
+#                   heading is that one. Each item is `- B<n>: <claim> (AC<i>, ...)`, and
+#                   its indented continuation lines count toward its cites; an
 #                   optional `Process criteria: AC<k>, ...` line in the list names the
 #                   criteria no behavior shows; a phase names the behaviors it builds on
 #                   a `**Delivers:** B1, B3` line (one outside a phase section maps
@@ -166,6 +167,22 @@ structural="$(
     function flush_phase() {
       if (in_phase && !phase_sanity) missing_sanity = missing_sanity " " phase_name
     }
+    # A behavior item stays open over its indented continuation lines, so a cite
+    # wrapped onto a later line counts; no-cite is decided when the item closes.
+    function b_scan(text,    n, cid) {
+      n = 0
+      while (match(text, /AC[0-9]+/)) {
+        cid = substr(text, RSTART, RLENGTH)
+        text = substr(text, RSTART + RLENGTH)
+        n++
+        if (!(cid in b_cited)) { bc_n++; bc_order[bc_n] = cid; b_cited[cid] = 1 }
+      }
+      return n
+    }
+    function close_b() {
+      if (b_open && !b_cites) b_nocite = b_nocite " " b_open_id
+      b_open = 0
+    }
     { sub(/\r$/, "") }
     match($0, /^[ \t]*(```+|~~~+)/) {
       fence = substr($0, RSTART, RLENGTH)
@@ -178,6 +195,7 @@ structural="$(
     in_fence { next }
     /^#+[ \t]/ {
       heading = $0
+      close_b()
       in_table = 0
       in_ac = (tolower(heading) ~ /^#+[ \t]+acceptance criteria[ \t:]*$/)
       in_behavior = 0
@@ -242,6 +260,10 @@ structural="$(
         if (!(id in sat)) { sat_n++; sat_order[sat_n] = id; sat[id] = 1 }
       }
     }
+    in_behavior && b_open {
+      if ($0 ~ /^[ \t]+[^ \t]/ && $0 !~ /^[ \t]*([-*+][ \t]+|(\*\*)?Process criteria:)/) b_cites += b_scan($0)
+      else if ($0 ~ /[^ \t]/) close_b()
+    }
     in_behavior && /^ ?[-*+][ \t]+/ {
       text = $0
       sub(/^ ?[-*+][ \t]+/, "", text)
@@ -252,14 +274,9 @@ structural="$(
         text = substr(text, RLENGTH + 1)
         if (id in b_def) b_dup = b_dup " " id
         else { b_n++; b_order[b_n] = id; b_def[id] = 1 }
-        cites = 0
-        while (match(text, /AC[0-9]+/)) {
-          cid = substr(text, RSTART, RLENGTH)
-          text = substr(text, RSTART + RLENGTH)
-          cites++
-          if (!(cid in b_cited)) { bc_n++; bc_order[bc_n] = cid; b_cited[cid] = 1 }
-        }
-        if (!cites) b_nocite = b_nocite " " id
+        b_open = 1
+        b_open_id = id
+        b_cites = b_scan(text)
       }
     }
     in_behavior && /^[ \t]*([-*+][ \t]+)?(\*\*)?Process criteria:/ {
@@ -327,6 +344,7 @@ structural="$(
     }
     END {
       flush_phase()
+      close_b()
       for (i = 1; i <= breakages; i++) {
         reason = breakage_reason(i)
         if (reason != "") breakage_invalid = breakage_invalid " " breakage_line[i] ":" reason

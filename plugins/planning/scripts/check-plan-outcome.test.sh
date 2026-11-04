@@ -400,6 +400,12 @@ run "a behavior id used twice fails" 1 "$TMP/b-dup.md" '^criterion=behaviors sta
 traced_plan | sed 's/^- B2: .*$/&\n- B3: The shell starts fast./; s/^\*\*Delivers:\*\* B1$/**Delivers:** B1, B3/' >"$TMP/b-nocite.md"
 run "a behavior citing no criterion fails" 1 "$TMP/b-nocite.md" '^criterion=behaviors status=fail behaviors=3 ids=2 no-cite=B3$'
 
+traced_plan | sed 's/^- B1: .*$/- B1: A fresh machine gets the shell config from one\n  `chezmoi apply`. (AC1)/' >"$TMP/b-wrapped.md"
+run "a behavior whose cite wraps onto a continuation line passes" 0 "$TMP/b-wrapped.md" '^criterion=behaviors status=pass behaviors=2 ids=2$'
+
+traced_plan | sed 's/^- B2: .*$/&\n- B3: The shell starts fast on a\n  fresh machine./; s/^\*\*Delivers:\*\* B1$/**Delivers:** B1, B3/' >"$TMP/b-wrapped-nocite.md"
+run "a wrapped behavior citing no criterion still fails" 1 "$TMP/b-wrapped-nocite.md" '^criterion=behaviors status=fail behaviors=3 ids=2 no-cite=B3$'
+
 traced_plan | sed 's/^- AC2: .*$/&\n- AC3: the PR body names the issue/; s/^- B2: .*$/&\nProcess criteria: AC3/; s/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC1, AC3/' >"$TMP/b-process.md"
 run "a criterion on the Process line alone passes" 0 "$TMP/b-process.md" '^criterion=behaviors status=pass behaviors=2 ids=3$'
 
