@@ -151,13 +151,17 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
 1. `bash plugins/review/evals/revert-cases.sh list` prints one row per revert pair: original
    pull request, original commit, revert pull request (`-` for a direct commit), revert commit,
    then the pair count. A revert is a `revert:` or `revert(<scope>):` subject or a
-   `This reverts commit <sha>` body line. The script skips a pair whose original names no pull
+   `This reverts commit <sha>` body line; when neither names its original, each merged
+   non-revert pull request the message names by number is tried, so one revert can list several
+   pairs, and a message can name one it did not undo, which the verifier below rejects. The
+   script skips a pair whose original names no pull
    request, whose revert removes no line the original added, or whose original no longer
    reverses cleanly onto the revert's parent, and prints each skip with its reason on stderr.
 2. `bash plugins/review/evals/revert-cases.sh build <original> <revert> <slug>` writes
-   `evals/revert-<pr>-<slug>/` and its fixtures: the files holding those lines at the base and
-   the merge, the original commit message as the pull request context, and a regex grader on
-   those lines. Its `case.yaml` records the pull request, the revert and the lines, matched by
+   `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures.tar.gz`: the
+   files holding those lines at the base and the merge, and the original commit message as the
+   pull request context. They are an archive because they are byte copies of history that
+   repository lints must not judge. Its `case.yaml` records the pull request, the revert and the lines, matched by
    their text. A verifier agent then checks the lines against the revert and drops any that only
    repeat a reverted line's text. `build` writes the lines to three places, and nothing rebuilds
    one from another, so the verifier drops each line from all three: the `# lines:` comment in
