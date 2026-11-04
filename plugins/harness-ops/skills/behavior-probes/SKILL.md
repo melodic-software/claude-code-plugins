@@ -16,10 +16,16 @@ holds each such behavior as a case and reruns it on demand, so a recheck is one 
 bespoke script. Outcomes are recorded in [records.md](records.md).
 
 `claude plugin eval` cannot carry these cases: a case there cannot set permission rules, `autoMode`, a
-permission mode or project settings, and its runs remove ungranted tools instead of deciding them.
-**Pointer**: when that question comes up again, fetch <https://code.claude.com/docs/en/plugin-evals>
-live. **As of**: 2026-10-08. **Recheck trigger**: a release note adding per-case settings or
-permission mode to plugin eval.
+permission mode or project settings, and its runs withhold write tools until `--allow-tools` grants
+them instead of deciding each call. A case's `allowed_tools` does not narrow the rest: a case
+listing only `Read`, `Glob` and `Grep` was still offered `Skill`, `Task`, `TaskStop` and
+`ToolSearch` ([record 21](records.md#21-a-plugin-eval-case-is-offered-and-runs-tools-its-allowed_tools-leaves-out)
+has which calls ran).
+**Pointer**: when that question comes up again, fetch
+<https://code.claude.com/docs/en/plugin-evals#grant-tools> live and read record 21. **As of**:
+2026-11-03 (record 21 on Claude Code 2.1.318). **Recheck trigger**: a release note adding per-case
+settings or permission mode to plugin eval, that section changing which tools a run allows, or
+record 21's recheck trigger.
 
 The runner is a script bundled here rather than a plugin `bin/` executable, because some surfaces
 refuse a plugin with a top-level `bin/`. **Pointer**: when deciding whether this plugin can ship a
