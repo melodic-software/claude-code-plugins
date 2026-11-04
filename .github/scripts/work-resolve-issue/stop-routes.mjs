@@ -178,35 +178,33 @@ const TOKEN_COUNT =
 const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|cop(?:y|ie[ds])|gist|screenshot)|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
 // The technical senses of a secret noun, which name no secret. A measure (an
 // input, output or cache token, a per-token rate, token spending) can never
-// name a credential, so it releases wherever it stands. A phrase that names a
-// real credential by its kind or scope (a subscription, model, read or write
-// token, "whose token has no `statuses: read`", "the token's permissions", "has
-// no credentials") releases only when the reason ends after it, or after one
-// clause saying what it cannot do (", cannot read it", "do not cover the
-// workflow write"), so text after it can never be left unread: "a write token
-// was sent to ...", "the write token the lane uses is in the public run log"
-// and "the subscription token; it is in ..." hold. Like a count, each releases
-// nothing in a reason that also says what was done with a secret
-// (TOKEN_HANDLING).
-const CRED_END = String.raw`(?=(?:\s*,?\s*(?:and\s+)?(?:cannot|can\s+not|do(?:es)?\s+not)\s+(?:read|write|cover|include|allow|grant|reach|run|call|use)(?:\s+(?:it|them|the\s+[\w-]+(?:\s+[\w-]+)?))?)?\s*\.?\s*$)`;
+// name a credential, so it releases wherever it stands (TOKEN_MEASURE). A
+// phrase that names a real credential by its kind or scope (a subscription,
+// model, read or write token, "whose token has no `statuses: read`", "the
+// token's permissions", "has no credentials") is read like a capability
+// phrasing (CRED_SENSE): it releases only when every other word of the reason
+// is a capability word, so any word before or after it that could state an
+// exposure ("the public run log now holds the write token", "the write token
+// the lane uses is in ...") holds. Like a count, each releases nothing in a
+// reason that also says what was done with a secret (TOKEN_HANDLING).
+const TOKEN_MEASURE = /\b(?:input|output|cache)\s+tokens?\b|\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b/gi;
 const SCOPE = String.raw`(?:\x60[^\x60\n]{1,40}\x60|[\w-]+:\s*(?:read|write)|(?:[\w-]+\s+)?(?:permissions?|scopes?))`;
-const TOKEN_SENSE = new RegExp(
-  String.raw`\b(?:input|output|cache)\s+tokens?\b|\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b` +
-    String.raw`|(?:\b(?:subscription|model)\s+tokens?|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?|\btokens?\s+(?:has|have|had)\s+no\s+${SCOPE}|\btoken['’]s\s+(?:permissions?|scopes?)|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?)${CRED_END}`,
+const CRED_SENSE = new RegExp(
+  String.raw`\b(?:subscription|model)\s+tokens?\b|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?\b|\btokens?\s+(?:has|have|had)\s+no\s+${SCOPE}|\btoken['’]s\s+(?:permissions?|scopes?)\b|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?\b`,
   "gi",
 );
-const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " ").replace(TOKEN_SENSE, " "));
+const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " ").replace(TOKEN_MEASURE, " "));
 // The only words a reason that names a secret noun may hold beside its
 // capability phrasings. Fail closed: any other word, so any exposure however
-// worded ("uploaded", "posted", "the key was ..."), a pronoun that could point
-// at the secret, or a word in another script, holds. "this" and "that" count
-// only before "lane" or "needs".
+// worded ("uploaded", "posted", "holds", "contains", "the key was ..."), a
+// pronoun that could point at the secret but "it", or a word in another
+// script, holds. "this" and "that" count only before "lane", "needs" or "ci".
 const CAPABILITY_WORDS = new Set(
-  "a an the and or to on of for with not no cannot can does only lane host desktop machine gpu run runs need needs requires lacks hold invoke call spend credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver".split(" "),
+  "a an the and or to on of for with not no cannot can does do only lane host desktop machine gpu run runs need needs requires lacks hold invoke call calls spend paid credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver it has role s ci azure dequeue step merge job whose read write cover workflow".split(" "),
 );
 const capabilityOnly = (text) => {
   const words = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  return words.every((word, i) => CAPABILITY_WORDS.has(word) || (/^th(?:is|at)$/.test(word) && /^(?:lane|needs)$/.test(words[i + 1] ?? "")));
+  return words.every((word, i) => CAPABILITY_WORDS.has(word) || (/^th(?:is|at)$/.test(word) && /^(?:lane|needs|ci)$/.test(words[i + 1] ?? "")));
 };
 // The routes that end the lane's work on the issue rather than bring it back:
 // a security mention after one of their codes still reaches a person (owner
@@ -219,7 +217,8 @@ const capabilityOnly = (text) => {
 const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
 const endingRiskWord = (text) => {
   const counted = withoutCounts(text);
-  const rest = counted.replace(CAPABILITY, " ");
+  const capabilities = counted.replace(CAPABILITY, " ");
+  const rest = TOKEN_HANDLING.test(text) ? capabilities : capabilities.replace(CRED_SENSE, " ");
   // A listed name counts only for the word match: CAPABILITY and
   // capabilityOnly still read it, so a name beside a secret noun holds.
   return concernOutsideNames(text) ?? wordOutsideNames(rest) ?? (capabilityOnly(rest) ? "" : (wordOutsideNames(counted) ?? ""));

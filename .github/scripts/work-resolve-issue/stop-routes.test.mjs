@@ -256,6 +256,10 @@ test("an ending reason that names a token or credential only in a technical sens
     "host-only: the model token cannot expire and sits in the issue body",
     "host-only: the subscription token to use is in the issue body",
     "host-only: the write token cannot read it, and it is in the public log",
+    "host-only: the public run log now holds the write token.",
+    "host-only: the issue body contains the subscription token",
+    "host-only: anyone reading the public issue can see the model token",
+    "host-only: the public log includes the read token",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
   }
