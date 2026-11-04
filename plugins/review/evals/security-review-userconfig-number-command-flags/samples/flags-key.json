@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.wrap_column: flag, skills/summary/SKILL.md:6 puts the value into a fold command the session runs\n\nseverity: SUGGESTION",
+      "why": "flags the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.wrap_column: pass, inert, plugins/notes/skills/summary/SKILL.md:6\n\ncritical-findings: 0",
+      "why": "treats a value the skill runs in a command as inert"
+    }
+  ]
+}

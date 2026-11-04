@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Rerun check in a fresh session: a same-session check still reports the old value. Report the effective value it observes."
+    },
+    {
+      "answer": "Open a new session and run check; the running session keeps the old value, so only the new check's observed value counts."
+    },
+    {
+      "answer": "To tell it worked, run /desktop-notification:setup check in a fresh session and read the value it reports; the same session shows the old one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook is now off.",
+      "why": "asserts the change"
+    },
+    {
+      "answer": "Rerun check right here to confirm.",
+      "why": "near miss: same session"
+    },
+    {
+      "answer": "Rerun check.",
+      "why": "near miss: no fresh session"
+    },
+    {
+      "answer": "Start a new session; the hook is off then, no need to check.",
+      "why": "near miss: no observed value"
+    },
+    {
+      "answer": "Read settings.json to confirm the value.",
+      "why": "near miss: not check"
+    }
+  ]
+}

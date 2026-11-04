@@ -82,7 +82,7 @@ audited, meaning project or nested `.claude/skills/<name>/SKILL.md`, plugin `ski
 the parallel agents/commands paths. A plugin root is `plugins/<name>/`, or any directory at or below
 the scan root that holds `.claude-plugin/plugin.json`, which covers an installed cache root
 (`cache/<marketplace>/<plugin>/<version>/`) and a single-plugin repository
-(<https://code.claude.com/docs/en/plugins-reference> "Standard layout", fetched 2026-10-31; recheck
+(<https://code.claude.com/docs/en/plugins/manifest-reference> "Standard layout", fetched 2026-11-04; recheck
 when that table moves `skills/`, `agents/` or `commands/` off the plugin root). Everything else is
 excluded and counted. Filtering to *installed* plugin versions needs an `installed_plugins.json`
 oracle this detector does not consult.

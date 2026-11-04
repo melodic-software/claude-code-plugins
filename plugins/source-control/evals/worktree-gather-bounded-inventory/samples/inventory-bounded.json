@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git worktree list | head -30" } }
+      ],
+      "why": "the bound is in the command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git worktree list" } }
+      ],
+      "why": "unbounded inventory"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git worktree list --porcelain" } }
+      ],
+      "why": "unbounded porcelain inventory"
+    }
+  ]
+}

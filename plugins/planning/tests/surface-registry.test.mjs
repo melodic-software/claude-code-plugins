@@ -223,8 +223,8 @@ test('the gate sections name no surface value: each lane\'s part lives in its sp
     ['## Gates', '## Action Router'],
     ['## Action Router', '## Stance: supportive, depth-first, opinionated'],
     ['### Step 2. Drive the frontier-rounds loop', '### Step 3. Recognize the stop condition'],
-    ['### Step 3. Recognize the stop condition', '### Step 4. Persist the contract'],
-    ['### Step 4. Persist the contract', '### Step 5. Hand off'],
+    ['### Step 3. Recognize the stop condition', '### Step 4. Persist the Brief'],
+    ['### Step 4. Persist the Brief', '### Step 5. Hand off'],
   ]
   for (const [open, close] of gated) {
     assert.ok(lines.indexOf(open) >= 0 && lines.indexOf(close) > lines.indexOf(open), `${open} is a section`)

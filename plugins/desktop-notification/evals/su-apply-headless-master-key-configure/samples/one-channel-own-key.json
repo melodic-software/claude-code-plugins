@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Put {\"desktop_notification_bell_enabled\": \"false\"} in values.json instead."
+    },
+    {
+      "answer": "Pass --config desktop_notification_os_toast_enabled=false on the rerun."
+    },
+    {
+      "answer": "Same route with the channel's key: desktop_notification_terminal_notify_enabled."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set desktop_notification_enabled to false.",
+      "why": "near miss: the master key"
+    },
+    {
+      "answer": "Edit the env block in settings.json.",
+      "why": "near miss: not the route"
+    },
+    {
+      "answer": "You cannot mute one channel headless.",
+      "why": "false"
+    },
+    {
+      "answer": "Set that channel's key the same way.",
+      "why": "near miss: names no key"
+    },
+    {
+      "answer": "Pass --config bell=false.",
+      "why": "near miss: wrong key"
+    }
+  ]
+}

@@ -25,7 +25,7 @@ Action routing: no argument or `check` runs the check; `apply` runs the check, t
 repository file and nothing else. With complete `<key>=<value>` arguments nothing asks a question;
 the one confirmation is a diff to an existing file (`apply` step 4).
 
-Official contract for `userConfig`: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract for `userConfig`: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## `check` (read-only)
 

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| node | PASS | /usr/bin/node |"
+    },
+    {
+      "answer": "| Row | Result |\n|---|---|\n| jq | **INFO** |",
+      "why": "bold verdict"
+    },
+    {
+      "answer": "| FAIL | notify-send absent |",
+      "why": "verdict first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Node PASS, jq PASS, notify-send FAIL.",
+      "why": "prose, no table"
+    },
+    {
+      "answer": "| node | fine |",
+      "why": "no verdict"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": "Bash 4.4 is INFO, not FAIL: EPOCHREALTIME is unset below 5.0, so the opt-in telemetry envelope is skipped while notifications still fire."
+    },
+    {
+      "answer": "Bash 4.4: INFO. Notifications still fire.",
+      "why": "telemetry unmentioned"
+    },
+    {
+      "answer": "| Bash | INFO | 4.4 is above the 3.2 floor; below 5.0 telemetry is skipped and alerts still fire |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bash 4.4 is FAIL: the hook needs 5.0.",
+      "why": "wrong grade"
+    },
+    {
+      "answer": "Bash 4.4 is INFO.",
+      "why": "near miss: no consequence"
+    },
+    {
+      "answer": "Bash 4.4 is INFO, and notifications stop until they upgrade.",
+      "why": "near miss: wrong consequence"
+    },
+    {
+      "answer": "Bash 4.4 is PASS; nothing changes.",
+      "why": "near miss: wrong grade"
+    },
+    {
+      "answer": "Bash 4.4 is FAIL, though notifications still fire and only telemetry is skipped.",
+      "why": "near miss: right consequence, wrong grade"
+    }
+  ]
+}

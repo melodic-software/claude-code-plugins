@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/settings.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "writes settings"
+    }
+  ]
+}

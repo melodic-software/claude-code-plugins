@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { promisify } from "node:util";
 
 import {
   alreadyProcessed,
@@ -30,6 +32,7 @@ import {
   releasesFromStatus,
   renderItems,
   scheduledCandidates,
+  STARTED_ARTIFACT,
   startedInWindow,
   stoppedPlanText,
   SYNTHETIC_MESSAGE,
@@ -57,6 +60,7 @@ const plan = (over = {}) => ({
   ...over,
 });
 const ctx = { release: "2.1.300", baseSha: BASE };
+const execFileAsync = promisify(execFile);
 
 test("the newest release is the highest version, skipping drafts, prereleases and other tags", () => {
   const releases = [
@@ -223,7 +227,114 @@ const indexIn = (id, name) => stepsOf(id).findIndex((s) => s.startsWith(`      -
 const ifOf = (text) => /^ {8}if: (.*)$/m.exec(text)?.[1];
 const MARKER = "key-credit-stop-upstream-apply-changelog.yml-model";
 
-test("the gate reads the key's credit history at the pinned check-key-credit once a release is picked, before the start record", () => {
+// The scrub probe (#12836): capture-probe.mjs on run-claude-cli, on the release.
+const PROBE_JOB = "scrub-probe";
+const PROBE_STEP = "Probe what a Bash child can reach";
+const CHECK_STEP = "Check the probe";
+
+test("the scrub probe runs once per release the gate takes, on a read-only token, and nothing waits on it", () => {
+  const job = jobOf(PROBE_JOB);
+  assert.match(job, /^ {4}needs: gate$/m);
+  assert.match(job, /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.skip-key != 'true' && github\.run_attempt == '1'$/m);
+  assert.match(job, /^ {4}cache-mode: read$/m);
+  assert.deepEqual(/^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1].trim().split("\n").map((line) => line.trim().split(" #")[0]), ["contents: read"]);
+  const needers = [...WORKFLOW.matchAll(/^ {4}needs: (.*)$/gm)].filter(([, list]) => list.includes(PROBE_JOB));
+  assert.deepEqual(needers, []);
+  assert.doesNotMatch(WORKFLOW, /needs\.scrub-probe\./);
+});
+
+test("the key reaches the probe's run-claude-cli step alone, and that step runs the release's CLI after isolation", () => {
+  const job = jobOf(PROBE_JOB);
+  assert.equal(job.match(/secrets\./g).length, 1);
+  const probe = stepIn(PROBE_JOB, PROBE_STEP);
+  assert.match(probe, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /m);
+  assert.match(probe, /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
+  assert.match(probe, /^ {10}cli-version: \$\{\{ needs\.gate\.outputs\.release \}\}$/m);
+  assert.match(probe, /^ {10}CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_API_KEY$/m);
+  assert.match(probe, /^ {10}permission-mode: dontAsk$/m);
+  assert.doesNotMatch(probe, /continue-on-error/);
+  assert.deepEqual(/^ {10}allowed-tools: \|\n((?: {12}.*\n)+)/m.exec(probe)[1].trim().split("\n").map((line) => line.trim()), ["Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)"]);
+  for (const rule of ["Read(//proc/**)", "Read(/${{ runner.temp }}/**)", "Edit", "Write", "Agent"]) {
+    assert.ok(probe.includes(`            ${rule}\n`), rule);
+  }
+  const isolate = stepIn(PROBE_JOB, "Isolate the runner");
+  assert.match(isolate, /^ {10}install-subprocess-isolation: "true"$/m);
+  const at = ["Check the kill switch", "Apply the Claude managed settings", "Isolate the runner", PROBE_STEP, CHECK_STEP].map((name) => indexIn(PROBE_JOB, name));
+  assert.deepEqual([...at].sort((a, b) => a - b), at);
+  assert.match(stepIn(PROBE_JOB, "Check out the default branch tip"), /^ {10}persist-credentials: false$/m);
+  // Every step after the kill switch waits on it, through the resolver.
+  assert.equal(ifOf(stepIn(PROBE_JOB, "Resolve the model")), "steps.kill.outputs.proceed == 'true'");
+  for (const name of ["Apply the Claude managed settings", "Isolate the runner", "Write the probe prompt", PROBE_STEP]) {
+    assert.equal(ifOf(stepIn(PROBE_JOB, name)), "steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'", name);
+  }
+  // A leg the kill switch skipped has nothing to check; a failed one does.
+  assert.equal(ifOf(stepIn(PROBE_JOB, CHECK_STEP)), "always() && steps.probe.outcome != 'skipped'");
+});
+
+test("the check names the release and hit names on every failure, never a value, and a pass records the release", (t) => {
+  const run = stepIn(PROBE_JOB, CHECK_STEP).split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
+  const dir = mkdtempSync(join(tmpdir(), "scrub-probe-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // Where the step runs: the real script at .base, as the job's checkout has it.
+  const scripts = join(dir, ".base/.github/scripts/pr-verify");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(join(scripts, "capture-probe.mjs"), readFileSync(new URL("../pr-verify/capture-probe.mjs", import.meta.url)));
+  const RESULT = join(dir, "capture-probe.json");
+  const EXECUTION_FILE = join(dir, "execution.json");
+  const GITHUB_STEP_SUMMARY = join(dir, "summary");
+  const PROMPT_FILE = "/runner/_temp/probe.md";
+  const SECRET = `${"sk-ant-"}api03-${"Q".repeat(40)}`;
+  const leg = (result) => {
+    const use = (id, file) => ({ type: "assistant", message: { content: [{ type: "tool_use", id, name: "Read", input: { file_path: file } }] } });
+    const out = (id) => ({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, is_error: result === "refused", content: result === "refused" ? "denied" : SECRET }] } });
+    writeFileSync(EXECUTION_FILE, JSON.stringify([use("a", "/proc/self/environ"), out("a"), use("b", PROMPT_FILE), out("b")]));
+  };
+  const check = ({ result, env = {} }) => {
+    rmSync(RESULT, { force: true });
+    if (result !== undefined) writeFileSync(RESULT, JSON.stringify(result));
+    writeFileSync(GITHUB_STEP_SUMMARY, "");
+    try {
+      const stdout = execFileSync("bash", ["-e", "-c", run], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { PATH: process.env.PATH, RELEASE: "2.1.320", LEG_OUTCOME: "success", LEG_CLASS: "", CLI_VERSION: "2.1.320", RESULT, EXECUTION_FILE, PROMPT_FILE, GITHUB_STEP_SUMMARY, ...env },
+      });
+      return { status: 0, stdout };
+    } catch (error) {
+      return { status: error.status, stdout: error.stdout };
+    }
+  };
+  const clean = { clean: true, canary: true, hits: [], names: ["GITHUB_TOKEN", "ISSUE_LANE_CLAUDE_API_KEY"] };
+  const fails = (outcome, why) => {
+    assert.equal(outcome.status, 1, why);
+    assert.match(outcome.stdout, /^::error::Claude Code 2\.1\.320: /m, why);
+    assert.doesNotMatch(outcome.stdout, /::notice::/, why);
+    assert.doesNotMatch(outcome.stdout, /sk-ant-/, why);
+    assert.equal(readFileSync(GITHUB_STEP_SUMMARY, "utf8"), "", why);
+  };
+
+  leg("refused");
+  const pass = check({ result: clean });
+  assert.equal(pass.status, 0, pass.stdout);
+  assert.match(pass.stdout, /^::notice::Claude Code 2\.1\.320: the subprocess scrub probe passed$/m);
+  assert.match(readFileSync(GITHUB_STEP_SUMMARY, "utf8"), /Claude Code 2\.1\.320: the subprocess scrub probe passed/);
+
+  const hit = check({ result: { clean: false, canary: true, names: clean.names, hits: [{ where: "process 7", name: "ISSUE_LANE_CLAUDE_API_KEY" }, { where: "process 8", name: "ISSUE_LANE_CLAUDE_API_KEY" }, { where: "own environment", name: "GITHUB_TOKEN" }] } });
+  fails(hit, "a hit");
+  assert.match(hit.stdout, /\(GITHUB_TOKEN, ISSUE_LANE_CLAUDE_API_KEY\)/);
+  assert.doesNotMatch(hit.stdout, /process 7/);
+
+  fails(check({ result: { ...clean, clean: false, canary: false } }), "a missed canary");
+  fails(check({ result: { ...clean, names: ["GITHUB_TOKEN"] } }), "the added name never arrived");
+  fails(check({}), "no result");
+  assert.match(check({ result: clean, env: { LEG_OUTCOME: "failure", LEG_CLASS: "install-failed" } }).stdout, /install-failed/);
+  fails(check({ result: clean, env: { LEG_OUTCOME: "failure", LEG_CLASS: "install-failed" } }), "a failed leg, even with a clean result on disk");
+  fails(check({ result: clean, env: { CLI_VERSION: "2.1.319" } }), "another CLI");
+  leg("read");
+  fails(check({ result: clean }), "a Read that came back");
+});
+
+test("the gate reads the key's credit history at the pinned check-key-credit once a release is picked", () => {
   assert.equal(WORKFLOW.match(/check-key-credit@/g).length, 1);
   const gate = stepIn("gate", "Read the key's credit history");
   assert.match(gate, /^ {8}id: credit$/m);
@@ -235,24 +346,19 @@ test("the gate reads the key's credit history at the pinned check-key-credit onc
   assert.match(gate, /^ {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \|\| '1' \}\}$/m);
   assert.match(gate, /^ {10}probe-minutes: "0"$/m);
   assert.ok(indexIn("gate", "Pick the release") < indexIn("gate", "Read the key's credit history"));
-  for (const after of ["Report the credit skip", "Record the start", "Upload the start record"]) {
-    assert.ok(indexIn("gate", after) > indexIn("gate", "Read the key's credit history"), after);
-  }
+  assert.ok(indexIn("gate", "Report the credit skip") > indexIn("gate", "Read the key's credit history"));
   assert.match(jobOf("gate"), /^ {6}actions: read\b/m);
 });
 
 test("a skipped key starts no model, records no start, and says which run and when the window ends", () => {
-  const skip = " && steps.credit.outputs.skip-key != 'true'";
-  for (const name of ["Record the start", "Upload the start record"]) {
-    assert.equal(ifOf(stepIn("gate", name)), `steps.gate.outputs.proceed == 'true'${skip}`, name);
-  }
+  assert.ok(!jobOf("gate").includes("upstream-apply-changelog-started"));
   assert.match(jobOf("gate"), /^ {6}skip-key: \$\{\{ steps\.credit\.outputs\.skip-key \}\}$/m);
   assert.match(jobOf("gate"), /^ {6}credit-marker: \$\{\{ steps\.credit\.outputs\.marker \}\}$/m);
   assert.match(jobOf("model"), /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.skip-key != 'true' && github\.run_attempt == '1'$/m);
   const report = stepIn("gate", "Report the credit skip");
   assert.equal(ifOf(report), "steps.credit.outputs.skip-key == 'true'");
   assert.match(report, /ORIGIN_RUN: \$\{\{ steps\.credit\.outputs\.origin-run \}\}/);
-  assert.match(report, /echo "::notice::[^"]*\$ORIGIN_RUN[^"]*window ends at \$\{ends:-[^}]+\}"/);
+  assert.match(report, /line="[^"]*\$ORIGIN_RUN[^"]*window ends at \$\{ends:-[^}]+\}"/);
 });
 
 test("the window's end is dated from the marker's upload, and an unread upload time names none", (t) => {
@@ -261,6 +367,7 @@ test("the window's end is dated from the marker's upload, and an unread upload t
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const fake = join(dir, "gh");
   writeFileSync(fake, '#!/bin/sh\nprintf "%s\\n" "$FAKE_CREATED"\n', { mode: 0o755 });
+  const summary = join(dir, "summary.md");
   const notice = (created, hours = "1") =>
     execFileSync("bash", ["-e", "-c", run], {
       encoding: "utf8",
@@ -273,10 +380,13 @@ test("the window's end is dated from the marker's upload, and an unread upload t
         RELEASE: "2.1.318",
         GITHUB_SERVER_URL: "https://github.com",
         GITHUB_REPOSITORY: "o/r",
+        GITHUB_STEP_SUMMARY: summary,
       },
     });
   const out = notice("2026-11-04T02:28:10Z");
   assert.match(out, /^::notice::.*actions\/runs\/41760968895;.*2\.1\.318.*1-hour window ends at 2026-11-04T03:28Z$/m);
+  // The job summary carries the same line, without the annotation prefix.
+  assert.equal(readFileSync(summary, "utf8"), out.replace(/^::notice::/, ""));
   assert.match(notice("2026-11-04T02:28:10Z", "3"), /3-hour window ends at 2026-11-04T05:28Z$/m);
   assert.match(notice(""), /window ends at an unread time$/m);
 });
@@ -301,6 +411,155 @@ test("the model job uploads the gate's marker only after the leg's credit-stop h
   const row = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families[MARKER];
   assert.equal(row["retention-days"], 1);
   assert.equal(row.scan, "upload");
+});
+
+// A step condition of the shapes this workflow uses (string compares joined
+// by && and ||, parentheses, always()), evaluated over `values`; an unset
+// context reads as "", as GitHub reads a missing output or a step not run.
+const evalIf = (expr, values) =>
+  Function(
+    `"use strict"; return (${expr
+      .replace(/'([^']*)'/g, (_, s) => JSON.stringify(s))
+      .replace(/always\(\)/g, "true")
+      .replace(/\b(?:steps|needs)\.[\w.-]+/g, (ref) => JSON.stringify(values[ref] ?? ""))
+      .replace(/([!=])=/g, "$1==")});`,
+  )();
+// The step that writes the start record, wherever it sits: the cap counts
+// one record per such write.
+const startWrite = () => {
+  const found = WORKFLOW.split(/\n(?= {6}- name: )/).filter((s) => /\/started\b/.test(s) && /printf '%s\\n' "\$RELEASE" >"[^"]*\/release\.txt"$/m.test(s));
+  assert.equal(found.length, 1);
+  return ifOf(found[0]);
+};
+const leg = (over) => ({
+  "steps.gate.outputs.proceed": "true",
+  "steps.models.outcome": "success",
+  "steps.run.outcome": "failure",
+  "steps.credit-marker-upload.outcome": "success",
+  ...over,
+});
+
+test("a credit-stopped leg whose marker uploaded writes no start record, so it does not count toward the cap", () => {
+  // The run after the window probes the key (skip-key empty) and credit-stops again.
+  assert.equal(evalIf(startWrite(), leg({ "steps.run.outputs.handoff-reason": "credit-stop" })), false);
+});
+
+test("a leg that ran writes a start record on success, on any other failure, and on a credit stop with no marker", () => {
+  const write = startWrite();
+  assert.equal(evalIf(write, leg({ "steps.run.outcome": "success" })), true, "success");
+  for (const cls of ["other", "timeout", "max-turns", "auth"]) {
+    assert.equal(evalIf(write, leg({ "steps.run.outputs.lane-class": cls })), true, cls);
+  }
+  for (const marker of ["failure", "skipped"]) {
+    const ctx = leg({ "steps.run.outputs.handoff-reason": "credit-stop", "steps.credit-marker-upload.outcome": marker });
+    assert.equal(evalIf(write, ctx), true, `credit stop, marker upload ${marker}`);
+  }
+});
+
+test("a setup failure before the leg still writes a start record, so the cap bounds a persistent setup fault", () => {
+  const write = startWrite();
+  const noLeg = { "steps.run.outcome": "skipped", "steps.credit-marker-upload.outcome": "skipped" };
+  for (const models of ["success", "failure"]) {
+    assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": models })), true, `resolve ${models}, no leg`);
+  }
+  // The kill switch skips Resolve the model: that run is not counted.
+  assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": "skipped" })), false, "kill switch");
+  // The scan the record needs comes from the trusted checkout, which runs on the same condition.
+  for (const step of ["Clear the trusted checkout path", "Check out the base for the sealer"]) {
+    assert.equal(ifOf(stepIn("model", step)), "always() && steps.models.outcome != 'skipped'", step);
+  }
+});
+
+test("the model step times out before the job does, so a timed-out leg still writes its start record", () => {
+  const minutes = (text, indent) => Number(new RegExp(`^ {${indent}}timeout-minutes: (\\d+)$`, "m").exec(text)?.[1]);
+  const job = minutes(jobOf("model").split(/\n {4}steps:\n/)[0], 4);
+  const run = stepIn("model", "Run the changelog apply");
+  const step = minutes(run, 8);
+  const legMinutes = Number(/^ {10}leg-timeout-minutes: "(\d+)"$/m.exec(run)?.[1]);
+  assert.ok(legMinutes < step && step <= job - 5, `leg ${legMinutes}, step ${step}, job ${job}`);
+  assert.match(run, /^ {8}continue-on-error: true$/m);
+  // A step past its timeout-minutes concludes failure, which the record step runs after.
+  assert.equal(evalIf(startWrite(), leg({ "steps.run.outcome": "failure", "steps.run.outputs.lane-class": "timeout", "steps.credit-marker-upload.outcome": "skipped" })), true);
+});
+
+test("the model job writes, scans and uploads the start record after the leg and the marker upload", () => {
+  const record = stepIn("model", "Record the start");
+  assert.match(record, /^ {8}id: start$/m);
+  assert.match(record, /rm -rf "\$\{RUNNER_TEMP:\?\}\/started"/);
+  assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.gate\.outputs\.release \}\}$/m);
+  const scan = stepIn("model", "Scan the start record for credentials");
+  assert.equal(ifOf(scan), "always() && steps.start.outcome == 'success'");
+  assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
+  const upload = stepIn("model", "Upload the start record");
+  assert.equal(ifOf(upload), "(always() && steps.start.outcome == 'success') && steps.start-scan.outputs.clean == 'true'");
+  assert.match(upload, /^ {10}name: upstream-apply-changelog-started$/m);
+  assert.doesNotMatch(upload, /continue-on-error/);
+  for (const before of ["Run the changelog apply", "Check out the base for the sealer", "Upload the key's credit-stop marker"]) {
+    assert.ok(indexIn("model", before) < indexIn("model", "Record the start"), before);
+  }
+  assert.match(stepIn("model", "Upload the key's credit-stop marker"), /^ {8}id: credit-marker-upload$/m);
+  assert.ok(indexIn("model", "Record the start") < indexIn("model", "Scan the start record for credentials"));
+  assert.ok(indexIn("model", "Scan the start record for credentials") < indexIn("model", "Upload the start record"));
+  const row = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families[STARTED_ARTIFACT];
+  assert.equal(row.scan, "upload");
+});
+
+test("a credit stop writes a job summary line that says whether the run counts toward the cap", (t) => {
+  const step = stepIn("model", "Report the credit stop");
+  assert.equal(ifOf(step), "always() && steps.run.outputs.handoff-reason == 'credit-stop'");
+  assert.match(step, /^ {10}COUNTED: \$\{\{ steps\.start-upload\.outcome == 'success' \}\}$/m);
+  assert.ok(indexIn("model", "Upload the start record") < indexIn("model", "Report the credit stop"));
+  const run = step.split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
+  const dir = mkdtempSync(join(tmpdir(), "credit-stop-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const summary = join(dir, "summary.md");
+  const report = (counted) => {
+    rmSync(summary, { force: true });
+    const out = execFileSync("bash", ["-e", "-c", run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, RELEASE: "2.1.318", COUNTED: counted, GITHUB_STEP_SUMMARY: summary },
+    });
+    assert.equal(readFileSync(summary, "utf8"), out.replace(/^::warning::/, ""));
+    return out;
+  };
+  assert.match(report("false"), /^::warning::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop \(class credit-stop\); release 2\.1\.318 .*does not count toward the per-day cap$/m);
+  assert.match(report("true"), /this run counts toward the per-day cap, since no credit-stop marker was uploaded$/m);
+});
+
+test("the gate stops a fourth real run inside 24 hours and lets a third through", async (t) => {
+  const now = Date.now();
+  let starts = 0;
+  const server = createServer((req, res) => {
+    const name = new URL(req.url, "http://x").searchParams.get("name");
+    const artifacts = name === STARTED_ARTIFACT
+      ? Array.from({ length: starts }, (_, i) => ({ name, created_at: new Date(now - (i + 1) * 3600_000).toISOString() }))
+      : [];
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ total_count: artifacts.length, artifacts }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const dir = mkdtempSync(join(tmpdir(), "cap-gate-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const gate = async (count) => {
+    starts = count;
+    const out = join(dir, `out-${count}`);
+    await execFileAsync(process.execPath, [new URL("./upstream-apply-changelog.mjs", import.meta.url).pathname, "gate"], {
+      env: {
+        PATH: process.env.PATH,
+        GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+        GITHUB_REPOSITORY: "o/r",
+        GITHUB_OUTPUT: out,
+        GH_TOKEN: "t",
+        EVENT_NAME: "workflow_dispatch",
+        RELEASE_INPUT: "2.1.318",
+        DAILY_CAP: "3",
+      },
+    });
+    return /^proceed=(\w+)$/m.exec(readFileSync(out, "utf8"))?.[1];
+  };
+  assert.equal(await gate(2), "true");
+  assert.equal(await gate(3), "false");
 });
 
 test("a commit outside its plugin, or writing a link or submodule, is refused", () => {

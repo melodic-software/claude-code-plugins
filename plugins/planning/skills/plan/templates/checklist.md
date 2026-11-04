@@ -1,6 +1,6 @@
 # /planning:plan Checklist
 
-Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the topic's memory slice). Tick as each step completes.
+Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the topic's memory slice) with the Write tool from this file's Read contents, never `cp`, `sed` or a shell redirect. Tick as each step completes.
 
 ## Steps
 
@@ -23,4 +23,4 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 
 ## How to use
 
-Copy at session start; tick boxes as steps complete; a resuming session reads the unticked boxes to know where to continue.
+Copy at session start (Read, then Write); tick boxes as steps complete; a resuming session reads the unticked boxes to know where to continue.

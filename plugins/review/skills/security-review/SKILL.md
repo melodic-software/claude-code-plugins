@@ -306,11 +306,25 @@ eligible for skip 2. Compare the base and head manifests:
   pinned by `lib/view-settings.test.mjs`, the block "a publishing value counts only from a trusted
   scope". As of: 2026-11-03. Recheck trigger: that block is removed, or a `medium` key stops
   resolving through `view-settings.mjs`.
+- An inert key is advisory too. Judge the guard bullet first; a key it makes a finding stays one.
+  An added or changed `userConfig` key is inert when all of these hold: its `type` is `number` or
+  `boolean`; it is not `sensitive`; and, searched across the plugin's own files at head, its only
+  reader is skill or agent body text, so `${user_config.<key>}` appears only in `.md` files under
+  that plugin's `skills/` or `agents/`. It is not inert when the key's value reaches a hook, an MCP,
+  LSP or monitor server, a channel, a script or any other code file, whether as
+  `${user_config.<key>}` or as the `CLAUDE_PLUGIN_OPTION_<KEY>` environment variable the plugin's
+  code reads. Nor is it inert when the skill or agent text puts the value into a command, a tool
+  input or an argument the session runs, or when a value enables sending repository or session
+  content off the machine (publishing, uploading, posting, an external write), as for a selector;
+  only prose the model reads counts. An inert key gets one summary line, `manifest userConfig.<key>: pass, inert, <the file and line that reads it>`,
+  treated like a selector's line: no inline comment, no `severity:` line, nothing in the findings
+  total or `critical-findings: <n>`, and never `hold`. Basis: owner
+  decision Q3, 2026-11-04, in the owner-decisions record of `melodic-software/architecture`.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
   `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace
   entry's `tags` and `category`, a `userConfig` key's `title` and `description`, and a changed
-  (not added or removed) `version`, or it is a selector key (above). On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
+  (not added or removed) `version`, or it is a selector or inert key (above). On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
   path, package, or URL with its pin), or what installed users get on update. A source outside
   the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
   the command needs also gets its exploit path.
@@ -338,10 +352,10 @@ precedence over `plugin.json`.
 
 The pointers below are reading material for naming what a flagged field runs, never the test
 for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at
-[plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins-reference#fields),
-[Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms),
-[User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration), and
-[Channels](https://code.claude.com/docs/en/plugins-reference#channels). As of: 2026-10-21.
+[plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins/manifest-reference#fields),
+[Component path forms](https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms),
+[User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration), and
+[Channels](https://code.claude.com/docs/en/plugins/manifest-reference#channels). As of: 2026-11-04.
 Recheck trigger: any of those sections changes.
 
 ## High-signal bar

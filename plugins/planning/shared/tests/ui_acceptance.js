@@ -18,7 +18,7 @@
 // 200% zoom.
 //   node plugins/planning/shared/tests/ui_acceptance.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the Brief's acceptance criteria (PLAN.md), the server contract (error codes, limits) and
+// Expected values come from the Brief's acceptance criteria (PLAN.md), the server's interface contract (error codes, limits) and
 // the texts this suite writes, never from the page.
 "use strict";
 const { execFileSync } = require("node:child_process");

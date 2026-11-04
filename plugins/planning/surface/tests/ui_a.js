@@ -108,7 +108,7 @@ async page => {
   const flyBox = await page.evaluate(() => { const f = document.getElementById("fly").getBoundingClientRect(), m = document.querySelector("main.detail").getBoundingClientRect(); return {overlay: getComputedStyle(document.getElementById("fly")).position === "absolute", vw: innerWidth, mainW: Math.round(m.width), flyL: Math.round(f.left), mainR: Math.round(m.right)}; });
   ok("unpinned flyout floats beside the answer pane without covering it from 1100px", flyBox.overlay && (flyBox.vw < 1100 || flyBox.flyL >= flyBox.mainR), JSON.stringify(flyBox));
   await page.click('#tabs [data-panel="notes"]'); await page.waitForTimeout(200);
-  ok("Notes tab", await page.textContent("#flyTitle") === "Notes to Claude" && !!(await page.$("#noteText")));
+  ok("Notes tab", await page.textContent("#flyTitle") === "Notes to Claude" && !!(await page.$("#rv-comment-text")));
   await page.click('#tabs [data-panel="settings"]'); await page.waitForTimeout(200);
   ok("Settings tab", await page.textContent("#flyTitle") === "Settings" && !!(await page.$('[data-set="shortcuts"]')));
   await page.focus('#tabs [data-panel="settings"]'); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(200);
@@ -125,6 +125,11 @@ async page => {
   await page.focus('#tabs [data-panel="terms"]');
   await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150); // back on Settings, where the steps below expect to be
   ok("the font stacks name no web font the CSP cannot load", await page.evaluate(() => { const c = getComputedStyle(document.documentElement); return !/Plex|Newsreader/.test(c.getPropertyValue("--sans") + c.getPropertyValue("--mono") + c.getPropertyValue("--display")); }));
+  await page.click('button[data-rv-theme="dark"]'); await page.waitForTimeout(100);
+  const dark = await page.evaluate(() => ({attr: document.documentElement.getAttribute("data-theme"), scheme: getComputedStyle(document.documentElement).colorScheme, pressed: [...document.querySelectorAll("button[data-rv-theme]")].map(b => b.getAttribute("aria-pressed")).join()}));
+  await page.click('button[data-rv-theme="system"]'); await page.waitForTimeout(100);
+  const back = await page.evaluate(() => document.documentElement.hasAttribute("data-theme"));
+  ok("the theme toggle pins Dark, then System clears the pin", dark.attr === "dark" && dark.scheme === "dark" && dark.pressed === "false,false,true" && !back, JSON.stringify({dark, back}));
   await page.click("#pinBtn"); await page.waitForTimeout(200);
   const pinned = await page.evaluate(() => getComputedStyle(document.getElementById("fly")).position);
   ok("Pin splits the screen", pinned === "static", pinned);
@@ -137,9 +142,9 @@ async page => {
 
   // notes
   await page.click('.strip [data-panel="notes"]'); await page.waitForTimeout(200);
-  if (!(await page.$("#noteText"))) { await page.click('.strip [data-panel="notes"]'); await page.waitForTimeout(200); }
+  if (!(await page.$("#rv-comment-text"))) { await page.click('.strip [data-panel="notes"]'); await page.waitForTimeout(200); }
   const n3 = (await events()).length;
-  await page.click("#noteText"); await page.keyboard.type("Side note for Claude, see #123"); await page.keyboard.press("Enter");
+  await page.click("#rv-comment-text"); await page.keyboard.type("Side note for Claude, see #123"); await page.keyboard.press("Enter");
   ok("plain Enter in a note does not send", (await events()).length === n3);
   await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
   const ev4 = await events();
@@ -148,7 +153,7 @@ async page => {
   ok("a bare issue number in a note renders as an issue link", (await page.$$eval(".nthread a", as => as.map(a => a.textContent + " " + a.getAttribute("href")))).includes("#123 https://github.com/o/r/issues/123"));
   ok("a short thread has no jump control and no folded note", !(await page.$("[data-notenewest]")) && !(await page.$("[data-notetoggle]")));
   for (let i = 1; i <= 6; i++) {
-    await page.fill("#noteText", "Folding note " + i + (i === 6 ? "\n" + "newest filler line\n".repeat(40) : "\nsecond line " + i));
+    await page.fill("#rv-comment-text", "Folding note " + i + (i === 6 ? "\n" + "newest filler line\n".repeat(40) : "\nsecond line " + i));
     await page.click("[data-sendnote]"); await page.waitForTimeout(500);
   }
   for (const pinned of [false, true]) {

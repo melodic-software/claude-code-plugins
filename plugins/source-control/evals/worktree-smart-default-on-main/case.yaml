@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: worktree-smart-default-on-main
+context:
+  scaffold_script: scaffold.sh
