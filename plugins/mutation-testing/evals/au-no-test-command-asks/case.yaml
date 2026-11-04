@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: au-no-test-command-asks
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'asks-test-command'
+    type: 'regex'
+    pattern: '\btest[- ]command\b[^\n?]{0,160}\?|\b(?:which|what)\b[^\n?]{0,80}\b(?:command|runner)\b[^\n?]{0,80}\?|\b(?:confirm|tell me|give me|provide|supply|share|send)\b[^\n]{0,80}\bcommand\b|\bneed (?:a|the|your) test[- ]command\b|\bneed you to (?:confirm|give|tell)\b|\b(?:won.t|will not|doesn.t allow|not allowed to|never|can.t)\s+guess\w*\b[^\n]{0,30}\btest[- ]command\b|\bshould I use\b[^\n?]{0,160}\bcommand\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-score'
+    type: 'regex'
+    pattern: '\b(?:mutation|covered[- ]code)\s+score\b[^\n]{0,30}?\d+(?:\.\d+)?\s*(?:%|/\s*\d)|\b\d+\s*(?:/|of)\s*\d+\b[^\n]{0,25}\b(?:killed|surviv\w*|detected)\b|\b(?:killed|survived|survivors?)\b\s*[:=|]\s*\d|\b\d+\s+(?:mutants?\s+)?(?:killed|survived)\b|\|\s*\**(?:killed|survived)\**\s*\|'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'no-test-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '-m\s+(?:unittest|pytest)\b(?!\s+--version)|\\?["'']-m\\?["''],\s*\\?["''](?:unittest|pytest)\b|(?:"command":"|&&\s*|;\s*)(?:\S+/)?(?:pytest|mutmut\s+run)\b(?!\s+--version)|python3?\s+(?:\S+/)?tests/test_\w+\.py'
+    min: 0
+    max: 0
+    arm: 'both'

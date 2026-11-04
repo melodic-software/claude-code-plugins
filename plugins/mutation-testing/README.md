@@ -68,7 +68,7 @@ about it, and a coverage report will call that file healthy.
 
 They are kept separate deliberately: a config diff reads as a policy change, a suppression diff reads
 as an accepted finding. **Their layering also differs.** The config layers per the config-cascade
-convention (the user layer in `userConfig` → team → `.local.md` overlay, later wins). The
+convention (the user layer in `userConfig` → team → `.local.md` personal override, later wins). The
 suppression record sits in the cascade's policy-floor precedence-inversion class: on a conflict
 the **team** layer wins, and a personal-layer entry for an id the team layer does not carry **does
 not suppress at all**. It is reported `personal-only, not applied`. A personal layer is a draft
@@ -77,7 +77,7 @@ surface there, so one developer cannot hide a finding the team never accepted.
 The user layer is this plugin's `userConfig`, not a file: two options that mean the same thing in
 every repository, the operator set and a mutant cap. A repository's team or local file overrides
 them. `/mutation-testing:setup apply user` settles them and names the route below for saving them;
-it writes nothing itself. `apply local` writes the untracked `.local.md` overlay instead of the team
+it writes nothing itself. `apply local` writes the untracked `.local.md` personal override instead of the team
 file.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

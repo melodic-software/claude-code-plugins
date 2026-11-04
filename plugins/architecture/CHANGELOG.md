@@ -3,6 +3,13 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-11-04
+
+### Changed
+
+- The five `map-*` skills now say "There is no personal override", the marketplace's name for the
+  config cascade's gitignored `*.local.*` layer (#13192). Behavior is unchanged.
+
 ## [2.0.3] - 2026-11-04
 
 ### Changed

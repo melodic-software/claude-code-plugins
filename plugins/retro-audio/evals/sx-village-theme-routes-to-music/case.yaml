@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: sx-village-theme-routes-to-music
+graders:
+  - name: music-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:retro-audio:)?music"'
+  - name: sfx-not-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:retro-audio:)?sfx"'
+    min: 0
+    max: 0
+    arm: both
+  - name: wav-written
+    type: file_exists
+    path: 'audio/village.wav'
+    arm: both

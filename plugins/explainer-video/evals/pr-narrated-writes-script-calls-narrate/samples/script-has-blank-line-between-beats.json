@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "A sorted list.\n\nCheck the middle.\n"
+    },
+    {
+      "answer": "One.\r\n\r\nTwo.\r\n",
+      "why": "CRLF"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "A sorted list.\nCheck the middle.\n",
+      "why": "no blank line"
+    },
+    {
+      "answer": "A sorted list. Check the middle.",
+      "why": "one line"
+    },
+    {
+      "answer": "Just one paragraph.\n\n",
+      "why": "nothing after the blank"
+    }
+  ]
+}

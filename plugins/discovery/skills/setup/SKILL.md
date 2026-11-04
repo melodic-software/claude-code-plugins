@@ -152,7 +152,7 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
 5. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
    convention home, the script prints an offer: with the operator's confirmation it adds a
    convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
-   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   exists or `CLAUDE.md` only imports it) and the personal override ignore line
    `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
    `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
    exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the

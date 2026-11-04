@@ -4,7 +4,7 @@ The keys session-flow's skills read in their own text, one row each. A key is se
 the plugin's `userConfig` option of the same name and per repository in
 `docs/conventions/session-flow.yaml`, validated by
 [`schemas/session-flow.schema.json`](../schemas/session-flow.schema.json). No `~/.claude` file,
-`.claude/` file or local overlay sets these keys. `/session-flow:setup apply` writes the repository
+`.claude/` file or personal override sets these keys. `/session-flow:setup apply` writes the repository
 file after validating it against the schema; `/session-flow:setup check` validates it. The observer and `audit_sessions_*` options are
 `userConfig` only; the README's Options reference lists them.
 

@@ -42,6 +42,7 @@ Apply across every action. Violating any risks losing the working 2.8.0 setup or
 - **Never run the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`.** This is the auto-update payload that breaks key extraction. Delete it whenever it appears.
 - **Never recommend `--no-confirm` flags or batch-confirm cleanup.** Each reversal is independent; some harder to redo than others (re-pinning Kindle 2.8.0 is easy; re-syncing 50 books isn't). This holds when the user asks for "yes to all": never write, run or hand over a script or command that pipes `yes`, skips the prompts or loops over the reversals without asking.
 - **Never send any of these scripts, keys, or extracted files outside the user's machine.** Personal-use scope only.
+- **Decline books the user does not own.** Say the workflow only processes books Kindle for PC downloaded into the user's own `My Kindle Content/` folder, and run no calibredb, ebook-convert or DeDRM on the others.
 - **The cached installer + firewall race is real:** if user reports "an installer popped up when I opened Kindle," immediately follow scripts/sync-finalize.sh delete logic. Do not let the installer complete.
 
 ## Action: setup

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: pr-narrated-writes-script-calls-narrate
+graders:
+  - name: script-has-blank-line-between-beats
+    type: regex
+    pattern: '\S[^\n]*\r?\n[ \t]*\r?\n[ \t]*\S'
+    target: { source: file, path: video/narration/script.txt }
+    arm: both
+  - name: narrate-before-render
+    type: tool_order
+    before: { tool: Skill, input_match: '"skill":"(?:speech:)?narrate"' }
+    after: { tool: Bash, input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?pydeps\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?render\.py\b' }
+    arm: with-only

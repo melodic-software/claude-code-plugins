@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/sfx.py\" --params '{\"wave\": \"noise\", \"freq\": 220, \"freq_slide\": -180, \"sustain\": 0.1, \"decay\": 0.7, \"lpf\": 1400}' --out audio/boom.wav"}}], "why": "the SKILL.md shape"},
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p audio && python3 /plugins/retro-audio/scripts/sfx.py --out audio/boom.wav --params '{\"freq\":220,\"wave\":\"noise\",\"decay\":0.9}'"}}], "why": "after &&, wave not first"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/sfx.py --params=\"{\\\"wave\\\":\\\"noise\\\",\\\"decay\\\":0.8}\" --out audio/boom.wav"}}], "why": "double-quoted JSON"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/sfx.py --preset explosion --out audio/boom.wav"}}], "why": "the preset, not lengthened"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/sfx.py --params '{\"wave\": \"square\", \"decay\": 0.7}' --out audio/boom.wav"}}], "why": "a square wave"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 /plugins/retro-audio/scripts/sfx.py --params '{\"wave\": \"noisy\", \"decay\": 0.7}' --out audio/boom.wav"}}], "why": "a wave name sfx.py refuses"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 synth.py --params '{\"wave\": \"noise\"}' --out audio/boom.wav"}}], "why": "a script of the run's own"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo '{\"wave\": \"noise\"}' > p.json && python3 /plugins/retro-audio/scripts/sfx.py --params p.json --out audio/boom.wav"}}], "why": "the noise sits in an earlier command, not in this call's --params"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n '\"wave\": \"noise\"' /plugins/retro-audio/scripts/presets.py"}}], "why": "read, not run"}
+  ]
+}
