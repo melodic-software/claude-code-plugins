@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.3.2] - 2026-11-04
+
+### Fixed
+
+- The `SessionStart` row no longer fails on every new session when `node` is not on `PATH`: it runs through `lib/node-or-skip.sh` and exits 0 silently, and harness-ops' node notice tells the user.
+
 ## [8.3.1] - 2026-11-04
 
 ### Fixed

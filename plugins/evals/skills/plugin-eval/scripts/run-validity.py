@@ -123,7 +123,12 @@ one line per check, detail lines indented under it:
                       the graded Skill call, or the run is a should-not-fire
                       run that held while every denial-free run of its case
                       held; a should-fire miss with a denial takes the rules
-                      above
+                      above. In a with-arm run, a Bash tool result whose
+                      sandbox report denies an outbound host (SANDBOX_VIOLATIONS)
+                      is a denial too, its hosts named in the summary: in an
+                      invocation-probe, control or no-network-tagged case it
+                      is set aside as a warning, otherwise a FAIL. A
+                      without-arm run's network denials are not read
     skill fired       every with-arm run of a should-trigger case fired the skill;
                       in an invocation-probe case, or one named by
                       --measured-fire, a miss is the trigger rate it measures,
@@ -259,6 +264,13 @@ MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[]
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
 TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_error"
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
+# A Bash tool_result's sandbox report, is_error or not, and its network denial
+# lines. Upstream documents no format: observed in a with-arm trace of the x
+# plugin's suite on Claude Code 2.1.317, 2026-11-03; network-denied.jsonl in the
+# test fixtures keeps its shape. Pointer and recheck trigger: SKILL.md, Sources,
+# "Sandbox network denial report".
+SANDBOX_VIOLATIONS = re.compile(r"<sandbox_violations>(.*?)</sandbox_violations>", re.S)
+NETWORK_DENIAL = re.compile(r"^deny network-outbound (\S+)", re.M)
 # Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
 SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
 # A user line's local-command-stderr when a slash-invoked skill's pre-computed
@@ -362,6 +374,8 @@ CONTROL_DESCRIPTION = re.compile(
 # emit-plugin-eval): a miss is the rate it measures, and a run that hit its turn
 # cap after the Skill call was already graded.
 PROBE_TAG = "invocation-probe"
+# A case that declares it needs no network: a sandbox network denial there warns.
+NO_NETWORK_TAG = "no-network"
 # The whole error text, optionally after the runner's "exit N: " prefix.
 MAX_TURNS_ERROR = re.compile(
     r"(?:exit \d+: )?Reached maximum number of turns \(\d+\)\.?"
@@ -556,6 +570,10 @@ def prompt_fields(case, root):
 
 def is_probe(case, root):
     return PROBE_TAG in prompt_fields(case, root).get("tags", [])
+
+
+def is_no_network(case, root):
+    return NO_NETWORK_TAG in prompt_fields(case, root).get("tags", [])
 
 
 def is_control(case, root):
@@ -1629,6 +1647,45 @@ def denials(run):
     return out
 
 
+def result_text(content):
+    """A tool_result's text: its string content, else its text blocks joined."""
+    if isinstance(content, str):
+        return content
+    return "\n".join(
+        b if isinstance(b, str) else str(as_dict(b).get("text") or "")
+        for b in content if isinstance(b, (str, dict))
+    ) if isinstance(content, list) else ""
+
+
+def network_denials(run, skip=()):
+    """In a with-arm run, every Bash call, its id not in skip, whose tool_result
+    reports a sandbox network denial (SANDBOX_VIOLATIONS, NETWORK_DENIAL), shaped
+    as denials gives them: no path, so no rule reads it as aimed outside the
+    plugin, and the denied hosts as its target. Text quoting the report anywhere
+    but a Bash tool_result is not a denial; a without-arm run has none."""
+    if run.arm != "with":
+        return []
+    bash, out = set(), []
+    for line in run.trace:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            use_id = block.get(RESULT_USE_ID)
+            if block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == BASH_TOOL:
+                bash.add(block.get(USE_ID))
+            elif block.get(BLOCK_TYPE) == TOOL_RESULT and use_id in bash and use_id not in skip:
+                hosts = tuple(dict.fromkeys(
+                    host
+                    for report in SANDBOX_VIOLATIONS.findall(result_text(block.get(CONTENT)))
+                    for host in NETWORK_DENIAL.findall(report)
+                ))
+                if hosts:
+                    out.append((
+                        "%s: Bash network-outbound %s (%s)"
+                        % (run.where, ", ".join(hosts), run.trace_path),
+                        (None,), BASH_TOOL, use_id, ("network-outbound", hosts), None,
+                    ))
+    return out
+
+
 def graded_call_at(run, root):
     """(tool_use_id -> position of each tool_use in the trace, position of the first
     Skill call a Skill grader's input_match accepts, or None)."""
@@ -2130,6 +2187,15 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
         ]
         for r in traced
     }
+    # With-arm sandbox network denials: set aside in an invocation-probe, control
+    # or no-network case, else a FAIL whatever the rules below say.
+    network = {r: network_denials(r, {d[3] for d in every[r]}) for r in traced}
+    offline = {
+        r: network[r]
+        if is_probe(r.case, root) or is_control(r.case, root) or is_no_network(r.case, root)
+        else []
+        for r in traced
+    }
     found = {
         r: [
             d
@@ -2139,20 +2205,35 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             and d not in searched[r]
             and d not in recovered[r]
         ]
+        + [d for d in network[r] if d not in offline[r]]
         for r in traced
     }
-    denied = [r for r in traced if every[r]]
+    denied = [r for r in traced if every[r] or network[r]]
     warned = [
         r
         for r in denied
-        if not found[r]
-        or probe_denial(r, found, runs, root)
-        or same_as_clean(r, found, runs, roots)
-        or in_every_run(r, found, runs, roots)
+        if len(network[r]) == len(offline[r])
+        and (
+            not found[r]
+            or probe_denial(r, found, runs, root)
+            or same_as_clean(r, found, runs, roots)
+            or in_every_run(r, found, runs, roots)
+        )
     ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _, _, _, _, _ in every[r]]
+    details = [line for r in denied for line, _, _, _, _, _ in every[r] + network[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
+    blocked = sum(len(network[r]) for r in denied)
+    if blocked:
+        summary += "; %s, outbound to %s" % (
+            plural(blocked, "sandbox network denial"),
+            ", ".join(sorted({h for r in denied for d in network[r] for h in d[4][1]})),
+        )
+    unplugged = sum(len(offline[r]) for r in denied)
+    if unplugged:
+        summary += "; %s in an invocation-probe, control or no-network case, not counted" % plural(
+            unplugged, "sandbox network denial"
+        )
     set_aside = sum(len(data[r]) for r in denied)
     if set_aside:
         summary += "; %s under the run's own plugin-data directory, not counted" % plural(
@@ -2180,7 +2261,8 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
     for r in denied:
         if is_probe(r.case, root) and r.case not in probe_cases:
             probe_cases.append(r.case)
-    details += [probe_split(c, runs, found, root) for c in probe_cases]
+    split = {r: found[r] + offline[r] for r in traced}
+    details += [probe_split(c, runs, split, root) for c in probe_cases]
     if warned:
         summary += (
             "; warnings (an invocation probe denied only calls other than Skill, after"
@@ -2191,7 +2273,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory,%s%s which never"
+            " aimed only at the session's own tool-results directory,%s%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
@@ -2201,6 +2283,10 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
                 " its case names," if own_copy_search_warns else "",
                 " or a with-arm denied compound Bash call whose plugin part a later"
                 " call in its run ran alone and was allowed," if rerun else "",
+                " or a with-arm sandbox network denial in an invocation-probe, control"
+                " or no-network case,"
+                if unplugged
+                else "",
                 ", ".join(warned_cases),
             )
         )
