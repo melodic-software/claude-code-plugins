@@ -2922,8 +2922,13 @@ them on every `pull_request` run, contract-only runs included:
 - **`do-not-merge` is the veto.** report-outcome labels a lanes App PR that carries `Hold: a
   human merges this` with `do-not-merge`, since the App can edit that body line; ci-status's label
   steps fail while it is on, and removing it lifts the hold. ci-status reads no body hold text: a
-  person who wants a PR held applies `do-not-merge`. On a lanes App PR, a member's veto comment
-  still fails ci-status's merge-holds step until a later comment by the same member lifts it.
+  person who wants a PR held applies `do-not-merge`. On a lanes App PR, a member's veto comment is
+  label-backed: pr-merge's enable-auto-merge job adds `do-not-merge` on the next scheduled run
+  that reads the pull request's discussion, at the latest before any run arms it, with a `<!-- member-veto-label -->` comment just after, and takes the label off once a later
+  comment by each vetoing member lifts the veto, only while its newest `labeled` event is that
+  one. A `do-not-merge` the body hold, a session or a person added is never taken off there.
+  ci-status's merge-holds step still fails on the veto comment until a later comment by the same
+  member lifts it, so the veto holds before the label lands and if the label is removed.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or

@@ -37,6 +37,18 @@ const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf
 const workflow = (name) => parse(read(`../../workflows/${name}`));
 const RESOLVE = "./.base/.github/actions/resolve-config";
 
+// A checkout of main's live tip takes it as a 40-hex ref from the job's tip
+// step, so actions/checkout makes no hash-algorithm REST call.
+const TIP_REF = "${{ steps.tip.outputs.sha }}";
+const DEFAULT_BRANCH = "${{ github.event.repository.default_branch }}";
+function assertMainTip(steps, checkout, branch = "main") {
+  assert.equal(checkout.with.ref, TIP_REF);
+  const tip = steps.find((s) => s.id === "tip");
+  assert.ok(tip, "the job resolves main's tip");
+  assert.ok(steps.indexOf(tip) < steps.indexOf(checkout), "main's tip resolves before the checkout");
+  assert.equal(tip.env.TIP_BRANCH, branch);
+}
+
 // Sibling action directories this action's modules import, followed
 // transitively: the sparse checkout must hold each of them.
 function importedActionDirs() {
@@ -113,7 +125,7 @@ for (const [file, job, route, laneSwitch] of [
 
   test(`${file}: resolve-model reads the default branch with a read-only token`, () => {
     assert.deepEqual(resolver.permissions, { contents: "read" });
-    assert.equal(checkout.with.ref, "refs/heads/main");
+    assertMainTip(steps, checkout);
     assert.equal(checkout.with.path, ".base");
     assert.equal(checkout.with["persist-credentials"], false);
     assert.equal(resolve.with["model-route"], route);
@@ -198,7 +210,7 @@ for (const [file, job, route, laneSwitch] of [
 function assertKillSwitchJob(gate) {
   assert.deepEqual(gate.permissions, { contents: "read" });
   const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
-  assert.equal(checkout.with.ref, "refs/heads/main");
+  assertMainTip(gate.steps, checkout);
   assert.equal(checkout.with["persist-credentials"], false);
   assert.ok(checkout.with["sparse-checkout"].split("\n").includes("/.github/actions/check-kill-switch/"));
   const kill = gate.steps.find((step) => step.uses?.startsWith("./.base/.github/actions/check-kill-switch"));
@@ -462,7 +474,7 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
 
   const step = (id) => job.steps.find((s) => s.id === id);
   const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
-  assert.equal(checkout.with.ref, "refs/heads/main");
+  assertMainTip(job.steps, checkout);
   assert.equal(step("who").if, "steps.kill.outputs.proceed == 'true'");
   assert.match(step("who").run, /apply-verdict\.mjs --check$/);
   assert.equal(step("config").if, "steps.who.outputs.proceed == 'true'");
@@ -598,7 +610,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   // Every checkout is the default branch without credentials.
   for (const job of [select, model, sub, apply]) {
     const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
-    assert.equal(checkout.with.ref, "refs/heads/main");
+    assertMainTip(job.steps, checkout);
     assert.equal(checkout.with["persist-credentials"], false);
   }
 
@@ -1662,7 +1674,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   const final = admit.steps.find((s) => s.name === "Stop on untrusted provenance");
   assert.equal(final.if, "steps.blockers.outputs.untrusted == 'true'");
   const checkout = admit.steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
-  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assertMainTip(admit.steps, checkout, DEFAULT_BRANCH);
   assert.equal(checkout.with["persist-credentials"], false);
   const gate = admit.steps.find((s) => s.id === "gate");
   assert.equal(gate.uses, "./.base/.github/actions/check-trusted-trigger");
@@ -3053,7 +3065,7 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   // The one action from a checkout is the opener, from the default branch tip
   // the event names: no run job output chooses the code that holds the key.
   const base = scan.steps.find((step) => step.id === "base");
-  assert.deepEqual([base.with.ref, base.with.path, base.with["persist-credentials"]], ["${{ github.event.repository.default_branch }}", ".base", false]);
+  assert.deepEqual([base.with.ref, base.with.path, base.with["persist-credentials"]], [TIP_REF, ".base", false]);
   for (const id of ["base", "key", "open"]) {
     const step = scan.steps.find((s) => s.id === id);
     assert.doesNotMatch(JSON.stringify({ with: step.with, run: step.run, uses: step.uses }), /base-sha|head-sha|default-tip/, `${id}: no run job output names a commit or path`);
@@ -3087,7 +3099,7 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   const at = (id) => steps.findIndex((step) => step.id === id);
   const scan = at("leak-scan");
   assert.deepEqual(steps.slice(0, 2).map((step) => step.id ?? step.name), ["Require the checked issue fields", "Assert the default branch is set"]);
-  assert.deepEqual(["base", "key", "open", "decode"].map(at), [2, 3, 4, 5]);
+  assert.deepEqual(["tip", "base", "key", "open", "decode"].map(at), [2, 3, 4, 5, 6]);
   assert.ok(at("decode") < scan);
   // The scan's own summary is the redacted fingerprint of a block (the test below).
   const outputs = steps.filter((step) => step.id !== "leak-scan" && ((isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step)));
@@ -4565,7 +4577,7 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
   const prior = job.steps.find((s) => s.id === "prior");
   assert.match(prior.run, /node \.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior$/m);
   assert.equal(prior.env.FIND_PRIOR_KEEP_BEHIND, "true");
-  assert.equal(job.steps.find((s) => s.id === "base").with.ref, "${{ github.event.repository.default_branch }}");
+  assertMainTip(job.steps, job.steps.find((s) => s.id === "base"), DEFAULT_BRANCH);
   const checked = job.steps.find((s) => s.id === "checked");
   assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "true", "steps.prior.outcome": "failure" }), false, "a claim whose re-derive failed");
   assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "false", "steps.prior.outcome": "skipped" }), true, "no claim needs no re-derive");
@@ -4617,9 +4629,10 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
     assert.deepEqual([result.status, outputs.checked, outputs["prune-branches"]], [0, "true", ""], `no re-derive file, prune list "${prune}"`);
   }
   const baseStep = job.steps.find((s) => s.id === "base");
-  const ctx = (claimed, prune) => ({ "steps.issue.outcome": "success", "steps.issue.outputs.claimed": claimed, "steps.issue.outputs.prune-branches": prune, "github.event.repository.default_branch": "main" });
+  const ctx = (claimed, prune, tip = "a".repeat(40)) => ({ "steps.issue.outcome": "success", "steps.issue.outputs.claimed": claimed, "steps.issue.outputs.prune-branches": prune, "github.event.repository.default_branch": "main", "steps.tip.outputs.sha": tip });
   assert.equal(evaluate(baseStep.if, ctx("false", older)), true, "a prune list is re-derived");
   assert.equal(evaluate(baseStep.if, ctx("false", "")), false, "nothing to re-derive");
+  assert.equal(evaluate(baseStep.if, ctx("false", older, "")), false, "no checkout without main's tip");
   // The re-derive runs whenever the base checkout did.
   const node = job.steps.find((s) => s.id === "node");
   for (const outcome of ["success", "failure", "skipped"]) {
@@ -4661,7 +4674,7 @@ test("scan job: an issue run that started must carry lane.json, with no branch a
 test("pr-run-activity-read.yml: the reuse summary job takes code from the default branch tip and its branch and base from issue-fields", () => {
   const job = workflow("pr-run-activity-read.yml").jobs.summary;
   assert.deepEqual(job.needs, ["run", "issue-fields"]);
-  assert.equal(job.steps.find((s) => s.id === "base").with.ref, "${{ github.event.repository.default_branch }}");
+  assertMainTip(job.steps, job.steps.find((s) => s.id === "base"), DEFAULT_BRANCH);
   const text = JSON.stringify(job);
   assert.doesNotMatch(text, /needs\.run\.outputs/);
   const ctx = (checked, reuse) => ({ "needs.issue-fields.outputs.checked": checked, "needs.issue-fields.outputs.reuse-branch": reuse, "github.event.repository.default_branch": "main" });
@@ -4679,7 +4692,7 @@ test("work-resolve-issue.yml: the prune job deletes from the default branch tip 
   assert.deepEqual(job.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
   assert.deepEqual(job.permissions, { contents: "write", "pull-requests": "read" });
   const checkout = job.steps.find((step) => step.name === "Check out the default branch tip");
-  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assertMainTip(job.steps, checkout, DEFAULT_BRANCH);
   assert.equal(checkout.with["persist-credentials"], false);
   const del = job.steps.find((step) => step.name === "Delete the stopped runs' lane branches");
   assert.equal(del.run, "node .base/.github/scripts/work-resolve-issue/prune-branches.mjs");
@@ -5207,7 +5220,7 @@ test("report job: the PR number comes from the caller or the event, a run job pr
   assert.match(other.log, /^::error::the run job's pr-number is not the PR the caller or event names/m);
   // The posting code: the default branch tip, never a run job output.
   const checkout = steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
-  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assertMainTip(steps, checkout, DEFAULT_BRANCH);
   assert.equal(steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@")).length, 1);
   assert.doesNotMatch(JSON.stringify(steps), /base-sha/, "no step reads the run job's base-sha");
   assert.equal(steps.findIndex((s) => s.name === "Assert the default branch is set"), 0);
@@ -5750,7 +5763,7 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(workflow("pr-unblock.yml").on.workflow_dispatch.inputs["verify-earlier-fail-heads"].type, "string");
   assert.doesNotMatch(JSON.stringify(select), /secrets\./);
   for (const step of select.steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@"))) {
-    assert.equal(step.with.ref, "${{ github.event.repository.default_branch }}");
+    assertMainTip(select.steps, step, DEFAULT_BRANCH);
     assert.equal(step.with["persist-credentials"], false);
   }
   const slot = select.steps.find((s) => s.id === "slot");
@@ -6728,9 +6741,9 @@ function assertFallbackPresence(job) {
 
 function assertHandoffEvidenceJob(job) {
   assert.deepEqual(job.permissions, { actions: "read", contents: "read" });
-  const checkout = job.steps[0];
+  const checkout = job.steps[1];
   assert.match(String(checkout.uses), /^actions\/checkout@[0-9a-f]{40}$/);
-  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assertMainTip(job.steps, checkout, DEFAULT_BRANCH);
   assert.equal(checkout.with.path, ".base");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
@@ -6936,7 +6949,7 @@ test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API 
     assertHandoffEvidenceJob(handoff);
     assert.doesNotMatch(JSON.stringify(handoff), /needs\.fix-ci(-rung-up)?\.outputs\./);
     assert.equal(handoff.outputs.posted, "${{ steps.posted.outputs.posted }}");
-    const step = handoff.steps[1];
+    const step = handoff.steps[2];
     assert.equal(step.env.CALLS, firstId);
     assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh posted");
     // The first call's report posted: no fallback.
@@ -7000,7 +7013,7 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
     "handed-off": "${{ steps.posted.outputs.handed-off }}",
     "fallback-ready": "${{ steps.fallback.outputs.ready }}",
   });
-  const step = handoff.steps[1];
+  const step = handoff.steps[2];
   assert.equal(step.env.CALLS, "fix-docs");
   // The one read fix-ci-unreported runs, plus the handed-off fact the third
   // calls' handoff jobs read.
@@ -7088,7 +7101,7 @@ test("pr-unblock.yml: a fix-ci round with no posted check posts fix-ci failure o
     assert.equal(evaluate(job.if, { "needs.fix-ci-context.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
   }
   const checkout = job.steps.find((step) => String(step.uses ?? "").startsWith("actions/checkout@"));
-  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assertMainTip(job.steps, checkout, DEFAULT_BRANCH);
   const read = job.steps.find((step) => step.id === "posted");
   const post = job.steps.find((step) => step.name === "Post the check run");
   // The handoff jobs' read, over every call of the round, of both facts.
@@ -7369,7 +7382,7 @@ test("no subscription leg's if: reads a read runner run-job output", () => {
 // step and "address-feedback / broker-check" with its broker step.
 test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-conflicts's fallback calls start on a handoff job's jobs-API read, never on a model call's output", (t) => {
   const { jobs } = workflow("pr-unblock.yml");
-  const helper = jobs["fix-ci-handoff"].steps[1];
+  const helper = jobs["fix-ci-handoff"].steps[2];
   for (const [firstId, subId, handoffId, selectId] of [
     ["address-feedback", "address-feedback-subscription", "address-feedback-handoff", "address-feedback-select"],
     ["review-dependency", "review-dependency-subscription", "review-dependency-handoff", "review-dependency-select"],
@@ -7392,7 +7405,7 @@ test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-confli
     assertHandoffEvidenceJob(handoff);
     assert.deepEqual(handoff.outputs, { posted: "${{ steps.posted.outputs.posted }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
     assert.doesNotMatch(JSON.stringify(handoff), new RegExp(`needs\\.${firstId}\\.outputs\\.`));
-    const step = handoff.steps[1];
+    const step = handoff.steps[2];
     assert.equal(step.uses, undefined);
     assert.equal(step.id, "posted");
     assert.equal(step.run, helper.run, "fix-ci-handoff's read");
@@ -7485,11 +7498,11 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.resolve-issue.result": "success" }), false, "unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
-  assert.equal(handoff.steps.length, 4);
-  assert.deepEqual(handoff.steps[0], workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps[0], "the same sparse checkout");
+  assert.equal(handoff.steps.length, 5);
+  assert.deepEqual(handoff.steps.slice(0, 2), workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps.slice(0, 2), "the same tip and sparse checkout");
   assertFallbackPresence(handoff);
   assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
-  const step = handoff.steps[1];
+  const step = handoff.steps[2];
   assert.equal(step.id, "handoff");
   assert.equal(step.uses, undefined);
   assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh handed-off");
@@ -8451,7 +8464,7 @@ test("work-resolve-issue.yml: resolve-issue-stale reads the stale stop from the 
   const job = workflow("work-resolve-issue.yml").jobs["resolve-issue-stale"];
   assert.deepEqual(job.needs, ["admit", ...STALE_CALLS]);
   assert.deepEqual(job.permissions, { actions: "read", contents: "read" });
-  const [checkout, read] = job.steps;
+  const [, checkout, read] = job.steps;
   assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh stale");
@@ -8622,4 +8635,78 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   }
   assert.match(String(steps.find((s) => s.id === "act-skill").if), /kind == 'skill'/);
   assert.match(String(steps.find((s) => s.id === "act-script").if), /kind == 'script'/);
+});
+
+// actions/checkout makes a hash-algorithm REST call for any ref but a 40-hex
+// SHA, so no checkout of this repository names a branch; one that needs main's
+// live tip takes it from a tip step that reads only this repository's refs,
+// and never runs on an empty ref, which would check out the event's ref.
+const BRANCH_REF = /^(?:main|refs\/heads\/main)$|repository\.default_branch/;
+const TIP_GUARD = " && steps.tip.outputs.sha != ''";
+const bare = (cond) => String(cond ?? "").replace(/^\$\{\{\s*|\s*\}\}$/g, "");
+test("every checkout of this repository takes a SHA, and main's tip comes only from this repository's refs", () => {
+  let tips = 0;
+  for (const file of workflowFiles()) {
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job.steps ?? [];
+      const tip = steps.find((s) => s.id === "tip");
+      for (const step of steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@") && !s.with?.repository)) {
+        const where = `${file}#${jobId} ${step.name}`;
+        assert.doesNotMatch(String(step.with?.ref ?? ""), BRANCH_REF, `${where}: a branch ref costs a REST call`);
+        if (!String(step.with?.ref ?? "").includes("steps.tip.outputs.sha")) continue;
+        assert.ok(tip && steps.indexOf(tip) < steps.indexOf(step), `${where}: main's tip resolves first`);
+        const soft = step["continue-on-error"] === true || /always\(\)|!cancelled\(\)/.test(String(step.if));
+        if (soft) assert.ok(bare(step.if).endsWith("steps.tip.outputs.sha != ''"), `${where}: never runs on an empty ref`);
+        if (step.with.ref === TIP_REF) assert.equal(bare(tip.if), bare(step.if).replace(TIP_GUARD, "").replace("steps.tip.outputs.sha != ''", ""), `${where}: the tip resolves whenever the checkout runs`);
+        assert.equal(tip["continue-on-error"] === true, step["continue-on-error"] === true, `${where}: the tip fails as the checkout would`);
+      }
+      if (!tip) continue;
+      tips++;
+      const where = `${file}#${jobId}`;
+      assert.equal(tip.name, "Resolve main's tip", where);
+      assert.deepEqual(Object.keys(tip.env).sort(), ["GIT_TERMINAL_PROMPT", "TIP_BRANCH"], where);
+      assert.ok(["main", DEFAULT_BRANCH].includes(tip.env.TIP_BRANCH), where);
+      assert.equal(tip.env.GIT_TERMINAL_PROMPT, "0", where);
+      assert.equal(tip.uses, undefined, where);
+      assert.equal(tip.run, TIP_RUN, `${where}: the one tip script`);
+    }
+  }
+  assert.ok(tips >= 70, `only ${tips} tip steps found`);
+});
+
+const TIP_RUN = [
+  'sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
+  "  awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }')",
+  '[[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "",
+].join("\n");
+
+test("the tip step outputs the exact ref's SHA from this repository and fails on none", (t) => {
+  const tip = workflow("pr-verify.yml").jobs["check-intent"].steps.find((s) => s.id === "tip");
+  const root = tempDir("tip-step-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "bin"));
+  // ls-remote matches a pattern as a ref's tail, so a longer ref ending in it is listed too.
+  const listing = `${"1".repeat(40)}\trefs/heads/x/refs/heads/main\n${"2".repeat(40)}\trefs/heads/main\n`;
+  writeFileSync(join(root, "listing"), listing);
+  writeFileSync(join(root, "bin", "git"), `#!/bin/sh\necho "$*" >"${join(root, "args")}"\ncat "${join(root, "listing")}"\n`, { mode: 0o755 });
+  const run = () => {
+    const output = join(root, "output");
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-e", "-c", tip.run], {
+      env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", TIP_BRANCH: "main", GITHUB_OUTPUT: output },
+      encoding: "utf8",
+    });
+    return { status: result.status, stdout: result.stdout, outputs: outputLines(output) };
+  };
+  const found = run();
+  assert.equal(found.status, 0);
+  assert.equal(found.outputs.sha, "2".repeat(40), "the refs/heads/main line, not the longer ref");
+  assert.equal(readFileSync(join(root, "args"), "utf8"), `-C ${root} ls-remote https://github.com/o/r.git refs/heads/main\n`);
+  writeFileSync(join(root, "listing"), `${"1".repeat(40)}\trefs/heads/x/refs/heads/main\n`);
+  const missing = run();
+  assert.equal(missing.status, 1);
+  assert.equal(missing.outputs.sha, undefined, "no sha output for the checkout to take");
+  assert.match(missing.stdout, /^::error::the tip of main did not resolve$/m);
 });

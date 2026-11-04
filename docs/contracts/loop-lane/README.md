@@ -454,10 +454,14 @@ real-time deadline. A hold that lands after the merge is not a hold (the inciden
 clause: an escalating lane decided to hold, drafted its explanation first, and applied the label
 ~30 minutes later, 3 minutes *after* the PR had merged).
 
-- **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line and a person
-  merging by hand use it; ci-status reads no body hold text or `pr-unblock/*` stop status, and a
-  member's veto comment holds only a lanes App pull request, in ci-status's merge-holds step. It is
-  the one hold mechanism enforced
+- **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line, a member's veto
+  comment on a lanes App pull request and a person merging by hand use it; ci-status reads no body
+  hold text or `pr-unblock/*` stop status. pr-merge's enable-auto-merge job labels a member's veto
+  on the next scheduled run that reads the pull request's discussion, at the latest before any
+  run arms it, and takes that label off once a later comment by each vetoing member
+  lifts it, never a `do-not-merge` anyone else added. ci-status's merge-holds step still fails a
+  lanes App pull request on the veto comment itself, so the veto holds before the label lands and
+  if the label is removed. The label is the one hold mechanism enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
   SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the
@@ -465,8 +469,8 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
   the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
   queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
   [§7](#7-operator-steering-through-github-state)). A PR **comment is advisory, except a member's
-  veto comment, which holds a lanes App pull request** (above): an escalation comment on the PR
-  obliges nothing until the label is on.
+  veto comment, which holds a lanes App pull request and gets the label** (above): an escalation
+  comment on the PR obliges nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
   `do-not-merge`, before drafting the escalation comment and before assembling the supporting
   evidence. Explain-then-hold inverts the deadline: the drafting time is exactly the window a
