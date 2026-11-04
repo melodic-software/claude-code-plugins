@@ -192,19 +192,41 @@ brackets_valid() {
 }
 
 # ---------------------------------------------------------------------------
-# Glob -> ERE, path-aware.
+# Glob -> ERE, path-aware. Takes one brace expansion, since each is its own
+# pattern with its own form. The form sets where the match is anchored:
+#
+#   no slash          ->  (.*/)? prefix    any depth under the base
+#   leading /         ->  slash dropped    anchored at the base
+#   slash elsewhere   ->  as written       anchored at the base
+#
+# Inside the pattern:
 #
 #   **/   ->  (.*/)?     so `**/*.ts` matches a root-level `a.ts` too
 #   **    ->  .*         crosses directory separators
-#   *     ->  [^/]*      does NOT cross a separator
+#   *     ->  [^/]*      stays within one path segment
 #   ?     ->  [^/]
 #   [...] ->  preserved as a bracket expression
 #
 # Everything else is escaped, so a `.` in a pattern is a literal dot.
+#
+# The upstream table shows the slash-free form only as a wildcard; a slash-free
+# literal takes the same any-depth reading here, because reading it as root-only
+# would report a rule broken on a form upstream does not rule out.
+#   Pointer: when deciding what a pattern form matches, fetch
+#     https://code.claude.com/docs/en/memory#path-specific-rules live.
+#   As of: 2026-11-04.
+#   Recheck trigger: that section's pattern table changes what a form matches, or
+#     says what a slash-free literal matches.
 # ---------------------------------------------------------------------------
 glob_to_ere() {
   local pattern="$1"
-  local out="" i=0 len="${#pattern}" char
+  local out="" i=0 len char
+  case "$pattern" in
+  /*) pattern="${pattern#/}" ;;
+  */*) ;;
+  *) out="(.*/)?" ;;
+  esac
+  len="${#pattern}"
   while ((i < len)); do
     char="${pattern:i:1}"
     case "$char" in

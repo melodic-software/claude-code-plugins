@@ -99,8 +99,27 @@ repo="$(fixture_repo "a.ts" "src/b.ts" "src/deep/c.ts" "src/notes.md" "README.md
 out="$(run validate --root "$repo" --glob '**/*.ts')"
 assert_eq "**/*.ts matches root and nested TypeScript" "3" "$(row_field "$out" '**/*.ts' 5)"
 
+# Expected values from the path-specific-rules table on the memory page: `*.md`
+# is anywhere under the base directory, `/*.md` directly in it.
 out="$(run validate --root "$repo" --glob '*.md')"
-assert_eq "*.md is root-only, does not cross a separator" "1" "$(row_field "$out" '*.md' 5)"
+assert_eq "*.md matches at any depth under the base" "2" "$(row_field "$out" '*.md' 5)"
+
+out="$(run validate --root "$repo" --glob '/*.md')"
+assert_eq "/*.md matches only directly in the base" "1" "$(row_field "$out" '/*.md' 5)"
+
+out="$(run validate --root "$repo" --glob '/src/*.ts')"
+assert_eq "a leading slash anchors a pattern that has a directory too" "1" "$(row_field "$out" '/src/*.ts' 5)"
+
+# Each brace expansion is its own pattern, so one group can mix the two forms:
+# README.md for the first alternative, the three .ts files for the second.
+out="$(run validate --root "$repo" --glob '{/*.md,*.ts}')"
+assert_eq "a brace group's alternatives take their own form" "4" "$(row_field "$out" '{/*.md,*.ts}' 5)"
+
+repo_nested_only="$(fixture_repo "deploy/k8s/app.yaml" "a.ts")"
+out="$(run validate --root "$repo_nested_only" --glob '*.yaml')"
+assert_eq "a slash-free glob whose only match is nested is valid" "ok" "$(row_field "$out" '*.yaml' 6)"
+out="$(run validate --root "$repo_nested_only" --glob '/*.yaml')"
+assert_eq "and its anchored form still reports zero-match" "zero-match" "$(row_field "$out" '/*.yaml' 6)"
 
 out="$(run validate --root "$repo" --glob 'src/**/*')"
 assert_eq "src/**/* matches everything under src" "3" "$(row_field "$out" 'src/**/*' 5)"
@@ -274,6 +293,19 @@ assert_eq "the flow entry stays ONE pattern" "1" \
 assert_eq "and it expands and matches correctly" "2" "$(row_field "$out" 'src/*.{ts,tsx}' 5)"
 run rules --root "$flow_repo" >/dev/null 2>&1
 assert_eq "a correct braced flow rule exits 0" "0" "$?"
+
+# The memory page's frontmatter reference accepts a comma-separated string too.
+comma_repo="$(fixture_repo "src/a.ts" "src/b.tsx" "docs/x.md" "other/y.js")"
+mkdir -p "$comma_repo/.claude/rules"
+printf -- '---\npaths: "src/*.{ts,tsx}, docs/**"\n---\n\n# Comma string\n' >"$comma_repo/.claude/rules/comma.md"
+commit_all "$comma_repo" comma
+out="$(run rules --root "$comma_repo")"
+assert_eq "a comma-separated string yields one row per pattern" "2" \
+  "$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN"' | grep -c .)"
+assert_eq "its braced pattern matches both files" "2" "$(row_field "$out" 'src/*.{ts,tsx}' 5)"
+assert_eq "and its second pattern matches on its own" "1" "$(row_field "$out" 'docs/**' 5)"
+run rules --root "$comma_repo" >/dev/null 2>&1
+assert_eq "a correct comma-separated rule exits 0" "0" "$?"
 
 # --------------------------------------------------------------------------
 # The brace budget is shared by a rule's whole paths list
