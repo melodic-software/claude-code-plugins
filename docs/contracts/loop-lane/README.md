@@ -310,8 +310,15 @@ new signal, and each carries the `needs-human` role label only for a reason or k
 stops only when the plan changes intent or the primary design; untrusted-provenance is a kept
 trust control (below). The post-merge demotion alert
 ([`post-merge-demotion-alert.yml`](../../../.github/workflows/post-merge-demotion-alert.yml))
-still labels its canary, revert and undelivered-fix records `needs-human`; aligning those
-records is separate work. This convention adds no second escalation channel; the telemetry comment (§4)
+follows the record rules [#11022](https://github.com/melodic-software/claude-code-plugins/issues/11022)
+set and the pr-pipeline "Demotion issue" rule
+([the local babysit lane](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) states: a
+red-main record carries no label and clears once main is green at a later commit; a canary,
+revert or read-back record, which a green main does not clear, keeps `needs-human` only until it
+lifts on its own lane-verifiable condition, when the alert's `close-cleared` job closes it and
+removes the label; and a fix or quarantine issue intake triage did not receive gets `needs-human`,
+as does a red-main record whose failing check got no fix issue, because no lane retries that
+delivery. This convention adds no second escalation channel; the telemetry comment (§4)
 is the report surface, never the sole path when human action is required. The escalation record
 write and the out-of-band notification seam below are notification depth on the one filed
 escalation, the fan-out posture the runner design

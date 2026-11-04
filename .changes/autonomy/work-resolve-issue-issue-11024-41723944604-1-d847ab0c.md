@@ -13,4 +13,6 @@ bump: minor
   changes intent or the primary design, and `untrusted-provenance` still always stops. The
   matrix's escalation cells, the unanimity rule (here and in `guardrails/verification-topology.md`)
   and the runner's `gate-failed` outcome (`runner/escalation.md`) no longer send a dissent or
-  failed gate to the human gate by default. The binding schema is unchanged (#11024).
+  failed gate to the human gate by default. An item on a lane's route that no lane claims within
+  the staleness window re-escalates once to intake, one severity level up, so a stopped lane
+  cannot hold it unseen. The binding schema is unchanged (#11024).

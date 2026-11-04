@@ -139,8 +139,10 @@ notify people, so they fire only for an item the
 [guardrail stop rule](../guardrails.md#escalation) or a kept control human-gates. An item filed
 on the route of the lane that owns its follow-up, such as a `gate-failure` item the stop rule
 does not human-gate, gets the tracker item alone at any severity, and the owning lane's claim of
-it is its acknowledgment, so it never re-escalates. Its severity still orders the lane's queue
-and applies in full if the item later becomes human-gated.
+it is its acknowledgment. Its severity still orders the lane's queue and applies in full if the
+item later becomes human-gated. An item no lane claims within the staleness window re-escalates
+once as a new signal to intake, one severity level up: a disabled, stopped or unpolled lane then
+cannot hold a failed gate unseen, and intake's own rules decide whether it stops for a person.
 
 ### Fan-out transport grounding
 
@@ -211,9 +213,10 @@ reason, so a reader recovers the full trace from the item alone: which class rou
 which condition raised it.
 
 **Acknowledgment and re-escalation.** An escalation item carries an acknowledgment state. An
-item on a lane's route is acknowledged when its owning lane claims it (see the fan-out rule
-above); the rest of this paragraph governs a human-gated item. An unacknowledged item that goes stale re-escalates once with a one-level severity bump; an
-acknowledged item never re-escalates. The bump saturates at `urgent`: an item already at
+item on a lane's route is acknowledged when its owning lane claims it, and an unclaimed one
+re-escalates to intake (see the fan-out rule above). An unacknowledged human-gated item that
+goes stale re-escalates once with a one-level severity bump. An acknowledged item never
+re-escalates. The bump saturates at `urgent`: an item already at
 `urgent`, whether by the untrusted-provenance default or either urgent stop-reason override, still
 re-escalates once, by re-notifying with a fresh `urgent` fan-out at the same severity, never by
 skipping the re-escalation or minting a level above the axis. Both knobs are org-bindable: the

@@ -14,7 +14,9 @@ Major: the escalation contract changes (§2).
   final, and each carries the `needs-human` role label only for a reason or kept control "When
   work stops for the owner" names. Structural-plan approval stops only when the plan changes
   intent or the primary design, as the guardrail escalation contract now says (owner decision on
-  #10517, #11024). The post-merge demotion alert's record holds are named as not yet aligned.
+  #10517, #11024). §2 states the post-merge demotion alert's record rules as #11022 set them: a
+  canary, revert or read-back record keeps `needs-human` only until it lifts, and an issue intake
+  did not receive gets it because no lane retries that delivery.
 - **Kept intake injection hold (§2).** "When work stops for the owner" names intake triage's hold
   on text addressed to the triage run as a kept trust control, with its reason, and an
   `apply-verdict` test shows the hold still stops for the owner (#11024).
