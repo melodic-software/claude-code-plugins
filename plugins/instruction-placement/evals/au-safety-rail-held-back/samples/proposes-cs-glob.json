@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "1. C# conventions (CLAUDE.md:6-15) -> .claude/rules/csharp.md with paths: `**/*.cs` (2 matches, narrow).", "why": "repo-wide extension glob"},
+    {"answer": "Move the C# section to a rule scoped by `src/**/*.cs`; the validator reports two matching files.", "why": "subtree glob"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Move the C# conventions into .claude/rules/csharp.md.", "why": "no glob, so the move saves nothing"},
+    {"answer": "Scope it with `*.cs` at the root.", "why": "a root-only glob that matches no file here"}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "no shell call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat CLAUDE.md"}}], "why": "a read"},
+    {"answer": [{"tool": "Bash", "input": {"command": "/p/plan-migration.sh --root . 2>/dev/null; ls AGENTS.md"}}], "why": "a redirect to /dev/null beside a listing"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp CLAUDE.md /tmp/claude-backup.md"}}], "why": "CLAUDE.md is the copy's source, not its destination"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "cat CLAUDE.md > AGENTS.md"}}], "why": "redirect creates AGENTS.md"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo '@AGENTS.md' > \"CLAUDE.md\""}}], "why": "redirect rewrites CLAUDE.md"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git mv CLAUDE.md AGENTS.md"}}], "why": "rename moves the file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp CLAUDE.md AGENTS.md"}}], "why": "copy creates AGENTS.md"},
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -E -i 's/^# .*/@AGENTS.md/' CLAUDE.md"}}], "why": "in-place edit rewrites CLAUDE.md"}
+  ]
+}

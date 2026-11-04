@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Plan: move all three sections into a new root AGENTS.md, then reduce CLAUDE.md to the single line `@AGENTS.md`. Nothing is written until you accept.", "why": "plan names the shim"},
+    {"answer": "CLAUDE.md stays as a one-line import, @AGENTS.md, so sessions that cannot read AGENTS.md directly still load it.", "why": "shim named without code formatting"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I moved the content into AGENTS.md and deleted CLAUDE.md.", "why": "no shim named"},
+    {"answer": "Create AGENTS.md and keep CLAUDE.md pointing at it.", "why": "names no import line"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "/plugins/instruction-placement/scripts/detect.sh"}}], "why": "bare call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/p/scripts/detect.sh\" --tier core"}}], "why": "quoted path with a tier"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "/p/scripts/glob-tools.sh validate --glob '**/*.cs'"}}], "why": "the glob validator alone"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/p/scripts/detect.sh"}}], "why": "read the script, never ran it"},
+    {"answer": []}
+  ]
+}
