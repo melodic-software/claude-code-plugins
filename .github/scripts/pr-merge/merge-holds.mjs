@@ -415,6 +415,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/pr-run-activity-write.yml", "gate"],
   [".github/workflows/pr-unblock-dispatch.yml", "gate"],
   [".github/workflows/pr-unblock.yml", "gate"],
+  [".github/workflows/pr-verify-capture.yml", "gate"],
   [".github/workflows/pr-verify.yml", "gate"],
   [".github/workflows/release-publish-plugins.yml", "gate"],
   [".github/workflows/upstream-apply-changelog.yml", "gate"],

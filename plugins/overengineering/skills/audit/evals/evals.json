@@ -203,16 +203,31 @@
     },
     {
       "id": 15,
-      "name": "terminal-medium-drops-rendered-view-offer",
-      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; the visualization plugin is installed; ~/.claude/rendered-views.md contains only 'medium: terminal'; the repo has no rendered-views layer; no --medium argument was given. The walk finds two CI lanes that duplicate each other's checks.)",
-      "expected_output": "Writes the findings artifact and the inline terminal summary as usual. Resolves medium before the rendered-view offer, reads medium: terminal from the user-global layer, and makes no offer to render the artifact through visualization:visualize, because the two report layers are the whole report. The terminal summary names ~/.claude/rendered-views.md as the source of the medium.",
+      "name": "retired-file-local-value-drops-rendered-view-offer",
+      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; interactive session; the visualization plugin is installed; first run in this project; ~/.claude/rendered-views.md contains only 'medium: terminal'; no other rendered-views scope sets medium; no --medium argument was given. The resolver prints a JSON line with medium terminal and page false, the report line 'view: terminal (retired ~/.claude/rendered-views.md)' and the notice 'notice: ~/.claude/rendered-views.md is retired but still keeps the view local (it sets medium: terminal); set it in docs/conventions/rendered-views.local.yaml instead; per user, the overengineering plugin's medium option also works'. The walk finds two CI lanes that duplicate each other's checks.)",
+      "expected_output": "Writes the findings artifact and the inline terminal summary as usual. Runs the shared medium resolver with --lane overengineering:audit before the rendered-view offer, prints its report line and retired-file notice in the terminal summary as they stand, and makes no offer to render the artifact through visualization:visualize, because the JSON's page is false. It does not open or read ~/.claude/rendered-views.md itself.",
       "files": [],
       "narration": true,
       "expectations": [
         "Writes the findings artifact and the inline terminal summary",
-        "Resolves medium from the rendered-views layers before the rendered-view offer",
-        "Does not offer a rendered view through visualization:visualize and builds no HTML file",
-        "Names ~/.claude/rendered-views.md as the source of the medium"
+        "Runs the shared medium resolver with --lane overengineering:audit rather than reading rendered-views files itself",
+        "Prints the resolver's report line and its notice that ~/.claude/rendered-views.md is retired but still keeps the view local",
+        "Does not offer a rendered view through visualization:visualize and builds no HTML file"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "medium-argument-passed-to-visualize",
+      "prompt": "/overengineering:audit --medium file ci-lanes (Fixture: on branch feat/ci-trim; interactive session; the visualization plugin is installed; no rendered-views scope sets medium. The resolver prints a JSON line with medium file and page true and the report line 'view: file (argument)'. The walk finds two CI lanes that duplicate each other's checks, and the person accepts the rendered-view offer.)",
+      "expected_output": "Writes the findings artifact and the inline terminal summary as usual. Runs the shared medium resolver with --lane overengineering:audit, an empty --option and --argument file, prints its report line 'view: file (argument)' as it stands, then offers the rendered view. When the offer is taken, it invokes visualization:visualize with `file` as its argument. It builds no HTML file itself.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the shared medium resolver with --lane overengineering:audit and --argument file",
+        "Prints the resolver's report line 'view: file (argument)' as it stands",
+        "Offers the rendered view after the terminal summary",
+        "Passes `file` to visualization:visualize when the offer is taken",
+        "Builds no HTML file itself"
       ]
     }
   ]
