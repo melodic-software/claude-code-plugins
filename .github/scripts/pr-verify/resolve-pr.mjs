@@ -67,7 +67,7 @@ import {
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
-import { refsIssue } from "../pr-merge/merge-holds.mjs";
+import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
@@ -141,7 +141,7 @@ const SIBLING_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issueOrPullRequest(number: $number) {
       __typename
-      ... on PullRequest { number merged mergedAt baseRefName body lastEditedAt editor { ...actor } repository { nameWithOwner } closingIssuesReferences(first: 1) { totalCount } }
+      ... on PullRequest { number merged mergedAt baseRefName body lastEditedAt author { ...actor } editor { ...actor } repository { nameWithOwner } closingIssuesReferences(first: 1) { totalCount } }
     }
   }
 }
@@ -590,27 +590,15 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 }
 
 // The pull requests the visible `Siblings: #<a>, #<b>` lines of a pull request
-// body name, read as refsIssue reads `Refs:` lines: from the first column,
-// outside an HTML comment and a fenced code block. A `Siblings:` line in any
-// other form, or more than SIBLINGS_MAX numbers, names none.
+// body name, read from its visible lines (merge-holds.mjs visibleLines, which
+// refsIssue reads) from the first column. A `Siblings:` line in any other form,
+// or more than SIBLINGS_MAX numbers, names none.
 export const SIBLINGS_MAX = 10;
 const SIBLINGS_LINE = /^siblings:/i;
 const SIBLINGS_PLAIN = /^Siblings:[ \t]*(#[1-9][0-9]{0,8}(?:[ \t]*,[ \t]*#[1-9][0-9]{0,8})*)[ \t]*$/;
 export function siblingNumbers(body) {
   const numbers = new Set();
-  let fence = "";
-  for (const line of String(body ?? "").replace(/<!--[\s\S]*?(?:-->|$)/g, "").split(/\r\n|\r|\n/)) {
-    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fence) {
-      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && line.slice(marker[0].length).replace(/[ \t]/g, "") === "") {
-        fence = "";
-      }
-      continue;
-    }
-    if (marker) {
-      fence = marker[1];
-      continue;
-    }
+  for (const line of visibleLines(body)) {
     if (!SIBLINGS_LINE.test(line)) {
       continue;
     }
@@ -626,14 +614,16 @@ export function siblingNumbers(body) {
 }
 
 // The siblings a closing pull request's body names (siblingNumbers) that
-// delivered part of one of its issues: each merged into `base` in this
-// repository, closing no issue, with a `Refs:` line (refsIssue) naming that
-// issue, and its body unedited since the merge unless a trusted person edited
-// it last, with that body, which says the part. Read from GitHub, never from
-// the body's prose. A number that names nothing credits nothing; any other
-// failed read throws.
-async function creditedSiblings(readRefs, repository, number, body, base, humans) {
+// delivered part of one of its issues: each written by a trusted person or the
+// lanes App (`laneAppId`), merged into `base` in this repository, closing no
+// issue, with a `Refs:` line (refsIssue) naming that issue, and its body
+// unedited unless a trusted person edited it last, or the lanes App did
+// before the merge, with that body, which says the part. Read from GitHub,
+// never from the body's prose. A number that names nothing credits nothing;
+// any other failed read throws.
+async function creditedSiblings(readRefs, repository, number, body, base, humans, laneAppId) {
   const [owner, name] = repository.split("/");
+  const lanesApp = (actor) => laneAppId !== undefined && actor?.__typename === "Bot" && actor.databaseId === laneAppId;
   const credited = [];
   for (const sibling of siblingNumbers(body).filter((n) => n !== number)) {
     const answer = await readRefs("POST", "/graphql", { query: SIBLING_QUERY, variables: { owner, name, number: sibling } });
@@ -642,8 +632,8 @@ async function creditedSiblings(readRefs, repository, number, body, base, humans
       throw new Error(`#${number}: sibling #${sibling} could not be read`);
     }
     const merged = node?.__typename === "PullRequest" && node.number === sibling && node.merged === true && node.repository?.nameWithOwner === repository && node.baseRefName === base;
-    const slice = merged && node.closingIssuesReferences?.totalCount === 0;
-    const kept = node?.lastEditedAt == null || Date.parse(node.lastEditedAt) <= Date.parse(node.mergedAt ?? "") || trustedHuman(node.editor, humans);
+    const slice = merged && node.closingIssuesReferences?.totalCount === 0 && (trustedHuman(node.author, humans) || lanesApp(node.author));
+    const kept = node?.lastEditedAt == null || trustedHuman(node.editor, humans) || (lanesApp(node.editor) && Date.parse(node.lastEditedAt) <= Date.parse(node.mergedAt ?? ""));
     const issue = slice && kept ? refsIssue(node.body) : null;
     if (issue !== null) {
       credited.push({ issue, number: sibling, body: String(node.body) });
@@ -731,7 +721,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     }
   }
   const pullRequest = data.data.repository.pullRequest;
-  const siblings = base !== undefined && named === null && issues.length > 0 ? await creditedSiblings(readRefs, repository, number, pullRequest.body, base, humans) : [];
+  const siblings = base !== undefined && named === null && issues.length > 0 ? await creditedSiblings(readRefs, repository, number, pullRequest.body, base, humans, laneAppId) : [];
   return {
     // Who last edited the pull request's own body: null when never edited.
     bodyEditor: pullRequest.lastEditedAt == null ? null : (pullRequest.editor?.databaseId ?? 0),

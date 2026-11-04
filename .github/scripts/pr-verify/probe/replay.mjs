@@ -306,7 +306,8 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }),
     })),
     // The pull requests the body's `Siblings:` line names, each `Refs:` the
-    // issue (`{issue}` in its body), merged into main or not.
+    // issue (`{issue}` in its body), merged into main or not, by the lanes
+    // App unless `by` names another account.
     siblings: Object.fromEntries(
       (testCase.spec.siblings ?? []).map((sibling) => [
         sibling.number,
@@ -318,6 +319,7 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
           baseRefName: "main",
           body: sibling.body.replaceAll("{issue}", String(issueNumber)),
           lastEditedAt: null,
+          author: graphActor(sibling.by ?? "lane"),
           editor: null,
           repository: { nameWithOwner: REPOSITORY },
           closingIssuesReferences: { totalCount: 0 },

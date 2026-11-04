@@ -309,6 +309,7 @@ const sibling = (number, overrides = {}) => ({
   baseRefName: "main",
   body: `Refs: #7\n\nPart ${number}.\n\n## Remaining\n\n- The rest.`,
   lastEditedAt: null,
+  author: ISSUE.author,
   editor: null,
   repository: { nameWithOwner: REPO },
   closingIssuesReferences: { totalCount: 0 },
@@ -350,19 +351,31 @@ test("a sibling that did not merge here, or whose body does not name the issue, 
     // Judged against the issue it closed, never as a slice of this one.
     ["closing an issue", sibling(12917, { closingIssuesReferences: { totalCount: 1 } })],
     ["edited after the merge by someone else", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: OUTSIDER })],
-    ["edited at an unreadable merge time", sibling(12917, { mergedAt: null, lastEditedAt: "2026-10-09T00:00:00Z", editor: OUTSIDER })],
+    ["edited before the merge by someone else", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: OUTSIDER })],
+    ["edited after the merge by the lanes App", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: LANES_APP })],
+    ["edited by the lanes App at an unreadable merge time", sibling(12917, { mergedAt: null, lastEditedAt: "2026-10-09T00:00:00Z", editor: LANES_APP })],
+    // Its body is spec text, so its author must be one spec text may come from.
+    ["written by an outsider", sibling(12917, { author: OUTSIDER })],
+    ["written by another bot", sibling(12917, { author: { ...LANES_APP, login: "other-app", databaseId: 4242 } })],
+    ["written by a User with the lanes App's id", sibling(12917, { author: { ...LANES_APP, __typename: "User" } })],
+    ["with no readable author", sibling(12917, { author: null })],
   ]) {
-    const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } });
+    const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } }, { laneAppId: LANES_APP.databaseId });
     assert.deepEqual(resolved.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }], label);
   }
-  // A body edited before the merge, or last by a trusted person, still counts.
+  // A sibling the lanes App wrote, or a body a trusted person or the lanes App
+  // before the merge edited last, still counts.
   for (const [label, node] of [
-    ["edited before the merge", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: OUTSIDER })],
+    ["written by the lanes App", sibling(12917, { author: LANES_APP })],
+    ["edited before the merge by the lanes App", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: LANES_APP })],
     ["edited after the merge by a trusted person", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: ISSUE.author })],
   ]) {
-    const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } });
+    const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } }, { laneAppId: LANES_APP.databaseId });
     assert.deepEqual(resolved.specText[0].credited_siblings, [{ number: 12917, body: node.body }], label);
   }
+  // With no lanes App id known, nothing it wrote counts.
+  const unknown = await resolve({ body: "Siblings: #12917", refs: { 12917: sibling(12917, { author: LANES_APP }) } });
+  assert.equal(Object.hasOwn(unknown.specText[0], "credited_siblings"), false);
   // A number that names nothing credits nothing; any other failed read stops the run.
   assert.equal(Object.hasOwn((await resolve({ body: "Siblings: #99999" })).specText[0], "credited_siblings"), false);
   const answer = { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "RATE_LIMITED", path: ["repository", "issueOrPullRequest"] }] };

@@ -18,6 +18,11 @@ test("the final judge reads the spec under the chunk verifiers' words", () => {
   }
 });
 
+test("a refs pull request that names no remaining work fails, under either judge", () => {
+  assert.ok(chunk.includes("Return `fail`, saying why, when the body names no delivered part, names no remaining work or claims to deliver the whole issue"));
+  assert.ok(spec.includes("return `fail` when it names no delivered part or no remaining work, or claims the whole issue."));
+});
+
 test("nothing a chunk reports is cut from the final judge", () => {
   assert.doesNotMatch(spec, /notes_left_out|A cut can hide/);
   for (const text of [spec, flat("./chunk-note.md")]) assert.doesNotMatch(text, /leaves? (it |the path )?out|a count of the files/);

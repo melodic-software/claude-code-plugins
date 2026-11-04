@@ -2420,9 +2420,10 @@ work, or claims the whole issue, fails. The body only narrows what is judged, ne
 requirement, and the spec trust rules below are unchanged. The last pull request of an issue split
 across several can close it (owner decision 2026-11-03 on #12965): its body names the earlier ones
 on a plain `Siblings: #<a>, #<b>` line (first column, outside an HTML comment and a fenced code
-block, at most 10), and resolve-pr credits each that GitHub shows merged into the base in this
-repository, closing no issue, with a `Refs:` line naming the closing issue and a body unedited
-since the merge unless a trusted person edited it last. The spec entry then lists them in
+block, at most 10), and resolve-pr credits each that GitHub shows written by a trusted person or the
+lanes App, merged into the base in this repository, closing no issue, with a `Refs:` line naming the
+closing issue and a body unedited unless a trusted person edited it last, or the lanes App did
+before the merge. The spec entry then lists them in
 `credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
 those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
 diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs

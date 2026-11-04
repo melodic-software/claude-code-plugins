@@ -114,10 +114,9 @@ export function refsIssue(body) {
   return numbers?.size === 1 ? [...numbers][0] : null;
 }
 
-// The issues the visible plain `Refs: #<n>` lines of `body` name, as
-// refsIssue reads them, or null when such a line is in any other form.
-function refsNumbers(body) {
-  const numbers = new Set();
+// The lines of a pull request body a reader sees: outside an HTML comment and
+// a fenced code block. refsIssue and pr-verify's siblingNumbers read only these.
+export function* visibleLines(body) {
   let fence = "";
   for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
     const marker = FENCE.exec(line);
@@ -131,6 +130,15 @@ function refsNumbers(body) {
       fence = marker[1];
       continue;
     }
+    yield line;
+  }
+}
+
+// The issues the visible plain `Refs: #<n>` lines of `body` name, as
+// refsIssue reads them, or null when such a line is in any other form.
+function refsNumbers(body) {
+  const numbers = new Set();
+  for (const line of visibleLines(body)) {
     if (!REFS_LINE.test(line)) {
       continue;
     }
