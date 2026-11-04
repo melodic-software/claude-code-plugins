@@ -5,8 +5,10 @@ bump: patch
 ### Changed
 
 - No workflow looks for the artifact listing pr-merge's last run saved any more. The verdict
-  reader reads the FAIL index by exact name, so no gate saves a listing, and each search cost
-  one run listing and up to ten runs' artifact listings for nothing. The address-feedback and
+  reader reads the FAIL index by exact name and saves a listing only for a pull request past
+  `INDEX_NAMES_CAP` index names, so each search cost one run listing and up to ten runs'
+  artifact listings and almost always found nothing. Past that cap a dispatcher's FAIL-cap
+  read now lists in full. The address-feedback and
   pr-unblock dispatchers' FAIL-cap reads (`verify-cap.mjs`), pr-merge's `merge` and
   `enable-auto-merge` jobs, and ci-status's merge-queue reader no longer run it; the run cache
   and head-ref map are still carried. `BABYSIT_VERIFY_LISTING_CARRY` is gone from every job.

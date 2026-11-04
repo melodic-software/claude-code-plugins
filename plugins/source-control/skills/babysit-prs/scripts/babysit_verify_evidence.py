@@ -165,8 +165,8 @@ Carried reads. What an earlier run read is used only where it counts a FAIL
 it could turn the FAIL away, so it is read again), with one exception: the
 artifact listing. A listing begun at most `LISTING_CARRY_MAX_AGE` ago (this
 Reader's own, the run's saved one, or one a trusted earlier run saved that
-`LISTING_CARRY_ENV` names, which no workflow does while index mode saves no
-listing) is a base: `Reader._incremental` reads only the newest pages,
+`LISTING_CARRY_ENV` names, which no workflow sets; index mode saves a listing
+only past `INDEX_NAMES_CAP`) is a base: `Reader._incremental` reads only the newest pages,
 newest id first, down past the base's highest id until an artifact created
 `LISTING_OVERLAP` before the base was read, and keeps the base's entries below
 the lowest id those pages hold, less those expired or past `expires_at` by the
