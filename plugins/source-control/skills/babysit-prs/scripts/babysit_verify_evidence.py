@@ -6130,7 +6130,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     stands.add_argument("--repo", required=True)
     stands.add_argument("--postmerge-result", required=True)
     stands.add_argument("--code-sha", required=True)
-    legacy =sub.add_parser("legacy-fails", allow_abbrev=False)
+    legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
     legacy.add_argument("--repo", required=True)
     legacy.add_argument("--branch", default="main")
     legacy.add_argument("--since", required=True)
