@@ -21,6 +21,8 @@
 #
 #   scope    managed | user | project | local | startdir-local
 #   surface  file | dropin-dir | dropin-file:<name> | registry | plist (managed);
+#            toplevel (project: the repository root's shared file, read when the
+#            working directory is below the root; see Root resolution);
 #            settings (everything else)
 #   status   present | absent | unreadable | invalid-json | skipped | not-applicable
 #   kind     allow | ask | deny
@@ -46,7 +48,7 @@
 #
 # Test seams (the real locations are absolute system paths and a real user home,
 # which no test may touch):
-#   PERMISSION_STATE_FIXTURE_DIR       project root
+#   PERMISSION_STATE_FIXTURE_DIR       primary working directory, also its repository root
 #   PERMISSION_STATE_STARTDIR          session start directory
 #   PERMISSION_STATE_MANAGED_PATH      managed-settings.json (drop-in dir follows it)
 #   PERMISSION_STATE_REGISTRY_KEYS     newline-separated registry keys to query
@@ -157,12 +159,35 @@ reg_cmd() { MSYS2_ARG_CONV_EXCL='*' reg "$@"; }
 # before v2.1.211 and still reads what an earlier version left behind.
 START_DIR="${PERMISSION_STATE_STARTDIR:-$PWD}"
 
+# The session's primary working directory, the one input to both project-file
+# lookups: the shared file is read from it, and the repository root that anchors
+# the local file is resolved from it. This script cannot see the session itself,
+# so it takes its own working directory as that directory and says so in a note.
 if [[ -n "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
-  PROJECT_ROOT="$PERMISSION_STATE_FIXTURE_DIR"
+  PRIMARY_DIR="$PERMISSION_STATE_FIXTURE_DIR"
+  REPO_ROOT="$PERMISSION_STATE_FIXTURE_DIR"
 else
-  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$PROJECT_ROOT" ]] || PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+  PRIMARY_DIR="$PWD"
+  # The prefix, not a path comparison: it is empty at the root however the shell
+  # and git spell that path.
+  {
+    read -r REPO_ROOT
+    read -r REPO_PREFIX
+  } < <(git rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
 fi
+
+# A Bash `cd` inside the project changes this script's working directory and not
+# the session's primary one, and nothing here can tell that from a session started
+# in this directory. So below the repository root both shared files are candidates.
+# Taking either one alone could drop the deny rules of the file in force: this
+# directory's when the session started here, the root's after a `cd` from the root.
+# Both are read, which can over-report one of them. A session that started in
+# another subdirectory and then ran `cd` has its own file read by neither, which is
+# why the skill says to run this from the start directory. The root's is
+# `toplevel`, a surface of the project scope, so the merge and lint stages treat it
+# as project settings.
+TOPLEVEL_SHARED=""
+[[ -z "${REPO_PREFIX:-}" || -z "${REPO_ROOT:-}" ]] || TOPLEVEL_SHARED="$REPO_ROOT/.claude/settings.json"
 
 # settings.local.json lives "at the root of the git repository, resolved through
 # worktrees to the main checkout, so one file covers sessions started in any
@@ -181,13 +206,13 @@ fi
 # directory. That is a helper's behavior, not a property of the running session,
 # so nothing here can observe it. No documented environment variable identifies an
 # Agent SDK or headless run either, so it is stated rather than guessed at.
-LOCAL_ROOT="$PROJECT_ROOT"
+LOCAL_ROOT="$REPO_ROOT"
 local_basis="repository root"
 if [[ -z "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
   common_dir="$(git rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
   if [[ -n "$common_dir" ]]; then
     main_root="$(cd "$common_dir/.." 2>/dev/null && pwd)"
-    if [[ -n "$main_root" && "$main_root" != "$PROJECT_ROOT" ]]; then
+    if [[ -n "$main_root" && "$main_root" != "$REPO_ROOT" ]]; then
       LOCAL_ROOT="$main_root"
       local_basis="main checkout, resolved through this worktree"
     fi
@@ -548,17 +573,24 @@ fi
 same_file() { [[ "$1" -ef "$2" || "$1" == "$2" ]]; }
 
 emit_file_scope() {
-  # emit_file_scope <scope> <path>
-  local scope="$1" path="$2"
+  # emit_file_scope <scope> <path> [surface]
+  local scope="$1" path="$2" surface="${3:-settings}"
   if [[ -n "$USER_CONFIG_ROOT" ]] && same_file "$path" "$USER_CONFIG_ROOT/settings.json"; then
-    emit "$scope" settings not-applicable "$path"
+    emit "$scope" "$surface" not-applicable "$path"
     note "$scope scope skipped: $path is the user settings file (as when a session starts in the home directory, outside a repository), so it is reported once, as user, and no $scope-scope checks run on it."
     return 0
   fi
-  emit_json_scope "$scope" settings "$path"
+  emit_json_scope "$scope" "$surface" "$path"
 }
 
-emit_file_scope project "$PROJECT_ROOT/.claude/settings.json"
+emit_file_scope project "$PRIMARY_DIR/.claude/settings.json"
+if [[ -n "$TOPLEVEL_SHARED" ]]; then
+  emit_file_scope project "$TOPLEVEL_SHARED" toplevel
+  note "$PRIMARY_DIR is below the repository root $REPO_ROOT. A Bash cd inside the project moves this reader without moving the session, so this directory may or may not be the session's primary working directory, and the reader reads both shared files: 'project settings' from here and 'project toplevel' from the root. Only the file in the directory the session started in, or last moved to with /cd, is in force, so the merged set can over-report one of these two files. If the session started in neither directory, its file is not read here: run this reader from the session's start directory. https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository"
+else
+  emit project toplevel not-applicable "-"
+  note "project scope read from $PRIMARY_DIR, the reader's working directory, taken as the session's primary working directory. A repository root's .claude/settings.json does not apply to a session whose primary working directory is elsewhere."
+fi
 emit_file_scope local "$LOCAL_ROOT/.claude/settings.local.json"
 note "local scope anchored on the $local_basis. The Agent SDK's resolveSettings() helper always reads the file from the starting directory; that is the helper's behavior, not a session property, and no documented environment variable identifies an Agent SDK or headless run, so this reader does not detect either."
 
@@ -569,7 +601,7 @@ note "local scope anchored on the $local_basis. The Agent SDK's resolveSettings(
 # when Claude Code is running as a cloud session. Read this from a hook or setup
 # script to detect whether you are in a cloud session."
 if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
-  note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which reads a DIFFERENT scope set than a local one. Your own machine's user settings and .claude/settings.local.json are not read at all, and only server-managed settings reach the session — a managed-settings.json file or MDM profile on your device does not. Any user scope reported above is this container's file, not yours."
+  note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which reads a DIFFERENT scope set than a local one. Your own machine's user settings and .claude/settings.local.json are not read at all, and a managed-settings.json file or MDM profile on your device does not reach it. A self-hosted environment's runner image can carry its own managed file, and a cloud thread in a project takes no permission rules from a repository's .claude/settings.json; this reader detects neither case, so read https://code.claude.com/docs/en/settings#settings-in-cloud-sessions before trusting the managed or project records above. Any user scope reported above is this container's file, not yours."
 fi
 
 # The pre-v2.1.211 copy is a DISTINCT scope member, not a fallback: when both

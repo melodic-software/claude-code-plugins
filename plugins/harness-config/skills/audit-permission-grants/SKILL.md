@@ -108,11 +108,12 @@ numbers into the report:
   for that version boundary; this skill's silence about them is a boundary, not a result.
 
 A user-global finding is reported the same as any other, but its remediation is the operator's: a
-skill cannot write that file. When deciding where an approval-prompt grant lands and whether
-anything prunes it, fetch
+skill cannot write that file. When deciding where an approval-prompt grant lands, fetch
+[permissions: permission system](https://code.claude.com/docs/en/permissions#permission-system)
+live; when deciding whether anything prunes it, fetch
 [permissions: manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)
-live (as of 2026-11-03; recheck when that section changes where a prompt approval is saved or how
-saved rules are removed).
+live (as of 2026-11-04; recheck when the first section changes where a prompt approval is saved or
+the second changes how saved rules are removed).
 
 If a scope filter was given, run the full detector and present only the matching checks. P1, P2, P2b
 and P4 are all emitted by the same rule scan, which runs over frontmatter `allowed-tools` and over

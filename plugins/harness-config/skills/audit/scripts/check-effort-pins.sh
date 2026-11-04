@@ -8,7 +8,7 @@
 # "Adjust effort level" section (with its child sections) from the cache's
 # section map, hashes the three parts a pin rests on (the Levels column table
 # under "Adjust effort level", the level rows of the "Choose an effort level"
-# table, and item 3 of the resolution list, which states each model's default),
+# table, and the item of the resolution list that states each model's default),
 # and compares the hash with a committed baseline. It then lists every pin and
 # flags the ones a human must re-decide. It never edits a pin and never
 # rewrites the baseline.
@@ -152,7 +152,10 @@ adjust_section() {
 
 # parse_page <file>: print L<TAB>level (level set, first-seen order), A<TAB>row
 # (Levels table rows), C<TAB>row (level rows of the Choose table) and
-# D<TAB>line (resolution item 3), or one E<TAB>reason when a part is missing.
+# D<TAB>line (the defaults item), or one E<TAB>reason when a part is missing.
+# The defaults item is found by content: every numbered item of the section that
+# says "default", so the list renumbering cannot point the hash at another item,
+# and a second such item is hashed rather than skipped.
 # Headings inside fenced code are ignored; trailing whitespace is trimmed.
 parse_page() {
   awk '
@@ -186,7 +189,7 @@ parse_page() {
       }
       if (tbl == 1) tbl = 2
       if (line ~ /^[0-9]+\.[ \t]/) {
-        if (!seen_item3 && line ~ /^3\.[ \t]/) { item = 1; seen_item3 = 1; nD++; D[nD] = line; next }
+        if (tolower(line) ~ /default/) { item = 1; nD++; D[nD] = line; next }
         item = 0; next
       }
       if (item && line ~ /^[ \t]+[^ \t]/) { nD++; D[nD] = line; next }

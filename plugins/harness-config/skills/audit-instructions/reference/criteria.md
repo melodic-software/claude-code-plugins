@@ -255,10 +255,11 @@ each only on the surfaces its row names.
   and where thinking may not be disabled):
   <https://platform.claude.com/docs/en/build-with-claude/effort>
 - Model configuration (the harness-side thinking-display and thinking-disable surfaces, which effort
-  levels each surface accepts, the per-model calibration of the effort scale, the first-run
-  default hold, and the adaptive-reasoning / fixed-thinking-budget partition):
+  levels each surface accepts, the per-model calibration of the effort scale, and the
+  adaptive-reasoning / fixed-thinking-budget partition):
   <https://code.claude.com/docs/en/model-config>
-- Settings (the `effortLevel` value set): <https://code.claude.com/docs/en/settings>
+- Settings reference (the `effortLevel` value set):
+  <https://code.claude.com/docs/en/settings-reference#effortlevel>
 - Environment variables (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`, and
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` with the models it reaches):
   <https://code.claude.com/docs/en/env-vars>; read it whole per the
@@ -1169,15 +1170,15 @@ since each prescribes a request the model refuses.
   `Alt+T` / `Option+T` session toggle, or API `thinking: {"type": "disabled"}`, together with
   `xhigh` or `max` effort, on Claude Opus 5 or a later model, or, in the API form only, on Claude
   Haiku 5.5 (see the `haiku-5-5` widening below). Both operands are configuration
-  literals. Fire on the API form and on the harness forms alike: in neither does the prescribed
-  level reach the model, so the finding and its remediation are the same for both. What Claude
-  Code sends in place of the prescribed level is behind the pointer.
-  Pointer: for the harness outcome, see
+  literals. Fire on the API form and, on a model where thinking can be turned off, on the harness
+  forms alike: the finding and its remediation are the same for both. On a model in I17-a's no-effect
+  set the harness forms change nothing, so this arm does not fire on them there.
+  Pointer: for the harness outcome and that set, see
   [model configuration: extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking)
   and [errors: effort isn't available with thinking turned
   off](https://code.claude.com/docs/en/errors#effort-isnt-available-with-thinking-turned-off).
-  As of: 2026-10-01. Recheck trigger: either section changes what Claude Code sends when thinking
-  is off and the prescribed level is `xhigh` or `max`.
+  As of: 2026-11-04. Recheck trigger: either section changes what Claude Code does when thinking
+  is off and the prescribed level is `xhigh` or `max`, or changes which models accept thinking off.
 - **Effort literals do not all reach every surface, and the literal set is not the whole set.**
   Count `max` wherever text sets it through `CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, `/effort`, or
   skill and subagent `effort` frontmatter, the frontmatter case being a surface this skill already
@@ -1203,7 +1204,7 @@ since each prescribes a request the model refuses.
   **Only the API form belongs to this arm.** On **the models in I17-a's no-effect
   set** the harness thinking-disable surfaces fail differently, and that failure is I17-a's, not
   this row's: we treat thinking as unable to be turned off there, and the session toggle,
-  `alwaysThinkingEnabled` and `MAX_THINKING_TOKENS=0` as silent no-ops rather than errors. **For
+  `alwaysThinkingEnabled` and `MAX_THINKING_TOKENS=0` as having no effect rather than as errors. **For
   the Mythos models the harness pages state nothing**, so this row makes no claim about their
   harness surfaces in either direction; the API reject is the whole of what is stated for them.
   Pointer: for the per-model accepted values, see [thinking: configuring
@@ -1212,7 +1213,7 @@ since each prescribes a request the model refuses.
   table](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#supported-models);
   for the harness no-ops, see
   [model configuration: extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
-  As of: 2026-10-01. Recheck trigger: a model gains or loses a 400 for `"disabled"` in either
+  As of: 2026-11-04. Recheck trigger: a model gains or loses a 400 for `"disabled"` in either
   table, or the harness no-op list changes.
 - **Third arm, API requests only: `between_tools` at a level or with a change it refuses.** Flag
   instruction text that prescribes, or a code sample it tells the reader to send, a request to
