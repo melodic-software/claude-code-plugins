@@ -7,19 +7,32 @@ decision leaves no row. The harness facts a skill restates stay in that skill un
 upstream-drift convention; a correction to one of them is recorded in the owning plugin's
 CHANGELOG, and this file points at it rather than repeating it.
 
-**Last audited upstream state:** changelog through `2.1.296` (published 2026-10-09), read as raw
-markdown on 2026-10-10. Git history of this file records *when*; this line records only *what was
-read*. `/harness-ops:changelog status` reads this line; the default range for `diff` and `apply`
-runs from it to the newest published release.
+**Last audited upstream state:** changelog through `2.1.318` (published 2026-11-04). Releases
+`2.1.257` through `2.1.296` were read release by release as raw markdown. Releases `2.1.297` through
+`2.1.318` were not: that range was past the replay cap, so on 2026-11-04 the components were
+rechecked against the current docs instead
+([scope](https://github.com/melodic-software/claude-code-plugins/issues/10456#issuecomment-6632074022),
+[#13286](https://github.com/melodic-software/claude-code-plugins/issues/13286)). Every tracked link
+into the docs was checked against the page, and the ten pages with over 100 links from this
+repository were read against the records that cite them; every other page got the link check only.
+Git history of this file records *when*; this line records only *what was read*.
+`/harness-ops:changelog status` reads this line; the default range for `diff` and `apply` runs from
+it to the newest published release.
 
-**Recheck trigger:** a new release block appears above the version on the line above. Nothing before
-`2.1.257` was read release by release; the fleet's coverage of older releases rests on each skill's
-own verification stamps and the docs-conformance rechecks those stamps trigger.
+- **Pointer**: for what a release after the marker changed, fetch
+  <https://code.claude.com/docs/en/changelog> live.
+- **As of**: 2026-11-04
+- **Recheck trigger:** a new release block appears above the version on the marker line. Nothing
+  before `2.1.257` was read release by release; the fleet's coverage of older releases, and of the
+  rechecked range, rests on each skill's own verification stamps and the docs-conformance rechecks
+  those stamps trigger.
 
-Rows below are the decisions from that read. A record names the pull request that first carried
-the apply, or this file when the apply is on the branch that introduces the ledger. Pages fetched
-again on 2026-09-28 for the rows in this file did not move the marker: later releases were not read
-as a range.
+Rows below are the decisions from the `2.1.257` through `2.1.296` read. The recheck added no rows:
+its fixes are in the pull requests that
+[#13286](https://github.com/melodic-software/claude-code-plugins/issues/13286) lists. A record names
+the pull request that first carried the apply, or this file when the apply is on the branch that
+introduces the ledger. Pages fetched again on 2026-09-28 for the rows in this file did not move the
+marker: later releases were not read as a range.
 
 Rows whose items fall in `2.1.265` through `2.1.296` come from a read of that range; every row is
 applied in a merged pull request, nominated, declined, or deferred. A row whose decision starts
