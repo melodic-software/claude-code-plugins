@@ -66,6 +66,9 @@ import {
   verifyHold,
   SKIP_STATE_PREFIX,
   pinBody,
+  VETO_MARKER,
+  vetoLabelOwned,
+  vetoNote,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { DEQUEUE_MUTATION, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
@@ -4123,4 +4126,115 @@ test("a refused pull request whose label the lane puts back while queued is dequ
 test("a refusal that adds no label reads no queue entry", async () => {
   const { calls } = await run([pull(1, { verdict: MISSING })]);
   assert.deepEqual(queueReads(calls), []);
+});
+
+// Owner decision Q3 on #12446: explicit vetoes keep `do-not-merge`. A member's
+// veto comment on a lanes App pull request gets the label, then the lane's
+// VETO_MARKER comment; the label comes off once no member's veto stands, only
+// while it is the lane's own for a veto (vetoLabelOwned).
+const VETO_AT = "2026-10-23T09:00:00Z";
+const LABELED_AT = "2026-10-23T09:30:00Z";
+const NOTED_AT = "2026-10-23T09:30:02Z";
+const vetoed = (login = "kyle-sexton", association = "OWNER") => said(login, "Please do not merge this yet.", VETO_AT, association);
+const vetoLabel = { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["do-not-merge"] } };
+const vetoComment = (vetoes) => ({ method: "POST", path: `${ISSUES}/1/comments`, body: { body: vetoNote(vetoes) } });
+const vetoDelete = { method: "DELETE", path: `${ISSUES}/1/labels/do-not-merge` };
+// The lane's own veto label: its comment in the discussion, and the label
+// followed by the comment on the REST timeline.
+const vetoNoteComment = { ...lanesSaid(vetoNote(["kyle-sexton"])), createdAt: NOTED_AT };
+const ownedTimeline = [labelEvent(APP_USER, LABELED_AT, { name: "do-not-merge" }), restSaid(APP_USER, vetoNote(["kyle-sexton"]), NOTED_AT)];
+
+test("a member's veto comment adds do-not-merge, then the lane's veto comment, and dequeues a queued one", async () => {
+  const { code, notes, writes, lines } = await run([pull(1, { discussion: { comments: [vetoed()] }, queued: true })]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, [vetoLabel, vetoComment(["kyle-sexton"])]);
+  assert.ok(notes[1].body.body.startsWith(`${VETO_MARKER}\n`));
+  assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
+  assert.ok(lines.includes("enable-auto-merge: #1 labeled do-not-merge: kyle-sexton asked not to merge it"), lines.join("\n"));
+  // A review and an inline comment veto too, as ci-status reads them.
+  const review = { ...vetoed("other-member", "MEMBER"), createdAt: undefined, submittedAt: VETO_AT };
+  assert.deepEqual((await run([pull(1, { discussion: { reviews: [review] } })])).notes, [vetoLabel, vetoComment(["other-member"])]);
+  const inline = await run([pull(1, { discussion: { inline: [vetoed("collab", "COLLABORATOR")] } })]);
+  assert.deepEqual(inline.notes, [vetoLabel, vetoComment(["collab"])]);
+});
+
+test("a veto label is not added while report-only, on an event run, or when a person removed it after the veto", async () => {
+  const report = await run([pull(1, { discussion: { comments: [vetoed()] } })], { REPORT_ONLY: "true" });
+  assert.deepEqual(report.notes, []);
+  assert.ok(report.lines.includes("enable-auto-merge: #1 would label do-not-merge (report-only): kyle-sexton asked not to merge it"), report.lines.join("\n"));
+  const event = await run([pull(1, { discussion: { comments: [vetoed()] } })], { EVENT_NAME: "pull_request_target", EVENT_PR: "1" });
+  assert.deepEqual(event.notes, []);
+  const removed = await run([pull(1, { discussion: { comments: [vetoed()] }, unlabeled: [unlabeled("2026-10-23T09:45:00Z", "User", "do-not-merge")] })]);
+  assert.deepEqual(removed.notes, []);
+  // A removal before the newest veto does not stop it.
+  const earlier = await run([pull(1, { discussion: { comments: [vetoed()] }, unlabeled: [unlabeled("2026-10-23T08:00:00Z", "User", "do-not-merge")] })]);
+  assert.deepEqual(earlier.notes, [vetoLabel, vetoComment(["kyle-sexton"])]);
+  // A label already on gets no second label and no comment.
+  const held = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed()] } })]);
+  assert.deepEqual(held.notes, []);
+});
+
+test("a non-member's or a bot's veto-like comment adds nothing", async () => {
+  const { notes, calls } = await run([
+    pull(1, { discussion: { comments: [said("someone", "do not merge", VETO_AT, "CONTRIBUTOR")] } }),
+    pull(2, { discussion: { comments: [said("drive-by", "do not merge", VETO_AT, "NONE")] } }),
+    pull(3, { discussion: { comments: [said("codex", "do not merge", VETO_AT, "OWNER", "Bot")] } }),
+  ]);
+  assert.deepEqual(notes, []);
+  assert.ok(!calls.some(({ body }) => body?.query === UNLABELED_QUERY));
+});
+
+test("the member's lifting comment takes the lane's own veto label off, and the pull request is judged unlabeled", async () => {
+  const lift = said("kyle-sexton", "Fine now, go ahead.", "2026-10-23T09:50:00Z");
+  const { code, notes, writes, lines } = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), vetoNoteComment, lift] }, timeline: ownedTimeline })]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, [vetoDelete]);
+  assert.ok(lines.includes("enable-auto-merge: #1 lifted do-not-merge: no member veto stands"), lines.join("\n"));
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  // Report-only names the lift and writes nothing.
+  const report = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), vetoNoteComment, lift] }, timeline: ownedTimeline })], { REPORT_ONLY: "true" });
+  assert.deepEqual(report.notes, []);
+  assert.ok(report.lines.includes("enable-auto-merge: #1 would lift do-not-merge (report-only): no member veto stands"), report.lines.join("\n"));
+});
+
+test("the veto label stays while another member's veto stands", async () => {
+  const lift = said("kyle-sexton", "Fine now, go ahead.", "2026-10-23T09:50:00Z");
+  const { notes, writes } = await run([
+    pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), vetoed("other-member", "MEMBER"), vetoNoteComment, lift] }, timeline: ownedTimeline }),
+  ]);
+  assert.deepEqual(notes, []);
+  assert.deepEqual(writes, []);
+});
+
+test("a do-not-merge the lane did not add for a veto never comes off here", async () => {
+  const lift = said("kyle-sexton", "Fine now, go ahead.", "2026-10-23T09:50:00Z");
+  const discussion = { comments: [vetoed(), vetoNoteComment, lift] };
+  // report-outcome's body hold: the same App's label, with no veto comment.
+  const bodyHold = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), lift] }, timeline: [labelEvent(APP_USER, LABELED_AT, { name: "do-not-merge" })] })]);
+  assert.deepEqual(bodyHold.notes, []);
+  assert.ok(!bodyHold.calls.some(({ path }) => /\/timeline\?/.test(path)));
+  // A body-hold label that a later veto comment followed is still not the lane's veto label.
+  const late = [labelEvent(APP_USER, "2026-10-22T09:00:00Z", { name: "do-not-merge" }), restSaid(APP_USER, vetoNote(["kyle-sexton"]), NOTED_AT)];
+  assert.deepEqual((await run([pull(1, { labels: labels("do-not-merge"), discussion, timeline: late })])).notes, []);
+  // A session or a person adding the label again after the lane's.
+  const relabeled = [...ownedTimeline, labelEvent({ login: "kyle-sexton", type: "User" }, "2026-10-23T09:40:00Z", { name: "do-not-merge" })];
+  const session = await run([pull(1, { labels: labels("do-not-merge"), discussion, timeline: relabeled })]);
+  assert.deepEqual(session.notes, []);
+  assert.ok(session.lines.includes("enable-auto-merge: #1 keeps do-not-merge: the lanes App did not add it for a member veto"), session.lines.join("\n"));
+  // A timeline that does not read keeps it.
+  const unread = await run([pull(1, { labels: labels("do-not-merge"), discussion })]);
+  assert.deepEqual(unread.notes, []);
+  assert.equal(unread.code, 1);
+});
+
+test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
+  const login = "melodic-automation-lanes[bot]";
+  assert.equal(vetoLabelOwned(ownedTimeline, login), true);
+  // The comment more than PAIRED_MS after the label, or before it, does not pair.
+  assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(APP_USER, vetoNote(["kyle-sexton"]), "2026-10-23T09:32:00Z")], login), false);
+  assert.equal(vetoLabelOwned([restSaid(APP_USER, vetoNote(["kyle-sexton"]), "2026-10-23T09:29:59Z"), ownedTimeline[0]], login), false);
+  // Another account's comment with the marker, or the App's without it, does not pair.
+  assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(KYLE, vetoNote(["kyle-sexton"]), NOTED_AT)], login), false);
+  assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(APP_USER, "a note", NOTED_AT)], login), false);
+  assert.equal(vetoLabelOwned([], login), false);
 });
