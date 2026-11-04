@@ -151,9 +151,8 @@ roles, never aliases. When `/multi-agent:route` resolves in this session, run
 variant model when the stage dispatches more than one agent and its `single` variant when it
 dispatches one (a one-lens run, a one-candidate wave); omit the model when `omit_model` is true.
 Hunters pass no `effort`: any level passed would lower some run's hunters, a cut to recall with no
-eval behind it, so the [Effort](#effort) row scales their breadth instead. The session level reaches
-a hunter only on the main conversation's model, and this skill claims no level for one. Gates are
-non-fork spawns of a generic subagent with no pin of their own, so each gate always passes an
+eval behind it, so the [Effort](#effort) row scales their breadth instead. This skill claims no
+level for a hunter. Gates are non-fork spawns of a generic subagent with no pin of their own, so each gate always passes an
 `effort`: its variant's, or the session's level (the caller effort in [Effort](#effort)) when its
 variant's is lower. A gate never runs on a weaker model than the hunters it checks: when its model as
 dispatched (the main conversation's, if omitted) is weaker, pass the hunters' model instead.
@@ -164,9 +163,8 @@ dispatched (the main conversation's, if omitted) is weaker, pass the hunters' mo
 | Gates (Step 4) | `verifier` |
 | Main thread | the session's model, nothing passed; orchestration, triage, and the person-approved checks of Step 4 only |
 
-An omitted model follows the harness's model order, so `CLAUDE_CODE_SUBAGENT_MODEL` can place the
-spawn on another model, and a mod's `agent.spawn` can replace a model passed or omitted. This skill
-does not detect either, which is why no effort rule here depends on where a spawn lands.
+This skill cannot see which model a spawn lands on, so no effort rule here depends on it. The model
+pointer below says what can move a spawn.
 
 When `/multi-agent:route` does not resolve, omit the model for both stages, except when the session
 model is frontier or unknown, where pass `opus`; say once in the

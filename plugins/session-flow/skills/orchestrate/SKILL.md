@@ -159,9 +159,8 @@ lead session; the docs do not state whether a fork of the lead can drive one; se
 [limitations](https://code.claude.com/docs/en/agent-teams#limitations), as of 2026-10-31; recheck
 when either changes who can lead a team) and dynamic workflows (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
 placeholder, resolve the session's effort yourself before using it. Feed the value
-into imperative 7's tier calibration: we treat it as the effort a spawn runs at when the spawn
-passes no `effort`, the agent's definition pins none, and the spawn runs on the main conversation's
-model; on another model that level does not apply. Its gap from what a subtask needs IS
+into imperative 7's tier calibration: we treat it as the effort an unpinned spawn may run at when it
+passes no `effort`, and the pointer below says on which model that holds. Its gap from what a subtask needs IS
 the over-provisioning imperative 7 exists to stop. Close that gap by passing the level on a
 non-fork spawn of an unpinned agent, and omit it on a pinned named agent. Never read ultracode from this value. Pointer: for
 the subagent `effort` field, see <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>;
