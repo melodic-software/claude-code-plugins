@@ -36,7 +36,7 @@
           "min": "2.1.287"
         }
       },
-      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, draws the band row, serves the status tool and writes the snapshot does not load there. Run `bash <plugin root>/scripts/check-mod-load.sh`: it reports the floor and how to tell whether the mod runs in this session.",
+      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, draws the band row, serves the status tool and writes the snapshot does not load there. Run `bash scripts/check-mod-load.sh` from the plugin root, the directory passed to `prerequisites.mjs check`. It reports the floor and how to tell whether the mod runs in this session.",
       "install": {
         "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
       }
