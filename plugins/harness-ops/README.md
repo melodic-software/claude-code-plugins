@@ -495,103 +495,63 @@ the user's own settings supply it (recheck: the plugins reference's user-configu
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `registry_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_REGISTRY_DIR` | Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
-| `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | Sync action for catalog plugins not yet installed. ask (default) offers them in AskUserQuestion chunks, at most 4 options per question and 4 questions per call; a chunk of 1 is a single-select Install/Skip question. Each pick is installed and enabled. all installs every one; none only reports them. |
-| `directory_source_pull` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_DIRECTORY_SOURCE_PULL` | Sync action for a directory marketplace whose git checkout is clean, on a branch with an upstream, and only behind it. ask (default) offers to run git pull --ff-only and continues the sync with the refreshed catalog; never only reports the command. An autonomous session never asks or pulls. |
-| `quiet_auto_update_marketplaces` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_QUIET_AUTO_UPDATE_MARKETPLACES` | Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off. |
-| `update_other_paths` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_UPDATE_OTHER_PATHS` | Whether sync also updates the outdated project and local plugin records of every other present path on this machine, one CLI call per record. Off (the default), sync reports how many it left and how to update them. |
-| `skill_usage_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED` | Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store. |
-| `skill_usage_scope` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` | Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>. |
-| `skill_usage_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR` | Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
-| `skill_usage_git_exclude` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE` | Adds the repo-scope store's directory to .git/info/exclude when it sits inside a git work tree, so git status stays clean. On by default; machine-local, and never touches .gitignore or tracked files. Set false if your team deliberately commits the telemetry. |
-| `api_error_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_API_ERROR_AUDIT_ENABLED` | Emits turn-failure telemetry on API errors. On by default. |
-| `config_change_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONFIG_CHANGE_AUDIT_ENABLED` | Emits telemetry on config-source mutations. On by default. |
-| `instructions_loaded_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_ENABLED` | Emits telemetry on rule and instruction file loads. On by default. |
-| `instructions_loaded_audit_log_session_start` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START` | Makes the instructions-loaded-audit hook log session_start instruction loads. Off by default, because those loads are deterministic and high-volume. |
-| `permission_denied_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PERMISSION_DENIED_AUDIT_ENABLED` | Emits telemetry on permission denials. On by default. |
-| `pre_compact_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PRE_COMPACT_AUDIT_ENABLED` | Emits telemetry on context-compaction events. On by default. |
-| `tool_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TOOL_FAILURE_AUDIT_ENABLED` | Emits telemetry on Write, Edit, and Bash tool failures. On by default. |
-| `hook_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED` | Warns once per session per hook when the transcript records hook launch or exec failures Claude Code never surfaced. On by default. |
-| `session_event_log_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED` | Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each starts one. It also gates SessionEnd retention. |
-| `session_event_log_dir` | string | `".observability/claude"` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR` | Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. |
-| `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable. |
-| `session_event_log_content` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT` | Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off. |
-| `session_log_keep_sessions` | number<br>*min 1* | `30` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS` | At SessionEnd, keeps the newest N session files regardless of age; default 30. A file is kept when it is among the newest N OR younger than session_log_keep_days. |
-| `session_log_keep_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS` | At SessionEnd, keeps every session file younger than N days regardless of count; default 14. A file is kept when it is younger than N days OR among the newest session_log_keep_sessions. |
-| `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it. |
-| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on. |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2. |
-| `lane_app_slug` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_APP_SLUG` | Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `registry_dir` | string | *(none)* | Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
+| `install_new` | string | `"ask"` | Sync action for catalog plugins not yet installed. ask (default) offers them in AskUserQuestion chunks, at most 4 options per question and 4 questions per call; a chunk of 1 is a single-select Install/Skip question. Each pick is installed and enabled. all installs every one; none only reports them. |
+| `directory_source_pull` | string | `"ask"` | Sync action for a directory marketplace whose git checkout is clean, on a branch with an upstream, and only behind it. ask (default) offers to run git pull --ff-only and continues the sync with the refreshed catalog; never only reports the command. An autonomous session never asks or pulls. |
+| `quiet_auto_update_marketplaces` | string | *(none)* | Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off. |
+| `update_other_paths` | boolean | `false` | Whether sync also updates the outdated project and local plugin records of every other present path on this machine, one CLI call per record. Off (the default), sync reports how many it left and how to update them. |
+| `skill_usage_audit_enabled` | boolean | `true` | Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store. |
+| `skill_usage_scope` | string | `"repo"` | Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>. |
+| `skill_usage_dir` | string | *(none)* | Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
+| `skill_usage_git_exclude` | boolean | `true` | Adds the repo-scope store's directory to .git/info/exclude when it sits inside a git work tree, so git status stays clean. On by default; machine-local, and never touches .gitignore or tracked files. Set false if your team deliberately commits the telemetry. |
+| `api_error_audit_enabled` | boolean | `true` | Emits turn-failure telemetry on API errors. On by default. |
+| `config_change_audit_enabled` | boolean | `true` | Emits telemetry on config-source mutations. On by default. |
+| `instructions_loaded_audit_enabled` | boolean | `true` | Emits telemetry on rule and instruction file loads. On by default. |
+| `instructions_loaded_audit_log_session_start` | boolean | `false` | Makes the instructions-loaded-audit hook log session_start instruction loads. Off by default, because those loads are deterministic and high-volume. |
+| `permission_denied_audit_enabled` | boolean | `true` | Emits telemetry on permission denials. On by default. |
+| `pre_compact_audit_enabled` | boolean | `true` | Emits telemetry on context-compaction events. On by default. |
+| `tool_failure_audit_enabled` | boolean | `true` | Emits telemetry on Write, Edit, and Bash tool failures. On by default. |
+| `hook_failure_audit_enabled` | boolean | `true` | Warns once per session per hook when the transcript records hook launch or exec failures Claude Code never surfaced. On by default. |
+| `session_event_log_enabled` | boolean | `false` | Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each starts one. It also gates SessionEnd retention. |
+| `session_event_log_dir` | string | `".observability/claude"` | Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. |
+| `session_event_log_categories` | string | *(none)* | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable. |
+| `session_event_log_content` | boolean | `false` | Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off. |
+| `session_log_keep_sessions` | number<br>*min 1* | `30` | At SessionEnd, keeps the newest N session files regardless of age; default 30. A file is kept when it is among the newest N OR younger than session_log_keep_days. |
+| `session_log_keep_days` | number<br>*min 1* | `14` | At SessionEnd, keeps every session file younger than N days regardless of count; default 14. A file is kept when it is younger than N days OR among the newest session_log_keep_sessions. |
+| `session_log_pre_prune_command` | string | *(none)* | Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it. |
+| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on. |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2. |
+| `lane_app_slug` | string | *(none)* | Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `harness-ops@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure harness-ops@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure harness-ops@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"registry_dir": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install harness-ops@<marketplace> -s <scope> --config registry_dir=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "harness-ops@<marketplace>": {
-         "options": {
-           "registry_dir": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

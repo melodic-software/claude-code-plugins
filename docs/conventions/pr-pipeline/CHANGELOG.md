@@ -1,5 +1,40 @@
 # Changelog for the PR pipeline convention
 
+## [8.50.2] - 2026-11-04
+
+### Fixed
+
+- A fix or quarantine issue the post-merge demotion alert could not hand to intake triage no longer takes `needs-human`. A fix issue gets a hidden marker comment on it and on its record, a quarantine issue one on the issue, and each alert run retries what a marker names until it succeeds. A record still takes `needs-human` when a failing check was over the cap or outside the name charset.
+
+## [8.50.1] - 2026-11-04
+
+### Fixed
+
+- The half-hourly address-feedback sweep now sends every eligible lanes App head on one tick, up to five (`SWEEP_TICK_CAP`), instead of only the first. Before, each released head after the first waited one more tick, about 30 minutes, per PR. The sweep runs its passes in the same order (fix request, released, stale stop, unsent, idle owner) and decides each PR at most once. It stops deciding after five minutes (`SWEEP_DECIDE_BUDGET_MS`), then sends the decided rounds back to back, so each dispatched-run record uploads seconds after its POST, well within the trusted-trigger gate's wait. `pr-feedback-dispatch.yml` records each send through its own numbered steps. Lost-run recovery still runs only on a tick that sent nothing.
+
+- A pr-verify `fail` now puts in `notes` only the lines that need a change, each saying what to change; a remark that asks for no change (a justified choice, a criterion met, coverage confirmed) goes in `summary`. Each note becomes a review thread that must be resolved before merge, so a remark there opened a thread nobody had to act on. The verifier prompt, the spec verifier prompt and the chunk note say the same; `pass-notes` and `pass` keep their rule.
+
+## [8.50.0] - 2026-11-04
+
+### Added
+
+- `pr-verify-capture.yml` drives the app a pull request changes, unattended, once
+  `merge.verify-capture.app` is set (unset: it stops with a note). It runs the pull request's
+  code in its own workflow, never in a `pr-verify.yml` run, on the same trigger and the same
+  in-repo-head gates as the judges, with a read-only token. A reach probe runs before any head
+  code and fails the job when a process where the app will run can read pr-verify's key, the
+  job token or the runtime token. The key goes to the Claude Code driver alone. The capture
+  uploads as `pr-capture-<pr>-<head-sha>` with `merge.verify-capture.retention-days`.
+- Each pr-verify judge job finds that capture (`find-capture.mjs`; check-intent waits at most 35
+  minutes for it) and downloads it into `pr-verify-data/capture/`. The judge reads it as
+  untrusted data, and a missing, unfinished or blocked capture never fails a head. The verdict's
+  evidence block reads run-e2e's `e2e-summary.json`.
+
+### Changed
+
+- A pull request body line `Evidence loop: 3/3 cap reached, last NEEDS WORK` in trusted text is
+  a `fail`, and the verdict's `local_loop` reads that line as 3.
+
 ## [8.49.2] - 2026-11-04
 
 ### Changed

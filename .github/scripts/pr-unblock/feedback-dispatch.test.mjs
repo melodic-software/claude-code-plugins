@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
+import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -1966,18 +1966,85 @@ test("a review completion at a head whose last round left a finding standing dis
   assert.equal(record.handled.size, 0);
 });
 
-test("a tick dispatches at most one head, and moves past one dispatchFeedback skips", async (t) => {
-  const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
-  const third = pull({ number: 44, head: { sha: "5".repeat(40), repo: { full_name: REPOSITORY } } })[0];
+// Released lanes App PRs 42, 43, ... at heads 1..., 4..., then 6..., 7..., each
+// with its own review run (13, 14, ...), and a dispatch API that answers
+// each POST with the next run id, logging decisions and sends in order.
+const releasedSweepApi = (count, overrides = {}) => {
+  const heads = [HEAD, SECOND_HEAD, ...Array.from({ length: count }, (_, i) => String(i + 6).repeat(40).slice(0, 40))].slice(0, count);
+  const openPulls = heads.map((sha, i) => pull({ number: 42 + i, head: { sha, repo: { full_name: REPOSITORY } }, ...(overrides[42 + i] ?? {}) })[0]);
   const api = sweepApi({
-    // PR 42 is labeled do-not-merge, so dispatchFeedback skips it.
-    openPulls: [...pull({ labels: [{ name: "do-not-merge" }] }), second, third],
-    checksAt: { [HEAD]: [failedRound, noModelTurn()], [SECOND_HEAD]: [failedRound, noModelTurn()], ["5".repeat(40)]: [failedRound, noModelTurn()] },
-    reviewRuns: { [HEAD]: [upstreamRun({ id: 13 })], [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })], ["5".repeat(40)]: [upstreamRun({ id: 15, head_sha: "5".repeat(40) })] },
+    openPulls,
+    checksAt: Object.fromEntries(heads.map((sha) => [sha, [failedRound, noModelTurn()]])),
+    reviewRuns: Object.fromEntries(heads.map((sha, i) => [sha, [upstreamRun({ id: 13 + i, head_sha: sha })]])),
   });
+  api.events = [];
+  const listCompletedRuns = api.listCompletedRuns;
+  api.listCompletedRuns = async (path, head) => {
+    api.events.push(`decide ${head.slice(0, 1)}`);
+    return listCompletedRuns(path, head);
+  };
+  api.dispatchWorkflow = async (request) => {
+    api.calls.dispatch.push(request);
+    api.events.push(`send #${request.inputs["pr-number"]}`);
+    return { workflowRunId: 38779200001 + api.calls.dispatch.length - 1 };
+  };
+  return api;
+};
+
+test("a tick sends every released head after deciding them all, and moves past one dispatchFeedback skips", async (t) => {
+  // PR 42 is labeled do-not-merge, so dispatchFeedback skips it.
+  const api = releasedSweepApi(3, { 42: { labels: [{ name: "do-not-merge" }] } });
   const { output } = await sweepMain(t, api);
-  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
-  assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43", "44"]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=14\nrun-id-2=38779200002\nupstream-run-id-2=15\n");
+  // Every decision's reads come before the first POST.
+  const firstSend = api.events.findIndex((event) => event.startsWith("send"));
+  assert.ok(firstSend > 0 && api.events.slice(firstSend).every((event) => event.startsWith("send")), api.events.join(", "));
+});
+
+test("a POST the API rejects is logged and the tick still sends the rounds after it", async (t) => {
+  const api = releasedSweepApi(3);
+  const dispatchWorkflow = api.dispatchWorkflow;
+  api.dispatchWorkflow = async (request) => {
+    if (request.inputs["pr-number"] === "42") {
+      api.calls.dispatch.push(request);
+      throw new Error("HTTP 502");
+    }
+    return dispatchWorkflow(request);
+  };
+  const { lines } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42", "43", "44"]);
+  assert.ok(lines.some((line) => line.includes("#42: the sweep could not send its round: HTTP 502")), lines.join("\n"));
+});
+
+test("a tick sends at most SWEEP_TICK_CAP rounds and leaves the rest to the next tick", async (t) => {
+  const api = releasedSweepApi(SWEEP_TICK_CAP + 2);
+  const { output, lines } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42", "43", "44", "45", "46"]);
+  assert.match(output, /^run-id-5=38779200005$/m);
+  assert.doesNotMatch(output, /run-id-6/);
+  assert.ok(lines.some((line) => line.includes("the tick's cap")), lines.join("\n"));
+});
+
+test("the sweep decides no further PR once SWEEP_DECIDE_BUDGET_MS is spent, and still sends what it decided", async () => {
+  const api = releasedSweepApi(3);
+  const lines = [];
+  const sent = [];
+  const first = await sweepReleased({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    log: (line) => lines.push(line),
+    onSent: (result) => sent.push(result),
+    // The budget is spent once the first round is decided.
+    clock: () => (api.events.length > 0 ? SWEEP_DECIDE_BUDGET_MS : 0),
+  });
+  assert.deepEqual(first, { number: 42, workflowRunId: "38779200001", upstreamRunId: 13 });
+  assert.deepEqual(sent.map((result) => result.number), [42]);
+  assert.ok(lines.some((line) => line.includes("minutes spent deciding")), lines.join("\n"));
 });
 
 test("a tick whose run listing is rate limited reads it once, dispatches nothing and ends green", async (t) => {
@@ -2231,6 +2298,78 @@ test("a lost run whose dispatch job never started or was not lost, or this run i
     const { output } = await sweepMain(t, api, TICK, NOW);
     assert.deepEqual(api.jobReads, reads, label);
     assert.equal(api.pullReads, 1, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+// A round in flight when a lane workflow file changed on main: its push job's
+// token step got the broker's workflow-modified refusal (request-lane-token's
+// annotation), after its address-feedback check posted on the head.
+const REFUSED_RUN = 700;
+const WORKFLOW_MODIFIED = "lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-unblock.yml differs from refs/heads/main";
+const refusedRun = (overrides = {}) => ({
+  id: REFUSED_RUN,
+  display_title: TITLE_42,
+  status: "completed",
+  conclusion: "failure",
+  created_at: "2026-10-17T13:00:00Z",
+  updated_at: "2026-10-17T13:40:00Z",
+  ...overrides,
+});
+const refusedRound = (run = REFUSED_RUN) => ({
+  ...roundRun("address-feedback", "success", "Passed", "2026-10-17T13:05:00Z"),
+  external_id: `pr-unblock:address-feedback:${run}:1`,
+});
+const tokenJob = { id: 9001, name: "apply-feedback-patch / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
+function refusedApi({ runs = [refusedRun()], checks = [refusedRound()], message = WORKFLOW_MODIFIED, ...options } = {}) {
+  const api = sweepApi({ checksAt: { [HEAD]: checks }, workflowRuns: runs, ...options });
+  api.jobReads = [];
+  api.listRunJobs = async (id) => {
+    api.jobReads.push(id);
+    return [tokenJob];
+  };
+  api.listAnnotations = async (id) => (id === tokenJob.id ? [{ annotation_level: "notice", message: "token=github-token" }, { annotation_level: "failure", message }] : []);
+  return api;
+}
+
+test("a tick sends a round the broker refused as workflow-modified again once, on main, and the record names the refused run", async (t) => {
+  const api = refusedApi();
+  const { output, lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.jobReads, [REFUSED_RUN]);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, `run-id=38779200001\nupstream-run-id=13\nrefire-of=${REFUSED_RUN}\n`);
+  assert.ok(lines.some((line) => line.startsWith("refire: #42: run 700 was refused as workflow-modified (.github/workflows/pr-unblock.yml)")), lines.join("\n"));
+});
+
+test("a refused round already sent again, by the tick or a person, is not sent a second time", async (t) => {
+  for (const [label, later] of [
+    ["the refire is still going", refusedRun({ id: 701, status: "in_progress", conclusion: null, created_at: "2026-10-17T13:45:00Z" })],
+    ["the refire was refused as well", refusedRun({ id: 701, created_at: "2026-10-17T13:45:00Z", updated_at: "2026-10-17T13:50:00Z" })],
+    ["the refire passed", refusedRun({ id: 701, conclusion: "success", created_at: "2026-10-17T13:45:00Z" })],
+  ]) {
+    const api = refusedApi({ runs: [later, refusedRun()] });
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, [], label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("a round refused for another reason, outside the window, on another head or at the cap is not sent again", async (t) => {
+  for (const [label, options, reads] of [
+    ["a kill-switch 403", { message: "lane-token-denied: the broker answered 403 with reason kill-switch" }, [REFUSED_RUN]],
+    ["a broker 5xx", { message: "lane-token-denied: the broker answered 503 with reason broker-error" }, [REFUSED_RUN]],
+    ["another workflow file", { message: WORKFLOW_MODIFIED.replace("pr-unblock.yml", "pr-review-hosted.yml") }, [REFUSED_RUN]],
+    ["refused hours ago", { runs: [refusedRun({ updated_at: "2026-10-17T11:00:00Z" })] }, []],
+    ["the head moved since", { checks: [] }, []],
+    ["the head is at the cap", { checks: [refusedRound(), answeredRound, answeredRound] }, [REFUSED_RUN]],
+  ]) {
+    const api = refusedApi(options);
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, reads, label);
     assert.deepEqual(api.calls.dispatch, [], label);
     assert.equal(output, "", label);
   }
@@ -3289,16 +3428,17 @@ test("a scheduled tick dispatches a fix request on an escalated thread and on a 
   }
 });
 
-test("a fix request's dispatch goes before a released head, and takes the tick", async (t) => {
+test("a fix request's dispatch goes before a released head", async (t) => {
   const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
   const api = requestApi({
     openPulls: [second, ...pull()],
     reviewRuns: { [HEAD]: [upstreamRun({ id: 13 })], [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] },
   });
   api.listCheckRuns = async ({ sha, checkName }) => (sha === HEAD ? [answeredRound, answeredReply] : [failedRound, noModelTurn()]).filter((run) => run.name === checkName);
-  api.listReviewThreads = async (number) => (number === 42 ? [askedThread({ author: KYLE_LOGIN, body: REQUEST })] : []);
+  api.listReviewThreads = async (number) => (number === 42 ? [askedThread({ author: KYLE_LOGIN, body: REQUEST })] : [thread([CLAUDE], false, SECOND_HEAD)]);
   await requestMain(t, api);
-  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42"]);
+  // PR 43 is listed first, but the fix-request pass decides PR 42 before it.
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42", "43"]);
 });
 
 test("the sweep sends no fix request that does not qualify", async (t) => {
@@ -3457,4 +3597,20 @@ test("reviewRunAt lists each review workflow's runs one after the other and pick
   const upstream = await reviewRunAt({ api, head: HEAD, repository: REPOSITORY, settings: { reviewWorkflows: ["a.yml", "b.yml"] } });
   assert.equal(upstream.id, 2);
   assert.deepEqual(events, ["a.yml start", "a.yml end", "b.yml start", "b.yml end"]);
+});
+
+test("a PR two passes would each send is sent once a tick", async (t) => {
+  // A fix request after a released round: the fix-request pass and the
+  // released pass both take PR 42.
+  const api = requestApi({ checks: [failedRound, noModelTurn()] });
+  await requestMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42"]);
+});
+
+test("a tick that sent a round recovers no lost run", async (t) => {
+  const api = recoveryApi({ checksAt: { [HEAD]: [failedRound, noModelTurn()] } });
+  const { output } = await sweepMain(t, api, TICK, NOW);
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.listings, [], "no lost-run listing");
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
 });

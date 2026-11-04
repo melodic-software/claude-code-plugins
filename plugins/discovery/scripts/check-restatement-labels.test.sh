@@ -68,9 +68,10 @@ expect_out() {
   fi
 }
 
-# claim <id or -> <confidence>; "-" omits the id: key.
+# claim <id or -> <confidence> [text]; "-" omits the id: key, and the text
+# defaults to "c".
 claim() {
-  printf '  - claim: "c"\n'
+  printf '  - claim: "%s"\n' "${3-c}"
   if [[ "$1" != - ]]; then printf '    id: %s\n' "$1"; fi
   printf '    confidence: %s\n    applies_to: version-independent\n    sources: []\n' "$2"
 }
@@ -102,14 +103,21 @@ for want in 'RESEARCH.md:17: M1 (HIGH (single source))' 'RESEARCH.md:27: CI-02 (
     fail "unlabeled fixture should report $want: $(cat "$WORK/stderr")"
   fi
 done
-expect_out "unlabeled fixture summary line" 'status=fail violations=6 ids=3 labeled=2 mentions=7'
+for want in 'RESEARCH-perf.md:4: M1' 'RESEARCH-perf.md:45: M1' 'RESEARCH-perf.md:49: CI-02'; do
+  if [[ "$(cat "$WORK/stderr")" == *"$want cited without its claim quoted verbatim"* ]]; then
+    pass "unlabeled fixture reports $want unquoted"
+  else
+    fail "unlabeled fixture should report $want unquoted: $(cat "$WORK/stderr")"
+  fi
+done
+expect_out "unlabeled fixture summary line" 'status=fail violations=9 ids=3 labeled=2 mentions=7 quoted=0'
 if [[ "$(cat "$WORK/stderr")" != *K9* && "$(cat "$WORK/stderr")" != *'RESEARCH.md:39:'* ]]; then
   pass "a plain HIGH claim and the fetch log are not reported"
 else
   fail "a plain HIGH claim and the fetch log are not reported: $(cat "$WORK/stderr")"
 fi
 run 0 "corrected fixture passes" "$FIXTURES/corrected"
-expect_out "corrected fixture summary line" 'status=pass ids=3 labeled=2 mentions=7'
+expect_out "corrected fixture summary line" 'status=pass ids=3 labeled=2 mentions=7 quoted=4'
 
 # --- labels -----------------------------------------------------------------
 
@@ -128,7 +136,7 @@ run 0 "a LOW claim with its label passes" "$(mkslice low-ok "$(claim L3 LOW)" 'L
 run 0 "a plain HIGH claim needs no label" "$(mkslice plain "$PLAIN" 'K9 is settled.')"
 run 0 "a claim without an id is not looked for" \
   "$(mkslice no-id "$(claim - MEDIUM)" 'Nothing names it.')"
-expect_out "a slice with no ids passes with ids=0" 'status=pass ids=0 labeled=0 mentions=0'
+expect_out "a slice with no ids passes with ids=0" 'status=pass ids=0 labeled=0 mentions=0 quoted=0'
 
 # --- matching ---------------------------------------------------------------
 
@@ -177,7 +185,7 @@ See M1.')"
 
 run 1 "a sweep word beside a cited ID fails" --err 'RESEARCH.md:6: M1 cited beside the sweep word "every"' \
   "$(mkslice sweep "$FLAGGED" 'M1 (HIGH (single source)) holds for every version.')"
-expect_out "sweep summary line" 'status=fail violations=1 ids=1 labeled=1 mentions=1'
+expect_out "sweep summary line" 'status=fail violations=1 ids=1 labeled=1 mentions=1 quoted=0'
 run 0 "an ID pointer with its label passes" \
   "$(mkslice pointer "$FLAGGED" 'Settled: M1 (HIGH (single source)).')"
 run 1 "a plain HIGH claim's line is checked for sweep words too" --err 'K9 cited beside the sweep word "All"' \
@@ -185,13 +193,56 @@ run 1 "a plain HIGH claim's line is checked for sweep words too" --err 'K9 cited
 run 1 "one line citing two IDs is one violation" --err 'CI-02, K9 cited beside the sweep word "only"' \
   "$(mkslice sweep-two "$MEDIUM
 $PLAIN" 'K9 and CI-02 (MEDIUM) are the only answers.')"
-expect_out "two IDs on one sweep line count once" 'status=fail violations=1 ids=2 labeled=1 mentions=1'
+expect_out "two IDs on one sweep line count once" 'status=fail violations=1 ids=2 labeled=1 mentions=1 quoted=0'
 run 0 "a word that only contains a sweep word passes" \
   "$(mkslice overall "$PLAIN" 'Overall, K9 is settled; nonetheless it is small.')"
 run 0 "a sweep word with no cited ID passes" \
   "$(mkslice no-cite "$PLAIN" 'None of this is settled.')"
 run 0 "a sidecar body line may carry a sweep word" \
-  "$(mkslice sweep-sidecar "$PLAIN" 'Index.' 'K9: every hook reads JSON on stdin.')"
+  "$(mkslice sweep-sidecar "$PLAIN" 'Index.' 'K9: "c" holds for every hook.')"
+
+# --- verbatim quotes --------------------------------------------------------
+# A sidecar line that cites a claim ID quotes the claim as <id>[ (<label>)]: "<claim>",
+# matched byte for byte. A dropped condition, a "prefer" turned into a rule or
+# an added "only" carries no sweep word and keeps its label, so only the exact
+# match catches it.
+
+SD2="$(claim SD2 HIGH 'Prefer one phase per concern unless the phase mixes independent concerns')"
+run 0 "a sidecar line quoting its claim verbatim passes" \
+  "$(mkslice quote-ok "$FLAGGED" 'Index.' 'M1 (HIGH (single source)): "c" holds.')"
+expect_out "a verbatim quote is counted" 'status=pass ids=1 labeled=1 mentions=1 quoted=1'
+run 1 "a labeled sidecar pointer without a quote fails" \
+  --err 'RESEARCH-s.md:15: M1 cited without its claim quoted verbatim' \
+  "$(mkslice quote-none "$FLAGGED" 'Index.' 'Decision: M1 (HIGH (single source)) holds.')"
+run 1 "a sidecar paraphrase without a quote fails" \
+  --err 'RESEARCH-s.md:15: SD2 cited without its claim quoted verbatim' \
+  "$(mkslice quote-paraphrase "$SD2" 'Index.' '- SD2: use one phase per concern.')"
+run 1 "a quote that drops its condition fails" --err 'RESEARCH-s.md:15: SD2 quote does not match its claim' \
+  "$(mkslice quote-condition "$SD2" 'Index.' '- SD2: "Prefer one phase per concern"')"
+run 1 "a quote that turns prefer into a rule fails" --err 'SD2 quote does not match its claim' \
+  "$(mkslice quote-rule "$SD2" 'Index.' '- SD2: "Use one phase per concern unless the phase mixes independent concerns"')"
+run 1 "a quote that adds only fails" --err 'SD2 quote does not match its claim' \
+  "$(mkslice quote-only "$SD2" 'Index.' '- SD2: "Prefer only one phase per concern unless the phase mixes independent concerns"')"
+expect_out "a mismatched quote is one violation" 'status=fail violations=1 ids=1 labeled=0 mentions=0 quoted=0'
+run 1 "a quote with a different label form does not open a quote" \
+  --err 'M1 cited without its claim quoted verbatim' \
+  "$(mkslice quote-label-form "$FLAGGED" 'Index.' '(M1, HIGH (single source)): "c"')"
+run 1 "every ID a sidecar line cites needs its own quote" --err 'RESEARCH-s.md:20: K9 cited without its claim quoted verbatim' \
+  "$(mkslice quote-two "$FLAGGED
+$PLAIN" 'Index.' 'M1 (HIGH (single source)): "c" and K9.')"
+run 1 "a quote on an index line must match too" --err 'RESEARCH.md:6: SD2 quote does not match its claim' \
+  "$(mkslice quote-index "$SD2" 'SD2: "Prefer one phase per concern"')"
+run 0 "an index pointer needs no quote" "$(mkslice quote-index-pointer "$SD2" 'Settled: SD2.')"
+ALL="$(claim A1 HIGH 'All hooks read JSON on stdin')"
+run 0 "a sweep word inside a matching quote is the claim's own" \
+  "$(mkslice quote-sweep "$ALL" 'A1: "All hooks read JSON on stdin"')"
+run 1 "a sweep word outside the quote still fails on the index" --err 'A1 cited beside the sweep word "every"' \
+  "$(mkslice quote-sweep-out "$ALL" 'A1: "All hooks read JSON on stdin" for every version')"
+quoted_abstract="$(mkslice quote-abstract "$(claim M1 MEDIUM "it's c")" 'Index.')"
+printf -- "---\ntopic: t\nsection: s\nabstract: 'M1 (MEDIUM): \"it''s c\"'\nclaims:\n%s\nproduced_by: p\n---\n" \
+  "$(claim M1 MEDIUM "it's c")" >"$quoted_abstract/RESEARCH-s.md"
+run 0 "a quoted YAML abstract is read as its unquoted value" "$quoted_abstract"
+expect_out "the abstract's quote is counted" 'status=pass ids=1 labeled=1 mentions=1 quoted=1'
 
 # --- ungradeable ------------------------------------------------------------
 
@@ -248,7 +299,7 @@ sub_b="$(mkslice sub-b "$MEDIUM" 'Index.')"
 run 0 "a claim-free root citing sub-slice claims with their labels passes" \
   "$(mkroot root-ok 'Settled: M1 (HIGH (single source)); gap: CI-02 (MEDIUM).')" \
   --sub-slice "$sub_a" --sub-slice "$sub_b"
-expect_out "the sub-slices' claims are counted" 'status=pass ids=2 labeled=2 mentions=2'
+expect_out "the sub-slices' claims are counted" 'status=pass ids=2 labeled=2 mentions=2 quoted=0'
 run 1 "a root pointer that drops a sub-slice claim's label fails" \
   --err 'RESEARCH.md:6: M1 (HIGH (single source)) appears without its label' \
   "$(mkroot root-bare 'Settled: M1.')" --sub-slice "$sub_a"
@@ -259,7 +310,7 @@ run 1 "a root holding claims: [] is checked against its sub-slices" \
   --err 'RESEARCH.md:6: M1 (HIGH (single source)) appears without its label' \
   "$claims_free" --sub-slice "$sub_a"
 run 0 "without --sub-slice a claims: [] root finds no ID to look for" "$claims_free"
-expect_out "the unchecked root reports ids=0" 'status=pass ids=0 labeled=0 mentions=0'
+expect_out "the unchecked root reports ids=0" 'status=pass ids=0 labeled=0 mentions=0 quoted=0'
 run 2 "one ID declared in two sub-slices is ambiguous" --err 'id M1 is already declared' \
   "$(mkroot root-dup 'Settled.')" --sub-slice "$sub_a" \
   --sub-slice "$(mkslice sub-dup "$(claim M1 MEDIUM)" 'Index.')"

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The check skips that state until you approve its exact content, and any change to the settings or a rule module revokes the approval."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The check runs it as usual.",
+      "why": "no gate"
+    },
+    {
+      "answer": "You need to approve it once.",
+      "why": "near miss: no skip, no revocation"
+    }
+  ]
+}

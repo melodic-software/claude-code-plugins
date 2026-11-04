@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.0.3] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654); no other change to this plugin.
+
+### Fixed
+
+- **The Linear seed's children reads stop at the list ceiling.** `create-item --parent` (the sibling check) and `list-sub-items` used to follow `hasNextPage` with no limit, so a server that kept reporting another page made them loop until killed. Both now stop at `limits.list_items_max`, the same ceiling the label walk uses, and exit 1 with a message that names the parent. They never act on a partial list: in `create-item` it would read as "no duplicate", and in `list-sub-items` as "nothing open".
+
+## [11.0.2] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
 ## [11.0.1] - 2026-11-04
 
 ### Fixed

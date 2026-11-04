@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "pwsh and PSScriptAnalyzer resolve. Already configured: no change made."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "pwsh and the module resolve. To keep the module current, run `Install-Module PSScriptAnalyzer`.",
+      "why": "guidance for a resolved module"
+    },
+    {
+      "answer": "pwsh resolves; the install page is https://learn.microsoft.com/powershell/scripting/install/installing-powershell.",
+      "why": "near miss: an install page for what resolves"
+    }
+  ]
+}

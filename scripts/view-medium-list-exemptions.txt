@@ -1,0 +1,9 @@
+# View lanes scripts/check-view-medium-lists.mjs lets list medium ids for now,
+# each still waiting on its open view-medium slice of #12646.
+#
+# Format: one lane id from lib/view-registry.mjs per row, then `# #<issue>`
+# naming the open slice. The gate FAILS on a row whose lane lists no media any
+# more, or that names no registered lane, so the list can only shrink: the slice
+# that removes a lane's list deletes its row.
+
+visualization:visualize  # #12669 visualization slice

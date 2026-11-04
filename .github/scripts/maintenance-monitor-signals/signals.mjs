@@ -111,7 +111,8 @@ export function ceilingFindings({ now, budgetReadings = [], jobsInUse = null }) 
 }
 
 // Broker refusals from request-lane-token's annotations. workflow-modified is
-// left out: pr-merge re-fires those runs on its schedule.
+// left out: pr-merge re-fires those runs on its schedule, and the feedback
+// sweep sends a refused address-feedback round again.
 const RATE_LIMITED = /github-rate-limited|rate limit|\b429\b/i;
 const BROKER_DENY = /^lane-(?:token|check)-denied: the broker answered (\d{3}) with reason ([a-z]+(?:-[a-z]+)*)/;
 const BROKER_UNREACHABLE = /^broker-unreachable:/;

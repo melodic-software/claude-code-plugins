@@ -1,10 +1,6 @@
 {
   "pass": [
     {
-      "answer": "",
-      "why": "empty"
-    },
-    {
       "answer": "- No file lock is needed: `Server.handle` holds `s.mu` across each command.\n",
       "why": "approves the mutex"
     },

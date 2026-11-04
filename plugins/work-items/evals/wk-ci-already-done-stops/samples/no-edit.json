@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "docs/setup.md"}}], "why": "read only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/setup.md", "old_string": "a", "new_string": "b"}}], "why": "changed a file"}
+  ]
+}

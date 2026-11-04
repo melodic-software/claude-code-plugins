@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.17] - 2026-11-04
+
+### Changed
+
+- The apply script's decision recorder now appends its fields in parameter order; behavior is unchanged.
+
 ## [0.28.16] - 2026-11-03
 
 ### Changed

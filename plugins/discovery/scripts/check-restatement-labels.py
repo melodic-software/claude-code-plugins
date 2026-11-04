@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that a line naming a claim cites it and keeps its label.
+"""Check that a line naming a claim cites it, keeps its label and, in a sidecar, quotes it.
 
 Reads the claims: list in the front matter of every <slice>/RESEARCH-*.md
 sidecar (no recursion into sub-slices), with check-source-applicability.py's
@@ -14,8 +14,18 @@ claim needs no label, and a claim with no id: is not looked for.
 
 A line of RESEARCH.md that names any claim's ID must not also carry a sweep
 word (every, all, none, only, any case): the index points at claims, and a
-sweep word on a pointer line widens the claim it names. Sidecar bodies are
-where a claim is said in full, so this rule reads the index only.
+sweep word on a pointer line widens the claim it names.
+
+A sidecar line that names a claim's ID, outside the claims: block, must quote
+that claim's text verbatim, in one form: the ID, its label in parentheses when
+the line puts it there, a colon, and the claim: text in double quotes, as in
+M1 (HIGH (single source)): "<claim>". The quote must match the claim: value
+byte for byte, so a sidecar line that drops a condition or turns "prefer" into
+a rule fails here, though it carries no sweep word and keeps its label. A
+quote in that form on any line read, index included, must match its claim. A
+header line whose value is a quoted YAML scalar is read as its unquoted value,
+so a sidecar abstract can carry a quote. Words inside a matching quote are the
+claim's own: they neither cite an ID nor count as a sweep word.
 
 Lines under a heading that names the fetch log are skipped, down to the next
 heading at the same or a higher level: the fetch log keys its rows by claim
@@ -35,15 +45,19 @@ Rule: skills/research/context/artifact-shape.md, "Restatements cite; they do
 not restate". The researcher runs this check before hand-back and fixes every
 line it reports; the research parent re-runs it in the acceptance gate.
 
-Exit 0 = every line naming a labeled claim carries its label and no index
-         line naming a claim carries a sweep word (status=pass)
+Exit 0 = every line naming a labeled claim carries its label, no index line
+         naming a claim carries a sweep word, and every sidecar line naming
+         a claim quotes it verbatim (status=pass)
 Exit 1 = at least one violation (status=fail), each on stderr as
          <file>:<line>: <id> (<label>) appears without its label
          <file>:<line>: <id>[, <id>...] cited beside the sweep word "<word>"
+         <file>:<line>: <id> cited without its claim quoted verbatim
+         <file>:<line>: <id> quote does not match its claim
 Exit 2 = ungradeable, FAIL CLOSED: missing slice or sub-slice dir, no
          RESEARCH.md, no sidecar (at the root without --sub-slice, or in a
          named sub-slice), a sidecar header the parser cannot read, an id:
-         that is not a claim ID, one ID declared twice across the files read,
+         that is not a claim ID, a claim with an id: and no claim: text, one
+         ID declared twice across the files read,
          an unreadable or non-UTF-8 file, a parser that cannot be loaded, or a
          usage error (status=ungradeable)
 
@@ -70,8 +84,8 @@ slice. An ID matches on a line only as a whole token: M1 is not found in M10,
 and S2 is not found in S2a.
 
 Output (stdout, one line):
-  status=pass ids=<n> labeled=<n> mentions=<n>
-  status=fail violations=<n> ids=<n> labeled=<n> mentions=<n>
+  status=pass ids=<n> labeled=<n> mentions=<n> quoted=<n>
+  status=fail violations=<n> ids=<n> labeled=<n> mentions=<n> quoted=<n>
   status=ungradeable
 """
 )
@@ -88,10 +102,26 @@ LABEL_ON_LINE = {
 SWEEP = re.compile(r"(?<![A-Za-z])(?:every|all|none|only)(?![A-Za-z])", re.IGNORECASE)
 
 
+QUOTE_LABEL = r"(?: \((?:HIGH \(single source\)|HIGH|MEDIUM|LOW)\))?"
+
+
 def id_pattern(ids) -> re.Pattern:
     """Match any of ids as a whole token, longest first."""
     alternatives = "|".join(map(re.escape, sorted(ids, key=len, reverse=True)))
     return re.compile(r"(?<![A-Za-z0-9_])(" + alternatives + r")(?![A-Za-z0-9_])")
+
+
+def quote_pattern(ids) -> re.Pattern:
+    """Match the opening of a quote, <id>[ (<label>)]: ", up to its first quote mark."""
+    return re.compile(id_pattern(ids).pattern + QUOTE_LABEL + r': "')
+
+
+def header_value(csa, line: str) -> str:
+    """A front-matter line, its value unquoted when it is a quoted YAML scalar."""
+    found = csa.KEY.match(line)
+    if not found or not found.group(2) or found.group(2).strip()[:1] not in ("'", '"'):
+        return line
+    return f"{found.group(1)}: {csa.scalar(found.group(2))}"
 
 
 def load_parser():
@@ -165,6 +195,7 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
         declaring.extend(found)
 
     declared: dict[str, Path] = {}
+    texts: dict[str, str] = {}
     labeled: dict[str, str] = {}
     skip: dict[Path, range] = {}
     for sidecar in declaring:
@@ -183,14 +214,18 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                 raise csa.Ungradeable(
                     f"{sidecar}: claim {c_no}: id {cid} is already declared in {declared[cid]}"
                 )
+            if not claim.get("claim"):
+                raise csa.Ungradeable(f"{sidecar}: claim {c_no}: id {cid} has no claim: text")
             declared[cid] = sidecar
+            texts[cid] = claim["claim"]
             if claim.get("confidence") in LABELS:
                 labeled[cid] = claim["confidence"]
 
     violations: list[str] = []
-    mentions = 0
+    mentions = quoted = 0
     if declared:
         pattern = id_pattern(declared)
+        opener = quote_pattern(declared)
         for path in [index, *sidecars]:
             lines = csa.read_text(path).splitlines()
             block = skip.get(path, range(0))
@@ -202,11 +237,11 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                 if i - 1 in block:
                     continue
                 if i >= start:
-                    opener = FENCE.match(line)
+                    fence_mark = FENCE.match(line)
                     heading = HEADING.match(line) if fence is None else None
-                    if opener:
+                    if fence_mark:
                         if fence is None:
-                            fence = opener.group(1)
+                            fence = fence_mark.group(1)
                         elif line.strip().startswith(fence):
                             fence = None
                     elif heading:
@@ -217,24 +252,47 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                             fetch_level = level
                 if fetch_level:
                     continue
-                cited = sorted({m.group(1) for m in pattern.finditer(line)})
-                sweep = SWEEP.search(line) if path == index and cited else None
+                text = header_value(csa, line) if i < start else line
+                # A matching quote's words are the claim's own, so they are
+                # blanked before IDs and sweep words are looked for.
+                outside = text
+                matched: set[str] = set()
+                mismatched: set[str] = set()
+                for found in opener.finditer(text):
+                    cid = found.group(1)
+                    want = texts[cid] + '"'
+                    if text.startswith(want, found.end()):
+                        matched.add(cid)
+                        quoted += 1
+                        end = found.end() + len(want) - 1
+                        outside = outside[: found.end()] + " " * (end - found.end()) + outside[end:]
+                    elif cid not in mismatched:
+                        mismatched.add(cid)
+                        violations.append(f"{path}:{i + 1}: {cid} quote does not match its claim")
+                cited = sorted({m.group(1) for m in pattern.finditer(outside)})
+                sweep = SWEEP.search(outside) if path == index and cited else None
                 if sweep:
                     violations.append(
                         f"{path}:{i + 1}: {', '.join(cited)} cited beside the sweep word "
                         f'"{sweep.group(0)}"'
                     )
                 for cid in cited:
+                    if path != index and cid not in matched and cid not in mismatched:
+                        violations.append(
+                            f"{path}:{i + 1}: {cid} cited without its claim quoted verbatim"
+                        )
                     if cid not in labeled:
                         continue
                     mentions += 1
                     label = labeled[cid]
-                    if not LABEL_ON_LINE[label].search(line):
+                    if not LABEL_ON_LINE[label].search(outside):
                         violations.append(
                             f"{path}:{i + 1}: {cid} ({label}) appears without its label"
                         )
 
-    counts = f"ids={len(declared)} labeled={len(labeled)} mentions={mentions}"
+    counts = (
+        f"ids={len(declared)} labeled={len(labeled)} mentions={mentions} quoted={quoted}"
+    )
     for line in violations:
         print(line, file=sys.stderr)
     if violations:

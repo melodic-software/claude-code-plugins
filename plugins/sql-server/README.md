@@ -271,3 +271,17 @@ per check:
 It exits 0 when every check passes and 1 when a check or the setup fails. Without a reachable
 Docker daemon it prints `SKIP: docker not available` and exits 0. It removes the container and
 its temporary files when it ends.
+
+To run the same checks against Azure SQL Database, create an empty database named `app` on a
+logical server with SQL authentication enabled, make the account `az login` signed in as the
+server's Microsoft Entra admin, allow your IP through the server's firewall, and pass the server:
+
+```bash
+node plugins/sql-server/integration/read-path.mjs --azure-server <server>.database.windows.net
+```
+
+The script then needs no Docker and no password of yours: it connects to `app` with an Azure CLI
+token and creates the read-only and write users there as contained users, each with a password
+generated for the run. Azure SQL Database refuses every cross-database name, so S5's three-part
+names are refused by the platform rather than by the login, and no second database is needed.
+The users and tables stay in `app`; run it once per new database and delete the database after.

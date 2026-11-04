@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Install guide: [ShellCheck](https://github.com/koalaman/shellcheck#installing)"
+    },
+    {
+      "answer": "See https://github.com/koalaman/shellcheck#installing.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install ShellCheck with your package manager.",
+      "why": "no link"
+    },
+    {
+      "answer": "See https://github.com/koalaman/shellcheck.",
+      "why": "near miss: not the install section"
+    }
+  ]
+}

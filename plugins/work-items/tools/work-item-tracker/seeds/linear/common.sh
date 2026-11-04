@@ -132,7 +132,7 @@ if [[ ! "$WIT_LINEAR_LIST_ITEMS_MAX" =~ ^[1-9][0-9]*$ ]]; then
     "$WIT_LINEAR_ADAPTER_DIR" "${WIT_LINEAR_LIST_ITEMS_MAX:-<unreadable>}" >&2
   exit "$EX_CONFIG"
 fi
-# shellcheck disable=SC2034  # read by list-items.sh and create-item.sh; this file is sourced-only
+# shellcheck disable=SC2034  # read by list-items.sh, list-sub-items.sh and create-item.sh; this file is sourced-only
 readonly WIT_LINEAR_LIST_ITEMS_MAX
 
 # The lease marker (CONTRACT.md "Lease protocol"). Linear comments carry markdown

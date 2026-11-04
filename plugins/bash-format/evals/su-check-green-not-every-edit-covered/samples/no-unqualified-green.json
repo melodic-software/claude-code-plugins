@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. A green check does not cover every shell edit: the batch row acts only on files inside the project."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, all checks pass, so bash-format is fully operational.",
+      "why": "unqualified"
+    },
+    {
+      "answer": "All checks pass.",
+      "why": "near miss: does not answer the question"
+    }
+  ]
+}

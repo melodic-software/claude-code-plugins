@@ -95,12 +95,10 @@ swaps. Route by audience:
   ```
 
   It prints one JSON line, then the report line naming the medium and what decided it, then one
-  line per notice. Print the report line and each notice in the handoff as they stand, except that
-  a notice's closing "; per user, the prototype plugin's medium option also works" clause is
-  dropped, since this plugin has no such option. Leave every settings file to the resolver. A usage
-  error (exit 2) means the argument named no medium: say so in one line and run it again without
-  `--argument`. When the JSON's `page` is `false`, the medium shows no page: build the TUI. Any
-  other result, a `null` medium, or a resolver that fails (say so in one line) overrides nothing:
+  line per notice. Print the report line and each notice in the handoff as they stand. Leave every
+  settings file to the resolver. A usage error (exit 2) means the argument named no medium: say so
+  in one line and run it again without `--argument`. When the JSON's `page` is `false`, the medium
+  shows no page: build the TUI. Any other result, a `null` medium, or a resolver that fails (say so in one line) overrides nothing:
   the medium says where a view goes, not which shell an audience needs, so the audience routing
   above still decides, and when it picks the HTML demo the page stays a local file, since this
   skill publishes nothing. Name the source of the shell choice in the handoff: the request, the

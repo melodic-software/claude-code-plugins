@@ -76,13 +76,26 @@ first-party content claims"), and a Gap never reads as a finding.
 So the Summary, the Settled list and the rest of the handoff are ID pointers with their labels and
 nothing else from the claim: `Settled: M1 (HIGH (single source)), K9.` A line of `RESEARCH.md`
 that names a claim's ID carries no sweep word (`every`, `all`, `none`, `only`), because a sweep
-word on a pointer widens the claim it names. Sidecar bodies are where a claim is said in full, so
-the sweep-word rule reads the index only.
+word on a pointer widens the claim it names.
+
+**A sidecar line that cites a claim quotes it verbatim.** A paraphrase in a decision or evidence
+bullet, a process table cell, a conflict note or a sidecar abstract can drop a condition or turn
+"prefer" into a rule with no sweep word and no missing label to show it.
+So every sidecar line outside the `claims:` header that names a claim's ID carries the claim's
+`claim:` text in one form: the ID, its label in parentheses when the line carries one there, a
+colon, and the text in double quotes, `M1 (HIGH (single source)): "<claim>"` or `K9: "<claim>"`.
+The quote matches the `claim:` value byte for byte, and the line's own words go outside it. A
+sidecar abstract that cites a claim is a quoted YAML scalar, read as its unquoted value, and the
+index mirrors that value. A quote in this form on an index line must match too, and its words, the
+claim's own, are not read as sweep words.
+
 `scripts/check-restatement-labels.py` reports every line of the index and the sidecars, outside the
-`claims:` headers and the fetch log, that names a labeled claim's ID without its label, and every
-index line that names any claim's ID beside a sweep word. It fails closed: the researcher runs it
-before hand-back and fixes each reported line until it exits 0, and the parent re-runs it in the
-acceptance gate ([`dispatch.md`](dispatch.md), "The restatement and eligibility checks").
+`claims:` headers and the fetch log, that names a labeled claim's ID without its label, every
+index line that names any claim's ID beside a sweep word, every sidecar line that names a claim's
+ID without quoting it, and every quote that does not match its claim.
+It fails closed: the researcher runs it before hand-back and fixes each reported line until it
+exits 0, and the parent re-runs it in the acceptance gate ([`dispatch.md`](dispatch.md), "The
+restatement and eligibility checks").
 
 ## The sidecars: `RESEARCH-<section>.md`
 
@@ -133,8 +146,8 @@ The vocabulary is reused, never reinvented: `HIGH | HIGH (single source) | MEDIU
 
 **`id:` is the claim's handle.** It follows `claim:` in each entry: one or more capital letters, an
 optional hyphen, digits, and an optional lowercase letter (`M1`, `CI-02`, `S2a`), unique across the
-slice's sidecars. The index and every sidecar body cite a claim by it, so a restatement is a pointer
-that resolves to one header entry. A claim with no `id:` cannot be cited, and the restatement check
+slice's sidecars. The index cites a claim by it, so a restatement there is a pointer that resolves
+to one header entry; a sidecar line cites it beside the verbatim quote. A claim with no `id:` cannot be cited, and the restatement check
 never looks for it.
 
 **`claim_kind:` and `source_owner:` are declared on every claim, so a script can check the flag

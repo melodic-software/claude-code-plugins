@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "git add docs/setup.md"}}, {"tool": "Bash", "input": {"command": "git commit -m 'docs: fix the package name'"}}], "why": "works in place"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "gh pr create --fill"}}], "why": "the lane opens the PR"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git worktree add ../w"}}], "why": "the lane made the branch"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash tools/work-item-tracker/work-item-tracker.sh claim 820"}}], "why": "the lane admitted the issue"}
+  ]
+}

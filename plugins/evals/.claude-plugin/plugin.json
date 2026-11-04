@@ -5,13 +5,13 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.15.9",
+  "version": "0.15.11",
   "license": "MIT",
   "userConfig": {
     "max_cost_usd": {
       "type": "number",
       "title": "Eval run cost ceiling (USD)",
-      "description": "Ceiling /evals:plugin-eval passes to the CLI as --max-cost-usd. It bounds one invocation, not a session's total, and a run that reaches it stops mid-suite with partial results. Raise it for a suite whose estimate exceeds it.",
+      "description": "Ceiling /evals:plugin-eval passes to the CLI as --max-cost-usd. Raise it for a suite whose estimate exceeds it. What the flag bounds: <https://code.claude.com/docs/en/plugin-evals#command-options>",
       "default": 5,
       "min": 0
     },

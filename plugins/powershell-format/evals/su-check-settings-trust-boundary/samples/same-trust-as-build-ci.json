@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Give it the same trust as your build and CI configuration."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It's safe to trust; it came from a teammate.",
+      "why": "trusts the source"
+    },
+    {
+      "answer": "Review it carefully.",
+      "why": "near miss: no trust level"
+    }
+  ]
+}

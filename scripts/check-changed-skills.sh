@@ -15,6 +15,10 @@
 # the legacy WARN-only posture.
 # Any FAIL fails this gate.
 #
+# Every run, whatever changed, also runs scripts/check-view-medium-lists.mjs
+# over every view lane in lib/view-registry.mjs: a lane's skill text that lists
+# two or more medium ids fails the gate.
+#
 # <base-ref> (e.g. origin/main) is resolved to `git merge-base <base-ref> HEAD`
 # (#7014), and that merge base is BOTH the changed-file diff base and
 # CHECK_SKILL_BASE_REF. A branch behind <base-ref> is thereby judged on what it
@@ -31,7 +35,8 @@
 # without the package. Eval-schema validation (validate-evals) is a separate CI
 # step — the check-jsonschema composite action over every evals.json.
 #
-# Exit 0 = every changed skill passes (or none changed); 1 = one or more failed;
+# Exit 0 = every changed skill passes (or none changed) and no view lane lists
+# media; 1 = one or more failed, or a view lane lists media;
 # 2 = usage / environment error (fail closed — never a silent skip), or no failure
 # but PLUGIN_TEST_DEADLINE, which scripts/check-affected.sh --tests sets and the
 # checker reads, left a skill's script tests unrun, each named on a `SKIP` line.
@@ -104,6 +109,20 @@ fi
 if [[ ! -f "$CHECKER" ]]; then
   printf 'Error: skill checker not found: %s\n' "$CHECKER" >&2
   exit 2
+fi
+
+# Every run scans every view lane, changed or not, since a stale exemption row
+# shows only over the whole tree. A tree with no view registry has no lanes.
+# The check reads the registry as text, so the lane form executes nothing of
+# the checked tree.
+medium_lists=0
+if [[ -f lib/view-registry.mjs ]]; then
+  [[ -f "$SCRIPT_DIR/check-view-medium-lists.mjs" ]] || {
+    printf 'Error: view medium-list check not found: %s\n' "$SCRIPT_DIR/check-view-medium-lists.mjs" >&2
+    exit 2
+  }
+  node "$SCRIPT_DIR/check-view-medium-lists.mjs" --root "$PWD" || medium_lists=$?
+  ((medium_lists <= 1)) || exit 2
 fi
 
 # Recorded evals-warrant skips. Missing file = no skips (tests, other repos).
@@ -257,11 +276,11 @@ done
 
 if ((checked == 0)); then
   echo "No changed skills under plugins/*/skills/ — nothing to gate."
-  gate_entry::finish 0
+  gate_entry::finish "$medium_lists"
 fi
 
 printf '\n%d skill(s) checked, %d failed.\n' "$checked" "$failed"
 ((left == 0)) || printf '%d skill(s) left script tests to CI, past the deadline.\n' "$left"
-((failed == 0)) || gate_entry::finish 1
+((failed == 0 && medium_lists == 0)) || gate_entry::finish 1
 ((left == 0)) || gate_entry::finish 2
 gate_entry::finish 0

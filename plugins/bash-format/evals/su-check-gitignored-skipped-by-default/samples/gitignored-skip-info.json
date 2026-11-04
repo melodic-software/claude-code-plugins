@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Not broken. Unless the option is `true`, the batch row silently skips a gitignored file: no format, no notice. That is INFO, not a FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, this is a FAIL: the hook should have formatted the file.",
+      "why": "wrong"
+    },
+    {
+      "answer": "The file is gitignored, so it was skipped.",
+      "why": "near miss: no INFO grade, nothing on the absence of a notice"
+    }
+  ]
+}
