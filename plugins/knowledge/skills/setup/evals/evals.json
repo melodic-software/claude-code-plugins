@@ -17,7 +17,7 @@
       "id": 2,
       "name": "apply-mismatch-is-guidance-only",
       "prompt": "Run /knowledge:setup apply where the observed library_dir is a machine-absolute path that contradicts the repository convention. Fix it.",
-      "expected_output": "Routes the fix to Claude Code's own configuration surface — /plugin configure knowledge interactively, or headless claude plugin configure knowledge@<marketplace> --values-stdin with library_dir in a JSON object, falling back to a plain claude plugin install ... --config library_dir=<value> rerun at the scope claude plugin list reports — and rules out uninstalling to reconfigure; it never hand-edits pluginConfigs or Claude Code settings, and defers verification of the new value to a fresh session.",
+      "expected_output": "Routes the fix to Claude Code's own plugin configuration commands — /plugin configure knowledge interactively, or headless claude plugin configure knowledge@<marketplace> --values-stdin with library_dir in a JSON object, falling back to a plain claude plugin install ... --config library_dir=<value> rerun at the scope claude plugin list reports — and rules out uninstalling to reconfigure; it never hand-edits pluginConfigs or Claude Code settings, and defers verification of the new value to a fresh session.",
       "expectations": [
         "Does not write library_dir into any settings or pluginConfigs file",
         "Headless path names `claude plugin configure knowledge@<marketplace> --values-stdin` first, run from the project the plugin is installed in, and the `claude plugin install ... --config` rerun second as the fallback for a release without `plugin configure`",

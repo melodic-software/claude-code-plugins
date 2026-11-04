@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.0.3] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [1.0.2] - 2026-11-04
 
 ### Fixed

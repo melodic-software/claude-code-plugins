@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# resolve-config.sh — resolve the docs-naming consumer configuration surface.
+# resolve-config.sh — resolve the docs-naming consumer configuration.
 #
 # WHY A SCRIPT AND NOT A SOURCED LIBRARY. Five callers in four skills need the
 # same merged document, and each one runs in its own process against its own

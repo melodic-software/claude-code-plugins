@@ -386,7 +386,7 @@ Write posture splits by scope, and the split is not negotiable:
   As of 2026-10-11. Recheck when that section stops routing auto-mode protected-path writes to
   the classifier.
 - **Managed policy**: read-only by construction; never targeted, never suggested as a write.
-- **Env-var levers**: no persistent settings surface exists; print the export line and where the
+- **Env-var levers**: no persistent settings file exists; print the export line and where the
   operator might put it.
 
 The loop per applied lever: approve → apply (project scope) or print (everywhere else) →

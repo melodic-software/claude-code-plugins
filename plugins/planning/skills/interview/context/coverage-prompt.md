@@ -11,7 +11,7 @@ While capturing acceptance criteria, ask ONE question: are the criteria missing 
 **unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
 case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
 interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
-whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
+whatever the acceptance-criteria format resolves to, and with no convention file present at all;
 it is a coverage check, not a format.
 
 It is **not** a `Q<N>` decision. Never write it into the open-question register, never mark it

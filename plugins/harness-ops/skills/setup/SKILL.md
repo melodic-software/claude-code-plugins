@@ -8,7 +8,7 @@ disable-model-invocation: true
 ## Purpose
 
 Setup under the uniform setup contract (`docs/plugin-philosophy.md` "Setup is explicit and
-repeatable" in the marketplace repository). This plugin's configuration surface is native
+repeatable" in the marketplace repository). This plugin's configuration is native
 `userConfig` scalars that Claude Code owns (`registry_dir`, `skill_usage_dir`, `skill_usage_scope`,
 and the six `session_*` hook-logging options): Claude Code prompts for them when the plugin is
 enabled, stores non-sensitive options in user settings, and ignores `pluginConfigs` entries in
@@ -142,7 +142,7 @@ Run `check` first. Then exactly two bounded steps, each announced, each idempote
 
 ## Reconfiguration guidance (printed by `check`; the operator applies it)
 
-The options live in Claude Code's native config surface, which setup must not hand-edit (native
+The options live in Claude Code's native plugin configuration, which setup must not hand-edit (native
 `userConfig` class), so `check` closes by routing rather than writing:
 
 - **Uncontained value (FAIL):** the destination is invalid; do not use it. Direct the user to set a

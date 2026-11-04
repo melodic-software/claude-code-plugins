@@ -66,7 +66,7 @@ Claude already knows coding. Focus on information that pushes Claude off its def
 
 Highest-signal content in any skill. Build iteratively from failure points Claude hits. Add a line every time Claude trips. The post's billing-lib example starts with one gotcha on day 1 and has four by month 3.
 
-Repo-specific lines a consumer adds without forking the skill live in that plugin's config-cascade surface (`## Gotchas` in e.g. `.claude/<plugin>.md`), concatenated after bundled gotchas when the skill loads. See the [consumer-gotchas tier](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/consumer-gotchas.md). Generalizable lines still ship in the skill via an issue to this marketplace.
+Repo-specific lines a consumer adds without forking the skill live in that plugin's config-cascade file (`## Gotchas` in e.g. `.claude/<plugin>.md`), concatenated after bundled gotchas when the skill loads. See the [consumer-gotchas scope](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/consumer-gotchas.md). Generalizable lines still ship in the skill via an issue to this marketplace.
 
 ### 3. Use the File System & Progressive Disclosure
 

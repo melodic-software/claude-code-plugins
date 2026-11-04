@@ -40,7 +40,7 @@ absent, since a convention is a team artifact until someone says otherwise.
 | `local` | `REPO_ROOT/.claude/source-control.local.md` | a personal deviation from team policy here |
 
 The team layer is YAML, validated by `plugins/source-control/schemas/source-control.schema.json`
-([config-resolution.md](../../../reference/config-resolution.md), "The config surface"). The user
+([config-resolution.md](../../../reference/config-resolution.md), "The config files"). The user
 and local layers stay markdown, one `## <key>` section per key. The retired team file
 `REPO_ROOT/.claude/source-control.md` is not read by this plugin; `apply layer=team` never writes
 there, and its migration step (below) copies the keys it carries into the YAML.

@@ -29,7 +29,8 @@
 # Env overrides:
 #   FETCH_LOGS_REPO        default `gh repo view --json nameWithOwner -q .nameWithOwner`
 #   FETCH_LOGS_SCRATCH     destination for cached ZIPs — default
-#                          $CLAUDE_PLUGIN_DATA/scratch when set, else mktemp -d
+#                          $CLAUDE_PLUGIN_DATA/scratch when set, else a mktemp -d
+#                          removed on exit (kept on --keep-zip, exit 3 or 4)
 #
 # Exit codes:
 #   0  log fetch + extraction succeeded
@@ -250,6 +251,7 @@ fi
 # name into every Bash call) > mktemp.
 
 SCRATCH="${FETCH_LOGS_SCRATCH:-}"
+scratch_owned=0
 if [[ -z "$SCRATCH" ]]; then
   data_seg="${CLAUDE_PLUGIN_DATA:-}"
   data_seg="${data_seg%[/\\]}"
@@ -258,9 +260,23 @@ if [[ -z "$SCRATCH" ]]; then
     SCRATCH="$CLAUDE_PLUGIN_DATA/scratch"
   else
     SCRATCH=$(mktemp -d)
+    scratch_owned=1
   fi
 fi
 mkdir -p "$SCRATCH"
+
+# A mktemp scratch is removed on exit, unless the run keeps a file there on
+# purpose: --keep-zip, or an exit 3 or 4 message that names the file.
+EXTRACT_DIR=""
+# shellcheck disable=SC2329  # invoked via trap, not direct call
+cleanup() {
+  local rc=$?
+  [[ -z "$EXTRACT_DIR" ]] || rm -rf "$EXTRACT_DIR"
+  if ((scratch_owned && KEEP_ZIP == 0 && rc != 3 && rc != 4)); then
+    rm -rf "$SCRATCH"
+  fi
+}
+trap cleanup EXIT
 
 # --- Per-job mode ------------------------------------------------------------
 
@@ -324,9 +340,6 @@ if [[ "$size" -lt 22 ]]; then
 fi
 
 EXTRACT_DIR=$(mktemp -d)
-# shellcheck disable=SC2329  # invoked via trap, not direct call
-cleanup_extract() { rm -rf "$EXTRACT_DIR"; }
-trap cleanup_extract EXIT INT TERM
 
 if ! unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR" 2>/dev/null; then
   printf 'fetch-failed-logs: unzip failed (corrupt ZIP at %s)\n' "$ZIP_PATH" >&2

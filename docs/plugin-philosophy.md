@@ -269,9 +269,9 @@ component type, a native lifecycle event. Build custom only on genuine misfit, a
 misfit where the custom mechanism lives.
 
 Built-in-first is a gate on every customization point, not a preference. Before building
-any custom config surface, a YAML concern file or a bespoke interface, first verify against the *current*
+any custom configuration, a YAML concern file or a bespoke interface, first verify against the *current*
 official Claude Code plugin documentation that no native mechanism (`userConfig`, a built-in
-per-repo config surface) can host the need; the platform moves, so re-fetch
+per-repo settings file) can host the need; the platform moves, so re-fetch
 the documentation rather than trusting memory or an old summary. A custom extensibility point is the
 fallback only where the built-in surface genuinely cannot support the need.
 
@@ -666,7 +666,7 @@ is a defect.
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
-configuration surface.
+configuration.
 
 `apply` is owed wherever the plugin owns a **writable artifact**, and only there. The test is
 ownership plus permission, not location: an artifact whose schema this plugin defines and documents
@@ -674,7 +674,7 @@ ownership plus permission, not location: an artifact whose schema this plugin de
 file the plugin owns and the operator may edit, is reachable through `apply`, scoped to exactly that
 artifact and nothing adjacent to it.
 
-**Check-only carve-out.** Where a plugin's configuration surface contains no writable artifact, a
+**Check-only carve-out.** Where a plugin's configuration contains no writable artifact, a
 check-only setup is conforming: `check` verifies and reports, and no `apply` is offered because there
 is nothing it could conformingly write. Three kinds of surface qualify, in any combination:
 
@@ -682,7 +682,7 @@ is nothing it could conformingly write. Three kinds of surface qualify, in any c
   <plugin>@<marketplace>`, see above); the only thing an `apply` could write is the `pluginConfigs`
   this contract forbids.
 - **Claude Code settings this contract forbids setup to mutate**: statusline wiring, a settings-level
-  key, anything in the user's own `settings.json`. This surface is neither `userConfig` nor tracked
+  key, anything in the user's own `settings.json`. This configuration is neither `userConfig` nor tracked
   project config; the prohibition two paragraphs above is what makes it unwritable, and a plugin
   whose behavior is delivered through it is a normal shape, not an exception. Silence is not the
   conforming response: `check` prints the exact edit, fully resolved and ready to paste, states that
@@ -698,7 +698,7 @@ never a shortcut. A plugin with even one writable owned artifact takes the narro
 instead, with `apply` bounded to that artifact, while every unwritable surface is still handled the
 check-only way above. Which shape a plugin takes is settled by its surface, not by its author, and
 both are conforming when the surface is what selected them. Two plugins with the same unwritable
-settings surface can therefore differ legitimately: the one that also owns a documented machine-scope
+settings can therefore differ legitimately: the one that also owns a documented machine-scope
 file must offer the narrow `apply`; the one that owns nothing writable must not invent one. A
 no-op `apply`, one that runs `check` and routes guidance but writes nothing, is that invented
 verb and is non-conforming: the guidance belongs in `check`'s output (ratified 2026-09 when the
