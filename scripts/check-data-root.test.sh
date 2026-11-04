@@ -71,6 +71,7 @@ printf '# p\n' >"$opts_gen/plugins/p/README.md"
 printf '{"name":"p","userConfig":{"k":{"type":"string"},"tok":{"type":"string","sensitive":true}}}\n' \
   >"$opts_gen/plugins/p/.claude-plugin/plugin.json"
 run_in "$opts_gen" python3 "$SELF_DIR/sync-plugin-options-docs.py"
+# shellcheck disable=SC2034 # read inside the check conditions, which run through eval
 block="$(cat "$opts_gen/plugins/p/README.md")"
 check "plugin-options-docs block restates no upstream fact" \
   '[[ $block != *CLAUDE_PLUGIN_OPTION_* && $block != *--config* && $block != *--values-stdin* && $block != *"settings scopes"* ]]'
