@@ -1206,7 +1206,7 @@ for (const [job, written] of [
       writeFileSync(output, "");
       const run = spawnSync("bash", ["-e", "-c", script], {
         cwd: dir,
-        env: { PATH: `${dir}:${process.env.PATH}`, PR_PAYLOAD: payload, PR_NUMBER: "7", DEFAULT_BRANCH: "main", GITHUB_REPOSITORY: repo, GITHUB_OUTPUT: output },
+        env: { PATH: `${dir}:${process.env.PATH}`, PR_PAYLOAD: payload, PR_NUMBER: "7", DEFAULT_BRANCH: "main", GITHUB_REPOSITORY: repo, GITHUB_OUTPUT: output, PULL_FILE: join(dir, `${name}.pull.json`) },
         encoding: "utf8",
       });
       return { status: run.status, stdout: run.stdout, written: readFileSync(output, "utf8") };
@@ -1214,6 +1214,10 @@ for (const [job, written] of [
     const own = read("own", { full_name: repo });
     assert.equal(own.status, 0, own.stdout);
     assert.equal(own.written, `sha=${sha}${written}`);
+    if (job === "address-feedback-select") {
+      // The whole answer, for the select step in place of a second read.
+      assert.deepEqual(JSON.parse(readFileSync(join(dir, "own.pull.json"), "utf8")), { head: { sha, repo: { full_name: repo } }, base: { ref: "main" } });
+    }
     for (const [name, headRepo] of [["fork", { full_name: "fork/claude-code-plugins" }], ["deleted-fork", null]]) {
       const refused = read(name, headRepo);
       assert.equal(refused.status, 1, name);
@@ -1223,6 +1227,17 @@ for (const [job, written] of [
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// One GET /pulls/{n} serves the head check and select's hold checks: the
+// select step reads the file the head step wrote (address-feedback.mjs
+// pullFromFile), so the job reads the PR twice (this and resolve-config's
+// labels and draft), not three times.
+test("pr-unblock.yml: address-feedback-select hands the head step's PR read to the select step", () => {
+  const file = (step) => /^ {10}PULL_FILE: (.+)$/m.exec(stepBlock(UNBLOCK, "address-feedback-select", step).join("\n"))?.[1];
+  assert.match(file("Read the PR head") ?? "", /^\$\{\{ runner\.temp \}\}\/pr-head\.json$/);
+  assert.equal(file("Select the review threads"), file("Read the PR head"));
+  assert.match(stepScript(stepBlock(UNBLOCK, "address-feedback-select", "Read the PR head")), /^printf '%s\\n' "\$pr_fields" >"\$PULL_FILE"$/m);
 });
 
 // The default branch checkout's copy of the shared PR read, as the steps source it.

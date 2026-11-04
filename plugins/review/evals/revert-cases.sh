@@ -7,7 +7,9 @@
 #                                     direct commit), revert commit; then "pairs<TAB><n>". Each
 #                                     revert it skips goes to stderr as "skip<TAB><sha><TAB><why>".
 #   build <original> <revert> <slug>  Writes the case revert-<pr>-<slug> beside this script and
-#                                     its fixtures under fixtures/.
+#                                     its fixtures as <case>/fixtures.tar.gz, an archive because
+#                                     they are byte copies of history that repository lints must
+#                                     not judge.
 #   scaffold <case>                   A case's scaffold: rebuilds its files in the empty
 #                                     workspace, main at the base and the branch at the merge.
 #                                     Refuses a case whose confirmed-by line is still pending.
@@ -15,7 +17,8 @@
 #
 # A revert is a commit whose subject starts "revert:" or "revert(<scope>):", or whose body has a
 # "This reverts commit <sha>" line. Its original is that sha, else the newest earlier commit whose
-# subject, less a trailing " (#<n>)", equals the revert's subject less its prefix and that suffix.
+# subject, less a trailing " (#<n>)", equals the revert's subject less its prefix and that suffix,
+# else each merged pull request its message names by number that passes the checks below.
 # A pair counts when the original's subject ends " (#<n>)", the revert removes a line the
 # original added, and the original's change to those files still reverses cleanly onto the
 # revert's parent. Run list and build from a clone with full history.
@@ -48,6 +51,20 @@ original_of() { # <revert>: the commit it reverts; nothing when <revert> is not 
   git log --format='%H%x09%s' "$1^" -- |
     TEXT="$text" awk -F '\t' '{ s = $2; sub(/ \(#[0-9]+\)$/, "", s) } s == ENVIRON["TEXT"] { print $1; exit }'
   return 0
+}
+
+named_originals() { # <revert>: the merged commit of each other non-revert pull request its message names
+  local ref commit own
+  own="$(pr_number "$1")"
+  while IFS= read -r ref; do
+    [[ "$ref" == "$own" ]] && continue
+    while IFS= read -r commit; do
+      if [[ "$(pr_number "$commit")" == "$ref" ]]; then
+        is_revert "$commit" || echo "$commit"
+        break
+      fi
+    done < <(git log --format=%H -F --grep=" (#$ref)" "$1^" --)
+  done < <(git log -1 --format=%B "$1" | grep -oE '#[0-9]+' | tr -d '#' | sort -un)
 }
 
 is_revert() { # <commit>: its subject or body has a revert form
@@ -104,7 +121,7 @@ to_top() {
 }
 
 list() {
-  local sha orig pr rpr lines count=0
+  local sha orig pr rpr lines candidate found why count=0
   local -a paths
   to_top
   if [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
@@ -113,8 +130,27 @@ list() {
   while IFS= read -r sha; do
     orig="$(original_of "$sha")"
     if [[ -z "$orig" ]]; then
-      if is_revert "$sha"; then
-        printf 'skip\t%s\tits original commit is not in this history\n' "$sha" >&2
+      is_revert "$sha" || continue
+      found=0
+      why='its original commit is not in this history'
+      while IFS= read -r candidate; do
+        pr="$(pr_number "$candidate")"
+        if [[ -z "$(pair_lines "$candidate" "$sha")" ]]; then
+          why="removes no line #$pr added"
+          continue
+        fi
+        mapfile -t paths < <(pair_lines "$candidate" "$sha" | cut -f1)
+        if ! reverses_cleanly "$candidate" "$sha" "${paths[@]}"; then
+          why="#$pr does not reverse cleanly onto its parent"
+          continue
+        fi
+        rpr="$(pr_number "$sha")"
+        printf '#%s\t%s\t%s\t%s\n' "$pr" "$candidate" "${rpr:+#}${rpr:--}" "$sha"
+        count=$((count + 1))
+        found=1
+      done < <(named_originals "$sha")
+      if [[ "$found" == 0 ]]; then
+        printf 'skip\t%s\t%s\n' "$sha" "$why" >&2
       fi
       continue
     fi
@@ -156,11 +192,11 @@ build() {
   reverses_cleanly "$orig" "$rev" "${paths[@]}" || die "#$pr does not reverse cleanly onto $rev^"
   name="revert-$pr-$3"
   case_dir="$EVALS/$name"
-  fixtures="$EVALS/fixtures/$name"
-  [[ ! -e "$case_dir" && ! -e "$fixtures" ]] || die "$name already exists"
+  [[ ! -e "$case_dir" ]] || die "$name already exists"
+  fixtures="$(mktemp -d)"
   rpr="$(pr_number "$rev")"
   subject="$(git log -1 --format=%s "$orig" | sed -E 's/ \(#[0-9]+\)$//')"
-  mkdir -p "$case_dir/graders" "$fixtures"
+  mkdir -p "$case_dir/graders"
 
   for path in "${paths[@]}"; do
     for side in base head; do
@@ -186,7 +222,7 @@ build() {
 
   while IFS=$'\t' read -r path nums; do
     alt+="${alt:+|}(?<![\\w.-])$(basename "$path" | sed 's/[][\\.*^$+?(){}|]/\\&/g')\`?(?::L?|#L|,? \\(?lines? )(?:${nums//,/|})(?!\\d)"
-    where+="${where:+; }$path:$(ranges "$nums")"
+    where+="${where:+; }$path lines $(ranges "$nums")"
   done <<<"$lines"
 
   {
@@ -226,6 +262,11 @@ This run has no GitHub access, so post nothing. Put every finding in your final 
 MD
 
   printf -- "---\ntype: regex\npattern: '%s'\nflags: i\n---\n" "${alt//$q/$q$q}" >"$case_dir/graders/caught.md"
+  if ! tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$fixtures" -c . | gzip -n >"$case_dir/fixtures.tar.gz"; then
+    rm -rf "${fixtures:?}" "${case_dir:?}"
+    die "could not archive the fixtures for $name (GNU tar is required)"
+  fi
+  rm -rf "${fixtures:?}"
   echo "$case_dir"
 }
 
@@ -242,13 +283,16 @@ place() { # <fixture dir>: copy each <path>.txt under it to <path> in the worksp
 
 scaffold() {
   [[ $# -eq 1 ]] || die "usage: scaffold <case>"
-  local fixtures="$EVALS/fixtures/$1" subject
-  [[ -f "$fixtures/pr-context.md" ]] || die "no fixtures for $1"
+  local archive="$EVALS/$1/fixtures.tar.gz" fixtures subject
+  [[ -f "$archive" ]] || die "no fixtures for $1"
+  [[ ! -e .git ]] || die "refusing to scaffold into an existing repository: $PWD"
   if grep -q '^# confirmed-by: pending' "$EVALS/$1/case.yaml"; then
     die "$1 is unconfirmed: a verifier agent checks its lines and names itself on the confirmed-by line"
   fi
-  subject="$(sed -nE 's/^## Pull request #[0-9]+: //p' "$fixtures/pr-context.md")"
   set -e
+  fixtures="$(mktemp -d)"
+  tar -xzf "$archive" -C "$fixtures"
+  subject="$(sed -nE 's/^## Pull request #[0-9]+: //p' "$fixtures/pr-context.md")"
   git init -q -b main
   git config user.name eval
   git config user.email eval@example.invalid
@@ -264,6 +308,7 @@ scaffold() {
   mkdir -p .claude-lane
   git diff main...HEAD >.claude-lane/pr.diff
   cp "$fixtures/pr-context.md" .claude-lane/pr-context.md
+  rm -rf "${fixtures:?}"
 }
 
 report() {

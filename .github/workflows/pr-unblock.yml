@@ -1361,6 +1361,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
+          # The whole answer, which the select step takes instead of reading
+          # the PR again (address-feedback.mjs pullFromFile).
+          PULL_FILE: ${{ runner.temp }}/pr-head.json
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
@@ -1372,8 +1375,9 @@ jobs:
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          read_pr_fields "$PR_NUMBER" '.head.sha, .head.repo.full_name' || exit 1
-          { read -r sha && read -r head_repo; } <<<"$pr_fields" || true
+          read_pr_fields "$PR_NUMBER" '.' || exit 1
+          printf '%s\n' "$pr_fields" >"$PULL_FILE"
+          { read -r sha && read -r head_repo; } <<<"$(jq -r '.head.sha // "", .head.repo.full_name // ""' "$PULL_FILE")" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
@@ -1407,6 +1411,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           HEAD_SHA: ${{ steps.head.outputs.sha }}
+          PULL_FILE: ${{ runner.temp }}/pr-head.json
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_DIR: ${{ runner.temp }}/feedback-context
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json

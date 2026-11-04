@@ -1217,6 +1217,58 @@ test("main select writes outputs and the thread file; escalation writes no threa
   );
 });
 
+// The head step's PR read (PULL_FILE) stands in for select's own GET when it
+// names this PR at HEAD_SHA; a missing, unreadable or other PR's or head's
+// file leaves select to read the PR. Its hold checks read whichever it took.
+test("main select takes the head step's PR read for this PR and head, and reads the PR otherwise", async (t) => {
+  const dir = tempDir("address-feedback-pull-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }, { id: HUMAN, login: "kyle-sexton", kind: "human" }] }));
+  const pullFile = (name, pull) => {
+    const path = join(dir, `${name}.pull.json`);
+    writeFileSync(path, typeof pull === "string" ? pull : JSON.stringify(pull));
+    return path;
+  };
+  const counted = () => {
+    const api = fakeApi();
+    const read = api.getPull;
+    api.pullReads = 0;
+    api.getPull = async (pr) => {
+      api.pullReads += 1;
+      return read(pr);
+    };
+    return api;
+  };
+  const go = async (name, path) => {
+    const api = counted();
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, ...(path === undefined ? {} : { PULL_FILE: path }) };
+    await main(["select"], env, { api, log: () => {} });
+    return { reads: api.pullReads, out: readFileSync(join(dir, `${name}.out`), "utf8") };
+  };
+  const same = { number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body: "" };
+  const taken = await go("taken", pullFile("taken", same));
+  assert.equal(taken.reads, 0, "no second GET of the PR");
+  assert.match(taken.out, /^proceed=true$/m);
+  for (const [name, path] of [
+    ["unset", undefined],
+    ["missing", join(dir, "absent.json")],
+    ["unreadable", pullFile("unreadable", "{")],
+    ["other-pr", pullFile("other-pr", { ...same, number: 43 })],
+    ["other-head", pullFile("other-head", { ...same, head: { sha: OLD_HEAD } })],
+  ]) {
+    assert.equal((await go(name, path)).reads, 1, name);
+  }
+  // The hold checks read the file's PR: a needs-human label on it holds the round.
+  const tracker = join(dir, "tracker.json");
+  writeFileSync(tracker, JSON.stringify({ config: { role_labels: { "human-gated": "status: blocked-human" } } }));
+  const api = counted();
+  const held = join(dir, "held.out");
+  await main(["select"], { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: held, PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, "held.json"), RUN_FILE: join(dir, "held.run.json"), TRUSTED_ACTORS: actors, TRACKER_CONFIG: tracker, PULL_FILE: pullFile("held", { ...same, labels: [{ name: "status: blocked-human" }] }) }, { api, log: () => {} });
+  assert.equal(api.pullReads, 0);
+  assert.match(readFileSync(held, "utf8"), /^skip-reason=awaiting-human$/m);
+});
+
 test("main select needs RUN_FILE beside THREAD_FILE, and no LANE_BRANCH", async () => {
   const env = {
     GITHUB_TOKEN: "t",

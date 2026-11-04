@@ -77,7 +77,9 @@ a regular file). `apply` is the fix.
    to state its probe without running it, in which case `report`; `fanout_diversity`: `lens`, the
    default, unless the team wants `/review:fanout run-everything` to run each review prompt on
    several model tiers, in which case `model`, or to use the Codex reviewer as its model-diversity
-   panel, in which case `codex`). Never invent a key the schema
+   panel, in which case `codex`; `fanout_act_on_cap`: `2`, the default, unless the team wants
+   more or fewer rows under each `/review:fanout` `## By axis` heading marked act on). Never
+   invent a key the schema
    does not list. `downstream_probe` is a policy floor read from the default branch, so a value
    written here takes effect once it is merged there.
 2. **Write.** One call with every value:
@@ -169,7 +171,8 @@ the value `check` reads back, and whether the file is tracked.
 - Run a review. That is `/review:quality-gate` and this plugin's reviewer agents; they resolve
   criteria through the index this setup bootstraps.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The per-user
-  `downstream_probe` and `fanout_diversity` options are set through `/plugin configure`, not here.
+  `downstream_probe`, `fanout_diversity` and `fanout_act_on_cap` options are set through
+  `/plugin configure`, not here.
 - Write any settings file other than `docs/conventions/review.yaml`.
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create, the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.
