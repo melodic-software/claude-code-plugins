@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash \"/plugins/work-items/lib/resolve-convention-home.sh\" --root \"$PWD\""}}
+      ],
+      "why": "resolved the convention home"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "docs/conventions/work-items.yaml"}}
+      ],
+      "why": "assumed the home without resolving it"
+    }
+  ]
+}
