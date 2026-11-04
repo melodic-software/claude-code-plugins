@@ -389,7 +389,7 @@ Two sentences reconcile this with the local-first residence decision:
    `CLAUDE_CODE_DISABLE_ARTIFACT=1` environment variable, or a `permissions.deny`
    `Artifact` rule) are the sanctioned day-one flip that makes the local file the first
    reachable medium for every lane, with zero plugin changes.
-2. An existing emitting surface starts at the published artifact only by default: each one
+2. An existing publishing surface starts at the published artifact only by default: each one
    reads `medium` from the argument and the cascade first (see Wave-1 adoption and
    grandfathered surfaces).
 
