@@ -305,6 +305,25 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       html_url: jobUrl(runId, 8000 + i),
       ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }),
     })),
+    // The pull requests the body's `Siblings:` line names, each `Refs:` the
+    // issue (`{issue}` in its body), merged into main or not.
+    siblings: Object.fromEntries(
+      (testCase.spec.siblings ?? []).map((sibling) => [
+        sibling.number,
+        {
+          __typename: "PullRequest",
+          number: sibling.number,
+          merged: sibling.merged,
+          mergedAt: sibling.merged ? "2026-10-01T00:00:00Z" : null,
+          baseRefName: "main",
+          body: sibling.body.replaceAll("{issue}", String(issueNumber)),
+          lastEditedAt: null,
+          editor: null,
+          repository: { nameWithOwner: REPOSITORY },
+          closingIssuesReferences: { totalCount: 0 },
+        },
+      ]),
+    ),
     issueRest: { number: issueNumber, ...rest("issues", issueNumber, issue.by ?? "owner", issue.body) },
     issueComments,
     prComments,
@@ -358,7 +377,13 @@ export function stubGitHub(s) {
     if (method === "POST" && apiPath === "/graphql") {
       const query = String(body?.query ?? "");
       if (query.includes("closingIssuesReferences(first: 10)")) {
-        return { data: { repository: { pullRequest: { closingIssuesReferences: { totalCount: 1, nodes: [s.issueGraph] } } } } };
+        return { data: { repository: { pullRequest: { body: s.pull.body, closingIssuesReferences: { totalCount: 1, nodes: [s.issueGraph] } } } } };
+      }
+      if (query.includes("issueOrPullRequest")) {
+        const sibling = s.siblings[body.variables.number];
+        return sibling
+          ? { data: { repository: { issueOrPullRequest: sibling } } }
+          : { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"] }] };
       }
       // select-trusted-text's closing issues and title renames, each the
       // query asks for, in one answer.

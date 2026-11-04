@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "the siblings the body names did not merge, so no sibling is credited: the flag and its README section, two of the three done-when items, are not delivered",
+  "mentions": ["sibling", "credited", "README", "not (delivered|present|merged|implemented)", "first (criterion|done-when)", "--json flag"]
+}
