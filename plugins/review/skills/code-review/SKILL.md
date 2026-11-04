@@ -186,10 +186,10 @@ For each item the diff hits, the summary carries one line, `manifest <field>: pa
 `flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
 
 Pointer: field semantics, the `options` floor, and how a saved value is read are at
-[plugin manifest reference: User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+[plugin manifest reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration);
 entry-versus-manifest precedence is at
-[Marketplace entries and the manifest](https://code.claude.com/docs/en/plugins-reference#marketplace-entries-and-the-manifest).
-As of: 2026-10-21. Recheck trigger: that page changes a `userConfig` field's semantics, the
+[Marketplace entries and the manifest](https://code.claude.com/docs/en/plugins/manifest-reference#marketplace-entries-and-the-manifest).
+As of: 2026-11-04. Recheck trigger: that page changes a `userConfig` field's semantics, the
 `options` floor, or how a marketplace entry combines with `plugin.json`.
 
 Scope the review to files changed in this PR: read the diff from "Inputs"
