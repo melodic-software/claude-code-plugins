@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "playwright:demo-video"}}], "why": "loads the demo-video skill"}
+  ],
+  "fail": [
+    {"answer": [], "why": "answers without loading the skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "playwright:playwright"}}], "why": "loads only the browser skill"}
+  ]
+}
