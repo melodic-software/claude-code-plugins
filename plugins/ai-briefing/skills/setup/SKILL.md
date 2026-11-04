@@ -146,8 +146,8 @@ nothing and reports "already configured".
    }
    NODE_MAJOR=$(node -p "Number(process.versions.node.split('.')[0])")
    case "$NODE_MAJOR" in
-     22|24|26) ;;
-     *) echo "ai-briefing setup requires the latest Node.js 22.x, 24.x, or 26.x" >&2; exit 1 ;;
+     24|26) ;;
+     *) echo "ai-briefing setup requires the latest Node.js 24.x or 26.x" >&2; exit 1 ;;
    esac
    PLATFORM=$(uname -s)
    case "$PLATFORM" in

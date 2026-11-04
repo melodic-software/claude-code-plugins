@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.wrap_column: flag, reaches a command\n\nseverity: SUGGESTION",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.wrap_column: pass, inert, plugins/notes/skills/summary/SKILL.md:6",
+      "why": "an inert pass on a value the skill runs in a command"
+    },
+    {
+      "answer": "manifest userConfig.wrap_column: pass",
+      "why": "a plain pass"
+    }
+  ]
+}

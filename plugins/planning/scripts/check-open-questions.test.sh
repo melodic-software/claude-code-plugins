@@ -492,7 +492,7 @@ fi
 fenced_comment="$(
   mkledger <<'EOF'
 ```bash
-# Step 3, before locking the contract
+# Step 3, before locking the Brief
 bash check-open-questions.sh --ledger x
 ```
 

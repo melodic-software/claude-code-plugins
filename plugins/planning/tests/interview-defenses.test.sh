@@ -554,11 +554,13 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # #5769 review: a stale=<n> row is named as any status, as check-open-questions.sh counts it; no halt is removed or qualified
 # R-D pointer (#12103): the read-back paragraph's closing sentence now says the rule holds in every lane and R-D adds only the page's display and confirmation; the read-back row still stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
 # Merge of main with #12103: both edits to the register section kept (main's stale=<n> halt and Re-check, this branch's read-back closing sentence); re-pinned over the merged text, no halt removed or qualified
+# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
+# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "f3d890893af12345f8a599076c5113172934d8dc1e5210ea2f515341d915da7f"
+  "442b025a9d2ffa366b2900ddd9e205f74b9a7465162aa236b6ec6943f35b9db4"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -607,11 +609,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
+# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
-  "### Step 4. Persist the contract" \
+  "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "daef77ba68a3ac3c6cac1e88d41d4e5965d27c8b108ec9752b7177a8a313c37b"
+  "7210831591f13b1db5a4ed7ba91222de0b33de59d63e378deeb0b254f5ecbc2a"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -630,11 +633,12 @@ pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\`
 # The problem-confirmation paragraph puts the unattended confirmation under rung 3 as a
 # `blocked` USER-RESERVED row; a pre-confirmed item writes that row `answered` citing the label, so the register still gates. Rungs 3-5 are byte-identical.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 pin_section "loop.md Unattended path section is unchanged (the ladder lives here)" \
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "dbd694cb5e6c7050608f96f03309e65a8e17d19271b5c01ea6b57faa4c405a4a"
+  "d7a0d8d34be44e18b2340057117fed01cec095aa119e457e117626d2ce0ea072"
 
 # Case A's exemption expectation now names `lock`'s one problem question and its invocation
 # confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.
@@ -687,11 +691,13 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
 # #5769 review: a stale=<n> row is named as any status, as check-open-questions.sh counts it; no halt is removed or qualified
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
+# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
+# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
-  "### Step 4. Persist the contract" \
-  "077bbe3eb7c4fa85de36ce60800a1f767496203fef625458cd1d189ab6dd0410"
+  "### Step 4. Persist the Brief" \
+  "4d5330fb98ba5f5f5b8d5b37e1f79e40063fc02a5cd9b9523990cd2dc27a03b5"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
@@ -714,11 +720,12 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 # Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
+# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "abd084e635fc62e94f42e57e290aa6cc366cac7eed359e7e26c2f180ad6b82a3"
+  "178af495c1859998ccaef5593cbec0663e911cbcd61de5c6a2cb4375824f47b5"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -734,11 +741,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
 # #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
+# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "47ea036b756c9f88d371f6865a9e53d7ba07506ba41020925ce0696e89703763"
+  "cb1ad39fcb6bf79b6822ac05eb1506b3d28196f317b534f2ee31ab5f588404c3"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -786,11 +794,12 @@ pin_file "context/ears.md is unchanged (the EARS tags and the format resolution 
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
+# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, hedged rows included)" \
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
   "### Step 2. Dispatch fresh-context validators" \
-  "f447baca75915f8f0b0f98a7700c9bb9e5c82b4b75d45403192ca33fd2022d79"
+  "d1141bf7988e5cca6c1f9566d2b61ee48d7d627d8ebe5fe1855799d6fb539b71"
 pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
   "$AUDIT" \
   "### Step 4. Merge and triage" \
@@ -840,9 +849,11 @@ pin_case_digest "sibling case 3 still forbids fudging a gap in \`lock\` mode" \
   "lock-mode-does-not-fudge-gap" \
   "514f6a7c3dff3378cd22d99af4dcca604400338227d2e3b038d02cccc636e866"
 # Case 13 adds the unconfirmed problem as a `blocked` USER-RESERVED row; every named-blocker expectation stands.
+# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
+# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 pin_case_digest "sibling case 13 still requires named blockers instead of assumptions" \
   "unattended-run-emits-named-blockers-not-assumptions" \
-  "f838f1b1591a5a39bdeed80a52baa1c01c5ddfe1c8f48df42ae8c7de580b5a4e"
+  "6633823b6dc62312f3fa505e3959e0f23620da1ea0871e45f01ad41c34064efb"
 # Three more cases rest on the same fact-vs-decision line the auto-guard draws, or on the
 # no-silent-resolution rule. Case 8 was rewritten in place — "where a decision has a
 # defensible conventional default, the skill resolves it on the user's behalf and records
@@ -1037,8 +1048,9 @@ pin_section "lane-page.md steps section is unchanged (the page's part of the Ste
   "ae49eb827feabdbdabbb84f03622a2dcf7ecce910a9b8e2a849f512fe98e3abd"
 pin "SKILL.md: a question citing a constraint is never asked on a card" "$SKILL" \
   "one that cites a constraint is asked in prose"
+# The pinned text now names the Brief as what relies on the constraint (#13185); the rule is unchanged.
 pin "SKILL.md: a relied-on inherited constraint is asked as a register row" "$SKILL" \
-  "An \`inherited\` constraint the contract relies on is asked as a register row at ask-time"
+  "An \`inherited\` constraint the Brief relies on is asked as a register row at ask-time"
 pin "SKILL.md: in lock a relied-on inherited constraint is a gap that STOPs" "$SKILL" \
   "In \`lock\` a relied-on inherited constraint is a gap: STOP and surface it (Step 1.5)"
 pin "SKILL.md: in auto synthesis a relied-on inherited constraint makes the path Mixed" "$SKILL" \

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.max_files: flag, a guard added with the permissive default 0 (no limit)\n\nseverity: IMPORTANT",
+      "why": "flags the guard"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.max_files: pass, inert, plugins/notes/skills/summary/SKILL.md:5\n\ncritical-findings: 0",
+      "why": "treats a guard with a permissive default as inert"
+    }
+  ]
+}
