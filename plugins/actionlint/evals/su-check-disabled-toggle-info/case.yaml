@@ -7,7 +7,7 @@ graders:
     focus: 'last_message'
   - name: 'enabled-gate-reason'
     type: 'llm'
-    criteria: 'The reply gives the reason for the downgrade: the plugin''s hooks exit through their enabled-gate before probing anything, so a deliberately disabled plugin does not need actionlint.'
+    criteria: 'The reply gives the reason for the downgrade: the plugin''s Claude Code hooks exit through their enabled-gate before probing anything, so a deliberately disabled plugin is not broken. Adding that an installed git pre-commit entry still needs actionlint at commit is allowed.'
     focus: 'last_message'
   - name: 'reenable-restores-fail'
     type: 'llm'
