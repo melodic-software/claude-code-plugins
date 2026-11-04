@@ -15,7 +15,9 @@
 // Criterion 4 (no protected path named) applies only to the paths the issue
 // lane cannot push, named in a criterion (unpushablePaths) or anywhere in the
 // body outside a code fence (bodyUnpushablePaths), outside a clause that
-// leaves them unchanged ("no file under X is edited"). This checks the rest:
+// leaves them unchanged ("no file under X is edited"). Such an issue parks at
+// status: confirmed and, when nothing else refuses, waits or holds, gets
+// `host-run` for a host or builder session. This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -156,7 +158,8 @@ export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at inta
 // guess, so re-triage's Size, or a listed human's, does not decide it.
 export const PATCH_SPLIT_PENDING = "its last run's patch was over the scan job's size cap (scan-refused-patch): the split into sub-issues at intake is pending (owner Q93)";
 // The refusal of that stop on a trusted size-split sub-issue, which never
-// splits again.
+// splits again. It parks at status: confirmed and, as the only refusal, adds
+// host-run.
 export const PATCH_SPLIT_CHILD = "its last run's patch was over the scan job's size cap (scan-refused-patch), and a size-split sub-issue never splits again (owner Q93), so a builder session takes it";
 // Every wait reason refine.mjs splits on.
 export const SPLIT_PENDING = new Set([SIZE_SPLIT_PENDING, PATCH_SPLIT_PENDING]);
@@ -1351,8 +1354,9 @@ export function admissionSettled(labels, events, isMark) {
 // issue without a trusted `host-run` (addedByTrusted), done-when items a lane
 // run cannot perform beside items it can, which refine
 // splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
-// admit() to add `host-run` on a refusal whose only reason is that no item is
-// left for the lane, with no wait or pending split.
+// admit() to add `host-run` on a refusal whose every reason is host work (no
+// item left for the lane, a protected path, a capped split child), with no
+// hold, wait or pending split.
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
@@ -1385,6 +1389,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
 
   const refuse = [];
+  // Refusals a host or builder session takes (stop-routes.json routes the
+  // run's own patch-protected-path stop to host-run the same way).
+  const hostWork = new Set();
   let hold = false;
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
@@ -1445,6 +1452,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     // A sub-issue never splits again, so the same work would only stop at the
     // same cap: it parks for a builder instead of re-admitting unchanged.
     refuse.push(PATCH_SPLIT_CHILD);
+    hostWork.add(PATCH_SPLIT_CHILD);
   } else if (!rules.sizes.includes(size)) {
     refuse.push(`Size ${size} is not one of ${rules.sizes.join(", ")}`);
   }
@@ -1487,10 +1495,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (unrunnable) {
     refuse.push(unrunnable);
     hold ||= paid || (queue && !hostRun);
+    if (hostRun) hostWork.add(unrunnable);
   }
   // apply-patch refuses the issue lane's push of these paths
   // (patch-protected-path), so a run for such a criterion is spent for
-  // nothing; this refusal parks at status: confirmed, never with a person.
+  // nothing; this refusal parks at status: confirmed, never with a person, and
+  // adds host-run when nothing else refuses, waits or holds.
   // The title is not read: it names the subject, often a workflow whose
   // script alone changes. Each text is read alone, so a fence one leaves open
   // does not run on into the next.
@@ -1504,7 +1514,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     ]),
   ];
   if (unpushable.length > 0) {
-    refuse.push(`its body or a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
+    const reason = `its body or a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`;
+    refuse.push(reason);
+    hostWork.add(reason);
   }
   // A metered or renewing charge needs the owner's decision, whatever the
   // verdict flagged. A word an edit moved into code leaves this read, so that
@@ -1607,15 +1619,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: [`${refuse[0]}; intake's refinement of this body is due and may supply them`], pulls: [] };
   }
   if (refuse.length > 0) {
-    // host-run starts an unattended host run, so it goes only on an issue
-    // whose one obstacle is that no item is left for the lane: never beside a
-    // hold for a person, another refusal, a wait or a pending split.
+    // host-run queues the issue for a host or builder session, so it goes
+    // only on an issue whose every refusal is such work (hostWork): never
+    // beside a hold for a person, another refusal, a wait or a pending split.
     return {
       verdict: "refuse",
       reasons: [...refuse, ...parked],
       ...(hold && { hold }),
       ...(attended && { attended }),
-      ...(hostRun && refuse.length === 1 && wait.length === 0 && parked.length === 0 && { hostRun }),
+      ...(!hold && refuse.every((reason) => hostWork.has(reason)) && wait.length === 0 && parked.length === 0 && { hostRun: true }),
       ...(doneBy.length > 0 && { done: doneBy }),
       ...(unset.length > 0 && refuse.length === unset.length && { unsetOnly: unset }),
     };
