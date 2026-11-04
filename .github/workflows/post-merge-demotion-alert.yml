@@ -104,7 +104,8 @@ name: post-merge-demotion-alert
 # and one log issue. While `red-main.dry-run` is true it pushes, opens and
 # merges nothing.
 #
-# Test: scripts/post-merge-demotion-alert.test.sh runs the alert step body;
+# Test: scripts/post-merge-demotion-alert.test.sh runs the alert's retry and
+# filing step bodies;
 # .github/scripts/post-merge-demotion-alert/ tests the report job.
 
 on:
