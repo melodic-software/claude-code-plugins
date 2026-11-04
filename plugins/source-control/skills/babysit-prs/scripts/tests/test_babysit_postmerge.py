@@ -415,10 +415,19 @@ class FakeGh:
             return completed({"state": "open"})
         if endpoint.startswith(f"repos/{REPO}/issues?"):
             creator = endpoint.split("creator=")[1].split("&")[0]
+            # GitHub's list-issues `state` defaults to open; `all` adds closed.
+            state = endpoint.split("state=")[1].split("&")[0]
             from urllib.parse import unquote
 
             return completed(
-                [[i for i in self.issues if i["user"]["login"] == unquote(creator)]]
+                [
+                    [
+                        i
+                        for i in self.issues
+                        if i["user"]["login"] == unquote(creator)
+                        and (state == "all" or i.get("state") == state)
+                    ]
+                ]
             )
         if endpoint == f"repos/{REPO}/issues":
             return completed({"number": 9001})
@@ -2989,6 +2998,74 @@ class SettleBudget(CheckCase):
             self.assertIn(f"attribution-pending:{n}", verdict.merges[0].pending)
 
 
+class SharedCompare(CheckCase):
+    """A compare between two full SHAs never changes its answer, so a run's
+    gate processes share it through the run cache file; the branch tip moves,
+    so each process reads it again. Each `_Context` stands for one process."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.cache = os.path.join(tmp.name, "run-cache.json")
+
+    def process(self) -> pm._Context:
+        owner, name = pm._split_repo(REPO)
+        return pm._Context(owner, name, IDENTITY, branch="main", local_clones=[])
+
+    def reads(self, needle: str) -> int:
+        return sum(needle in " ".join(c) for c in self.gh.calls)
+
+    def test_a_second_process_reuses_the_first_process_compare(self) -> None:
+        with mock.patch.dict(os.environ, {pm.run_cache.ENV: self.cache}):
+            self.assertTrue(self.process().contains(MERGE_SHA, LATER_SHA))
+            self.assertFalse(self.process().contains(MERGE_SHA, HEAD_SHA))
+            self.assertTrue(self.process().contains(MERGE_SHA, LATER_SHA))
+            self.assertFalse(self.process().contains(MERGE_SHA, HEAD_SHA))
+        self.assertEqual(self.reads(f"/compare/{MERGE_SHA}...{LATER_SHA}"), 1)
+        self.assertEqual(self.reads(f"/compare/{MERGE_SHA}...{HEAD_SHA}"), 1)
+
+    def test_another_range_is_read(self) -> None:
+        with mock.patch.dict(os.environ, {pm.run_cache.ENV: self.cache}):
+            self.process().contains(MERGE_SHA, LATER_SHA)
+            self.process().contains(HEAD_SHA, LATER_SHA)
+        self.assertEqual(self.reads(f"/compare/{HEAD_SHA}...{LATER_SHA}"), 1)
+
+    def test_with_no_cache_file_each_process_reads(self) -> None:
+        with mock.patch.dict(os.environ, {pm.run_cache.ENV: ""}):
+            self.process().contains(MERGE_SHA, LATER_SHA)
+            self.process().contains(MERGE_SHA, LATER_SHA)
+        self.assertEqual(self.reads(f"/compare/{MERGE_SHA}...{LATER_SHA}"), 2)
+
+    def test_a_failed_compare_is_not_shared(self) -> None:
+        self.gh.fail_reads.add(f"/compare/{MERGE_SHA}...{LATER_SHA}")
+        with mock.patch.dict(os.environ, {pm.run_cache.ENV: self.cache}):
+            with self.assertRaises(pm.PostMergeReadError):
+                self.process().contains(MERGE_SHA, LATER_SHA)
+            self.gh.fail_reads.clear()
+            self.assertTrue(self.process().contains(MERGE_SHA, LATER_SHA))
+        self.assertEqual(self.reads(f"/compare/{MERGE_SHA}...{LATER_SHA}"), 2)
+
+    def test_each_process_reads_the_branch_tip_again(self) -> None:
+        with mock.patch.dict(os.environ, {pm.run_cache.ENV: self.cache}):
+            self.assertEqual(self.process()._branch_tip(), TIP_SHA)
+            self.gh.main_tip = LATER_SHA
+            self.assertEqual(self.process()._branch_tip(), LATER_SHA)
+        self.assertEqual(self.reads(f"repos/{REPO}/git/ref/heads/main"), 2)
+
+    def test_a_shared_compare_spends_the_settle_budget_as_a_read_would(self) -> None:
+        def budget_left(env: str) -> int:
+            with mock.patch.dict(os.environ, {pm.run_cache.ENV: env}):
+                self.process().contains(MERGE_SHA, LATER_SHA)
+                second = self.process()
+                second.settle_compares_left = 1
+                self.assertTrue(second._settle_read(MERGE_SHA, LATER_SHA))
+                return second.settle_compares_left
+
+        self.assertEqual(budget_left(self.cache), budget_left(""))
+        self.assertEqual(budget_left(self.cache), 0)
+
+
 class DispatchCoverage(CheckCase):
     """Design "Post-merge" plus the accepted deadlock rule: an unverified
     auto-merge with no identity dispatch run on a SHA containing it needs one;
@@ -3615,6 +3692,14 @@ class Remediation(CheckCase):
         self.assertIn(f"repos/{REPO}/issues/8001/comments", writes[1])
         self.assertEqual(len(writes), 2)
         self.assertEqual(report["reopened"], [8001])
+        listings = [
+            a for c in self.gh.calls for a in c if a.startswith(f"repos/{REPO}/issues?")
+        ]
+        self.assertTrue(listings, "remediate lists the filers' demotion records")
+        self.assertTrue(
+            all("state=all" in a for a in listings),
+            f"a closed record can only be reopened if it is listed: {listings}",
+        )
 
     def test_closed_record_with_an_already_seen_sighting_stays_closed(self) -> None:
         verdict = self.failing_verdict()
