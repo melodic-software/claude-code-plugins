@@ -49,8 +49,9 @@ babysit-merge-settled sha=<merge commit> -->` comment on its pull request. A
 later check counts a merge carrying that marker, unedited and by the
 identity, verified without reading its runs or the pr-merge-dispatched
 artifact, so a settled merge no longer depends on that artifact's retention.
-Only the lane's floor anchor reads a settled merge's runs again, and only to
-pass it (`advance_anchor`); that read never changes the verdict.
+An unsettled merge as old as that retention makes the verdict unreadable
+rather than judged on a record that may be gone. Only the lane's floor
+anchor reads a settled merge's runs again, and only to pass it (`advance_anchor`); that read never changes the verdict.
 
 Exit codes: 0 no failure and every auto-merge verified, 1 a failure, 2 usage
 or a refused identity (not a dedicated App login, or `--remediate` under
@@ -103,9 +104,11 @@ CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
 # artifact named with this prefix; `_Context.lane_dispatched` reads it. The
 # artifact expires (pr-merge.yml's retention-days), but the verdict never
 # judges a settled merge on its runs again, so only a merge not yet settled
-# depends on it.
+# depends on it; one older than the retention reads unreadable (`check`).
 LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
 LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
+# The retention-days of every pr-merge-dispatched upload in pr-merge.yml.
+LANE_DISPATCH_RETENTION = timedelta(days=30)
 LANE_DISPATCH_ACTOR = "github-actions[bot]"
 # Its post-merge-dispatch job starts the one re-run of a red lane-dispatched
 # full run, also under GITHUB_TOKEN, and records it in an artifact named
@@ -2956,6 +2959,18 @@ def check(
         )
         tally = _Tally()
         judged = [m for m in merges if m.number not in done]
+        for merge in judged:
+            # The record of a dispatch made at or after the merge outlives
+            # LANE_DISPATCH_RETENTION from the merge; past that its absence
+            # proves nothing, so the merge is not judged on its runs.
+            if merge.merged_at and now >= _time(merge.merged_at) + (
+                LANE_DISPATCH_RETENTION
+            ):
+                raise PostMergeReadError(
+                    f"#{merge.number}: merged {LANE_DISPATCH_RETENTION.days} days "
+                    "or more ago and not settled, so its pr-merge-dispatched "
+                    "record may have expired"
+                )
         targets = [m for m in merges if m.number in done and rejudge and rejudge(m)]
 
         def rejudged(states: tuple[MergeState, ...]) -> tuple[MergeState, ...]:

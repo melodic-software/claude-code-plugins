@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import pathlib
+import re
 import sys
 import tempfile
 import unittest
@@ -35,6 +36,7 @@ from test_babysit_postmerge import (  # noqa: E402
     HUMAN,
     IDENTITY,
     LATER_SHA,
+    MERGED_AT,
     MERGE_SHA,
     OTHER_SHA,
     REPO,
@@ -60,6 +62,7 @@ NUMBER = 7001
 RECORD = "pr-merge-dispatched-11"
 LANE_RUN = 500
 BOT = by("github-actions[bot]")
+EXPIRED = "pr-merge-dispatched record may have expired"
 
 
 def marker(
@@ -140,12 +143,12 @@ class AMarkerSettlesTheMerge(SettledCase):
     def test_a_marker_keeps_the_merge_verified_after_its_record_expired(
         self,
     ) -> None:
-        # Without the marker the same runs hold the lane as an unlisted
-        # record; with it the merge is verified and nothing about it is read.
+        # Without the marker the merge, past its record's retention, reads
+        # unreadable; with it the merge is verified and nothing about it is read.
         self.lane_dispatch(recorded=False)
         unsettled = self.settled_check()
         self.assertFalse(unsettled.readable)
-        self.assertEqual(unsettled.hold, pm.HOLD_UNLISTED_RECORD)
+        self.assertIn(EXPIRED, unsettled.reason or "")
 
         self.gh.calls.clear()
         self.gh.pin_comments = [pin_comment(HEAD_SHA), marker()]
@@ -230,7 +233,7 @@ class NoMarkerStands(SettledCase):
                 self.gh.pin_comments = comments
                 verdict = self.settled_check()
                 self.assertFalse(verdict.readable)
-                self.assertEqual(verdict.hold, pm.HOLD_UNLISTED_RECORD)
+                self.assertIn(EXPIRED, verdict.reason or "")
                 self.assertFalse(verdict.is_verified(SimpleNamespace(number=NUMBER)))
                 self.assertEqual(verdict.report()["settle"], [])
 
@@ -246,7 +249,8 @@ class NoMarkerStands(SettledCase):
             pinned_sha=pm.pin_reader(REPO, IDENTITY),
             lane_merges_only=True,
         )
-        self.assertEqual(verdict.hold, pm.HOLD_UNLISTED_RECORD)
+        self.assertFalse(verdict.readable)
+        self.assertIn(EXPIRED, verdict.reason or "")
 
 
 class WhatGetsSettled(SettledCase):
@@ -612,6 +616,73 @@ class Settle(SettledCase):
         )
         self.assertEqual((code, out["ok"]), (2, False))
         self.assertEqual(self.gh.writes(), [])
+
+
+# pr-merge.yml keeps each pr-merge-dispatched record 30 days.
+RETENTION = timedelta(days=30)
+
+
+class AnUnsettledMergePastRetention(SettledCase):
+    """An unsettled merge as old as its record's retention is not judged."""
+
+    def test_a_merge_one_second_inside_the_retention_is_judged_on_its_record(
+        self,
+    ) -> None:
+        self.lane_dispatch()
+        verdict = self.settled_check(now=MERGED_AT + RETENTION - timedelta(seconds=1))
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(
+            verdict.report()["settle"], [{"number": NUMBER, "mergeCommit": MERGE_SHA}]
+        )
+
+    def test_a_merge_at_the_retention_is_unreadable_though_its_record_lists(
+        self,
+    ) -> None:
+        self.lane_dispatch()
+        self.gh.calls.clear()
+        verdict = self.settled_check(now=MERGED_AT + RETENTION)
+        self.assertFalse(verdict.readable)
+        self.assertIn(f"#{NUMBER}", verdict.reason or "")
+        self.assertIn(EXPIRED, verdict.reason or "")
+        self.assertIsNone(verdict.hold)
+        self.assertFalse(verdict.needs_dispatch)
+        self.assertFalse(verdict.is_verified(SimpleNamespace(number=NUMBER)))
+        self.assertEqual(self.window_reads(), 0, "no run of a refused merge is read")
+
+    def test_a_settled_merge_at_the_retention_stays_verified(self) -> None:
+        self.gh.pin_comments = [pin_comment(HEAD_SHA), marker()]
+        verdict = self.settled_check(now=MERGED_AT + RETENTION)
+        self.assertTrue(verdict.ok, verdict.reason)
+        self.assertTrue(verdict.merges[0].settled)
+
+    def test_an_old_merge_by_another_enqueuer_is_unreadable_on_the_gate_floor(
+        self,
+    ) -> None:
+        self.gh.merged = [merged_pr()]
+        verdict = pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=MERGED_AT + RETENTION + timedelta(days=1),
+            pinned_sha=pm.pin_reader(REPO, IDENTITY),
+        )
+        self.assertFalse(verdict.readable)
+        self.assertIn(EXPIRED, verdict.reason or "")
+
+    def test_the_retention_matches_every_dispatch_record_upload(self) -> None:
+        workflow = (
+            pathlib.Path(__file__).resolve().parents[6] / pm.LANE_DISPATCH_WORKFLOW
+        ).read_text(encoding="utf-8")
+        days = re.findall(
+            r"name: pr-merge-dispatched-[^\n]*\n(?:[^\n]*\n)*?\s*retention-days: (\d+)",
+            workflow,
+        )
+        self.assertEqual(len(days), 2, "pr-merge.yml uploads the record from two jobs")
+        self.assertEqual(
+            {timedelta(days=int(d)) for d in days}, {pm.LANE_DISPATCH_RETENTION}
+        )
 
 
 if __name__ == "__main__":
