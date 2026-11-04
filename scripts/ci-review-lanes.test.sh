@@ -348,7 +348,7 @@ if grep -q '/actions/' "$TMP_ROOT/log"; then fail "a fork pull request's run rea
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 RUNS_CODE="$(runs)"
-expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet. ci-status waited 0s for it" "Waited"
+expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet. ci-status does not wait for a lane with no run" "Waited"
 if [[ "$(grep -c "/workflows/$CODE/runs?" "$TMP_ROOT/log")" == 2 ]]; then ok "a lane with no run is not waited for"; else fail "a lane with no run was polled: $(grep -c "/workflows/$CODE/runs?" "$TMP_ROOT/log") run-list reads"; fi
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 

@@ -2395,7 +2395,8 @@ test("a job read that is not whole and final, or is empty, is not carried", asyn
 const RERUN_NOTE = "ci-status waited 480s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
 const PENDING_LINE = (check = "pr-review / claude-review-status", head = sha(1), tail = RERUN_NOTE) =>
   `'${check}' has not finished on ${head} (https://github.com/${REPO}/actions/runs/201). ${tail}`;
-const MISSING_LINE = (check = "pr-review / claude-review-status", file = "pr-review-hosted.yml", head = sha(1), tail = RERUN_NOTE) =>
+const MISSING_NOTE = "ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
+const MISSING_LINE = (check = "pr-review / claude-review-status", file = "pr-review-hosted.yml", head = sha(1), tail = MISSING_NOTE) =>
   `'${check}' is missing: no ${file} run on ${head} yet. ${tail}`;
 const pendingJobs = (notes = [PENDING_LINE()]) => stopJobs({ notes });
 // Both hosted reviews' runs on the head, completed at `updated` unless `status` says otherwise.
@@ -2482,7 +2483,7 @@ test("ci-status's review-lane step still writes the pending and missing notes th
   assert.equal(written, PENDING_LINE());
   const missing = step.split("\n").find((l) => l.includes("is missing: no $file run on $HEAD_SHA yet."));
   assert.ok(missing, "the missing error line is in the step");
-  const absent = (/echo "::error::(.*)"$/.exec(missing.trim())?.[1] ?? "").replace("$check", "pr-review / claude-review-status").replace("$file", "pr-review-hosted.yml").replace("$HEAD_SHA", sha(1)).replace("$rerun_note", note);
+  const absent = (/echo "::error::(.*)"$/.exec(missing.trim())?.[1] ?? "").replace("$check", "pr-review / claude-review-status").replace("$file", "pr-review-hosted.yml").replace("$HEAD_SHA", sha(1)).replace("$missing_note", /\n[ ]+missing_note="(.*)"\n/.exec(step)?.[1] ?? "");
   assert.match(absent, MISSING_REVIEW_NOTE);
   assert.equal(absent, MISSING_LINE());
   // A run from before the wait wrote the older tail, which still matches.

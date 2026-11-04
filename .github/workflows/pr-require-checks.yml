@@ -7132,11 +7132,12 @@ jobs:
           done
           [ "$waited" -eq 0 ] || echo "Waited ${waited}s for the review lanes on $HEAD_SHA."
           rerun_note="ci-status waited ${waited}s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
+          missing_note="ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
           while read -r file lane check; do
             run='' verdict=''
             lane_at "$HEAD_SHA"
             if [ -z "$run" ]; then
-              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. $rerun_note"
+              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. $missing_note"
               failed=1
               continue
             fi
