@@ -337,7 +337,9 @@ jobs:
         Flags: none|intent|security|cost
         Blocked by: none|#N[, #M]
         The Blocked by line lists, as `#` and the number, each open issue in this repository that
-        must be done before this one, or none.
+        must be done before this one, or none. When the issue lane's latest stop comment on the
+        issue is `blocked-by-issue` and names an open issue, list that issue there, unless the
+        named issue is itself blocked by this one.
         A step with no model reads only those five lines and the proposed class, and sets the
         issue's class label, fields, status and blocked-by edges from them.
 

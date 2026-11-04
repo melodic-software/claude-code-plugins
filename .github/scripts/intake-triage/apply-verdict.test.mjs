@@ -2165,6 +2165,12 @@ describe("the triage prompt", () => {
     }
   });
 
+  // #13197: the issue lane's blocked-by-issue stop names its blocker for
+  // triage to record as an edge, never in reverse of an existing one.
+  test("a blocker the issue lane names on a blocked-by-issue stop goes on the Blocked by line", () => {
+    assert.match(PROMPT, /latest stop comment on the\s+issue is `blocked-by-issue` and names an open issue, list that issue there, unless the\s+named issue is itself blocked by this one/);
+  });
+
   test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
     assert.match(PROMPT, /Write a Cost line exactly as `Cost: <what bills, where; the owner decision it lacks>` or `Cost decided: <what bills; the decision that covers it>`/);
     assert.match(PROMPT, /Work with no charge gets no Cost line/);
