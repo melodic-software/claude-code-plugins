@@ -1395,6 +1395,35 @@ test("a fix-ci run the kill switch stopped is retried on the same head without s
   assert.ok(own.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), own.lines.join("\n"));
 });
 
+// The gate stopped the fix-ci run head-lag (GET /pulls and the branch ref
+// never agreed): report-check-run posts a superseded-sha skip on the head the
+// run read. On the head the dispatcher reads, the PR's current one, the run
+// did no work there, so it is sent again once, under the per-head cap.
+test("a fix-ci run the gate stopped head-lag on the current head is sent again once, under the cap", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const lagged = (time) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "neutral", output: { title: "Skipped: superseded-sha" }, started_at: at(time), completed_at: at(time) });
+  const lagCheck = check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: superseded-sha" });
+  const lagPr = () => pr(7, { checks: [lanes("FAILURE"), lagCheck] });
+  const once = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00")]]]) });
+  assert.deepEqual(once.result.dispatched.map((d) => d.number), [7], once.lines.join("\n"));
+  assert.ok(once.lines.includes(`refire: #7: head ${head}'s pr-unblock / fix-ci was stopped head-lag; sending it again`), once.lines.join("\n"));
+  // The round it sent is still going: not sent twice.
+  const going = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00")]]]), workflowRuns: [{ id: 99, status: "queued", display_title: "pr-unblock fix-ci #7" }] });
+  assert.deepEqual(going.result.dispatched, [], going.lines.join("\n"));
+  // A newer run pushed a fix: the head is handled.
+  const fixed = { name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at("10:30"), completed_at: at("10:30") };
+  const newer = await run({ pages: [[pr(7, { checks: [lanes("FAILURE"), check("pr-unblock / fix-ci", "SUCCESS", { title: "Fixed" })] })]], history: new Map([[head, [lagged("10:00"), fixed]]]) });
+  assert.deepEqual(newer.result.dispatched, [], newer.lines.join("\n"));
+  // Lag stops count toward the per-head cap.
+  const capped = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00"), lagged("10:30"), lagged("11:00")]]]) });
+  assert.deepEqual(capped.result.dispatched, [], capped.lines.join("\n"));
+  assert.ok(capped.lines.some((line) => line.includes("ran 3 time(s), the most one head gets")), capped.lines.join("\n"));
+  // The stop sits on a head the PR has left: the current head has no fix-ci run, so it is dispatched as any head with none, with no refire line.
+  const moved = await run({ pages: [[pr(7)]], history: new Map([["8".padStart(40, "a"), [lagged("10:00")]]]) });
+  assert.ok(!moved.lines.some((line) => line.startsWith("refire:")), moved.lines.join("\n"));
+});
+
 // fix-ci and the in-run fix-ci-rung-up each post a fix-ci check in one
 // workflow run (the run id in each check's external_id; the API returns each
 // check's details_url as the check run's own page). When the rung-up's

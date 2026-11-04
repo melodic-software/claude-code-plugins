@@ -20,10 +20,12 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 // version 3 a review-dependency head a limit stop holds until its reset, and
 // version 4 a resolve-conflicts head a failed run or a held skip left, and
 // version 5 a resolve-conflicts head a select job's stop left under an older
-// base. A fix-ci
+// base, and version 6 a resolve-conflicts, sync-shared-copies or
+// review-dependency head a head-lag stop left (limit-stop.mjs
+// lagStopsRelease). A fix-ci
 // head recorded at its per-head cap needs no new version: a record with no
 // fix-ci entry reads the same either way; nor do fix-docs runs, read as none.
-export const RECORD_VERSION = 5;
+export const RECORD_VERSION = 6;
 // The fix-docs runs kept per head, newest last: the reader drops the settled
 // runs that do not count, so more than this many is a tampered entry.
 const MAX_DOCS_RUNS = 20;

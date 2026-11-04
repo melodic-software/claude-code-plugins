@@ -59,7 +59,7 @@ import { STOP_RESOLVED } from "./escalation-routes.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
-import { KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
+import { HEAD_LAG_STOP, KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 import { final as capFinal, deadlineWarning } from "./verify-cap.mjs";
 
@@ -189,9 +189,10 @@ export function withStops(runs, stopRuns) {
 const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")));
 
 // A run that failed, found no failing check to fix, skipped on a PR held
-// then, or that the kill switch stopped (paused) may be retried; any other
-// run (going, pushed a fix, escalated) handles the head.
-const paused = (run) => run.conclusion === "NEUTRAL" && (run.title === HELD_SKIP || run.title === KILL_SWITCH_STOP);
+// then, that the kill switch stopped, or that the gate stopped head-lag on
+// this head, the PR's current one (paused), may be retried; any other run
+// (going, pushed a fix, escalated) handles the head.
+const paused = (run) => run.conclusion === "NEUTRAL" && (run.title === HELD_SKIP || run.title === KILL_SWITCH_STOP || run.title === HEAD_LAG_STOP);
 const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || paused(run) || (run.conclusion === "NEUTRAL" && NOTHING_TO_FIX.has(run.title)));
 
 // The number of counted fix-ci model runs when every attempt may be retried
@@ -654,6 +655,9 @@ export async function dispatchCiFixes({
         markHandled(record, checkName, node.headRefOid);
       }
       continue;
+    }
+    if (fixCiRuns.some((run) => run.conclusion === "NEUTRAL" && run.title === HEAD_LAG_STOP)) {
+      log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
     }
     sent += 1;
     try {
