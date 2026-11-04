@@ -306,7 +306,7 @@ const CLOSE_SCHEMA = {
 
 // The runtime is not relied on to enforce the schema's enums or required fields, so a verifier
 // reply counts only when it passes this check; an unknown verdict ranks worst, never as PASS.
-const isVerdict = v => !!v &&typeof v === 'object' && !Array.isArray(v) && SEVERITY.includes(v.verdict) &&
+const isVerdict = v => !!v && typeof v === 'object' && !Array.isArray(v) && SEVERITY.includes(v.verdict) &&
   Array.isArray(v.findings) && v.findings.every(f => !!f && typeof f === 'object' && FINDING_SEVERITY.includes(f.severity))
 const rank = v => (SEVERITY.includes(v) ? SEVERITY.indexOf(v) : SEVERITY.length)
 const worstOf = vs => vs.reduce((w, v) => (rank(v) > rank(w) ? v : w), 'PASS')
@@ -319,7 +319,8 @@ async function setup(url, i) {
     'already given here (do not re-resolve it), then the slug guard and collision check, ' +
     skill('Emit checklist') + ', ' + skill('Phase 1. Fetch') + ' and ' + skill('Phase 2. Inventory') +
     '. On a resume, continue from the first unticked phase and report whether the checklist already ticks ' +
-    'Phase 3; Phase 4 is verified again by this run whatever the checklist says. Return the slug, the canonical URL, the profile used, the digest-agent model the profile ' +
+    'Phase 3; Phase 4 is verified again by this run whatever the checklist says. Return the slug, the ' +
+    'canonical URL, the profile used, the digest-agent model the profile ' +
     'maps this page to ("none" when no mapping applies), and one entry per SOURCES.md digest-map row: its ' +
     'digests/NN-slug.md file and START-END lines. A collision refusal returns status refused; anything that ' +
     'stops the run returns status failed with the reason.' +
