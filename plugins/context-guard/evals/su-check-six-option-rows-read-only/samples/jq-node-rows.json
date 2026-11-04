@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| jq | PASS | /usr/bin/jq |\n| node | PASS | /usr/local/bin/node |"
+    },
+    {
+      "answer": "| jq | FAIL | absent; install jq |\n| node | PASS | /usr/bin/node |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| jq | PASS | /usr/bin/jq |",
+      "why": "near miss: no node row"
+    },
+    {
+      "answer": "| jq | PASS |\n| node | PASS |",
+      "why": "near miss: no path or absent token as evidence"
+    },
+    {
+      "answer": "| node | INFO | absent |\n| jq | PASS | /usr/bin/jq |",
+      "why": "near miss: absent node graded INFO"
+    }
+  ]
+}

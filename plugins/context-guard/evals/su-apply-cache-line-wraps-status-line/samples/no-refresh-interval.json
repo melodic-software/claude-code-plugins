@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "No refreshInterval is needed: Claude Code re-runs the status line when the warm cache expires."
+    },
+    {
+      "answer": "You do not need to set refreshInterval."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set refreshInterval to 60 so the expiry updates.",
+      "why": "asks for one"
+    },
+    {
+      "answer": "It needs node on PATH.",
+      "why": "near miss: does not answer about refreshInterval"
+    },
+    {
+      "answer": "A refreshInterval of 1 is recommended but optional.",
+      "why": "near miss: still recommends one"
+    }
+  ]
+}

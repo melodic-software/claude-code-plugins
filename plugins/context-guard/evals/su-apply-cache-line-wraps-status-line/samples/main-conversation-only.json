@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "It covers the main conversation only; subagents and workflows have their own cache."
+    },
+    {
+      "answer": "Only the main conversation's cache is shown."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It covers every subagent and workflow too.",
+      "why": "too wide"
+    },
+    {
+      "answer": "It covers the whole session.",
+      "why": "near miss: no main-conversation limit"
+    },
+    {
+      "answer": "It does not show in -p sessions.",
+      "why": "near miss: another limit"
+    }
+  ]
+}

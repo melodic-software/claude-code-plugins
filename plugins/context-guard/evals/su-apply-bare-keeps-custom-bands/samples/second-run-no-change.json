@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "A second run is a no-op."
+    },
+    {
+      "answer": "Running it again changes nothing; it is idempotent."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A second run would reset the bands.",
+      "why": "changes"
+    },
+    {
+      "answer": "A second run would rewrite the file with the same values and new formatting.",
+      "why": "near miss: a content change"
+    },
+    {
+      "answer": "Run it again to confirm.",
+      "why": "near miss: no answer"
+    }
+  ]
+}

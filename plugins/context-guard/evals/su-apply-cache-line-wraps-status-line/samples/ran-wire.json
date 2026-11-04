@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/.claude/settings.json | node \"/p/scripts/cache-line.mjs\" --wire"
+          }
+        }
+      ],
+      "why": "piped, quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/scripts/cache-line.mjs --wire < ~/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "stdin redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{}' | node '/p/scripts/cache-line.mjs' --wire 2>&1"
+          }
+        }
+      ],
+      "why": "single-quoted path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/scripts/cache-line.mjs --after 'x'"
+          }
+        }
+      ],
+      "why": "near miss: --after, not --wire"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n wire /p/scripts/cache-line.mjs"
+          }
+        }
+      ],
+      "why": "reads the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "no wire run"
+    }
+  ]
+}

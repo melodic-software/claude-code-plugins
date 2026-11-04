@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "That is the state before the first response, or right after /compact."
+    },
+    {
+      "answer": "It appears early in a session or just after a compaction."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It happens when the snapshot is older than 10 minutes.",
+      "why": "near miss: staleness"
+    },
+    {
+      "answer": "It happens when jq is missing.",
+      "why": "near miss: wrong cause"
+    },
+    {
+      "answer": "It happens after /compact.",
+      "why": "near miss: half the answer"
+    }
+  ]
+}

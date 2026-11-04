@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing to do; the next response fills it in."
+    },
+    {
+      "answer": "No action: the resolver answers unknown until the figures arrive."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reinstall the plugin to restore the figures.",
+      "why": "reinstall"
+    },
+    {
+      "answer": "Nothing is broken, but re-run /context-guard:setup apply to be safe.",
+      "why": "near miss: apply advised"
+    },
+    {
+      "answer": "Restart Claude Code and re-enable the mod.",
+      "why": "near miss: rewire"
+    }
+  ]
+}
