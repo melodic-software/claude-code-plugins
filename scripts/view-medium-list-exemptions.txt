@@ -7,9 +7,4 @@
 # that removes a lane's list deletes its row.
 
 architecture  # #12672 architecture slice
-education:illustrate  # #12682 education slice
-education:teach  # #12682 education slice
-overengineering:audit  # #12679 overengineering slice
-prototype:explore-directions  # #12684 prototype slice
-prototype:pressure-test  # #12684 prototype slice
 visualization:visualize  # #12669 visualization slice
