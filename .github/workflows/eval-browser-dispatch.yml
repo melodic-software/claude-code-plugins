@@ -676,7 +676,12 @@ jobs:
             echo "::$token::"
             # summarize.mjs escapes the command it writes; it prints outside
             # the stop-commands block so the runner reads it.
-            if [ -s "$annotation" ]; then head -n 1 "$annotation"; fi
+            # No file at all: summarize.mjs could not read the result (exit 2).
+            if [ -s "$annotation" ]; then
+              head -n 1 "$annotation"
+            elif [ ! -e "$annotation" ]; then
+              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::The result could not be read."
+            fi
           done <<<"$SUITES"
           exit "$failed"
 
