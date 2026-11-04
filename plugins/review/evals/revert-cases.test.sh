@@ -78,6 +78,13 @@ case_out="$(cd "$REPO" && bash "$CASES" build "$B" "$D" add-x)"
 expect "$?" "build exits 0"
 case_dir="$WORK/evals/revert-2-add-x"
 expect "$(same "$case_out" "$case_dir")" "build prints the case directory"
+g show "$B^:app.sh" | cmp -s - "$case_dir/fixtures/base/app.sh.txt"
+expect "$?" "build writes the file before the change as fixtures/base/<path>.txt"
+g show "$B:app.sh" | cmp -s - "$case_dir/fixtures/head/app.sh.txt"
+expect "$?" "build writes the file at the merge as fixtures/head/<path>.txt"
+expect "$(has "## Pull request #2: feat: add x" "$(cat "$case_dir/fixtures/pr-context.md.txt")")" \
+  "build writes the context as fixtures/pr-context.md.txt"
+expect "$(($(find "$case_dir" -name '*.tar.gz' | grep -c .) != 0))" "build writes no archive"
 yaml="$(cat "$case_dir/case.yaml")"
 expect "$(has "# revert: #4 $D" "$yaml")" "case.yaml records the revert"
 expect "$(has "# pr: melodic-software/claude-code-plugins#2 (merged as $B)" "$yaml")" "case.yaml records the original"
@@ -101,9 +108,20 @@ expect "$?" "scaffold exits 0 once the case is confirmed"
 expect "$(has "+x=1" "$(cat "$WORK/ws/.claude-lane/pr.diff")")" "scaffold writes the pull request's diff"
 expect "$(has "feat: add x" "$(git -C "$WORK/ws" log -1 --format=%s)")" "scaffold commits the change under its subject"
 expect "$(has "## Pull request #2: feat: add x" "$(cat "$WORK/ws/.claude-lane/pr-context.md")")" "scaffold writes the context"
+# shellcheck disable=SC2016 # the fixture file holds a literal $x
+expect "$(same "$(git -C "$WORK/ws" show main:app.sh)"$'\n'"$(git -C "$WORK/ws" show change:app.sh)" \
+  $'a\nb\nc\na\nx=1\necho "$x"\nb\nc')" "scaffold puts the base on main and the merge on change"
 (cd "$WORK/ws" && bash "$case_dir/scaffold.sh" 2>/dev/null)
 code=$?
 expect "$((code != 2))" "scaffold refuses a directory that is already a repository"
+
+mv "$case_dir/fixtures" "$WORK/fixtures-aside"
+mkdir -p "$WORK/nofixtures"
+(cd "$WORK/nofixtures" && bash "$case_dir/scaffold.sh") 2>"$WORK/err"
+code=$?
+expect "$((code != 2))" "scaffold exits 2 when the case has no fixtures directory"
+expect "$(has "no fixtures for revert-2-add-x" "$(cat "$WORK/err")")" "scaffold names the case it has no fixtures for"
+mv "$WORK/fixtures-aside" "$case_dir/fixtures"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "SKIP: node is not installed; grader and report not tested"
