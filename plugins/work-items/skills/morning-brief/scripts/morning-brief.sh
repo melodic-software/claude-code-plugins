@@ -2157,6 +2157,21 @@ SPEND_JQ="$LANE_DEFS"'
 
 LANES_PARTIAL=0
 CALLER_JOB_RE='^([a-z0-9][a-z0-9-]*) / '
+# fetch_lane_runs_by_day WORKFLOW SINCE_EPOCH: replaces $WORK/lane.page with one runs search per
+# UTC day from SINCE_EPOCH's day through today.
+fetch_lane_runs_by_day() {
+  local wf="$1" e="$2" day today
+  today="$(from_epoch "$NOW_EPOCH")"
+  today="${today%%T*}"
+  : >"$WORK/lane.days"
+  while day="$(from_epoch "$e")" && day="${day%%T*}" && [[ ! "$day" > "$today" ]]; do
+    gh_read "$WORK/lane.day" api --paginate "repos/$REPO/actions/workflows/$(urlencode "$wf")/runs?created=$day&per_page=100" || return 1
+    cat "$WORK/lane.day" >>"$WORK/lane.days"
+    e=$((e + 86400))
+  done
+  mv "$WORK/lane.days" "$WORK/lane.page"
+}
+
 # fetch_lane_runs OUTFILE SINCE_EPOCH: an object of workflow file -> runs.
 fetch_lane_runs() {
   local out="$1" day wf
@@ -2165,6 +2180,11 @@ fetch_lane_runs() {
   echo '{}' >"$out"
   for wf in "${LANE_WORKFLOWS[@]}"; do
     gh_read "$WORK/lane.page" api --paginate "repos/$REPO/actions/workflows/$(urlencode "$wf")/runs?created=>=$day&per_page=100" || return 1
+    # A runs search stops short of its total_count past a result cap (see SKILL.md's runs-listing
+    # record); one search per day keeps a busy lane's week whole.
+    if [[ "$(jq -s '(.[0].total_count // 0) > ([.[].workflow_runs[]?] | length)' "$WORK/lane.page" 2>/dev/null)" == "true" ]]; then
+      fetch_lane_runs_by_day "$wf" "$2" || return 1
+    fi
     jq -s --arg wf "$wf" --slurpfile acc "$out" '
       $acc[0] + {($wf): [ .[].workflow_runs[]? | {id, html_url, event, display_title, head_sha, status, conclusion, created_at} ]}
     ' "$WORK/lane.page" >"$WORK/lane.acc" 2>/dev/null || {
