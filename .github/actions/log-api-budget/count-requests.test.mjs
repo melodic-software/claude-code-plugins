@@ -230,14 +230,18 @@ const runStep = (script) => {
 test("API_BUDGET_SCRIPT ends the process with its own api-calls line, which the job-end lines agree with", () => {
   const { step, job } = runStep("who");
   assert.equal(step, "::notice title=api-calls::script=who github-token=3 lanes-app=1 not-modified=1 graphql=1\n");
-  assert.equal(job, "::notice title=api-calls::github-token=3 not-modified=1 graphql=1\n::notice title=api-calls::lanes-app=1 not-modified=0 graphql=0\n");
+  assert.equal(
+    job,
+    "::notice title=api-calls::github-token=3 not-modified=1 graphql=1 core-by-reset=1792751600:2 core-unread=0\n" +
+      "::notice title=api-calls::lanes-app=1 not-modified=0 graphql=0 core-by-reset=1792751600:1 core-unread=0\n",
+  );
 });
 
 test("without API_BUDGET_SCRIPT, or with one that is not lower-case kebab case, the same calls print nothing", () => {
   for (const script of [undefined, "Who", "who::x", ""]) {
     const { step, job } = runStep(script);
     assert.equal(step, "", String(script));
-    assert.match(job, /^::notice title=api-calls::github-token=3 not-modified=1 graphql=1$/m);
+    assert.match(job, /^::notice title=api-calls::github-token=3 not-modified=1 graphql=1 core-by-reset=1792751600:2 core-unread=0$/m);
   }
 });
 

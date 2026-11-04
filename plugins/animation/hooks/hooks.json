@@ -6,11 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/install-python-deps.sh"
-            ],
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/install-python-deps.sh\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/install-python-deps.sh\"",
             "timeout": 300,
             "statusMessage": "Installing animation Python packages..."
           }

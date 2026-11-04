@@ -1456,6 +1456,8 @@ merge:
         class: trust
       - glob: ".github/actions/log-api-budget/rate-guard.mjs"
         class: gate
+      - glob: ".github/actions/log-api-budget/api-budget.bash"
+        class: gate
       - glob: ".github/actions/log-api-budget/rate-limits.json"
         class: gate
       - glob: ".github/scripts/pr-merge/merge-holds.mjs"

@@ -597,7 +597,14 @@ plugins/source-control/scripts/worktree-create.test.sh 11
 plugins/source-control/scripts/worktree-root-doctor.test.sh 1
 plugins/source-control/scripts/worktree-root-scan.test.sh 1
 plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.test.sh 1
-plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 241
+# The four engine*.test.sh rows split the unsplit engine suite's 241 s main
+# median by each part's share of the test-python medians below (an unlisted
+# module counted 1 s): 56 s for part b, 67 s for c, 50 s for d and 24 s for
+# engine.test.sh, part a.
+plugins/source-control/skills/babysit-prs/scripts/engine-b.test.sh 69
+plugins/source-control/skills/babysit-prs/scripts/engine-c.test.sh 82
+plugins/source-control/skills/babysit-prs/scripts/engine-d.test.sh 61
+plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 29
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_check_inputs.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_checks.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_classify.py 1

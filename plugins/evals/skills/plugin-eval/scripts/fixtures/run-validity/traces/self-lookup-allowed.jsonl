@@ -1,0 +1,8 @@
+{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill","Read","Glob","Grep"],"plugins":[{"name":"demo","path":"/tmp/eval-ctl/plugins/demo","source":"demo@inline"}]}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"r1","name":"Read","input":{"file_path":"/tmp/eval-ctl/plugins/demo/skills/x/reference/r.md"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"r1","content":"1\t# Reference\n2\tStep one."}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"b1","name":"Glob","input":{"pattern":"skills/**/SKILL.md","path":"/tmp/eval-ctl/plugins/demo"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"b1","content":"/tmp/eval-ctl/plugins/demo/skills/x/SKILL.md"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"g1","name":"Grep","input":{"pattern":"## Procedure","path":"/tmp/eval-ctl/plugins/demo/skills/x"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"g1","content":"Found 1 file\n/tmp/eval-ctl/plugins/demo/skills/x/SKILL.md"}]}}
+{"type":"result","subtype":"success","is_error":false,"permission_denials":[]}

@@ -225,10 +225,14 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   operator-stated `--actors` file. A non-interactive run passes no file, and the artifact says so.
 - **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4 view of the code reads the key
   the authoring-formats convention assigns to
-  C4 system views, which refuses mermaid because mermaid C4 is experimental. An unset key is the
+  C4 system views, which refuses mermaid. An unset key is the
   common case: the run still writes `context.json` and a `context.md` with no diagram, and the report says no
   view was emitted. The
   key is documented in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
+  - **Pointer**: for what mermaid's C4 support covers, see
+    [Mermaid: C4 Diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams).
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: that page changes the status of C4 support or adds a diagram type.
 - **Redaction keeps the shape.** Host, service kind, and an optional numeric port. A secret-only
   key (`Password`, `ClientSecret`, `AccountKey`, and the rest named in `redact-connection.awk`)
   produces no row. Loopback hosts are not external systems. Do not paste a raw value into the

@@ -1321,6 +1321,10 @@ def _check(name: str, conclusion: str | None) -> dict[str, Any]:
     }
 
 
+def _status(context: str, state: str) -> dict[str, Any]:
+    return {"__typename": "StatusContext", "context": context, "state": state}
+
+
 class AutoMergeArming(unittest.TestCase):
     """`--auto` arms auto-merge only when running checks are the sole hold and
     both AI review lanes have finished on the live head."""
@@ -1510,6 +1514,51 @@ class AutoMergeArming(unittest.TestCase):
             rollup("SUCCESS"), mergeStateStatus="UNSTABLE", headRefOid=STALE
         )
         self.assertFalse(moved["autoMerge"]["ready"], moved["autoMerge"])
+
+    def test_unarmed_status_left_by_a_failed_review_holds_no_rejudgment(
+        self,
+    ) -> None:
+        def rollup(review: str, *, also: str | None = None) -> list[dict[str, Any]]:
+            return [
+                _check("ci-status", "SUCCESS"),
+                _check("review / claude-review-status", review),
+                _check("security-review / claude-security-review-status", "SUCCESS"),
+                _status(merge.UNARMED_STATUS_CONTEXT, "FAILURE"),
+                *([_check(also, "FAILURE")] if also else []),
+            ]
+
+        refused = self._evaluate(rollup("FAILURE"), mergeStateStatus="UNSTABLE")
+        self.assertFalse(refused["autoMerge"]["ready"], refused["autoMerge"])
+
+        rejudged = self._evaluate(rollup("SUCCESS"), mergeStateStatus="UNSTABLE")
+        self.assertTrue(rejudged["autoMerge"]["ready"], rejudged["autoMerge"])
+        self.assertEqual(rejudged["failingChecks"], [])
+        self.assertFalse(
+            [b for b in rejudged["blockers"] if b.startswith("mergeStateStatus=")],
+            rejudged["blockers"],
+        )
+
+        other = self._evaluate(
+            rollup("SUCCESS", also="test-windows"), mergeStateStatus="UNSTABLE"
+        )
+        self.assertFalse(other["autoMerge"]["ready"], other["autoMerge"])
+        self.assertIn("failing checks: test-windows", other["blockers"])
+        self.assertTrue(
+            [b for b in other["blockers"] if b.startswith("mergeStateStatus=UNSTABLE")],
+            other["blockers"],
+        )
+
+    def test_a_check_run_named_like_the_unarmed_status_still_fails(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", "SUCCESS"),
+                _check("review / claude-review-status", "SUCCESS"),
+                _check("security-review / claude-security-review-status", "SUCCESS"),
+                _check(merge.UNARMED_STATUS_CONTEXT, "FAILURE"),
+            ],
+            mergeStateStatus="UNSTABLE",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
 
     def test_unresolved_thread_holds(self) -> None:
         rollup = [

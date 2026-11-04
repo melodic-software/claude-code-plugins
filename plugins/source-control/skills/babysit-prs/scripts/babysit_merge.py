@@ -126,7 +126,8 @@ Contract enforced here (encoded as code, not convention):
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, approvals, conversation resolution, and up-to-date where the
-base requires it) plus
+base requires it), or on `UNSTABLE` when pr-merge's own failing
+`pr-merge/unarmed` status is the only failing check, plus
 explicit cross-checks so the *reason* for a block is always reported: the
 effective branch rules (`rules/branches`), the review decision, unresolved
 review threads, and the status-check rollup.
@@ -283,6 +284,22 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # all commit status passing": CLEAN on github.com, HAS_HOOKS when the repo has
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
+
+# The commit status pr-merge posts on a head it left unarmed
+# (.github/scripts/pr-merge/enable-auto-merge.mjs UNARMED_CONTEXT). It reports
+# an earlier refusal and is no input to this one: counted, it fails the gate's
+# failing-checks rule and holds `mergeStateStatus` at UNSTABLE, so the PR stays
+# refused after the refusal's cause clears and the run that would post the
+# passing status never arms it.
+UNARMED_STATUS_CONTEXT = "pr-merge/unarmed"
+
+
+def is_unarmed_status(check: dict[str, Any]) -> bool:
+    return (
+        check.get("type") == "StatusContext"
+        and check.get("name") == UNARMED_STATUS_CONTEXT
+    )
+
 
 # The two AI review lanes `--auto` waits for. `ci-status` is the only required
 # check and does not wait on these separate workflows, so auto-merge armed
@@ -1675,7 +1692,15 @@ def evaluate(
     pr, graphql_available = view_pr_fields(repo, number, view_fields, run_json=gh_json)
     threads = unresolved_threads(repo, number)
     checks = classify_checks(pr.get("statusCheckRollup"))
-    failing = checks["failing"]
+    failing = [
+        check["name"]
+        for check in checks["checks"]
+        if check["category"] == "failing" and not is_unarmed_status(check)
+    ]
+    unarmed_failing = any(
+        check["category"] == "failing" and is_unarmed_status(check)
+        for check in checks["checks"]
+    )
     pending = checks["pending"]
     checks_by_key: dict[tuple[str, str, str], dict[str, Any]] = {
         check_identity_key(check): check for check in checks["checks"]
@@ -1782,7 +1807,16 @@ def evaluate(
         blockers.append(
             f"mergeable={pr.get('mergeable')} (conflict or still computing)"
         )
-    if pr.get("mergeStateStatus") not in READY_MERGE_STATES:
+    # UNSTABLE is a non-required check not passing. When the only failing check
+    # is the unarmed status, that status is the cause, so the state counts as
+    # ready; a running check still holds through the pending-checks rule.
+    unstable_from_unarmed_only = (
+        pr.get("mergeStateStatus") == "UNSTABLE" and unarmed_failing and not failing
+    )
+    if (
+        pr.get("mergeStateStatus") not in READY_MERGE_STATES
+        and not unstable_from_unarmed_only
+    ):
         blockers.append(
             f"mergeStateStatus={pr.get('mergeStateStatus')} "
             + "(need CLEAN/HAS_HOOKS: integrates required checks, up-to-date, "
