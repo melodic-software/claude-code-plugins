@@ -187,11 +187,11 @@ describe("earlier reviews and blocking only", () => {
 
   test("a reviewed-head summary comment counts its head when it reports a review, clean or not, never a skip", () => {
     // The status line ci-workflows publish-review/publish.cjs statusLine writes.
-    const summary = (sha, findings, author = BOT) => ({
+    const summary = (sha, findings, author = BOT, read = "2 of 2") => ({
       url: "u",
       lastEditedAt: null,
       author,
-      body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${sha} -->\n<!-- claude-lane-reviewed-base ref=main merge-base=${v1} -->\n**${LANE}** reviewed \`${sha}\`: read 2 of 2 changed file(s); ${findings} finding(s), 0 as inline comments.\n\nA finding.\n\ncritical-findings: 0`,
+      body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${sha} -->\n<!-- claude-lane-reviewed-base ref=main merge-base=${v1} -->\n**${LANE}** reviewed \`${sha}\`: read ${read} changed file(s); ${findings} finding(s), 0 as inline comments.\n\nA finding.\n\ncritical-findings: 0`,
     });
     const skip = {
       url: "u",
@@ -203,6 +203,9 @@ describe("earlier reviews and blocking only", () => {
     assert.equal(reviewed([summary(v1, 1), summary(shifted, 2)]), 2);
     // A clean first review is still the first whole review.
     assert.equal(reviewed([summary(v1, 0)]), 1);
+    // A partial read is not a whole review: files no review saw stay unreviewed.
+    assert.equal(reviewed([summary(v1, 0, BOT, "3 of 18")]), 0);
+    assert.equal(reviewed([summary(v1, 0, BOT, "0 of 18")]), 0);
     assert.equal(reviewed([skip]), 0);
     assert.equal(reviewed([summary(edited, 1)]), 0);
     assert.equal(reviewed([summary(v1, 1, PERSON)]), 0);

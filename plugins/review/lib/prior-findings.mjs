@@ -82,20 +82,21 @@ export function isLanePost(post, lane) {
   return footer(lane).test(lines.at(-1) ?? "") || marker(lane).test(lines[0] ?? "");
 }
 
-// A reviewed-head comment's head and whether its status line reports a
+// A reviewed-head comment's head and whether its status line reports a whole
 // review, as ci-workflows publish-review/publish.cjs writes them: the marker,
 // an optional reviewed-base line, then `**<lane>** reviewed `<sha>`: read N of
-// M changed file(s); K finding(s), ...`. A skip's "needs no new review" line
-// reports none.
+// M changed file(s); K finding(s), ...`. Only N equal to M is a whole review:
+// a partial read leaves files no review saw. A skip's "needs no new review"
+// line reports none.
 function reviewedHead(body, lane) {
   const lines = nonBlank(body);
   const sha = marker(lane).exec(lines[0] ?? "")?.[1];
   if (!sha) return null;
   const status = lines[1]?.startsWith("<!-- claude-lane-reviewed-base ") ? lines[2] : lines[1];
-  const reviewed = new RegExp(`^\\*\\*${lane}\\*\\* reviewed \`${sha}\`: read \\d+ of \\d+ changed file\\(s\\); \\d+ finding\\(s\\)`, "u").test(
+  const read = new RegExp(`^\\*\\*${lane}\\*\\* reviewed \`${sha}\`: read (\\d+) of (\\d+) changed file\\(s\\); \\d+ finding\\(s\\)`, "u").exec(
     status ?? "",
   );
-  return { sha, reviewed };
+  return { sha, reviewed: read !== null && read[1] === read[2] };
 }
 
 // Whether `git diff -U0 <posted> <head>` output changes any line in
