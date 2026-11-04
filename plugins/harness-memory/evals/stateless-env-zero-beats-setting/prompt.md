@@ -1,0 +1,1 @@
+With the harness-memory:stateless skill, tell me whether auto memory is actually on for this repo; I turned it off in my local settings a while ago. Go by this repo's project and local settings, read only files inside this repository, and don't change anything. No one is around to answer questions while this runs, so put the answer in your reply.

@@ -289,4 +289,4 @@ full rules. Never runs from bare `apply`.
   `apply install-read-deny` rules in the settings file its scope names, the confirmed
   `apply identity-domains` map, and `apply`'s confirmed cleanup of the retired hooks.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
-  through the native configuration surface.
+  through the native plugin configuration.

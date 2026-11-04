@@ -5,6 +5,20 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.11] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [3.0.10] - 2026-11-04
+
+### Fixed
+
+- `audit-permission-grants` now scans the main checkout's `.claude/settings.local.json` when run in a linked worktree, and a subdirectory's `.claude/settings.json` when run from that subdirectory.
+- `audit-automation-gaps` inventory reads the same files: the start directory's `.claude/settings.json`, and the main checkout's `.claude/settings.local.json` in a linked worktree.
+- The effort-pin drift check hashes the defaults list item without its list number, so renumbering the list no longer reports the table `changed`.
+
 ## [3.0.9] - 2026-11-04
 
 ### Changed

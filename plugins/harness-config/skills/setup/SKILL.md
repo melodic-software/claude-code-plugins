@@ -34,7 +34,7 @@ the marketplace repository): `check` inspects and reports, `apply` resolves. Thi
 - the external command-line tools its bundled scripts require, where `apply` is guidance-and-verify
   with no write path: it points at platform install instructions and never installs a system package;
 - the **tracked consumer-project configuration** `audit` and `audit-pass` read, the `suppressions`
-  mapping of `<home>/harness-config.yaml`, the one surface `apply` may write. `<home>` is the
+  mapping of `<home>/harness-config.yaml`, the one file `apply` may write. `<home>` is the
   convention home the repository binds in the pointer region of its `AGENTS.md` or `CLAUDE.md`
   (`bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` prints it), else `docs/conventions`.
 

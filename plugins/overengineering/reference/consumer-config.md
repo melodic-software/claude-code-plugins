@@ -1,6 +1,6 @@
 # overengineering: consumer configuration
 
-Owner doc for this plugin's configuration surface: `.claude/overengineering.md` in the consuming
+Owner doc for this plugin's configuration file: `.claude/overengineering.md` in the consuming
 repository, layered per the consuming marketplace's config-cascade convention. Every layer is
 optional. Zero config is a fully working state, and the bundled defaults in
 `context/scrutiny-method.md` (§7 protected patterns, §9 thresholds, §11 observation window) apply

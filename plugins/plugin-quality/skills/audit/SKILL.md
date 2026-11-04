@@ -493,4 +493,4 @@ where `${…}` resolves, or the record moves out of that section.
 | `reference/component-types/skill-component.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `reference/component-types/agent.md` | Auditing an agent/subagent definition. |
 | `reference/component-types/command.md` | Auditing a slash command. |
-| `reference/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |
+| `reference/component-types/config.md` | Auditing plugin config / settings / userConfig files and options, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |

@@ -175,7 +175,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - **A userConfig knob is reachable natively only if the manifest declares it.** Per current
   docs, `claude plugin install --config <key=value>` sets options "declared in the plugin's
-  manifest". An undeclared key silently cannot be set through native config surfaces (a raw
+  manifest". An undeclared key silently cannot be set through native plugin configuration (a raw
   settings `env` block still works).
 - **`--config`'s post-install behavior is undocumented, so the fallback above rests on
   observation.** The official docs describe `--config` only as a `claude plugin install` flag

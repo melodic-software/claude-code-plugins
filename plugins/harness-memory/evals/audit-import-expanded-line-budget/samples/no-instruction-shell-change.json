@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/instruction-load-stats.sh --breakdown"}}], "why": "the read-only script"},
+    {"answer": [{"tool": "Bash", "input": {"command": "wc -l CLAUDE.md docs/module-guide.md"}}], "why": "a read"},
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -n '1,20p' CLAUDE.md"}}], "why": "sed without -i"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -i '/module-guide/d' CLAUDE.md"}}], "why": "in-place edit"},
+    {"answer": [{"tool": "Bash", "input": {"command": "rm docs/module-guide.md"}}], "why": "deleted the import"},
+    {"answer": [{"tool": "Bash", "input": {"command": "head -20 docs/module-guide.md > docs/module-guide.md"}}], "why": "redirect over the file"}
+  ]
+}
