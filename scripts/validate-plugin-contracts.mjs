@@ -768,7 +768,12 @@ function withoutYamlDescriptions(text) {
       continue;
     }
     const key = /^(\s*(?:[-?]\s+)?)["']?description["']?\s*(:?)(.*)$/.exec(line);
-    if (!key) continue;
+    if (!key) {
+      // A flow-mapping description: drop the line and any continuation lines
+      // indented past it, since a flow collection may span several lines.
+      skip = { column, ownColumn: /$^/ };
+      continue;
+    }
     const explicit = key[1].trim() === "?";
     const empty = key[3].trim() === "";
     skip = {

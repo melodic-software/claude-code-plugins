@@ -921,6 +921,12 @@ YAML
 r002_uncovered "an id only in a flow-mapping description is not covered"
 
 r002_fixture <<'YAML'
+graders: [{name: g, description:
+  alpha-r002 dropped, type: regex, pattern: clean}]
+YAML
+r002_uncovered "an id only in a multi-line flow-mapping description is not covered"
+
+r002_fixture <<'YAML'
 description:
 - alpha-r002 dropped
 - another note
