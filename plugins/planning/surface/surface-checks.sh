@@ -59,7 +59,7 @@ if [[ "$part" == main || "$part" == all ]]; then
     names="${names:+$names|}${p##*/}"
   done
   # Two exemptions, each naming /planning:plan as the actor on a decision, never a visual's
-  # producer: exporters.py's ARBITER_PLAN line writes the Brief contract's arbiter token (the
+  # producer: exporters.py's ARBITER_PLAN line writes the Brief's arbiter token (the
   # Deferred questions tag in the interview skill's Brief template), and the superseded-by-plan
   # banner in index.html, with its ui_c.js assertion, says the plan changed the user's answer.
   # A CSS declaration after `{` or `;` (`{animation:pulse ...}`) is a property, not a token.

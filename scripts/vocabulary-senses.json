@@ -118,7 +118,10 @@
       ],
       "allow": [
         {"phrase": "\\bdocs/contracts\\b|\\bcontracts/[\\w-]+|\\bversioned contracts?\\b", "reason": "a versioned contract under docs/contracts"},
-        {"phrase": "\\binterface contracts?\\b", "reason": "an interface contract at design"}
+        {"phrase": "\\binterface contracts?\\b", "reason": "an interface contract at design"},
+        {"phrase": "\\b(pr|api|feed|payload|behavioral|presentation|execution|detection)[- ]contracts?\\b", "reason": "a named contract that is not the Brief: a PR, API, feed or payload contract, the agent brief's behavioral contract, plan's presentation contract, the interview's execution contract or the handoff detection contract"},
+        {"phrase": "\\bname[- ]by[- ]contract\\b", "reason": "the agent brief's name-by-contract rule"},
+        {"phrase": "\\bcontract case\\b", "reason": "an eval's Contract case label names a behavior case, not the Brief"}
       ]
     }
   ]

@@ -2397,8 +2397,8 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   import. A `security-risk` hold read from the run's words also names the matched word, reduced to
   letters, digits, hyphens, underscores and spaces in a code span, so a person can dismiss a false
   hit in one read; the word changes nothing about the hold. `hold` labels the issue with the human-gated
-  role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
-  agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
+  role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an agent run
+  or builder session on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes
   `agent-ready`, asking no decision; `retry` keeps
   `agent-ready` with `<!-- work-resolve-issue outcome=retry run=<run id> -->`, so the work-unblock
