@@ -591,13 +591,15 @@ Emitters that resolve `medium` through the shared resolver (see The `rendered-vi
 keeping their shipped default only when no scope sets it: `adhd:clarify`. Its output prints the
 resolver's report line and notices.
 
+`architecture:improve` resolves `medium` through the shared resolver (lane `architecture`, see
+"The `rendered-views` settings") and publishes nothing: `terminal` skips the HTML report and leaves
+the candidate artifact; every other value writes the local report.
+
 Emitters that resolve `medium` from the argument, then the cascade, and publish nothing themselves.
 None has a `medium` option, so no
 plugin dial sits between the argument and the cascade. Each names the source of `medium`, or
 "shipped default", and keeps its shipped behavior when no layer sets one:
 
-- `architecture:improve`: `terminal` skips the HTML report and leaves the candidate artifact;
-  every other value writes the local report.
 - `education:teach` (topic mode): `terminal` writes `lesson.md`; `file` keeps the host-aware
   format choice and drops the artifact-share offer; `artifact` and `hosted` keep the offer.
 - `prototype:explore-directions`: the mockup stays a local file at every value; `terminal` and
