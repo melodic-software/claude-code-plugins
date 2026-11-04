@@ -132,15 +132,16 @@
     },
     {
       "id": 11,
-      "name": "retired-settings-file-gives-a-notice-not-a-value",
+      "name": "retired-settings-file-still-keeps-the-view-local",
       "prompt": "clarify this. (Fixture: the previous assistant response holds three open decisions; ~/.claude/rendered-views.md contains only 'medium: terminal'; no other rendered-views setting exists and the adhd plugin's medium option is auto; no --medium argument was given.)",
-      "expected_output": "Runs the shared medium resolver and does not read ~/.claude/rendered-views.md itself. That file is retired: the resolver gives a notice that it is no longer read and names the plugin's medium option as where to set the value instead, and the file's value does not decide the medium. The skill prints the report line and that notice as they stand, and its rendering table picks the rung.",
+      "expected_output": "Runs the shared medium resolver and does not read ~/.claude/rendered-views.md itself. That file is retired, but its local value still keeps the view local when no scope sets one: the resolver returns medium terminal, its report line names the retired file as what decided, and its notice says the file is retired but still keeps the view local and names where to set the value instead. The skill prints the report line and that notice as they stand and keeps the decision table in the terminal; it publishes no Artifact.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Does not read ~/.claude/rendered-views.md or take its value as the medium",
-        "Prints the resolver's notice that the retired file is no longer read and where to set the value instead",
-        "Prints the resolver's report line, which names the plugin default as what decided"
+        "Runs the shared medium resolver instead of reading ~/.claude/rendered-views.md itself",
+        "Prints the resolver's notice that the retired file still keeps the view local and where to set the value instead",
+        "Prints the resolver's report line, which names the retired ~/.claude/rendered-views.md as what decided",
+        "Keeps the decision table in the terminal and publishes no Artifact"
       ]
     }
   ]
