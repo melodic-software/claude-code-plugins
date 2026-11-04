@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Yes, leaving it absent is a valid end state. The hooks stay quiet, and the once-per-session SessionStart notice is the only signal."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, pwsh is required, so install it.",
+      "why": "calls it a defect"
+    },
+    {
+      "answer": "Yes, you can leave it off.",
+      "why": "near miss: says nothing about what still reports it"
+    }
+  ]
+}

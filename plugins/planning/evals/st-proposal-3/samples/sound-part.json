@@ -1,10 +1,6 @@
 {
   "pass": [
     {
-      "answer": "",
-      "why": "empty reply flags nothing"
-    },
-    {
       "answer": "No plan gaps found.\n",
       "why": "clean report"
     },
@@ -31,10 +27,6 @@
     {
       "answer": "- Polling is not wasteful here: the pooler cannot use LISTEN/NOTIFY.\n",
       "why": "approval"
-    },
-    {
-      "answer": "The draft says polling every five seconds is fine; it isn't, polling is wasteful.\n",
-      "why": "known limit: a quoted claim rebutted without a contrast word followed by a target term is not credited; a real attack left unflagged"
     }
   ],
   "fail": [
@@ -73,6 +65,10 @@
     {
       "answer": "- Sleeping five seconds between empty queries is wasteful; use LISTEN/NOTIFY.\n",
       "why": "five seconds, plural"
+    },
+    {
+      "answer": "The draft says polling every five seconds is fine; it isn't, polling is wasteful.\n",
+      "why": "quotes the approval, then rebuts it with no contrast word"
     }
   ]
 }

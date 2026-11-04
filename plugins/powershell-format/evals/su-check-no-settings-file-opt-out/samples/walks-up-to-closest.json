@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "It checks a file only when a PSScriptAnalyzerSettings.psd1 governs it: it walks up from the file to the repo root and stops at the closest one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It checks every PowerShell file in the repository.",
+      "why": "wrong rule"
+    },
+    {
+      "answer": "It looks for a settings file at the repo root.",
+      "why": "near miss: no walk from the file, no closest"
+    }
+  ]
+}

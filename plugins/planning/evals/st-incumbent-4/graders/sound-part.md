@@ -1,7 +1,20 @@
 ---
-type: regex
-pattern: '^(?![^\n]*\bNo plan gaps found)(?!(?![^\n]*\b(?:draft|plan|proposal|Phase\s*\d+|section|brief|author|it)(?:''s)?\s+(?:\w+\s+)?(?:says|said|assumes|assumed|claims|claimed|states|asserts|argues)\b[^\n]*\b(?:but|however|yet)\b)[^\n]*\b(?:is|are|was|were|looks?|seems?|remains?)\s+(?!not\b|never\b)(?:(?:perfectly|entirely|totally|already|also|still|actually)\s+)?(?:fine|ok|okay|good|correct|accurate|sound|acceptable|safe|justified|reasonable)\b(?![^\n]*\b(?:but|however|yet|although|though)\b[^\n]*(?:\b4\s*KB\b|\bsize\s+limit\b|\bvalue\s+(?:limit|size)\b)))(?![^\n]*\b(?:no|not\s+an?|n''t\s+an?)\s+(?:(?!(?:minor|small|trivial|cosmetic|theoretical|hypothetical)\b)\w+\s+){0,2}(?:issue|problem|concern|risk|defect|gap|finding|blocker)s?\b)(?![^\n]*\b(?:nothing\s+wrong|no\s+need\s+to|need\s+not|can\s+be\s+ignored|no\s+action\s+needed|no\s+changes?\s+needed)\b)(?![^\n]*(?:(?:\bnot|\bnever|n''t)\s+(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,2}|\b(?:no|none|nothing|neither)\b\s*(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)[\w`]+\s+){0,5}?)(?:exceed\w*|overflow\w*|\btruncat\w*|too\s+\w+|come\s+close))(?=[^\n]*(?:\b4\s*KB\b|\bsize\s+limit\b|\bvalue\s+(?:limit|size)\b))(?:[^\n]*(?:\btoo\s+(?:small|low|large|long|big)\b|\bexceed\w*|\boverflow\w*|\btruncat\w*|\b(?:won''t|doesn''t|does\s+not|cannot|can''t)\s+fit\b|\bnot\s+enough\b)|[^\n]*(?:\b4\s*KB\b|\bsize\s+limit\b|\bvalue\s+(?:limit|size)\b)(?:(?!\b(?:but|however|yet)\b)[^\n.;:!?|,])*\b(?:unverified|wrong)\b|[^\n]*\b(?:unverified|wrong)\b(?:(?!\b(?:but|however|yet)\b)[^\n.;:!?|,])*(?:\b4\s*KB\b|\bsize\s+limit\b|\bvalue\s+(?:limit|size)\b))'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft plan for an invoicing app that decides whether to replace the field
+encryption library sealing customer data. One part of the draft is sound: Vaultline's 4 KB value
+limit is far above the model's field caps (the longest field, email, is 254 characters). This
+grader checks only that the reply leaves the size limit alone. The case's other graders score the
+defects it finds.
+
+PASS if no finding says a value can exceed the 4 KB limit. A reply passes when it approves the
+limit, says no field comes near it, reports other defects (Vaultline's random output breaking the
+email lookup, `Sealbox.rekey` existing since 5.0.0, or the reseal task failing on a re-run), or
+flags nothing.
+
+FAIL if any finding says the 4 KB limit is too small, that sealed values can exceed, overflow or
+be truncated by it, that the value size claim is unverified or needs measuring, or that nothing
+checks values stay under it. A finding that quotes the draft's approval of the limit and then
+attacks it fails.

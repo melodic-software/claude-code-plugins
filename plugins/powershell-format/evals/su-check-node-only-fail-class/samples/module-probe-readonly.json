@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { \"present\" } else { \"absent\" }'"
+          }
+        }
+      ],
+      "why": "the skill's probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v pwsh >/dev/null && pwsh -NoProfile -NonInteractive -Command \"Get-Module -ListAvailable -Name PSScriptAnalyzer\""
+          }
+        }
+      ],
+      "why": "chained behind the pwsh probe, double-quoted"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NonInteractive -NoProfile -c 'Get-Module -ListAvailable PSScriptAnalyzer'"
+          }
+        }
+      ],
+      "why": "flags swapped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -Command 'Get-Module -ListAvailable -Name PSScriptAnalyzer'"
+          }
+        }
+      ],
+      "why": "near miss: loads the profile"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()'"
+          }
+        }
+      ],
+      "why": "the version probe, not the module probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'pwsh -NoProfile -NonInteractive -Command Get-Module -ListAvailable' SKILL.md"
+          }
+        }
+      ],
+      "why": "the probe as a search term"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ]
+}

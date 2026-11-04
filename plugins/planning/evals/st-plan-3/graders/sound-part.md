@@ -1,7 +1,21 @@
 ---
-type: regex
-pattern: '^(?:(?=[^\n]*\b(?:but|however|only\s+if|unless|although|though)\b)|(?![^\n]*(?:\bNo plan gaps found\b|\b(?:is|are|looks?|seems?)\s+(?:perfectly\s+|entirely\s+|fully\s+|also\s+)?(?:fine|ok|okay|good|sound|correct|right|accurate|safe)\b|\bno\s+(?:\w+\s+)?(?:issue|problem|concern|finding|gap|defect|risk)s?\b|\bnot\s+a\s+(?:\w+\s+)?(?:issue|problem|concern|defect|gap|risk)\b|\bnothing\s+to\s+(?:flag|fix|report)\b)))(?![^\n]*(?:\balready\s+(?:has|have|exists?|provides?|adds?|added|creates?|created|defines?|ships?|includes?|covers?|in\s+place|there|present|indexed|backed)\b|\b(?:exists?|provided|added|created|defined|covered|indexed|there)\s+already\b|\b(?:no|(?:not|never|cannot|(?:is|are|was|were|do|does|did|has|have|had|ca|could|wo|would|should|must)n.?t)|without)\s+(?:(?!(?:and|or|so|but|which|then|thus)\b)\w+\s+){0,2}(?:needed|required|need\w*|requires?)\b))(?=[^\n]*(?:\bnext_renewal_at\b|\bsubscriptions_active_next_renewal_idx\b|\bfindDue\b))[^\n]*(?:\b(?:no|missing)\s+(?:\w+\s+){0,2}(?:index|column)\b|\b(?:index|column)\s+(?:\w+\s+){0,2}(?:is|are)\s+missing\b|\b(?:index|column)\s+(?:does\s+not|doesn.?t)\s+exist\b|\bscans?\s+(?:the\s+)?(?:whole\s+|full\s+|entire\s+)?table\b|\bfull\s+(?:table\s+)?scan\b|\b(?:needs?|requires?|add|adding|missing|no)\s+(?:\w+\s+){0,2}migration\b[^\n]*\bnext_renewal_at\b|\b(?:findDue|next_renewal_at)\b[^\n]*\b(?:needs?|requires?|should\s+add|must\s+add)\s+(?:an?\s+)?(?:index|migration)\b)'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft plan for automatic subscription renewals in a TypeScript meal-box API.
+One part of the draft is sound: Phase 2 adds no migration or index for the renewal sweep, because
+`db/migrations/003_next_renewal.sql` already adds the `next_renewal_at` column and the index that
+`findDue` uses. This grader checks only that the reply leaves that part alone. The case's other
+graders score the defects it finds.
+
+PASS if no finding says the sweep's lookup lacks its column or index. A reply passes when it
+approves the existing migration, reports other defects (Phase 4, `PaymentDeclined`, or the sweep
+running in every replica), or flags nothing. A migration or unique index asked for another reason,
+such as a claim column so only one replica charges a row, is a different finding and passes, as
+is a finding about the default value migration 003 sets. Judge a finding by what its text says, not by its severity or
+action column.
+
+FAIL if any finding says `findDue` or `next_renewal_at` has no index, that the sweep scans the
+table, that the `next_renewal_at` column does not exist yet, or that Phase 2 needs a migration or
+index for that lookup.
