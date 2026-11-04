@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.2] - 2026-11-04
+
+### Fixed
+
+- **A save that finishes after you moved to another question leaves you there.** The interview page
+  moved to the next question once a save's refresh returned, counting from whatever question was
+  selected by then, so a click made while the save was in flight was undone and the next keystroke
+  could answer a question you had not opened. It now stays on the question you moved to and keeps
+  its armed choice; the toast still reports the save and offers Undo.
+
 ## [2.2.1] - 2026-11-04
 
 ### Changed

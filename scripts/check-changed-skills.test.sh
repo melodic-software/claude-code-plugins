@@ -93,6 +93,31 @@ else
 fi
 rm -rf "$r"
 
+# --- every run scans the view lanes, with or without a changed skill --------
+fixture_tree::build r --sut "$SCRIPT" --sut "$SELF_DIR/check-view-medium-lists.mjs" --git
+mkdir -p "$r/lib" "$r/plugins/p1/skills/view"
+printf '%s\n' 'export const MEDIUMS = Object.freeze({' '  terminal: entry("terminal"),' '  file: entry("file"),' '});' \
+  'const lane = (laneId) => laneId;' 'export const LANES = [lane("p1:view")];' >"$r/lib/view-registry.mjs"
+printf '%s\n' "Set \`file\`." >"$r/plugins/p1/skills/view/SKILL.md"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+printf 'unrelated\n' >"$r/README.md"
+if out="$(run "$r" "$b" 2>&1)" && grep -q "nothing to gate" <<<"$out"; then
+  ok "a view lane naming one medium passes"
+else
+  fail "a view lane naming one medium should pass, got: $out"
+fi
+printf '%s\n' "Choose \`terminal\` or \`file\`." >"$r/plugins/p1/skills/view/context.md"
+commit_all "$r" "list media" >/dev/null
+rc=0
+out="$(run "$r" "$(base_sha "$r")" 2>&1)" || rc=$?
+if ((rc == 1)) && grep -qF "plugins/p1/skills/view/context.md:1: \`terminal\`, \`file\`" <<<"$out"; then
+  ok "a view lane listing media fails the gate though no skill changed"
+else
+  fail "a view lane listing media should exit 1 with no changed skill (rc=$rc): $out"
+fi
+rm -rf "$r"
+
 # --- one changed skill, checker passes -------------------------------------
 mk_repo r
 add_skill "$r" p1 alpha
