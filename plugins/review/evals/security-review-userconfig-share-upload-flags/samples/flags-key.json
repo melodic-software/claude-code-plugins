@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.share: flag, true makes lib/recap.mjs post the session summary to an external URL\n\nseverity: IMPORTANT",
+      "why": "flags the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.share: pass, advisory, a boolean that picks whether to share\n\ncritical-findings: 0",
+      "why": "treats an upload switch as advisory"
+    }
+  ]
+}

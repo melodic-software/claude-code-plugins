@@ -287,7 +287,9 @@ eligible for skip 2. Compare the base and head manifests:
   or URL; it is not `sensitive`; and the code or skill text that reads it uses the value only to
   pick among those values. It is not a selector when its value (`${user_config.<key>}`) reaches
   `hooks`, `mcpServers`, `lspServers`, `monitors` or `channels`, is used as a filesystem path or
-  URL, or is interpolated unquoted into a shell string. One quoted argument to an in-repository
+  URL, or is interpolated unquoted into a shell string, or when a listed value enables sending
+  repository or session content off the machine (publishing, uploading, posting, an external
+  write), unless a tested trust rule gates it (the view `medium` pointer below). One quoted argument to an in-repository
   script that accepts only the listed values is still a selector. A selector gets one summary
   line, `manifest userConfig.<key>: pass, advisory, <what the value picks and the file and line
   that reads it>`, and no inline comment and no `severity:` line; it adds nothing to the findings
