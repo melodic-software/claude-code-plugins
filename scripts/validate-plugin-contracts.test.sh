@@ -927,6 +927,27 @@ YAML
 r002_uncovered "an id only in a multi-line flow-mapping description is not covered"
 
 r002_fixture <<'YAML'
+graders: [
+  {name: g, type: regex, pattern: clean, description: x},
+  {name: h, type: regex, pattern: clean, description:
+  alpha-r002 dropped}]
+YAML
+r002_uncovered "an id only in a flow description continued at the same column is not covered"
+
+r002_fixture <<'YAML'
+graders: [{name: g,
+  description:
+  alpha-r002}]
+YAML
+r002_uncovered "an id only in a flow description key on its own line is not covered"
+
+r002_fixture <<'YAML'
+graders: [
+  {name: g, type: regex, pattern: 'alpha-r002 [ok]'}]
+YAML
+r002_covered "an id in a multi-line flow collection with no description still covers"
+
+r002_fixture <<'YAML'
 description:
 - alpha-r002 dropped
 - another note

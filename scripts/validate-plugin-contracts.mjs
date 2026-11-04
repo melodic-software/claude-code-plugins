@@ -749,31 +749,47 @@ function textCoversRetirementId(text, id) {
 // and in any spelling (plain, quoted, flow-mapping, `? ` explicit), along with
 // its continuation lines: anything blank or indented past the key, plus `- `
 // or `: ` lines at the key's own column. Authors list dropped expectations in
-// descriptions, so they never count as coverage. It fails closed: a line
-// reading `description:` inside another key's block scalar is dropped too.
+// descriptions, so they never count as coverage. A flow collection that spans
+// lines is judged whole, by bracket depth outside quotes: it is dropped when
+// any of its lines mentions `description`. It fails closed: a line reading
+// `description:` inside another key's block scalar is dropped too.
 function withoutYamlDescriptions(text) {
+  const flowDelta = (line) => {
+    const bare = line.replace(/'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/g, "");
+    return (bare.match(/[[{]/g)?.length ?? 0) - (bare.match(/[\]}]/g)?.length ?? 0);
+  };
   const kept = [];
   let skip = null;
+  let flow = null;
+  const flushFlow = () => {
+    if (!flow.lines.some((l) => /description/.test(l))) kept.push(...flow.lines);
+    flow = null;
+  };
   for (const raw of text.replace(/^﻿/, "").split(/\r?\n/)) {
     if (/^\s*#/.test(raw)) continue;
     const line = raw.replace(/\s#.*$/, "");
     const column = line.search(/\S/);
+    if (flow) {
+      flow.lines.push(line);
+      flow.depth += flowDelta(line);
+      if (flow.depth <= 0) flushFlow();
+      continue;
+    }
     if (skip) {
       const own = column === skip.column && skip.ownColumn.test(line.trim());
       if (line.trim() === "" || column > skip.column || own) continue;
       skip = null;
+    }
+    if (/^\s*(?:-\s+)?(?:[^\s:#][^:#]*:\s+)?[[{]/.test(line) && flowDelta(line) > 0) {
+      flow = { depth: flowDelta(line), lines: [line] };
+      continue;
     }
     if (!/(?:^|[\s{,?\-"'])description["']?\s*:|^\s*\?\s+["']?description\b/.test(line)) {
       kept.push(line);
       continue;
     }
     const key = /^(\s*(?:[-?]\s+)?)["']?description["']?\s*(:?)(.*)$/.exec(line);
-    if (!key) {
-      // A flow-mapping description: drop the line and any continuation lines
-      // indented past it, since a flow collection may span several lines.
-      skip = { column, ownColumn: /$^/ };
-      continue;
-    }
+    if (!key) continue;
     const explicit = key[1].trim() === "?";
     const empty = key[3].trim() === "";
     skip = {
@@ -781,6 +797,7 @@ function withoutYamlDescriptions(text) {
       ownColumn: explicit ? /^:/ : empty ? /^-(?:\s|$)/ : /$^/,
     };
   }
+  if (flow) flushFlow();
   return kept.join("\n");
 }
 
