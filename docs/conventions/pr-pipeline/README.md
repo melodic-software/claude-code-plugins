@@ -2808,9 +2808,8 @@ head and commits, its head branch, its live issues and their other closing pull 
 run they name and the pass names at each FAILed head; the file holds every FAIL from before the
 index. The module docstring's "Index mode" states the rule. Until then the listing below applies.
 A listing read from the API builds on the newest whole listing begun within three hours (the
-reader's own, the run's saved one, or the `pr-merge-verify-listing` artifact the last scheduled or
-hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merge/listing-carry.mjs`
-fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
+reader's own, or the run's saved one; no run carries a listing to the next, since in index mode no
+gate saves one): it reads pages newest id first down past that listing's
 highest id until an artifact created two hours before that listing was read, keeps that listing's
 entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
 kept only when it holds exactly that page's `total_count`. A count above it first reads again the pages

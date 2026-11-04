@@ -164,10 +164,9 @@ Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
 it could turn the FAIL away, so it is read again), with one exception: the
 artifact listing. A listing begun at most `LISTING_CARRY_MAX_AGE` ago (this
-Reader's own, the run's saved one, or the one a scheduled or hand-started run
-of main's pr-merge.yml saved and `LISTING_CARRY_ENV` names, which
-.github/scripts/pr-merge/listing-carry.mjs fetches only from such a run whose
-head is on main) is a base: `Reader._incremental` reads only the newest pages,
+Reader's own, the run's saved one, or one a trusted earlier run saved that
+`LISTING_CARRY_ENV` names, which no workflow sets; index mode saves a listing
+only past `INDEX_NAMES_CAP`) is a base: `Reader._incremental` reads only the newest pages,
 newest id first, down past the base's highest id until an artifact created
 `LISTING_OVERLAP` before the base was read, and keeps the base's entries below
 the lowest id those pages hold, less those expired or past `expires_at` by the
@@ -1288,8 +1287,9 @@ class Reader:
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
-    # The listing a trusted pr-merge run saved (`LISTING_CARRY_ENV`), which
-    # listing-carry.mjs fetched, as a base for `_incremental`.
+    # A listing an earlier trusted run saved (`LISTING_CARRY_ENV`), as a base
+    # for `_incremental`. No workflow names one: in index mode no gate saves
+    # a listing to carry.
     carry_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_CARRY_ENV) or None
     )
