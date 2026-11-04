@@ -15,6 +15,14 @@
     {
       "answer": "3. Before your first edit, confirm the base. `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding` must equal `git -C /srv/dev/wt/invoice-rounding rev-parse origin/integration/rounding`. If it does not, STOP and report.",
       "why": "if it does not"
+    },
+    {
+      "answer": "4. Confirm that `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding` equals `origin/integration/rounding`. If it doesn't, STOP and report.",
+      "why": "bare equals, then if it doesn't"
+    },
+    {
+      "answer": "4. Confirm the branch starts from the base. `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding` must equal `origin/integration/rounding`. If not, STOP and report.",
+      "why": "if not"
     }
   ],
   "fail": [

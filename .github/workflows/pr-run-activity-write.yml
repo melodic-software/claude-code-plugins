@@ -484,7 +484,8 @@ on:
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-workflow-unpinned, dependency-fix-refused,
-          dependency-security-close or dependency-escalate; for apply-patch, before the mint,
+          dependency-security-close or dependency-escalate-<owner reason>
+          (intent, design, security, cost or none); for apply-patch, before the mint,
           ci-fix-empty, ci-fix-invalid, ci-fix-escalated, ci-fix-protected-path,
           ci-fix-weaken-retry or ci-fix-weaken-required, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
@@ -710,6 +711,8 @@ jobs:
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
             dependency-fix-refused) ;;
+            dependency-escalate-intent | dependency-escalate-design | dependency-escalate-security) ;;
+            dependency-escalate-cost | dependency-escalate-none) ;;
             dependency-pin-invalid | dependency-pin-not-applied | dependency-pin-protected-path) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-retry | ci-fix-weaken-required) ;;
@@ -2239,6 +2242,8 @@ jobs:
                   :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
                   :?*:dependency-files-truncated | :?*:dependency-control-uncited | :?*:dependency-workflow-unpinned) ;;
                   :?*:dependency-fix-refused) ;;
+                  :?*:dependency-escalate-intent | :?*:dependency-escalate-design | :?*:dependency-escalate-security) ;;
+                  :?*:dependency-escalate-cost | :?*:dependency-escalate-none) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
                 esac
                 ;;
