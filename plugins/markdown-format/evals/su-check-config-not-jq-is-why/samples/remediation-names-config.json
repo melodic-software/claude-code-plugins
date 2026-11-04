@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "| Markdown config | INFO, inactive: add a .markdownlint-cli2.jsonc to opt in. |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Markdown config | INFO, inactive. |\n\nOther items passed.",
+      "why": "no remediation"
+    }
+  ]
+}

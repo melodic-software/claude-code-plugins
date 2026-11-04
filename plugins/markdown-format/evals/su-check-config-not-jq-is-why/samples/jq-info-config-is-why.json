@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A missing jq would be INFO here: the missing config, not jq, is why nothing happens."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A missing jq would be FAIL: the batch hook cannot read file paths without it.",
+      "why": "keeps the usual verdict"
+    },
+    {
+      "answer": "A missing jq would be INFO, and that absence is why nothing is formatted.",
+      "why": "blames jq"
+    }
+  ]
+}

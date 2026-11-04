@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A partly staged Markdown file is refused untouched."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A partly staged Markdown file gets formatted with the rest.",
+      "why": "rewrites it"
+    },
+    {
+      "answer": "Stage whole files.",
+      "why": "no refusal"
+    }
+  ]
+}

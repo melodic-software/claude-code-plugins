@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "That row is FAIL, and its remediation line quotes the execution error."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "That row is FAIL. Reinstall markdownlint-cli2.",
+      "why": "a remediation with no execution error"
+    }
+  ]
+}

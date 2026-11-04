@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "It picks no rules: which rules you adopt is your decision. It offers a minimal .markdownlint-cli2.jsonc only when you explicitly ask."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It writes a sensible default .markdownlint-cli2.jsonc for you.",
+      "why": "chooses rules"
+    },
+    {
+      "answer": "It picks no rules and never creates a config.",
+      "why": "no explicit-ask route"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "markdown_format_lint_gitignored is false, the default, so drafts/notes.md is out of scope and the hook leaves it alone."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "drafts/notes.md is ignored by git.",
+      "why": "no effective value"
+    },
+    {
+      "answer": "markdown_format_lint_gitignored is false, so the hook rewrites drafts/notes.md like any other file.",
+      "why": "wrong meaning"
+    }
+  ]
+}

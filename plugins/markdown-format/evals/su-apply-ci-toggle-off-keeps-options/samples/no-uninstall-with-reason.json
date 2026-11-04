@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Do not uninstall to reconfigure: that drops the plugin's stored pluginConfigs entry and resets every option to its manifest default."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Uninstalling and reinstalling works and gives a clean state.",
+      "why": "allows it"
+    },
+    {
+      "answer": "Do not uninstall; it is unnecessary here.",
+      "why": "no reason"
+    }
+  ]
+}

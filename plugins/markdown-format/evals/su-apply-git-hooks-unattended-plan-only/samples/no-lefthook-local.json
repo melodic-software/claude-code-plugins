@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "README.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "lefthook-local.yml"
+      ]
+    }
+  ]
+}

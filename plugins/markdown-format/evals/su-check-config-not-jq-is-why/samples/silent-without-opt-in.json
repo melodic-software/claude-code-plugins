@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Without the opt-in the hook exits silently: no --fix, no findings and no notice."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Without a config the hook does not rewrite files, but it still reports findings.",
+      "why": "findings still reported"
+    }
+  ]
+}
