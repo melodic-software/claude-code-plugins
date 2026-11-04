@@ -21,7 +21,7 @@
 //             evidence about the issue: when it and every retry counted were
 //             such stops, report-outcome holds at the cap instead of taking
 //             retry-spent's route (spentOnFaults).
-//   wait     keeps agent-ready with the open pull request the run names in
+//   wait      keeps agent-ready with the open pull request the run names in
 //             its marker, so work-unblock starts it again once that pull
 //             request merges or closes, up to limits.stop-retries waits;
 //             past that it takes retry-spent's route.

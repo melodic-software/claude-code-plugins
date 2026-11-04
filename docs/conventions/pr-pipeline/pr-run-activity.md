@@ -2243,8 +2243,10 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   comment naming it, once per branch; the next run on the issue deletes it (below):
   `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
-  out that tip, so its patch is made there instead of on the default branch tip. Any failed
-  read, or an answer of the wrong shape, fails the step, so no model runs.
+  out that tip, so its patch is made there instead of on the default branch tip. A failed read,
+  or an answer of the wrong shape, holds: the step writes `proceed=false` and ends green, so no
+  model runs. A bad environment or trusted list, or a failed re-derive
+  (`FIND_PRIOR_KEEP_BEHIND`), still fails the step.
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
