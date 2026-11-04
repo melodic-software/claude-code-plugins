@@ -181,82 +181,42 @@ and `plugins/testing/scripts/time-config.sh` reproduces them.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Adds an advisory note when an edit removes tests or assertions, adds a skip or changes an expected value, and, only with rules test-weaken-block: error, denies an added skip or removed test block that adds no test-change: marker; it never asks, and is off by default. |
-| `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives when /testing:run-e2e drives the app itself, not through /app-control:drive: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended only). docs/conventions/testing.yaml wins. |
-| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | When run-e2e drives the app itself, not through /app-control:drive: true, or auto (default) when attended, reuses an app that already answers. With a Workspace environment entry, false and unattended auto start their own instance; without, unattended auto reuses and false stops. testing.yaml wins. |
-| `browser_driver` | string | `"playwright-cli"` | `CLAUDE_PLUGIN_OPTION_BROWSER_DRIVER` | The browser tool command (letters, digits, . _ -) a /testing:run-e2e playwright drive uses when run-e2e drives the app itself, not through /app-control:drive. Default playwright-cli. Missing from PATH, the run stops naming this setting; it never switches tools. testing.yaml wins. |
-| `pixel_tolerance` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_PIXEL_TOLERANCE` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `test_guards_enabled` | boolean | `false` | Adds an advisory note when an edit removes tests or assertions, adds a skip or changes an expected value, and, only with rules test-weaken-block: error, denies an added skip or removed test block that adds no test-change: marker; it never asks, and is off by default. |
+| `e2e_driver` | string | `"auto"` | Who drives when /testing:run-e2e drives the app itself, not through /app-control:drive: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended only). docs/conventions/testing.yaml wins. |
+| `reuse_running_instance` | string | `"auto"` | When run-e2e drives the app itself, not through /app-control:drive: true, or auto (default) when attended, reuses an app that already answers. With a Workspace environment entry, false and unattended auto start their own instance; without, unattended auto reuses and false stops. testing.yaml wins. |
+| `browser_driver` | string | `"playwright-cli"` | The browser tool command (letters, digits, . _ -) a /testing:run-e2e playwright drive uses when run-e2e drives the app itself, not through /app-control:drive. Default playwright-cli. Missing from PATH, the run stops naming this setting; it never switches tools. testing.yaml wins. |
+| `pixel_tolerance` | number<br>*min 0* | `0` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `testing@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure testing@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure testing@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"test_guards_enabled": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install testing@<marketplace> -s <scope> --config test_guards_enabled=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "testing@<marketplace>": {
-         "options": {
-           "test_guards_enabled": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 
