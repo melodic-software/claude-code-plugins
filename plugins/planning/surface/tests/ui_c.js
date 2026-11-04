@@ -23,8 +23,14 @@ async page => {
   };
   const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
-  // Runs act, then waits until the server has recorded a new event: a save is a network round trip.
-  const saved = async act => { const n = (await events()).length; await act(); await until(async () => (await events()).length > n, 10000); };
+  // Runs act, then waits until the server has recorded a new event and the page has finished the
+  // save: after the POST the page still refreshes, then selects the next question and replaces its
+  // "Saving." toast, so a pick made before that lands is undone by the save's own navigation.
+  const saved = async act => {
+    const n = (await events()).length; await act();
+    await until(async () => (await events()).length > n, 10000);
+    await page.waitForFunction(() => document.getElementById("toast").textContent !== "Saving.", null, {timeout: 10000}).catch(() => {});
+  };
   // Waits until the page shows what fn checks: the page applies a save's state from the next stream frame, not the save's reply.
   const shown = (fn, arg) => page.waitForFunction(fn, arg, {timeout: 10000}).catch(() => {});
   const counted = want => shown(w => { const el = document.getElementById("assumeCount"); return (el && !el.hidden ? el.textContent : "") === w; }, want);
@@ -334,10 +340,18 @@ async page => {
     const dup = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("b").textContent + "=" + e.textContent + (e.classList.contains("rec") ? "#rec" : "")));
     ok("alternatives the server flags as restating the recommendation fold into Accept: Rec is first with class rec, no (a) or (c) choice, (b) stays", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\((a|c)\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)), dup.join(" | "));
     const nEv = (await events()).length;
-    await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await saved(() => page.click("[data-save]"));
+    // The page's refresh after this save is held, so the user moves to P2 before the save finishes
+    let release; const held = new Promise(f => { release = f; });
+    await page.route("**/api/state", async r => { await held; await r.continue().catch(() => {}); });
+    await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await page.click("[data-save]");
+    await until(async () => (await events()).length > nEv, 10000);
+    await pick("P2");
+    release(); await page.unroute("**/api/state");
+    await page.waitForFunction(() => /^Saved D1/.test(document.getElementById("toast").textContent), null, {timeout: 10000}).catch(() => {});
+    ok("a save that finishes after the user moved to another question leaves the selection there", await sel() === "P2", await sel() + " | " + await page.textContent("#toast"));
+    await page.click("main.detail h3"); await page.keyboard.press("2");
     const hid = await page.evaluate(() => ({open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent}));
     ok("a note naming the hidden duplicate (a) is not offered as a choice and saves as typed", !hid.open && (await events()).length === nEv + 1, JSON.stringify(hid));
-    await pick("P2"); await page.click("main.detail h3"); await page.keyboard.press("2");
     const r3 = (await armed()).trim(); await saved(() => page.keyboard.press("Control+Enter")); await card("P2", "Stale", false);
     const ev3 = await last();
     ok("2 then save on a stale question picks again: Rec", /^Rec/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
