@@ -14,7 +14,7 @@ bump: patch
   stale probe, and the effort table baseline matches the current page, with the listed levels unchanged.
 - `/harness-config:audit-instructions`: harness thinking-disable forms no longer fire the rejected
   pairing row on models where they have no effect, exit-2 stderr is no longer stated as always
-  reaching Claude, and the first-run hold and a mis-aimed settings pointer are gone.
+  reaching Claude, and the first-run hold and a wrong settings pointer are gone.
 - `/harness-config:audit-permission-grants` and the plugin README: the user settings file is no
   longer named as where a prompt approval lands.
 - `/harness-config:audit-pass`: the handoff no longer compares a `/doctor` version floor its pointer

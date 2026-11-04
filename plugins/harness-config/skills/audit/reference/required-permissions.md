@@ -218,14 +218,15 @@ because pushes carry intent the agent should not infer.
 | --- | --- |
 | `Bash(git push *)` | Require confirmation before pushing, with or without args |
 
-We keep one row because we read a trailing ` *` as also covering the bare command, so a project
+We keep one row because we read a trailing space and `*` as also covering the bare command, so a project
 with this rule is not flagged for lacking a bare `Bash(git push)` rule.
 
 - **Pointer**: when deciding whether a rule covers the bare command, fetch
   [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
   live.
 - **As of**: 2026-11-04
-- **Recheck trigger**: that section stops treating a trailing ` *` as covering the bare command.
+- **Recheck trigger**: that section stops treating a trailing space and `*` as covering the bare
+  command.
 
 ## Relation to the standards permission floor
 

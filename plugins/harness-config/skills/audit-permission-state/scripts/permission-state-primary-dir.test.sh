@@ -24,11 +24,14 @@ if ! command -v jq >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
+# A fixture never inherits the caller's git environment.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
+
 BASE="$(cd "$TEST_TMPDIR" && pwd -P)"
 ROOT="$BASE/repo"
 mkdir -p "$ROOT/.claude" "$ROOT/sub/.claude" "$ROOT/bare-sub" "$BASE/home" "$BASE/outside/.claude" "$BASE/elsewhere/.claude"
 git -C "$ROOT" init -q
-git -C "$ROOT" -c user.name=fixture -c user.email=fixture@example.com commit -q --allow-empty -m fixture
+git -C "$ROOT" -c user.name=fixture -c user.email=fixture@example.com -c commit.gpgsign=false commit -q --allow-empty -m fixture
 git -C "$ROOT" worktree add -q "$BASE/wt" -b fixture-wt
 mkdir -p "$BASE/wt/.claude"
 
@@ -63,7 +66,8 @@ OUT="$(run_in "$ROOT/sub")"
 assert_contains "subdirectory session: shared file in the subdirectory" "$OUT" "project settings present $ROOT/sub/.claude/settings.json"
 assert_contains "subdirectory session: its rule is read" "$OUT" "rule project settings allow Bash(sub-shared)"
 assert_not_contains "subdirectory session: the root's shared rule is not in effect" "$OUT" "Bash(root-shared)"
-assert_contains "subdirectory session: the local file stays at the root" "$OUT" "local settings present $ROOT/.claude/settings.local.json"
+# The root is matched by its tail: git spells it differently from the shell on Windows.
+assert_eq "subdirectory session: the local file stays at the root" 1 "$(count_matching "$OUT" '^local settings present .*/repo/\.claude/settings\.local\.json$')"
 assert_contains "subdirectory session: the local rule is read" "$OUT" "rule local settings allow Bash(root-local)"
 
 # --- With no shared file there, the root's does not stand in for it ------------
@@ -75,7 +79,7 @@ assert_not_contains "no shared file here: the root's rule is not claimed" "$OUT"
 OUT="$(run_in "$BASE/wt")"
 assert_contains "worktree session: shared file in the worktree" "$OUT" "project settings present $BASE/wt/.claude/settings.json"
 assert_contains "worktree session: its rule is read" "$OUT" "rule project settings allow Bash(wt-shared)"
-assert_contains "worktree session: local file at the main checkout" "$OUT" "local settings present $ROOT/.claude/settings.local.json"
+assert_eq "worktree session: local file at the main checkout" 1 "$(count_matching "$OUT" '^local settings present .*/repo/\.claude/settings\.local\.json$')"
 assert_contains "worktree session: the basis line says so" "$OUT" "main checkout, resolved through this worktree"
 
 # --- Outside a repository: the working directory, whatever the environment says
