@@ -1,0 +1,47 @@
+{
+  "retirements-ran": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--manifest(?:\\s|\\\\\\\\\\\\n)+(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|]*retirements\\.yaml\\b"
+  ],
+  "names-install-git-hooks": [
+    "\\bapply install-git-hooks(?![\\w-]|\\.\\w)"
+  ],
+  "no-clean": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--clean\\b"
+  ],
+  "no-hook-removal": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:rm|mv|unlink|truncate)(?:\\.exe)?(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "\\.git/hooks/"
+  ],
+  "never-runs-old-hook": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|dash|zsh|sh|source|\\.)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?\\.git/hooks/pre-commit(?:\\.pre-guardrails)?(?:\\\\\\\"|')?(?![\\w.-])"
+  ],
+  "no-install-step": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?node(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\']|\\\\\\\\)*install\\.mjs(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:copy|decline|config-hook)\\b|(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?lefthook(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+install\\b)"
+  ]
+}

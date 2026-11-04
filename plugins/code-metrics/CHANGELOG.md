@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-04
+
+### Changed
+
+- The plugin now calls the config cascade's personal layer the personal override (the overlay name is retired); the setup check row reads "the personal override is gitignored" (#13191).
+
 ## [1.0.0] - 2026-11-03
 
 ### Added

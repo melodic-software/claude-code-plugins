@@ -21,5 +21,5 @@ kind: file
 path: .claude/provenance.local.json
 content_match: '"(excluded_paths|budgets|separation|stamp_expiry_days|trigger_less_stamp_check|judge_samples|gates|accuracy)"'
 action: migrate
-successor: "the local overlay is now <home>/attribution.local.yaml (default docs/conventions/attribution.local.yaml) with the same keys: carry every key into it unchanged (when the current overlay, the YAML or else its .claude/ JSON fallback, already sets a key, keep its value, so the current file wins), have the operator confirm the result, then clean"
-note: "retired local overlay name; the provenance plugin became attribution and never reads this file"
+successor: "the personal override is now <home>/attribution.local.yaml (default docs/conventions/attribution.local.yaml) with the same keys: carry every key into it unchanged (when the current personal override, the YAML or else its .claude/ JSON fallback, already sets a key, keep its value, so the current file wins), have the operator confirm the result, then clean"
+note: "retired personal override name; the provenance plugin became attribution and never reads this file"

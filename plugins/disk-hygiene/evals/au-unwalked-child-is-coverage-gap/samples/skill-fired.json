@@ -1,0 +1,1 @@
+{"pass": [{"answer": [{"tool": "Skill", "input": {"skill": "disk-hygiene:audit"}}]}, {"answer": [{"tool": "Skill", "input": {"skill": "audit", "args": "/eval/work/build-cache"}}], "why": "bare skill name"}], "fail": [{"answer": []}, {"answer": [{"tool": "Skill", "input": {"skill": "disk-hygiene:clean"}}], "why": "the removal skill, not the audit"}]}

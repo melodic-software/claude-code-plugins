@@ -23,7 +23,7 @@
       "expectations": [
         "Changes only the named key and leaves every other existing key intact",
         "Does NOT rewrite the file from the full default schema, which would turn unmentioned keys into accidental decisions",
-        "Writes to the team layer by default, and to the local overlay only when the user asked for it",
+        "Writes to the team layer by default, and to the personal override only when the user asked for it",
         "Reports the resulting effective value and the layer it now comes from"
       ]
     },
@@ -94,7 +94,7 @@
     },
     {
       "id": 8,
-      "name": "migrates-the-retired-local-overlay",
+      "name": "migrates-the-retired-personal-override",
       "prompt": "/attribution:setup apply in a repo with no convention-home pointer where both a gitignored docs/conventions/attribution.local.yaml (judge_samples 5) and the pre-rename .claude/provenance.local.json (judge_samples 3, trigger_less_stamp_check true) exist.",
       "expected_output": "Detection reports attribution-r002 as FAIL. apply adds only trigger_less_stamp_check to docs/conventions/attribution.local.yaml and keeps its judge_samples 5, because the current file wins where both set a key. It reports that per key, gets the operator's confirmation, then runs --clean attribution-r002 --i-migrated and re-runs detection.",
       "expectations": [
@@ -119,14 +119,14 @@
     },
     {
       "id": 10,
-      "name": "overlay-write-checks-gitignore",
-      "prompt": "/attribution:setup apply judge_samples 5 to the local overlay in a repo with no convention-home pointer whose .gitignore does not ignore docs/conventions/attribution.local.yaml.",
+      "name": "personal-override-write-checks-gitignore",
+      "prompt": "/attribution:setup apply judge_samples 5 to the personal override in a repo with no convention-home pointer whose .gitignore does not ignore docs/conventions/attribution.local.yaml.",
       "narration": true,
-      "expected_output": "Before writing the overlay, git check-ignore -q on docs/conventions/attribution.local.yaml exits non-zero, so the skill says the file would be tracked and asks the operator how to proceed instead of writing it.",
+      "expected_output": "Before writing the personal override, git check-ignore -q on docs/conventions/attribution.local.yaml exits non-zero, so the skill says the file would be tracked and asks the operator how to proceed instead of writing it.",
       "expectations": [
-        "Runs git check-ignore -q against docs/conventions/attribution.local.yaml before writing the overlay",
-        "States that the overlay would be tracked when the check fails",
-        "Does not write the overlay until the operator chooses",
+        "Runs git check-ignore -q against docs/conventions/attribution.local.yaml before writing the personal override",
+        "States that the personal override would be tracked when the check fails",
+        "Does not write the personal override until the operator chooses",
         "Never writes the user-global ~/.claude/attribution.json"
       ]
     }

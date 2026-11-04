@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "instruction-placement:delta"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "delta", "args": "--noise-budget 3"}}], "why": "unqualified name with an argument"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "instruction-placement:audit"}}], "why": "ran the full sweep instead"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "git:delta-report"}}], "why": "a different skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

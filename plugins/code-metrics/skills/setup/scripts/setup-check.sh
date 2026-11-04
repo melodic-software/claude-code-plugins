@@ -99,9 +99,9 @@ check_layer() {
       row WARN "layer $name tracked" "written but untracked: commit it to share with the team"
     fi
   elif git -C "$REPO_ROOT" check-ignore -q "$rel" 2>/dev/null; then
-    row PASS "layer $name ignored" "the local overlay is gitignored"
+    row PASS "layer $name ignored" "the personal override is gitignored"
   else
-    row WARN "layer $name ignored" "the local overlay is NOT gitignored; recommended consumer .gitignore line: .claude/**/*.local.* (the plugin never edits your .gitignore)"
+    row WARN "layer $name ignored" "the personal override is NOT gitignored; recommended consumer .gitignore line: .claude/**/*.local.* (the plugin never edits your .gitignore)"
   fi
 }
 check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a

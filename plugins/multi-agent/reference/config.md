@@ -13,9 +13,9 @@ this page owns the keys.
 | Bundled | `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml` |
 | User-global | `~/.claude/multi-agent.yaml` |
 | Team | `<home>/multi-agent.yaml`, `<home>` being the convention home the repository binds, else `docs/conventions` |
-| Personal overlay | `.claude/multi-agent.local.yaml` (gitignored) |
+| Personal override | `.claude/multi-agent.local.yaml` (gitignored) |
 
-Later layers win per key. Team and overlay are read only when the root is a
+Later layers win per key. Team and personal override are read only when the root is a
 repository that is neither `$HOME` nor an ancestor of it
 (`lib/config-root.sh`). The team file is validated by
 [`schemas/multi-agent.schema.json`](../schemas/multi-agent.schema.json). The
@@ -45,7 +45,7 @@ and an explicit yes.
 Roles are `orchestrator`, `worker`, `verifier` and `retrieval`. A layer naming
 another role or key is reported and ignored, and so is a workload no layer
 declares. A declaration in any layer covers values set in every layer, so a
-team layer can declare a workload that a personal overlay tunes. A full model id
+team layer can declare a workload that a personal override tunes. A full model id
 (`claude-opus-5-5`) is rejected, so a role map stays portable across providers.
 Whether a role may name `haiku` is decided in
 [`routing-rubric.md`](routing-rubric.md); the resolver accepts it and adds a
@@ -144,7 +144,7 @@ value or a forced model resolves). Under an Opus session `opus` and `inherit`
 name the same model, so the guard changes nothing there.
 
 Setting `fanout.frontier_guard: false` is an explicit opt-in to frontier
-fan-outs. Set it on the layer whose scope you mean: the overlay for one
+fan-outs. Set it on the layer whose scope you mean: the personal override for one
 checkout, the user-global file for every repository on one machine.
 
 ## Example team file

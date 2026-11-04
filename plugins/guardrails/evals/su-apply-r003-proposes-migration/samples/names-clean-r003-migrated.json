@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Removal: `check-retirements.sh --manifest ... --clean guardrails-r003 --i-migrated`, once you confirm the migrated result."
+    },
+    {
+      "answer": "I would run --clean guardrails-r003 --i-migrated."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run --clean guardrails-r003.",
+      "why": "near miss: no --i-migrated"
+    },
+    {
+      "answer": "Run rm .git/hooks/pre-commit.",
+      "why": "a hand delete"
+    },
+    {
+      "answer": "Run --clean guardrails-r004 --i-migrated.",
+      "why": "near miss: wrong id"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/skills/update/scripts/update.sh --check"}}], "why": "check mode"},
+    {"answer": [], "why": "no call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/skills/update/scripts/update.sh --apply"}}], "why": "apply"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/tmp/p/skills/update/scripts/update.sh\" --record-upstream"}}], "why": "record upstream"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/skills/update/scripts/update.sh --check && bash '/tmp/p/skills/update/scripts/update.sh' --apply"}}], "why": "check, then single-quoted apply"}
+  ]
+}

@@ -1,0 +1,1 @@
+{"pass": [{"answer": [{"tool": "Skill", "input": {"skill": "disk-hygiene:audit"}}]}], "fail": [{"answer": [{"tool": "Bash", "input": {"command": "ls /eval/work/build-cache"}}]}]}

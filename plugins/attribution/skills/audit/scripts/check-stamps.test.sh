@@ -476,7 +476,7 @@ assert_contains "--show-config attributes a YAML value to its layer" \
   "$OUT" "stamp_expiry_days=60 (from $CONV/attribution.yaml)"
 printf '%s\n' 'trigger_less_stamp_check: true' >"$CONV/attribution.local.yaml"
 OUT="$(run --show-config 2>&1)"
-assert_contains "the YAML overlay refines the YAML team layer" \
+assert_contains "the YAML personal override refines the YAML team layer" \
   "$OUT" "trigger_less_stamp_check=true (from $CONV/attribution.local.yaml)"
 rm -rf "$CLAUDE_PROJECT_DIR/docs"
 rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"

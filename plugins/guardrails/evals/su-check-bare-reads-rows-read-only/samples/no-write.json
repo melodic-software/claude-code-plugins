@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/settings.json",
+            "content": "{}\n"
+          }
+        }
+      ],
+      "why": "writes settings"
+    }
+  ]
+}

@@ -745,6 +745,84 @@ function textCoversRetirementId(text, id) {
   return new RegExp(`(?:^|[^A-Za-z0-9-])${escapeRegExp(id)}(?:[^A-Za-z0-9-]|$)`).test(text);
 }
 
+// The probe text of a case.yaml: only the values of the keys that state what
+// a run is asked or graded on, at the place the suite schema puts each one
+// (PROBE_KEYS: parent key, or <root>, to probe keys), written in block style.
+// Selecting what counts, rather than stripping descriptions, means no YAML
+// spelling of a description can count: a key under a description, or text
+// inside any other key's block or quoted scalar, is never a probe value. It
+// fails closed: a flow-style value, or a plain scalar wrapped past its first
+// line, counts only its first line or nothing.
+const PROBE_KEYS = {
+  "<root>": ["expected_outcome"],
+  execution: ["prompt"],
+  graders: ["pattern", "input_match", "criteria", "match", "path"],
+};
+function caseYamlProbeText(text) {
+  const kept = [];
+  const parents = [];
+  let scalar = null;
+  for (const line of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    if (line.trim() === "" || /^\s*#/.test(line)) {
+      if (scalar?.probe) kept.push(line);
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (scalar) {
+      if (indent > scalar.column) {
+        if (scalar.probe) kept.push(line);
+        continue;
+      }
+      scalar = null;
+    }
+    const key = /^(\s*(?:-\s+)?)([A-Za-z_][\w-]*)\s*:(?:\s+(.*))?$/.exec(line);
+    if (!key) {
+      // A line this selector cannot read (a quoted, spaced or explicit key, a
+      // bare `-`): whatever sits under it is non-probe text, failing closed.
+      scalar = { column: indent, probe: false };
+      continue;
+    }
+    const column = key[1].length;
+    while (parents.length && parents.at(-1).column >= column) parents.pop();
+    const parent = parents.length ? parents.at(-1).key : "<root>";
+    const value = (key[3] ?? "").replace(/\s#.*$/, "").trim();
+    if (value === "") {
+      parents.push({ column, key: key[2] });
+      continue;
+    }
+    const probe = parents.length <= 1 && (PROBE_KEYS[parent] ?? []).includes(key[2]);
+    const block = /^[|>]/.test(value);
+    scalar = { column, probe: probe && block };
+    if (probe && !block && !/^[[{&*!]/.test(value)) kept.push(value);
+  }
+  return kept.join("\n");
+}
+
+// Markdown text without a leading BOM or frontmatter.
+function markdownBody(text) {
+  return text.replace(/^﻿/, "").replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "");
+}
+
+// One haystack per plugin suite case (evals/<case>/): the prompt.md body,
+// case.yaml's probe values (caseYamlProbeText), and graders/*.md bodies.
+// Frontmatter, samples/, scaffolds, and the results/ and mocks/ trees are not
+// the probe, so they never count; neither does the directory name.
+function suiteCaseHaystacks(suiteRoot) {
+  const cases = new Map();
+  for (const path of filesIn(suiteRoot)) {
+    const parts = relative(suiteRoot, path).split(sep);
+    if (parts[0] === "results" || parts[0] === "mocks") continue;
+    let text;
+    if (parts.length === 2 && parts[1] === "case.yaml") text = caseYamlProbeText(read(path));
+    else if (parts.length === 2 && parts[1] === "prompt.md") text = markdownBody(read(path));
+    else if (parts.length === 3 && parts[1] === "graders" && parts[2].endsWith(".md")) {
+      text = markdownBody(read(path));
+    } else continue;
+    cases.set(parts[0], [...(cases.get(parts[0]) ?? []), text]);
+  }
+  return [...cases.values()].map((texts) => texts.join("\n"));
+}
+
 // Validates one manifest's records; returns the ids it found so the
 // append-only and eval-coverage checks below can key on them.
 function validateRetirementRecords(manifestPath, plugin, records) {
@@ -938,31 +1016,32 @@ for (const manifestPath of retirementManifests) {
 
   // Every record is a behavior the setup skill now has (detect-hit and clean
   // path), so every id needs an eval naming it (mechanism-validation, hybrid
-  // item 1). The id may sit in the case's name, prompt, expected_output, or
-  // expectations.
+  // item 1). A legacy setup evals.json case covers it through its name,
+  // prompt, expected_output or expectations; a plugin suite case through its
+  // prompt.md body, case.yaml's probe values, or its graders/*.md bodies.
   const evalsPath = join(pluginRoot, plugin, "skills", "setup", "evals", "evals.json");
-  if (!existsSync(evalsPath)) {
-    if (ids.length > 0) {
-      fail(evalsPath, `missing; every retirement record needs an eval covering it (${ids.join(", ")})`);
-    }
-  } else {
-    let cases = null;
+  const suiteRoot = join(pluginRoot, plugin, "evals");
+  const haystacks = [];
+  if (existsSync(evalsPath)) {
     try {
-      cases = [JSON.parse(read(evalsPath)).evals ?? []].flat();
+      for (const c of [JSON.parse(read(evalsPath)).evals ?? []].flat()) {
+        haystacks.push(
+          [c?.name, c?.prompt, c?.expected_output, ...[c?.expectations ?? []].flat()]
+            .filter((v) => typeof v === "string")
+            .join("\n"),
+        );
+      }
     } catch {
       fail(evalsPath, "is not valid JSON; retirement eval coverage cannot be checked");
     }
-    if (cases !== null) {
-      const haystacks = cases.map((c) =>
-        [c?.name, c?.prompt, c?.expected_output, ...[c?.expectations ?? []].flat()]
-          .filter((v) => typeof v === "string")
-          .join("\n"),
+  }
+  haystacks.push(...suiteCaseHaystacks(suiteRoot));
+  for (const id of ids) {
+    if (!haystacks.some((text) => textCoversRetirementId(text, id))) {
+      fail(
+        join(pluginRoot, plugin),
+        `no eval covers retirement record "${id}" (looked in ${relative(root, evalsPath)} and ${relative(root, suiteRoot)}/<case>/)`,
       );
-      for (const id of ids) {
-        if (!haystacks.some((text) => textCoversRetirementId(text, id))) {
-          fail(evalsPath, `no eval covers retirement record "${id}"`);
-        }
-      }
     }
   }
 }

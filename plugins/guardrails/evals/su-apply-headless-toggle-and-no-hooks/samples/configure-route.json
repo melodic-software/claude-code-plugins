@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "claude plugin configure guardrails@melodic-software --values-stdin < values.json"
+    },
+    {
+      "answer": "Run `claude plugin configure guardrails@<marketplace> --values-stdin < values.json`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin install guardrails@m --config block_cd_prefix_enabled=false",
+      "why": "only the fallback"
+    },
+    {
+      "answer": "claude plugin configure guardrails --values-stdin",
+      "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Use /plugin configure guardrails@m.",
+      "why": "near miss: interactive route"
+    }
+  ]
+}

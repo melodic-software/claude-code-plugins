@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no write"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/case/.work/instruction-placement/main/findings.md", "content": "Source: `CLAUDE.md` lines 6-14\nDestination: .claude/rules/csharp.md\nAdvisory: CLAUDE.md could live in AGENTS.md"}}], "why": "the findings artifact, the one file audit writes, naming instruction files in its content"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/case/.claude/rules/csharp.md"}}], "why": "wrote a rule; audit is read-only"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/case/CLAUDE.md"}}], "why": "rewrote CLAUDE.md"}
+  ]
+}

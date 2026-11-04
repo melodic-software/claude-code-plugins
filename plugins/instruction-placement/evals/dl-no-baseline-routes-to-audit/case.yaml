@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: dl-no-baseline-routes-to-audit
+description: Asked what moved since the last placement audit in a repository with no spine baseline and no findings artifact, delta says there is nothing to compare against and routes to the full audit, without running one or capturing a baseline
+tags: [delta, outcome, scaffold]
+expected_outcome: The reply says no baseline or findings artifact exists and routes to /instruction-placement:audit (a full audit), and no Write creates a findings.md or spine baseline and no Edit touches any file.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the delta skill from the instruction-placement plugin: what has moved since our last instruction-placement audit?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:instruction-placement:)?delta"'
+    arm: with-only
+  - name: nothing-to-compare
+    type: regex
+    pattern: '\bno (?:prior |previous |earlier |stored |existing |spine )*(?:baseline|findings artifact|artifact|audit)s?\b|\b(?:baseline|findings artifact)s?\b[^\n.]{0,80}\b(?:absent|missing|not found|not exist|does ?n[o'']t exist)\b|\b(?:never been audited|both absent)\b|\bnothing to (?:compare|report(?: movement)?) against\b|\bneither\b[^\n.]{0,80}\bnor\b'
+    flags: i
+    target: last_message
+    arm: both
+  - name: routes-to-audit
+    type: regex
+    pattern: '/instruction-placement:audit\b|\bfull (?:placement |instruction-placement )?audit\b'
+    flags: i
+    target: last_message
+    arm: both
+  - name: no-capture
+    type: tool_used
+    tool: Write
+    input_match: 'findings\.md|spine-baseline|/baselines/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

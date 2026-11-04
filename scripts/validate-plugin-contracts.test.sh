@@ -22,7 +22,7 @@
 # aggregate exit code. The one exit-code assertion is the closing real-corpus
 # case.
 #
-# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/reference/artifact-protocol.md
+# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/evals/*/case.yaml plugins/*/evals/*/prompt.md plugins/*/evals/*/graders/*.md plugins/*/reference/artifact-protocol.md
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
 
@@ -407,7 +407,6 @@ R_HELPER_DRIFT='must remain byte-identical to plugins/harness-config/lib/check-r
 R_CANONICAL_MISSING='it is the canonical helper every plugin shipping retirements.yaml syncs'
 R_SETUP_NO_REF='must reference check-retirements.sh when the plugin ships retirements.yaml'
 R_REF_NO_MANIFEST='but the plugin ships no retirements.yaml'
-R_EVALS_MISSING='every retirement record needs an eval covering it'
 R_EVAL_UNCOVERED='no eval covers retirement record "'
 R_APPEND_ONLY='records are append-only; demote with `status: report-only` instead'
 R_FIELD_CHANGED='changed since HEAD; records are append-only'
@@ -774,7 +773,7 @@ else
   ok "harness-config carries the helper and references it without a manifest"
 fi
 
-# --- R6. Evals: one id uncovered; evals.json missing. -----------------------
+# --- R6. Evals: one id uncovered; evals.json missing; suite-case coverage. --
 conforming_retirements_fixture
 write_evals alpha alpha-r001
 out="$(run_fixture)"
@@ -796,10 +795,322 @@ fi
 conforming_retirements_fixture
 rm -rf "$TMP/plugins/alpha/skills/setup/evals"
 out="$(run_fixture)"
-if has_fail_line "$R_EVALS_MISSING" && grep -q 'alpha-r001, alpha-r002' <<<"$out"; then
-  ok "a missing evals.json fails naming every record id"
+if has_fail_line "${R_EVAL_UNCOVERED}alpha-r001\" \\(looked in plugins/alpha/skills/setup/evals/evals.json and plugins/alpha/evals/<case>/\\)" &&
+  has_fail_line "${R_EVAL_UNCOVERED}alpha-r002"; then
+  ok "with no evals.json and no suite case, every record id fails naming both places looked"
 else
-  fail "a missing evals.json should fail naming the ids: $out"
+  fail "ids covered nowhere should fail by id, naming both places: $out"
+fi
+
+# write_suite_case <plugin> <case> -- case.yaml arrives on stdin; prompt.md is
+# the optional third argument.
+write_suite_case() {
+  mkdir -p "$TMP/plugins/$1/evals/$2"
+  cat >"$TMP/plugins/$1/evals/$2/case.yaml"
+  if [[ -n "${3:-}" ]]; then printf '%s\n' "$3" >"$TMP/plugins/$1/evals/$2/prompt.md"; fi
+}
+
+# Suite-only coverage: no evals.json; one id in a prompt.md body, the other in
+# a grader pattern.
+conforming_retirements_fixture
+rm -rf "$TMP/plugins/alpha/skills/setup/evals"
+write_suite_case alpha setup-check-retired-cache \
+  "$(printf -- '---\ndescription: "fixture"\n---\n\nRun /alpha:setup check; alpha-r001 is planted.')" <<'YAML'
+schema_version: "1.1"
+name: setup-check-retired-cache
+graders:
+  - name: 'names-migrated-file'
+    type: 'regex'
+    pattern: 'alpha-r002[^\n]*migrat'
+    target: 'last_message'
+YAML
+out="$(run_fixture)"
+if [[ -z "$(retirement_failure_lines)" ]]; then
+  ok "suite cases cover every record with no evals.json present"
+else
+  fail "a prompt.md body and a grader pattern should cover the ids: $out"
+fi
+
+# An id named only in descriptions (case.yaml, a grader's, prompt.md
+# frontmatter) is not covered: authors list dropped expectations there.
+conforming_retirements_fixture
+rm -rf "$TMP/plugins/alpha/skills/setup/evals"
+write_suite_case alpha setup-check-retired-cache \
+  "$(printf -- '---\ndescription: "alpha-r002 dropped too"\n---\n\nRun /alpha:setup check; alpha-r001 is planted.')" <<'YAML'
+schema_version: "1.1"
+description: >
+  Detects the planted cache. Dropped:
+  alpha-r002, which needs a migrate fixture.
+name: setup-check-retired-cache
+graders:
+  - name: 'reports-clean'
+    description: 'alpha-r002 dropped'
+    type: 'regex'
+    pattern: 'clean'
+YAML
+out="$(run_fixture)"
+if has_fail_line "${R_EVAL_UNCOVERED}alpha-r002" && ! grep -q "${R_EVAL_UNCOVERED}alpha-r001" <<<"$out"; then
+  ok "an id named only in a suite case's descriptions is not covered"
+else
+  fail "a description-only id should fail, and the prompt.md id should not: $out"
+fi
+
+# Description-stripper shapes. Each fixture has no evals.json, one case
+# covering alpha-r001 in its prompt body, and a probe case whose case.yaml
+# (stdin) is the only place alpha-r002 can be named.
+r002_fixture() {
+  conforming_retirements_fixture
+  rm -rf "$TMP/plugins/alpha/skills/setup/evals"
+  write_suite_case alpha covers-r001 'Run /alpha:setup check; alpha-r001 is planted.' <<<'name: covers-r001'
+  write_suite_case alpha probe
+}
+r002_covered() {
+  out="$(run_fixture)"
+  if [[ -z "$(retirement_failure_lines)" ]]; then ok "$1"; else fail "$1: $out"; fi
+}
+r002_uncovered() {
+  out="$(run_fixture)"
+  if has_fail_line "${R_EVAL_UNCOVERED}alpha-r002" && ! grep -q "${R_EVAL_UNCOVERED}alpha-r001" <<<"$out"; then
+    ok "$1"
+  else
+    fail "$1: $out"
+  fi
+}
+
+r002_fixture <<'YAML'
+graders:
+  - description: 'dropped'
+    pattern: 'alpha-r002'
+YAML
+r002_covered "a sibling key after a dash-form description still covers"
+
+r002_fixture <<'YAML'
+description: >
+  Folded text that names
+  nothing to cover.
+graders:
+  - pattern: 'alpha-r002'
+YAML
+r002_covered "a key after a top-level block-scalar description still covers"
+
+r002_fixture </dev/null
+printf 'description: >\r\n  folded\r\ngraders:\r\n  - pattern: '"'"'alpha-r002'"'"'\r\n' \
+  >"$TMP/plugins/alpha/evals/probe/case.yaml"
+r002_covered "a CRLF case.yaml still covers through a key after its description"
+
+r002_fixture <<'YAML'
+# alpha-r002 is dropped for now
+name: probe
+YAML
+r002_uncovered "an id only in a whole-line comment is not covered"
+
+r002_fixture <<'YAML'
+name: probe # alpha-r002 dropped
+YAML
+r002_uncovered "an id only in a trailing comment is not covered"
+
+r002_fixture <<'YAML'
+"description": 'alpha-r002 dropped'
+name: probe
+YAML
+r002_uncovered "an id only in a quoted description key is not covered"
+
+r002_fixture <<'YAML'
+graders: [{name: g, description: 'alpha-r002 dropped', type: regex}]
+YAML
+r002_uncovered "an id only in a flow-mapping description is not covered"
+
+r002_fixture <<'YAML'
+graders: [{name: g, description:
+  alpha-r002 dropped, type: regex, pattern: clean}]
+YAML
+r002_uncovered "an id only in a multi-line flow-mapping description is not covered"
+
+r002_fixture <<'YAML'
+graders: [
+  {name: g, type: regex, pattern: clean, description: x},
+  {name: h, type: regex, pattern: clean, description:
+  alpha-r002 dropped}]
+YAML
+r002_uncovered "an id only in a flow description continued at the same column is not covered"
+
+r002_fixture <<'YAML'
+graders: [{name: g,
+  description:
+  alpha-r002}]
+YAML
+r002_uncovered "an id only in a flow description key on its own line is not covered"
+
+r002_fixture <<'YAML'
+graders: [
+  {name: g, type: regex, pattern: 'alpha-r002 [ok]'}]
+YAML
+r002_uncovered "an id in a flow collection does not count, even with no description (fails closed)"
+
+r002_fixture <<'YAML'
+graders: &g [{name: h, type: regex, pattern: clean,
+  description: x
+  alpha-r002}]
+YAML
+r002_uncovered "an id after an anchored flow collection's description is not covered"
+
+r002_fixture <<'YAML'
+graders: [{name: it's, rule: {a: o'k}},
+  description: x
+  alpha-r002]
+YAML
+r002_uncovered "an id after apostrophes that hide a flow bracket is not covered"
+
+r002_fixture <<'YAML'
+graders:
+  - name: g
+    type: llm
+    criteria: |
+      The reply names alpha-r002 and
+      the command that removes it.
+YAML
+r002_covered "an id in a block-scalar criteria value covers"
+
+r002_fixture <<'YAML'
+graders:
+  - name: alpha-r002
+    type: regex
+    pattern: clean
+YAML
+r002_uncovered "an id only in a grader name is not covered"
+
+r002_fixture <<'YAML'
+description: |
+  Dropped for now; the old grader was
+  pattern: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line inside a description's block scalar is not covered"
+
+r002_fixture <<'YAML'
+description: "Dropped:
+  prompt: alpha-r002"
+name: probe
+YAML
+r002_uncovered "a probe-key line inside a description's quoted scalar is not covered"
+
+r002_fixture <<'YAML'
+description:
+  prompt: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe key under a description mapping is not covered"
+
+r002_fixture <<'YAML'
+graders:
+  - name: g
+    type: regex
+    pattern: clean
+    "description": |
+      pattern: alpha-r002
+YAML
+r002_uncovered "a probe-key line under a grader's quoted description key is not covered"
+
+r002_fixture <<'YAML'
+"description": |
+  expected_outcome: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line under a top-level quoted description key is not covered"
+
+r002_fixture <<'YAML'
+? description
+: |
+  expected_outcome: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line under an explicit description key is not covered"
+
+r002_fixture <<'YAML'
+old notes: |
+  expected_outcome: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line under a spaced key is not covered"
+
+r002_fixture <<'YAML'
+execution:
+  prompt: |
+    Run setup; the leftover is alpha-r002.
+YAML
+r002_covered "an id in execution.prompt covers"
+
+r002_fixture <<'YAML'
+expected_outcome: The run removes alpha-r002 and re-checks.
+YAML
+r002_covered "an id in a top-level expected_outcome covers"
+
+r002_fixture <<'YAML'
+description:
+- alpha-r002 dropped
+- another note
+name: probe
+YAML
+r002_uncovered "an id only in a description's same-indent sequence is not covered"
+
+r002_fixture <<'YAML'
+? description
+: alpha-r002 dropped
+name: probe
+YAML
+r002_uncovered "an id only in an explicit-key description is not covered"
+
+r002_fixture <<<'name: probe'
+write_suite_case alpha alpha-r002 <<<'name: probe-two'
+r002_uncovered "a case directory named the id with an id-free case is not covered"
+
+r002_fixture <<<'name: probe'
+mkdir -p "$TMP/plugins/alpha/evals/probe/graders"
+printf -- '---\ndescription: "fixture"\n---\n\nPASS when the reply names alpha-r002.\n' \
+  >"$TMP/plugins/alpha/evals/probe/graders/names-id.md"
+r002_covered "an id in a graders/*.md body covers"
+
+r002_fixture <<<'name: probe'
+mkdir -p "$TMP/plugins/alpha/evals/probe/graders"
+printf -- '---\ndescription: "alpha-r002 dropped"\n---\n\nPASS when the reply is clean.\n' \
+  >"$TMP/plugins/alpha/evals/probe/graders/clean.md"
+r002_uncovered "an id only in a graders/*.md frontmatter description is not covered"
+
+r002_fixture <<<'name: probe'
+mkdir -p "$TMP/plugins/alpha/evals/results/run1" "$TMP/plugins/alpha/evals/mocks"
+printf 'alpha-r002\n' >"$TMP/plugins/alpha/evals/results/run1/prompt.md"
+printf 'alpha-r002\n' >"$TMP/plugins/alpha/evals/results/prompt.md"
+printf 'name: alpha-r002\n' >"$TMP/plugins/alpha/evals/mocks/case.yaml"
+r002_uncovered "an id only under evals/results/ or evals/mocks/ is not covered"
+
+r002_fixture <<<'name: probe'
+printf '\xef\xbb\xbf---\ndescription: "alpha-r002 dropped"\n---\n\nRun /alpha:setup check.\n' \
+  >"$TMP/plugins/alpha/evals/probe/prompt.md"
+r002_uncovered "a BOM-prefixed prompt.md with the id only in frontmatter is not covered"
+
+# Legacy and suite sources combine: one id per source.
+conforming_retirements_fixture
+write_evals alpha alpha-r001
+write_suite_case alpha setup-migrate-config 'Run /alpha:setup apply; alpha-r002 is planted.' <<'YAML'
+schema_version: "1.1"
+name: setup-migrate-config
+YAML
+out="$(run_fixture)"
+if [[ -z "$(retirement_failure_lines)" ]]; then
+  ok "an evals.json case and a suite case together cover the manifest"
+else
+  fail "coverage split across evals.json and a suite case should pass: $out"
+fi
+
+# Invalid evals.json still fails, and its cases cover nothing.
+conforming_retirements_fixture
+printf '{not json\n' >"$TMP/plugins/alpha/skills/setup/evals/evals.json"
+out="$(run_fixture)"
+if has_fail_line 'is not valid JSON; retirement eval coverage cannot be checked' &&
+  has_fail_line "${R_EVAL_UNCOVERED}alpha-r001"; then
+  ok "an invalid evals.json fails and covers nothing"
+else
+  fail "an invalid evals.json should fail and leave its ids uncovered: $out"
 fi
 
 # --- R7. Append-only against a git base. ------------------------------------

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Next would be `install.mjs copy --scope local` for the copy actions."
+    },
+    {
+      "answer": "After plan, copy --scope local writes the entry copies."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next comes verify.",
+      "why": "wrong step"
+    },
+    {
+      "answer": "Plan installs the hooks itself.",
+      "why": "near miss: no copy step"
+    }
+  ]
+}

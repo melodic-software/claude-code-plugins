@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Without node the node row is FAIL: no guard row can start. Fix: install Node.js per the README Requirements."
+    },
+    {
+      "answer": "node: FAIL there; install Node.js and put it on PATH."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Without node the row is INFO.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "The node row would be FAIL.",
+      "why": "near miss: no fix"
+    },
+    {
+      "answer": "node would be WARN; install it.",
+      "why": "near miss: wrong verdict"
+    }
+  ]
+}

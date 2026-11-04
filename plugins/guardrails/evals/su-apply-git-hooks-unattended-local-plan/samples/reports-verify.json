@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "verify printed: missing commit-msg-convention, missing pre-commit-content, missing pre-push-content, missing reference-verify."
+    },
+    {
+      "answer": "verify: every entry is `missing`, as expected before any install."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I did not run verify.",
+      "why": "not reported"
+    },
+    {
+      "answer": "verify will report ok once installed.",
+      "why": "near miss: a prediction, not its output"
+    }
+  ]
+}

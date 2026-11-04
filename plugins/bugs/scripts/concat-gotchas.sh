@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Concatenate ## Gotchas from the bugs config-cascade layers in layer order
-# (user-global ~/.claude/bugs.md, team docs/conventions/bugs.md, local overlay
+# (user-global ~/.claude/bugs.md, team docs/conventions/bugs.md, personal override
 # .claude/bugs.local.md). Form 1 (concatenate) per
 # docs/contracts/config-cascade/consumer-gotchas.md (#3547).
 #
@@ -77,7 +77,7 @@ if [[ -z "$root" ]]; then
 fi
 
 # Config-cascade 1.3 special-root classification: a root that is $HOME or an
-# ancestor of it, or is not inside a git working tree, has no team or overlay
+# ancestor of it, or is not inside a git working tree, has no team layer or personal override
 # layer. Otherwise ~/.claude/bugs.md would be read again as the team layer.
 if [[ -n "$root" && -n "${HOME:-}" ]]; then
   # Fold slashes, trailing slash, and case, as config-cascade step 2 and
@@ -94,7 +94,7 @@ fi
 
 user="${HOME:+$HOME/.claude/bugs.md}"
 [[ -n "$user" ]] && emit_layer "user-global" "$user"
-for pair in "team:docs/conventions/bugs.md" "local overlay:.claude/bugs.local.md"; do
+for pair in "team:docs/conventions/bugs.md" "personal override:.claude/bugs.local.md"; do
   [[ -n "$root" ]] || break
   file="$root/${pair#*:}"
   [[ -n "$user" && "$file" -ef "$user" ]] && continue

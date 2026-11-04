@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "1. **Structured-markdown mode** (recommended): the same workshop, emitted as an event timeline and tables.", "why": "named mode"},
+    {"answer": "I can emit the model as a markdown artifact instead of stickies.", "why": "markdown artifact"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Install the miro plugin and run this again.", "why": "only the install path"},
+    {"answer": "Unknown skill: event-storming:simulation", "why": "skill missing"}
+  ]
+}

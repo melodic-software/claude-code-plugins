@@ -9,6 +9,7 @@
   --line-input: oklch(1 0 none / 0.38); /* field boundaries: 3:1 against the surface (WCAG 1.4.11) */
   --text: oklch(0.95 0.005 250);
   --muted: oklch(0.72 0.012 250);
+  --fg: var(--text); /* the canonical chrome's rules (rv-chrome, below) name the text color --fg */
   --faint: oklch(0.64 0.012 250); /* 4.5:1 on --sunk, the darkest surface it lands on */
   --accent: oklch(0.79 0.12 195);
   --accent-text: oklch(0.82 0.11 195);
@@ -48,7 +49,7 @@
   line-height: 1.45;
   font-feature-settings: "cv11", "ss01", "tnum";
 }
-/* JS sets data-theme from the viewer's choice, the session default, or the system setting. */
+/* JS sets data-theme from the viewer's theme toggle, or from the system setting while the toggle is on System. */
 .app[data-theme="light"] {
     --bg: oklch(0.985 0.002 250);
     --sunk: oklch(0.965 0.004 250);
@@ -78,60 +79,6 @@
     --review: oklch(0.58 0.16 55);
     --claude: oklch(0.52 0.15 300);
     color-scheme: light;
-}
-.app[data-accent="indigo"] { --accent: oklch(0.74 0.12 275); --accent-text: oklch(0.8 0.1 275); --on-accent: oklch(0.2 0.05 275); }
-.app[data-accent="violet"] { --accent: oklch(0.75 0.13 310); --accent-text: oklch(0.81 0.11 310); --on-accent: oklch(0.2 0.05 310); }
-.app[data-accent="amber"] { --accent: oklch(0.8 0.14 60); --accent-text: oklch(0.84 0.12 60); --on-accent: oklch(0.22 0.05 55); }
-.app[data-theme="light"][data-accent="indigo"] { --accent: oklch(0.5 0.17 275); --accent-text: oklch(0.45 0.17 275); --on-accent: oklch(0.99 0 none); }
-.app[data-theme="light"][data-accent="violet"] { --accent: oklch(0.52 0.18 310); --accent-text: oklch(0.46 0.17 310); --on-accent: oklch(0.99 0 none); }
-.app[data-theme="light"][data-accent="amber"] { --accent: oklch(0.74 0.15 62); --accent-text: oklch(0.5 0.13 55); --on-accent: oklch(0.22 0.05 55); }
-
-/* Whole-page palettes over the default above (JS sets data-palette). Each sets the surfaces and text for one mode and
-   keeps the accent, except High contrast, which sets its own; ui_contrast.js holds every one to WCAG 2.2 AA. */
-.app[data-palette="midnight"][data-theme="dark"] {
-  --bg: oklch(0.145 0.03 265); --sunk: oklch(0.125 0.028 265); --pane: oklch(0.18 0.036 265); --raise: oklch(0.215 0.042 265);
-  --text: oklch(0.95 0.012 265); --muted: oklch(0.74 0.03 265); --faint: oklch(0.66 0.03 265);
-}
-.app[data-palette="midnight"][data-theme="light"] {
-  --bg: oklch(0.975 0.012 265); --sunk: oklch(0.955 0.016 265); --pane: oklch(0.995 0.005 265); --raise: oklch(0.94 0.022 265);
-  --line: oklch(0.25 0.05 265 / 0.1); --line-strong: oklch(0.25 0.05 265 / 0.18); --line-input: oklch(0.25 0.05 265 / 0.55);
-  --text: oklch(0.22 0.045 265); --muted: oklch(0.43 0.045 265); --faint: oklch(0.48 0.04 265);
-}
-.app[data-palette="slate"][data-theme="dark"] {
-  --bg: oklch(0.215 0.012 245); --sunk: oklch(0.19 0.011 245); --pane: oklch(0.25 0.013 245); --raise: oklch(0.285 0.015 245);
-  --line: oklch(1 0 none / 0.1); --line-strong: oklch(1 0 none / 0.18); --line-input: oklch(1 0 none / 0.42);
-  --text: oklch(0.965 0.004 245); --muted: oklch(0.8 0.012 245); --faint: oklch(0.73 0.012 245);
-}
-.app[data-palette="slate"][data-theme="light"] {
-  --bg: oklch(0.95 0.012 245); --sunk: oklch(0.93 0.014 245); --pane: oklch(0.98 0.006 245); --raise: oklch(0.92 0.016 245);
-  --line: oklch(0.25 0.02 245 / 0.12); --line-strong: oklch(0.25 0.02 245 / 0.2); --line-input: oklch(0.25 0.02 245 / 0.58);
-  --text: oklch(0.2 0.015 245); --muted: oklch(0.4 0.015 245); --faint: oklch(0.44 0.013 245);
-}
-.app[data-palette="paper"][data-theme="dark"] {
-  --bg: oklch(0.185 0.014 70); --sunk: oklch(0.165 0.013 70); --pane: oklch(0.215 0.016 70); --raise: oklch(0.25 0.018 70);
-  --text: oklch(0.94 0.018 85); --muted: oklch(0.76 0.025 80); --faint: oklch(0.69 0.024 80);
-}
-.app[data-palette="paper"][data-theme="light"] {
-  --bg: oklch(0.97 0.016 88); --sunk: oklch(0.95 0.02 88); --pane: oklch(0.985 0.012 90); --raise: oklch(0.935 0.024 88);
-  --line: oklch(0.3 0.04 60 / 0.1); --line-strong: oklch(0.3 0.04 60 / 0.18); --line-input: oklch(0.3 0.04 60 / 0.55);
-  --text: oklch(0.24 0.025 60); --muted: oklch(0.42 0.03 60); --faint: oklch(0.47 0.028 60);
-}
-/* High contrast: black and white surfaces, stronger lines, and its own accent whatever the accent setting ([data-accent]
-   lifts it above the accent rules wherever it sits). */
-.app[data-palette="contrast"][data-theme="dark"][data-accent] {
-  --bg: oklch(0 0 none); --sunk: oklch(0 0 none); --pane: oklch(0.13 0 none); --raise: oklch(0.2 0 none);
-  --line: oklch(1 0 none / 0.3); --line-strong: oklch(1 0 none / 0.5); --line-input: oklch(1 0 none / 0.75);
-  --text: oklch(1 0 none); --muted: oklch(0.9 0 none); --faint: oklch(0.84 0 none);
-  --accent: oklch(0.9 0.17 100); --accent-text: oklch(0.9 0.17 100); --on-accent: oklch(0 0 none);
-  --sb: oklch(1 0 none / 0.4); --sb-hover: oklch(1 0 none / 0.6);
-}
-.app[data-palette="contrast"][data-theme="light"][data-accent] {
-  --bg: oklch(1 0 none); --sunk: oklch(0.97 0 none); --pane: oklch(1 0 none); --raise: oklch(0.94 0 none);
-  --line: oklch(0 0 none / 0.3); --line-strong: oklch(0 0 none / 0.5); --line-input: oklch(0 0 none / 0.75);
-  --text: oklch(0 0 none); --muted: oklch(0.3 0 none); --faint: oklch(0.36 0 none);
-  --accent: oklch(0.42 0.2 265); --accent-text: oklch(0.4 0.2 265); --on-accent: oklch(1 0 none);
-  --brass-text: oklch(0.42 0.1 65); --ok: oklch(0.48 0.15 155); --warn: oklch(0.5 0.2 25); --review: oklch(0.5 0.15 55); --claude: oklch(0.45 0.16 300);
-  --sb: oklch(0 0 none / 0.4); --sb-hover: oklch(0 0 none / 0.6);
 }
 
 /* thin themed scrollbars on every internal scroller */
@@ -169,10 +116,10 @@
 .app .vf-btn, .app .vf-tbtn, .app .vf-follow, .app .vf-seg-btn, .app .vf-vote, .app .vf-q, .app .vf-tab,
 .app .vf-person, .app .vf-fab, .app .vf-edge, .app .vf-fwd, .app .vf-menu-item, .app .vf-sw-row, .app .vf-col-q,
 .app .vf-rtoggle, .app .vf-proprow, .app .vf-pick-btn, .app .vf-lbtn, .app .vf-qref, .app .vf-res-head, .app .vf-tnode,
-.app .vf-merge-item, .app .vf-swatch, .app .vf-cltoggle {
+.app .vf-merge-item, .app .vf-cltoggle {
   all: unset; box-sizing: border-box; cursor: pointer;
 }
-.app :is(.vf-btn, .vf-tbtn, .vf-follow, .vf-seg-btn, .vf-vote, .vf-q, .vf-tab, .vf-person, .vf-fab, .vf-edge, .vf-fwd, .vf-menu-item, .vf-sw-row, .vf-col-q, .vf-rtoggle, .vf-proprow, .vf-pick-btn, .vf-lbtn, .vf-qref, .vf-res-head, .vf-tnode, .vf-merge-item, .vf-swatch, .vf-cltoggle, .core-avatar[data-pid], .vf-card, .vf-mini):focus-visible {
+.app :is(.vf-btn, .vf-tbtn, .vf-follow, .vf-seg-btn, .vf-vote, .vf-q, .vf-tab, .vf-person, .vf-fab, .vf-edge, .vf-fwd, .vf-menu-item, .vf-sw-row, .vf-col-q, .vf-rtoggle, .vf-proprow, .vf-pick-btn, .vf-lbtn, .vf-qref, .vf-res-head, .vf-tnode, .vf-merge-item, .vf-cltoggle, .core-avatar[data-pid], .vf-card, .vf-mini):focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .app .vf-btn {
@@ -1050,18 +997,7 @@
 .app .vf-pop-sub { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0; }
 .app .vf-help-rec + .vf-pop-sub { margin-block-start: 12px; } /* Keyboard shortcuts clears the "What this page records" link above it */
 .app .vf-settings .vf-pop-sub { margin-block: 10px 6px; padding-inline: 8px; }
-.app .vf-settings .vf-theme { padding-inline: 8px; }
-.app .vf-theme { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.app .vf-swatches { display: flex; gap: 6px; }
-.app .vf-palettes { flex: 1 1 100%; flex-wrap: wrap; }
-.app .vf-theme-why { flex: 1 1 100%; font-size: 12px; color: var(--muted); }
-.app .vf-swatch[aria-disabled="true"] { opacity: 0.35; cursor: not-allowed; }
-.app .vf-swatch { inline-size: 22px; block-size: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px oklch(0 0 none / 0.2); }
-.app .vf-swatch[data-accent="teal"] { background: oklch(0.72 0.12 200); }
-.app .vf-swatch[data-accent="indigo"] { background: oklch(0.62 0.15 275); }
-.app .vf-swatch[data-accent="violet"] { background: oklch(0.64 0.16 310); }
-.app .vf-swatch[data-accent="amber"] { background: oklch(0.78 0.15 62); }
-.app .vf-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--pane), 0 0 0 4px var(--text); }
+.app .vf-pcard .rv-theme { justify-self: start; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-merge-item:hover { background: var(--raise); }
 }
@@ -1199,7 +1135,7 @@
   .app :is(.vf-lbtn, .vf-fwd, .vf-res-head, .vf-qref, .vf-pick-btn, .vf-menu-item, .vf-merge-item, .vf-seg-sm .vf-seg-btn, .vf-col-q, .vf-toast-act, .vf-toast-x) { min-block-size: 44px; }
   .app .vf-toast-x { inline-size: 44px; }
   .app :is(.vf-lbtn, .vf-fwd) { padding-inline: 6px; }
-  .app .vf-swatch { inline-size: 44px; block-size: 44px; }
+  .app .rv-theme button { min-block-size: 44px; }
   .app .vf-cctl { gap: 6px; }
   .app .vf-tiepop { inline-size: min(340px, calc(100% - 16px)); }
   /* the Propose form is a bottom sheet, so it sits right on an on-screen keyboard, as the Ask Claude sheet does */
@@ -2741,3 +2677,21 @@
 .app .vf-rev-who { margin-inline-start: auto; }
 .app .vf-revrow .vf-ndot { margin: 0; }
 .app .vf-aud { justify-self: start; }
+/* The canonical chrome's theme toggle and comment box rules, copied verbatim from reference/html-chrome.html
+   (tests/test_page_chrome.py checks the copy). */
+/* rv-chrome:begin */
+.rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+.rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+.rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+.rv-theme button + button { border-left: 1px solid var(--muted); }
+.rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+.rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+.rv-comment { display: grid; gap: 0.4rem; }
+.rv-comment h2 { margin: 0; }
+.rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+.rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+/* rv-chrome:end */
+.app .rv-comment h2 { font-size: 13px; font-weight: 600; }
+.app .rv-comment label { color: var(--muted); font-size: 12px; }
+/* the page's field style keeps the comment box like its other fields; its focus outline is the chrome's, in the text color */
+.app .rv-comment .vf-ta:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }

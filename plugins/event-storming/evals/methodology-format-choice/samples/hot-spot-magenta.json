@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "- Hot spots: magenta stickies, placed wherever a question or conflict shows up.", "why": "magenta"},
+    {"answer": "| Pink | Hot Spot |", "why": "table row"},
+    {"answer": "Use hot pink for hotspots.", "why": "hot pink, one word"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "- Hot spots: red markers on the timeline.\n- Pink stickies are external systems.", "why": "wrong color on the hot-spot line"}
+  ]
+}

@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: mg-plan-stops-before-write
+description: Asked to move a content-bearing root CLAUDE.md to AGENTS.md, migrate runs its plan script first, presents the plan with the one-line @AGENTS.md shim as the target, and writes no instruction file before the operator accepts
+tags: [migrate, outcome, scaffold]
+expected_outcome: The run calls plan-migration.sh with --root, the reply names the one-line @AGENTS.md shim the root CLAUDE.md becomes, and no Write, Edit or shell redirect creates or changes AGENTS.md or CLAUDE.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the migrate skill from the instruction-placement plugin to move this repository's CLAUDE.md content into AGENTS.md."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:instruction-placement:)?migrate"'
+    arm: with-only
+  - name: ran-plan
+    type: tool_used
+    tool: Bash
+    input_match: 'plan-migration\.sh\b(?:[^"\\]|\\.)*?\s--root\b'
+    arm: with-only
+  - name: names-shim
+    type: regex
+    pattern: '@AGENTS\.md'
+    target: last_message
+    arm: both
+  - name: no-instruction-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path"\s*:\s*"[^"]*(?:AGENTS|CLAUDE)\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-instruction-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path"\s*:\s*"[^"]*(?:AGENTS|CLAUDE)\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-bash-instruction-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\"|'')?[^\s"''|;&<>]*(?:AGENTS|CLAUDE)\.md|\b(?:tee|mv|cp)\b(?:[^"\\|;&]|\\.)*?\s(?:\\"|'')?[^\s"''|;&]*(?:AGENTS|CLAUDE)\.md(?:\\"|'')?\s*(?:"|[|;&)]|\\n)|\b(?:sed|perl)\b(?:[^"\\|;&]|\\.)*?\s(?:-[a-zA-Z]*i|--in-place)\b(?:[^"\\|;&]|\\.)*?(?:AGENTS|CLAUDE)\.md)'
+    min: 0
+    max: 0
+    arm: both

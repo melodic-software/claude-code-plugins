@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "instruction-placement:migrate"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "migrate", "args": "plan"}}], "why": "unqualified name with an argument"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "instruction-placement:audit"}}], "why": "the sibling sweep, not migrate"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "db:migrate-schema"}}], "why": "a different skill whose name starts with migrate"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "The script only plans and copies; each decisions[] item comes back to me, and I apply it with my own edit tools."
+    },
+    {
+      "answer": "I resolve the decisions myself with Edit; install.mjs never applies them."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "install.mjs applies the decisions automatically.",
+      "why": "the script"
+    },
+    {
+      "answer": "You apply the decisions by hand.",
+      "why": "near miss: the user, not the agent"
+    }
+  ]
+}
