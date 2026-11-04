@@ -306,6 +306,9 @@ lib/prerequisites.ps1 plugins/playbooks/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/plugin-quality/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/plugin-quality/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/plugin-quality/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/prototype/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/prototype/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/prototype/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/repo-fleet-hygiene/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/repo-fleet-hygiene/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/repo-fleet-hygiene/lib/prerequisites.ps1
@@ -540,7 +543,7 @@ lib/state-key.sh plugins/overengineering/lib/state-key.sh
 lib/rendered-view.md plugins/planning/reference/rendered-view.md
 lib/rendered-view.md plugins/architecture/reference/rendered-view.md
 lib/rendered-view.md plugins/discovery/reference/rendered-view.md
-lib/rendered-view.md plugins/debugging/skills/debug/reference/rendered-view.md
+lib/rendered-view.md plugins/debugging/reference/rendered-view.md
 lib/telemetry-body-gate.sh plugins/work-items/scripts/telemetry-body-gate.sh
 lib/telemetry-body-gate.sh plugins/harness-ops/skills/lanes/scripts/lib/telemetry-body-gate.sh
 lib/telemetry-body-gate.sh plugins/source-control/skills/babysit-loop/scripts/telemetry-body-gate.sh
