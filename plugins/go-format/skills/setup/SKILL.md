@@ -51,9 +51,8 @@ what it requires and how it resolves things.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything. Option values are rendered
-into this text at load: read them here, and never put a `${user_config.*}` string in a shell
-command.
+table with one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
@@ -62,7 +61,7 @@ disabled plugin is not broken. Report those probes informationally and note that
 restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
 `node` before the launcher can read the toggle, so both hook rows fail to start.
 
-1. **Bash version.** Report it as INFO: the hook documents no version floor.
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
