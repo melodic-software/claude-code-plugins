@@ -74,7 +74,7 @@ run_in "$opts_gen" python3 "$SELF_DIR/sync-plugin-options-docs.py"
 # shellcheck disable=SC2034 # read inside the check conditions, which run through eval
 block="$(cat "$opts_gen/plugins/p/README.md")"
 check "plugin-options-docs block restates no upstream fact" \
-  '[[ $block != *CLAUDE_PLUGIN_OPTION_* && $block != *--config* && $block != *--values-stdin* && $block != *"settings scopes"* ]]'
+  '[[ $block != *CLAUDE_PLUGIN_OPTION_* && $block != *--config* && $block != *--values-stdin* && $block != *"settings scopes"* && $block != *"will prompt for"* && $block != *"options dialog"* ]]'
 check "plugin-options-docs block carries its as-of date and recheck trigger" \
   '[[ $block == *"As of 20"* && $block == *"Recheck trigger:"* ]]'
 check "plugin-options-docs block keeps a sensitive option off the command line" \
@@ -95,14 +95,14 @@ check "plugin-options-docs withholds the install fallback when every option is s
 check "plugin-options-docs offers no by-hand route when every option is sensitive" \
   '[[ $block != *"**By hand:**"* ]]'
 
-# Every file this generator and its options touch passes the stamp check's trigger-less rule:
-# READMEs with the block, plugin manifests, changelog fragments, the generator and this test. Only
+# The generator's inputs and outputs pass the stamp check's trigger-less rule: READMEs with the block,
+# the plugin manifests it reads, the generator and this test, plus this change's own fragments. Only
 # that rule is read: an expiry finding depends on today's date, so it would fail as dates age.
 stamped=("$SELF_DIR/sync-plugin-options-docs.py" "$SELF_DIR/check-data-root.test.sh")
 for readme in "$SELF_DIR"/../plugins/*/README.md; do
   grep -qF 'END GENERATED: plugin options' "$readme" && stamped+=("$readme")
 done
-for other in "$SELF_DIR"/../plugins/*/.claude-plugin/plugin.json "$SELF_DIR"/../.changes/*/*.md; do
+for other in "$SELF_DIR"/../plugins/*/.claude-plugin/plugin.json "$SELF_DIR"/../.changes/*/docs-12700-plugin-options-pointers-*.md; do
   [[ -f $other ]] && stamped+=("$other")
 done
 RC=0
