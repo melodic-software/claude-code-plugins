@@ -1442,8 +1442,24 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
+  // A network error names no call; the annotation needs which one failed. Fetch
+  // quotes a token that is no legal header value in its error, altered enough
+  // that matching the token misses it, so nothing of that error is kept. The
+  // warnings log a thrown message too.
+  const send = (url, init) =>
+    fetch(url, init).catch((error) => {
+      const call = `${init.method ?? "GET"} ${url}`;
+      if (/invalid header value/i.test(String(error.message))) {
+        throw new Error(`${call}: the token is not a valid header value`);
+      }
+      if (String(error.message).includes(headers.Authorization)) {
+        error.message = error.message.split(headers.Authorization).join("Bearer [redacted]");
+      }
+      throw Object.assign(error, { call });
+    });
+
   async function request(url, method = "GET", body, signal) {
-    const response = await fetch(url, {
+    const response = await send(url, {
       method,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -1488,7 +1504,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
       const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
-      const response = await fetch(url, { headers });
+      const response = await send(url, { headers });
       if (response.status === 404) {
         return "none";
       }
@@ -1793,10 +1809,22 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
 }
 
 // The step's error annotation for a failed run. A thrown fetch names its
-// cause only in error.cause; the label carries its code, never its message,
-// which can hold a header value. A refused GitHub call adds its answer's detail.
-export const failureAnnotation = (error) =>
-  `::error::pr-feedback dispatch failed: ${error.message}${error?.cause?.code ? ` (${errorLabel(error)})` : ""}${detailSuffix(error)}`;
+// cause only in error.cause; the label carries its code, else its name, never
+// its message, which can hold a header value. A refused GitHub call adds its
+// answer's detail.
+const causeLabel = (error) => {
+  const { cause } = error;
+  if (!cause) {
+    return "";
+  }
+  const name = typeof cause.code !== "string" && typeof cause.name === "string" ? ` cause ${cause.name}` : "";
+  return ` (${errorLabel(error)}${name})`;
+};
+// The line holds no token and no line break, whichever client threw.
+export const failureAnnotation = (error, token) => {
+  const line = `::error::pr-feedback dispatch failed: ${error.message}${error.call ? ` on ${error.call}` : ""}${causeLabel(error)}${detailSuffix(error)}`;
+  return (token ? line.split(token).join("[redacted]") : line).replace(/[\x00-\x1f\x7f]+/g, " ");
+};
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.env).then(
@@ -1804,7 +1832,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exitCode = code;
     },
     (error) => {
-      console.log(failureAnnotation(error));
+      console.log(failureAnnotation(error, process.env.GITHUB_TOKEN));
       process.exitCode = 1;
     },
   );

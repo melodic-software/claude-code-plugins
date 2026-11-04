@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Proposal for your user CLAUDE.md (user scope): 'Write dates as ISO 8601.' You add the line; I wrote only the proposal.",
+      "why": "user target, person writes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Proposal for the project's CLAUDE.md: 'Write dates as ISO 8601.'",
+      "why": "a repository target"
+    },
+    {
+      "answer": "Added 'Write dates as ISO 8601.' to ~/.claude/CLAUDE.md.",
+      "why": "wrote the target itself"
+    },
+    {
+      "answer": "The date preference qualifies at user scope.",
+      "why": "no line proposed"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "preferences --scope machine, then /session-flow:audit-sessions"
+          }
+        }
+      ],
+      "why": "the action itself, whatever its args quote"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:audit-sessions",
+            "args": "excerpts-only --scope machine --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "the gate was skipped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit-sessions"
+          }
+        }
+      ],
+      "why": "the bare name, no args"
+    }
+  ]
+}

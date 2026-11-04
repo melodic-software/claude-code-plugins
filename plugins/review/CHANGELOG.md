@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.7] - 2026-11-04
+
+### Fixed
+
+- The run-everything sweep names its workflow script (`workflows/fanout-sweep.js`), and the `doc-drift-detector` agent names the file that defines the `review.yaml` keys (`reference/config.md`), so neither searches the plugin directory with `Glob`, `Grep` or `ls` to find them. Those searches were denied in eval runs, which made the reviewer-diversity suites invalid.
+
 ## [7.1.6] - 2026-11-04
 
 ### Fixed

@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/p/scripts/codify-settings.mjs\" --user-ratchet-offer true"
+          }
+        }
+      ],
+      "why": "the settings reader"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/corrections.yaml"
+          }
+        }
+      ],
+      "why": "reads the file by hand"
+    }
+  ]
+}
