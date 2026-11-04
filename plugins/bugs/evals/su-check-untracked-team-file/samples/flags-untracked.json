@@ -1,0 +1,1 @@
+{"pass":[{"answer":"| FAIL | docs/conventions/bugs.yaml | present but untracked |","why":"untracked"},{"answer":"The team file is not committed yet.","why":"not committed"}],"fail":[{"answer":"| PASS | docs/conventions/bugs.yaml | tracked |","why":"misses the gap"},{"answer":"","why":"empty"}]}
