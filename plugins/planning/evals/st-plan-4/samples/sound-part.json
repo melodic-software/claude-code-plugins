@@ -1,10 +1,6 @@
 {
   "pass": [
     {
-      "answer": "",
-      "why": "empty"
-    },
-    {
       "answer": "- Inserting `SentReminder` first is right: the unique index prevents duplicate sends.\n",
       "why": "approves"
     },

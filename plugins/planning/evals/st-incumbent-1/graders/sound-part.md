@@ -1,7 +1,18 @@
 ---
-type: regex
-pattern: '^(?![^\n]*\bNo plan gaps found)(?!(?![^\n]*\b(?:draft|plan|proposal|Phase\s*\d+|section|brief|author|it)(?:''s)?\s+(?:\w+\s+)?(?:says|said|assumes|assumed|claims|claimed|states|asserts|argues)\b[^\n]*\b(?:but|however|yet)\b)[^\n]*\b(?:is|are|was|were|looks?|seems?|remains?)\s+(?!not\b|never\b)(?:(?:perfectly|entirely|totally|already|also|still|actually)\s+)?(?:fine|ok|okay|good|correct|accurate|sound|acceptable|safe|justified|reasonable)\b(?![^\n]*\b(?:but|however|yet|although|though)\b[^\n]*(?:\bBATCH_SIZE\b|\bbatch\s+size\b|\bbatch(?:es)?\s+of\s+200\b|\b200[- ](?:recipient|per|message)\w*)))(?![^\n]*\b(?:no|not\s+an?|n''t\s+an?)\s+(?:(?!(?:minor|small|trivial|cosmetic|theoretical|hypothetical)\b)\w+\s+){0,2}(?:issue|problem|concern|risk|defect|gap|finding|blocker)s?\b)(?![^\n]*\b(?:nothing\s+wrong|no\s+need\s+to|need\s+not|can\s+be\s+ignored|no\s+action\s+needed|no\s+changes?\s+needed)\b)(?![^\n]*(?:(?:\bnot|\bnever|n''t)\s+(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+)?|\b(?:no|none|nothing|neither)\b\s*(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)[\w`]+\s+){0,5}?)(?:too|arbitrar\w*|wrong|incorrect|unjustified|exceed\w*|a\s+bottleneck)\b)(?=[^\n]*(?:\bBATCH_SIZE\b|\bbatch\s+size\b|\bbatch(?:es)?\s+of\s+200\b|\b200[- ](?:recipient|per|message)\w*))[^\n]*(?:\btoo\s+(?:small|low|large|high|big)\b|\barbitrar\w*|\bunjustified\b|\bwrong\b|\bincorrect\b|\bexceed\w*|\bshould\s+(?:be\s+)?(?:raised?|increased?|lowered?|reduced?|larger|smaller)\b|\b(?:raise|increase|lower|reduce)\s+(?:it|the|BATCH)\b|\bbottleneck\b|\bunsupported\b|\bno\s+basis\b|\bunverified\b)'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft plan for a veterinary clinic reminder service that decides whether to
+keep its in-process job scheduler. One part of the draft is sound: `BATCH_SIZE` is 200, which matches the Postrider gateway's limit on recipients
+per request. This grader checks only that the reply leaves the batch size alone. The case's other
+graders score the defects it finds.
+
+PASS if no finding says the batch size of 200 is wrong or should change. A reply passes when it
+approves 200, says it is not arbitrary, reports other defects (the fixed UTC offset across
+daylight saving changes, the job store missing from the pinned 2.8.1 release, or one store file
+shared by two workers), or flags nothing.
+
+FAIL if any finding calls the batch size of 200 arbitrary, unjustified, unverified, too small or
+a bottleneck, or asks to raise, lower or check it. A finding that opens with "this is not a minor
+problem" or a similar phrase and then attacks the batch size fails.

@@ -1,7 +1,21 @@
 ---
-type: regex
-pattern: '^(?:(?=[^\n]*\b(?:but|however|only\s+if|unless|although|though)\b)|(?![^\n]*(?:\bNo plan gaps found\b|\b(?:is|are|looks?|seems?)\s+(?:perfectly\s+|entirely\s+|fully\s+|also\s+)?(?:fine|ok|okay|good|sound|correct|right|accurate|safe)\b|\bno\s+(?:\w+\s+)?(?:issue|problem|concern|finding|gap|defect|risk)s?\b|\bnot\s+a\s+(?:\w+\s+)?(?:issue|problem|concern|defect|gap|risk)\b|\bnothing\s+to\s+(?:flag|fix|report)\b)))(?![^\n]*(?:\b(?:(?<!not )(?<!n''t )(?<!never )(?:prevents?|stops?|guards?\s+against|avoids?|rules?\s+out)|no|(?:not|never|cannot|(?:is|are|was|were|do|does|did|has|have|had|ca|could|wo|would|should|must)n.?t)|without)\s+(?:(?!(?:means?|leads?|causes?|lock|locks|locking)\b)(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,3}(?:duplicate\w*|double[- ]?send\w*|twice|race)\b|\bunique\s+index\b[^\n]*(?<!not )(?<!n''t )\b(?:correct\w*|works?|enough|sound)\b))(?=[^\n]*(?:\bunique\s+index\b|\binsert\w*\b|\b(?:written|saved)\s+first\b|\bPhase\s*2\b|\brestart\b|\boverlap\w*\s+tick\w*))[^\n]*(?:\bduplicate\w*|\bdouble[- ]?send\w*|\brac(?:e|es|ing)\b|\bsen[dt]s?\s+(?:\w+\s+){0,3}(?:twice|more\s+than\s+once|again)\b)'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft plan for SMS appointment reminders in a C# clinic worker service. One
+part of the draft is sound: inserting the `SentReminder` row before the send cannot send a
+duplicate message, because `ClinicDbContext` has a unique index on `AppointmentId` and `Kind`, and
+Phase 3 retries only a refused send within the same tick, never a row from an earlier tick. This
+grader checks only that the reply leaves that part alone. The case's other graders score the
+defects it finds.
+
+PASS if no finding says the insert-before-send step can send a reminder twice. A reply passes
+when it approves that step, reports other defects (`SmsOptOut`, local `StartsAt` times, or
+`appsettings.Production.json` overriding the section), or flags nothing. A finding that a crash
+after the insert loses a reminder, or that a timed-out send is never retried, is about a missed
+message, not a duplicate, and passes.
+
+FAIL if any finding says a restart, a retry or two overlapping ticks can send a duplicate or
+double reminder for one appointment, that the `SentReminder` insert races with another tick, or
+that the unique index does not stop, or is not enough to stop, a second send.

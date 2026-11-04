@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "To opt in, add a PSScriptAnalyzerSettings.psd1; the choice and the edit are yours."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Want me to create a PSScriptAnalyzerSettings.psd1 so formatting starts?",
+      "why": "offers the write"
+    },
+    {
+      "answer": "I can fix this by adding a minimal settings file if you like.",
+      "why": "near miss: offer phrased as a repair"
+    }
+  ]
+}

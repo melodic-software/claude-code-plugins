@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.3] - 2026-11-04
+
+### Fixed
+
+- The `check` line for an old Claude Code no longer prints a literal `<plugin root>` in the mods probe command. It now says to run `bash scripts/check-mod-load.sh` from the plugin root, the directory passed to `prerequisites.mjs check`, so the command runs as written.
+
 ## [3.0.2] - 2026-11-04
 
 ### Changed

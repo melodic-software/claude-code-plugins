@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.5] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
+- `babysit_verify_evidence.py refusal-stands` says whether an earlier tick's post-merge report refuses on what it found (exit 1, or needs-dispatch, unattributed, quarantines or excused; not its age, a re-run or a failed read) while nothing it was read from has moved: main's tip, the config commit, the demotion, the quarantine issues, the pins, and every verifying run, including one created, re-run or still running since. pr-merge's PR-scoped wake then refuses as that report does without running the post-merge check again.
+
 ## [7.0.4] - 2026-11-04
 
 ### Changed
