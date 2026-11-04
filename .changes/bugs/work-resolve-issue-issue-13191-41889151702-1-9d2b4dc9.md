@@ -1,10 +1,5 @@
 ---
-bump: patch
+bump: none
 ---
 
-### Changed
-
-- The config reference, README and the `scan`, `write` and `setup` text now call the config
-  cascade's personal layer, `.claude/bugs.local.md`, the personal override, and the consumer
-  gotchas block `concat-gotchas.sh` prints heads that layer `#### personal override (...)`
-  ([#13191](https://github.com/melodic-software/claude-code-plugins/issues/13191)).
+No release needed: this pull request changes no bugs file. The personal override rename (#13191) is already on the base and recorded by its chore-13191-personal-override-eight fragment.

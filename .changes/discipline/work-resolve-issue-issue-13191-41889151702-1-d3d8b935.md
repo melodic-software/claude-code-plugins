@@ -1,9 +1,5 @@
 ---
-bump: patch
+bump: none
 ---
 
-### Changed
-
-- The config reference and `setup` now call the config cascade's personal layer the personal
-  override ([#13191](https://github.com/melodic-software/claude-code-plugins/issues/13191)).
-  Behavior is unchanged.
+No release needed: this pull request changes no discipline file. The personal override rename (#13191) is already on the base and recorded by its chore-13191-personal-override-eight fragment.
