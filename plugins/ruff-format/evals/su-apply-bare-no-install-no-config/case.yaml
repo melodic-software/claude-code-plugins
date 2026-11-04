@@ -41,7 +41,7 @@ graders:
   - name: 'no-env-change'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:poetry|pipenv|pdm|hatch|rye)(?:\.exe)?(?:\\\"|'')?(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:add|install|sync|lock|update|env\s+use)\b|uv(?:\.exe)?(?:\\\"|'')?(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:venv|sync|lock|add)\b|(?:venv|virtualenv)(?=\s))'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:poetry|pipenv|pdm|hatch|rye)(?:\.exe)?(?:\\\"|'')?(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:add|install|sync|lock|update|run|shell|env\s+use)\b|uv(?:\.exe)?(?:\\\"|'')?(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:venv|sync|lock|add|run|tool\s+run)\b|pipx(?:\.exe)?\s+run\b|(?:venv|virtualenv)(?=\s))'
     min: 0
     max: 0
     arm: 'both'

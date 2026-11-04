@@ -9,7 +9,7 @@
     {
       "use": "command_position_multishell"
     },
-    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:(?:poetry|pipenv|pdm|hatch|rye)(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s+-{1,2}[\\w-]+(?:=\\S+)?)*\\s+(?:add|install|sync|lock|update|env\\s+use)\\b|uv(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s+-{1,2}[\\w-]+(?:=\\S+)?)*\\s+(?:venv|sync|lock|add)\\b|(?:venv|virtualenv)(?=\\s))"
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:(?:poetry|pipenv|pdm|hatch|rye)(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s+-{1,2}[\\w-]+(?:=\\S+)?)*\\s+(?:add|install|sync|lock|update|run|shell|env\\s+use)\\b|uv(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s+-{1,2}[\\w-]+(?:=\\S+)?)*\\s+(?:venv|sync|lock|add|run|tool\\s+run)\\b|pipx(?:\\.exe)?\\s+run\\b|(?:venv|virtualenv)(?=\\s))"
   ],
   "no-plugin-cli-write": [
     {
