@@ -28,7 +28,7 @@ Bash instead.
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. The only
-tunables are the four native `userConfig` toggles (master + one per channel), and every
+tunables are the five native `userConfig` toggles (master, one per channel, mod-toast forwarding), and every
 remaining prerequisite is a system tool or an OS package. So `apply` is pure
 guidance-and-verify with **no write path**: it installs nothing and edits nothing.
 
@@ -87,11 +87,11 @@ restores the FAIL semantics.
    - **Windows / other**. INFO: the hook has no `os_toast` branch on this platform (a
      fire-and-forget process leaves no live activator host for a WinRT toast). The
      `terminal_notify` OSC 9 channel carries attention here; nothing to install.
-5. **Channel toggles**. Report the effective value of all four native booleans (unexpanded
+5. **Channel toggles**. Report the effective value of all five native booleans (unexpanded
    or empty means the default `true`): master `${user_config.desktop_notification_enabled}`,
-   `${user_config.desktop_notification_bell_enabled}`,
-   `${user_config.desktop_notification_terminal_notify_enabled}`, and
-   `${user_config.desktop_notification_os_toast_enabled}`. Call out when the master toggle is
+   `${user_config.desktop_notification_bell_enabled}`, `${user_config.desktop_notification_terminal_notify_enabled}`,
+   `${user_config.desktop_notification_os_toast_enabled}`, and
+   `${user_config.desktop_notification_forward_toasts_enabled}`. Call out when the master toggle is
    off (the whole hook is muted) or when the only channel that would fire on this OS is
    disabled.
 6. **Hook registration**. INFO: confirm the plugin is enabled for this project

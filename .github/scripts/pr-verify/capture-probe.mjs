@@ -1,13 +1,14 @@
-// The reach probe of pr-verify-capture.yml: run as a Bash child of the
-// capture's Claude Code driver, where the app under test and its hooks will
-// run, before any pull request code is checked out. It reports whether a
-// process in that position can read a credential or the job's runtime token:
-// in its own environment, in any process environment /proc lets it read, or
-// in a git or gh credential file. It writes RESULT_FILE (default
-// capture-probe.json in the working directory) with names and places only,
-// never a value, and exits 0 clean, 1 on any hit, 2 when the scan cannot show
-// it works: a canary child it starts must turn up in the scan, so a scanner
-// that reads nothing never passes.
+// The reach probe: run as a Bash child of a Claude Code leg holding a key. In
+// pr-verify-capture.yml that is where the app under test and its hooks will
+// run, before any pull request code is checked out; upstream-apply-changelog.yml
+// runs it on each new Claude Code release to check the subprocess scrub. It
+// reports whether a process in that position can read a credential or the
+// job's runtime token: in its own environment, in any process environment
+// /proc lets it read, or in a git or gh credential file. It writes RESULT_FILE
+// (default capture-probe.json in the working directory) with names and places
+// only, never a value, and exits 0 clean, 1 on any hit, 2 when the scan cannot
+// show it works: a canary child it starts must turn up in the scan, so a
+// scanner that reads nothing never passes.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,7 +20,9 @@ import { pathToFileURL } from "node:url";
 // Every variable that carries a credential pr-verify's capture holds or the
 // runner hands a step: the role's three Claude secrets, the names
 // run-claude-cli passes or sets them under (lane.cjs CREDENTIAL_VARIABLES),
-// the job token and the runtime and OIDC request tokens.
+// the job token and the runtime and OIDC request tokens. A job holding another
+// role's secret names it in CAPTURE_PROBE_EXTRA_NAMES, space separated; the
+// result lists every name probed, so its caller can see the names arrived.
 export const CREDENTIAL_NAMES = Object.freeze([
   "PR_VERIFY_CLAUDE_API_KEY",
   "PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN",
@@ -42,15 +45,17 @@ const CANARY = "PR_VERIFY_PROBE_CANARY";
 // Files that hold a credential git or gh would send.
 const AUTH_LINE = /extraheader|authorization:/i;
 
+export const probedNames = (extra = "") => [...CREDENTIAL_NAMES, ...extra.split(/\s+/).filter(Boolean)];
+
 // The credential names set non-empty, and whether any value has a credential
 // shape, in one environment as `NAME=value` entries.
-export function envHits(entries) {
+export function envHits(entries, names = CREDENTIAL_NAMES) {
   const hits = new Set();
   for (const entry of entries) {
     const at = entry.indexOf("=");
     const name = at < 0 ? entry : entry.slice(0, at);
     const value = at < 0 ? "" : entry.slice(at + 1);
-    if (value !== "" && CREDENTIAL_NAMES.includes(name)) hits.add(name);
+    if (value !== "" && names.includes(name)) hits.add(name);
     if (VALUE_SHAPES.some((shape) => shape.test(value))) hits.add(`a credential-shaped value in ${name}`);
   }
   return [...hits];
@@ -58,7 +63,7 @@ export function envHits(entries) {
 
 // Every process environment readable under procRoot: the hits per process,
 // how many it read, and whether one held the canary.
-export function scanProc(procRoot, canary) {
+export function scanProc(procRoot, canary, names = CREDENTIAL_NAMES) {
   const hits = [];
   let read = 0;
   let canarySeen = false;
@@ -77,7 +82,7 @@ export function scanProc(procRoot, canary) {
     }
     read += 1;
     if (canary && entries.includes(`${CANARY}=${canary}`)) canarySeen = true;
-    for (const name of envHits(entries)) hits.push({ where: `process ${pid}`, name });
+    for (const name of envHits(entries, names)) hits.push({ where: `process ${pid}`, name });
   }
   return { hits, read, canarySeen };
 }
@@ -161,16 +166,20 @@ function reads(argv) {
 export async function main({ env = process.env, cwd = process.cwd(), procRoot = "/proc", argv = process.argv } = {}) {
   if (argv[2] === "reads") return reads(argv);
   const resultFile = argv[2] || path.join(cwd, "capture-probe.json");
+  const names = probedNames(env.CAPTURE_PROBE_EXTRA_NAMES);
   const canary = randomBytes(16).toString("hex");
   const child = spawn("sleep", ["30"], { env: { PATH: env.PATH ?? "/usr/bin:/bin", [CANARY]: canary }, stdio: "ignore" });
   await new Promise((resolve) => setTimeout(resolve, 200));
   let result;
   try {
-    result = verdict({
-      ownHits: envHits(Object.entries(env).map(([name, value]) => `${name}=${value}`)),
-      procScan: scanProc(procRoot, canary),
-      fileHits: scanFiles(credentialFiles(cwd, env.HOME ?? os.homedir())),
-    });
+    result = {
+      ...verdict({
+        ownHits: envHits(Object.entries(env).map(([name, value]) => `${name}=${value}`), names),
+        procScan: scanProc(procRoot, canary, names),
+        fileHits: scanFiles(credentialFiles(cwd, env.HOME ?? os.homedir())),
+      }),
+      names,
+    };
   } finally {
     child.kill("SIGKILL");
   }

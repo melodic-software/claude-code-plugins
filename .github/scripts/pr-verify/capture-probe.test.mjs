@@ -8,7 +8,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { CREDENTIAL_NAMES, envHits, fileReach, scanFiles, scanProc, verdict } from "./capture-probe.mjs";
+import { CREDENTIAL_NAMES, envHits, fileReach, probedNames, scanFiles, scanProc, verdict } from "./capture-probe.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./capture-probe.mjs", import.meta.url));
 // Built at run time so no key-shaped literal sits in the file.
@@ -38,6 +38,20 @@ test("an environment hit names the variable, and a key under any name is a hit",
   assert.deepEqual(envHits([`GH=${"ghs_"}${"a".repeat(36)}`]), ["a credential-shaped value in GH"]);
   // Set but empty carries nothing; a name that only looks like one is no hit.
   assert.deepEqual(envHits(["ANTHROPIC_API_KEY=", "GITHUB_TOKEN_NAME=github-token", "PATH=/bin"]), []);
+});
+
+test("a name the job adds is a hit by name in the environment and in /proc, and pr-verify's list stays as it was", () => {
+  const names = probedNames("ISSUE_LANE_CLAUDE_API_KEY  OTHER_SECRET\n");
+  assert.deepEqual(names.slice(-2), ["ISSUE_LANE_CLAUDE_API_KEY", "OTHER_SECRET"]);
+  // A value of no credential shape, so only the name can hit.
+  const entries = ["ISSUE_LANE_CLAUDE_API_KEY=plain", "PATH=/bin"];
+  assert.deepEqual(envHits(entries, names), ["ISSUE_LANE_CLAUDE_API_KEY"]);
+  assert.deepEqual(envHits(entries), []);
+  const root = fakeProc({ 10: entries });
+  assert.deepEqual(scanProc(root, "c", names).hits, [{ where: "process 10", name: "ISSUE_LANE_CLAUDE_API_KEY" }]);
+  assert.deepEqual(scanProc(root, "c").hits, []);
+  assert.deepEqual(probedNames(), [...CREDENTIAL_NAMES]);
+  assert.deepEqual(probedNames(""), [...CREDENTIAL_NAMES]);
 });
 
 test("the process scan reads every environ it can, names each hit's process, and sees the canary", () => {
@@ -129,4 +143,14 @@ test("run where a key is in reach, the probe fails, names it and writes no value
   assert.equal(parsed.canary, true);
   assert.ok(parsed.hits.some((hit) => hit.where === "own environment" && hit.name === "ANTHROPIC_API_KEY"), written);
   assert.ok(!written.includes(KEY) && !run.stdout.includes(KEY));
+});
+
+test("run with an added name, the probe hits on that variable and lists the name it probed", { skip: !existsSync("/proc/self/environ") && "needs /proc" }, () => {
+  const dir = tempDir("capture-probe-extra-");
+  const result = path.join(dir, "result.json");
+  const run = spawnSync(process.execPath, [SCRIPT, result], { cwd: dir, env: { PATH: process.env.PATH, HOME: dir, CAPTURE_PROBE_EXTRA_NAMES: "ISSUE_LANE_CLAUDE_API_KEY", ISSUE_LANE_CLAUDE_API_KEY: "plain" }, encoding: "utf8" });
+  assert.equal(run.status, 1, run.stdout + run.stderr);
+  const parsed = JSON.parse(readFileSync(result, "utf8"));
+  assert.ok(parsed.names.includes("ISSUE_LANE_CLAUDE_API_KEY"));
+  assert.ok(parsed.hits.some((hit) => hit.where === "own environment" && hit.name === "ISSUE_LANE_CLAUDE_API_KEY"));
 });
