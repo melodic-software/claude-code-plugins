@@ -469,6 +469,45 @@ describe("decide", () => {
       assert.deepEqual(decide(sized("unset", { comments })).unsetOnly, ["size"]);
       assert.deepEqual(decide(sized("medium", { comments, rules: { ...RULES, sizes: [...RULES.sizes, "large"] } })), { verdict: "admit", reasons: [] });
     });
+
+    // #13197: a trusted size-split sub-issue never splits again (owner Q93),
+    // so a cap stop on one parks it for a builder instead of re-admitting it
+    // unchanged into the same stop.
+    describe("on a trusted size-split sub-issue", () => {
+      const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
+      const childBody = `${splitChildHeader(5, 1, 3)}\n${lines[0]}`;
+      const spec = { body: childBody, lastEditedAt: null, author: APP_ACTOR, editor: null, comments: [], splitParent: { number: 5, spec: written(USER(HUMAN), { body: lines.join("\n") }), appId: APP } };
+      const child = (comments) => sized("medium", { issue: issueOf({ user: { id: APP }, body: childBody }), spec, comments });
+      const comment = (body, at) => ({ user: { id: APP }, created_at: at, body });
+      // #13197's comments as the lanes App wrote them.
+      const capStop = comment(
+        [
+          "<!-- work-resolve-issue outcome=intake run=41831397269 -->",
+          "The work-resolve-issue lane stopped on this issue (`scan-refused-patch`): the scan job refused the run's patch for its size, and the run job's scan of it found no credential shape or binary hunk: the work is too large for one patch, so admission parks it for intake's split (owner Q93) at whatever Size it was triaged (admit.mjs patchCapStopped), and the split files its sub-issues, as for split-required.",
+          "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
+        ].join("\n"),
+        "2026-11-04T12:53:39Z",
+      );
+      const intentStop = comment(
+        [
+          "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->",
+          "<!-- work-resolve-issue outcome=stopped run=41824036052 credential=ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN -->",
+          "<!-- stop-reason lane=work-resolve-issue reason=intent -->",
+        ].join("\n"),
+        "2026-11-04T11:56:59Z",
+      );
+
+      test("is refused with no hold, not re-admitted", () => {
+        assert.deepEqual(decide(child([intentStop, capStop])), {
+          verdict: "refuse",
+          reasons: ["its last run's patch was over the scan job's size cap (scan-refused-patch), and a size-split sub-issue never splits again (owner Q93), so a builder session takes it"],
+        });
+      });
+
+      test("is admitted as before after a stop of another kind", () => {
+        assert.deepEqual(decide(child([intentStop])), { verdict: "admit", reasons: [] });
+      });
+    });
   });
 
   test("Size Large beside a real refusal reason still refuses, and names both", () => {

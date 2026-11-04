@@ -155,6 +155,9 @@ export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at inta
 // job's cap (patchCapStopped): the cap is a fact about the patch, not a size
 // guess, so re-triage's Size, or a listed human's, does not decide it.
 export const PATCH_SPLIT_PENDING = "its last run's patch was over the scan job's size cap (scan-refused-patch): the split into sub-issues at intake is pending (owner Q93)";
+// The refusal of that stop on a trusted size-split sub-issue, which never
+// splits again.
+export const PATCH_SPLIT_CHILD = "its last run's patch was over the scan job's size cap (scan-refused-patch), and a size-split sub-issue never splits again (owner Q93), so a builder session takes it";
 // Every wait reason refine.mjs splits on.
 export const SPLIT_PENDING = new Set([SIZE_SPLIT_PENDING, PATCH_SPLIT_PENDING]);
 // The refusal a Size Large issue gets once it has sub-issues and every one is
@@ -1432,6 +1435,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     } else if (openSubs.length === 0 && !finished) {
       refuse.push(SIZE_SPLIT_DONE);
     }
+  } else if (overCap && splitChild) {
+    // A sub-issue never splits again, so the same work would only stop at the
+    // same cap: it parks for a builder instead of re-admitting unchanged.
+    refuse.push(PATCH_SPLIT_CHILD);
   } else if (!rules.sizes.includes(size)) {
     refuse.push(`Size ${size} is not one of ${rules.sizes.join(", ")}`);
   }
