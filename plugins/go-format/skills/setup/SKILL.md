@@ -51,7 +51,9 @@ what it requires and how it resolves things.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything.
+table with one remediation line per FAIL. Do not modify anything. Option values are rendered
+into this text at load: read them here, and never put a `${user_config.*}` string in a shell
+command.
 
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
 FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -59,7 +61,7 @@ disabled plugin is not broken. Report those probes informationally and note that
 restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
 `node` before the launcher can read the toggle, so both hook rows fail to start.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements).
+1. **Bash version.** Report it as INFO: the hook documents no version floor.
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
