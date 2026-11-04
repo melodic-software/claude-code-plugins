@@ -298,6 +298,10 @@ run 1 "an abstract the index never mirrors fails" \
   --err 'RESEARCH.md: no "- s: " abstract line for RESEARCH-s.md' \
   "$(abstracts abstract-unmirrored "'SD2: \"Prefer one phase per concern unless the phase mixes independent concerns\"'" \
     'Settled: SD2.')"
+run 0 "another bullet with the abstract's prefix does not fail an exact copy" \
+  "$(abstracts abstract-prefix "'SD2: \"Prefer one phase per concern unless the phase mixes independent concerns\"'" \
+    '- s: SD2: "Prefer one phase per concern unless the phase mixes independent concerns"
+- s: open question, see Gaps.')"
 run 0 "a sidecar whose claims carry no id needs no abstract quote" \
   "$(mkslice abstract-no-ids "$(claim - MEDIUM)" 'Index.')"
 

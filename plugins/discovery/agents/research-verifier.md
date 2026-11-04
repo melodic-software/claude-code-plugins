@@ -118,7 +118,8 @@ line. A `MEDIUM` or `LOW` claim is a Gap, not an accepted claim, so row 12 never
 that presents one without its label, as a settled fact, fails row 7 instead. The parent's
 restatement check has already passed: every pointer carries its label, no index pointer
 carries a sweep word, every sidecar line that names a claim quotes its `claim:` text byte for
-byte, and every sidecar abstract quotes one of its claims and is mirrored into the index unchanged.
+byte, and every abstract of a sidecar that declares a claim with an `id:` quotes one of its claims
+and is mirrored into the index unchanged.
 It matches ID tokens and quotes, not meaning, so what it cannot see is yours: the words a
 sidecar line adds outside its quote, a pointer that cites the wrong claim for what its line says,
 or a decision that leans on a claim past a recorded qualifier. Two cases are graded by you, not by

@@ -31,8 +31,8 @@ A sidecar that declares a claim with an id: must quote one of its own claims,
 in that form, in its abstract: an abstract that names no ID escapes every
 rule above. The index mirrors each such abstract on one body line,
 - <section>: <abstract>, where <section> is the sidecar's filename between
-RESEARCH- and .md, and the text after the prefix must equal the sidecar's
-unquoted abstract: value byte for byte. A table row or a lead-in that names
+RESEARCH- and .md, and on at least one line with that prefix the text after it
+must equal the sidecar's unquoted abstract: value byte for byte. A table row or a lead-in that names
 no ID is not graded here: the verifier grades it.
 
 Lines under a heading that names the fetch log are skipped, down to the next
@@ -207,6 +207,9 @@ def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -
         mirrors = [(n, line) for n, line in body if line.startswith(key)]
         if not mirrors:
             violations.append(f'{index}: no "{key}" abstract line for {sidecar.name}')
+        # Another bullet may open with the same prefix, so one exact copy suffices.
+        if any(line[len(key) :] == value for _, line in mirrors):
+            continue
         for n, line in mirrors:
             if line[len(key) :] != value:
                 violations.append(

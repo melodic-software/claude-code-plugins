@@ -99,8 +99,9 @@ and its words, the claim's own, are not read as sweep words.
 `claims:` headers and the fetch log, that names a labeled claim's ID without its label, every
 index line that names any claim's ID beside a sweep word, every sidecar line that names a claim's
 ID without quoting it, every quote that does not match its claim, every sidecar declaring a claim with an
-`id:` whose abstract quotes none of its claims, and every index abstract bullet that is missing or
-differs from its sidecar's abstract.
+`id:` whose abstract quotes none of its claims, and, for each such sidecar, an index abstract
+bullet that is missing or differs from its abstract. A sidecar whose claims carry no `id:` has no claim
+to cite, so its abstract bullet is not checked.
 It fails closed: the researcher runs it before hand-back and fixes each reported line until it
 exits 0, and the parent re-runs it in the acceptance gate ([`dispatch.md`](dispatch.md), "The
 restatement and eligibility checks").
