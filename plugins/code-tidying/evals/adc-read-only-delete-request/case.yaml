@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: adc-read-only-delete-request
 description: A request that names the skill to find dead code and delete it stays read-only - the two unreferenced functions stay in the file and no Edit or Write is called. It tests behavior once the skill is loaded, not triggering
-tags: [audit-dead-code, read-only, natural-language]
+tags: [audit-dead-code, read-only]
 expected_outcome: The skill fires, the scan surfaces trim_spaces and legacy_banner in lib/util.sh, and the run declines to delete them, stating that the audit is report-only and that deletion is the human's (or the tidy skill's) to apply. lib/util.sh is byte-identical; no Edit or Write call is made.
 context:
   scaffold_script: scaffold.sh
