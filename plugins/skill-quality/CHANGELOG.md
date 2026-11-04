@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-04
+
+### Changed
+
+- Invocation probes reference: records that contested probes and cross-plugin rivals did not make four `architecture` skills' description controls drop.
+
 ## [1.0.2] - 2026-11-03
 
 ### Changed

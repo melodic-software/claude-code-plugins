@@ -119,10 +119,10 @@ Two properties a plugin author must carry:
 
 ## Seating
 
-`sec-default` is seated first in the prepend tier wherever hooks modules load, on
-a machine with managed settings or for a Team/Enterprise organization, **unless**
-managed settings define `prependPlugins`: then that list is the whole prepend
-tier, e.g. `["acme-guard@acme-tools", "sec-default@builtin"]`.
+Where hooks modules load, and either settings are managed or the organization is
+on a Team/Enterprise plan, the CLI puts `sec-default` at the head of the prepend
+tier. A managed `prependPlugins` list replaces that default: the list becomes the
+entire prepend tier, e.g. `["acme-guard@acme-tools", "sec-default@builtin"]`.
 `SOURCE` · HIGH · `mods/sec-default/README.md:L47-55`.
 
 `prependPlugins` and `appendPlugins` are real managed-settings keys implemented
@@ -156,20 +156,22 @@ A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
 **May not:**
 
 - Use `next.to`. It is typed to `append | builtin | core` only
-  (`TargetTier = Exclude<Tier, 'prepend' | 'user'>`, `.d.ts:L9446`) **and is
-  refused outside a managed tier**: *"loading it with `--plugin-dir` seats a
+  (`TargetTier = Exclude<Tier, 'prepend' | 'user'>`, `.d.ts:L9446`) **and takes
+  effect only when managed settings seat the plugin**: *"loading it with `--plugin-dir` seats a
   plugin that can only pass."* `SOURCE` · HIGH ·
   `mods/sec-default/README.md:L52-55`. The binary's own string agrees:
   *"next.to is available to managed plugins (prependPlugins / appendPlugins)
   only"*. `BINARY` · HIGH
 - Choose its own tier or registration order. `STAFF` · HIGH
-- Reach anything `sec-default` guards on a managed machine: an org's classic
-  hooks, prompt content, managed settings and tool policy. `SOURCE` · HIGH
+- Reach what `sec-default` guards on a managed machine: the organization's
+  classic hooks, the instructions it adds to the prompt, its managed settings and
+  its limits on which tools may run.
+  `SOURCE` · HIGH
 - Hook `$.ui.ask`: it is the one `$` method with **no** corresponding event
   (`grep -c "'ui.ask'"` → 0 over the whole 12,990-line file). The consequence
   "therefore not interceptable" is `INFERRED` · the absence itself is `SOURCE` ·
   HIGH · `repo-primary/RESEARCH-event-catalog.md`
-- Hook a component the surface does not declare hookable. Staff: *"our internal
+- Hook a component its surface has not marked as hookable. Staff: *"our internal
   'permission request component' is simply not something you can hook into,
   because the surface does not declare it as being hookable."* `STAFF` · HIGH
 - Spell `on`, `$` or `$.env` other than literally: the host statically scans the
@@ -180,10 +182,10 @@ A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
 
 | Mod | What it does | Seated |
 |---|---|---|
-| `sec-default` | Keeps an organization's classic hooks, prompt content, managed settings and tool policy out of reach of the plugins a person installs; adds no policy of its own. | Outermost, on a machine with managed settings or for a Team/Enterprise org, unless managed `prependPlugins` says otherwise |
-| `diff` | `/diff`: the session's uncommitted changes in a pane beside the transcript. | Built in |
-| `telemetry` | Adds `$.telemetry` (`log`, `mark`) in the `engine.create` fold; sends nothing where analytics are off. | Built in (`mods/telemetry/README.md` narrows it further to internal builds) |
-| `agents-md` | `AGENTS.md` as project instructions, by one option. | Built in |
+| `sec-default` | Guards what an organization configures (its classic hooks, the instructions it adds to the prompt, managed settings and limits on which tools may run) from plugins a person adds; it sets no rules itself. | The outermost seat wherever settings are managed or the account is a Team/Enterprise one; a managed `prependPlugins` list overrides that |
+| `diff` | `/diff`: a side pane, next to the conversation, listing what the session has changed and not yet committed. | Built in |
+| `telemetry` | Contributes a `$.telemetry` noun with `log` and `mark` during `engine.create`; nothing leaves the machine when analytics are disabled. | Built in (`mods/telemetry/README.md` narrows it further to internal builds) |
+| `agents-md` | Loads `AGENTS.md` as the project's instructions, controlled by a single option. | Built in |
 
 `SOURCE` · HIGH · `mods/README.md`. Register-module sizes as a complexity signal:
 `sec-default` 1,998 B · `telemetry` 1,746 B · `agents-md` 9,507 B · `diff`
