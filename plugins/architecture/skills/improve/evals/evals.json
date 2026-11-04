@@ -210,14 +210,14 @@
       "id": 15,
       "name": "plugin-option-terminal-medium-skips-html-report",
       "prompt": "/architecture:improve deepening (Fixture: the scan is of the user's own repository; the architecture plugin's medium option is set to terminal; ~/.claude/rendered-views.md still exists and contains only 'medium: file', and this is the plugin's first run in this project, so no notice state is recorded; the repo has no rendered-views convention file; no --medium argument was given.)",
-      "expected_output": "Before writing the report it runs the shared medium resolver, which reports `view: terminal (userConfig)` and a notice that ~/.claude/rendered-views.md is no longer read. It writes no HTML report: the durable candidate artifact in the memory tier and the reply are the deliverable. The reply prints the resolver's report line and notice, gives the artifact path, and asks which candidate to explore.",
+      "expected_output": "Before writing the report it runs the shared medium resolver, which reports `view: terminal (userConfig)` and a notice that ~/.claude/rendered-views.md is retired (it sets medium: file) and where to set the medium instead. It writes no HTML report: the durable candidate artifact in the memory tier and the reply are the deliverable. The reply prints the resolver's report line and notice, gives the artifact path, and asks which candidate to explore.",
       "files": [],
       "narration": true,
       "expectations": [
         "Resolves medium through the shared medium resolver before writing any report, and does not read ~/.claude/rendered-views.md itself",
         "Writes no HTML report file and opens no browser",
         "Still writes the durable candidate artifact to the memory tier and gives its path",
-        "Prints the resolver's report line naming the plugin option (userConfig) as the source of the medium, and the retired-file notice"
+        "Prints the resolver's report line naming the plugin option (userConfig) as the source of the medium, and the retired-file notice for ~/.claude/rendered-views.md"
       ]
     }
   ]
