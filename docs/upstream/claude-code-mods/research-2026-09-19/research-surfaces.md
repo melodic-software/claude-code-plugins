@@ -1,5 +1,3 @@
-<!-- markdownlint-disable MD049 -->
-
 # Surfaces: where plugins reach, and where mods reach
 
 Self-contained. Pin: 2026-09-19, Claude Code 2.1.278. Basis labels: `OBSERVED` /
@@ -29,18 +27,18 @@ mods.
 |---|---|---|---|---|
 | **CLI, interactive** | D yes, canonically | D yes | D yes | **D yes** with the gate on. `RenderSurface` `terminal`. Verified `OBSERVED`. |
 | **CLI, `-p` / headless** | D yes | D yes | D yes | Engine yes, **draws nowhere**: `session.start.surface` is `null`, `$.session.surfaces()` empty. Non-UI hooks run; UI hooks have no destination. |
-| **Desktop, Code tab, local session** | D yes, *"the same underlying engine with a graphical interface"*; shares `~/.claude.json`, `~/.claude/settings.json`, `CLAUDE.md`, hooks, skills | D yes, plugin browser in the `+` menu | D yes | **I yes**, on two unconfirmed sub-conditions: (a) the **bundled** CLI carries the runtime; (b) the env var or the rollout reaches that process. Desktop's local-environment editor is a documented mechanism for (b) but not a documented outcome. `RenderSurface` includes `desktop`. |
+| **Desktop, Code tab, local session** | D yes, the CLI's engine under a GUI; shares `~/.claude.json`, `~/.claude/settings.json`, `CLAUDE.md`, hooks, skills | D yes, plugin browser in the `+` menu | D yes | **I yes**, on two unconfirmed sub-conditions: (a) the **bundled** CLI carries the runtime; (b) the env var or the rollout reaches that process. Desktop's local-environment editor is a documented mechanism for (b) but not a documented outcome. `RenderSurface` includes `desktop`. |
 | **Desktop, Code tab, cloud session** | D yes, in an Anthropic-managed VM | D **no plugin browser**; repo `enabledPlugins` or claude.ai account sync only | D yes, from those plugins | **U.** Env vars are settable on the cloud environment; nothing says the gate is honored there. |
-| **Desktop, Cowork tab** | D yes: *"Cowork in the Claude Desktop app runs its sessions on Claude Code"* | D account/org plugins from **Customize**, synced through claude.ai, not `~/.claude` | D yes: a synced plugin's *"skills, agents, hooks, MCP servers, and LSP servers all load"* | **U.** Engine yes and plugin hooks load, so the only missing condition is the gate. No source says a person can set it in a Cowork session. |
+| **Desktop, Cowork tab** | D yes: the docs say Cowork sessions run on Claude Code | D account/org plugins from **Customize**, synced through claude.ai, not `~/.claude` | D yes: every part of a synced plugin loads, hooks included, as do its skills, agents, and MCP and LSP servers | **U.** Engine yes and plugin hooks load, so the only missing condition is the gate. No source says a person can set it in a Cowork session. |
 | **Desktop, Chat tab** | D **no** | D installable, only **skills** run | D no | **X** for plugin hooks: they do not run in chat at all. |
 | **claude.ai chat (web)** | D no | same as Chat tab | D no | **X**, same basis. |
 | **claude.ai/code (web), mobile Code tab** | D yes: clients onto cloud sessions | D repo-declared or account-synced only; `/plugin` unavailable | D yes | **U**, same reasoning as Desktop cloud. `RenderSurface` has `mobile`, whose element table has no `Input`/`Select`/`Client`. |
-| **VS Code extension** | D yes, bundles a private CLI copy for the chat panel | D yes; graphical manager, *"the same CLI commands under the hood"*, shared both ways | D yes | **I yes** if the gate reaches the bundled CLI. `RenderSurface` includes `vscode`, whose table lacks `Client`. Whether the extension passes the env var through is **U**. |
-| **JetBrains plugin** | D indirectly: *"runs the `claude` command in your IDE's integrated terminal"*, does not bundle a CLI | D yes, because it is a terminal session | D yes | **D-adjacent yes**: a JetBrains session is a `terminal` surface, so the CLI answer applies unchanged. |
-| **Agent SDK** | D yes | D `{ type: "local", path }` only | D yes | Engine yes, **draws nowhere** (`surface` null for *"a `-p` run or the SDK"*). Whether the SDK honors the gate is **U**. |
+| **VS Code extension** | D yes, bundles a private CLI copy for the chat panel | D yes; a graphical manager that runs the CLI's own commands, shared both ways | D yes | **I yes** if the gate reaches the bundled CLI. `RenderSurface` includes `vscode`, whose table lacks `Client`. Whether the extension passes the env var through is **U**. |
+| **JetBrains plugin** | D indirectly: it starts `claude` inside the IDE's built-in terminal and bundles no CLI | D yes, because it is a terminal session | D yes | **D-adjacent yes**: a JetBrains session is a `terminal` surface, so the CLI answer applies unchanged. |
+| **Agent SDK** | D yes | D `{ type: "local", path }` only | D yes | Engine yes, **draws nowhere** (`surface` null under `-p` and in the SDK). Whether the SDK honors the gate is **U**. |
 
 All `D` rows: `SOURCE` (docs) · HIGH, fetched 2026-09-19;
-`surfaces-desktop/RESEARCH-surface-matrix.md` carries the verbatim quote and URL
+`surfaces-desktop/RESEARCH-surface-matrix.md` carries the docs passage and URL
 for each.
 
 ## Desktop specifically: demoed, not shipped
@@ -53,13 +51,13 @@ support.** `STAFF` · HIGH · `x-threads/VERIFICATION.md` row 4;
 Every Desktop reference in circulation traces to two roots, both dated
 2026-09-03, six days before the public flag:
 
-1. One staff comment: *"_my_ personal goal is for this to work on any surface
-   powered by the Claude Code binary. **Our internal prototype supports local
-   Claude Code Desktop at the moment, as demonstrated in a few of the videos.**
-   other surfaces are top of mind but tbd."*
-2. Two demo-video captions in the issue body: *"One hook on `ui.press` sees the
-   same button pressed in the terminal and in the desktop app"* and *"A plugin
-   hides sensitive values in Claude Code Desktop until you hover over them."*
+1. One staff comment: a personal aim for it to work on every surface built on
+   the Claude Code binary; **at that time the internal prototype supported local
+   Claude Code Desktop, as some of the demo videos showed**; other surfaces were
+   under consideration, with nothing decided.
+2. Two demo-video captions in the issue body: one hook on `ui.press` catching a
+   single button press from the terminal as well as the desktop app, and a plugin
+   that keeps secret values masked in Desktop until the pointer rests on them.
 
 A case-insensitive `desktop` grep over all 203 comments returns exactly that one
 staff comment and nothing later. **No community report of a mod running in
@@ -73,8 +71,8 @@ does not support it.
 did; its verifier corrected it in four places.
 
 Two further Desktop-specific constraints: the Desktop-bundled CLI **lags** the
-standalone one (the CHANGELOG records a fix landing *"on Claude Desktop (once
-Desktop bundles this CLI version)"*), and the `144`/`110`-column pane-width rule
+standalone one (the CHANGELOG records a fix that reaches Desktop only when Desktop
+ships with that CLI version), and the `144`/`110`-column pane-width rule
 is written in terminal terms; whether Desktop applies the same test is unknown.
 `SOURCE` · MEDIUM.
 
@@ -91,7 +89,7 @@ mods-bearing plugin distributed that way would be *delivered* to Cowork; whether
 its module would *load* there depends entirely on the gate, which nothing sourced
 addresses for Cowork. `SOURCE` · HIGH.
 
-Cowork **never** fetches server-managed settings from the admin console, while
+Cowork **never** pulls server-managed settings out of the admin console, while
 managed settings do reach the terminal, both IDE extensions, the Desktop Code tab
 and Agent SDK sessions. `SOURCE` · HIGH ·
 `surfaces-desktop/RESEARCH-enterprise-policy.md`.
@@ -106,11 +104,7 @@ describe three tabs, which is documentation lag on a rolling change, not a contr
 
 ## `RenderSurface` and what depends on it
 
-```ts
-export type RenderSurface = 'terminal' | 'desktop' | 'mobile' | 'vscode';
-```
-
-Four values. **No `cowork`, no `chat`, no `web`.** A browser tab maps to no
+`RenderSurface` takes `'terminal'`, `'desktop'`, `'mobile'` or `'vscode'`: four values. **No `cowork`, no `chat`, no `web`.** A browser tab maps to no
 value, which is a gap rather than a denial. `SOURCE` · HIGH. The per-surface
 element table is in `research-api-surface.md`.
 
@@ -123,8 +117,9 @@ thing: `SOURCE` · HIGH · `surfaces-desktop/RESEARCH-mods-surfaces.md`
 2. **A narrower table.** `$.ui.resolve(e)` returns `Elements[e.surface]`,
    narrowed on the surface, so destructuring `Raster` on desktop is a type error
    rather than a runtime surprise. This is the designed path.
-3. **A pane the surface refuses.** A pane waits undrawn below 144 columns (110
-   once asked), judged at each open, and a hook on `ui.open` may refuse it.
+3. **A pane the surface refuses.** A pane stays hidden while the terminal has fewer than
+   144 columns (110 after a request), rechecked on every open, and a hook on
+   `ui.open` may refuse it.
 
 ## The framing that matters for an investment decision
 

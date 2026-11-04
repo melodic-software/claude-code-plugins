@@ -2,8 +2,8 @@
 
 A dated snapshot of the verified research report on Claude Code mods: the hub
 [`research.md`](research.md) and its ten sidecars. Its claims are not updated in place: a later run
-writes a new dated folder beside this one. The only edits since capture are the mechanical
-deviations listed at the end.
+writes a new dated folder beside this one. The only edits since capture are the deviations
+listed at the end.
 
 ## What it was verified against
 
@@ -26,9 +26,14 @@ The external sources those lanes cite are indexed in [sources.md](../sources.md)
 
 Links between the hub and its sidecars resolve inside this folder.
 
-Three deviations from a byte-exact copy, all mechanical: the hub's non-resolving links were
-flattened to plain text as described above, three sidecars carry a leading
-`<!-- markdownlint-disable MD049 -->` because verbatim staff quotes inside them use underscore
-emphasis, and em dashes in the snapshot's own prose were replaced with other punctuation so the
-folder could join `scripts/em-dash-purged-paths.txt`. No claim text was changed, and no quote of
-staff or upstream text was altered.
+Three deviations from a byte-exact copy: the hub's non-resolving links were flattened to plain
+text as described above; em dashes in the snapshot's own prose were replaced with other
+punctuation so the folder could join `scripts/em-dash-purged-paths.txt`; and every quote of staff,
+community or upstream text (the `mods/` README and declarations, binary strings, CLI and debug
+output, docs pages, issue comments and posts) was rewritten in our own words to meet
+[what a row may describe](../../../contracts/upstream-drift/README.md#what-a-row-may-describe).
+Each restatement keeps its speaker, date, comment id, basis label and confidence; read the wording
+at the cited source. Short fragments the analysis turns on, of four words or fewer, stay quoted.
+Two code blocks stay because they hold only names: the one-line `plugin.json` skeleton in
+`research-api-surface.md` and the plugin directory layout in `research-authoring-and-testing.md`.
+Quotes of this repository's own text and of the research lanes' wording are kept as written.
