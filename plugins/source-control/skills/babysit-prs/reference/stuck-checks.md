@@ -119,7 +119,8 @@ changes which side it lands on.
 the guarded merge wrapper's own read rather than inferring it: [`../scripts/babysit_merge.py`](../scripts/babysit_merge.py)
 emits a `requiredChecks` field in its snapshot JSON. Only once required checks are green is a stuck
 non-required check the sole thing holding `UNSTABLE`, and even then the merge gate correctly
-refuses `UNSTABLE` and forbids any `--admin` / raw-merge-command bypass. This auditor is the clean path
+refuses `UNSTABLE` (it takes `UNSTABLE` only when pr-merge's own failing `pr-merge/unarmed`
+status is the sole failing check) and forbids any `--admin` / raw-merge-command bypass. This auditor is the clean path
 to escalate that state, not a route around the gate.
 
 ## Routing: Never Auto-Fix

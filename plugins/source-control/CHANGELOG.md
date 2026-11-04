@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.5.3] - 2026-11-04
+
+### Fixed
+
+- Shared `view-settings.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): a `terminal` or `file` value in a retired `rendered-views.md` file keeps the view local when no scope sets one, instead of falling to a publishing default; no other change to this plugin.
+
+## [6.5.2] - 2026-11-03
+
+### Changed
+
+- The `babysit-prs` engine's unittest suite runs as four shell suites instead of one, so each
+  stays under CI's 120 s per-suite budget: `engine-b.test.sh` runs
+  `tests/test_babysit_merge_policy.py`, `engine-c.test.sh` the `tests/test_babysit_postmerge*.py`
+  modules, `engine-d.test.sh` every other `tests/test_babysit_*.py`, and `engine.test.sh` the
+  remaining modules beside its ruff pass and wrapper checks. The new `engine-run.sh` assigns each
+  module to exactly one part and fails when a part's wrapper is missing. No test was added or removed.
+
+## [6.5.1] - 2026-11-03
+
+### Fixed
+
+- The merge gate (`babysit_merge.py`) no longer counts pr-merge's own failing `pr-merge/unarmed` status against a pull request. That status left `mergeStateStatus` at `UNSTABLE` and failed the failing-checks rule, so a PR stayed refused after the cause that left it unarmed (a failed review, an outage, a rate limit) had cleared. The gate now reads `UNSTABLE` as ready when that status is the only failing check, so the next scheduled gate run takes the PR. Any other failing check, or a check run that only shares the status's name, still holds.
+
 ## [6.5.0] - 2026-11-03
 
 ### Added

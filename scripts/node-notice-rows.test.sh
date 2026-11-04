@@ -8,8 +8,10 @@
 # A POSIX shell (bash, or dash as /bin/sh on Debian and Ubuntu) runs the first and leaves at
 # `${PPID:+exit}`, since every POSIX shell sets PPID; PowerShell finds no sh, reads
 # that token as a missing drive, and runs the second. Both share one latch per session.
-# Beside it, harness-ops' exec-form prerequisites-fleet.mjs row runs the probe of each enabled
-# plugin that declares session_probe in its prerequisites.json, so no other plugin carries a row.
+# Beside it, harness-ops' prerequisites-fleet.mjs row runs the probe of each enabled plugin that
+# declares session_probe in its prerequisites.json, so no other plugin carries a row. That row and
+# every other SessionStart row that needs node run lib/node-or-skip.sh in the same polyglot shape,
+# so they exit 0 silently when node is missing.
 # test-scope: plugins/*/hooks/hooks.json plugins/*/.claude-plugin/plugin.json plugins/*/prerequisites.json
 set -uo pipefail
 
@@ -52,11 +54,56 @@ if [[ "$row" == 1 ]]; then
 else
   bad "harness-ops: want one canonical node-notice row under $MATCHER" "found $row"
 fi
-fleet="$(jq -c --arg m "$MATCHER" '[.hooks.SessionStart[] | . as $g | .hooks[] | select((.args // [])[0] == "${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs") | {m: $g.matcher, c: .command, n: (.args | length)}]' "$HOOKS")"
-if [[ "$fleet" == "[{\"m\":\"$MATCHER\",\"c\":\"node\",\"n\":1}]" ]]; then
-  ok "harness-ops carries one exec-form prerequisites-fleet.mjs row under the $MATCHER matcher"
+# The node-or-skip polyglot for one node argument list: each argument double-quoted, the same
+# list after both stubs.
+skip_row() {
+  local a argv=""
+  for a in "$@"; do argv+=" \"$a\""; done
+  # shellcheck disable=SC2016 # literal hooks.json text
+  printf 'sh "${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh"%s; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1"%s' "$argv" "$argv"
+}
+# shellcheck disable=SC2016 # literal hooks.json text
+want="$(skip_row '${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs')"
+fleet="$(jq -r --arg want "$want" --arg m "$MATCHER" '[.hooks.SessionStart[] | select(.matcher == $m) | .hooks[] | select(.command == $want and (has("args") | not))] | length' "$HOOKS")"
+if [[ "$fleet" == 1 ]]; then
+  ok "harness-ops carries one node-or-skip prerequisites-fleet.mjs row under the $MATCHER matcher"
 else
-  bad "harness-ops: want one exec-form prerequisites-fleet.mjs row under $MATCHER" "$fleet"
+  bad "harness-ops: want one node-or-skip prerequisites-fleet.mjs row under $MATCHER" "found $fleet"
+fi
+
+# No SessionStart row launches node in exec form: that spawn fails on every new session when
+# node is missing. A row that needs node runs the node-or-skip stubs, both halves with the same
+# arguments, so it exits 0 silently and the node-notice row alone tells the user.
+exec_node=()
+skip_bad=()
+skip_rows=0
+for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
+  plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
+  jq -e '[.hooks.SessionStart[]?.hooks[]? | select(has("args") and ((.command // "") | test("(^|[/\\\\])node(\\.exe)?$")))] | length > 0' "$hooks" >/dev/null && exec_node+=("$plugin")
+  while IFS= read -r cmd; do
+    [[ -n "$cmd" ]] || continue
+    skip_rows=$((skip_rows + 1))
+    first="${cmd#sh \"\$\{CLAUDE_PLUGIN_ROOT\}/lib/node-or-skip.sh\"}"
+    first="${first%%; \$\{PPID:+exit\};*}"
+    args=()
+    # shellcheck disable=SC2016 # the quoted arguments are literal hooks.json text
+    while IFS= read -r a; do args+=("$a"); done < <(grep -o '"[^"]*"' <<<"$first" | sed 's/^"//; s/"$//')
+    if ((${#args[@]} == 0)) || [[ "$cmd" != "$(skip_row "${args[@]}")" ]]; then
+      skip_bad+=("$plugin")
+    else
+      [[ -f "$ROOT/plugins/$plugin/lib/node-or-skip.sh" && -f "$ROOT/plugins/$plugin/lib/node-or-skip.ps1" ]] || skip_bad+=("$plugin(no stubs)")
+    fi
+  done < <(jq -r '.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("node-or-skip")) | .command' "$hooks")
+done
+if ((${#exec_node[@]} == 0)); then
+  ok "no plugin launches node in exec form from SessionStart"
+else
+  bad "SessionStart rows launch node in exec form; run them through lib/node-or-skip.sh" "${exec_node[*]}"
+fi
+if ((${#skip_bad[@]} == 0 && skip_rows >= 7)); then
+  ok "$skip_rows node-or-skip rows are each the canonical polyglot, beside both stubs"
+else
+  bad "want every node-or-skip row canonical, beside both stubs" "rows=$skip_rows bad=${skip_bad[*]}"
 fi
 
 declared=0
@@ -143,13 +190,86 @@ node_absent_cases() {
   else
     printf 'NOTE: pwsh is not on PATH; the PowerShell cases did not run.\n'
   fi
+
+  # --- the node-or-skip rows, node absent and present ------------------------------
+  skip_plugins=()
+  for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
+    jq -e '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("node-or-skip"))] | length > 0' "$hooks" >/dev/null &&
+      skip_plugins+=("$(basename "$(dirname "$(dirname "$hooks")")")")
+  done
+  skip_expand() { # <plugin> -> its node-or-skip row with both placeholders substituted
+    local row
+    row="$(jq -r '.hooks.SessionStart[].hooks[] | select((.command // "") | contains("node-or-skip")) | .command' "$ROOT/plugins/$1/hooks/hooks.json")"
+    row="${row//\$\{CLAUDE_PLUGIN_ROOT\}/$ROOT/plugins/$1}"
+    printf '%s' "${row//\$\{CLAUDE_PLUGIN_DATA\}/$WORK/data dir}"
+  }
+  shells=("$(command -v bash)")
+  [[ -n "${DASH:-}" ]] && shells+=("$DASH")
+  for shell in "${shells[@]}"; do
+    failed=()
+    for plugin in "${skip_plugins[@]}"; do
+      rm -f "$WORK/powershell-ran"
+      out="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$shell" -c "$(skip_expand "$plugin")" 2>&1)"
+      rc=$?
+      ((rc == 0)) && [[ -z "$out" && ! -e "$WORK/powershell-ran" ]] || failed+=("$plugin(rc=$rc out=$out)")
+    done
+    if ((${#failed[@]} == 0)); then
+      ok "$(basename "$shell"), node absent: all ${#skip_plugins[@]} node-or-skip rows exit 0 with no output and skip the PowerShell half"
+    else
+      bad "$(basename "$shell"), node absent: want exit 0 and no output" "${failed[*]}"
+    fi
+  done
+
+  # node present: a stub node records its argv and stdin, and exits 3.
+  NODE_TOOLS="$WORK/node-tools"
+  mkdir -p "$NODE_TOOLS"
+  cp -P "$TOOLS"/* "$NODE_TOOLS/"
+  printf '#!/bin/sh\nprintf "%%s\\n" "$@" >"%s/node-args"\ncat >"%s/node-stdin"\nexit 3\n' "$WORK" "$WORK" >"$NODE_TOOLS/node"
+  chmod +x "$NODE_TOOLS/node"
+  want_args="$(printf '%s\n' "$ROOT/plugins/disk-hygiene/hooks/resume-notice.mjs" --marker-root "$WORK/data dir")"
+  rm -f "$WORK/node-args" "$WORK/node-stdin"
+  printf '%s' "$session" | PATH="$NODE_TOOLS" "$(command -v bash)" -c "$(skip_expand disk-hygiene)" >/dev/null 2>&1
+  rc=$?
+  if ((rc == 3)) && [[ "$(cat "$WORK/node-args" 2>/dev/null)" == "$want_args" && "$(cat "$WORK/node-stdin" 2>/dev/null)" == "$session" && ! -e "$WORK/powershell-ran" ]]; then
+    ok "bash, node present: the row runs node with the row's arguments and stdin, and keeps node's exit code"
+  else
+    bad "bash, node present: want node's argv, stdin and exit code 3" "rc=$rc args=$(cat "$WORK/node-args" 2>/dev/null) stdin=$(cat "$WORK/node-stdin" 2>/dev/null)"
+  fi
+
+  if [[ -n "${PS_TOOLS:-}" ]]; then
+    failed=()
+    for plugin in "${skip_plugins[@]}"; do
+      out="$(printf '%s' "$session" | PATH="$PS_TOOLS" "$PWSH" -NoProfile -NonInteractive -Command "$(skip_expand "$plugin")" 2>/dev/null)"
+      rc=$?
+      ((rc == 0)) && [[ -z "$out" ]] || failed+=("$plugin(rc=$rc out=$out)")
+    done
+    if ((${#failed[@]} == 0)); then
+      ok "powershell, node absent: all ${#skip_plugins[@]} node-or-skip rows exit 0 with no output"
+    else
+      bad "powershell, node absent: want exit 0 and no output" "${failed[*]}"
+    fi
+    PS_NODE_TOOLS="$WORK/ps-node-tools"
+    mkdir -p "$PS_NODE_TOOLS"
+    # No sh here, as on Windows without Git Bash; the stub node's /bin/sh shebang needs only cat.
+    ln -s "$PWSH" "$PS_NODE_TOOLS/powershell"
+    ln -s "$NODE_TOOLS/node" "$PS_NODE_TOOLS/node"
+    ln -s "$(readlink "$TOOLS/cat")" "$PS_NODE_TOOLS/cat"
+    rm -f "$WORK/node-args" "$WORK/node-stdin"
+    printf '%s' "$session" | PATH="$PS_NODE_TOOLS" "$PWSH" -NoProfile -NonInteractive -Command "$(skip_expand disk-hygiene)" >/dev/null 2>&1
+    rc=$?
+    if ((rc != 0)) && [[ "$(cat "$WORK/node-args" 2>/dev/null)" == "$want_args" && "$(cat "$WORK/node-stdin" 2>/dev/null)" == "$session" ]]; then
+      ok "powershell, node present: the row runs node with the row's arguments and stdin, and fails when node fails"
+    else
+      bad "powershell, node present: want node's argv and stdin, and a failing exit" "rc=$rc args=$(cat "$WORK/node-args" 2>/dev/null) stdin=$(cat "$WORK/node-stdin" 2>/dev/null)"
+    fi
+  fi
 }
 
 case "$(uname -s)" in
-MINGW* | MSYS* | CYGWIN* | Windows_NT*)
-  printf 'SKIP: the node-absent row cases need a stub PATH of POSIX symlinks and an extensionless powershell, which Windows cannot execute; Linux CI covers them (no coverage here, not a pass)\n'
-  ;;
-*) node_absent_cases ;;
+  MINGW* | MSYS* | CYGWIN* | Windows_NT*)
+    printf 'SKIP: the node-absent row cases need a stub PATH of POSIX symlinks and an extensionless powershell, which Windows cannot execute; Linux CI covers them (no coverage here, not a pass)\n'
+    ;;
+  *) node_absent_cases ;;
 esac
 
 test_harness::report

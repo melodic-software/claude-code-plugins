@@ -7,12 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs",
-              "--marker-root",
-              "${CLAUDE_PLUGIN_DATA}"
-            ],
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs\" \"--marker-root\" \"${CLAUDE_PLUGIN_DATA}\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs\" \"--marker-root\" \"${CLAUDE_PLUGIN_DATA}\"",
             "timeout": 10,
             "statusMessage": "Checking whether /disk-hygiene:clean ran before this resume..."
           }

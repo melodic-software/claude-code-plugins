@@ -1,0 +1,17 @@
+{
+  "name": "nocurl-path",
+  "version": "0.0.0",
+  "description": "Eval-only: puts the missing-curl stand-in from scaffold.sh first on the run's Bash PATH",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "g=\"$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\" || exit 0; d=\"$g/eval-nocurl/bin\"; if [ -n \"$CLAUDE_ENV_FILE\" ] && [ -x \"$d/curl\" ]; then printf 'export PATH=\"%s:$PATH\"\\n' \"$d\" >>\"$CLAUDE_ENV_FILE\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

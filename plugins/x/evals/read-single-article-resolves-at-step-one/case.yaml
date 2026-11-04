@@ -15,7 +15,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-5'
     type: 'llm'
-    criteria: 'Spools the response to the plugin-data file with -o rather than streaming an article-sized body to stdout, then deletes it'
+    criteria: 'Spools the response with -o to a file in a mktemp -d directory rather than streaming an article-sized body to stdout, then deletes the file and its directory'
     focus: 'trace'
   - name: 'expectation-6'
     type: 'llm'

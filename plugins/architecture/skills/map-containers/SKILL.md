@@ -296,9 +296,13 @@ hand-written; the shared medium resolver decides the destination, with this plug
   earlier stage takes that stage's image.
 - **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4 view of the
   code reads the key the authoring-formats convention assigns to C4 system views, the same key `/planning:design` reads for its design container view. It refuses
-  mermaid because mermaid C4 is experimental. Unset, `containers.md` carries the tables and no diagram,
+  mermaid. Unset, `containers.md` carries the tables and no diagram,
   and the report says no view was emitted. The key is documented in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
+  - **Pointer**: for what mermaid's C4 support covers, see
+    [Mermaid: C4 Diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams).
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: that page changes the status of C4 support or adds a diagram type.
 - **A reformatted record reads as empty unless the reader refuses it.** `render-containers.sh`
   exits 1 on any other shape and writes nothing.
 - **Configuration is untrusted text.** The assignment scanner matches it. It does not source it,
