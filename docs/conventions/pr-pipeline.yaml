@@ -1518,8 +1518,6 @@ merge:
         class: enforcement
       - glob: ".github/scripts/pr-unblock/report-escalation.sh"
         class: enforcement
-      - glob: ".github/scripts/pr-unblock/read-pr-head.bash"
-        class: enforcement
       - glob: ".github/scripts/pr-unblock/adjudicate-feedback.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/publish-feedback.mjs"

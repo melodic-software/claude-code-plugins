@@ -343,7 +343,6 @@ jobs:
         .github/scripts/work-resolve-issue/limits.mjs
         .github/scripts/work-resolve-issue/retry-fetch.mjs
         .github/scripts/pr-unblock/report-escalation.sh
-        .github/scripts/pr-unblock/read-pr-head.bash
         .github/scripts/pr-unblock/adjudicate-feedback.mjs
         .github/scripts/pr-unblock/publish-feedback.mjs
         .github/scripts/pr-unblock/resolve-threads.mjs
