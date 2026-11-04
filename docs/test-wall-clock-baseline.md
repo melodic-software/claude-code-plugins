@@ -92,6 +92,9 @@ on the Windows host above, `origin/main`'s runner with `--root` at a checkout
 of `fd862a49b848`; a cell with an exit code is a suite that failed there. It
 holds the 18 suites the 60-minute run reached; a blank cell was not reached.
 
+Re-measured rows: `audit-engine.test.sh` is 1336 s after #13229 (2714 s just before it, same host
+and day), from `run-plugin-tests.sh --timings` at `--jobs 1` on a native `C:` clone.
+
 | Suite | Linux CI (s) | Windows Git Bash (s) |
 | --- | --- | --- |
 | `.claude/hooks/check-affected-pre-push.test.sh` | 3 | |
@@ -363,7 +366,7 @@ holds the 18 suites the 60-minute run reached; a blank cell was not reached.
 | `plugins/harness-config/skills/audit-permission-state/scripts/permission-merge.test.sh` | 1 | |
 | `plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh` | 1 | |
 | `plugins/harness-config/skills/audit-permission-state/scripts/permission-state.test.sh` | 5 | |
-| `plugins/harness-config/skills/audit/scripts/audit-engine.test.sh` | 135 | 1660 |
+| `plugins/harness-config/skills/audit/scripts/audit-engine.test.sh` | 135 | 1336 |
 | `plugins/harness-config/skills/audit/scripts/check-doc-citations.test.sh` | 3 | |
 | `plugins/harness-config/skills/audit/scripts/check-effort-pins.test.sh` | 6 | |
 | `plugins/harness-config/skills/audit/scripts/check-hook-coverage.test.sh` | 3 | |
