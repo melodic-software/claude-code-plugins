@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.23.3",
+  "version": "1.0.0",
   "license": "MIT",
   "keywords": [
     "teach",
@@ -32,6 +32,13 @@
       "description": "Where /education:explain starts on its ladder. plain (default): an everyday analogy with no jargon, then higher rungs on request. peer: a precise one-sentence definition and full detail, with the plain version offered. docs/conventions/education.yaml overrides this.",
       "default": "plain",
       "options": ["plain", "peer"]
+    },
+    "medium": {
+      "type": "string",
+      "title": "Preferred delivery medium",
+      "description": "Where illustrate's page and teach's topic lessons go. auto (default): each skill's shipped default; terminal: no page, teach writes lesson.md; file: a local file; artifact or hosted: illustrate publishes an Artifact, teach offers one. A team rendered-views file never publishes.",
+      "default": "auto",
+      "options": ["auto", "terminal", "file", "artifact", "hosted"]
     },
     "quiz_policy": {
       "type": "string",

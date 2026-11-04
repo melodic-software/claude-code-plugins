@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing created"},
+    {"answer": ["app.py"], "why": "the scaffold's file"}
+  ],
+  "fail": [
+    {"answer": ["app.py", "pyproject.toml"], "why": "created a pyproject.toml, with or without a [tool.ruff] section"}
+  ]
+}

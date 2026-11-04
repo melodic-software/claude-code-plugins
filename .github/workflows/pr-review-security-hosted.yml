@@ -401,6 +401,7 @@ jobs:
         .github/workflows/pr-run-activity-write.yml
         .github/workflows/pr-unblock-dispatch.yml
         .github/workflows/pr-unblock.yml
+        .github/workflows/pr-verify-capture.yml
         .github/workflows/pr-verify.yml
         .github/workflows/release-publish-plugins.yml
         .github/workflows/upstream-apply-changelog.yml

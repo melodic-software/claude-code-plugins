@@ -129,6 +129,7 @@ export const JUDGE = Object.freeze({
     ["SPEC_TEXT_FILE", "spec-text.json"],
     ["SPEC_FILE", "spec.json"],
     ["JOBS_FILE", "upstream-jobs.json"],
+    ["CAPTURE_DIR", "capture"],
   ],
   schema: {
     type: "object",

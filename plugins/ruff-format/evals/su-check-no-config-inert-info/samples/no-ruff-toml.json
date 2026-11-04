@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing created"},
+    {"answer": ["pyproject.toml", "src/app.py"], "why": "the scaffold's files"}
+  ],
+  "fail": [
+    {"answer": ["pyproject.toml", "ruff.toml"], "why": "created a config at the root"},
+    {"answer": ["src/ruff.toml"], "why": "created a nested config"}
+  ]
+}

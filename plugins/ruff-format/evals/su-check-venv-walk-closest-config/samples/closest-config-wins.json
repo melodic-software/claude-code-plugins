@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "For src/pkg/mod.py the walk stops at src/ruff.toml, the first config going up. src/pkg/pyproject.toml is skipped: it has no [tool.ruff] table or subtable, so it does not opt in."}
+  ],
+  "fail": [
+    {"answer": "The root pyproject.toml governs every file, including src/pkg/mod.py.", "why": "ignores the closer config"},
+    {"answer": "src/pkg/pyproject.toml governs src/pkg/mod.py, since it is the closest pyproject.", "why": "counts a pyproject with no Ruff section"},
+    {"answer": "src/ruff.toml governs src/pkg/mod.py.", "why": "near miss: no word on why src/pkg/pyproject.toml does not count"}
+  ]
+}
