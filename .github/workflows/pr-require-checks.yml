@@ -6512,7 +6512,16 @@ jobs:
             # stop in the job's stop file (gh_read's rate guard refuses the
             # pool), holds. The reader's own babysit_gh.py guard shares that
             # stop file.
-            if ! jq -e '[.["carried-run-record"], .["carried-fail-head-ref"], .["carried-on-branch"]] | map(objects | length) | add > 0' \
+            #   In FAIL index mode (the legacy FAILs file is present) none of
+            # that cost exists: the reader reads by exact name
+            # (babysit_verify_evidence.py `_targeted`), the same reads a warm
+            # cache makes, which run with no pre-check, so no cold gate runs
+            # and the unfiltered listing it priced is not read. Past
+            # INDEX_NAMES_CAP names the reader still reads the whole listing,
+            # and a listing that does not read fails it closed below.
+            index_mode=false
+            [ ! -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ] || index_mode=true
+            if [ "$index_mode" = false ] && ! jq -e '[.["carried-run-record"], .["carried-fail-head-ref"], .["carried-on-branch"]] | map(objects | length) | add > 0' \
               "$BABYSIT_RUN_CACHE" >/dev/null 2>&1; then
               cold="#$pr is held: no carried run cache from pr-merge's last run"
               branch=${GROUP_BASE_REF#refs/heads/}
@@ -6568,7 +6577,7 @@ jobs:
               if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
                 listed=false
                 echo "::notice::the verdict reader refused #$pr before listing artifacts; merge-holds.mjs judges its refusal with no pass."
-              elif [ -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ]; then
+              elif [ "$index_mode" = true ]; then
                 # FAIL index mode: the reader reads by exact name and saves no
                 # listing, so the head's pass names are read the same way.
                 found=""
