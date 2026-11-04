@@ -25,7 +25,7 @@ const SEVERITY = ['PASS', 'PASS-WITH-FINDINGS', 'FAIL', 'BLOCKED']
 const FINDING_SEVERITY = ['high', 'medium', 'low']
 // The standing gates context/pipeline-hardening.md "Standing gates" lists. check-html-rows.py runs
 // only when the slice keeps a source.html with **FN.** rows, which this script cannot see, so it
-// fails the pin only when reported and not true; the other four must each be reported true.
+// need not be reported; the other four must be, and any gate reported false fails the page.
 const REQUIRED_GATES = ['check-fences-exact.py', 'check-snippets.py', 'check-prose-terms.py', 'check-sources-parity.py']
 const CONDITIONAL_GATES = ['check-html-rows.py']
 
@@ -256,9 +256,12 @@ const parseSetup = plan => v => {
   if (!['ready', 'refused', 'failed'].includes(status)) return null
   const canonical = own(v, 'canonicalUrl')
   const redirected = c => urlRejection(c) !== null || canonicalOf(c) !== plan.canonical
-  if (status === 'refused') return record({ status })
-  if (status === 'failed') return record({ status, refusal: canonical !== undefined && redirected(canonical) ? 'redirect-refused' : null })
   const slug = own(v, 'slug')
+  if (status === 'refused') return record({ status })
+  if (status === 'failed') {
+    const otherSlug = typeof slug === 'string' && slug !== plan.slug
+    return record({ status, refusal: canonical !== undefined && redirected(canonical) ? 'redirect-refused' : otherSlug ? 'slug-mismatch' : null })
+  }
   if (!line(slug, 40, SLUG)) return null
   const units = list(own(v, 'units'), MAX_UNITS, u => {
     if (!isObj(u)) return null
@@ -296,9 +299,7 @@ function parsePin(v) {
     return record({ gate: own(g, 'gate'), pass: own(g, 'pass') })
   })
   if (!gates) return null
-  const all = name => gates.filter(g => g.gate === name)
-  const gatesPass = REQUIRED_GATES.every(n => all(n).length > 0 && all(n).every(g => g.pass === true)) &&
-    CONDITIONAL_GATES.every(n => all(n).every(g => g.pass === true))
+  const gatesPass = gates.every(g => g.pass) && REQUIRED_GATES.every(n => gates.some(g => g.gate === n))
   return record({ pinned, gatesPass })
 }
 
@@ -414,16 +415,53 @@ async function slot(fn) {
   }
 }
 
+// Reads one raw reply before its parser does, and on purpose without the parser's strictness: a
+// FAIL, a high finding or a false gate counts in any shape, so a malformed reply cannot hide one
+// behind a retry. Notes stay free text and count for nothing.
+function scanReply(raw, saw) {
+  // Under gates, a result key, a key naming a gate (a map), or an array position; not skipped or required.
+  const gateResultKey = key => /^(pass|passed|ok|result|status|\d+|check-.*)$/.test(key)
+  const textRules = text => {
+    if (/^\W*FAIL\W*$/i.test(text) || /\bverdict\W+fail/i.test(text)) saw.fail = true
+    if (/\bseverity\W+high\b/i.test(text)) saw.high = true
+    if (/\b(pass|passed|ok)\W+false\b/i.test(text)) saw.gateFalse = true
+  }
+  const stack = [{ v: raw, key: '', under: '' }]
+  const visited = new Set()
+  while (stack.length) {
+    const { v, key, under } = stack.pop()
+    if (typeof v === 'string') {
+      textRules(v)
+      if (under === 'verdict' && /^\W*fail/i.test(v)) saw.fail = true
+      if ((key === 'severity' || under === 'findings') && /^\W*high\b/i.test(v)) saw.high = true
+      if (under === 'gates' && gateResultKey(key) && /\b(false|fail|failed)\b/i.test(v)) saw.gateFalse = true
+    } else if (v === false || v === 0) {
+      if (under === 'gates' && (v === 0 ? /pass|ok/.test(key) : gateResultKey(key))) saw.gateFalse = true
+    } else if (typeof v === 'number') {
+      if (/^highs?$/.test(key) && v > 0) saw.high = true
+    } else if (v && typeof v === 'object' && !visited.has(v)) {
+      visited.add(v)
+      if (/^highs?$/.test(key) && Array.isArray(v) && v.length) saw.high = true
+      for (const k in v) {
+        const lower = k.toLowerCase()
+        if (lower === 'notes') continue
+        const area = /verdict/.test(lower) ? 'verdict' : /finding/.test(lower) ? 'findings' : /gate/.test(lower) ? 'gates' : under
+        stack.push({ v: v[k], key: lower, under: area })
+      }
+    }
+  }
+}
+
 // One retry for a thrown dispatch, a null result (the death ladder's retry window) or a reply its
 // parser rejects; an error naming a cap or budget is rethrown without a retry. Returns { value }
-// from the parser, or { code } naming the stage and how its last attempt failed; sawFail records a
-// FAIL verdict on any attempt, parsed or not, so a retry cannot hide it.
+// from the parser, or { code } naming the stage and how its last attempt failed; saw records what
+// scanReply found on any attempt, parsed or not.
 const nulls = []
 const ran = []
 async function call(stage, prompt, o, parse) {
   ran.push(o.label)
   let last = 'no-result'
-  let sawFail = false
+  const saw = { fail: false, high: false, gateFalse: false }
   for (let attempt = 1; attempt <= 2; attempt++) {
     const retry = attempt === 1 ? ', retrying once' : ''
     let raw
@@ -438,26 +476,29 @@ async function call(stage, prompt, o, parse) {
       continue
     }
     if (raw == null) { last = 'no-result'; log(o.label + ': no result' + retry); continue }
-    if (isObj(raw)) {
-      logAgentText(o.label, 'notes', own(raw, 'notes'))
-      if (own(raw, 'verdict') === 'FAIL') sawFail = true
-    }
+    if (isObj(raw)) logAgentText(o.label, 'notes', own(raw, 'notes'))
+    scanReply(raw, saw)
     const value = parse(raw)
-    if (value) return { value, sawFail }
+    if (value) return { value, saw }
     last = 'off-schema'
     log(o.label + ': an off-schema reply' + retry)
   }
   if (last === 'no-result') nulls.push(o.label)
-  return { code: stage + '-' + last, sawFail }
+  return { code: stage + '-' + last, saw }
 }
 
-// ---- the one decider ----
-// ev holds only parser records and script-owned facts from this run. verified needs this run's
-// verifier A and B verdicts, both parsed, both written, both PASS or PASS-WITH-FINDINGS, every
-// standing gate passed, and a close stage that did not fail. Every other path is a code.
-function decide(ev) {
-  const unverified = code => record({ status: 'unverified', code, verification: 'unverified: ' + code })
-  const failed = code => record({ status: 'failed', code, verification: 'failed: ' + code })
+// ---- the deciders ----
+// A workflow script cannot read the filesystem, so everything here is what agents reported. The
+// best a page reaches is claimed; scripts/verify-batch-page.py reads the disk after the workflow
+// returns, and only that script writes verified. ev holds only parser records and script-owned
+// facts from this run.
+const PAGE = Object.freeze({ CLAIMED: 'claimed', UNVERIFIED: 'unverified', FAILED: 'failed' })
+const AWAITING = 'unverified: awaiting-check'
+const unverified = code => record({ status: PAGE.UNVERIFIED, code, verification: 'unverified: ' + code })
+const failed = code => record({ status: PAGE.FAILED, code, verification: 'failed: ' + code })
+
+// A page's standing before close runs: a code, or null when it is heading for claimed.
+function beforeClose(ev) {
   if (ev.threw) return unverified('pipeline-threw')
   if (ev.slugTaken) return unverified('slug-collision')
   if (!ev.setup) return unverified('setup-no-result')
@@ -471,10 +512,11 @@ function decide(ev) {
   if (ev.digests.code) return unverified(ev.digests.code)
   if (ev.effortLow) return unverified('verifier-effort-low')
   if (!ev.pin) return unverified('pin-no-result')
+  if (ev.pin.saw.gateFalse) return failed('gate-fail')
   if (ev.pin.code) return unverified(ev.pin.code)
   if (!ev.pin.value.pinned) return unverified('pin-failed')
   const arms = [['a', ev.a], ['b', ev.b]]
-  if (arms.some(([, r]) => r && r.sawFail)) return failed('verifier-fail')
+  if (arms.some(([, r]) => r && (r.saw.fail || r.saw.high))) return failed('verifier-fail')
   for (const [n, r] of arms) {
     if (!r) return unverified('verifier-' + n + '-no-result')
     if (r.code) return unverified(r.code)
@@ -482,9 +524,19 @@ function decide(ev) {
   for (const [n, r] of arms) if (!r.value.written) return unverified('verifier-' + n + '-unwritten')
   if (!ev.pin.value.gatesPass) return failed('gate-fail')
   if (arms.some(([, r]) => r.value.verdict === 'BLOCKED')) return unverified('verifier-blocked')
-  if (ev.close && ev.close.code) return unverified(ev.close.code)
-  return record({ status: 'verified', code: 'verified', verification: 'verified' })
+  return null
 }
+
+// The page's result. It reaches claimed only when close ran and did not fail.
+function decide(ev) {
+  const early = beforeClose(ev)
+  if (early) return early
+  if (!ev.close) return unverified('close-no-result')
+  if (ev.close.code) return unverified(ev.close.code)
+  return record({ status: PAGE.CLAIMED, code: 'awaiting-check', verification: AWAITING })
+}
+
+const shownVerdict = r => (!r ? null : r.saw.fail || r.saw.high ? 'FAIL' : r.code ? r.code : r.value.verdict)
 
 // SKILL.md "Untrusted-source discipline" gives digest and verification agents its rule verbatim,
 // so RULE is that rule as written there; the spine after it names this workflow's surfaces. Both
@@ -534,8 +586,9 @@ async function setup(url, i) {
     'below. Before the first write, resolve the post-redirect URL and apply the slug guard: when your ' +
     'canonical URL or slug differs from these, write nothing and return status failed with your canonical ' +
     'URL, because the batch path does not follow a redirect. When the slice already holds this same page, keep its ' +
-    'snapshot as the Phase 1 resume guard says, and untick Phases 3, 4 and 5 on the checklist: this ' +
-    'workflow runs them again whatever an earlier run ticked. Return the slug, the canonical URL, the ' +
+    'snapshot as the Phase 1 resume guard says, untick Phases 3, 4 and 5 on the checklist, and set its ' +
+    '"Verification status" line to ' + AWAITING + ': this workflow runs them again whatever an earlier ' +
+    'run ticked. Return the slug, the canonical URL, the ' +
     'digest-agent model the profile maps this page to ("none" when no mapping applies), and one entry per ' +
     'SOURCES.md digest-map row: its unit as NN-slug (the digests/NN-slug.md name without the directory or ' +
     'extension) and its START-END lines. A collision refusal returns status refused; anything else that ' +
@@ -611,7 +664,11 @@ async function digestAndVerify(ev) {
     'are yours to replay whatever the other arm can reach.' + brief + effort +
     ' Write your verdict to the path below (if it already exists, never overwrite it: write beside it with a ' +
     'numeric suffix before .md), with a header recording your effective effort and where it came from, and the ' +
-    'hashes you audited. Return the verdict, whether you wrote the file, and each finding\'s severity.' +
+    'full sha256 of every file in verification/pin-manifest.json. A check script reads that file after this ' +
+    'workflow returns, and a file it cannot read counts as unverified, so the header also carries exactly one ' +
+    'line `Verdict: <verdict>` and one line `Findings: high <n>, medium <n>, low <n>`, and each finding has its ' +
+    'own line starting `Finding: <severity>:`. Return the verdict, whether you wrote the file, and each ' +
+    'finding\'s severity.' +
     fence('slice', slice) + fence('write-to', at.verdict(name)),
     { label: label + ':verifier-' + name + (name === 'b' ? '-degraded' : ''), phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier) },
     parseVerdict,
@@ -623,17 +680,12 @@ async function digestAndVerify(ev) {
   return ev
 }
 
-// Close cannot know its own outcome, so a page heading for verified records this status and the
-// launcher writes the final line from the result. Every other status is already final.
-const AWAITING = 'unverified: awaiting-launcher'
-
 async function close(ev) {
   if (!ownsSlice(ev)) return ev
   const slice = sliceOf(ev.slug)
   const at = layout(slice)
-  const shown = r => (!r ? null : r.sawFail ? 'FAIL' : r.code ? r.code : r.value.verdict)
-  const decided = decide(ev)
-  const status = decided.status === 'verified' ? AWAITING : decided.verification
+  const early = beforeClose(ev)
+  const status = early ? early.verification : AWAITING
   ev.close = await call('close',
     'Stage: close.' + OWNS + ' Record this page\'s Phase 4 outcome on the checklist below. Then run ' + DUAL +
     ' section "Reconcile the digest set against itself before Phase 5" over this page\'s digests, editing no ' +
@@ -641,14 +693,14 @@ async function close(ev) {
     'handoff at the path below as ' + skill('Phase 5. Interview handoff') + ' says, replaying its commands, but do not invoke ' +
     '/planning:interview: the launching session runs it once over every page. On the checklist, fill the ' +
     '"Verification status" line with the status below verbatim, fill both verifier effort lines from the ' +
-    'verdict headers, and leave Phase 4 unticked, clearing any tick an earlier run left: the launching ' +
-    'session ticks it once this workflow has decided the page. Unless the status is ' + AWAITING + ', write ' +
+    'verdict headers, and leave Phase 4 unticked, clearing any tick an earlier run left: a check script ' +
+    'ticks it after this workflow returns. Unless the status is ' + AWAITING + ', write ' +
     'the degraded marker as ' + LADDER + ' "Subagent-death / usage-limit ladder" ' +
     'says. The handoff opens with the same "Verification status" line. Return whether you wrote the checklist ' +
     'and the handoff.' +
     fence('slice', slice) + fence('checklist', at.checklist) + fence('handoff', at.handoff) +
     fence('verification-status', status) +
-    fence('run-record', { gatesPass: ev.pin && ev.pin.value ? ev.pin.value.gatesPass : null, a: shown(ev.a), b: shown(ev.b), verifierB: ev.verifierB || null, modelMatch: ev.modelMatch || null, deadUnits: ev.deadUnits || [] }),
+    fence('run-record', { gatesPass: ev.pin && ev.pin.value ? ev.pin.value.gatesPass : null, a: shownVerdict(ev.a), b: shownVerdict(ev.b), verifierB: ev.verifierB || null, modelMatch: ev.modelMatch || null, deadUnits: ev.deadUnits || [] }),
     { label: ev.label + ':close', phase: 'Close', schema: CLOSE_SCHEMA, ...opts(R.worker) },
     parseClose,
   )
@@ -661,7 +713,6 @@ function result(url, i, ev) {
   if (!ev) return { url, label, slug: null, slice: null, handoff: null, closed: false, status: d.status, code: d.code, verification: d.verification }
   const slug = ownsSlice(ev) ? ev.slug : null
   const closed = !!(ev.close && ev.close.value)
-  const verdict = r => (!r ? null : r.sawFail ? 'FAIL' : r.code ? r.code : r.value.verdict)
   return {
     url,
     label,
@@ -672,8 +723,8 @@ function result(url, i, ev) {
     status: d.status,
     code: d.code,
     verification: d.verification,
-    a: verdict(ev.a),
-    b: verdict(ev.b),
+    a: shownVerdict(ev.a),
+    b: shownVerdict(ev.b),
     gatesPass: ev.pin && ev.pin.value ? ev.pin.value.gatesPass : null,
     deadUnits: ev.deadUnits || [],
     modelMatch: ev.modelMatch || null,
@@ -685,7 +736,7 @@ phase('Setup')
 const pages = await pipeline(PAGES, (url, _o, i) => setup(url, i), digestAndVerify, close)
 const results = PAGES.map((url, i) => result(url, i, pages[i]))
 const count = s => results.filter(r => r.status === s).length
-log('pages: ' + count('verified') + ' verified, ' + count('unverified') + ' unverified, ' + count('failed') + ' failed')
+log('pages: ' + count(PAGE.CLAIMED) + ' claimed, ' + count(PAGE.UNVERIFIED) + ' unverified, ' + count(PAGE.FAILED) + ' failed')
 
 return {
   workRoot: WORK_ROOT,

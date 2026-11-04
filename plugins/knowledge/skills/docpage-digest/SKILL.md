@@ -62,6 +62,10 @@ root, and different resources never share one:
 - **Recheck trigger**: that section changes which command prints a SHA-256 digest, or its output
   format.
 
+For a case these steps leave open (host case, `_ . ~ %`, a slash before a query, a port), `slugFor`
+in [`../../workflows/docpage-digest-batch.js`](../../workflows/docpage-digest-batch.js) is the
+reference.
+
 Never build a path from raw URL text (a crafted URL could steer a filename toward path
 traversal), and confirm the resolved work root is still inside `<resolved-root>/.work/` before
 writing.
