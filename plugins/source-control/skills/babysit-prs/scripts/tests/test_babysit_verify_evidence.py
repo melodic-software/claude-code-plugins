@@ -7245,9 +7245,8 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
 class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
     """Artifact listings and requests per pr-merge tick, each job's printed as
     a `babysit-gh-calls` line, in a repository shaped like 2026-10-27's: 6,240
-    artifacts uploaded four a minute, and the listing the last tick saved 15
-    minutes before as the carried base. The merge job's skip filter lists
-    first; then 17 gate candidates 20 seconds apart while uploads go on:
+    artifacts uploaded four a minute, and each job starting with no saved
+    listing. The merge job's skip filter lists first; then 17 gate candidates 20 seconds apart while uploads go on:
     eight refused by a FAIL at their head, seven whose verdict allows and
     whose risk score then refuses, two allowed; with one queued entry that
     each gate judges again once its keep is over `run_cache.MAX_AGE` old, or
@@ -7283,16 +7282,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
             fake.records[fail] = record(n, sha, verdict="fail", head_ref=f"b{n}")
             self.upload(fake, fail, run_id, self.START - timedelta(minutes=40))
         self.fake = fake
-        # The last tick's listing, read 15 minutes before this one.
-        carried_at = self.START - timedelta(minutes=15)
-        self.seed = json.dumps(
-            {
-                "fetchedAt": carried_at.isoformat(),
-                "artifacts": [
-                    a for a in fake.artifacts if ve._when(a["created_at"]) <= carried_at
-                ],
-            }
-        )
         for patcher in (
             mock.patch.object(ve, "_wall_clock", side_effect=lambda: self.clock[0]),
             mock.patch.object(run_cache, "now", side_effect=lambda: self.clock[0]),
@@ -7368,8 +7357,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
         )
 
     def environ(self, job: str) -> Any:
-        if job == "merge":
-            (self.dir / f"{job}-listing.json").write_text(self.seed)
         return mock.patch.dict(
             "os.environ",
             {
@@ -7395,10 +7382,10 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
             mock.patch.object(gh, "run_command", side_effect=self.answer),
         ):
             # The skip filter (babysit_merge_skip.py filter) lists first, on
-            # the carried listing, and saves it for the gate.
+            # an empty job listing, and saves it for the gate.
             skip = ve.Reader(REPO, "main")
             skip.listing()
-            self.assertEqual(skip.listing_mode, "incremental")
+            self.assertEqual(skip.listing_mode, "full")
             self.skip_calls = gh.gh_call_counts()
             refused = iter(self.refused())
             for i, kind in enumerate(kinds):
@@ -7461,9 +7448,10 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
         self.assertEqual(
             refusals.count(None), len(self.KINDS) - self.KINDS.count("fail")
         )
-        # The skip filter's listing and each allowed candidate's own: no
-        # refused candidate lists, whatever the saved listing's age.
-        self.assertEqual(self.listings, 1 + self.KINDS.count("allow"))
+        # The skip filter's whole listing and its top-up's first page, and
+        # each allowed candidate's own: no refused candidate lists, whatever
+        # the saved listing's age.
+        self.assertEqual(self.listings, 2 + self.KINDS.count("allow"))
 
     def test_the_merge_job_with_a_queued_entry(self) -> None:
         counts, refusals = self.merge_job(queued=True)
@@ -7481,13 +7469,14 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
         return self.listings
 
     def test_a_slow_merge_job_with_an_empty_queue(self) -> None:
-        # The skip filter's listing, and the allowed candidate's own.
-        self.assertEqual(self.slow_merge_job(False), 2)
+        # The skip filter's whole listing and its top-up, and the allowed
+        # candidate's own.
+        self.assertEqual(self.slow_merge_job(False), 3)
 
     def test_a_slow_merge_job_with_a_queued_entry(self) -> None:
         # The queued keeps at 6 and 10 minutes find the listing past the
         # bound and list again; the allow at 12 lists on its own.
-        self.assertEqual(self.slow_merge_job(True), 4)
+        self.assertEqual(self.slow_merge_job(True), 5)
 
     def test_enable_auto_merge(self) -> None:
         counts, refusals = self.arm_job()
