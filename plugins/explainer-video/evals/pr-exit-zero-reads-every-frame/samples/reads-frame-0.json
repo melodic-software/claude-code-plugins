@@ -22,6 +22,17 @@
         }
       ],
       "why": "all three"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0000.png"
+          }
+        }
+      ],
+      "why": "frame 0 read"
     }
   ],
   "fail": [
@@ -34,7 +45,13 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/w/video/low/frames/f0000.png"
+            "file_path": "/w/video/low/frames/f0001.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0001.png"
           }
         },
         {
@@ -44,7 +61,24 @@
           }
         }
       ],
-      "why": "two of three"
+      "why": "frame 1 read three times, frame 0 never"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0001.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0002.png"
+          }
+        }
+      ],
+      "why": "the other two frames, not frame 0"
     },
     {
       "answer": [
@@ -62,7 +96,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "ls video/low/frames"
+            "command": "ls video/low/frames/f0000.png"
           }
         }
       ],
