@@ -59,6 +59,7 @@ when you describe broken behavior with no pre-existing reproduction.
 
 One plugin option, `medium`, sets where the post-mortem view goes; the shared medium
 resolver reads it beside the repository's `rendered-views` files (options reference below).
+The option declares a fixed list of values, which needs Claude Code v2.1.271 or later.
 The phase checklist is a bundled template you copy into your own working-notes location
 (or track inline). The only plugin data written is the resolver's record of which
 retired-file notices it has already shown for a project.
