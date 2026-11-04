@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0] - 2026-11-03
+
+### Added
+
+- `/verification:confirm` reports a "Not proved by these checks" section: every plan item whose best evidence is rank 4 (self-authored, unsourced) or that no check exercised, so a reviewer sees what the green checks did not cover. New eval case `confirm-names-what-checks-did-not-prove`.
+
 ## [0.18.4] - 2026-11-03
 
 ### Changed

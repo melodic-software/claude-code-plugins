@@ -6,7 +6,11 @@ description: >
   token, `<name>=N not-modified=M graphql=K`: N is this job's own requests,
   which cost (the rise in a counter every concurrent job shares) is not, M
   its 304 answers, which GitHub does not count, and K the GraphQL requests
-  among N, which spend GraphQL's own pool. With `outside` set, an
+  among N, which spend GraphQL's own pool. A token with a reading adds
+  `core-by-reset=<epoch>:<count>,...`, the other requests by the core
+  reset their reading shows, ascending, and `core-unread=U`, those with no
+  core reset, so the counts and U sum to N - K: two core counters with
+  different resets each get their own count. With `outside` set, an
   `api-uncounted` notice, `github-token <step> ...`, names the steps that
   call GitHub with the job token through a client this action cannot count
   (another action's own HTTP client), so the job-token api-calls count reads

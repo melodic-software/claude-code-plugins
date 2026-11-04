@@ -5,7 +5,8 @@
 # This script is that algorithm's executable form: it runs the whole per-marketplace
 # loop in ONE process and prints a single digest the model reads, rather than the
 # model retyping each step's bash into its own turn. Every invariant sync.md fixes
-# holds here — per-step `fleet-state.sh` re-reads, the run journal, the
+# holds here — per-step `fleet-state.sh` re-reads (reused while their inputs are
+# unchanged; see `fleet_snapshot`), the run journal, the
 # `rc=${PIPESTATUS[0]}` capture after every `tee`-journaled mutating call, the
 # downgrade guard, the projection exit-status check, the per-marketplace failure
 # rule, and Step 4/5 gating on the fresh pre-install read.
@@ -1765,17 +1766,134 @@ refresh_skip_check() {
 }
 
 # --- one snapshot read ----------------------------------------------------------
-# `fleet-state.sh --marketplace <mp>` into $2, with its stderr captured and, on a
-# non-zero exit, recorded as a per-marketplace error named for the step ($3).
-# Returns the reader's own status, so a caller that must abandon the marketplace
-# still branches on it.
+# The whole of file $2 into variable $1 with a builtin, byte for byte; empty when
+# the file is absent.
+slurp_to() {
+  local __sl=""
+  [[ -f "$2" ]] && IFS= read -r -d '' __sl <"$2"
+  printf -v "$1" '%s' "$__sl"
+}
+
+# One line per path listed in file $2, in list order: `<mtime>|<ctime>|<size>|<path>`
+# from one `stat` that follows symlinks, or `absent|<path>` for a path that does not
+# exist (a dangling link included). `stat` exits non-zero when any path is absent,
+# so the BSD spelling runs only on empty output. Empty when an existing path has no
+# `stat` line (neither dialect answered, or it appeared mid-call) or a time carries
+# no fractional digits, which turns reuse off.
+fingerprint_to() {
+  local __fp_p __fp_l __fp_st="" __fp_out="" __fp_i=0
+  local -a __fp_paths=() __fp_lines=()
+  while IFS= read -r __fp_p; do __fp_paths+=("$__fp_p"); done <"$2"
+  if ((${#__fp_paths[@]} > 0)); then
+    # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD -f spelling follows on empty output
+    __fp_st=$(stat -L -c '%.9Y|%.9Z|%s|%n' -- "${__fp_paths[@]}" 2>/dev/null)
+    [[ -n "$__fp_st" ]] || __fp_st=$(stat -L -f '%Fm|%Fc|%z|%N' -- "${__fp_paths[@]}" 2>/dev/null)
+  fi
+  [[ -z "$__fp_st" ]] || while IFS= read -r __fp_l; do __fp_lines+=("$__fp_l"); done <<<"$__fp_st"
+  for __fp_p in ${__fp_paths[@]+"${__fp_paths[@]}"}; do
+    __fp_l="${__fp_lines[__fp_i]:-}"
+    if [[ -n "$__fp_l" && "${__fp_l#*|*|*|}" == "$__fp_p" ]]; then
+      __fp_i=$((__fp_i + 1))
+    elif [[ -e "$__fp_p" ]]; then
+      __fp_i=-1
+      break
+    else
+      __fp_l="absent|$__fp_p"
+    fi
+    if [[ "$__fp_l" != absent\|* && ! "$__fp_l" =~ ^[0-9]+\.[0-9]+\|[0-9]+\.[0-9]+\| ]]; then
+      __fp_i=-1
+      break
+    fi
+    __fp_out+="${__fp_out:+$'\n'}$__fp_l"
+  done
+  ((__fp_i == ${#__fp_lines[@]})) || __fp_out=""
+  printf -v "$1" '%s' "$__fp_out"
+}
+
+# Whether every present input in fingerprint $1 has its mtime and ctime below $2,
+# integer microseconds.
+inputs_older_than() {
+  local line m c
+  while IFS= read -r line; do
+    [[ "$line" != absent\|* ]] || continue
+    stamp_us m "${line%%|*}"
+    line="${line#*|}"
+    stamp_us c "${line%%|*}"
+    ((m < $2 && c < $2)) || return 1
+  done <<<"$1"
+}
+
+# `fleet-state.sh --marketplace <mp>` into $2, or the stored report of an earlier
+# read when none of its inputs changed. fleet-state.sh lists every path it read
+# (FLEET_STATE_READ_LIST), and the report is reused while each keeps the mtime,
+# ctime and size it had at that read and each absent one stays absent. A report is
+# stored only when no input can have changed during its read: an earlier read's
+# list matches this one's, the fingerprint taken before the read matches the one
+# after it, and every present input's mtime and ctime are more than the margin
+# (SYNC_FLEET_STATE_STORE_MARGIN_S seconds, default 2) older than the read's start,
+# so a write within one timestamp tick of a fingerprint is not missed. A run's
+# first read has no earlier list, so it is never stored.
+# The cache sits in the run directory, keyed by the environment fleet-state.sh
+# reads, so an --only-install re-entry reuses the first pass's last report. Each
+# read and each reuse is journaled. Leaves stderr in .fs-err and returns the
+# reader's status.
+SNAPSHOT_KEY="$PWD|${HOME:-}|${CLAUDE_PROJECT_DIR:-}|$CLAUDE_PLUGIN_ROOT|${FLEET_STATE_INSTALLED_JSON:-}"
+SNAPSHOT_KEY+="|${FLEET_STATE_MARKETPLACES_JSON:-}|${FLEET_STATE_USER_SETTINGS:-}|${FLEET_STATE_CATALOG_DIR:-}"
+STORE_MARGIN_S=2
+[[ ! "${SYNC_FLEET_STATE_STORE_MARGIN_S:-}" =~ ^[0-9]{1,6}$ ]] || STORE_MARGIN_S=$((10#$SYNC_FLEET_STATE_STORE_MARGIN_S))
+fleet_snapshot() {
+  local mp="$1" out="$2" label="$3"
+  local c="$RUN_DIR/fs-cache.$mp"
+  local rc text list_pre="" list_post fp_pre="" fp_post stored t_s t_e
+  local key="$SNAPSHOT_KEY"
+  slurp_to text "$c.key"
+  if [[ "$text" == "$key" && -f "$c.list" ]]; then
+    slurp_to list_pre "$c.list"
+    fingerprint_to fp_pre "$c.list"
+    slurp_to stored "$c.fp"
+    if [[ -n "$fp_pre" && "$fp_pre" == "$stored" ]]; then
+      slurp_to text "$c.json"
+      printf '%s' "$text" >"$out"
+      slurp_to text "$c.from"
+      echo "# fleet-state reuse $label: inputs unchanged since the $text read" >>"$JOURNAL_LOG"
+      return 0
+    fi
+  fi
+  clock_into t_s
+  FLEET_STATE_READ_LIST="$c.next" "$FLEET_STATE" --marketplace "$mp" >"$out" 2>"$RUN_DIR/.fs-err"
+  rc=$?
+  clock_into t_e
+  stamp_us t_s "$t_s"
+  stamp_us t_e "$t_e"
+  t_e=$(((t_e - t_s) / 1000))
+  printf '# fleet-state read %s: elapsed %d.%03ds, exit %d, ' "$label" $((t_e / 1000)) $((t_e % 1000)) "$rc" >>"$JOURNAL_LOG"
+  : >"$c.fp"
+  slurp_to list_post "$c.next"
+  fp_post=""
+  ((rc != 0)) || [[ -z "$list_post" ]] || fingerprint_to fp_post "$c.next"
+  printf '%s' "$key" >"$c.key"
+  printf '%s' "$list_post" >"$c.list"
+  if [[ -n "$fp_post" && -n "$list_pre" && "$list_post" == "$list_pre" && "$fp_post" == "$fp_pre" ]] &&
+    inputs_older_than "$fp_post" $((t_s - STORE_MARGIN_S * 1000000)); then
+    slurp_to text "$out"
+    printf '%s' "$text" >"$c.json"
+    printf '%s' "$fp_post" >"$c.fp"
+    printf '%s' "$label" >"$c.from"
+    echo "stored for reuse" >>"$JOURNAL_LOG"
+  else
+    echo "not stored: a failed read, no fingerprint, no earlier read to compare, or an input changed during or within $STORE_MARGIN_S s before it" >>"$JOURNAL_LOG"
+  fi
+  return "$rc"
+}
+
+# fleet_snapshot, with a non-zero exit recorded as a per-marketplace error named
+# for the step ($3). Returns the reader's own status, so a caller that must
+# abandon the marketplace still branches on it.
 fleet_read() {
-  local mp="$1"
-  local out="$2"
   local label="$3"
   local rc=0
   local text
-  "$FLEET_STATE" --marketplace "$mp" >"$out" 2>"$RUN_DIR/.fs-err"
+  fleet_snapshot "$@"
   rc=$?
   if ((rc != 0)); then
     text=$(<"$RUN_DIR/.fs-err")
@@ -2364,7 +2482,7 @@ run_enable_step() {
   local has_project
   local ppath
 
-  "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/pre-enable.$mp.json" 2>"$RUN_DIR/.fs-err"
+  fleet_snapshot "$mp" "$RUN_DIR/pre-enable.$mp.json" pre-enable
   rc=$?
   if ((rc != 0)); then
     mp_error "pre-enable fleet-state read failed (exit $rc), Step 5 not run"
@@ -3256,7 +3374,7 @@ else
   # pre-refresh snapshot, so it is saved under the resolved name rather than repeated,
   # and its stamps are that marketplace's `pre_refresh_read` timing.
   clock_into MAIN_READ_S
-  if ! "$FLEET_STATE" >"$RUN_DIR/.default.json" 2>"$RUN_DIR/.fs-err"; then
+  if ! FLEET_STATE_READ_LIST="$RUN_DIR/.default.list" "$FLEET_STATE" >"$RUN_DIR/.default.json" 2>"$RUN_DIR/.fs-err"; then
     echo "ERROR: could not resolve the default marketplace" >&2
     cat "$RUN_DIR/.fs-err" >&2
     exit 2
@@ -3271,6 +3389,15 @@ else
   MAIN_READ_MP="$DEFAULT_MP"
   [[ -f "$RUN_DIR/pre-refresh.$DEFAULT_MP.json" ]] ||
     mv "$RUN_DIR/.default.json" "$RUN_DIR/pre-refresh.$DEFAULT_MP.json"
+  # Its read list is the base the next read's fingerprint is taken against.
+  printf '%s' "$SNAPSHOT_KEY" >"$RUN_DIR/fs-cache.$DEFAULT_MP.key"
+  slurp_to line "$RUN_DIR/.default.list"
+  printf '%s' "$line" >"$RUN_DIR/fs-cache.$DEFAULT_MP.list"
+  stamp_us t_s "$MAIN_READ_S"
+  stamp_us t_e "$MAIN_READ_E"
+  t_e=$(((t_e - t_s) / 1000))
+  printf '# fleet-state read pre-refresh: elapsed %d.%03ds, exit 0, not stored, its read list is kept\n' \
+    $((t_e / 1000)) $((t_e % 1000)) >>"$JOURNAL_LOG"
 fi
 
 if ((${#MPS[@]} == 0)); then
