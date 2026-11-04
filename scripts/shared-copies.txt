@@ -306,6 +306,9 @@ lib/prerequisites.ps1 plugins/playbooks/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/plugin-quality/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/plugin-quality/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/plugin-quality/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/prototype/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/prototype/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/prototype/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/repo-fleet-hygiene/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/repo-fleet-hygiene/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/repo-fleet-hygiene/lib/prerequisites.ps1
