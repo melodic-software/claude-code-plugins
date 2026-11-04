@@ -706,19 +706,23 @@ const ROUTE_TEXT = {
   close: "It closes the issue as completed.",
   fail: "It removed `agent-ready` and added no label.",
 };
-// The pull request a blocked-by-pr reason names: its first `#<n>` (or the
-// full-width `＃<n>`) other than the issue itself, or "".
+// The pull request a blocked-by-pr reason names, or the issue a
+// blocked-by-issue reason names: its first `#<n>` (or the full-width `＃<n>`)
+// other than the issue itself, or "".
 export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
 // pushbackSecurity's stop line, which leaves the question's kind to intake.
 const PUSHBACK_SECURITY_WHY =
   "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; if the run names it again once this intake round is spent, the issue reaches a person";
-function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", why = "", neutral = false }) {
+function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", after = "", why = "", neutral = false }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
     `<!-- work-resolve-issue outcome=${exit}${neutral ? " security" : ""}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
     `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
     ...(why ? [why] : []),
+    // Outside the quoted run words, whose `#` reads full-width, so intake
+    // triage reads the blocker as a plain issue reference.
+    ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "wait"
@@ -762,6 +766,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
     removeLabels: KEPT.has(route) ? [] : (ROUTE_REMOVES[route] ?? ["agent-ready"]),
     ...(pr && { pr }),
+    ...(after && { after }),
     ...(route === "park" && { admission: parkReason(stop, why || stopWhy(shown)) }),
   };
 }
@@ -789,10 +794,11 @@ function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: gi
   const shown = spent ? "retry-spent" : stop;
   const route = spent ? stopRoute(shown) : given;
   const pr = route === "wait" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
+  const after = route === "intake" && shown === "blocked-by-issue" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
   const plan =
     route === "hold"
       ? handBack({ ...args, reason: stopReasonCode(shown), spentSecurity, word: shown === "security-risk" ? heldWord(args.outcome) : "" })
-      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, why, neutral: security });
+      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, after, why, neutral: security });
   return { ...plan, stop, stopArgs: args, ...(why && { why }) };
 }
 

@@ -2339,7 +2339,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
-  `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
+  `patch-protected-path`, `blocked-by-pr`, `blocked-by-issue`, `already-done`, `report-delivered`). A reason with no
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
   A `pushback` exit holds only for a code or an intent cause. A `reason` that opens with a hold
   code (`security-risk`, `cost-risk`, `design-change`, `intent-change`) takes that hold row,
@@ -2361,7 +2361,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   the run named the risk again after its intake rounds were spent. An earlier round's mark does
   not carry over to later runs: intake triage re-judged it before admitting the issue again.
   A `stopped` reason (a `pushback` takes this reading only as the paragraph above says) with no code, or one whose code's route is
-  `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
+  `close`, `host-run`, `attended` or `intake`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
   SSH or access key, `backdoor`, `exploit`, branch protection, `attack`, `unauthorized`, `hijack`,
   in any case and even inside a word; `XSS`, `RCE`, `CVE` or `PAT`, a takeover, `stolen`, a
@@ -2414,7 +2414,10 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
   apart from its retries; a pull request that is not open, or none named, retries instead.
   `intake` removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep,
-  which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
+  which counts `outcome=intake` as a hand-back, sends the issue back through intake. On
+  `blocked-by-issue` (`retries: 1`) the comment also names, outside the quoted run words, the
+  first `#<n>` in the reason as the issue the work must land after, which intake records on its
+  `Blocked by:` line as a blocked-by edge, so admission waits for that issue. `close`
   comments, removes `agent-ready` and closes the issue as completed: `already-done` only once a
   cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
   and its commit message closes the issue, and `report-delivered` only on an

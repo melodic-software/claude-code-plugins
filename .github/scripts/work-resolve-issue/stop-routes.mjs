@@ -222,9 +222,10 @@ const capabilityOnly = (text) => {
 // phrasing: a person is only for a real security risk such as a leaked token
 // (owner direction, docs/contracts/loop-lane/README.md "When work stops for
 // the owner"), and a capability limit is none. This holds for a pushback that
-// opens with a host-run or attended code too. A wait or retry code comes back
-// to the lane anyway, except after a pushback (runCode's anyCodeEnds).
-const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
+// opens with a host-run or attended code too. An intake code removes
+// agent-ready, so it ends the lane's work as well. A wait or retry code comes
+// back to the lane anyway, except after a pushback (runCode's anyCodeEnds).
+const ENDING_ROUTES = new Set(["close", "host-run", "attended", "intake"]);
 const endingRiskWord = (text) => {
   const counted = withoutCounts(text);
   const capabilities = counted.replace(CAPABILITY, " ");

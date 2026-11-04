@@ -35,6 +35,7 @@
   "research-first": { "route": "park", "why": "the issue's Uncertainty says research comes first, a step no person decides, so it parks as admission parks the same refusal" },
   "probe-first": { "route": "park", "why": "the issue's Uncertainty says only an experiment answers it, a step no person decides, so it parks as admission parks the same refusal" },
   "blocked-by-pr": { "route": "wait", "why": "the work waits on an open pull request the run names, so the lane runs it again once that pull request merges or closes", "code": true },
+  "blocked-by-issue": { "route": "intake", "retries": 1, "why": "the work must land after another open issue the run names, an ordering no person decides, so intake triage records that issue as a blocked-by edge and admission waits for it to close", "code": true },
   "already-done": { "route": "close", "why": "the run found the issue's work already on the default branch at a commit it cites, so the issue closes", "code": true },
   "verified-done": { "route": "close", "why": "the issue is a finished parent, every sub-issue closed as completed, and the run checked each of its own done-when items against the default branch, citing each check, so the issue closes", "code": true },
   "verify-unmet": { "route": "park", "why": "the issue is a finished parent, but the run found one of its own done-when items unmet, which it names, so it parks until a listed human's decision comment sends it back", "code": true },
