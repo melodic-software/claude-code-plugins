@@ -323,11 +323,11 @@ resolves to `terminal`, make no offer and print no unavailable line. Otherwise, 
 handoff. Without that plugin, say in one line that the optional view is unavailable, and never
 hand-build an HTML file, chart or extra markdown file instead.
 
-Resolve `medium` first with the shared medium resolver. This plugin has no `medium` option, so
-`--option` is empty; add `--argument` only when the run has a `--medium` value:
+Resolve `medium` first with the shared medium resolver, passing this plugin's `medium` option; add
+`--argument` only when the run has a `--medium` value:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane codebase-health:audit --option "" [--argument <the --medium value>]
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane codebase-health:audit --option "${user_config.medium}" [--argument <the --medium value>]
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then any

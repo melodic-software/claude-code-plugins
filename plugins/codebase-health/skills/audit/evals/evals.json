@@ -135,15 +135,29 @@
     },
     {
       "id": 11,
-      "name": "retired-rendered-views-file-gives-notice",
-      "prompt": "/codebase-health:audit README.md --docs-only\n\n(Fixture: interactive session; the visualization plugin is installed; ~/.claude/rendered-views.md contains only 'medium: terminal'; no other rendered-views scope sets medium; no --medium argument. The resolver prints a JSON line with medium null, the report line 'view: auto (plugin default)' and a notice that ~/.claude/rendered-views.md is no longer read. The audit finds one doc-drift finding.)",
-      "expected_output": "Presents the full Phase 3 report, prints the resolver's report line and its retired-file notice as they stand, and still offers the rendered view, since the retired file decides nothing. It does not open or read ~/.claude/rendered-views.md itself.",
+      "name": "retired-file-local-value-keeps-view-local",
+      "prompt": "/codebase-health:audit README.md --docs-only\n\n(Fixture: interactive session; the visualization plugin is installed; first run in this project; ~/.claude/rendered-views.md contains only 'medium: terminal'; no other rendered-views scope sets medium and the plugin's medium option is auto; no --medium argument. The resolver prints a JSON line with medium terminal, the report line 'view: terminal (retired ~/.claude/rendered-views.md)' and the notice 'notice: ~/.claude/rendered-views.md is retired but still keeps the view local (it sets medium: terminal); set it in docs/conventions/rendered-views.local.yaml instead; per user, the codebase-health plugin's medium option also works'. The audit finds one doc-drift finding.)",
+      "expected_output": "Presents the full Phase 3 report, prints the resolver's report line and its retired-file notice as they stand, and makes no offer to render it through visualization:visualize, since the resolved medium is terminal. It does not open or read ~/.claude/rendered-views.md itself.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not read ~/.claude/rendered-views.md itself",
+        "Prints the resolver's report line and its notice that ~/.claude/rendered-views.md is retired but still keeps the view local",
+        "Makes no offer to render the report through visualization:visualize"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "retired-file-publishing-value-ignored",
+      "prompt": "/codebase-health:audit README.md --docs-only\n\n(Fixture: interactive session; the visualization plugin is installed; first run in this project; ~/.claude/rendered-views.md contains only 'medium: artifact'; no other rendered-views scope sets medium and the plugin's medium option is auto; no --medium argument. The resolver prints a JSON line with medium null, the report line 'view: auto (plugin default)' and the notice 'notice: ~/.claude/rendered-views.md is no longer read (it sets medium: artifact); set it in docs/conventions/rendered-views.local.yaml instead; it publishes only while that file is untracked and gitignored; per user, the codebase-health plugin's medium option also works'. The audit finds one doc-drift finding, and the person accepts the rendered-view offer.)",
+      "expected_output": "Presents the full Phase 3 report, prints the resolver's report line and its retired-file notice as they stand, then offers the rendered view. When the offer is taken, it invokes visualization:visualize without passing `artifact`, leaving the medium to that skill. It does not open or read ~/.claude/rendered-views.md itself.",
       "files": [],
       "narration": true,
       "expectations": [
         "Does not read ~/.claude/rendered-views.md itself",
         "Prints the resolver's notice that ~/.claude/rendered-views.md is no longer read",
-        "Offers the rendered view, not treating the retired file's value as a decision"
+        "Offers the rendered view after the full report",
+        "Does not pass `artifact` to visualization:visualize when the offer is taken"
       ]
     }
   ]
