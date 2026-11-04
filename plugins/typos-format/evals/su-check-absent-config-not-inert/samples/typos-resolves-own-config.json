@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "typos discovers its governing config itself, from each path it checks."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The plugin picks the config and passes it to typos.",
+      "why": "the plugin decides"
+    },
+    {
+      "answer": "typos reads a config.",
+      "why": "near miss: not how it finds one"
+    }
+  ]
+}

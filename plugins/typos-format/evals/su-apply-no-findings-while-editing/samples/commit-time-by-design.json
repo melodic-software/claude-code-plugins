@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "That is by design: nothing reports while Claude edits. Findings arrive when a commit runs the git pre-commit entry."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings arrive at commit time.",
+      "why": "near miss: does not say edits report nothing by design"
+    },
+    {
+      "answer": "Findings should appear after each edit once the hook is enabled.",
+      "why": "per-edit reporting"
+    }
+  ]
+}

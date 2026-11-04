@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "typos resolves at /usr/local/bin/typos (typos-cli 1.30.0). Only PATH counts; there is no per-repo install convention."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PASS: /usr/local/bin/typos, typos-cli 1.30.0.",
+      "why": "near miss: never says PATH only"
+    },
+    {
+      "answer": "Only PATH counts, and typos is on it.",
+      "why": "near miss: no path or version"
+    },
+    {
+      "answer": "typos resolves from ./node_modules/.bin/typos, version 1.30.0.",
+      "why": "a per-repo install"
+    }
+  ]
+}

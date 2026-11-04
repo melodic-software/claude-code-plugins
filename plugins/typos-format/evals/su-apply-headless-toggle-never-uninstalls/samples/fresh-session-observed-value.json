@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Rerun check in a fresh session: a same-session check still reports the old value. Trust the effective value that check reports."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook is now off.",
+      "why": "claims it"
+    },
+    {
+      "answer": "Rerun check now and it will show the new value.",
+      "why": "near miss: same session"
+    }
+  ]
+}

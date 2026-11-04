@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The invocation fails before any command runs, so the Bash version step never gets to run and cannot diagnose it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Bash version step should report it as FAIL.",
+      "why": "wrong"
+    },
+    {
+      "answer": "The skill failed to load.",
+      "why": "near miss: not why the step cannot catch it"
+    }
+  ]
+}

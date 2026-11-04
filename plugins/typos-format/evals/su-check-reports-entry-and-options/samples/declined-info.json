@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A declined entry would be INFO rather than FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Declined means this clone said no.",
+      "why": "near miss: no grade"
+    },
+    {
+      "answer": "A declined entry is still a FAIL.",
+      "why": "wrong grade"
+    }
+  ]
+}
