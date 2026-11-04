@@ -3,6 +3,16 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-04
+
+### Changed
+
+- The setup skill's eval suite moved from `skills/setup/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`: six `su-*` cases converted from the six legacy cases ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
+### Fixed
+
+- The setup skill's `check` now reports `desktop_notification_forward_toasts_enabled`, the fifth toggle, which it left out.
+
 ## [1.0.2] - 2026-11-04
 
 ### Changed

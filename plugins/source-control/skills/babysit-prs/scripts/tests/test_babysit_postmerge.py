@@ -831,6 +831,76 @@ class Verification(CheckCase):
             verdict.report()["outstandingSince"], "2026-10-12T10:00:10+00:00"
         )
 
+    def test_the_report_records_the_runs_it_listed_finished(self) -> None:
+        # Each run listed completed, at the updated_at read; the queued one
+        # is left out, since its finish is a change the check has not read.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, updated_at="2026-10-12T10:20:00Z"),
+        )
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, updated_at="2026-10-12T10:02:00Z"),
+            canary_run(
+                20,
+                conclusion=None,
+                status="queued",
+                created_at="2026-10-12T10:00:10Z",
+                updated_at="2026-10-12T10:00:10Z",
+            ),
+        )
+        self.assertEqual(
+            self.check().report()["judgedRuns"],
+            {"11": "2026-10-12T10:20:00Z", "21": "2026-10-12T10:02:00Z"},
+        )
+
+    def test_a_run_listed_running_and_finished_later_in_the_check_is_not_recorded(
+        self,
+    ) -> None:
+        # The lane's re-run probe lists the dispatch runs again after the
+        # merges are judged; the merge was judged on the first listing, which
+        # saw run 11 running, so its later finish is not one the check judged.
+        self.gh.merged = [identity_merge()]
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                11,
+                conclusion=None,
+                status="in_progress",
+                updated_at="2026-10-12T10:06:00Z",
+            ),
+        )
+        listings: list[str] = []
+        listed = pm._runs
+
+        def runs(*args: Any) -> list[pm.Run]:
+            listings.append(args[3])
+            if args[3] == "workflow_dispatch" and listings.count(args[3]) == 2:
+                self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+                    dispatch_run(
+                        11, conclusion="failure", updated_at="2026-10-12T10:30:00Z"
+                    )
+                ]
+            return listed(*args)
+
+        with mock.patch.object(pm, "_runs", side_effect=runs):
+            verdict = pm.check(
+                REPO,
+                agent_identity=IDENTITY,
+                is_human=human,
+                merged_since=SINCE,
+                now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+                pinned_sha=lambda merge: HEAD_SHA,
+                lane_merges_only=True,
+            )
+        self.assertEqual(listings.count("workflow_dispatch"), 2, "listed twice")
+        self.assertTrue(verdict.readable)
+        self.assertNotIn("11", verdict.report()["judgedRuns"])
+
     def test_red_canary_is_a_failure(self) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.add_runs(

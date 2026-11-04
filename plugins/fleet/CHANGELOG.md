@@ -3,6 +3,14 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.18] - 2026-11-04
+
+### Fixed
+
+- reword reach's shared-account trigger so the other reach cases keep firing
+
+  The trigger 'share one account across lanes' replaces 'one account for every lane'. On Sonnet it fires on the shared-account prompt as often as the old phrase, without the misses the old phrase showed on the same-repo and port-22 prompts.
+
 ## [0.2.17] - 2026-11-04
 
 ### Changed

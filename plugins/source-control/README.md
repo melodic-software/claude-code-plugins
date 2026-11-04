@@ -2,8 +2,8 @@
 
 A Claude Code plugin bundling the git/GitHub delivery workflow as six
 composable skills. Commit mechanics, the single-PR lifecycle, the tiered
-babysit fleet loop, worktree lifecycle management, convention setup, and
-merge-conflict resolution.
+babysit fleet loop and its merge lane, worktree lifecycle management, and
+convention setup. The PR lifecycle also resolves merge conflicts.
 
 ## Contents
 
@@ -13,7 +13,6 @@ merge-conflict resolution.
   - [`/source-control:babysit-prs`](#source-controlbabysit-prs)
   - [`/source-control:worktree`](#source-controlworktree)
   - [`/source-control:setup`](#source-controlsetup)
-  - [`/source-control:resolve-conflicts`](#source-controlresolve-conflicts)
 - [Hooks](#hooks)
   - [`pr-body-linkage-gate`](#pr-body-linkage-gate)
   - [`pr-linkage-mcp-gate`](#pr-linkage-mcp-gate)
@@ -57,6 +56,11 @@ research-gated:
 - **create**. Branch-name check, default-branch rebase, unrelated-changes
   triage, `Closes #N` derivation from the branch name (validated against the
   live issue), safely-assembled PR body, `gh pr create`.
+- **ready**. Merges the base into the branch, never a rebase, and resolves a
+  conflicted merge intent-first: it reads the commits behind both sides
+  before editing, composes both changes, never picks a side with
+  `--ours`/`--theirs`, then sweeps for semantic conflicts the markers don't
+  show. `conflicts --ci` is the same discipline for the pr-unblock lane.
 - **monitor**. Async event loop over CI checks + review comments. Event
   delivery prefers a push channel when your environment ships one, falls back
   to a Monitor watch re-armed at each deadline (60s REST poll), or polling in
@@ -149,18 +153,6 @@ team file). Re-runnable to reconfigure.
 `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether
 `jq` resolves for the plugin's hooks, with the install route from `prerequisites.json` when it
 does not. It never installs.
-
-### `/source-control:resolve-conflicts`
-
-Resolves in-progress merge/rebase/cherry-pick conflicts intent-first: reads
-the history behind BOTH sides of every hunk before editing (log/blame,
-commit messages, PR/issue context via `gh` when available), composes both
-changes by default, and drops a side only with evidence, never mechanical
-`--ours`/`--theirs` picking. After the markers are gone it sweeps for
-semantic conflicts the merge machinery can't flag (renamed symbol vs new
-call site) and runs the project's build/test gates before concluding via
-`--continue`. `--abort` is never a resolution strategy. Only an explicit
-user decision to abandon the integration.
 
 ## Hooks
 
@@ -489,14 +481,14 @@ than reading it from the environment (it is not per-plugin in a Bash-tool subpro
 deliberately outside the repository tree and outside repository-discovery roots such as a ghq root,
 which a checkout-relative default would land inside. The in-repo `.claude/worktrees/` default is
 never used because the nesting invariant forbids its nested placement; that claim is stated,
-measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` "The nesting
+measured, dated and given an expiry in exactly one place: `skills/worktree/reference/nesting-invariant.md` "The nesting
 invariant, dated measurement".
 
 **`worktree_add_containment_gate_enabled`.** The message names the external root resolved from the
 `worktreeroot.path` git config key, then the `worktree_root` plugin option, then the plugin data
 dir. The hook blocks only the nesting class: a conforming target passes with no advisory, and a
 target it cannot resolve statically (dynamic path, prior `cd`, unreadable payload) always passes.
-The nesting invariant's measurement, disputed arms and expiry live in `skills/worktree/SKILL.md`
+The nesting invariant's measurement, disputed arms and expiry live in `skills/worktree/reference/nesting-invariant.md`
 "The nesting invariant, dated measurement".
 
 **`worktree_add_claim_gate_enabled`.** Only the parsed add target is claimed, not every currently

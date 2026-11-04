@@ -4,7 +4,7 @@
 // list is bounded, and `get` spends the run's call budget.
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unblock/escalation-routes.mjs";
-import { parseBudget, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
+import { HOLD_LANES, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 import { stepsKnown } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
 export const LIMITS = {
@@ -38,6 +38,13 @@ export const LIMITS = {
   stalledPulls: 40,
   stalledCommentRounds: 2,
   stalledChecks: 20,
+  // Uncarried green runs per hold lane read in one window, oldest completion
+  // first: one run list, then a jobs read and one annotation read per job that
+  // prints a hold, so at most 3 + 6 × 3 × 2 calls while each run has one such
+  // job. Past it, the span stops at the last run read and the window is a gap.
+  holdRuns: 6,
+  // Held runs the carry keeps, newest first.
+  holdsKept: 300,
 };
 // report-escalation.sh's comment for a stop routed to a failing status, one
 // per activity, edited at each stop (gate-source.mjs LANE_STOPPED).
@@ -128,14 +135,39 @@ export function parseJobsCarry(text, repo) {
   return new Map(data.runs.map((e) => [jobsKey(e.id, e.attempt), e]));
 }
 
-export const jobsCarryFile = (repo, runs) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs });
+const NO_HELD = { runs: [], from: null, through: null };
+export const jobsCarryFile = (repo, runs, held = NO_HELD) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs, held });
+
+// The held runs the same file carries, {runs, from, through}: the runs, and
+// the unbroken span of completion times the lane read them over (null when
+// not known, as in a file written before it carried them), or an error for
+// any other shape.
+export function parseHeldCarry(text, repo) {
+  const data = JSON.parse(text);
+  const held = data?.held ?? NO_HELD;
+  const time = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
+  const entry = (h) =>
+    HOLD_LANES.some((l) => l.lane === h?.lane) &&
+    Number.isSafeInteger(h.runId) && h.runId > 0 &&
+    typeof h.url === "string" &&
+    (h.item === null || typeof h.item === "string") &&
+    typeof h.reason === "string" &&
+    typeof h.at === "string" && time(h.at);
+  if (data?.repository !== repo || !Array.isArray(held?.runs) || !held.runs.every(entry) || !time(held.from) || !time(held.through)) {
+    throw new Error("the carried held runs have an unexpected shape");
+  }
+  return { runs: held.runs, from: held.from, through: held.through };
+}
 
 // `carriedJobs` is the last run's job reads (parseJobsCarry). A completed
 // run's carried read is used while its listing shows the same attempt and
 // updated_at, and a whole read of a completed run whose every job finished and
 // listed its steps in full is kept; data.jobsCarry holds what the next run
-// carries: this run's reads and hits, nothing else.
-export async function collect({ get, graphql, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null, carriedJobs = new Map() }) {
+// carries: this run's reads and hits, nothing else. `holds`, when set, is
+// {rule, carried}: signals.mjs holdRule's result or the error reading it, and
+// the last run's held runs (parseHeldCarry), or null when there were none or
+// they were not read; data.heldCarry holds what the next run carries.
+export async function collect({ get, graphql, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null, carriedJobs = new Map(), holds = null }) {
   const gaps = [];
   const jobsMemo = new Map();
   const annotationsMemo = new Map();
@@ -463,6 +495,85 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
     if (unread) gaps.push(`lane stops: over ${LIMITS.commentPages * 100} comments in the window; the oldest were not read`);
   });
+
+  // Held runs of the HOLD_LANES: green runs of this repository's head on the
+  // default branch's code that completed in the window, whose hold job
+  // succeeded with a hold notice (signals.mjs parseHold), one entry per run,
+  // added to the carried ones still inside the rule's window. A run already
+  // carried is not read again, nor counted against LIMITS.holdRuns. The carry
+  // also records the span it was read over, which ends at the last run read
+  // when a lane had more than the cap. It stays unbroken when the last run
+  // read through a time inside the run list's lookback: runs that completed
+  // since then are read, so a late cron loses none. Otherwise (no carry, a
+  // stale one, a failed read) it starts again at this window. An unread rule,
+  // a lane over the cap, or a span shorter than the rule's window, is a gap,
+  // so signal 13's issue neither clears nor files from part of its window;
+  // the carried runs still go on to the next run.
+  const heldRuns = new Map();
+  let heldFrom = null;
+  let heldThrough = null;
+  if (holds) {
+    const { carried } = holds;
+    for (const h of carried?.runs ?? []) heldRuns.set(`${h.lane}:${h.runId}`, h);
+    const through = Date.parse(carried?.through);
+    const unbroken = carried?.from && through >= windowStart.getTime() - RUN_LOOKBACK_HOURS * 3600_000 && through <= now.getTime();
+    heldFrom = unbroken ? carried.from : iso(windowStart);
+    const readFrom = unbroken ? Math.min(through, windowStart.getTime()) : windowStart.getTime();
+    const completedSince = (run) => {
+      const at = Date.parse(run.updated_at);
+      return at >= readFrom && at <= now.getTime();
+    };
+    await source("lane holds", async () => {
+      // The span is read through now unless a lane has more unread runs than
+      // the cap: then only its oldest are read, and the span stops at the last
+      // of them, so the next run reads the rest and this one reports a gap.
+      let readThrough = now.getTime();
+      const cut = [];
+      for (const { lane, workflow, jobs } of HOLD_LANES) {
+        const runs = (await get(`/repos/${repo}/actions/workflows/${workflow}/runs?status=success&created=${created}&per_page=100`)).workflow_runs;
+        const unread = runs
+          .filter((r) => defaultBranchCode(r) && ownHead(r) && completedSince(r) && !heldRuns.has(`${lane}:${r.id}`))
+          .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at));
+        if (unread.length > LIMITS.holdRuns) {
+          readThrough = Math.min(readThrough, Date.parse(unread[LIMITS.holdRuns - 1].updated_at));
+          cut.push(lane);
+        }
+        for (const run of unread.slice(0, LIMITS.holdRuns)) {
+          const key = `${lane}:${run.id}`;
+          const found = [];
+          for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && jobs.includes(j.name))) {
+            for (const a of await annotationsOf(job.id)) {
+              const hold = a.annotation_level === "notice" ? parseHold(a.title, a.message) : null;
+              if (hold) found.push(hold);
+            }
+          }
+          if (found.length === 0) continue;
+          heldRuns.set(key, {
+            lane,
+            runId: run.id,
+            url: run.html_url,
+            item: found.find((h) => h.item)?.item ?? null,
+            reason: [...new Set(found.map((h) => h.reason))].sort().join("; "),
+            at: run.updated_at,
+          });
+        }
+      }
+      heldThrough = iso(new Date(readThrough));
+      if (holds.rule instanceof Error) throw holds.rule;
+      const since = now.getTime() - holds.rule.windowHours * 3600_000;
+      for (const [key, h] of heldRuns) {
+        const at = Date.parse(h.at);
+        if (at < since || at > now.getTime()) heldRuns.delete(key);
+      }
+      data.holdRule = holds.rule;
+      if (cut.length > 0) {
+        throw new Error(`over ${LIMITS.holdRuns} unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
+      }
+      if (Date.parse(heldFrom) > since) throw new Error(`held runs read only since ${heldFrom}, short of the ${holds.rule.windowHours}-hour window`);
+    });
+  }
+  data.laneHolds = [...heldRuns.values()].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, LIMITS.holdsKept);
+  data.heldCarry = { runs: data.laneHolds, from: heldThrough ? heldFrom : null, through: heldThrough };
 
   // Open pull requests whose head carries a stop the pr-unblock lane routed to
   // a failing status (its lane-stopped comment, by the lanes App, names the

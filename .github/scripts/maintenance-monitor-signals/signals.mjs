@@ -402,6 +402,77 @@ export function listingHeldFindings({ heldSweeps = [] }) {
   ];
 }
 
+// The lanes whose read faults hold green with only a notice (outage posture
+// element 2), the jobs that print each hold notice, and that notice. A lane
+// that passes the threshold of docs/conventions/pr-pipeline.yaml
+// monitor.lane-holds raises signal 13; the leaf's defaults have this one copy.
+export const LANE_HOLDS = { threshold: 4, "window-hours": 24 };
+export const HOLD_LANES = [
+  { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run"], area: "Issue lane (work-resolve-issue)" },
+  { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)" },
+  { lane: "pr-refine", workflow: "pr-refine.yml", jobs: ["fix-docs-handoff", "fix-docs-subscription-handoff"], area: "PR refine lane (pr-refine fix-docs)" },
+];
+const NAME = "[a-z]+(?:-[a-z]+)*";
+const HOLD_NOTICES = [
+  // report-outcome.mjs: a fault stop whose counted retries were all faults.
+  { title: "report-outcome", pattern: new RegExp(`^issue #(\\d+) stopped on a fault \\((${NAME})\\), and every retry`), hold: (m) => ({ item: `#${m[1]}`, reason: `fault ${m[2]}` }) },
+  // label-unblocked.mjs reportHold: a listing the sweep could not read.
+  { title: "label-unblocked", pattern: new RegExp(`^the (${NAME}) listing failed \\(`), hold: (m) => ({ item: null, reason: `${m[1]} listing failed` }) },
+  // handoff-evidence.sh: a fix-docs read that failed.
+  { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
+];
+
+// One notice annotation's hold, {item, reason}, or null.
+export function parseHold(title, message) {
+  for (const { title: t, pattern, hold } of HOLD_NOTICES) {
+    const m = t === title ? pattern.exec(String(message)) : null;
+    if (m) return hold(m);
+  }
+  return null;
+}
+
+// The monitor.lane-holds leaf as set ({} when absent), with its defaults, or a
+// throw for a value the schema refuses.
+export function holdRule(leaf) {
+  const rule = { ...LANE_HOLDS, ...(leaf ?? {}) };
+  const whole = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
+  if (!whole(rule.threshold, 2, 100) || !whole(rule["window-hours"], 1, 168)) {
+    throw new Error("monitor.lane-holds needs a threshold of 2 to 100 and window-hours of 1 to 168");
+  }
+  return { threshold: rule.threshold, windowHours: rule["window-hours"] };
+}
+
+// A held run ends green with only a notice, so a fault that holds every run
+// shows nowhere else. One finding per lane whose held runs over the rule's
+// window reach its threshold; an issue held that often is one of them. It only
+// notifies, adds no stop and clears once the count drops below the threshold.
+// The fingerprint is the set of hold reasons with counts masked, so a fault
+// that keeps holding is written once.
+export function laneHoldFindings({ laneHolds = [], holdRule: rule = null }) {
+  if (!rule) return [];
+  const out = [];
+  for (const { lane, area } of HOLD_LANES) {
+    const holds = laneHolds.filter((h) => h.lane === lane).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    if (holds.length < rule.threshold) continue;
+    const perItem = new Map();
+    for (const { item } of holds) if (item) perItem.set(item, (perItem.get(item) ?? 0) + 1);
+    const repeated = [...perItem].filter(([, n]) => n > 1).map(([item, n]) => `${item} ${n} times`);
+    out.push(
+      finding({
+        key: `lane-hold:${lane}`,
+        signal: "13 lane holds",
+        title: `Lane holds: ${lane} held ${holds.length} runs in the last ${rule.windowHours} hours`,
+        area,
+        summary: `${holds.length} green ${lane} runs held on a fault in the last ${rule.windowHours} hours, at or over the threshold of ${rule.threshold}; each ended with only a notice and is retried later.${repeated.length > 0 ? ` Held more than once: ${repeated.join(", ")}.` : ""}`,
+        facts: holds.map((h) => `${h.at}${h.item ? ` ${h.item}` : ""} ${h.url}: ${h.reason}`),
+        evidence: [`lane-hold:${lane}`, [...new Set(holds.map((h) => h.reason.replace(/\d+/g, "N")))].sort()],
+        observedAt: holds[0].at,
+      }),
+    );
+  }
+  return out;
+}
+
 const DETECTORS = [
   mainRedFindings,
   ceilingFindings,
@@ -415,6 +486,7 @@ const DETECTORS = [
   stalledFindings,
   postMergeUnreadableFindings,
   listingHeldFindings,
+  laneHoldFindings,
 ];
 
 export function detect(data) {

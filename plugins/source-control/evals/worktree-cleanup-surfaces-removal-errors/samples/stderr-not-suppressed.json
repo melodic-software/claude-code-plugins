@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git worktree remove --force ../eval-linked" } }
+      ],
+      "why": "removal stderr stays visible"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "gh pr list --head feat/linked 2>/dev/null" } }
+      ],
+      "why": "a read, not a removal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git worktree remove --force ../eval-linked 2>/dev/null" } }
+      ],
+      "why": "removal stderr hidden"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git branch -D feat/linked 2> /dev/null" } }
+      ],
+      "why": "branch deletion stderr hidden"
+    }
+  ]
+}

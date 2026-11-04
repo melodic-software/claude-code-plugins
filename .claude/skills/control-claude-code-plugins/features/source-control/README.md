@@ -9,7 +9,6 @@ The skills of `plugins/source-control`. Each one is driven with `<plugin-dir>` s
 - `check`: Report whether node and jq resolve for the source-control hooks. Never installs.
 - `commit`: Commit with the resolved convention and surgical staging.
 - `pull-request`: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge.
-- `resolve-conflicts`: Resolve merge and rebase conflicts by recovering both sides' intent.
 - `setup`: Configure the source-control plugin. No plain-words entry.
 - `worktree`: Create, inspect, and clean git worktrees for parallel sessions.
 

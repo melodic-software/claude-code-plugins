@@ -404,7 +404,9 @@ async page => {
     const val = async k => page.$eval('.setrow[data-key="' + k + '"]', e => { const c = e.querySelector("select, input"); return c ? c.value : e.querySelector(".val").textContent; });
     ok("AC33: team beats default (undoSeconds 7 from team)", src.undoSeconds === "From team" && await val("undoSeconds") === "7", src.undoSeconds);
     ok("AC33: user beats team (minText 18 from user)",src.minText === "From user" && await val("minText") === "18", src.minText);
-    ok("AC33: session layer (theme light)", src.theme === "From session" && await val("theme") === "light", src.theme);
+    // settings.json holds theme light: the page reads no theme setting, so it stays on the toggle's System.
+    const themed = await page.evaluate(() => ({attr: document.documentElement.getAttribute("data-theme"), pressed: [...document.querySelectorAll("button[data-rv-theme]")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.rvTheme)}));
+    ok("a theme setting in a layer is no Settings row and leaves the toggle on System", !("theme" in src) && themed.attr === null && themed.pressed.join() === "system", JSON.stringify({src: src.theme, themed}));
     ok("AC33: default layer (shortcuts)", src.shortcuts === "From default", src.shortcuts);
     ok("AC33: read-only rows for displayName, waitTimeout, staleDepth", src.displayName === "From user" && await val("displayName") === "Dana" && src.waitTimeout === "From default" && await val("waitTimeout") === "90" && src.staleDepth === "From default" && await val("staleDepth") === "direct", JSON.stringify(src));
     ok("AC33: read-only row for leaseTimeout (600, default)", src.leaseTimeout === "From default" && await val("leaseTimeout") === "600", JSON.stringify(src));
