@@ -36,7 +36,7 @@ not part of this setting and does not change with the host.
 [`execution-target.schema.json`](execution-target.schema.json) beside this README
 (ADR [0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md) Decisions 1, 5
 and 6). It is a policy floor: it has a team layer only, and no plugin declares a `userConfig` option
-for it, so no per-user or local overlay can move a stage.
+for it, so no per-user or personal override can move a stage.
 
 ```yaml
 default: local-worktree

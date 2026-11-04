@@ -1118,7 +1118,7 @@ none of them depends on the sandbox:
 
 - the unattended merge gate reads its rung at the pull request's base SHA
 - the trusted internal bot list binds only from the target repository's default branch
-- the binding's local overlay accepts only lease, auth and `docs` keys, which keeps the overlay from
+- the binding's personal override accepts only lease, auth and `docs` keys, which keeps the personal override from
   reshaping team state but does not stop a lane editing the team binding itself
 
 Pointer: when judging whether a deny rule stops a lane writing a file, fetch [Configure sandboxing](https://code.claude.com/docs/en/sandboxing#configure-sandboxing)

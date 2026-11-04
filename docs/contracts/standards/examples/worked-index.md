@@ -47,13 +47,13 @@ docs/standards/
   testing.md
   commits.md
   paved-paths.md              # concern | chosen way | enforced by
-  testing.local.md            # personal overlay — gitignored, never indexed
+  testing.local.md            # personal override — gitignored, never indexed
 docs/engineering-philosophy.md  # external row target, tracked as-is
 ```
 
-## The overlay note
+## The personal override note
 
-`testing.local.md` overlays `testing.md` by filename convention. It might
+`testing.local.md` overrides `testing.md` by filename convention. It might
 ADD "also run mutation tests on touched files" (applied, with the
 personal layer named as provenance) or attempt to RELAX a team rule,
 which loses: on direct conflict the team-tracked file wins. It is

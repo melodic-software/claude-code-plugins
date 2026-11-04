@@ -93,7 +93,7 @@ write_registry() {
       printf '| `%s` | `.claude/%s.md` | all three | conforms |\n' "$surface" "$surface"
     done
     echo
-    echo '### Overlay spelling drift'
+    echo '### Personal override spelling drift'
     echo
     echo 'Prose after the table.'
   } >"$TMP/docs/contracts/config-cascade/README.md"

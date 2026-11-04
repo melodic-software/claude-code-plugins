@@ -44,7 +44,7 @@ assert_exit() {
 CC_ERE='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+'
 
 # Make an isolated repo root whose TEAM layer holds the given markdown body.
-# Extra positional args after the first write additional overlay files:
+# Extra positional args after the first write additional personal override files:
 #   newrepo "<team body>" [local-body] [does NOT create user-global — see note]
 newrepo() {
   local d
@@ -164,11 +164,11 @@ r="$(newrepo $'## trailer_policy\nnone')"
 run "$r" >/dev/null 2>&1
 assert_exit "key absent -> exit 1" 1 $?
 
-# --- policy-floor: a LOCAL overlay pattern is IGNORED by enforcement ---
-# team file absent, overlay present -> still no enforcement (gate is team-only).
+# --- policy-floor: a LOCAL personal override pattern is IGNORED by enforcement ---
+# team file absent, personal override present -> still no enforcement (gate is team-only).
 r="$(newrepo "" $'## subject_pattern\n^anything: .+')"
 run "$r" >/dev/null 2>&1
-assert_exit "local overlay never enforces (team-only)" 1 $?
+assert_exit "personal override never enforces (team-only)" 1 $?
 
 # --- pr_title_pattern deferral resolves the effective subject pattern ---
 r="$(newrepo $'## subject_pattern\n^ABC-[0-9]+: .+\n\n## pr_title_pattern\nSame as `subject_pattern`.')"
@@ -313,11 +313,11 @@ else
 fi
 chmod 644 "$r/conventions.yml"
 
-# --- pointer in the LOCAL overlay only is ignored (team-only policy floor) ---
+# --- pointer in the LOCAL personal override only is ignored (team-only policy floor) ---
 r="$(newrepo "" $'## convention_source\nconventions.yml')"
 addneutral "$r" "conventions.yml" $'subject_pattern: \047^evil: .+\047'
 run "$r" >/dev/null 2>&1
-assert_exit "neutral: overlay pointer ignored (team-only)" 1 $?
+assert_exit "neutral: personal override pointer ignored (team-only)" 1 $?
 
 # --- a present-but-EMPTY neutral key fails closed (never stale markdown) ---
 r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"

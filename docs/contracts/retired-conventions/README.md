@@ -97,7 +97,7 @@ path: .gitignore
 match: '^\.claude/testing/e2e\.local\.md$'
 action: remove-line
 successor: "superseded by the recursive `.claude/**/*.local.*` line config-cascade recommends"
-note: "narrow overlay gitignore line superseded"
+note: "narrow personal override gitignore line superseded"
 status: report-only
 ```
 

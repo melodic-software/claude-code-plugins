@@ -33,10 +33,10 @@ Three layers, discovered independently, applied additively:
 |---|---|---|---|
 | User-global | `~/.claude/standards/` | untracked (user's machine) | personal, all projects |
 | Team | `<standards_dir>/` (default `docs/standards/`) | committed, team-shared | the repository |
-| Personal overlay | `<standards_dir>/*.local.md` | gitignored | personal, this repository |
+| Personal override | `<standards_dir>/*.local.md` | gitignored | personal, this repository |
 
 **Precedence inversion:** layers are additive. Personal layers (user-global
-and overlay) may ADD new standards or TIGHTEN team ones; on a direct
+and personal override) may ADD new standards or TIGHTEN team ones; on a direct
 conflict, the team-tracked layer wins. When a personal-layer rule
 materially shapes a skill's output, the skill names the contributing layer
 (provenance), so reviewers can tell a team standard from a personal one.
@@ -139,9 +139,9 @@ of working the way out from the code each time.
   `paved-path` row gives the readers nothing to apply, and they report
   nothing about it.
 
-## Personal overlays (in-root only)
+## Personal overrides (in-root only)
 
-- `<name>.local.md` overlays `<name>.md` by filename convention; a
+- `<name>.local.md` overrides `<name>.md` by filename convention; a
   `.local.md` with no base file is a standalone personal standard.
 - Glob-discovered, never indexed (a tracked index cannot list gitignored
   files).
@@ -151,7 +151,7 @@ of working the way out from the code each time.
 - **Pre-existing `<standards_dir>/.gitignore`:** a file setup did not
   create is consumer-owned: setup never writes it. Setup verifies it
   covers `*.local.md`; when it does not, setup surfaces the missing line
-  and asks the consumer to add it themselves, reporting overlay
+  and asks the consumer to add it themselves, reporting personal override
   protection as unconfigured until then. Idempotency is unaffected: the
   verify-and-surface path writes nothing on any run.
 - Semantics per Layers and precedence: additive/tighten-only; direct
@@ -218,7 +218,7 @@ by explicit offer and acceptance.
 
 **Personal layers (every rung):** whatever the team rungs above yield,
 resolution ALSO discovers the personal layers (glob-discover
-`<standards_dir>/*.local.md` overlays, and read `~/.claude/standards/`,
+`<standards_dir>/*.local.md` personal overrides, and read `~/.claude/standards/`,
 its own index when present, else glob) and applies them per Layers and
 precedence. Matching a team index row never substitutes for this step; a
 denied or absent personal layer simply contributes nothing.

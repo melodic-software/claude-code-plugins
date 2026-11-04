@@ -12,7 +12,7 @@ plugin". An owner doc lands before the second consumer adopts the key, not after
 
 `pr_body_required_sections` is one key on the consumer's tracked
 `docs/conventions/source-control.yaml`, resolved across the same three layers as every other key
-on that surface, user-global, team-tracked, and a gitignored personal overlay, per
+on that surface, user-global, team-tracked, and a gitignored personal override, per
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
 That document owns the **resolution mechanics**: the value grammar, the three-layer read order, and
 the per-key (whole-list) override semantics. This doc never restates them. It owns the concern's
@@ -58,7 +58,7 @@ runs an issue tracker and links PRs to it, which is an org-specific choice, not 
 repo shares. That choice belongs in configuration, not in the plugin's shipped default.
 
 **`## Related` is never dropped by the mechanism.** A consumer whose convention includes it
-declares `Related` in its own `pr_body_required_sections` list (team-tracked, local overlay, or
+declares `Related` in its own `pr_body_required_sections` list (team-tracked, personal override, or
 user-global), the same as any other section name. The plugin ships no opinion on it either way.
 
 ## `none`: no required sections
@@ -89,7 +89,7 @@ does not restate them. Two points worth surfacing here because they are easy to 
 reading only the mechanism doc:
 
 - **A later layer's list replaces the earlier layer's list wholesale**, never merges element-wise.
-  Declaring `pr_body_required_sections` in a personal overlay is not additive to the team file's
+  Declaring `pr_body_required_sections` in a personal override is not additive to the team file's
   list. It is the effective list for that operator, in full.
 - **Order is presentation, not matching.** The gate (below) checks presence and non-empty content per
   heading; it does not require the assembled body's sections to appear in the configured list's

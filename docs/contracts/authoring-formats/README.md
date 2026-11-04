@@ -145,7 +145,7 @@ dedicated file:
 - **Path.** `<home>/authoring-formats/README.md`, where `<home>` is the consumer's convention home
   named by the pointer line in the marked `<!-- BEGIN GENERATED: convention-home -->` region of the
   consumer's root instruction file.
-- **Layers.** One, the team's. A convention-doc surface has **no overlay channel** and no
+- **Layers.** One, the team's. A convention-doc surface has **no personal override channel** and no
   user-global layer; there is no `*.local.*` file for this surface and no gitignore line to
   recommend.
 - **Content.** Consumer prose carrying the fenced YAML block above. It is
@@ -172,7 +172,7 @@ behavior substituted:
    key's value from its fenced YAML block.
 4. Layer order is one layer deep: an explicit invocation argument, where the skill has
    one, then the team convention doc, then the documented default. A convention-doc
-   surface has no personal overlay, so there is no further layer to consult.
+   surface has no personal override, so there is no further layer to consult.
 5. Defaults: `acceptance_criteria_format` is `free-text`; `diagram_dialect.data` is
    `mermaid`; `diagram_dialect.system` has NO default. When it is unset, emit no C4
    container view and behave exactly as with no convention doc at all.

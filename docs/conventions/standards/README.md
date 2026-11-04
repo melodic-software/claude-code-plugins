@@ -27,9 +27,9 @@ Moved to [this section](../../contracts/standards/README.md#standards-files).
 
 Moved to [this section](../../contracts/standards/README.md#paved-paths).
 
-## Personal overlays (in-root only)
+## Personal overrides (in-root only)
 
-Moved to [this section](../../contracts/standards/README.md#personal-overlays-in-root-only).
+Moved to [this section](../../contracts/standards/README.md#personal-overrides-in-root-only).
 
 ## User-global layer
 

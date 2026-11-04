@@ -44,14 +44,14 @@ identifier):
 ```text
 .claude/ecosystems/
   dotnet.yaml            # tracked, team truth
-  dotnet.local.yaml      # gitignored, personal overlay
+  dotnet.local.yaml      # gitignored, personal override
   python.yaml
   ...
 ~/.claude/ecosystems/
   dotnet.yaml            # optional user-global defaults (all repos on a machine)
 ```
 
-Resolution per ecosystem, additive per key: **user-global → team file → local overlay**. A later
+Resolution per ecosystem, additive per key: **user-global → team file → personal override**. A later
 layer overrides earlier layers key-by-key and never replaces the base file wholesale (the same
 resolution the extensibility contract specifies for tracked rich config, and the same
 vendor-defaults-plus-drop-in-overrides shape the UAPI configuration-files specification
