@@ -94,23 +94,23 @@ cfg_list list excluded_paths
 assert_eq "a YAML block list is read" "$(printf '%s|' "${list[@]}")" "y/**|"
 assert_eq "a YAML list names its layer" "$CFG_SOURCE" "$YAML_TEAM"
 
-# --- Overlays, the user-global layer, and per-file fallback per layer ------------
+# --- Personal overrides, the user-global layer, and per-file fallback per layer ------------
 
 printf '%s\n' '{"stamp_expiry_days": 75}' >"$JSON_LOCAL"
 cfg_layers_init "$ROOT"
-assert_eq "a YAML team layer sits beside a JSON overlay when the YAML overlay is absent" \
+assert_eq "a YAML team layer sits beside a JSON personal override when the YAML personal override is absent" \
   "$(layers)" "$YAML_TEAM"$'\n'"$JSON_LOCAL"
 cfg_scalar v stamp_expiry_days
-assert_eq "the JSON overlay refines the YAML team layer" "$v|$CFG_SOURCE" "75|$JSON_LOCAL"
+assert_eq "the JSON personal override refines the YAML team layer" "$v|$CFG_SOURCE" "75|$JSON_LOCAL"
 
 printf '%s\n' 'stamp_expiry_days: 90' 'excluded_paths: []' >"$YAML_LOCAL"
 cfg_layers_init "$ROOT"
-assert_eq "the YAML overlay replaces the JSON overlay" "$(layers)" "$YAML_TEAM"$'\n'"$YAML_LOCAL"
+assert_eq "the YAML personal override replaces the JSON personal override" "$(layers)" "$YAML_TEAM"$'\n'"$YAML_LOCAL"
 cfg_scalar v stamp_expiry_days
-assert_eq "the YAML overlay supplies the value" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
+assert_eq "the YAML personal override supplies the value" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
 list=(stale)
 cfg_list list excluded_paths
-assert_eq "an empty YAML overlay list clears the team list" "${#list[@]}|$CFG_SOURCE" "0|$YAML_LOCAL"
+assert_eq "an empty YAML personal override list clears the team list" "${#list[@]}|$CFG_SOURCE" "0|$YAML_LOCAL"
 
 printf '%s\n' '{"trigger_less_stamp_check": true}' >"$USER_JSON"
 cfg_layers_init "$ROOT"

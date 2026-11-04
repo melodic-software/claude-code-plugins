@@ -19,7 +19,7 @@
       "id": 2,
       "name": "second-run-is-a-no-op",
       "prompt": "/review:setup\n\nThis repo already has docs/standards/README.md with standards-contract frontmatter at the binding's current version, valid row paths, and a docs/standards/.gitignore containing *.local.md from a previous run.",
-      "expected_output": "Finds a conforming index at the binding's contract version via the presence test, validates the row paths, and short-circuits: reports the index healthy and proposes no changes — a second run produces no diff. No re-interview, no rewrite of the index or the overlay .gitignore, and no migration offer since the versions match.",
+      "expected_output": "Finds a conforming index at the binding's contract version via the presence test, validates the row paths, and short-circuits: reports the index healthy and proposes no changes — a second run produces no diff. No re-interview, no rewrite of the index or the personal override .gitignore, and no migration offer since the versions match.",
       "files": [],
       "expectations": [
         "Recognizes the conforming current-version index and proposes no changes (second run yields no diff)",

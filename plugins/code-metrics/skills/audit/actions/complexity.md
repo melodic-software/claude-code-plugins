@@ -79,7 +79,7 @@ you, and why no threshold here is a verdict.
 ## Configuration
 
 Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, local overlay; per-key override; keys in `<plugin-root>/reference/config.md`): the three
+`docs/conventions/code-metrics.yaml`, personal override; per-key override; keys in `<plugin-root>/reference/config.md`): the three
 references above, scope exclusions (`scope.exclude`, which by default drops `node_modules`,
 `vendor`, `dist`, and `build` directories at any depth and reports each pattern's count),
 sanctioned-replication registries (`scope.registries`), the base ref (`scope.base`), and the

@@ -57,7 +57,7 @@ and its ledger recommends a direct fan-out run where one would fit. The fork
 brief says so (step 1 of the batched pass), and each such corrector states the
 same rule in its own body.
 
-The **userConfig overlay** (see Configuration below) applies after tier
+The **userConfig override** (see Configuration below) applies after tier
 resolution and can change the resolved set; report the net effect when it does.
 
 ## Preflight: prove the fan-out can inherit (before step 1)
@@ -89,7 +89,7 @@ surfaces these for the user; it does not resolve them unasked.
 
 ## Configuration
 
-The overlay reads three personal-scalar `userConfig` options (configured
+The override reads three personal-scalar `userConfig` options (configured
 through Claude Code's native plugin-config flow, see the plugin README, never a hand-edited member), substituted here at load:
 
 - Excluded correctors: `${user_config.batch_exclude}`
@@ -97,7 +97,7 @@ through Claude Code's native plugin-config flow, see the plugin README, never a 
 - Demoted to relevance-gated: `${user_config.batch_demote}`
 
 Each is a comma-separated list of corrector names. Treat BOTH an empty value
-AND a surviving literal `${user_config.…}` placeholder as unset, no overlay
+AND a surviving literal `${user_config.…}` placeholder as unset, no override
 from that key, and never read the literal token as a corrector name. Substitution is documented at
 [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
 which as of 2026-11-03 does not say what an unset option renders; recheck
@@ -113,7 +113,7 @@ promote entry, resolve the name against the globbed correctors' tier metadata:
   no-op that must not look like a successful promote).
 - **unknown** (matches no installed corrector). Visible warning; ignore.
 
-Report the net effect whenever the overlay changes the set, and surface every
+Report the net effect whenever the override changes the set, and surface every
 never/core/unknown promote warning in that report, never silently drop them.
 
 ## What this skill does NOT do
@@ -124,7 +124,7 @@ never/core/unknown promote warning in that report, never silently drop them.
   lifecycle belong to the `session-flow` plugin; this only sequences the
   re-anchor correctors.
 - **Does not define membership by inline names**. Inline names elsewhere in
-  this file illustrate rank-order intent or overlay examples, never the
+  this file illustrate rank-order intent or override examples, never the
   member set.
 
 ## Gotchas

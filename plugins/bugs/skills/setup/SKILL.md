@@ -87,7 +87,7 @@ merged result:
    probes per file. `git check-ignore -v docs/conventions/bugs.yaml`: a non-empty result is FAIL,
    naming the matching pattern. `git ls-files --error-unmatch docs/conventions/bugs.yaml`: a
    non-zero exit on a present file is FAIL, "present but untracked, commit it so teammates receive
-   it". Probe `docs/conventions/bugs.md` the same way when present. The `.local.md` overlay must be
+   it". Probe `docs/conventions/bugs.md` the same way when present. The `.local.md` personal override must be
    gitignored; staged or unignored is FAIL. The user-global layer sits outside the worktree: say no
    git verdict applies rather than run a meaningless command.
 4. **Unreachable layers.** When a layer cannot be read (often the user-global one), WARN that it was
@@ -99,14 +99,14 @@ merged result:
 
 Run `check` first, then converge the **team** YAML, the only artifact this action writes. Never
 touch `settings.json`, `settings.local.json`, managed settings, `pluginConfigs`, `userConfig`, the
-user-global layer, the `.local.md` overlay, or the consumer's
+user-global layer, the `.local.md` personal override, or the consumer's
 `.gitignore`. An `output_dir` change requested here routes to the native flow in `check` step A4,
 never written.
 
-1. **Read the effective config across every layer** and present it. Where a user-global or overlay
+1. **Read the effective config across every layer** and present it. Where a user-global or personal override
    layer changes the team file's effect (adding lanes, replacing one by name, opting out with an
    empty list, or supplying `filing_posture` nearest-wins), say so: a team-scope edit alone will not
-   account for it, and re-adding a lane an overlay opts out of will not restore it on this machine.
+   account for it, and re-adding a lane a personal override opts out of will not restore it on this machine.
    Prompt the user to update that layer; do not edit it for them.
 2. **Draft lanes from the repository** before asking anything: entrypoint and API directories, the
    highest-churn source areas in `git log`, and any subsystem the repo's own docs treat as critical.
@@ -124,7 +124,7 @@ never written.
    meets the schema, every lane declares `name` and `globs`, the globs match real paths (a lane
    matching nothing is reported as skipped), and `git check-ignore -v docs/conventions/bugs.yaml`
    confirms it is not ignored. Report the values observed, never an unobserved change.
-6. **Recommend the overlay line; do not write it.** Personal deviations belong in
+6. **Recommend the personal override line; do not write it.** Personal deviations belong in
    `.claude/bugs.local.md`; recommend the recursive `.gitignore` line the reference names if not
    already covered.
 7. **Remind them to stage it.** The team file reaches teammates only once committed.

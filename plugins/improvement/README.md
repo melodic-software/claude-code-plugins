@@ -42,7 +42,7 @@ already does.
 Zero config is a fully working state: Tier 0 repo-native evidence needs nothing declared. To tune
 churn analysis or declare Tier 2 MCP telemetry sources, run `/improvement:setup`. It manages the
 `.claude/improvement.md` cascade. The resolution order is `~/.claude/improvement.md` (user-global), then
-the team `.claude/improvement.md`, then the gitignored `.claude/improvement.local.md` overlay. The key contract lives in
+the team `.claude/improvement.md`, then the gitignored `.claude/improvement.local.md` personal override. The key contract lives in
 [reference/config.md](reference/config.md).
 
 ## Running it as a standing routine

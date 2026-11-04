@@ -118,7 +118,7 @@ Two hard rules follow:
 - **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is installed, consult
   it for session/cost/hook telemetry relevant to the operational-setup dimension.
 - **Tier 2. Configured application telemetry.** Whatever MCP telemetry sources the consumer
-  declares through the `.claude/improvement.md` config cascade (team file + `.local` overlay +
+  declares through the `.claude/improvement.md` config cascade (team file + `.local` personal override +
   user-global; key contract in the plugin's reference/config.md). Never hardcode a vendor; if no
   source is configured, Tier 2 is an evidence gap, and product-level candidates fall back down the
   ladder.
