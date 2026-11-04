@@ -12,7 +12,7 @@
     },
     {
       "answer": "The line-count weakness lives at ISO/IEC 5055 §8.2.115.",
-      "why": "the neighbouring clause, not the cyclomatic one"
+      "why": "the neighboring clause, not the cyclomatic one"
     }
   ]
 }
