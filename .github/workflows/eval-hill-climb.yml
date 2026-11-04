@@ -671,6 +671,9 @@ jobs:
             echo "win=true" >>"$GITHUB_OUTPUT"
           elif [ "$status" = 0 ]; then
             stop baseline "win-test.py let the baseline proceed but the propose job did not record it"
+          elif [ "$status" != 1 ]; then
+            echo "gate: win-test: win-test.py exited $status, a pass file it could not read; the step log names it" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
 
       # A win's evidence: the edit, and pass a's and pass b's with-versus-without

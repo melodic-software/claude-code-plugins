@@ -3,7 +3,11 @@
 // is read-only and frames what it reads as data; every pass runs the same
 // bounded eval; and the only artifact kept past the run is a win's, for 3 days.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import process from "node:process";
 import { test } from "node:test";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
@@ -123,6 +127,34 @@ test("the verdict names the stopping gate, and only a win is kept, for 3 days", 
     }
   }
   assert.match(main, /# Owner question Q11 \(#6405 comment, https:\/\/github\.com\/melodic-software\/claude-code-plugins\/issues\/6405#issuecomment-6625292188\)/);
+});
+
+// The Decide step's closing branch, run in bash: a gate stop (status 1) is
+// green with its line already written, and any other failure names its gate
+// and fails the job.
+test("the verdict fails and names the gate when win-test.py cannot read a pass file", () => {
+  const decide = step(jobs(main).verdict, "Decide");
+  const tail = decide.slice(decide.indexOf('if [ "$status" = 0 ]'), decide.lastIndexOf("fi") + 2);
+  const dir = mkdtempSync(join(tmpdir(), "hill-climb-decide-"));
+  try {
+    const run = (status, proceed) => {
+      const summary = join(dir, `summary-${status}-${proceed}`);
+      const output = join(dir, `output-${status}-${proceed}`);
+      writeFileSync(summary, "");
+      writeFileSync(output, "");
+      const script = `stop() { echo "gate: $1: $2" >>"$GITHUB_STEP_SUMMARY"; exit 0; }\nstatus=${status}\n${tail}\n`;
+      const proc = spawnSync("bash", ["-c", script], { env: { PATH: process.env.PATH, PROCEED: proceed, GITHUB_STEP_SUMMARY: summary, GITHUB_OUTPUT: output }, encoding: "utf8" });
+      return { code: proc.status, summary: readFileSync(summary, "utf8"), output: readFileSync(output, "utf8") };
+    };
+    const unreadable = run(2, "true");
+    assert.equal(unreadable.code, 1);
+    assert.match(unreadable.summary, /^gate: win-test: win-test\.py exited 2, a pass file it could not read; the step log names it\n$/);
+    assert.deepEqual(run(1, "true"), { code: 0, summary: "", output: "" }, "a gate stop leaves win-test.py's own gate line");
+    assert.equal(run(0, "true").output, "win=true\n");
+    assert.match(run(0, "false").summary, /^gate: baseline: /);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the gate admits only a listed human's first attempt on the default branch", () => {
