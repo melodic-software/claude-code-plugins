@@ -14,7 +14,7 @@ leaves the agent nothing it must ask about before finishing.
 |---|---|---|---|
 | Key interfaces | **Name by contract** | the type, function signature, config key or observable behavior that changes | file paths, line numbers, and anything that holds only while the code keeps today's layout |
 | Desired behavior | **Describe the end state** | what is true once the change lands, edge cases and failure handling included; the agent reads the code and picks the edit | edit instructions |
-| Acceptance criteria | **Yes-or-no checks** | checks the agent runs or reads that each give a yes or no without the others | a wish with no test |
+| Acceptance criteria | **Yes-or-no checks** | checks the agent runs or reads that each give a yes or no without the others | a wish with no test; where CI selects test suites by the paths a change touches, a check that a suite the change does not reach passes in its CI: that run never happens, so the check can never be proven |
 | Out of scope | **Named limits** | the neighboring code and features this change leaves as they are | an empty section: the agent then decides alone where the change stops, and may add work nobody asked for |
 
 Each pair below comes from one of two changes, a retry backoff cap and a CSV export fix:
