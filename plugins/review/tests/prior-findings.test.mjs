@@ -1,7 +1,7 @@
 // lib/prior-findings.mjs: which earlier posts count as a CI review lane's own
 // findings (bot author and lane footer, never text alone), whether the lines a
 // finding names changed since the head it was posted on (a real git diff), and
-// the lane's round count against the repo-owned cap.
+// whether the lane already reviewed an earlier head, which makes it blocking only.
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -12,7 +12,6 @@ import { after, describe, test } from "node:test";
 import {
   collect,
   isLanePost,
-  readCap,
   render,
   touchesOriginal,
 } from "../lib/prior-findings.mjs";
@@ -69,7 +68,7 @@ describe("which posts are the lane's own", () => {
     // lane's bot is listed (paired presence case below), this one is not.
     const forged = run([thread(PERSON)], shifted);
     assert.deepEqual(forged.findings, []);
-    assert.equal(forged.rounds, 0);
+    assert.equal(forged.reviewed, 0);
     assert.equal(run([thread(BOT)], shifted).findings.length, 1);
   });
 
@@ -167,8 +166,8 @@ describe("lines changed since the finding was posted", () => {
   });
 });
 
-describe("rounds and the cap", () => {
-  test("rounds count the distinct earlier heads the lane posted findings on, never the head under review", () => {
+describe("earlier reviews and blocking only", () => {
+  test("the count is the distinct earlier heads the lane posted findings on, never the head under review", () => {
     const second = { ...thread(BOT), comments: { nodes: [{ ...thread(BOT).comments.nodes[0], originalCommit: { oid: shifted } }] } };
     // A rerun on `edited` already holds the lane's posts on it; they are not a
     // round before this review.
@@ -183,10 +182,10 @@ describe("rounds and the cap", () => {
       head: edited,
       diff,
     });
-    assert.equal(result.rounds, 2);
+    assert.equal(result.reviewed, 2);
   });
 
-  test("a reviewed-head summary comment counts its head as a round only when it states a finding", () => {
+  test("a reviewed-head summary comment counts its head when it reports a review, clean or not, never a skip", () => {
     // The status line ci-workflows publish-review/publish.cjs statusLine writes.
     const summary = (sha, findings, author = BOT) => ({
       url: "u",
@@ -200,25 +199,20 @@ describe("rounds and the cap", () => {
       author: BOT,
       body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\n**${LANE}** needs no new review of \`${v1}\`: no file in scope changed.\n\n1 finding(s) carried forward.`,
     };
-    const rounds = (comments, head = edited) => collect({ threads: [], reviews: [], comments, lane: LANE, head, diff }).rounds;
-    assert.equal(rounds([summary(v1, 1), summary(shifted, 2)]), 2);
-    assert.equal(rounds([summary(v1, 0)]), 0);
-    assert.equal(rounds([skip]), 0);
-    assert.equal(rounds([summary(edited, 1)]), 0);
-    assert.equal(rounds([summary(v1, 1, PERSON)]), 0);
+    const reviewed = (comments, head = edited) => collect({ threads: [], reviews: [], comments, lane: LANE, head, diff }).reviewed;
+    assert.equal(reviewed([summary(v1, 1), summary(shifted, 2)]), 2);
+    // A clean first review is still the first whole review.
+    assert.equal(reviewed([summary(v1, 0)]), 1);
+    assert.equal(reviewed([skip]), 0);
+    assert.equal(reviewed([summary(edited, 1)]), 0);
+    assert.equal(reviewed([summary(v1, 1, PERSON)]), 0);
     assert.equal(collect({ threads: [], reviews: [], comments: [summary(v1, 1)], lane: LANE, head: edited, diff }).findings[0].posted, v1);
   });
 
-  test("readCap reads loop.review-rounds and nothing else", () => {
-    assert.equal(readCap("version: 2\nloop:\n  review-rounds: 3\n  dependency-review-rounds: 2\n"), 3);
-    assert.equal(readCap("version: 2\nloop:\n  dependency-review-rounds: 2\n"), null);
-    assert.equal(readCap("review-rounds: 9\n"), null);
-  });
-
-  test("render states past the cap only once the rounds reach it", () => {
-    const at = render({ lane: LANE, findings: [], rounds: 3, cap: 3, more: false });
-    assert.match(at, /^- past the cap: yes$/mu);
-    assert.match(render({ lane: LANE, findings: [], rounds: 2, cap: 3, more: false }), /^- past the cap: no$/mu);
-    assert.match(render({ lane: LANE, findings: [], rounds: 9, cap: null, more: false }), /^- past the cap: no \(no cap/mu);
+  test("render states blocking only once the lane reviewed an earlier head", () => {
+    assert.match(render({ lane: LANE, findings: [], reviewed: 0, more: false }), /^- blocking only: no$/mu);
+    assert.match(render({ lane: LANE, findings: [], reviewed: 1, more: false }), /^- blocking only: yes$/mu);
+    assert.match(render({ lane: LANE, findings: [], reviewed: 4, more: false }), /^- earlier heads this lane reviewed: 4$/mu);
+    assert.doesNotMatch(render({ lane: LANE, findings: [], reviewed: 1, more: false }), /cap/u);
   });
 });

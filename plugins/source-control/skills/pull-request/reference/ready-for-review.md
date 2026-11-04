@@ -141,7 +141,8 @@ verify record after the bullets are not steps: they run every time.
 Before the reviews, read the review venue again ([review-venue.md](review-venue.md)); a lane can
 fail between prep and the flip. A review whose lane reads `ci` is skipped as a built-in condition:
 the flip itself starts that CI lane on the whole pull request. When a lane reads `local`, or the
-venue cannot be read, the review runs here as that lane's stand-in.
+venue cannot be read, the review runs here as that lane's stand-in, except under
+`review_venue: ci`, which skips it whatever the read returns.
 
 <a id="docs-only-and-instruction-surfaces"></a>
 **Docs-only, and instruction surfaces.** A diff is docs-only when every changed file is
@@ -212,7 +213,8 @@ with the forge's PR checkout and run the gate again.
 
 **CI's test lanes.** After the commit and before the gate, read the venue's `tests` line for the
 PR worktree's HEAD ([review-venue.md](review-venue.md)), unless the run was invoked as
-`ready --verify-local`:
+`ready --verify-local` or `review_venue` resolved to `local`, either of which runs the gate in
+full:
 
 ```bash
 PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)"

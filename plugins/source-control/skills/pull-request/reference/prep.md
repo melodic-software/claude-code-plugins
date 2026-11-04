@@ -31,7 +31,7 @@ Every skill named below is invoked through the Skill tool when its plugin is ena
 
 ## 1.2 Review the changes (the `code` class)
 
-**Read the review venue first** ([review-venue.md](review-venue.md)). When its `code-review` line reads `ci`, the CI code-review lane reviews the pull request once it is ready: skip this review (the 1.2.1 audits still run) and report the skip with the line's detail. When it reads `local`, or the read fails, run the review below and report it as the CI lane's stand-in. `prep review-only` follows the same rule.
+**Read the review venue first** ([review-venue.md](review-venue.md)). When its `code-review` line reads `ci`, the CI code-review lane reviews the pull request once it is ready: skip this review (the 1.2.1 audits still run) and report the skip with the line's detail. When it reads `local`, or the read fails, run the review below and report it as the CI lane's stand-in, except under `review_venue: ci`, which skips it whatever the read returns. The `review_venue` setting decides what reads `ci` or `local`, and the report line under it. `prep review-only` follows the same rule.
 
 Run **one** fresh-context review over the branch diff: `/review:quality-gate` under 50 changed lines, `/review:fanout` above it, when the `review` plugin is enabled.
 
