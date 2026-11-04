@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "event-storming:methodology"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "methodology", "args": "--big-picture"}}], "why": "unqualified name with a format flag"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "event-storming:simulation"}}], "why": "the simulation skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}
