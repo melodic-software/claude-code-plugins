@@ -2002,6 +2002,21 @@ test("a tick sends every released head after deciding them all, and moves past o
   assert.ok(firstSend > 0 && api.events.slice(firstSend).every((event) => event.startsWith("send")), api.events.join(", "));
 });
 
+test("a POST the API rejects is logged and the tick still sends the rounds after it", async (t) => {
+  const api = releasedSweepApi(3);
+  const dispatchWorkflow = api.dispatchWorkflow;
+  api.dispatchWorkflow = async (request) => {
+    if (request.inputs["pr-number"] === "42") {
+      api.calls.dispatch.push(request);
+      throw new Error("HTTP 502");
+    }
+    return dispatchWorkflow(request);
+  };
+  const { lines } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42", "43", "44"]);
+  assert.ok(lines.some((line) => line.includes("#42: the sweep could not send its round: HTTP 502")), lines.join("\n"));
+});
+
 test("a tick sends at most SWEEP_TICK_CAP rounds and leaves the rest to the next tick", async (t) => {
   const api = releasedSweepApi(SWEEP_TICK_CAP + 2);
   const { output, lines } = await sweepMain(t, api);

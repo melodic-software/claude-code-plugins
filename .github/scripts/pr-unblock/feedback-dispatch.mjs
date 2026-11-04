@@ -892,8 +892,16 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     }
   }
   const sent = [];
-  for (const { send, upstreamRunId } of decided) {
-    const result = { ...(await send()), upstreamRunId };
+  for (const { number, send, upstreamRunId } of decided) {
+    let result;
+    try {
+      result = { ...(await send()), upstreamRunId };
+    } catch (error) {
+      // A POST the API rejects starts no round to hold the PR: log it and
+      // send the rounds after it, as the per-PR sweep did.
+      log(`::warning::#${number}: the sweep could not send its round: ${error.message}`);
+      continue;
+    }
     sent.push(result);
     onSent(result);
   }
