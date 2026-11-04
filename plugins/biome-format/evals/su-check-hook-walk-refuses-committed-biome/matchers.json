@@ -30,7 +30,7 @@
     {
       "use": "table_verdict_cell",
       "with": {
-        "row": "\\bBash\\b"
+        "row": "\\b(?:Bash|bash)\\b"
       }
     },
     {
