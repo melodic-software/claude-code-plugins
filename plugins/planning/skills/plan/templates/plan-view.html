@@ -117,8 +117,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 <h2>Send your reply back</h2>
 <p class="meta">Tick the phases you want changed and say what to change. The ids name phases by their position in PLAN.md.</p>
 <label for="verdict">Verdict</label>
-<select id="verdict" data-rv-choice="verdict"><option value="change" data-rv-shows="ex-change">Change the ticked phases</option><option value="question" data-rv-shows="ex-question">Ask about the ticked phases</option><option value="approve" data-rv-shows="ex-approve">Ready to approve</option></select>
-<p class="example" data-rv-example="ex-change">Example: tick phase 2 and write: wait for the cache metrics from phase 1 before wiring the handlers.</p>
+<select id="verdict" data-rv-choice="verdict"><option>No verdict</option><option value="change" data-rv-shows="ex-change">Change the ticked phases</option><option value="question" data-rv-shows="ex-question">Ask about the ticked phases</option><option value="approve" data-rv-shows="ex-approve">Ready to approve</option></select>
+<p class="example" data-rv-example="ex-change" hidden>Example: tick phase 2 and write: wait for the cache metrics from phase 1 before wiring the handlers.</p>
 <p class="example" data-rv-example="ex-question" hidden>Example: tick phase 1 and write: what happens to a cached result when its source row changes?</p>
 <p class="example" data-rv-example="ex-approve" hidden>Example: tick nothing. The session reads approval only from what you say in the conversation; this marks the plan as ready for that.</p>
 <section class="rv-comment" aria-labelledby="rv-comment-h">
