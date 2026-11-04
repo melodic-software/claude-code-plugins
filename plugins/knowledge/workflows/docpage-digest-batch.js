@@ -70,6 +70,74 @@ function isPublicUrl(u) {
     (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0))
 }
 
+// SHA-256 (FIPS 180-4) over ASCII text, in plain JS: a workflow script has no crypto API. Anything
+// outside ASCII throws; the URL allowlist keeps it out, so a throw means that allowlist changed.
+function sha256(text) {
+  const K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+  ]
+  const h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n))
+  const bytes = []
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i)
+    if (c > 127) throw new Error('sha256: non-ASCII input')
+    bytes.push(c)
+  }
+  const bits = bytes.length * 8
+  bytes.push(0x80)
+  while (bytes.length % 64 !== 56) bytes.push(0)
+  bytes.push(0, 0, 0, 0, (bits >>> 24) & 255, (bits >>> 16) & 255, (bits >>> 8) & 255, bits & 255)
+  for (let at = 0; at < bytes.length; at += 64) {
+    const w = []
+    for (let t = 0; t < 16; t++) {
+      const b = at + t * 4
+      w[t] = (bytes[b] << 24) | (bytes[b + 1] << 16) | (bytes[b + 2] << 8) | bytes[b + 3]
+    }
+    for (let t = 16; t < 64; t++) {
+      const s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3)
+      const s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10)
+      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0
+    }
+    let [a, b, c, d, e, f, g, last] = h
+    for (let t = 0; t < 64; t++) {
+      const t1 = (last + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + w[t]) | 0
+      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0
+      last = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0
+    }
+    ;[a, b, c, d, e, f, g, last].forEach((v, k) => { h[k] = (h[k] + v) | 0 })
+  }
+  return h.map(v => (v >>> 0).toString(16).padStart(8, '0')).join('')
+}
+
+// SKILL.md "Slug guard": the canonical URL is the page URL with no fragment and no trailing slash,
+// dropping tracking-only query parameters. The allowlist bars `&`, so a query is one parameter.
+// The script never follows a redirect, so a page that redirects is refused at setup.
+const TRACKING_QUERY = /^(utm_[^=]*|gclid|fbclid)(=|$)/
+function canonicalOf(url) {
+  const noFragment = url.split('#')[0]
+  const q = noFragment.indexOf('?')
+  const base = (q < 0 ? noFragment : noFragment.slice(0, q)).replace(/\/+$/, '')
+  const query = q < 0 ? '' : noFragment.slice(q + 1)
+  return base + (query && !TRACKING_QUERY.test(query) ? '?' + query : '')
+}
+
+// The slug the guard's steps give for a canonical URL. The whole slug is at most 40 characters, so
+// the host+path prefix keeps at most 31, and a cut landing on a hyphen drops that hyphen.
+function slugFor(canonical) {
+  const [host, ...path] = canonical.replace(/^https:\/\//, '').split('?')[0].split('/')
+  const prefix = [host.replace(/:\d+$/, ''), ...path.filter(Boolean)].join('-').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 31).replace(/-+$/, '')
+  return prefix + '-' + sha256(canonical).slice(0, 8)
+}
+
 // An absolute path with no parent segment, quote, newline or shell metacharacter.
 const isAbsPath = p => typeof p === 'string' &&
   /^(\/|[A-Za-z]:[\\/])[^\n\r"'`$;&|<>*?]*$/.test(p) && !/(^|[\\/])\.\.([\\/]|$)/.test(p)
@@ -102,6 +170,16 @@ if (rejected.length) log('pages: ' + rejected.length + ' rejected before any dis
 const accepted = unique.filter(u => !urlRejection(u))
 const PAGES = accepted.slice(0, PAGE_CAP)
 const deferred = accepted.slice(PAGE_CAP).map(url => notRun(url, 'page-cap'))
+// Each page's canonical URL and slug come from the launcher's URL, before any agent runs. A second
+// spelling of a page already in this run claims no slice.
+const slugsTaken = new Set()
+const PLAN = PAGES.map(url => {
+  const canonical = canonicalOf(url)
+  const slug = slugFor(canonical)
+  const slugTaken = slugsTaken.has(slug)
+  slugsTaken.add(slug)
+  return { canonical, slug, slugTaken }
+})
 if (deferred.length) log('pages: ' + deferred.length + ' past the cap of ' + PAGE_CAP + ' per run were not started; relaunch with the deferred list')
 // Design choice: a default of 4 leaves session subagent slots for sibling work (SKILL.md
 // Phase 3), and 16 bounds a caller's override.
@@ -166,17 +244,21 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,30}-[0-9a-f]{8}$/
 const UNIT = /^\d{2}-[a-z0-9][a-z0-9-]{0,39}$/
 const LINES = /^\d{1,6}-\d{1,6}$/
 const MAX_UNITS = 100
-// A profile mapping is passed only as a non-frontier family alias; a pinned
-// model ID is recorded mapped and unenforced, per the profile's known gap.
-const PASSABLE = ['opus', 'sonnet', 'haiku']
+// A profile mapping is passed only as one of these aliases, the floor for source-reading agents; any
+// other name, a pinned model ID or haiku, is recorded mapped and unenforced.
+const PASSABLE = ['opus', 'sonnet']
 const MODEL_NAME = /^(opus|sonnet|haiku|claude-(opus|sonnet|haiku|fable)-[0-9]+(-[0-9]+)*(-[0-9]{8})?)$/
 
-function parseSetup(v) {
+// The reply's slug and canonical URL are only compared with the plan's, so neither leaves this parser.
+const parseSetup = plan => v => {
   if (!isObj(v)) return null
   const status = own(v, 'status')
   if (!['ready', 'refused', 'failed'].includes(status)) return null
+  const canonical = own(v, 'canonicalUrl')
+  const redirected = c => urlRejection(c) !== null || canonicalOf(c) !== plan.canonical
+  if (status === 'refused') return record({ status })
+  if (status === 'failed') return record({ status, refusal: canonical !== undefined && redirected(canonical) ? 'redirect-refused' : null })
   const slug = own(v, 'slug')
-  if (status !== 'ready') return record({ status, slug: line(slug, 40, SLUG) ? slug : null })
   if (!line(slug, 40, SLUG)) return null
   const units = list(own(v, 'units'), MAX_UNITS, u => {
     if (!isObj(u)) return null
@@ -192,8 +274,7 @@ function parseSetup(v) {
   const mappedOk = mapped === 'none' || line(mapped, 64, MODEL_NAME)
   return record({
     status,
-    slug,
-    redirect: urlRejection(own(v, 'canonicalUrl')),
+    refusal: canonical === undefined ? 'canonical-missing' : redirected(canonical) ? 'redirect-refused' : slug !== plan.slug ? 'slug-mismatch' : null,
     units: Object.freeze(units),
     mapped: mappedOk && mapped !== 'none' ? mapped : null,
     mappedDropped: mapped !== undefined && !mappedOk,
@@ -248,7 +329,7 @@ const SETUP_SCHEMA = {
   properties: {
     status: { type: 'string', enum: ['ready', 'refused', 'failed'] },
     slug: { type: 'string' },
-    canonicalUrl: { type: 'string', description: 'the post-redirect page URL the slug is derived from' },
+    canonicalUrl: { type: 'string', description: 'the post-redirect page URL' },
     mappedModel: { type: 'string', description: 'the digest-agent model the profile maps this page to, or "none"' },
     units: {
       type: 'array',
@@ -335,12 +416,14 @@ async function slot(fn) {
 
 // One retry for a thrown dispatch, a null result (the death ladder's retry window) or a reply its
 // parser rejects; an error naming a cap or budget is rethrown without a retry. Returns { value }
-// from the parser, or { code } naming the stage and how its last attempt failed.
+// from the parser, or { code } naming the stage and how its last attempt failed; sawFail records a
+// FAIL verdict on any attempt, parsed or not, so a retry cannot hide it.
 const nulls = []
 const ran = []
 async function call(stage, prompt, o, parse) {
   ran.push(o.label)
   let last = 'no-result'
+  let sawFail = false
   for (let attempt = 1; attempt <= 2; attempt++) {
     const retry = attempt === 1 ? ', retrying once' : ''
     let raw
@@ -355,14 +438,17 @@ async function call(stage, prompt, o, parse) {
       continue
     }
     if (raw == null) { last = 'no-result'; log(o.label + ': no result' + retry); continue }
-    if (isObj(raw)) logAgentText(o.label, 'notes', own(raw, 'notes'))
+    if (isObj(raw)) {
+      logAgentText(o.label, 'notes', own(raw, 'notes'))
+      if (own(raw, 'verdict') === 'FAIL') sawFail = true
+    }
     const value = parse(raw)
-    if (value) return { value }
+    if (value) return { value, sawFail }
     last = 'off-schema'
     log(o.label + ': an off-schema reply' + retry)
   }
   if (last === 'no-result') nulls.push(o.label)
-  return { code: stage + '-' + last }
+  return { code: stage + '-' + last, sawFail }
 }
 
 // ---- the one decider ----
@@ -373,13 +459,14 @@ function decide(ev) {
   const unverified = code => record({ status: 'unverified', code, verification: 'unverified: ' + code })
   const failed = code => record({ status: 'failed', code, verification: 'failed: ' + code })
   if (ev.threw) return unverified('pipeline-threw')
+  if (ev.slugTaken) return unverified('slug-collision')
   if (!ev.setup) return unverified('setup-no-result')
   if (ev.setup.code) return unverified(ev.setup.code)
   const s = ev.setup.value
   if (s.status === 'refused') return unverified('setup-refused')
+  if (s.refusal === 'slug-mismatch') return failed('slug-mismatch')
+  if (s.refusal) return unverified(s.refusal)
   if (s.status === 'failed') return unverified('setup-failed')
-  if (s.redirect) return unverified('redirect-refused')
-  if (ev.slugTaken) return unverified('slug-collision')
   if (!ev.digests) return unverified('digest-no-result')
   if (ev.digests.code) return unverified(ev.digests.code)
   if (ev.effortLow) return unverified('verifier-effort-low')
@@ -387,15 +474,15 @@ function decide(ev) {
   if (ev.pin.code) return unverified(ev.pin.code)
   if (!ev.pin.value.pinned) return unverified('pin-failed')
   const arms = [['a', ev.a], ['b', ev.b]]
+  if (arms.some(([, r]) => r && r.sawFail)) return failed('verifier-fail')
   for (const [n, r] of arms) {
     if (!r) return unverified('verifier-' + n + '-no-result')
     if (r.code) return unverified(r.code)
   }
   for (const [n, r] of arms) if (!r.value.written) return unverified('verifier-' + n + '-unwritten')
-  if (arms.some(([, r]) => r.value.verdict === 'FAIL')) return failed('verifier-fail')
   if (!ev.pin.value.gatesPass) return failed('gate-fail')
   if (arms.some(([, r]) => r.value.verdict === 'BLOCKED')) return unverified('verifier-blocked')
-  if (ev.close && ev.close !== 'pending' && ev.close.code) return unverified(ev.close.code)
+  if (ev.close && ev.close.code) return unverified(ev.close.code)
   return record({ status: 'verified', code: 'verified', verification: 'verified' })
 }
 
@@ -424,7 +511,7 @@ const DUAL = SKILL_DIR + '/context/dual-verification.md'
 const LADDER = SKILL_DIR + '/context/pipeline-hardening.md'
 
 // The slice layout SKILL.md "Work root", "Emit checklist", Phase 3 and Phase 5 fix; every path an
-// agent is told to write comes from here, built from the parsed slug and unit keys.
+// agent is told to write comes from here, built from the plan's slug and the parsed unit keys.
 const sliceOf = slug => WORK_ROOT + '/.work/' + slug
 const layout = slice => ({
   checklist: slice + '/docpage-digest-checklist.md',
@@ -435,52 +522,50 @@ const layout = slice => ({
 })
 
 // ---- one page ----
-const slugsTaken = new Set()
-
 async function setup(url, i) {
   const label = 'p' + (i + 1)
+  const plan = PLAN[i]
+  if (plan.slugTaken) return { url, label, slug: plan.slug, slugTaken: true }
   const r = await call('setup',
     'Stage: setup.' + OWNS + ' For the page below, follow ' + skill('Work root') + ' with the resolved root ' +
     'already given here (do not re-resolve it), then the slug guard and collision check, ' +
     skill('Emit checklist') + ', ' + skill('Phase 1. Fetch') + ' and ' + skill('Phase 2. Inventory') +
-    '. The slice is <resolved-root>/.work/<slug>/. When the slice already holds this same page, keep its ' +
+    '. The workflow derived the canonical URL and slug below from the page URL, so the slice is the path ' +
+    'below. Before the first write, resolve the post-redirect URL and apply the slug guard: when your ' +
+    'canonical URL or slug differs from these, write nothing and return status failed with your canonical ' +
+    'URL, because the batch path does not follow a redirect. When the slice already holds this same page, keep its ' +
     'snapshot as the Phase 1 resume guard says, and untick Phases 3, 4 and 5 on the checklist: this ' +
     'workflow runs them again whatever an earlier run ticked. Return the slug, the canonical URL, the ' +
     'digest-agent model the profile maps this page to ("none" when no mapping applies), and one entry per ' +
     'SOURCES.md digest-map row: its unit as NN-slug (the digests/NN-slug.md name without the directory or ' +
     'extension) and its START-END lines. A collision refusal returns status refused; anything else that ' +
     'stops the run returns status failed, with any explanation in notes.' +
-    fence('resolved-root', WORK_ROOT) + fence('page', url),
+    fence('resolved-root', WORK_ROOT) + fence('page', url) + fence('canonical-url', plan.canonical) +
+    fence('slug', plan.slug) + fence('slice', sliceOf(plan.slug)),
     { label: label + ':setup', phase: 'Setup', schema: SETUP_SCHEMA, ...opts(R.worker) },
-    parseSetup,
+    parseSetup(plan),
   )
-  const ev = { url, label, setup: r }
-  const s = r.value
-  if (s && s.slug && s.status !== 'refused' && !s.redirect) {
-    // pipeline stages share one thread, so a check and add here cannot interleave.
-    if (slugsTaken.has(s.slug)) ev.slugTaken = true
-    else slugsTaken.add(s.slug)
-  }
-  return ev
+  return { url, label, slug: plan.slug, setup: r }
 }
 
+// Close and the launcher write only to a slice whose setup reported ready for this plan's page.
 const ownsSlice = ev => {
   const s = ev.setup && ev.setup.value
-  return !!s && !!s.slug && s.status !== 'refused' && !s.redirect && !ev.slugTaken
+  return !ev.slugTaken && !!s && s.status === 'ready' && !s.refusal
 }
 
 async function digestAndVerify(ev) {
   const { label } = ev
+  if (!ownsSlice(ev)) return ev
   const s = ev.setup.value
-  if (!s || s.status !== 'ready' || s.redirect || ev.slugTaken) return ev
   if (s.mappedDropped) log(label + ': mappedModel is not a model alias or model-ID-shaped name: dropped, the digest runs without a model mapping')
   const usable = s.mapped && PASSABLE.includes(s.mapped) ? s.mapped : null
   ev.modelMatch = { mapped: s.mapped || 'none', passed: usable || (R.worker.model === 'inherit' ? 'inherit' : R.worker.model), enforced: !s.mapped || !!usable }
   if (s.mappedDropped) ev.modelMatch.dropped = 'the mapping failed the model-name pattern'
-  const slice = sliceOf(s.slug)
+  const slice = sliceOf(ev.slug)
   const at = layout(slice)
-  const framing = s.mapped
-    ? ' This brief assumes model ' + s.mapped + '; if you are not ' + s.mapped + ', note the mismatch in notes and continue.'
+  const framing = usable
+    ? ' This brief assumes model ' + usable + '; if you are not ' + usable + ', note the mismatch in notes and continue.'
     : ''
 
   // Phase 3: one digest agent per unit, always.
@@ -538,11 +623,17 @@ async function digestAndVerify(ev) {
   return ev
 }
 
+// Close cannot know its own outcome, so a page heading for verified records this status and the
+// launcher writes the final line from the result. Every other status is already final.
+const AWAITING = 'unverified: awaiting-launcher'
+
 async function close(ev) {
   if (!ownsSlice(ev)) return ev
-  const at = layout(sliceOf(ev.setup.value.slug))
-  const shown = r => (!r ? null : r.code ? r.code : r.value.verdict)
-  const status = decide({ ...ev, close: 'pending' }).verification
+  const slice = sliceOf(ev.slug)
+  const at = layout(slice)
+  const shown = r => (!r ? null : r.sawFail ? 'FAIL' : r.code ? r.code : r.value.verdict)
+  const decided = decide(ev)
+  const status = decided.status === 'verified' ? AWAITING : decided.verification
   ev.close = await call('close',
     'Stage: close.' + OWNS + ' Record this page\'s Phase 4 outcome on the checklist below. Then run ' + DUAL +
     ' section "Reconcile the digest set against itself before Phase 5" over this page\'s digests, editing no ' +
@@ -550,11 +641,12 @@ async function close(ev) {
     'handoff at the path below as ' + skill('Phase 5. Interview handoff') + ' says, replaying its commands, but do not invoke ' +
     '/planning:interview: the launching session runs it once over every page. On the checklist, fill the ' +
     '"Verification status" line with the status below verbatim, fill both verifier effort lines from the ' +
-    'verdict headers, and tick Phase 4 only when the status is verified; otherwise clear any Phase 4 tick an ' +
-    'earlier run left, and write the degraded marker as ' + LADDER + ' "Subagent-death / usage-limit ladder" ' +
+    'verdict headers, and leave Phase 4 unticked, clearing any tick an earlier run left: the launching ' +
+    'session ticks it once this workflow has decided the page. Unless the status is ' + AWAITING + ', write ' +
+    'the degraded marker as ' + LADDER + ' "Subagent-death / usage-limit ladder" ' +
     'says. The handoff opens with the same "Verification status" line. Return whether you wrote the checklist ' +
     'and the handoff.' +
-    fence('slice', sliceOf(ev.setup.value.slug)) + fence('checklist', at.checklist) + fence('handoff', at.handoff) +
+    fence('slice', slice) + fence('checklist', at.checklist) + fence('handoff', at.handoff) +
     fence('verification-status', status) +
     fence('run-record', { gatesPass: ev.pin && ev.pin.value ? ev.pin.value.gatesPass : null, a: shown(ev.a), b: shown(ev.b), verifierB: ev.verifierB || null, modelMatch: ev.modelMatch || null, deadUnits: ev.deadUnits || [] }),
     { label: ev.label + ':close', phase: 'Close', schema: CLOSE_SCHEMA, ...opts(R.worker) },
@@ -567,9 +659,9 @@ function result(url, i, ev) {
   const d = decide(ev || { threw: true })
   const label = 'p' + (i + 1)
   if (!ev) return { url, label, slug: null, slice: null, handoff: null, closed: false, status: d.status, code: d.code, verification: d.verification }
-  const slug = ownsSlice(ev) ? ev.setup.value.slug : null
+  const slug = ownsSlice(ev) ? ev.slug : null
   const closed = !!(ev.close && ev.close.value)
-  const verdict = r => (!r ? null : r.code ? r.code : r.value.verdict)
+  const verdict = r => (!r ? null : r.sawFail ? 'FAIL' : r.code ? r.code : r.value.verdict)
   return {
     url,
     label,

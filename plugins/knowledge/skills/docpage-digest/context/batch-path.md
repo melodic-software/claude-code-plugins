@@ -30,12 +30,22 @@ The launch steps for the `knowledge:docpage-digest-batch` workflow that [`../SKI
    `not-public-host`) and `deferred` (`page-cap`). Relaunch the `deferred` pages.
 6. **Read each page's `verification`**: `verified`, `unverified: <code>` or `failed: <code>`, built
    only from the workflow's own reason codes, never from agent text. `verified` needs both arms
-   to return a written `PASS` or `PASS-WITH-FINDINGS` in this run, every standing gate passed,
-   and a close stage that wrote the checklist and handoff. A page with `closed: false` has no
-   checklist line or handoff from the close stage: write `Verification status: <verification>`
-   on its checklist yourself. Re-run an `unverified` page once its cause clears; a rerun redoes
-   Phases 3 to 5, since the batch path has no resume. `unverified: redirect-refused` is a page
-   whose redirect target failed the input URL checks, and `unverified: setup-refused` a slug
-   collision. The batch path runs no correction rounds: take a `failed: verifier-fail` or
+   to return a written `PASS` or `PASS-WITH-FINDINGS` in this run with no `FAIL` on any attempt,
+   every standing gate passed, and a close stage that wrote the checklist and handoff.
+7. **Write the final status.** The close stage cannot know its own outcome, so a page heading for
+   `verified` carries `Verification status: unverified: awaiting-launcher` on disk and Phase 4 stays
+   unticked. For each page with a non-null `slice`, write `Verification status: <verification>` on
+   `<slice>/docpage-digest-checklist.md` and, when the page has a `handoff`, as that file's first
+   line; tick Phase 4 only when `verification` is `verified`. A page with a null `slice` claimed no
+   slice: leave the disk alone.
+8. **Route what did not verify.** The script derives each slug from the launched URL and does not
+   follow a redirect. `unverified: redirect-refused` is a page whose setup reported another
+   canonical URL, `failed: slug-mismatch` one whose setup reported another slug,
+   `unverified: canonical-missing` one whose setup reported no canonical URL,
+   `unverified: slug-collision` a second spelling of a page already in this run, and
+   `unverified: setup-refused` an existing slice holding another URL. Take a redirect-refused or
+   slug-mismatch page through the single-page path, which derives its own slug. Re-run another
+   `unverified` page once its cause clears; a rerun redoes Phases 3 to 5, since the batch path has
+   no resume. The batch path runs no correction rounds: take a `failed: verifier-fail` or
    `failed: gate-fail` page through the single-page path, which keeps them. Then run the Phase 5
    interview once over the `verified` pages' handoffs.
