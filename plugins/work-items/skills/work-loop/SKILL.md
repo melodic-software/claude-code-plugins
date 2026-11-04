@@ -479,16 +479,7 @@ claimable, never closed by this lane, openness means the map exists), are exclud
 cycle-start snapshot, the intake sweep, the exit evaluation, and the post-snapshot intake report.
 The loop never works, closes, or waits on them; an open telemetry issue is the lane operating, not
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog
-blocking drain exit.
-
-Cordoned items never gate a drain exit, ordinary or terminal: an open item whose row carries a
-`milestone` listed in `cordoned-milestones` is dropped from the exit evaluation. Those names live
-only in `.github/actions/resolve-config/admission-rules.json` on the target's default branch, read
-through the forge's contents read; no such file means no cordoned milestones, and any other failed
-read is a failed snapshot read ([reference/snapshot-reads.md](reference/snapshot-reads.md)). A row
-with no `milestone` field counts, and the seam's rows carry none today
-([`CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md), "JSON output contract"),
-so until they do an open cordoned item still holds a drain open.
+blocking drain exit. [reference/mode-drain.md](reference/mode-drain.md) "Cordoned items" owns the drain exits' other exclusion.
 
 ## Next
 

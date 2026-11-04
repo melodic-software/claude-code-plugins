@@ -12,6 +12,9 @@ when the reads behind it were complete.
   way; each adapter decides it exactly, by reading one item past `limits.list_items_max` where the
   provider allows, so a backlog of exactly the ceiling is complete. Never pass a
   provider-specific flag such as `--limit` here.
+- **Cordoned milestones**: the forge's contents read of the admission rules file
+  ([mode-drain.md](mode-drain.md), "Cordoned items"), in drain mode and only when a retained row
+  carries a `milestone`. An absent file is a complete read with no names.
 
 With `--scope <label>`, both reads take `--label <label>`. Where the bound adapter filters by label
 in its provider query, the ceiling counts only scoped items, so a small scope on a large tracker

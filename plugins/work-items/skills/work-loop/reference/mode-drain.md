@@ -46,6 +46,16 @@ When every remaining open item in the snapshot is human-gated or escalated and n
 escalated items. Apply the post-snapshot intake report below
 before stopping.
 
+## Cordoned items
+
+An open retained item whose row carries a `milestone` listed in `cordoned-milestones` counts toward
+neither the exit condition nor the drain-terminal test. Those names live only in
+`.github/actions/resolve-config/admission-rules.json` on the target's default branch
+([snapshot-reads.md](snapshot-reads.md), "The reads"); no such file means no cordoned milestones.
+A row with no `milestone` counts, and the seam's rows carry none today
+([`CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md), "JSON output contract"),
+so until they do an open cordoned item still holds a drain open.
+
 ## Post-snapshot intake report (every drain exit)
 
 On **every** drain stop, ordinary drain completion and drain-terminal alike, the final report

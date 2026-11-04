@@ -164,11 +164,7 @@ issues** in the target repository. This deliberately outlives the worker lane's 
 closed or PR'd), so the merge lane merges the tail. Lane-infrastructure issues never gate
 the drain: the per-lane telemetry tracking issues (the `Lane telemetry: <lane>` title contract,
 this lane's and any sibling's) are excluded from the 0-open-issues evaluation, exactly as the
-work-items lanes exclude them. Cordoned issues never gate it either: a snapshot issue with
-`cordoned: true` sits in a milestone listed in `cordoned-milestones` in the target's
-`.github/actions/resolve-config/admission-rules.json` on its default branch, the one place those
-names live (no such file means no cordoned milestones), and it is excluded from both drain exits.
-The **drain-terminal state** (per the convention) also ends the
+work-items lanes exclude them. Neither exit counts a snapshot issue marked `cordoned: true` ([cycle-shape](reference/cycle-shape.md) step 1 names the list). The **drain-terminal state** (per the convention) also ends the
 loop: every remaining open item human-gated, escalated, or `C5` on the issue-author provenance
 test (`work-classes.md`) and no PR in flight. Report and stop cleanly; never idle forever.
 Untrusted intake counts as human-gated for that exit even without a role label. Exit uses the cycle-start snapshot, only when confirmed complete ([cycle-shape](reference/cycle-shape.md) step 1; a failed or partial read is never an empty queue); mid-cycle intake is reported, never chased.
