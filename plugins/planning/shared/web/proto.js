@@ -124,12 +124,11 @@
     return "";
   }
 
+  /** The viewer's theme toggle choice from the main page (System, Light or Dark); no session default. */
   function applyTheme() {
-    const t = S().settings?.theme || {}, p = Core.snapshot()?.me?.prefs || {};
-    const mode = p.theme || t.mode || "system";
+    const p = Core.snapshot()?.me?.prefs || {};
+    const mode = p.theme === "light" || p.theme === "dark" ? p.theme : "system";
     root.dataset.theme = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
-    root.dataset.accent = p.accent || t.accent || "teal";
-    root.dataset.palette = p.palette || t.palette || "default";
   }
 
   // ---------- variant switcher ----------

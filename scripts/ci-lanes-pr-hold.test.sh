@@ -878,7 +878,9 @@ evidence() { jq -nc --arg refusal "$1" --arg head "${2:-$SHA}" '{refusal: $refus
 for refusal in verify:fail verify:earlier-fail verify:repeated-fail verify:unreadable verify:too-old; do
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
 done
-STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a refusal a pass decides is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:spec-changed)."
+# Owner decision 2026-11-04, "Hold until re-judged": a stale pass holds even when read.
+STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a stale pass holds until pr-verify judges the head again" 1 3 "#7: pr-verify's pass on this head is stale (verify:spec-changed)"
+STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:untrusted-spec)."
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
   expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \

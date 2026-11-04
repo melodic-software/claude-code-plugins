@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Proposed (not run):\n\n```\ngh api --method POST repos/acme/widgets/rulesets --input ruleset.json\n```",
+      "why": "exact repo endpoint"
+    },
+    {
+      "answer": "POST /repos/OWNER/REPO/rulesets with the body below.",
+      "why": "templated endpoint"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {
+      "answer": "Create it under Settings > Rules > Rulesets > New branch ruleset.",
+      "why": "UI path only, no proposed call"
+    },
+    {
+      "answer": "gh api --method POST orgs/acme/rulesets --input ruleset.json",
+      "why": "org ruleset, not the repo the user named"
+    },
+    {
+      "answer": "gh api --method PUT repos/acme/widgets/branches/main/protection --input p.json",
+      "why": "classic branch protection, not a ruleset"
+    }
+  ]
+}
