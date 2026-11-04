@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.2] - 2026-11-04
+
+### Changed
+
+- Shared config-cascade library synced: the personal layer is now called the personal override in comments and in view-settings' warnings, and `overlayApplies` is `personalOverrideApplies` (#13187). Behavior is unchanged. The bundled standards contract is synced at 1.1.3 with the same wording change.
+
 ## [2.4.1] - 2026-11-04
 
 ### Changed
