@@ -208,11 +208,17 @@ fi
 #     (https://code.claude.com/docs/en/skills#frontmatter-reference). The true
 #     spellings leave the listing; the false spellings stay in it, and each
 #     false skill contributes 5 chars, so the aggregate proves which counted.
+#     Fixture names carry an index, never the spelling, so no two differ only by
+#     letter case on a case-insensitive filesystem.
+i=0
 for spelling in yes YES On on 1; do
-  make_skill "$TMP/dmi-spell-root" "spell-true-$spelling" "9999999999999999999999999" "" "$spelling"
+  i=$((i + 1))
+  make_skill "$TMP/dmi-spell-root" "spell-true-$i" "9999999999999999999999999" "" "$spelling"
 done
+i=0
 for spelling in no OFF off 0; do
-  make_skill "$TMP/dmi-spell-root" "spell-false-$spelling" "12345" "" "$spelling"
+  i=$((i + 1))
+  make_skill "$TMP/dmi-spell-root" "spell-false-$i" "12345" "" "$spelling"
 done
 out="$(run "$TMP/dmi-spell-root" 2>&1)"
 if grep -q 'over 4 listing-eligible skill(s)' <<<"$out" && grep -q 'aggregate: 20 chars' <<<"$out"; then
