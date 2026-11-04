@@ -47,7 +47,8 @@
 //      dependency-security-close; otherwise finds or files the issue
 //      proposing the dependabot.yml ignore entry (keyed by PR and head), posts
 //      the marker, then closes the pull request, so a re-run after any
-//      partial failure resumes. escalate: dependency-escalate. fix: nothing
+//      partial failure resumes. escalate: dependency-escalate-<owner_reason>
+//      (escalateReason). fix: nothing
 //      more; CI judges the push.
 //   4. Posts the round marker, as the lanes App, once per model run (a run
 //      with no verdict attempt is named `none`, and its marker always posts).
@@ -78,6 +79,7 @@ import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { STOP_REASONS } from "../lib/stop-reason.mjs";
 import { createGitHubApi, need, positive, scanRefusal, SHA } from "./address-feedback.mjs";
 import {
   COMMIT_FILES_LIMIT,
@@ -157,13 +159,24 @@ export function validateContext(run, pr) {
   return run;
 }
 
+// The verdict's fields. `owner_reason` is the stop-reason code
+// (../lib/stop-reason.mjs) an escalate verdict hands to a person with, or
+// `none`; only an escalate verdict reads it.
+export const VERDICT_KEYS = Object.freeze(["verdict", "owner_reason", "reasons", "evidence"]);
+
+// The stop an escalate verdict ends on: dependency-escalate-<code>, held for a
+// person with that code's marker, or, for `none`, dependency-escalate-none,
+// which routes to the session-builder queue and never to a person.
+export const escalateReason = (ownerReason) => `dependency-escalate-${ownerReason}`;
+
 // The model's structured verdict, as the scan job uploaded it.
 export function validateVerdict(out) {
   const fail = (why) => {
     throw new Invalid(`dependency-verdict.json is invalid: ${why}`);
   };
-  if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
+  if (!exactKeys(out, VERDICT_KEYS)) fail("the verdict's fields are not the template's");
   if (!VERDICTS.includes(out.verdict)) fail("the verdict is not merge, fix, close or escalate");
+  if (!STOP_REASONS.includes(out.owner_reason)) fail(`owner_reason is not one of ${STOP_REASONS.join(", ")}`);
   if (!Array.isArray(out.reasons) || out.reasons.length < 1 || out.reasons.length > LIMITS.reasons) fail("reasons is not 1-10 entries");
   if (!out.reasons.every((reason) => plain(reason, LIMITS.reason))) fail("a reason is not plain prose within the limit");
   if (!Array.isArray(out.evidence) || out.evidence.length > LIMITS.evidence) fail("evidence is not 0-20 entries");
@@ -454,7 +467,7 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     return { escalationReason: "", skipReason: "" };
   }
   await record("escalate", { reasons, evidence });
-  return { escalationReason: "dependency-escalate", skipReason: "" };
+  return { escalationReason: escalateReason(run.output.owner_reason), skipReason: "" };
 }
 
 // A regular file of at most LIMITS.bytes whose SHA-256 is `sha256`, parsed;

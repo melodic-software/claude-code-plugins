@@ -10,7 +10,9 @@
 #   thread or hold): hands the PR to a person with one machine-marked comment
 #   holding the reason, the resume key and how to resume, plus the
 #   human-gated role label; a PR the label goes on while it sits in the merge
-#   queue leaves it (leave_queue). A reason the table does not list holds
+#   queue leaves it (leave_queue). A row's `owner-reason` adds the
+#   ../lib/stop-reason.mjs marker and line naming which owner reason it is.
+#   A reason the table does not list holds
 #   too, with no activity to resume (fail-safe).
 # - route `fail` (a stop the lane's own bounded retries did not mend): no
 #   human-gated label; the entry's `label` (needs-session), when it names one,
@@ -138,7 +140,7 @@ if [[ $entry == null ]]; then
   # Fail-safe: a reason the table does not list holds for a person, with no
   # activity to resume.
   why="the lane stopped on a reason its routing table does not list, so a person decides"
-  activity='' route=hold session_label=''
+  activity='' route=hold session_label='' owner_reason=''
 else
   why=$(jq -er '.why | strings' <<<"$entry") || die "no why for $ESCALATION_REASON in $routes"
   activity=$(jq -er '.activity | strings' <<<"$entry") || die "no activity for $ESCALATION_REASON in $routes"
@@ -146,6 +148,10 @@ else
   # The session-builder queue label a fail-routed reason may name.
   session_label=$(jq -er --arg route "$route" 'if has("label") then .label | strings | select(test("^[a-z]+(-[a-z]+)*$") and $route == "fail") else "" end' <<<"$entry") ||
     die "the label for $ESCALATION_REASON in $routes is not a label name on a fail route"
+  # The stop-reason code a hold row names (`owner-reason`), which the hold
+  # comment carries as ../lib/stop-reason.mjs's marker and visible line.
+  owner_reason=$(jq -er --arg route "$route" 'if has("owner-reason") then ."owner-reason" | strings | select(test("^[a-z]+$") and $route == "hold") else "" end' <<<"$entry") ||
+    die "the owner-reason for $ESCALATION_REASON in $routes is not a code on a hold route"
 fi
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
 [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
@@ -191,6 +197,16 @@ fi
 if [[ $route == hold ]]; then
   marker='<!-- work-items:escalation lane=pr-unblock kind=escalated -->'
   key_line="<!-- pr-unblock resume-key=$HEAD_SHA -->"
+  # personReasonLines throws for a code that is not a person reason, so a bad
+  # row fails here, before the label goes on.
+  reason_lines=''
+  if [[ -n $owner_reason ]]; then
+    reason_lines=$(STOP_REASON_MODULE="$(dirname "${BASH_SOURCE[0]}")/../lib/stop-reason.mjs" OWNER_REASON=$owner_reason node --input-type=module -e '
+      const { pathToFileURL } = await import("node:url");
+      const m = await import(pathToFileURL(process.env.STOP_REASON_MODULE).href);
+      process.stdout.write(m.personReasonLines("pr-unblock", process.env.OWNER_REASON).join("\n"));') ||
+      die "cannot write the stop-reason lines for $ESCALATION_REASON"
+  fi
   labeled=$(gh api "$issue" | jq --arg l "$label" '[.labels[].name] | index($l) != null')
   if [[ $labeled == true ]]; then
     marked=$(gh api --paginate "$issue/comments?per_page=100" | jq -s --arg bot "$bot" --arg m "$marker" --arg k "$key_line" \
@@ -352,11 +368,14 @@ if [[ -n $activity ]]; then
 else
   resume="To resume, deal with the reason above, then remove the \`$label\` label (and \`do-not-merge\`, if set)."
 fi
-cat >"$body" <<EOF
-$marker
-$key_line
-The pr-unblock lane stopped on this pull request and needs a person: $why.
-
+{
+  printf '%s\n%s\n' "$marker" "$key_line"
+  # The stop-reason marker, then its visible line after the summary.
+  [[ -z $reason_lines ]] || printf '%s\n' "${reason_lines%%$'\n'*}"
+  printf 'The pr-unblock lane stopped on this pull request and needs a person: %s.\n\n' "$why"
+  [[ -z $reason_lines ]] || printf '%s\n\n' "${reason_lines#*$'\n'}"
+} >"$body"
+cat >>"$body" <<EOF
 - Reason: \`$ESCALATION_REASON\`
 - Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
 

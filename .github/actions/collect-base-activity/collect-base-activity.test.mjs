@@ -11,7 +11,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { LIMITS, UNPLAIN_PATTERN } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
+import { STOP_REASONS } from "../../scripts/lib/stop-reason.mjs";
+import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2015,7 +2016,8 @@ test("run-claude-cli: the dependency verdict schema matches the verdict job's ve
   assert.equal(run.status, 0, run.stdout);
   const schema = JSON.parse(readFileSync(path.join(run.schemaDir, "verdict.schema.json"), "utf8"));
   assert.deepEqual(schema.properties.verdict.enum, [...VERDICTS]);
-  assert.deepEqual(schema.required, ["verdict", "reasons", "evidence"]);
+  assert.deepEqual(schema.properties.owner_reason.enum, [...STOP_REASONS]);
+  assert.deepEqual(schema.required, [...VERDICT_KEYS]);
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(
     [schema.properties.reasons.minItems, schema.properties.reasons.maxItems, schema.properties.reasons.items.maxLength],
@@ -2037,7 +2039,7 @@ test("run-claude-cli: the dependency verdict schema rejects a bare @-mention and
   assert.equal(run.status, 0, run.stdout);
   const { default: Ajv } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("ajv");
   const valid = new Ajv({ strict: true }).compile(JSON.parse(readFileSync(path.join(run.schemaDir, "verdict.schema.json"), "utf8")));
-  const verdict = (text) => ({ verdict: "escalate", reasons: [text], evidence: [text] });
+  const verdict = (text) => ({ verdict: "escalate", owner_reason: "none", reasons: [text], evidence: [text] });
   for (const text of ["maintained by @koromix alone", "@koromix", "cc @a-b.c", "see\n", "```sh", "<!-- x -->"]) {
     assert.equal(valid(verdict(text)), false, text);
   }
