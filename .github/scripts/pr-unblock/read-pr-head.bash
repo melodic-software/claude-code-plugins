@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034,SC2154 # pr_fields is read by the sourcing step; GITHUB_REPOSITORY is set by Actions
 # read_pr_fields <number> <jq fields>: reads the pull request through `gh api`
 # (the api-budget wrapper's gh when the caller defined it) and leaves the
 # fields, one per line, in pr_fields. A failed read prints
