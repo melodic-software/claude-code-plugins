@@ -511,8 +511,7 @@ plus `--permission-mode dontAsk` and the checker as the one allowed command. The
 fixture's one eval case once: `claude plugin eval <fixture> --runs 1 --ablation none --trust-plugin
 --keep-temp --no-publish --max-cost-usd 1`, no `--allow-tools`, its `TMPDIR` a short directory under
 `HOME`. Linux (WSL2), Claude Code **2.1.318** (`claude --version` and the trace's init line agree),
-2026-11-03: 1 run, no retry. Reported cost: 0.11 USD for the driver session, 0.13 USD for the nested
-eval. The checker read the kept trace's init line for the offered tools and each call's `tool_use`
+2026-11-03: 1 run, no retry. The checker read the kept trace's init line for the offered tools and each call's `tool_use`
 and `tool_result` blocks, plus the trace's permission denial records, for its outcome, then removed
 the trace; its one printed line is the evidence kept. The recheck trigger and expiry above apply.
 
