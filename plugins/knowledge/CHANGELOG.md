@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.1.5] - 2026-11-04
+
+### Changed
+
+- **chore(deps-dev): Bump @types/node from 26.6.5 to 26.6.6 in /plugins/knowledge/skills/course-digest/extraction in the npm-minor-patch group** (#13151).
+  - `@types/node` 26.6.5→26.6.6
+
+- **chore(deps-dev): Bump @types/node from 26.6.5 to 26.6.6 in /plugins/knowledge/skills/video-digest/extraction in the npm-minor-patch group** (#13155).
+  - `@types/node` 26.6.5→26.6.6
+
 ## [1.1.4] - 2026-11-04
 
 ### Fixed
