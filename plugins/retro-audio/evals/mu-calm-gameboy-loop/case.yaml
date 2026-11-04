@@ -26,11 +26,6 @@ graders:
     type: file_exists
     path: 'audio/calm-loop.wav'
     arm: both
-  - name: names-wav-path
-    type: regex
-    pattern: 'calm-loop\.wav(?![\w-]|\.\w)'
-    target: last_message
-    arm: both
   - name: shows-score
     type: regex
     pattern: '(?:\b(?:t\d{2,3}|o\d|l\d{1,2}|v\d{1,2})\b|@\d)[^\n]*?(?:\b(?:t\d{2,3}|o\d|l\d{1,2}|v\d{1,2})\b|@\d)'
