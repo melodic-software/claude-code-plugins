@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "| Area | Level | Why |\n|---|---|---|\n| Alignment | MEDIUM | #92 asks only for the README typo; src/http/client.js also raises maxRetries from 2 to 10, which the body does not name |",
+      "why": "table row at MEDIUM"
+    },
+    {
+      "answer": "| **Alignment** | **HIGH** | unrequested retry change in src/http/client.js |",
+      "why": "bold table row at HIGH"
+    },
+    {
+      "answer": "{\"area\": \"Alignment\", \"level\": \"MEDIUM\", \"why\": \"retry change not in #92\", \"check\": \"agreed\"}",
+      "why": "JSON row"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "| Alignment | LOW | fixes the README typo as the body says |\n| Impact | MEDIUM | retry count changed |",
+      "why": "alignment LOW; MEDIUM on another row"
+    },
+    {
+      "answer": "{\"area\": \"Alignment\", \"level\": \"LOW\", \"why\": \"matches the body\", \"check\": \"disputed\", \"checker_level\": \"MEDIUM\"}",
+      "why": "own level LOW, only the checker says MEDIUM"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

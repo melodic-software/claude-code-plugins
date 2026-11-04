@@ -787,9 +787,11 @@ test("every data path the model reads sits under the working directory", () => {
 
 test("each job checks out main fresh and writes the managed settings before isolating the runner", () => {
   for (const job of JOBS) {
-    assert.equal(STEPS[job][0].name, "Check out the default branch tip", job);
-    assert.match(STEPS[job][0].block, /^ {10}ref: refs\/heads\/main$/m, job);
-    assert.match(STEPS[job][0].block, /^ {10}persist-credentials: false$/m, job);
+    assert.equal(STEPS[job][0].name, "Resolve main's tip", job);
+    assert.match(STEPS[job][0].block, /^ {10}TIP_BRANCH: main$/m, job);
+    assert.equal(STEPS[job][1].name, "Check out the default branch tip", job);
+    assert.match(STEPS[job][1].block, /^ {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}$/m, job);
+    assert.match(STEPS[job][1].block, /^ {10}persist-credentials: false$/m, job);
     const settings = step("Apply the Claude managed settings", job);
     assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(settings)[1])?.[1], "apply-claude-managed-settings", job);
     assert.equal(/^ {8}if: (.*)$/m.exec(settings)[1], ifOf(job, "steps.agree.outcome == 'success'"), job);
@@ -1139,7 +1141,7 @@ test("wake-pr-merge runs after every verdict job, only on an uploaded pass, hold
   // (contents: read is for that checkout) and logged at job end; outputs
   // reach only env.
   assert.deepEqual([...job.matchAll(/^ {8}uses: (\S+)/gm)].map((m) => m[1]), ["actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "./.base/.github/actions/log-api-budget"]);
-  assert.match(job, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(job, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
   assert.match(job, /^ {4}env:\n {6}API_BUDGET_TOKEN: github-token$/m);
   const script = wakeScript();
   assert.doesNotMatch(script, /\$\{\{/);

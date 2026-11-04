@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { lookupVisibility, prFromFacts } from "./repo-visibility.mjs";
 import { SECRET_PATTERNS, findSecret, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
 import { findRoot, gateExplicit, overlayApplies, resolveMedium as resolveViewMedium } from "../../../lib/view-settings.mjs";
-import { reportLines } from "../../../lib/view-registry.mjs";
+import { mediumOf, reportLines } from "../../../lib/view-registry.mjs";
 
 export const DEFAULTS = Object.freeze({
   digest_policy: "offer",
@@ -286,7 +286,8 @@ export function resolveDigestConfig(baseOid) {
  * Where the digest goes, by the shared medium resolver: `option` is this plugin's `medium` option,
  * and the team file is read from the base commit only, never the working tree. `explicit` is what
  * the publish gate's `--explicit` takes: true only when the reader chose the medium, never for the
- * plugin's own default.
+ * plugin's own default. `where` and `publishes` come from the medium registry, so the skill names
+ * the destination without listing medium values itself.
  */
 export function resolveMedium(option, baseOid) {
   const teamRef = typeof baseOid === "string" && /^[0-9a-f]{40}$/.test(baseOid) ? baseOid : "";
@@ -294,7 +295,15 @@ export function resolveMedium(option, baseOid) {
     { lane: "review:explain-change", userConfig: option, projectRoot: findRoot(), teamRef },
     { dataDir: process.env.CLAUDE_PLUGIN_DATA || null },
   );
-  return { value: resolution.medium, source: resolution.decidedBy, explicit: gateExplicit(resolution), report: reportLines(resolution) };
+  const entry = mediumOf(resolution.medium);
+  return {
+    value: resolution.medium,
+    source: resolution.decidedBy,
+    explicit: gateExplicit(resolution),
+    where: entry?.reportName ?? null,
+    publishes: Boolean(entry?.publishes),
+    report: reportLines(resolution),
+  };
 }
 
 // ------------------------------------------------------------ decision

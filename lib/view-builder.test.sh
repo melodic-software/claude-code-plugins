@@ -75,6 +75,56 @@ const template = readFileSync(`${root}/lib/view-builder-sample/template.html`, "
 const sample = JSON.parse(readFileSync(`${root}/lib/view-builder-sample/data.json`, "utf8"));
 const runtime = loadRuntime();
 
+// ------------------------------------------------------- view-kind registry
+{
+  const { render } = await import(lib("view-builder.mjs"));
+  const kinds = {
+    triage: { id: "triage", parse: (record) => JSON.parse(record), template: "view-builder-sample/template.html", tier: "client-interactive" },
+  };
+  const lanes = { "fixture:lane": { laneId: "fixture:lane", kinds: ["triage"] }, "fixture:other": { laneId: "fixture:other", kinds: [] } };
+  const opts = { kinds, lanes, root: `${root}/lib` };
+  const rendered = render("fixture:lane", "triage", JSON.stringify(sample), opts);
+  check("render builds a registered kind through its entry and the page passes", validateView(rendered).ok, validateView(rendered).failures);
+  check("render refuses a kind its lane does not register", failuresOf(() => render("fixture:other", "triage", "{}", opts))?.[0]?.includes("does not register"));
+  check("render refuses an unknown lane", failuresOf(() => render("fixture:none", "triage", "{}", opts))?.[0]?.includes("unknown lane"));
+  const copies = readFileSync(`${root}/scripts/shared-copies.txt`, "utf8").match(/^lib\/view-builder\.mjs \S+$/gm).map((line) => line.split(" ")[1]); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  const failedImports = [];
+  for (const copy of copies) {
+    try {
+      await import(pathToFileURL(`${root}/${copy}`).href);
+    } catch (err) {
+      failedImports.push(`${copy}: ${err.message}`);
+    }
+  }
+  check("every view-builder copy imports beside its registry", failedImports.length === 0, failedImports.join("; "));
+}
+
+// --------------------------------------------- design record code fences
+{
+  const { VIEW_KINDS } = await import(lib("view-builder.mjs"));
+  const record = [
+    "# Fenced plan",
+    "## Design",
+    "### Layout",
+    "````markdown",
+    "```",
+    "## Not a heading",
+    "~~~",
+    "````",
+    "### Contracts",
+    "The builder owns the page.",
+    "## Next",
+  ].join("\n");
+  const { sections } = VIEW_KINDS.design.parse(record);
+  check(
+    "a shorter or other-character fence line does not close a four-backtick fence",
+    JSON.stringify(sections.map((s) => s.name)) === JSON.stringify(["Layout", "Contracts"]),
+    JSON.stringify(sections),
+  );
+  check("the fenced ## line stays text in its subsection", sections[0]?.lines.includes("## Not a heading"), JSON.stringify(sections[0]));
+  check("the subsection after the fence keeps its lines", JSON.stringify(sections[1]?.lines) === JSON.stringify(["The builder owns the page."]), JSON.stringify(sections[1]));
+}
+
 // The hostile-input corpus: script tags, event handlers, javascript: URLs, SVG
 // script, data-block breakouts, prototype keys.
 const hostile = [

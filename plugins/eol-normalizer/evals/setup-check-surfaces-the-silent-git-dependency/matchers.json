@@ -1,0 +1,25 @@
+{
+  "status-table": [
+    {
+      "use": "table_header_rule"
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\bjq\\b(?![\\w.\\-/])"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b[Gg]it\\b(?![\\w.\\-/]|\\s+(?:[Rr]epo|check-attr|root|work))"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b[Nn]ode(?:\\.js)?(?![\\w.\\-/])"
+      }
+    }
+  ]
+}

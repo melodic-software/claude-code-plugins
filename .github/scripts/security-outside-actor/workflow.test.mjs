@@ -139,7 +139,8 @@ test("the job holds the job token with least privilege, and no secret, App token
 test("it checks out main only, without credentials, and pins every external action by SHA", () => {
   const checkout = steps.find((step) => step.includes("uses: actions/checkout@"));
   assert.match(checkout, /\n {8}uses: actions\/checkout@[0-9a-f]{40} #/);
-  assert.match(checkout, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  assert.match(steps.find((step) => step.startsWith("Resolve main's tip\n")), /\n {10}TIP_BRANCH: main\n/);
   for (const [, uses] of text.matchAll(/\n +uses: ([^\s.][^\s]*)/g)) {
     assert.match(uses, /@[0-9a-f]{40}$/, uses);
   }
@@ -151,8 +152,9 @@ test("it checks out main only, without credentials, and pins every external acti
 });
 
 test("no event text reaches a shell: run lines carry no expression, the script reads the payload", () => {
-  for (const [, run] of text.matchAll(/\n +run: (.*)/g)) {
-    assert.doesNotMatch(run, /\$\{\{|^[|>]/, run);
+  for (const step of steps) {
+    const run = step.split(/\n +run: /)[1];
+    if (run !== undefined) assert.doesNotMatch(run, /\$\{\{/, step.split("\n")[0]);
   }
   const flag = steps.find((step) => step.startsWith("Flag an outside actor\n"));
   assert.equal(

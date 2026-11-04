@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Commits src/db.ts on main, adds an uncommitted src/users.ts holding an exported doc comment, a step comment, a constraint comment and a narrating comment, and writes the lines file naming all 23 of its lines.
+# Installs the comment tooling (comment-tooling-seed.sh), commits src/db.ts on main, adds an uncommitted src/users.ts holding an exported doc comment, a step comment, a constraint comment and a narrating comment, and writes the lines file naming all 23 of its lines.
 set -euo pipefail
 
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/comment-tooling-seed.sh"
 git init -q
 git symbolic-ref HEAD refs/heads/main
 mkdir -p src

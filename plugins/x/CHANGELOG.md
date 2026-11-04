@@ -5,6 +5,12 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.12] - 2026-11-04
+
+### Fixed
+
+- `read` spools each response into a directory made by its own `mktemp -d` call (honoring `$TMPDIR`) instead of the plugin data directory, carries the printed path as a literal so the `curl -o` target stays visible in the approval prompt, and removes the file and the directory on every exit path.
+
 ## [0.4.11] - 2026-11-03
 
 ### Changed

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"pr\": 93, \"head\": \"abc\", \"risks\": [{\"area\": \"Alignment\", \"level\": \"MEDIUM\"}, {\"area\": \"Impact\", \"level\": \"MEDIUM\"}, {\"area\": \"Verification\", \"level\": \"MEDIUM\"}, {\"area\": \"Reversibility\", \"level\": \"LOW\"}, {\"area\": \"Error detection\", \"level\": \"LOW\"}], \"demote\": false}\n```",
+      "why": "all five areas in the result block"
+    },
+    {
+      "answer": "{\"risks\":[{\"area\":\"error-detection\",\"level\":\"LOW\"},{\"area\":\"reversibility\",\"level\":\"LOW\"},{\"area\":\"verification\",\"level\":\"MEDIUM\"},{\"area\":\"impact\",\"level\":\"MEDIUM\"},{\"area\":\"alignment\",\"level\":\"MEDIUM\"}]}",
+      "why": "other order, lower case, hyphenated"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "{\"risks\": [{\"area\": \"Alignment\", \"level\": \"MEDIUM\"}, {\"area\": \"Impact\", \"level\": \"MEDIUM\"}, {\"area\": \"Verification\", \"level\": \"MEDIUM\"}, {\"area\": \"Reversibility\", \"level\": \"LOW\"}]}",
+      "why": "error detection row missing"
+    },
+    {
+      "answer": "Alignment, impact, verification, reversibility and error detection are all fine.",
+      "why": "names the areas in prose with no rows"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
