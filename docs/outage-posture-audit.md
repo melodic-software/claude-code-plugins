@@ -337,6 +337,28 @@ A sixth part 2 change fixed this gap, with a test:
   resend still fails the step unless the step holds
   (`.github/scripts/pr-unblock/request-budget.mjs`).
 
+A seventh part 2 change fixed work-resolve-issue's script gaps, each with a test. A hold keeps
+`agent-ready` and posts no marker, so work-unblock's sweep starts the issue again, once per version
+of the lane workflow files and then on the stranded backoff (`refireRefusal` in
+`.github/scripts/work-unblock/label-unblocked.mjs`). The files are `report-outcome.mjs` and
+`stop-routes.json` under `.github/scripts/work-resolve-issue/`.
+
+- **work-resolve-issue, element 2: `--find-prior`.** A failed read, or an answer of the wrong shape,
+  writes `proceed=false`, logs a `::notice::` and ends green, so the model does not run and no branch
+  is reused or pruned. A bad issue number or an unreadable trusted list still fails the step. So does
+  the issue-fields job's re-derive, whose failure withholds the run's branch claim.
+- **work-resolve-issue, element 4: labeler read.** When who added `merge: human` cannot be read, a
+  run that would open a PR opens none, posts nothing and ends green with a notice, so the branch
+  stays unreported and the next run opens the PR from it. The label is never ignored, and the PR is
+  no longer held for a person on no evidence. A stop that opens no PR reports as usual, and an
+  unreadable trusted list still holds the PR.
+- **work-resolve-issue, element 4: `retry-spent`.** Rows with `fault: true` are the lane's machinery
+  failing: `outcome-unread`, `issue-file`, `scan-refused-fault` and `patch-apply-failed`. At the cap,
+  a fault stop whose counted retries were all faults holds instead of failing the issue. Three cases
+  still take the route: a run that left a branch of its own, which with no marker the next run would
+  open a PR from whatever its checks said; `limits.stop-retries: 0`; and a stop the run itself caused,
+  such as `outcome-invalid` or `patch-invalid`, which a retry can repeat for a reason in the issue.
+
 The other script rows below are still open. Part 2 also found two rows that are not script-only
 fixes. Holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
 start its window after this run (`sweepSince` in `.github/scripts/work-unblock/label-unblocked.mjs`),
@@ -347,7 +369,6 @@ since it has no cron.
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
 | shared | 2 | workflow | each lane workflow whose step should hold sets `API_BUDGET_HOLD=1`; part 2 fixed `rate-guard.mjs`'s wait and hold, `check-trusted-trigger.mjs`'s wait on the latch, and `api-budget.bash`'s notice |
-| work-resolve-issue | 2, 4 | script | `.github/scripts/work-resolve-issue/report-outcome.mjs` (`--find-prior` red on a failed read, a failed labeler read holds the PR), `stop-routes.json`; part 2 fixed `retry-fetch.mjs`'s rate-limit wait and the PR create sent again |
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
 | intake-triage | 2 | script | `.github/scripts/intake-triage/apply-verdict.mjs` (holding green needs a re-trigger, since the lane has no cron); part 2 fixed `admit.mjs`'s visibility read |
 | intake-triage | 5 | workflow | `.github/workflows/intake-triage.yml` |
