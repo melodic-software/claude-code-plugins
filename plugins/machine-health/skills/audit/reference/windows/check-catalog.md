@@ -744,8 +744,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   ```
 
 - **Severity rubric:**
-  - `CRIT`: User Path length ≥ 2047 (legacy System Properties editor ceiling; further
-    appends are silently discarded).
+  - `CRIT`: User Path length ≥ 2047 (further appends are silently discarded).
   - `WARN` when any of these hold: User Path length ≥ 1800; User Path value kind is
     `REG_SZ` (`String`) rather than `REG_EXPAND_SZ` (`ExpandString`);
     `DISABLE_AUTOUPDATER` set to a truthy
@@ -765,7 +764,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   values. Shadowing uses the process `$env:PATH` as the live search order and labels each
   entry `user` / `machine` / `both` / `unknown` from membership in the persisted Path
   lists. Persisted Path is read without expanding `%VAR%` tokens so `user_path_length`
-  measures the stored string (legacy-editor ceiling). Directory existence and scope
+  measures the stored string. Directory existence and scope
   classification expand those tokens first. Otherwise stock Machine Path entries
   such as a `%SystemRoot%` system32 directory would false-positive as missing and be labeled
   `unknown`. The check does not attribute a vendor, decide whether `WindowsApps`
