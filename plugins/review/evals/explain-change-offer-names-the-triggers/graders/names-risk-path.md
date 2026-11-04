@@ -1,5 +1,5 @@
 ---
 type: regex
 flags: i
-pattern: 'risk[- ]?path'
+pattern: 'risk[- ]?(?:sensitive[- ])?path'
 ---
