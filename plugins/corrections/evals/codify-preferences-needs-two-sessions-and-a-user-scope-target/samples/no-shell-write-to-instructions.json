@@ -14,6 +14,17 @@
         }
       ],
       "why": "reads the target's date, the window step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .work/codify/main/proposal.md <<'EOF'\nTarget: user CLAUDE.md\nEOF"
+          }
+        }
+      ],
+      "why": "the proposal's text names the target; the write goes under .work"
     }
   ],
   "fail": [
@@ -38,6 +49,28 @@
         }
       ],
       "why": "writes a repository file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' > ~/.claude/CLAUDE.md"
+          }
+        }
+      ],
+      "why": "a redirect into the user CLAUDE.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp draft.md ~/.claude/CLAUDE.md"
+          }
+        }
+      ],
+      "why": "a copy onto the user CLAUDE.md"
     }
   ]
 }
