@@ -7,7 +7,7 @@ mkdir -p src/Orders
 cat >CLAUDE.md <<'MD'
 # Orders service
 
-An ASP.NET Core service that accepts and fulfils customer orders. Build with `dotnet build` and
+An ASP.NET Core service that accepts and fulfills customer orders. Build with `dotnet build` and
 test with `dotnet test` from the repository root.
 
 ## C# conventions
