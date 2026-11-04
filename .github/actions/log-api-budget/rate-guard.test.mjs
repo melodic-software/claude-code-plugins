@@ -384,7 +384,7 @@ test("one limit stops every helper in the process, and the process exits red unl
     };
     const github = createGitHub({ token: "t", fetchImpl });
     await github("GET", "/repos/o/r").catch(() => {});
-    const budget = budgetedFetch({ fetch: fetchImpl, log: () => {}, maxWaitMs: 0 });
+    const budget = budgetedFetch({ fetch: fetchImpl, log: () => {} });
     const refused = await budget.fetch("https://api.github.com/repos/o/r/pulls").then(() => "sent", (error) => error.name);
     console.log("sent=" + sent + " refused=" + refused);
     process.exitCode = 0;

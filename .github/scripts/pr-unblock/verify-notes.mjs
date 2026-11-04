@@ -117,7 +117,7 @@ export function failComment({ head, summary, notes }) {
     "",
     quote([`Summary: ${summary}`, ...notes.map((note) => `- ${note}`)]),
     "",
-    `This pull request leaves the merge queue, and ci-status holds it out while it carries \`${FAILED_LABEL}\`. A pr-verify pass at a new commit removes the label.`,
+    `This pull request leaves the merge queue, and ci-status holds it out while it carries \`${FAILED_LABEL}\`. A pr-verify pass removes the label, at a new commit or at this same head: once a trusted person edits the body, and only trusted people have edited it since the fail, this head is judged again, so a fail on the body or the issues it links needs only the body fixed, no new commit.`,
   ].join("\n");
 }
 
