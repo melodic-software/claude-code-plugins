@@ -1,0 +1,106 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-attr eol -- notes/draft.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "plain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"/tmp/ws\" check-attr eol text -- README.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted -C root"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/ws && git check-attr -a README.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-attr eol text -- x.sh 2>/dev/null",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "with a redirect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .gitattributes",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reads the file, not the resolver"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n check-attr /tmp/plugin/hooks/normalize-eol.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "greps the hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo git check-attr",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "inside echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline | grep check-attr",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "check-attr after a pipe, not a git argument"
+    }
+  ]
+}

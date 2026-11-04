@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Then start a fresh session and rerun `/eol-normalizer:setup check`: a check in this same session still shows the old value, because the option is injected at load. Go by what that check reports."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done, the hook is now off.",
+      "why": "asserts an unobserved change"
+    },
+    {
+      "answer": "Afterwards rerun `/eol-normalizer:setup check` to confirm.",
+      "why": "near miss: no fresh session"
+    }
+  ]
+}

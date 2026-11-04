@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v git",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".gitattributes",
+            "content": "* text=auto eol=lf\n"
+          }
+        }
+      ],
+      "why": "writes .gitattributes"
+    }
+  ]
+}
