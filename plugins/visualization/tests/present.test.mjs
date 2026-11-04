@@ -5,9 +5,9 @@
 // before the create call, the create call's title read from the gate).
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -306,4 +306,42 @@ describe("skill contract", () => {
     const tools = /^allowed-tools: (.*)$/m.exec(skill)[1];
     assert.doesNotMatch(tools, /Bash\(gh (?:pr|issue|api)|Bash\(\*|Bash\(node/);
   });
+});
+
+// The medium resolver owns the medium values, so no skill or eval in this plugin enumerates them.
+describe("no enumerated medium list in the plugin's skills or evals", () => {
+  const SKILLS = join(PLUGIN, "skills");
+  /** Every markdown file under skills/, and each skill's evals/*.json. */
+  function files(dir) {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return files(path);
+      if (entry.name.endsWith(".md")) return [path];
+      if (entry.name.endsWith(".json") && basename(dir) === "evals") return [path];
+      return [];
+    });
+  }
+  const MEDIUM = "(?:terminal|file|artifact|hosted)";
+  // One line at a time: [ \t] never spans a line break.
+  const list = new RegExp(`\\b${MEDIUM}[\`"']?(?:[ \\t]*(?:[|/,]|→|->)[ \\t]*|[ \\t]+or[ \\t]+)[\`"']?${MEDIUM}\\b`, "i");
+  const tier = /terminal[ \t]*(?:→|->).*file[ \t]*(?:→|->).*artifact/i;
+  const found = files(SKILLS);
+  test("walks both skills' markdown and evals", () => {
+    for (const name of ["present/SKILL.md", "visualize/SKILL.md", "visualize/context/decision-matrix.md", "present/evals/evals.json", "visualize/evals/evals.json"]) {
+      assert.ok(found.includes(join(SKILLS, name)), name);
+    }
+  });
+  test("the patterns catch a pipe list and the tier line", () => {
+    assert.match('argument-hint: "[terminal|file|artifact] [--unattended]"', list);
+    assert.match("`terminal` or `file`", list);
+    assert.match('"file", "artifact"', list);
+    assert.match("inline terminal → local HTML file → published Artifact", tier);
+  });
+  for (const path of found) {
+    test(path.slice(SKILLS.length + 1), () => {
+      const text = readFileSync(path, "utf8");
+      assert.doesNotMatch(text, list);
+      assert.doesNotMatch(text, tier);
+    });
+  }
 });
