@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/threadreader-1234567890123456789.html"}}],
+      "why": "opens the saved step-2 page"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/work/notes/x-1234567890123456789-c1.md"}},
+        {"tool": "Read", "input": {"file_path": "notes/threadreader-1234567890123456789.html", "limit": 200}}
+      ],
+      "why": "step 1 then step 2, relative path, bounded slice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-1234567890123456789-c1.md"}}],
+      "why": "stops at the root: never escalates"
+    }
+  ]
+}

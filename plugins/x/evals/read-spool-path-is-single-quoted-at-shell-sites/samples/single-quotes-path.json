@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fernquill/status/1593572468\"}' -o '/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572468-f3.md' -w '%{http_code}'"}}],
+      "why": "the skill's form at the -o target"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rmdir '/work/.tmp/kai'\"'\"'dev$user`date`/tmp.k3Qx9aZbTw'"}}],
+      "why": "the '\"'\"' form at the delete"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: no shell site exercised"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm -f \"/work/.tmp/kai'dev\\$user\\`date\\`/tmp.k3Qx9aZbTw/x-1593572468-f3.md\""}}],
+      "why": "double quotes with backslash escapes, not single quotes"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS -o \"$(mktemp -d)/x-1593572468-f3.md\" https://xtomd.com/api/markdown"}}],
+      "why": "a fresh mktemp directory, not the printed one"
+    }
+  ]
+}

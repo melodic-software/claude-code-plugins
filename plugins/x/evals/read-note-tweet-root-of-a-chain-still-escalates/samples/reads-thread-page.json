@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/work/notes/x-3333333333333333333-n6.json"}},
+        {"tool": "Read", "input": {"file_path": "/work/notes/threadreader-3333333333333333333.html"}}
+      ],
+      "why": "step 1 then step 2"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-3333333333333333333-n6.json"}}],
+      "why": "stops at the note tweet: isNoteTweet taken as no replies"
+    }
+  ]
+}
