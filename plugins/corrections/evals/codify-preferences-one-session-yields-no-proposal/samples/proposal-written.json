@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/codify/main/20261104T120000Z-proposal.md"
+      ],
+      "why": "the proposal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        "proposal.md"
+      ],
+      "why": "outside the home"
+    }
+  ]
+}

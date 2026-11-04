@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:audit-sessions",
+            "args": "excerpts-only --scope machine --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "the consumer mode with an explicit scope"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit-sessions",
+            "args": "excerpts-only --since 2026-09-01 --scope=machine"
+          }
+        }
+      ],
+      "why": "flag order and form do not matter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:audit-sessions",
+            "args": "excerpts-only --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "no explicit scope"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:audit-sessions",
+            "args": "sweep --scope machine"
+          }
+        }
+      ],
+      "why": "the wrong action"
+    }
+  ]
+}

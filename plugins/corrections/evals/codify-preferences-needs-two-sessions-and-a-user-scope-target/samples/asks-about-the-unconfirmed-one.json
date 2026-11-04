@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The date one is confirmed. No emoji: confirm, reword or drop?",
+      "why": "asks, and proposes nothing for it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both qualify, so I proposed both lines.",
+      "why": "treats it as confirmed"
+    },
+    {
+      "answer": "The date one is proposed. The no-emoji one also qualifies.",
+      "why": "reports it and never asks"
+    }
+  ]
+}

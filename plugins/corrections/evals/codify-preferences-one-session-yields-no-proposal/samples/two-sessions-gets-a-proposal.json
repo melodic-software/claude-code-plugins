@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No emoji: 2 sessions (s-0102, s-0103), at the threshold of 2. Proposal for your user CLAUDE.md: 'Use no emoji in replies.'",
+      "why": "the paired case goes on"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No emoji: 2 sessions, at the threshold of 2. Nothing proposed.",
+      "why": "stopped at the count"
+    },
+    {
+      "answer": "No emoji: 2 sessions. Proposal for AGENTS.md: 'Use no emoji in replies.'",
+      "why": "a repository target"
+    }
+  ]
+}

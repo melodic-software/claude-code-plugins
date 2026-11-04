@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ISO dates: example/billing, example/atlas. \"ISO dates, I said\"; \"again: ISO format for dates\".\nNo emoji: example/billing. \"no emoji in your replies\"; \"drop the emoji\".",
+      "why": "both have projects and excerpts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ISO dates: example/billing, example/atlas.\nNo emoji: example/billing.",
+      "why": "projects without excerpts"
+    },
+    {
+      "answer": "ISO dates: \"ISO dates, I said\".\nNo emoji: \"drop the emoji\".",
+      "why": "excerpts without projects"
+    }
+  ]
+}
