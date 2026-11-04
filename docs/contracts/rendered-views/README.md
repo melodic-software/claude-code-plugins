@@ -580,10 +580,9 @@ residence are how this convention prices them.
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`. Second chrome
 adopter, citing its own byte-identical copy: `adhd:clarify`.
 
-Emitters that resolve `medium` from the cascade, keeping their shipped default only when no layer
-sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page local; `artifact`, or
-`hosted` read as `artifact`, publishes only from the argument, the user-global layer, or an
-untracked, gitignored overlay. Its output names the layer that decided, or "shipped default".
+Emitters that resolve `medium` through the shared resolver (see The `rendered-views` settings),
+keeping their shipped default only when no scope sets it: `adhd:clarify`. Its output prints the
+resolver's report line and notices.
 
 Emitters that resolve `medium` from the argument, then the cascade, and publish nothing themselves.
 None has a `medium` option, so no

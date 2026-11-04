@@ -90,7 +90,8 @@ test("the kill switch is checked before the report reads anything", () => {
 });
 
 test("main's tip is checked out without credentials, and every action is pinned", () => {
-  assert.match(job, /ref: refs\/heads\/main\n/);
+  assert.match(job, /\n {10}TIP_BRANCH: main\n/);
+  assert.match(job, /ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n/);
   assert.match(job, /persist-credentials: false\n/);
   for (const [, ref] of job.matchAll(/uses: ([^\s]+)/g)) {
     if (ref.startsWith("./")) continue;
