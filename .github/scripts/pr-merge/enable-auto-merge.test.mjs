@@ -4245,4 +4245,11 @@ test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
   assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nHold: waiting on #1\n"), false);
   assert.equal(vetoLabelOwned(ownedTimeline, login, "x\nHold: a human merges this\n"), false);
   assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nno hold here\n"), true);
+  // A member's re-veto, or a second member's veto, after the label is judged
+  // by memberVetoes, not read as a session's hold: once lifted, the label comes off.
+  const member = (user, body, at) => ({ ...restSaid(user, body, at), author_association: "OWNER" });
+  const reveto = [...ownedTimeline, member(KYLE, "Still do not merge, waiting on #5.", "2026-10-23T09:40:00Z"), member({ login: "b", id: 6, type: "User" }, "Please do not merge this yet.", "2026-10-23T09:41:00Z")];
+  assert.equal(vetoLabelOwned(reveto, login), true);
+  // A non-member's do-not-merge text after the label still keeps it.
+  assert.equal(vetoLabelOwned([...ownedTimeline, { ...restSaid(KYLE, "do not merge", "2026-10-23T09:40:00Z"), author_association: "CONTRIBUTOR" }], login), false);
 });

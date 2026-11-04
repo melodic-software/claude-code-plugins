@@ -236,10 +236,12 @@ import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import {
   BODY_HOLD,
   costDecision,
+  HUMAN_VETO,
   costHold,
   humansOf,
   LANE_HOLD,
   liftersOf,
+  MEMBERS,
   OUTSIDE_ACTOR_LABEL,
   pathHoldKind,
   pathLifters,
@@ -566,14 +568,19 @@ const vetoNoted = (comments, bot) => (comments ?? []).some((c) => c?.author?.__t
 // records no `labeled` event, so the label also stays when `body` holds (hold
 // text or the lane's hold line, whoever wrote it) or anyone but the lanes App
 // commented naming do-not-merge since the label went on: a session applies the
-// label, then explains it (AGENTS.md), and that explanation keeps it.
+// label, then explains it (AGENTS.md), and that explanation keeps it. A
+// member's veto comment is not such an explanation: memberVetoes judges it,
+// holding while it stands and lifted by that member's later comment. A lifting
+// comment that names the label ("remove the do-not-merge label") keeps it, for
+// a person to remove.
 export function vetoLabelOwned(timeline, login, body = "") {
   const { labeled, since } = labelHistory(timeline, VETO_LABEL, new Set());
   if (!isApp(labeled?.actor, login) || Number.isNaN(since) || BODY_HOLD.test(body) || LANE_HOLD.test(body)) {
     return false;
   }
   const named = /\bdo[\s-]*not[\s-]*merge\b/i;
-  if (timeline.some((item) => item.event === "commented" && !isApp(item.user, login) && Date.parse(item.created_at) >= since && named.test(String(item.body ?? "")))) {
+  const veto = (item) => MEMBERS.has(String(item.author_association).toUpperCase()) && HUMAN_VETO.test(String(item.body ?? ""));
+  if (timeline.some((item) => item.event === "commented" && !isApp(item.user, login) && Date.parse(item.created_at) >= since && named.test(String(item.body ?? "")) && !veto(item))) {
     return false;
   }
   return timeline.some((item) => {
@@ -2051,10 +2058,12 @@ export async function main({ env = process.env, github, actions, verify, room, c
             console.log(`enable-auto-merge: #${pull.number} would label ${VETO_LABEL} (report-only): ${read.vetoes.join(", ")} asked not to merge it`);
             return false;
           }
+          // The marker right after the label, so the pair stays inside
+          // PAIRED_MS however long the dequeue takes.
           await github("POST", `${base}/labels`, { labels: [VETO_LABEL] });
           labeled = true;
-          await leaveQueue(pull, VETO_LABEL);
           await github("POST", `${base}/comments`, { body: vetoNote(read.vetoes) });
+          await leaveQueue(pull, VETO_LABEL);
           console.log(`enable-auto-merge: #${pull.number} labeled ${VETO_LABEL}: ${read.vetoes.join(", ")} asked not to merge it`);
           return true;
         }

@@ -175,7 +175,7 @@ export function linkHold(record, body, closing, repo) {
   return null;
 }
 // babysit_merge_policy.BLOCKER_ASSOCIATIONS.
-const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+export const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 // The pull request's author and the editors of its body, for personWrote.
 export const BODY_WRITERS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
