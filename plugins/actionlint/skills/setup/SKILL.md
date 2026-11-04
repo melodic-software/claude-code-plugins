@@ -29,8 +29,8 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
-entry copies, which `apply install-git-hooks` writes. actionlint's own config file belongs to
-the repository, not this plugin, and the tunables are the native `userConfig` options
+entry copies, which `apply install-git-hooks` writes. actionlint auto-discovers its own optional
+config from the repository, and the tunables are the native `userConfig` options
 (`actionlint_enabled` and `actionlint_end_of_turn`). Every prerequisite is a `PATH` binary the
 plugin never bundles, and the plugin never installs system packages, so `apply` is
 guidance-and-verify with that one write path. It never modifies user settings or the plugin
@@ -64,12 +64,10 @@ enabled-gate.
 3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the pre-commit entry then
    fails the commit of an agent with the install command and gives a person a notice, and the
    end-of-turn check does nothing.
-4. **actionlint config.** INFO: report whether the repository has an actionlint config file,
-   for the reader's awareness. This plugin does not require one, so its absence is not a FAIL.
-   - **Pointer**: for the file names and where actionlint looks for them, see
-     [actionlint configuration: Configuration file](https://github.com/rhysd/actionlint/blob/main/docs/config.md#configuration-file).
-   - **As of**: 2026-11-03
-   - **Recheck trigger**: that section changes the file names or where the file is read from.
+4. **actionlint config.** INFO: actionlint auto-discovers an optional
+   `.github/actionlint.yaml` from the repository when present. It is not required. actionlint
+   runs with its built-in defaults without one. Report whether one exists for the reader's
+   awareness; its absence is not a FAIL.
 5. **Hook toggles.** Report the effective `actionlint_enabled` value:
    `${user_config.actionlint_enabled}` (unexpanded or empty means default `true`; any value
    other than `true` disables the Claude Code hooks). Also report `actionlint_end_of_turn`:
@@ -147,29 +145,23 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   where `values.json` holds `{"actionlint_enabled": "true"}` (every value a string, booleans
   included; keys left out keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
-  (repeatable per key). Do **not** uninstall to reconfigure: that drops this plugin's
+  (repeatable per key); against an already-installed plugin it prints `already installed`
+  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. Run either route from the project the plugin is installed in. For the
-  rerun, always pass `-s` with the scope `claude plugin list` reports for this plugin; from the
-  home directory pass `user`. Read each route's output, not only its exit code, to tell a saved
-  value from a rejected one.
-  - **Pointer**: for how each route resolves the install, its scope default, what it prints
-    against an installed plugin, and what it prints and exits with on a rejected value, fetch
-    [Plugin commands reference: plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
-    and [plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
-    live.
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: either section changes how it finds an install, its scope default, or
-    its output or exit code on an installed plugin or a rejected value.
-
-  This skill never writes user settings or `pluginConfigs`. Afterwards rerun `check` in a
-  **fresh session** and report the observed effective value, never an unobserved change.
-  - **Pointer**: for when a saved value reaches skill content and hooks, fetch
-    [Plugin manifest reference: Reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value)
-    and [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
-    live.
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: either section changes when a saved value takes effect.
+  to its manifest default. The value lands in user settings whichever route writes it.
+  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
+  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
+  plugin, and for a `project` or `local` scope run from that project's directory, so the rerun
+  matches the existing install record; from the home directory pass `user`. A rerun at another
+  scope adds an install record at that scope and enables the plugin there. Check each route's own failure signal:
+  `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores an empty string
+  as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0, so read its
+  output. This skill never writes user settings or `pluginConfigs`.
+  Afterwards rerun `check` in a **fresh session**. The rendered
+  `${user_config.*}` is injected at skill load and each hook receives its
+  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
+  `check` still reports the OLD value; report the observed effective value, never an
+  unobserved change.
 
 After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation, so never re-read it) and report its actual result. Never claim resolved on

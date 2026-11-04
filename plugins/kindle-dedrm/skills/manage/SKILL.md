@@ -72,7 +72,7 @@ Sequence:
 6. **Re-run keyfinder** (`~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`). Saved config auto-loads; tool processes only new books.
 7. **Verify new EPUBs** under Calibre Library.
 
-If user reports a cached installer popped up during step 3, delete it via step 4 immediately and verify Kindle.exe still reports 2.8.0.70980.
+If user reports a cached installer popped up during step 3, that's expected. Amazon staged 2.9.x. Delete it via step 4 immediately and verify Kindle.exe still reports 2.8.0.70980.
 
 ## Action: update
 
@@ -172,7 +172,7 @@ The skill should NEVER offer to delete the user's Calibre Library. Those are the
 | techy-notes.com tutorial 404s or moves | Pivot to epubor.com tutorial (secondary); update `reference/sources.md` |
 | Kindle for PC ships a version > 2.9.1 not in `KFXARCHIVER_TOOL_MAP` | Wait for KFXArchiver update; document in `reference/troubleshooting.md` |
 | Calibre's KFX Input plugin renamed in catalog | Update plugin name reference in `reference/workflow.md` |
-| User reports a sync that left a cached installer past firewall re-enable | Tighten timing in `scripts/sync-prep.sh`. Possibly add an automatic `sync-finalize.sh` invocation when Kindle.exe quits |
+| User reports a sync that left a 2.9.x cached installer past firewall re-enable | Tighten timing in `scripts/sync-prep.sh`. Possibly add an automatic `sync-finalize.sh` invocation when Kindle.exe quits |
 
 ## Spoke paths
 
