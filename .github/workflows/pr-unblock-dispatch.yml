@@ -245,17 +245,15 @@ jobs:
           API_BUDGET_TOKEN: github-token
           # fix-ci skips a PR whose pr-verify FAILs are at the cap (verify-cap.mjs).
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
-          # Each pull request's FAIL-cap read saves its listing here, and the
-          # next one reads it (or lists only the pages since it) instead of
-          # every page. The first starts from the listing pr-merge's last
-          # scheduled or hand-started run on main saved, which verify-cap.mjs
-          # fetches through listing-carry.mjs on that first read only, so a
-          # run that reads no FAIL cap spends none of its calls.
+          # The reader reads the FAIL index by exact name; a pull request with
+          # more index names than one whole listing costs reads that listing,
+          # saved here for the next such read instead of every page again.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
-          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           # The FAIL run records, run heads on main and head refs pr-merge's
-          # last such run kept, fetched with the listing: the reader otherwise
-          # reads them for every FAIL in the repository, and each read shares
+          # last scheduled or hand-started run on main kept, which
+          # verify-cap.mjs fetches on the first FAIL-cap read only, so a run
+          # that reads no FAIL cap spends none of their calls: the reader
+          # otherwise reads them for every FAIL it counts, and each read shares
           # what it adds here.
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json

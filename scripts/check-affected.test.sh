@@ -27,7 +27,8 @@ mkdir -p "$repo/${patterns_lib%/*}"
 cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-changelog-parity check-changed-skills check-comment-hygiene setup-env; do
+  check-spoke-plugin-root check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
+  check-comment-hygiene setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
@@ -250,6 +251,27 @@ run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
 check "a failing plugin-options-docs fails the check" '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
 run STUB_CHECK_CHANGELOG_PARITY=1 -- --base base
 check "a failing changelog-parity fails the check" '[[ $RC == 1 && $ERR == *"FAIL changelog-parity"* ]]'
+
+# cross-plugin-source-drift runs only when a plugin file or its registry changed.
+run STUB_CHECK_CROSS_PLUGIN_SOURCE_DRIFT=1 -- --base base
+check "a diff with no plugin file or registry skips cross-plugin-source-drift" \
+  '[[ $RC == 0 && $ERR == *"SKIP cross-plugin-source-drift (no plugin file, drift script or registry changed)"* && $ERR != *"check-cross-plugin-source-drift ran"* ]]'
+pre_drift="$(git_test_config "$repo" rev-parse HEAD)"
+mkdir -p "$repo/plugins/alpha/reference"
+printf 'shared\n' >"$repo/plugins/alpha/reference/shared.txt"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m plugin-file
+run STUB_CHECK_CROSS_PLUGIN_SOURCE_DRIFT=1 -- --base base
+check "a changed plugin file runs cross-plugin-source-drift, and its finding fails the check" \
+  '[[ $RC == 1 && $ERR == *"check-cross-plugin-source-drift ran: --check"* && $ERR == *"FAIL cross-plugin-source-drift"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_drift"
+printf '# fixture\n' >"$repo/scripts/cross-plugin-source-registry.txt"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m registry
+run STUB_CHECK_CROSS_PLUGIN_SOURCE_DRIFT=1 -- --base base
+check "a changed registry runs cross-plugin-source-drift" \
+  '[[ $RC == 1 && $ERR == *"FAIL cross-plugin-source-drift"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_drift"
 
 # machine-specific-paths scans the changed files with the committed patterns
 # file. Each home path is built at run time, so this file holds none.
@@ -514,7 +536,8 @@ mkdir -p "$tools/scripts/lib"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
 cp "$SELF_DIR/lib/markdownlint-config-data.mjs" "$tools/scripts/lib/"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-changelog-parity check-changed-skills check-comment-hygiene; do
+  check-spoke-plugin-root check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
+  check-comment-hygiene; do
   printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit "${COPY_STUB_RC:-1}"\n' "$s" >"$tools/scripts/$s.sh"
 done
 printf 'import os, sys\nsys.stderr.write("copy of sync-plugin-options-docs read " + os.environ["CHECK_DATA_ROOT"] + "\\n")\nsys.exit(int(os.environ.get("COPY_STUB_RC", "1")))\n' \
@@ -541,6 +564,11 @@ RC=0
 ERR="$(cd "$tmp" && COPY_STUB_RC=0 CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
 check "a copy run elsewhere skips changed-skills, which runs the checked tree's skill-quality code" \
   '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
+RC=0
+# The copies fail here, so each one's output is printed.
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere points cross-plugin-source-drift at the checked tree" \
+  '[[ $RC == 1 && $ERR == *"copy of check-cross-plugin-source-drift read $repo"* && $ERR != *"check-cross-plugin-source-drift ran"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
 
 # The options-docs generator writes the READMEs, so a branch that changes it and

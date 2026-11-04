@@ -646,6 +646,9 @@ lib/prerequisites.ps1 plugins/app-control/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/sql-server/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/sql-server/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/sql-server/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/codebase-health/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/codebase-health/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/codebase-health/lib/prerequisites.ps1
 lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs
 lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk

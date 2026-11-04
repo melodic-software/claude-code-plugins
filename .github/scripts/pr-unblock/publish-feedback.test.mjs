@@ -1665,6 +1665,37 @@ test("a pass-only round resolves nothing once the head moved past the passing on
   }
 });
 
+test("main writes a pass-only round's resolved-thread count to the step summary", async (t) => {
+  const dir = tempDir("publish-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const replies = join(dir, "replies");
+  mkdirSync(replies);
+  const runText = staleRun(["PRRT_old", "PRRT_also_old", "PRRT_now"]);
+  writeFileSync(join(replies, "run.json"), runText);
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  const env = {
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: NOW,
+    HEAD_REF: "feature",
+    GITHUB_RUN_ID: "5000",
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    FEEDBACK_REPLIES_DIR: replies,
+    GITHUB_WORKSPACE: dir,
+    SKIP_REASON_FILE: join(dir, "skip"),
+    ESCALATION_REASON_FILE: join(dir, "escalation"),
+    RUN_SHA256: createHash("sha256").update(runText).digest("hex"),
+    GITHUB_STEP_SUMMARY: join(dir, "summary"),
+  };
+  const api = staleApi([noteThread("PRRT_old"), noteThread("PRRT_also_old"), noteThread("PRRT_now", { commit: NOW })]);
+  assert.equal(await main(env, { api, log: () => {} }), 0);
+  assert.deepEqual(api.resolved(), ["PRRT_old", "PRRT_also_old"]);
+  assert.equal(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), `resolved 2 fail-note thread(s) a pr-verify pass at ${NOW} superseded\n`);
+});
+
 test("a malformed stale_notes list reads as a malformed run.json", async () => {
   const api = fakeApi();
   const result = await run(api, null, JSON.stringify({ version: 1, head_sha: NOW, threads: [], stale_notes: ["not a thread"] }));

@@ -710,6 +710,112 @@ assert_eq "non-ASCII path: an edited accented file is still stale-content" \
 assert_eq "non-ASCII path: and is counted as differing, not as missing+extra" \
   "1" "$(jq -r '.installs[0].differing' <<<"$out" 2>/dev/null)"
 
+# Builds a one-commit fixture whose plugin holds plain.sh plus every name given,
+# with the cache seeded from that commit and the record pointing at it. Returns
+# 1 when this host cannot hold one of the names as a tracked file spelled
+# exactly that way (Windows refuses a control character, a tab and `*` in a
+# filename, and Git Bash maps some of them to other characters), so the caller
+# skips instead of passing a case that never held the name.
+seed_odd_names_case() {
+  local case_dir="$1" repo="$1/market" name rel odd_sha
+  shift
+  init_fixture_repo "$repo"
+  write "$repo/.claude-plugin/marketplace.json" \
+    '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
+  write "$repo/plugins/alpha/plain.sh" 'echo plain'
+  for name in "$@"; do
+    printf '%s' "content of $name" 2>/dev/null >"$repo/plugins/alpha/$name" || return 1
+  done
+  git -C "$repo" add -A 2>/dev/null || return 1
+  git -C "$repo" commit -q -m odd-names 2>/dev/null || return 1
+  local -A tracked_names=()
+  while IFS= read -r -d '' rel; do
+    tracked_names["$rel"]=1
+  done < <(git -C "$repo" ls-tree -r -z --name-only HEAD -- plugins/alpha)
+  for name in "$@"; do
+    [[ -n "${tracked_names["plugins/alpha/$name"]+set}" ]] || return 1
+  done
+  odd_sha=$(git -C "$repo" rev-parse HEAD)
+  seed_cache_from "$case_dir" "$odd_sha" >/dev/null
+  seed_state "$case_dir" "$odd_sha"
+}
+
+# ============================================================================
+# Case: paths a word split or a glob would break, on the split branch of
+# `spool_records_to` (no record holds a newline or an SOH, so the capture is
+# split on newlines by `split_lines_to`). A space or a tab splits a record in
+# two under a wider IFS, and `star*.sh` expands to its siblings without
+# `set -f`. The extra-file count is asserted EXACTLY: an expanded glob lists
+# `stark.sh` twice, which only a count can see.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+if ! seed_odd_names_case "$case_dir" 'sp ace.sh' $'tab\there.sh' 'star*.sh'; then
+  printf 'SKIP: space/tab/glob path case — this host cannot track those filenames as spelled\n' >&2
+else
+  cache="$case_dir/cache/alpha/1.0.0"
+  out=$(run_check "$case_dir" --marketplace market1)
+  rc=$?
+  assert_exit "space/tab/glob path: exit 0" 0 "$rc"
+  assert_eq "space/tab/glob path: unchanged files are a match" \
+    "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+  assert_eq "space/tab/glob path: nothing missing, extra or differing" "0 0 0" \
+    "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
+  # A cache-only file the glob would match: one extra, never two.
+  write "$cache/stark.sh" 'not tracked'
+  out=$(run_check "$case_dir" --marketplace market1)
+  assert_eq "space/tab/glob path: a cache-only file beside star*.sh is stale-content" \
+    "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+  assert_eq "space/tab/glob path: that file is counted once, with nothing else reported" "0 1 0" \
+    "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
+  rm -f "$cache/stark.sh"
+  rm -f "$cache/sp ace.sh"
+  out=$(run_check "$case_dir" --marketplace market1)
+  assert_eq "space/tab/glob path: a file with a space deleted from the cache is stale-content" \
+    "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+  assert_eq "space/tab/glob path: it is one missing file, not split into extras" "1 0 0" \
+    "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
+  assert_contains "space/tab/glob path: the missing file is named whole" \
+    "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "missing-from-cache: sp ace.sh"
+fi
+
+# ============================================================================
+# Case: a path holding a newline and one holding an SOH, which send
+# `spool_records_to` to its `mapfile -d ''` fallback: `tr` maps a newline to SOH,
+# so either byte puts an SOH in the capture. A newline path is also hashed by
+# its own process, since `hash-object --stdin-paths` has no `-z`. If the
+# fallback broke, `nl<newline>name.sh` would be read as two records and its
+# unchanged file reported missing and extra.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+if ! seed_odd_names_case "$case_dir" $'nl\nname.sh' $'soh\x01name.sh' 'sp ace.sh' 'star*.sh'; then
+  printf 'SKIP: newline/SOH path case — this host cannot track those filenames as spelled\n' >&2
+else
+  cache="$case_dir/cache/alpha/1.0.0"
+  ODD_SHA=$(git -C "$case_dir/market" rev-parse HEAD)
+  out=$(run_check "$case_dir" --marketplace market1)
+  rc=$?
+  assert_exit "newline/SOH path: exit 0" 0 "$rc"
+  assert_eq "newline/SOH path: unchanged files are a match" \
+    "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+  assert_eq "newline/SOH path: nothing missing, extra or differing" "0 0 0" \
+    "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
+  rm -f "$cache/"$'nl\nname.sh'
+  out=$(run_check "$case_dir" --marketplace market1)
+  assert_eq "newline/SOH path: a newline file deleted from the cache is stale-content" \
+    "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+  assert_eq "newline/SOH path: it is one missing file, nothing else" "1 0 0" \
+    "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
+  assert_eq "newline/SOH path: the missing file is named with its newline" \
+    $'missing-from-cache: nl\nname.sh' "$(jq -r '.installs[0].paths[0]' <<<"$out" 2>/dev/null)"
+  seed_cache_from "$case_dir" "$ODD_SHA" >/dev/null
+  printf '%s' 'edited' >"$cache/"$'soh\x01name.sh'
+  out=$(run_check "$case_dir" --marketplace market1)
+  assert_eq "newline/SOH path: an edited SOH file is one differing file, not missing+extra" "0 0 1" \
+    "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
+fi
+
 # ============================================================================
 # Case: a tracked SYMLINK. git stores it as a blob holding the target text,
 # while `find -type f` excludes it entirely — so an unchanged link would be
