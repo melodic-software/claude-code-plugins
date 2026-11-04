@@ -19,17 +19,17 @@ Moved to [this section](../../contracts/rendered-views/README.md#content-classes
 
 Moved to [this section](../../contracts/rendered-views/README.md#the-interactive-validator-profile).
 
-## Choosing the rung: text, diagram, page, or video
+## Choosing the form: text, diagram, page, or video
 
-Moved to [this section](../../contracts/rendered-views/README.md#choosing-the-rung-text-diagram-page-or-video).
+Moved to [this section](../../contracts/rendered-views/README.md#choosing-the-form-text-diagram-page-or-video).
 
 ## Reachability and preference
 
 Moved to [this section](../../contracts/rendered-views/README.md#reachability-and-the-fallback-chain).
 
-## Default ladder and its reconciliation
+## Shipped fallback chain and its reconciliation
 
-Moved to [this section](../../contracts/rendered-views/README.md#default-ladder-and-its-reconciliation).
+Moved to [this section](../../contracts/rendered-views/README.md#shipped-fallback-chain-and-its-reconciliation).
 
 ## Artifact types
 

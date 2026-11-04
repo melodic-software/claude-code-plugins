@@ -107,11 +107,11 @@ catalog spoke.
 
 ## Step 3: Pick the medium
 
-The delivery tiers are the medium registry's fallback chain (`lib/view-registry.mjs`), richest
+The media are the medium registry's fallback chain (`lib/view-registry.mjs`), richest
 first; the resolver steps a medium down that chain until this session can reach it. Selection
 layers, first hit wins:
 
-1. **Explicit argument**. A medium named as the argument forces it. With no argument, the rungs
+1. **Explicit argument**. A medium named as the argument forces it. With no argument, the layers
    below decide. The argument picks only the medium; name a form in the request itself.
    `--unattended`, anywhere in the arguments, is neither a medium nor part of the target: it is the
    caller declaring that nobody is present. Take it out first, then read the rest.
@@ -129,14 +129,14 @@ layers, first hit wins:
    say so in one line and run it again without `--argument`. With a `medium` set, deliver by the
    JSON's `page` and `publishes`: `page` false renders in the terminal; `publishes` true publishes
    the page, under the surface gate below; otherwise the page is a local HTML file. A `medium` of
-   `null` means no setting decided, so rung 3 resolves. When `node` is missing, say so in one line
-   and let rung 3 decide.
+   `null` means no setting decided, so layer 3 resolves. When `node` is missing, say so in one line
+   and let layer 3 decide.
 3. **Auto**. Decide by the form and its weight: no page for small, static,
    text-representable output (tables, ASCII, short code, a `mermaid` source fence);
    a rich page for a composite, interactive, large, or truly graphical result
    (rendered diagrams, real charts, dashboards).
 
-Whichever rung decides, name it in the output: the resolver's report line, or "shipped
+Whichever layer decides, name it in the output: the resolver's report line, or "shipped
 default" for auto.
 
 **Surface gate: the rich page is a capability that can be absent.** A published
@@ -150,10 +150,10 @@ degrade **visibly** to the best terminal form with a one-line notice. Never assu
 the Artifact surface exists. A medium that does not publish keeps the page on the
 machine; a publishing one prefers publishing but degrades the same way.
 
-**Code-shape sketches take this same ladder** (under auto they build no page, per
-rung 3; an argument or resolved medium is honored for them as for any form), with
+**Code-shape sketches take these same layers** (under auto they build no page, per
+layer 3; an argument or resolved medium is honored for them as for any form), with
 one exception: a pull-request diff, fetched content, or another repository's files
-are never rendered to HTML until this lane is wired through the rendered-views escape helper. That exception overrides rung 1 and the
+are never rendered to HTML until this lane is wired through the rendered-views escape helper. That exception overrides layer 1 and the
 preference; when a page was asked for, say in one line why it was not produced.
 
 **Page chrome.** When authoring a rich page, take the palette, type stacks,
