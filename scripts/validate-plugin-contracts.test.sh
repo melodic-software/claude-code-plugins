@@ -115,16 +115,16 @@ make_plugin() {
     "$plugin" "$user_config" >"$TMP/plugins/$plugin/.claude-plugin/plugin.json"
 }
 
-# write_setup_skill <plugin> <argument-hint> -- body arrives on stdin.
+# write_setup_skill <plugin> <argument-hint> [disable-model-invocation value] -- body arrives on stdin.
 write_setup_skill() {
-  local plugin="$1" hint="$2"
+  local plugin="$1" hint="$2" disabled="${3:-true}"
   mkdir -p "$TMP/plugins/$plugin/skills/setup"
   {
     echo '---'
     printf 'description: "Fixture setup skill for %s."\n' "$plugin"
     printf 'argument-hint: "%s"\n' "$hint"
     echo 'user-invocable: true'
-    echo 'disable-model-invocation: true'
+    printf 'disable-model-invocation: %s\n' "$disabled"
     echo '---'
     echo
     cat
@@ -158,6 +158,32 @@ if grep -q "$OWNS_TRACKED_CONFIG" <<<"$out" ||
 else
   ok "a conforming userConfig-only carve-out passes the carve-out assertions"
 fi
+
+# --- 1b. A setup skill must disable model invocation, in any spelling
+#         check-skill.sh accepts; false and an unknown value still fail. --------
+SETUP_NOT_DISABLED='setup skills must set disable-model-invocation: true'
+for spelling in true yes YES on 1 'true # class (ii)'; do
+  reset_fixture
+  make_plugin alpha alpha_api_key
+  carve_out_body | write_setup_skill alpha '[check]' "$spelling"
+  out="$(run_fixture)"
+  if grep -q "$SETUP_NOT_DISABLED" <<<"$out"; then
+    fail "setup skill spelling '$spelling' should satisfy the gate: $out"
+  else
+    ok "setup skill spelling '$spelling' satisfies the gate"
+  fi
+done
+for spelling in false no maybe '"true"'; do
+  reset_fixture
+  make_plugin alpha alpha_api_key
+  carve_out_body | write_setup_skill alpha '[check]' "$spelling"
+  out="$(run_fixture)"
+  if has_fail_line "$SETUP_NOT_DISABLED"; then
+    ok "setup skill spelling '$spelling' fails the gate"
+  else
+    fail "setup skill spelling '$spelling' should fail the gate: $out"
+  fi
+done
 
 # --- 2. #3137's own failure class: the same skill, but the plugin owns a
 #        tracked consumer config surface the registry records. ---------------
@@ -950,6 +976,38 @@ if has_fail_line "$SKILLS_DISABLED" && grep -q 'alpha:explore' <<<"$out"; then
 else
   fail "a disable-model-invocation preload target should fail the gate: $out"
 fi
+
+# S2b. The guard covers every spelling check-skill.sh reads as true, and only those.
+for spelling in yes ON 1 'true # class (i)'; do
+  reset_fixture
+  make_plugin alpha ''
+  write_preloadable_skill alpha explore "$spelling"
+  write_agent alpha explorer <<'YAML'
+skills:
+  - alpha:explore
+YAML
+  out="$(run_fixture)"
+  if has_fail_line "$SKILLS_DISABLED"; then
+    ok "a preload target spelled '$spelling' fails the gate"
+  else
+    fail "a preload target spelled '$spelling' should fail the gate: $out"
+  fi
+done
+for spelling in no OFF 0; do
+  reset_fixture
+  make_plugin alpha ''
+  write_preloadable_skill alpha explore "$spelling"
+  write_agent alpha explorer <<'YAML'
+skills:
+  - alpha:explore
+YAML
+  out="$(run_fixture)"
+  if grep -q "$SKILLS_DISABLED" <<<"$out"; then
+    fail "a preload target spelled '$spelling' should pass the guard: $out"
+  else
+    ok "a preload target spelled '$spelling' passes the guard"
+  fi
+done
 
 # S3. The namespaced form resolves ACROSS plugins, which is the form in
 #     production. Asserted as the absence of the failure, since a fixture root

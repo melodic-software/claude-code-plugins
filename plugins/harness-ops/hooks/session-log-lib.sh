@@ -70,7 +70,7 @@
 # "other events with a tool-use context", so the full event split is read from
 # the Claude Code 2.1.287 binary (the hook-input builder and the hook spawn
 # environment).
-# As of: 2026-11-04.
+# As of: 2026-10-02 for the binary read; the page wording re-read 2026-11-04.
 # Recheck: each /harness-ops:changelog ingest whose release notes touch hook
 # input fields, when a key here stops appearing in the page's input sections,
 # or when Stop rows on an effort-capable model record `unset`.

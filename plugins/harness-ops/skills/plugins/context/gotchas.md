@@ -300,7 +300,9 @@ preserved.
 
 **Verification record.** *Claim:* the four effects above, and the absence of any keep-data option on
 this subcommand. *Basis:* the shipped CLI bundle (`~/.local/share/claude/versions/<version>`) for
-the per-record cascade and the `.orphaned_at` write, which the docs do not state;
+the per-record cascade, the settings cleanup and the `.orphaned_at` write. The docs state none of
+the cascade or the marker, and of the settings cleanup only the saved options and secrets: the
+`enabledPlugins`, `extraKnownMarketplaces` and `pluginUsage` clearing rests on the bundle alone;
 [plugin marketplace remove](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove)
 for the uninstall of every plugin installed from a marketplace removed from its last scope and the
 deletion of their saved options, secrets and data, which the bundle also shows (re-read

@@ -2357,10 +2357,11 @@ def config_liveness(root: Path, records: list[dict]) -> dict:
     if stale:
         result["advisory"] = (
             f"settings.json is newer than {len(stale)} running process(es) that match the session "
-            "heuristic. A plugin enable or disable stays pending in a running session, so unless "
-            "/reload-plugins ran there, those sessions have NOT picked up the change and any hooks "
-            "it disabled are still live in them. Run /reload-plugins in each one, or restart it, "
-            "before this configuration describes what is actually running."
+            "heuristic. Edits to permissions and hooks reach a running session on their own. "
+            "If this edit enabled or disabled a plugin, that change stays pending in a running "
+            "session, so unless /reload-plugins ran there, those sessions have NOT picked up the "
+            "change and any hooks it disabled are still live in them. Run /reload-plugins in each "
+            "one, or restart it, before this configuration describes what is actually running."
         )
     else:
         result["advisory"] = (

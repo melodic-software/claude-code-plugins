@@ -92,7 +92,7 @@
         "https://code.claude.com/docs/en/settings-reference#enableworkflows",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-11-04",
+      "verified": "2026-08-23",
       "recheckTrigger": "The workflows page changes its disable mechanisms, or denying/disabling Workflow stops moving the prefix bucket."
     },
     {
@@ -117,7 +117,7 @@
         "https://code.claude.com/docs/en/settings-reference#enableartifact",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-11-04",
+      "verified": "2026-08-23",
       "recheckTrigger": "The settings reference changes either artifact key's semantics or scope, or lets a file turn the tool back on."
     },
     {
@@ -148,7 +148,7 @@
     {
       "id": "include-git-instructions",
       "title": "includeGitInstructions: false / CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS",
-      "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description, and the git status snapshot. The env var takes precedence over the settings key for one session.",
+      "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description, and the git status snapshot. The env var overrides the settings key (binary predicate at the verified version: a set env wins; otherwise includeGitInstructions defaults true), which agrees with the env-vars row (read 2026-11-04).",
       "category": "removes-weight",
       "categoryBasis": "Settings and env-vars rows documented. Measured at the verified version — the saving lands in the System tools bucket, not System prompt, because the text lives in a tool description. Where the snapshot's saving lands was not measured.",
       "conditions": null,
@@ -166,8 +166,8 @@
         "https://code.claude.com/docs/en/settings-reference#includegitinstructions",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-11-04",
-      "recheckTrigger": "The settings row or the env-vars CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS row changes, or the measured delta stops landing in System tools."
+      "verified": "2026-08-23",
+      "recheckTrigger": "The settings row or the env-vars CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS row changes, the env override disappears from the binary, or the measured delta stops landing in System tools."
     },
     {
       "id": "simple-system-prompt",
@@ -312,7 +312,7 @@
         "https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled",
         "https://code.claude.com/docs/en/settings#fix-a-broken-settings-file"
       ],
-      "verified": "2026-11-04",
+      "verified": "2026-09-28",
       "recheckTrigger": "The plugins/settings pages change the key or its precedence, agent listings become budget-capped like skills, or a Claude Code release applies the defaultEnabled fallback to a plugin no scope names."
     },
     {

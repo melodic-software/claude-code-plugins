@@ -1360,8 +1360,11 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
 
     The same walk as `merge_listing_settings`, over the same layer shape, for
     one more key: the object mapping `plugin-name@marketplace-name` to a
-    Boolean. The product merges it per key, user < project < local < flag <
-    policy, last defined scope wins. Basis:
+    Boolean. The product merges it per key across the sources that section
+    lists, highest precedence wins; this walk reads user < project < local <
+    flag < policy and leaves out the lowest source, a `--add-dir` directory's
+    settings, which only a running session sees and where only `true` acts.
+    Basis:
     https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-is-enabled
     for the merge and its precedence,
     https://code.claude.com/docs/en/settings-reference#enabledplugins for the
