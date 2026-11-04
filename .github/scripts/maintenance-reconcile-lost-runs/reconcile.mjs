@@ -457,8 +457,12 @@ const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
 // reconcile.test.mjs pins both there).
-export const PENDING_REVIEW_NOTE = /^'[^']+' has not finished on [0-9a-f]{40} \(https:\/\/[^ ]+\)\. ci-status re-runs when the review finishes\.$/;
-export const MISSING_REVIEW_NOTE = /^'[^']+' is missing: no [a-z-]+\.yml run on [0-9a-f]{40} yet\. ci-status re-runs when the review finishes\.$/;
+// Each ends in the step's re-run note: since the step waits for a review
+// (#12447) it names the wait; a run from before writes the older tail.
+const RERUN_TAIL = String.raw`(?:ci-status re-runs when the review finishes\.|ci-status waited [0-9]+s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
+export const PENDING_REVIEW_NOTE = new RegExp(String.raw`^'[^']+' has not finished on [0-9a-f]{40} \(https:\/\/[^ ]+\)\. ${RERUN_TAIL}$`);
+const MISSING_TAIL = String.raw`(?:${RERUN_TAIL}|ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
+export const MISSING_REVIEW_NOTE = new RegExp(String.raw`^'[^']+' is missing: no [a-z-]+\.yml run on [0-9a-f]{40} yet\. ${MISSING_TAIL}$`);
 // True when ci-status's only failure is its review-lane step on reviews not
 // done: one or more pending or missing notes and that step's one exit note.
 export const pendingReviewNoted = (annotations) => {

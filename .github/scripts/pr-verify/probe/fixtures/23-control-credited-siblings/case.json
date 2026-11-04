@@ -1,0 +1,21 @@
+{
+  "issue": {
+    "body": "## Problem\n\nScripts that call `sample-kit status` have to scrape its text output.\n\n## Fix\n\nAdd a `--json` flag to `sample-kit status`.\n\n## Done when\n\n- [ ] `status --json` prints one JSON object: `{\"ok\": <boolean>, \"pending\": <number>}`.\n- [ ] The README's Status section documents `--json`.\n- [ ] A test runs `status --json` and checks both fields."
+  },
+  "pr": {
+    "title": "test(sample-kit): cover status --json",
+    "body": "Adds the test of `status --json`, the issue's last done-when item. The flag and its README section merged in the sibling pull requests.\n\nSiblings: #9001, #9002"
+  },
+  "siblings": [
+    {
+      "number": 9001,
+      "merged": true,
+      "body": "Refs: #{issue}\n\nAdds `--json` to `sample-kit status`: `status(dir, { json: true })` in `scripts/status.mjs` prints `{\"ok\": <boolean>, \"pending\": <number>}` from the state `readState(dir)` reads, and `scripts/cli.mjs` passes the flag. This is the first done-when item.\n\n## Remaining\n\n- The README's Status section.\n- A test of `status --json`."
+    },
+    {
+      "number": 9002,
+      "merged": true,
+      "body": "Refs: #{issue}\n\nDocuments `status --json` in the README's Status section, the second done-when item.\n\n## Remaining\n\n- A test of `status --json`."
+    }
+  ]
+}
