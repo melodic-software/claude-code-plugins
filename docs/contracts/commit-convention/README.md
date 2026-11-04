@@ -61,7 +61,7 @@ name the file to change.
       fails closed on the same checks as the team file. `pr_title_pattern` never reads it, a
       deferral included. `--layer` names it when it supplied the pattern. Drafting does not read
       it: an operator who wants `/source-control:commit` to draft to the same pattern also sets
-      `## subject_pattern` in the drafting overlay, `.claude/source-control.local.md`.
+      `## subject_pattern` in the drafting personal override, `.claude/source-control.local.md`.
 
    The legacy surfaces, and their fail-closed checks, are read only for a key the YAML lacks: a
    broken `convention_source` pointer never disables a key the YAML supplies. Each key holds exactly
@@ -117,7 +117,7 @@ Contract points:
 
 - **The pointer is optional and team-only.** Absent → the well-known-default probe below, then
   today's markdown-H2 grammar, with full back-compat and zero action for existing consumers. The pointer
-  is honored from the team-tracked file only (same policy floor: a gitignored overlay must not
+  is honored from the team-tracked file only (same policy floor: a gitignored personal override must not
   redirect the gate).
 - **Three-rung neutral-file precedence (V2, reopening V1's "no well-known search").** The neutral
   file is resolved by the enforcement resolver in a fixed order:
@@ -165,7 +165,7 @@ Contract points:
   absolute, backslash, or `..` path; a missing file; or a symlinked file or symlinked path segment
   whose physical target leaves the repository root (the target must be a regular file physically
   under the repo). A silent markdown fallback could enforce a stale pattern the migration retired,
-  and a symlink escape would let untracked external content steer the gate. User-global and `*.local.md` overlay layers are unchanged.
+  and a symlink escape would let untracked external content steer the gate. User-global and `*.local.md` personal override layers are unchanged.
 - **Monorepo per-directory scoping is out of scope for V1** (recorded, not designed for).
 
 **Incumbent steelman, walked before replacing.** Markdown-H2 was chosen (#913) so the config file
@@ -191,7 +191,7 @@ purposes without it.
   consumer never chose. **Enforcement strength = strength of explicit config: the team's, else the
   operator's own.**
 - **Policy floor: the team layer, then a fallback-only personal layer.** Enforcement reads the
-  **tracked** team layer; the user-global and gitignored `*.local.md` overlays are drafting inputs a
+  **tracked** team layer; the user-global and gitignored `*.local.md` personal overrides are drafting inputs a
   blocking gate never consults. The one personal input is `subject_pattern` in the git-ignored
   `docs/conventions/source-control.local.yaml`, and it applies **only where the team layer sets no
   `subject_pattern`**. It is never merged with a team pattern, because "is regex A stricter than B"

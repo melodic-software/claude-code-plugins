@@ -1,5 +1,11 @@
 # Changelog for the standards convention
 
+## 1.1.3 - 2026-11-04
+
+Wording only. The personal layer, `<standards_dir>/*.local.md`, is called the personal override
+rather than the personal overlay, matching the config cascade. The layers, the precedence rule, the
+schema, the index shape and the migration rules are unchanged.
+
 ## 1.1.2 - 2026-11-01
 
 Resolution ladder. Rung 4 now names a `CODING_STANDARDS.md` and a `CONTRIBUTING.md` at the

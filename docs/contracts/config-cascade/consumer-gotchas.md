@@ -22,7 +22,7 @@ without parking them in root `CLAUDE.md` (wrong scope: every session pays for ev
 A participating plugin reads consumer gotchas from a `## Gotchas` section in its existing cascade
 file (for example `docs/conventions/bugs.md`).
 
-Layers follow the normal three-layer cascade (user-global, team, local overlay). Concatenation
+Layers follow the normal three-layer cascade (user-global, team, personal override). Concatenation
 applies: every layer that exists is loaded and appended in layer order after the bundled gotchas.
 Unknown keys in the YAML block of a shared config file stay inert; only the Gotchas prose section
 participates.

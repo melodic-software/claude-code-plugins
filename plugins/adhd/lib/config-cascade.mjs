@@ -13,7 +13,7 @@
 //
 // Layers, in order: "defaults" (the `defaults` object, already parsed by the caller), "userConfig"
 // (the plugin's userConfig values, flattened names), "team" (<home>/<plugin>) and "local", the
-// personal overlay (<home>/<plugin>.local). A file layer reads <stem>.yaml for config and <stem>.md
+// personal override (<home>/<plugin>.local). A file layer reads <stem>.yaml for config and <stem>.md
 // for prose; it is absent when neither file exists. `home` is the convention home the caller
 // resolved, relative to projectRoot unless absolute (default docs/conventions). There is no
 // user-global file layer: a file under <userHome>/docs/conventions is never read, and `userHome`
@@ -28,7 +28,7 @@
 // Each layer's leaves are checked one by one; a leaf whose value fails the schema is
 // dropped from that layer with an error naming layer, file and key, and a lower layer's value is
 // then never used (ADR 0075, the invalid-value rule): a valid higher layer still wins, otherwise the
-// key takes its default. The personal overlay is the one exception, because it refines the team
+// key takes its default. The personal override is the one exception, because it refines the team
 // file: an invalid personal value leaves the team value standing. A key containing `.` is
 // rejected the same way, since keys are joined with `.` into paths, and so are `__proto__`,
 // `constructor` and `prototype`, at any depth inside a value too, which a caller's merge would treat
@@ -49,7 +49,7 @@
 // an equal value (a list must keep every team item); lowest-value a number no higher; any-layer-wins
 // a tightening value (`true` or "report") whenever the team value is one; stricter-value a value at
 // or beyond the team value on the scale. A looser value is dropped with an error naming the layer,
-// file and key, and the team value stands. Floors bind the personal overlay; a `*.disable` union key
+// file and key, and the team value stands. Floors bind the personal override; a `*.disable` union key
 // is not compared.
 //
 // userConfig maps each schema leaf path to its name joined with `_` (widget.limit is widget_limit);
@@ -478,7 +478,7 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
   let base = new Map(); // the defaults layer's entries, where an invalid higher value falls back to
   const within = (dotted, key) => dotted === key || dotted.startsWith(`${key}.`);
   for (const [name, pairs, invalid] of contributions) {
-    // A lower layer's value is never used for an invalid one; the personal overlay refines the team file, so its keys fall to team.
+    // A lower layer's value is never used for an invalid one; the personal override refines the team file, so its keys fall to team.
     if (name !== "local") {
       for (const key of invalid) {
         for (const dotted of [...merged.keys()]) if (within(dotted, key)) merged.delete(dotted);

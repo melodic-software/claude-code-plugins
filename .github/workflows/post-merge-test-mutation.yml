@@ -178,7 +178,7 @@ jobs:
 
       # The head must be on main, and the diff target is the push's previous
       # head, or the head's first parent when the push had none (a first push
-      # or a rewrite), said in the summary. The overlay is gitignored
+      # or a rewrite), said in the summary. The personal override is gitignored
       # (.claude/**/*.local.*), so the audit sees a clean tree.
       - name: Set the diff target
         id: target
