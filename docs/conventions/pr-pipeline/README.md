@@ -299,7 +299,9 @@ dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads th
 unresolved fail-note thread is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
-check-run room. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
+check-run room, and not held by a round for the PR in progress: `pr-unblock.yml`'s per-PR
+concurrency group queues it behind that round. A round waiting to start still holds it, since the
+group keeps one waiting run and sending would cancel that round. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
 at that head superseded (`babysit_verify_evidence.py` `supersededAtHead`, the gate's own
 `_superseded` judgment), the dispatch also names the head in `verify-superseded-head`.
 `address-feedback-select` lists in `run.json`'s `stale_notes` the threads from another head, and
