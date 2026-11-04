@@ -344,9 +344,9 @@ const movedFrom = (head, tip) => `the PR branch moved from ${head} to ${tip}; th
 // Where a target's commit goes. `row` names the row it reads; `number` the
 // push argument that names its PR or issue, and `env` the script step
 // variables it needs past the shared ones (its number first); `held` re-reads
-// what stops the commit; `ready` checks the ref before any write; `write`
-// moves or makes it. Each of the last two answers why the patch is superseded
-// when another push moved the ref, else nothing.
+// what stops the commit; `ready` checks the ref before any write and answers
+// why the patch is superseded when another push moved it, else nothing; `write`
+// moves or makes it.
 export const TARGETS = {
   pr: {
     row: (prepare) => prepare || "default",
@@ -372,25 +372,8 @@ export const TARGETS = {
       }
       return tip === head ? "" : movedFrom(head, tip);
     },
-    // force: false refuses anything but a fast-forward from the gated head. A
-    // 422 is superseded only when a re-read shows another commit on the branch,
-    // and the line keeps GitHub's answer, which may be more than the race; any
-    // other refusal, or a re-read that fails or names no commit, throws it.
-    async write(api, ref, commit, head) {
-      try {
-        await api.updateRef(`heads/${ref}`, commit, false);
-        return "";
-      } catch (error) {
-        if (error.status !== 422) {
-          throw error;
-        }
-        const tip = await api.readBranch(ref).catch(() => head);
-        if (!SHA.test(String(tip)) || tip === head || tip === commit) {
-          throw error;
-        }
-        return `${movedFrom(head, tip)} (${error.message})`;
-      }
-    },
+    // force: false refuses anything but a fast-forward from the gated head.
+    write: (api, ref, commit) => api.updateRef(`heads/${ref}`, commit, false),
   },
   issue: {
     row: () => "issue",
@@ -409,6 +392,27 @@ export const TARGETS = {
     write: (api, ref, commit) => api.createRef(`refs/heads/${ref}`, commit),
   },
 };
+
+// A target's write, answering why the patch is superseded, else nothing. On a
+// target whose ref can move, a 422 is superseded only when a re-read shows
+// another commit on the branch, and the line keeps GitHub's answer, which may
+// be more than the race; any other refusal, or a re-read that fails or names
+// no commit, throws it.
+async function land(target, api, ref, commit, head) {
+  try {
+    await target.write(api, ref, commit);
+    return "";
+  } catch (error) {
+    if (!target.movedHead || error.status !== 422) {
+      throw error;
+    }
+    const tip = await api.readBranch(ref).catch(() => head);
+    if (!SHA.test(String(tip)) || tip === head || tip === commit) {
+      throw error;
+    }
+    return `${movedFrom(head, tip)} (${error.message})`;
+  }
+}
 
 // The producer's row: the target's, which for a PR is its prepare mode's, or
 // `default` when it has none.
@@ -931,7 +935,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       throw new Error(`GitHub built tree ${built}, not the merge tree ${tree}; nothing is committed`);
     }
     const commit = await api.createCommit(message, tree, [headSha, merge.baseSha]);
-    const movedLate = await target.write(api, headRef, commit, headSha);
+    const movedLate = await land(target, api, headRef, commit, headSha);
     if (movedLate) {
       log(movedLate);
       return { outcome: "superseded" };
@@ -1146,7 +1150,7 @@ export async function push({
     throw new Error(`GitHub built tree ${built}, not the applied tree ${tree}; nothing is committed`);
   }
   const commit = await api.createCommit(message, tree, [headSha]);
-  const movedLate = await target.write(api, headRef, commit, headSha);
+  const movedLate = await land(target, api, headRef, commit, headSha);
   if (movedLate) {
     log(movedLate);
     return { outcome: "superseded" };
