@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, passRefusalOf, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -971,6 +971,22 @@ test("in the merge queue, a reader that refuses only on the pass leaves that to 
   const { code, out } = await queued(report("verify:spec-changed"));
   assert.equal(code, 0, out);
   assert.match(out, /^#99: no pr-verify FAIL hold: the reader refuses this head only on its pass \(verify:spec-changed\)\.$/m);
+});
+
+test("in the merge queue, a pass refusal with no pass names read holds on that refusal, not on a missing pass", async () => {
+  const refused = await ci(["docs/a.md"], { queue: { verdicts: [], link: QUEUE_LINK, evidence: report("verify:spec-changed") } });
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /#99: pr-verify's reader refuses this head's pass \(verify:spec-changed\); wait for pr-verify to pass it/);
+  assert.doesNotMatch(refused.out, /pr-verify has not passed this head/);
+  // No refusal, or one for another head, keeps the missing-pass text.
+  for (const evidence of [report(null), report("verify:spec-changed", { head: OLD })]) {
+    const missing = await ci(["docs/a.md"], { queue: { verdicts: [], link: QUEUE_LINK, evidence } });
+    assert.equal(missing.code, 1, missing.out);
+    assert.match(missing.out, /pr-verify has not passed this head/);
+  }
+  assert.equal(passRefusalOf(report("verify:missing"), HEAD), "verify:missing");
+  assert.equal(passRefusalOf(report(null), HEAD), null);
+  assert.equal(passRefusalOf(null, HEAD), null);
 });
 
 test("in the merge queue, a FAIL the reader counts holds a passed head", async () => {
