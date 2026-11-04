@@ -136,7 +136,10 @@ assert_eq "invalid knobs → defaults (30/14)" 30 "$(find "$P/.observability/cla
 P="$TEST_TMPDIR/archiver"
 populate "$P/.observability/claude" 40
 ARCHIVE_LOG="$TEST_TMPDIR/archiver.log"
-CMD="printf '%s\\n' \"\$1\" >>\"$ARCHIVE_LOG\"; sleep 30"
+ARCHIVE_PID="$TEST_TMPDIR/archiver.pid"
+# The hook appends ' "$@"' to the command; the trailing ; leaves that as a
+# command exec never reaches, so sleep gets only its 30.
+CMD="echo \$\$ >\"$ARCHIVE_PID\"; printf '%s\\n' \"\$1\" >>\"$ARCHIVE_LOG\"; exec sleep 30;"
 t0=$EPOCHREALTIME
 run "$P" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND="$CMD"
 t1=$EPOCHREALTIME
@@ -147,8 +150,9 @@ pending=$(find "$P/.observability/claude/prune-pending" -mindepth 1 -maxdepth 1 
 assert_eq "doomed files moved into one pending directory" 10 "$(find "$pending" -name '*.jsonl' | wc -l | tr -d ' ')"
 wait_for_sink "$ARCHIVE_LOG" 100
 assert_eq "the archiver received the pending directory as its argument" "$pending" "$(head -1 "$ARCHIVE_LOG" 2>/dev/null)"
-# The sleeping archiver is detached; it must not keep the test alive.
-pkill -f 'sleep 30' 2>/dev/null || true
+# The sleeping archiver is detached; it must not keep the test alive. Only
+# its own pid: a host-wide pkill also ends other suites' sleeps.
+if kill "$(cat "$ARCHIVE_PID" 2>/dev/null)" 2>/dev/null; then ok "the archiver was still sleeping"; else bad "the archiver was not sleeping"; fi
 
 # --- a pending directory is swept only once it is older than 24 h ----------------
 P="$TEST_TMPDIR/sweep"
