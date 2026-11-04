@@ -176,15 +176,22 @@ const CAPABILITY = new RegExp(
 const TOKEN_COUNT =
   /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b(?=\s*(?:\.?\s*$|\))|\s+(?:headless|interactive|vs|versus|per|spent|used|total|budget|startup|payload|context|prompt|cached|saved|more|fewer|less)\b)/g;
 const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|cop(?:y|ie[ds])|gist|screenshot)|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
-// The technical senses of a secret noun, which name no secret (owner Q1 on
-// #12043, 2026-11-04, narrowing Q4 to a secret value, a credential path or an
-// account compromise): a model or subscription token, a per-token measure or
-// token spending, a token's permission scope ("a pull-requests: write token",
-// "whose token has no `statuses: read`", "the token's permissions"), and a
-// lane that has no credentials. Like a count, each releases nothing in a
+// The technical senses of a secret noun, which name no secret. A measure (an
+// input, output or cache token, a per-token rate, token spending) can never
+// name a credential, so it releases wherever it stands. A phrase that names a
+// real credential by its kind or scope (a subscription, model, read or write
+// token, "whose token has no `statuses: read`", "the token's permissions", "has
+// no credentials") releases only when the reason ends after it or a capability
+// follows it (CRED_END), so "a write token was sent to ..." and "the token has
+// no expiry and sits in ..." hold. Like a count, each releases nothing in a
 // reason that also says what was done with a secret (TOKEN_HANDLING).
-const TOKEN_SENSE =
-  /\b(?:subscription|oauth|model|session|input|output|cache)\s+tokens?\b|\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?\b|\btokens?\s+(?:has|have|had)\s+no\b|\btoken['’]s\s+(?:permissions?|scopes?)\b|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?\b/gi;
+const CRED_END = String.raw`(?=\s*(?:\.?\s*$|[;)])|\s*,\s*(?:and\s+)?(?:cannot|so)\b|\s+(?:to\s+(?:run|invoke|call|use|reach|spend)|the\s+lane|this\s+lane|cannot|do(?:es)?\s+not\s+(?:cover|include|allow|grant))\b)`;
+const SCOPE = String.raw`(?:\x60[^\x60\n]{1,40}\x60|[\w-]+:\s*(?:read|write)|(?:[\w-]+\s+)?(?:permissions?|scopes?))`;
+const TOKEN_SENSE = new RegExp(
+  String.raw`\b(?:input|output|cache)\s+tokens?\b|\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b` +
+    String.raw`|(?:\b(?:subscription|model)\s+tokens?|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?|\btokens?\s+(?:has|have|had)\s+no\s+${SCOPE}|\btoken['’]s\s+(?:permissions?|scopes?)|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?)${CRED_END}`,
+  "gi",
+);
 const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " ").replace(TOKEN_SENSE, " "));
 // The only words a reason that names a secret noun may hold beside its
 // capability phrasings. Fail closed: any other word, so any exposure however

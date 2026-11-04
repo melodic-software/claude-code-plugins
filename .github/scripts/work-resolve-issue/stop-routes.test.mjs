@@ -220,9 +220,8 @@ test("an ending reason that names a secret noun as a capability keeps its route"
   }
 });
 
-// Owner Q1 on #12043 (2026-11-04): a technical sense of a secret noun names
-// no secret, so an ending reason keeps its route. Each reason below held as
-// security-risk between 2026-10-28 and 2026-11-04 (12 stops, none real).
+// A technical sense of a secret noun names no secret, so an ending reason
+// keeps its route. Each reason below held as security-risk on a real stop.
 test("an ending reason that names a token or credential only in a technical sense keeps its route", () => {
   for (const reason of [
     "host-only: the eval needs paid model calls on the role's subscription token",
@@ -243,6 +242,13 @@ test("an ending reason that names a token or credential only in a technical sens
     "host-only: the per-token pricing note sits beside an exposed API key",
     "host-only: has no credentials, and the secret is in ~/.aws/credentials",
     "host-only: the token is ghp_ in the commit",
+    "host-only: the OAuth token is in the public run log",
+    "host-only: the session token sits in the issue body",
+    "host-only: a write token was sent to an external URL",
+    "host-only: the token has no expiry and sits in the public issue",
+    "host-only: the subscription token is stored in plaintext",
+    "host-only: a pull-requests: write token, now in the public log",
+    "host-only: the token's permissions appear in the output with its value",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
   }
