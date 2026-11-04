@@ -27,6 +27,14 @@ header line whose value is a quoted YAML scalar is read as its unquoted value,
 so a sidecar abstract can carry a quote. Words inside a matching quote are the
 claim's own: they neither cite an ID nor count as a sweep word.
 
+A sidecar that declares a claim with an id: must quote one of its own claims,
+in that form, in its abstract: an abstract that names no ID escapes every
+rule above. The index mirrors each such abstract on one body line,
+- <section>: <abstract>, where <section> is the sidecar's filename between
+RESEARCH- and .md, and the text after the prefix must equal the sidecar's
+unquoted abstract: value byte for byte. A table row or a lead-in that names
+no ID is not graded here: the verifier grades it.
+
 Lines under a heading that names the fetch log are skipped, down to the next
 heading at the same or a higher level: the fetch log keys its rows by claim
 and restates nothing.
@@ -46,13 +54,17 @@ not restate". The researcher runs this check before hand-back and fixes every
 line it reports; the research parent re-runs it in the acceptance gate.
 
 Exit 0 = every line naming a labeled claim carries its label, no index line
-         naming a claim carries a sweep word, and every sidecar line naming
-         a claim quotes it verbatim (status=pass)
+         naming a claim carries a sweep word, every sidecar line naming a
+         claim quotes it verbatim, and every claim-bearing sidecar's abstract
+         quotes one of its claims and is mirrored verbatim (status=pass)
 Exit 1 = at least one violation (status=fail), each on stderr as
          <file>:<line>: <id> (<label>) appears without its label
          <file>:<line>: <id>[, <id>...] cited beside the sweep word "<word>"
          <file>:<line>: <id> cited without its claim quoted verbatim
          <file>:<line>: <id> quote does not match its claim
+         <sidecar>:<line>: abstract quotes none of its claims
+         <index>:<line>: abstract line differs from <sidecar name>'s abstract
+         <index>: no "- <section>: " abstract line for <sidecar name>
 Exit 2 = ungradeable, FAIL CLOSED: missing slice or sub-slice dir, no
          RESEARCH.md, no sidecar (at the root without --sub-slice, or in a
          named sub-slice), a sidecar header the parser cannot read, an id:
@@ -173,6 +185,36 @@ def sidecars_in(directory: Path) -> list[Path]:
     )
 
 
+def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -> list[str]:
+    """Each sidecar declaring an id'd claim quotes one in its abstract, mirrored verbatim."""
+    lines = csa.read_text(index).splitlines()
+    start = body_start(lines)
+    body = list(enumerate(lines[start:], start=start + 1))
+    violations: list[str] = []
+    for sidecar in sidecars:
+        own = {cid for cid, where in declared.items() if where == sidecar}
+        if not own:
+            continue
+        entry = csa.top_level(headers[sidecar], "abstract", f"{sidecar}: front matter")
+        value = csa.scalar(entry[1]) if entry else None
+        # Front-matter index j is file line j + 2: line 1 is the opening ---.
+        line_no = entry[0] + 2 if entry else 1
+        if not value or not any(m.group(1) in own for m in opener.finditer(value)):
+            violations.append(f"{sidecar}:{line_no}: abstract quotes none of its claims")
+        if not value:
+            continue
+        key = f"- {sidecar.name.removeprefix('RESEARCH-').removesuffix('.md')}: "
+        mirrors = [(n, line) for n, line in body if line.startswith(key)]
+        if not mirrors:
+            violations.append(f'{index}: no "{key}" abstract line for {sidecar.name}')
+        for n, line in mirrors:
+            if line[len(key) :] != value:
+                violations.append(
+                    f"{index}:{n}: abstract line differs from {sidecar.name}'s abstract"
+                )
+    return violations
+
+
 def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[int, str]:
     sub_slices = sub_slices or []
     if not slice_dir.is_dir():
@@ -198,8 +240,10 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
     texts: dict[str, str] = {}
     labeled: dict[str, str] = {}
     skip: dict[Path, range] = {}
+    headers: dict[Path, list[str]] = {}
     for sidecar in declaring:
         header = csa.front_matter(sidecar, required=True)
+        headers[sidecar] = header
         claims = csa.parse_claims(sidecar, header)
         skip[sidecar] = claims_block(csa, header)
         for c_no, claim in enumerate(claims, start=1):
@@ -289,6 +333,7 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                         violations.append(
                             f"{path}:{i + 1}: {cid} ({label}) appears without its label"
                         )
+        violations.extend(abstract_violations(csa, index, sidecars, headers, declared, opener))
 
     counts = (
         f"ids={len(declared)} labeled={len(labeled)} mentions={mentions} quoted={quoted}"

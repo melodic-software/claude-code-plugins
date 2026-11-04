@@ -53,7 +53,9 @@ prints this value as `verification=<value>` after a usable verdict.
 Body sections, after the frontmatter:
 
 1. **Task restatement**: what was asked, in the run's own words.
-2. **One-line abstract per sidecar**, copied verbatim from that sidecar's `abstract` header field.
+2. **One-line abstract per sidecar**, copied verbatim from that sidecar's `abstract` header field,
+   as one bullet per sidecar: `- <section>: <abstract>`, where `<section>` is the sidecar's
+   filename between `RESEARCH-` and `.md` and `<abstract>` is the header's value, unquoted.
    Verbatim matters: an abstract paraphrased into the index drifts from the sidecar it describes, and
    the reader picks a file on the strength of a summary that no longer matches its contents.
 3. **Section → file + anchor table**, so an abstract that looks relevant resolves to a path without
@@ -85,17 +87,29 @@ So every sidecar line outside the `claims:` header that names a claim's ID carri
 `claim:` text in one form: the ID, its label in parentheses when the line carries one there, a
 colon, and the text in double quotes, `M1 (HIGH (single source)): "<claim>"` or `K9: "<claim>"`.
 The quote matches the `claim:` value byte for byte, and the line's own words go outside it. A
-sidecar abstract that cites a claim is a quoted YAML scalar, read as its unquoted value, and the
-index mirrors that value. A quote in this form on an index line must match too, and its words, the
-claim's own, are not read as sweep words.
+sidecar that declares a claim with an `id:` quotes at least one of its own claims in its abstract,
+in this form: an abstract that names no ID escapes every rule here, and a seed abstract that drops
+its claim's exception carries the drift into the index with it. That abstract is a quoted YAML
+scalar, read as its unquoted value, as in
+`abstract: 'SD2: "Prefer one phase per concern unless the phase mixes independent concerns"'`, and
+the index mirrors that value byte for byte. A quote in this form on an index line must match too,
+and its words, the claim's own, are not read as sweep words.
 
 `scripts/check-restatement-labels.py` reports every line of the index and the sidecars, outside the
 `claims:` headers and the fetch log, that names a labeled claim's ID without its label, every
 index line that names any claim's ID beside a sweep word, every sidecar line that names a claim's
-ID without quoting it, and every quote that does not match its claim.
+ID without quoting it, every quote that does not match its claim, every sidecar declaring a claim with an
+`id:` whose abstract quotes none of its claims, and every index abstract bullet that is missing or
+differs from its sidecar's abstract.
 It fails closed: the researcher runs it before hand-back and fixes each reported line until it
 exits 0, and the parent re-runs it in the acceptance gate ([`dispatch.md`](dispatch.md), "The
 restatement and eligibility checks").
+
+The check finds a claim only by its ID, so two cases stay with the verifier under row 12: a table
+row that restates a claim with no ID and no quote, which the check cannot tie to a claim and
+cannot tell from a process or source row that restates none; and an index lead-in whose scope
+outruns the claims it points at, where a cited claim's qualifier rules the sentence out. The
+verifier, not the check, grades both.
 
 ## The sidecars: `RESEARCH-<section>.md`
 
@@ -114,7 +128,7 @@ that have to be kept in agreement.
 ---
 topic: <topic-slug>
 section: <stable kebab-case id, matches the index anchor>
-abstract: <one line, mirrored verbatim into the index>
+abstract: '<one line quoting one of its claims, M1: "<claim>">'   # mirrored verbatim into the index
 claims:
   - claim: "<one-line claim>"
     id: M1                    # the claim ID every restatement cites; unique in the slice

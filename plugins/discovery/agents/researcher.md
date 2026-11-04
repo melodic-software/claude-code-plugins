@@ -239,7 +239,8 @@ interpolating it into a command line, per the download recipe in the discipline 
 Write into the memory slice, following the skill's Output Format and the plugin's artifact shape:
 
 - **`RESEARCH.md` is always an index**, regardless of total size. It opens with a task restatement,
-  carries a one-line abstract per sidecar, and a section → file + anchor table.
+  carries a one-line abstract per sidecar, copied from its header as `- <section>: <abstract>`
+  with the value unquoted and unchanged, and a section → file + anchor table.
 - **Sidecars** are `RESEARCH-<section>.md` beside the index, inside the same slice directory, each
   carrying the machine-readable YAML header so a consumer can grep headers and read exactly one.
 - **`research-checklist.md`** is the coverage ledger, written in the skill's corpus-enumeration
@@ -257,7 +258,9 @@ verbatim on the same line: `(M1, HIGH (single source))`. No `RESEARCH.md` line t
 claim's ID carries `every`, `all`, `none` or `only`.
 A sidecar line that names a claim's ID quotes its `claim:` text byte for byte, as
 `M1 (HIGH (single source)): "<claim>"`, with the line's own words outside the quote; that covers
-decision and evidence bullets, table cells, conflict notes and abstracts. When a check or a
+decision and evidence bullets, table cells, conflict notes and abstracts. A sidecar that declares a
+claim with an `id:` quotes one of its own claims in its abstract, as a quoted YAML scalar such as
+`abstract: 'M1 (HIGH (single source)): "<claim>"'`. When a check or a
 verifier fails a restatement, shrink it to a pointer in the index, or to the verbatim quote in a
 sidecar, rather than adding text. Every claim also declares
 `claim_kind:` (`content` or `behavior`) and `source_owner:`. Rule and ID grammar:
