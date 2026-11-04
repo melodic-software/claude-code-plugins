@@ -1,0 +1,141 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v goimports",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which goimports",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports -h 2>&1 | head -n 1",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the binary"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq node goimports",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "several names"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for t in jq node goimports; do command -v \"$t\" || echo absent; done",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if command -v goimports >/dev/null; then echo yes; fi",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "under if"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"goimports: $(command -v goimports || echo absent)\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a substitution"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"command -v goimports\" plugins/go-format/skills/setup/SKILL.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "another tool"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat go.mod",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reads a file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo command -v goimports",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "inside echo"
+    }
+  ]
+}

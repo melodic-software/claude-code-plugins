@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The hook resolves goimports on PATH only, so the install it can use writes to the machine-global $GOPATH/bin; a go.mod tool line is not one the hook finds."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It will not run it because @latest is unpinned.",
+      "why": "near miss: a reason the skill does not give"
+    },
+    {
+      "answer": "It is your choice.",
+      "why": "no reason"
+    }
+  ]
+}

@@ -1601,6 +1601,10 @@ merge:
         class: gate
       - glob: ".github/workflows/eval-browser-dispatch.yml"
         class: gate
+      - glob: ".github/workflows/eval-hill-climb-pass.yml"
+        class: gate
+      - glob: ".github/workflows/eval-hill-climb.yml"
+        class: gate
       - glob: ".github/workflows/intake-reenter.yml"
         class: gate
       - glob: ".github/workflows/intake-triage.yml"

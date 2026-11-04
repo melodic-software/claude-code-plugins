@@ -44,6 +44,10 @@
 # naming them with the read count. Exit 1, with one
 # ::error line naming what stayed missing and no output, when a fact is still
 # unsettled after the last read; callers read an empty output as a failed read.
+# With HANDOFF_EVIDENCE_LAG=notice, set by a job whose empty outputs start
+# nothing, a last read that got the listing and still found a fact unsettled
+# ends as one ::notice:: line, no output and exit 0. A last read that failed or
+# did not parse still exits 1.
 set -euo pipefail
 # In a job, each gh call keeps its rate-limit reading for the job-end
 # api-budget notice (.github/actions/log-api-budget).
@@ -175,5 +179,9 @@ for delay in "${delays[@]}" ""; do
   echo "Read $reads: $missing; reading again in ${delay}s"
   sleep "$delay"
 done
+if [[ ${HANDOFF_EVIDENCE_LAG:-} == notice && $missing == missing:* ]]; then
+  echo "::notice::handoff evidence for ${CALLS} still missing after $reads reads: $missing; the outputs stay empty"
+  exit 0
+fi
 echo "::error::handoff evidence for ${CALLS} still missing after $reads reads: $missing"
 exit 1
