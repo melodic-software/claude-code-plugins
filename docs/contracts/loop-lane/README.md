@@ -419,7 +419,7 @@ Three labels take work off the unattended path, and each means one thing (owner 
 |---|---|---|
 | human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering |
 | `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
-| `host-run` | Work an agent run or builder session on a host takes, which the issue lane cannot make: an unattended host run, or a change to a path the lane cannot push | Removed, with `agent-ready` added again, to hand the work back to the lane |
+| `host-run` | Work an agent run or builder session on a host takes, which the issue lane cannot make: an unattended host run, or a change to a path the lane cannot push. Builder items are worked one at a time: interview, plan, implement (owner decision Q-host-run, 2026-11-04) | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
