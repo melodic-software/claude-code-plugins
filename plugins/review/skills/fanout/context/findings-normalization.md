@@ -13,12 +13,12 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 | `architecture-guardian` | Violations / Risks / Opportunities | high / medium / low | file-only (Violations); none (Risks/Opportunities) |
 | `doc-drift-detector` | Stale / Missing / Aspirational | high / medium / low (table column) | doc-file line (table) |
 | slice-subagents | project's tiers (or baseline) | high / medium / low (template column) | `file:line` (inferred) |
-| `code-review` plugin | none (flat issue list) | 0–100, filters <80 | GitHub permalink `#L[s]-L[e]` |
+| `code-review` plugin | none (flat issue list) | none (validation subagents drop unconfirmed issues) | GitHub permalink `#L[s]-L[e]` |
 | `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | none | `[file:line]` (inferred) |
 
 Line numbers from LLM reviewers drift. Treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text, identified as the comment THIS invocation created, never by position.
+**One row's raw text is not returned to the session:** this skill dispatches the `code-review` plugin only in its `--comment` form, which ends by posting its findings to the PR, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text, identified as the comment THIS invocation created, never by position.
 
 SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal. A shell variable set in an earlier tool call is gone by the time this one runs:
 
@@ -59,7 +59,7 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 
 ## Stage 2: Confidence enum (deterministic)
 
-Per `<plugin-root>/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (every agent leaf per its output format; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
+Per `<plugin-root>/context/severity.md` "Confidence axis": the `code-review` plugin's validated issues → `high`; a native high/medium/low label (every agent leaf per its output format; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
 
 ## Stage 3: Dedup (`review:stage-normalizer`)
 
