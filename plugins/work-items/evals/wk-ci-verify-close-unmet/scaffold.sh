@@ -9,7 +9,11 @@ git config user.name eval
 
 printf 'scratch/\n' >.gitignore
 mkdir -p docs scratch
-printf '# Configuration\n\n`timeout`: seconds before a widget request gives up.\n' >docs/config.md
+cat >docs/config.md <<'MD'
+# Configuration
+
+`timeout`: seconds before a widget request gives up.
+MD
 
 cat >scratch/issue.json <<'JSON'
 {
