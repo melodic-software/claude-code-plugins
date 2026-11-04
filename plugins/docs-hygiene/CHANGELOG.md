@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [2.5.2] - 2026-11-04
+
+### Fixed
+
+- `/docs-hygiene:setup` now runs `markdownlint-cli2` with `--help` and
+  passes when the first line of stdout is the version banner, whatever the
+  exit code (`--help` exits 2). Before this, it ran `--version`, which
+  `markdownlint-cli2` has no flag for: the tool read it as a glob, so a
+  `check` run loaded the repository's markdownlint config and any code it
+  names, and linted the config's `globs`, rewriting those files when the
+  config sets `fix`. (#13201)
+
 ## [2.5.1] - 2026-11-04
 
 ### Fixed
