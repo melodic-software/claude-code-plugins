@@ -102,6 +102,16 @@ variable, or reading what a `pass` covers, fetch
 **As of**: 2026-11-02. **Recheck trigger**: that section changes what it removes, or a release note
 names the scrub.
 
+The `plugin-eval` area checks which tools a `claude plugin eval` run offers when a case's
+`allowed_tools` leaves them out. Its scaffold writes a fixture plugin whose one eval case lists only
+`Read`, `Glob` and `Grep` and asks for a call each to `Skill`, `Task`, `TaskStop` and `ToolSearch`.
+Under `dontAsk`, the one allowed command runs a checker the scaffold copies in. The checker runs that
+case once with `--keep-temp`, no `--allow-tools` grant and a short `TMPDIR` under `HOME`, reads the
+kept trace, and prints the init tools and each call's outcome on one line. The case passes when
+`Skill` was offered and its call ran; a `Skill` offered but not called, or called with no result,
+is `inconclusive`. The nested eval is billed outside the case's `max_budget_usd`, under its own
+`--max-cost-usd 1`, so the case is `explicit`.
+
 ## Reading a result
 
 | Verdict | Meaning | Do |

@@ -17,15 +17,16 @@ const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-a
 const LANE = /^ {2}agent-identity: (.+)$/m.exec(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"))[1];
 const count = (filter) => CASES.filter(filter).length;
 
-test("twenty-two cases in the planned mix", () => {
-  assert.equal(CASES.length, 22);
-  // One control's only would-be note is a test-run claim the head's CI settled green.
-  assert.equal(count((c) => c.expect.class === "control"), 5);
-  assert.equal(count((c) => c.expect.class === "blocking"), 11);
+test("twenty-four cases in the planned mix", () => {
+  assert.equal(CASES.length, 24);
+  // One control's only would-be note is a test-run claim the head's CI settled
+  // green; another's diff delivers only what its merged siblings left.
+  assert.equal(count((c) => c.expect.class === "control"), 6);
+  assert.equal(count((c) => c.expect.class === "blocking"), 12);
   assert.equal(count((c) => c.expect.class === "non-blocking"), 2);
   assert.equal(count((c) => c.expect.class === "injection"), 4);
-  // 12 blocking cases scored on the verifier, 60 runs at five each.
-  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 12);
+  // 13 blocking cases scored on the verifier, 65 runs at five each.
+  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 13);
   assert.equal(count((c) => c.expect.class === "injection" && c.expect.expected === "fail"), 2);
   // The workflow case alone is scored separately.
   const separate = CASES.filter((c) => c.expect.scored === "separate");
@@ -96,6 +97,11 @@ test("every case lays out the six data files through the real filters", async ()
       assert.deepEqual(read("pr.json"), { pr: resolved.prNumber, head_sha: resolved.headSha, base_sha: resolved.baseSha });
       const [spec] = read("spec-text.json");
       assert.equal(spec.body, testCase.spec.issue.body, testCase.id);
+      // Only a merged sibling the body names is credited, and a case naming
+      // none carries no field.
+      const merged = (testCase.spec.siblings ?? []).filter((sibling) => sibling.merged).map((sibling) => sibling.number);
+      assert.deepEqual(spec.credited_siblings?.map((sibling) => sibling.number) ?? [], merged, testCase.id);
+      assert.equal(Object.hasOwn(spec, "credited_siblings"), merged.length > 0, testCase.id);
       const context = read("context.json");
       assert.equal(context.pr.body, testCase.spec.pr.body, testCase.id);
       assert.equal(context.items.filter((item) => item.kind === "linked-issue").length, 1, testCase.id);

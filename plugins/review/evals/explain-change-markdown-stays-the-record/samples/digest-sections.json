@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "## Why\n\nCoupons applied only at checkout.\n\n## Before and after\n\nBefore: discount at order. After: at the cart.\n\n## Risk map\n\n| Area | Level | Why | Check |\n|---|---|---|---|\n| Migration | HIGH | drops orders.coupon_code | agreed |\n\n## Where to focus\n\n- migrations/0012\n\n## File by file\n\n- src/cart.js: new",
+      "why": "all five headings"
+    },
+    {
+      "answer": "**Why.** Shoppers saw the discount late.\n\n**Before and after.** ...\n\n**Risk map.** ...\n\n**Where to focus.** ...\n\n**File by file.** ...",
+      "why": "bold run-in headings"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "## Why\n\nCoupons move to the cart.\n\n## Risk map\n\n| Migration | HIGH | drops a column |\n\n## File by file\n\n- src/cart.js",
+      "why": "no Before and after or Where to focus"
+    },
+    {
+      "answer": "Here is how to configure a coupon in the admin panel.",
+      "why": "answer to a different question"
+    }
+  ]
+}
