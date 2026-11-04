@@ -2169,6 +2169,10 @@ describe("the triage prompt", () => {
   // triage to record as an edge, never in reverse of an existing one.
   test("a blocker the issue lane names on a blocked-by-issue stop goes on the Blocked by line", () => {
     assert.match(PROMPT, /latest stop comment on the\s+issue is `blocked-by-issue` and names an open issue, list that issue there, unless the\s+named issue is itself blocked by this one/);
+    // The name is the issue lane's own stop code, routed to intake, so a
+    // rename there fails here instead of leaving the rubric silently stale.
+    const routes = JSON.parse(readFileSync(new URL("../work-resolve-issue/stop-routes.json", import.meta.url), "utf8"));
+    assert.equal(routes["blocked-by-issue"]?.route, "intake");
   });
 
   test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
