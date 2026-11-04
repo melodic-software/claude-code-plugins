@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The hook walks from the file's directory up to the repo root and keeps the topmost config, so the root one governs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The subdirectory's config governs, the closest wins.",
+      "why": "closest, not topmost"
+    },
+    {
+      "answer": "The hook walks up looking for a config.",
+      "why": "near miss: does not say which wins"
+    }
+  ]
+}

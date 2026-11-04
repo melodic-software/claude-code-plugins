@@ -1,0 +1,12 @@
+---
+description: "apply asked how to turn the hook off headless. setup SKILL.md apply's toggle bullet (lines 164-189): claude plugin configure --values-stdin with every value a string is preferred (lines 168-171); the claude plugin install --config rerun is the fallback before 2.1.285, and against an installed plugin it prints already installed and still writes the value (lines 171-174); never uninstall, it resets every option (lines 174-176); the value lands in user settings (line 176); configure has no scope flag and runs from the project the plugin is installed in, -s defaults to user, so pass the scope claude plugin list reports, or the rerun adds a second install record at the scope passed (lines 177-181); a same-session check still reports the old value, so rerun check in a fresh session (lines 185-189). The prompt raises each claim. No grader requires the reply to cite the plugin-reconfiguration convention: the skill cites it as its own source and never tells the reply to name it, so that legacy expectation is dropped. Legacy 'ends by rerunning check' is the fresh-session rerun of lines 185-189. no-plugin-cli-write guards a claude plugin write the run makes itself (line 184). The scaffold declines the entry so verify prints declined. Needs --scaffold --allow-tools Bash Write Edit so the must-not graders can fail."
+tags: [biome-format, setup, apply, reconfigure, must-not, no-network]
+max_turns: 14
+timeout_seconds: 360
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+expected_outcome: "Routes the headless change to claude plugin configure biome-format@<marketplace> --values-stdin with {\"biome_format_enabled\": \"false\"}, then the claude plugin install --config biome_format_enabled=false rerun as the fallback that still writes on an installed plugin; rules out uninstalling; gives the scope rule and says the value lands in user settings; tells the user to rerun check in a fresh session and report the observed value; runs no claude plugin write itself."
+---
+
+/biome-format:setup apply
+
+I'm on a CI box with no interactive session. How do I turn the biome-format hook off? What if this Claude Code release has no plugin configure, and does the rerun do anything when the plugin is already installed? Could I just uninstall and reinstall instead? Which scope do I use and where do I run it, what goes wrong if I pass the wrong scope, where does the value end up, and how do I tell it worked?

@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.1] - 2026-11-04
+
+### Fixed
+
+- `dependency --ci` returns `owner_reason` in its verdict: `intent`, `design`, `security` or
+  `cost` on an `escalate` the owner decides, else `none`, which sends the stop to a session
+  builder instead of the owner.
+
 ## [7.1.0] - 2026-11-04
 
 ### Added

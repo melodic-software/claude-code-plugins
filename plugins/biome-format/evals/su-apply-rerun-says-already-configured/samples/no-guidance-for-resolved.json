@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Biome resolves at node_modules/.bin/biome: PASS. Already configured."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Biome: PASS at node_modules/.bin/biome. To install it, run `npm i -D @biomejs/biome`.",
+      "why": "install guidance for what resolves"
+    },
+    {
+      "answer": "jq: PASS. See https://jqlang.org/download/ for installing jq.",
+      "why": "near miss: a link for a tool that resolves"
+    }
+  ]
+}

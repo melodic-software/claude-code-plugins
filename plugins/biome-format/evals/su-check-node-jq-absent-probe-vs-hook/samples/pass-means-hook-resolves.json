@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A PASS on the Biome row means the hook resolves it; it says nothing about the probe."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A PASS means biome is on PATH.",
+      "why": "a bare PATH reading"
+    },
+    {
+      "answer": "A PASS means both the hook and the SessionStart probe will find biome.",
+      "why": "near miss: overclaims the probe"
+    }
+  ]
+}

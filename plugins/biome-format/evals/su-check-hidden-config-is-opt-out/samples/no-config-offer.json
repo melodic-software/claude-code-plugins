@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "If you want the plugin active, add a biome.json or biome.jsonc yourself."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Want me to create a biome.json for you?",
+      "why": "offers the write"
+    },
+    {
+      "answer": "I'll add a minimal biome.json now.",
+      "why": "near miss: announces the write"
+    }
+  ]
+}

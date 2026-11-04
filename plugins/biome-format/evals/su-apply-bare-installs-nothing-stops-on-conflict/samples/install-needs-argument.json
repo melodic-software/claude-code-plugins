@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Bare apply installs nothing. `apply install-biome` is the explicit argument that authorizes the dependency install."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Apply installs @biomejs/biome with npm.",
+      "why": "bare apply installing"
+    },
+    {
+      "answer": "Apply reports what is missing.",
+      "why": "near miss: never names the authorizing argument"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "package-lock.json"
+      ],
+      "why": "another path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "yarn.lock"
+      ]
+    },
+    {
+      "answer": [
+        "packages/a/yarn.lock"
+      ]
+    }
+  ]
+}

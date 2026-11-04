@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "All rows PASS or INFO. Already configured; nothing changed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Already configured. Do you want me to install the git hook?",
+      "why": "asks"
+    },
+    {
+      "answer": "Should I run check or apply?",
+      "why": "near miss: asks which action, though one was given"
+    }
+  ]
+}
