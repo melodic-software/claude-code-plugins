@@ -13,6 +13,7 @@
 # its fixed columns at once by row6.
 # test-scope: plugins/*/.mcp.json plugins/harness-config/skills/*/SKILL.md .claude/settings.json
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INVENTORY="$SCRIPT_DIR/inventory.sh"
@@ -601,6 +602,52 @@ assert_eq "a plugin-free repo reports the plugin row absent, not 0 handlers" \
   "plugin-hooks-json absent standing 0 - -" "$(row6 plugin-hooks-json "$empty_out")"
 assert_line "a plugin-free repo reports 0 plugin roots" "$empty_out" "  plugin roots         0"
 assert_contains "a plugin-free repo still emits components" "$empty_out" "Components in this repository"
+
+# --- A linked worktree and a subdirectory read the files a session reads -------
+#
+# A linked worktree's local settings file is the main checkout's, which is
+# untracked and so never in the worktree. A run started in a subdirectory reads
+# that subdirectory's shared settings file.
+
+if command -v git >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  GMAIN="$WORK/git-main"
+  mkdir -p "$GMAIN/sub/.claude" "$GMAIN/.claude"
+  git -C "$GMAIN" init -q
+  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"true"}]}]}}' \
+    >"$GMAIN/sub/.claude/settings.json"
+  git -C "$GMAIN" add sub
+  git -C "$GMAIN" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m init
+  printf '%s\n' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true"},{"type":"command","command":"true"}]}]}}' \
+    >"$GMAIN/.claude/settings.local.json"
+  git -C "$GMAIN" worktree add -q "$WORK/git-linked" 2>/dev/null
+  main_real="$(cd "$GMAIN" && pwd -P)"
+  wt_out="$(cd "$WORK/git-linked" && env -u INVENTORY_PROJECT_DIR -u CLAUDE_PROJECT_DIR \
+    INVENTORY_USER_SETTINGS="$WORK/none.json" bash "$INVENTORY" 2>/dev/null)"
+  assert_eq "linked worktree: local-settings reads the main checkout's file" \
+    "local-settings present standing 1 1 2" "$(row6 local-settings "$wt_out")"
+  assert_contains "linked worktree: local-settings names the main checkout's file" \
+    "$(row_for local-settings "$wt_out")" "$main_real/.claude/settings.local.json"
+  assert_eq "linked worktree at its root: project-settings is the worktree's own, absent" \
+    "project-settings absent standing 1 - -" "$(row6 project-settings "$wt_out")"
+  # On Windows the local file stays beside the shared one, so a linked worktree
+  # reads its own file. bash keeps an OSTYPE it inherits, so this runs on any host.
+  win_out="$(cd "$WORK/git-linked" && env -u INVENTORY_PROJECT_DIR -u CLAUDE_PROJECT_DIR \
+    INVENTORY_USER_SETTINGS="$WORK/none.json" OSTYPE=msys bash "$INVENTORY" 2>/dev/null)"
+  assert_eq "linked worktree on Windows: local-settings is the worktree's own, absent" \
+    "local-settings absent standing 1 - -" "$(row6 local-settings "$win_out")"
+  sub_out="$(cd "$GMAIN/sub" && env -u INVENTORY_PROJECT_DIR -u CLAUDE_PROJECT_DIR \
+    INVENTORY_USER_SETTINGS="$WORK/none.json" bash "$INVENTORY" 2>/dev/null)"
+  assert_eq "subdirectory: project-settings reads the subdirectory's file" \
+    "project-settings present standing 1 1 1" "$(row6 project-settings "$sub_out")"
+  assert_contains "subdirectory: project-settings names the subdirectory's file" \
+    "$(row_for project-settings "$sub_out")" "$main_real/sub/.claude/settings.json"
+  assert_eq "subdirectory of the main checkout: local-settings stays at the root" \
+    "local-settings present standing 1 1 2" "$(row6 local-settings "$sub_out")"
+  assert_line "subdirectory: the header still names the repository root" "$sub_out" \
+    "Claude Code automation inventory for $main_real"
+else
+  fail "worktree and subdirectory roots" "git or jq is not on PATH, so these cases could not run"
+fi
 
 # --- The default project root ------------------------------------------------
 #

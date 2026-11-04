@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "scripts/check-file-names.sh"}}], "why": "read only"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "notes/gate.md", "content": "x"}}], "why": "a write elsewhere"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "scripts/check-file-names.test.sh", "content": "#!/usr/bin/env bash\n"}}], "why": "a partial emission of the missing suite"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "scripts/check-file-names.sh", "content": "#!/usr/bin/env bash\n"}}], "why": "overwrote the hand-edited checker"}
+  ]
+}

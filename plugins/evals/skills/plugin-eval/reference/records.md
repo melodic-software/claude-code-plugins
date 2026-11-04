@@ -105,6 +105,9 @@ re-read the page.
 - Recheck on Claude Code 2.1.316, Linux/WSL2, 2026-10-31 (#5696), same probe shape: `claude -p
   --worktree` still refused, same message; a normal session in a `git worktree add` worktree
   allowed.
+- Recheck on Claude Code 2.1.318, Linux/WSL2, 2026-11-04 (#5696), same probe shape: `claude -p
+  --worktree` still refused, same message; a normal session in a `git worktree add` worktree
+  allowed.
 - The CLI's linked-worktree refusal (`registers more linked worktrees than can be screened`):
   observed on Claude Code 2.1.289, Linux/WSL2, 2026-10-04. Recheck: re-run on a plugin in a
   repository with many linked worktrees.

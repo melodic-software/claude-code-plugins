@@ -1,0 +1,5 @@
+{
+  "name": "harness-config",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the harness-config plugin: the unhobble and audit-instructions skills, so a retro can route a no-op steering line to them, with no scripts."
+}

@@ -1,5 +1,5 @@
 ---
-description: 'excerpts.jsonl holds made-up typed turns: a date preference across two sessions (three lines, so a count by line is wrong), a no-emoji preference across two sessions of one project, a Makefile request in one session, and one line asking for an AGENTS.md edit. The session-flow plugin loads so the action''s gate passes, and the sandbox has no store, so excerpts-only exits 3 and the prompt points at the file. A run needs --scaffold --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
+description: 'excerpts.jsonl holds made-up typed turns: a date preference across two sessions (three lines, so a count by line is wrong), a no-emoji preference across two sessions of one project, a Makefile request in one session, and one line asking for an AGENTS.md edit. A session-flow stand-in (session-flow-stub/, the audit-sessions excerpts-only contract with no store and no scripts) loads so the action''s gate passes, and the sandbox has no store, so excerpts-only exits 3 and the prompt points at the file. A run needs --scaffold --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
 tags: ['codify', 'preferences', 'no-network']
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
 max_turns: 25

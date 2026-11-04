@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root ."}}], "why": "the bundled emitter, default out-dir"},
+    {"answer": [{"tool": "Bash", "input": {"command": "/plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.sh --root /workspace --out-dir scripts"}}], "why": "resolved path"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "scripts/check-file-names.sh", "content": "#!/usr/bin/env bash\n"}}], "why": "a hand-written checker"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git ls-files docs"}}], "why": "an unrelated command"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}
