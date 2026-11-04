@@ -1022,6 +1022,48 @@ class SkillBashGrant(ValidatorTestCase):
         self.assertNotIn("pre-computed", self.bash_case("Read, Skill").stdout)
 
 
+class PluginsContainment(ValidatorTestCase):
+    """The fixture's plugin directory is the temporary root above evals/."""
+
+    def plugins_case(self, plugins):
+        self.case(
+            "two-plugins",
+            prompt=CLEAN_PROMPT,
+            case_yaml='schema_version: "1.1"\nname: two-plugins\nplugins: %s\n'
+            % plugins,
+            graders={"names-conftest": REGEX_GRADER},
+        )
+        return self.validate_without_node()
+
+    def test_entry_outside_the_plugin_fails(self):
+        result = self.plugins_case('["../..", "../../../elsewhere"]')
+        self.assert_fail(
+            result,
+            'FAIL two-plugins/case.yaml: plugins entry "../../../elsewhere" is not '
+            "loadable",
+        )
+
+    def test_prompt_md_entry_outside_the_plugin_fails(self):
+        self.case(
+            "two-plugins",
+            prompt='---\nplugins: ["../..", "../../../elsewhere"]\n---\n\nHi.\n',
+            graders={"names-conftest": REGEX_GRADER},
+        )
+        self.assert_fail(
+            self.validate_without_node(),
+            "FAIL two-plugins/prompt.md: plugins entry",
+        )
+
+    def test_entries_inside_the_plugin_pass(self):
+        self.assert_clean(self.plugins_case('["../..", "stub"]'))
+
+    def test_manifest_sets_the_root(self):
+        write(Path(self._tmp) / ".claude-plugin" / "plugin.json", '{"name": "x"}')
+        self.eval_dir = Path(self._tmp) / "evals" / "nested"
+        self.eval_dir.mkdir()
+        self.assert_clean(self.plugins_case('["../../.."]'))
+
+
 class OutputContract(ValidatorTestCase):
     def test_json_carries_one_object_per_finding(self):
         self.case("no-grader", prompt=CLEAN_PROMPT)

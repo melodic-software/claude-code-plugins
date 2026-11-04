@@ -41,7 +41,10 @@ sharing a name, a non-positive `weight`, `runs` / `max_turns` / `timeout_seconds
 `schema_version` or `name` in it or in `prompt.md` frontmatter (without a `case.yaml` the binary
 supplies both), a case with no prompt (`prompt.md` body or `execution.prompt`), a grader missing an
 option its type requires, a grader or `prompt.md` whose frontmatter holds `---` on a line other
-than its two delimiter lines (the binary cannot load the file; spell it `-{3}` in a regex), and a
+than its two delimiter lines (the binary cannot load the file; spell it `-{3}` in a regex), a
+`plugins` entry that resolves outside the plugin under evaluation (the nearest directory at or above
+the suite with a plugin manifest; a second plugin a case loads lives inside it, such as a stand-in
+under the case directory), and a
 `schema_version` that is not a quoted version string or whose major is newer than the binary
 supports. The complete sets the script checks, so a question about a key or a type is answered
 here without opening the script:
