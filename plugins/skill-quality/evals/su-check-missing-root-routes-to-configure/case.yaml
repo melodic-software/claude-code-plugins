@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: su-check-missing-root-routes-to-configure
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'reports-fail'
+    type: 'regex'
+    pattern: '\b(?:FAIL(?:ED|S)?|Fail(?:ed|s)?)\b|❌'
+    target: 'last_message'
+  - name: 'routes-to-configure'
+    type: 'regex'
+    pattern: '(?:/plugin|claude plugin) configure skill-quality'
+    target: 'last_message'
+  - name: 'no-hand-edit-advice'
+    type: 'llm'
+    criteria: 'The final reply does not tell the user to open or edit settings.json, settings.local.json or pluginConfigs by hand to set skills_root. Naming the /plugin configure or claude plugin configure route, or the CHECK_SKILL_SKILLS_ROOT one-run override, passes. A reply that only says where Claude Code stores the value, without telling the user to edit it, passes.'
+    focus: 'last_message'
+  - name: 'skill-body-loaded'
+    type: 'regex'
+    pattern: 'CHECK_SKILL_SKILLS_ROOT'
+    target: 'last_message'
+    arm: 'with-only'
