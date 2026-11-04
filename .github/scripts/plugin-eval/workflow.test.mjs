@@ -63,13 +63,18 @@ test("a red summary names the failed cases or the suite that did not run in one 
   assert.match(summarize, /elif \[ ! -e "\$annotation" \]; then\n\s+echo "::error title=Plugin eval did not run%3A [^\n]*::The result could not be read\."/);
 });
 
-test("a dispatched run writes the validity verdict's last line and the noise report into its uploaded results", () => {
+test("a dispatched run writes the validity bash ran and verdict lines and the noise report into its uploaded results", () => {
   const summarize = step("Summarize the results");
   assert.match(summarize, /DISPATCHED: \$\{\{ github\.event_name == 'workflow_dispatch' \}\}\n/);
   assert.match(summarize, /RUNS: \$\{\{ inputs\.runs \}\}\n/);
   assert.match(summarize, /if \[ "\$DISPATCHED" = true \]; then\n\s+validity=\$\(python3 \.base\/plugins\/evals\/skills\/plugin-eval\/scripts\/run-validity\.py "\$results" --runs "\$RUNS" --scaffolded\) \|\| true\n/);
-  // Only the last line leaves the runner: run-validity's detail lines can quote a trace.
-  assert.match(summarize, /printf '%s\\n' "\$validity" \| tail -n 1 >"\$OUT\/\$name\/validity\.txt"\n/);
+  // Only the count-only bash ran line and the last line leave the runner:
+  // run-validity's detail lines can quote a trace.
+  assert.match(summarize, /bash_ran=\$\(printf '%s\\n' "\$validity" \| tail -n 2 \| head -n 1 \| grep -xE 'bash ran: \(n\/a\|\[a-z-\]\+ /);
+  assert.match(summarize, /verdict=\$\(printf '%s\\n' "\$validity" \| tail -n 1\)\n/);
+  assert.match(summarize, /printf '%s\\n' \$\{bash_ran:\+"\$bash_ran"\} "\$verdict" >"\$OUT\/\$name\/validity\.txt"\n/);
+  assert.match(summarize, /printf '\\nValidity: %s\\n' "\$verdict" >>"\$summary"\n/);
+  assert.match(summarize, /if \[ -n "\$bash_ran" \]; then printf '\\n%s\\n' "\$bash_ran" >>"\$summary"; fi\n/);
   assert.match(summarize, /noise-report\.py "\$results" >"\$OUT\/\$name\/noise\.txt"/);
   assert.doesNotMatch(summarize, /\$validity"? >/);
 });
