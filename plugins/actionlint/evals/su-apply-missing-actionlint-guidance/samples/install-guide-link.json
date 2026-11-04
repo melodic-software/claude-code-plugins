@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Install it per the README Requirements section: https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+    },
+    {
+      "answer": "See the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).",
+      "why": "markdown link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install actionlint with your package manager, for example `brew install actionlint`.",
+      "why": "no install guide link"
+    },
+    {
+      "answer": "See https://github.com/rhysd/actionlint for details.",
+      "why": "repository root, not the install guide"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
