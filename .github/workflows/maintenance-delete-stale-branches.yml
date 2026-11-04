@@ -29,7 +29,9 @@ name: maintenance-delete-stale-branches
 
 on:
   schedule:
-    - cron: "17 6 * * *"
+    # judgment: 13 UTC, the quietest hour of job calls measured 2026-11-02T22Z to 11-04T06Z
+    # (2,000 on 11-03, one day of data; 06 UTC averaged 4,189 over two days).
+    - cron: "17 13 * * *"
   workflow_dispatch:
     inputs:
       dry-run:
