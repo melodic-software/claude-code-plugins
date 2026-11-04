@@ -136,6 +136,41 @@ and on the change:
 claude plugin eval plugins/review --case 'recall-*' --scaffold --ablation none --runs 1 --max-cost-usd <usd>
 ```
 
+## Revert cases
+
+The `evals/revert-*` cases measure what `/review:code-review` misses, using merged pull requests
+that a later revert undid. A case is caught when the review's reply cites, as `<file>:<line>`,
+a line the pull request added and the revert removed. The grader matches the citation, not
+the finding's content. `evals/revert-cases.sh` lists the pairs, builds the
+cases and reports a run. Run `list` and `build` from a clone with full history:
+
+1. `bash plugins/review/evals/revert-cases.sh list` prints one row per revert pair: original
+   pull request, original commit, revert pull request (`-` for a direct commit), revert commit,
+   then the pair count. A revert is a `revert:` or `revert(<scope>):` subject or a
+   `This reverts commit <sha>` body line. The script skips a pair whose original names no pull
+   request, whose revert removes no line the original added, or whose original no longer
+   reverses cleanly onto the revert's parent, and prints each skip with its reason on stderr.
+2. `bash plugins/review/evals/revert-cases.sh build <original> <revert> <slug>` writes
+   `evals/revert-<pr>-<slug>/` and its fixtures: the files holding those lines at the base and
+   the merge, the original commit message as the pull request context, and a regex grader on
+   those lines. Its `case.yaml` records the pull request, the revert and the lines, matched by
+   their text. A verifier agent then checks the lines against the revert, drops any that only
+   repeat a reverted line's text, and names itself on the `confirmed-by:` line. Until then the
+   case's scaffold refuses to run.
+3. Run the cases, then report caught or missed per case and the total:
+
+   ```bash
+   claude plugin eval plugins/review --case 'revert-*' --scaffold --ablation none --runs 1 --json result.json --max-cost-usd <usd>
+   bash plugins/review/evals/revert-cases.sh report result.json
+   ```
+
+   Check the run with the evals plugin's `run-validity.py`, passing `--scaffolded`, before
+   reading the total. A run with an
+   error or skipped judge calls is not comparable and is left out of the total. Below 5
+   comparable cases, the total is marked indicative only. Run it on the base and on a change to a
+   review lane's prompt, model or effort, and compare the two totals. No CI job runs these cases,
+   and no required check depends on them.
+
 ## Requirements
 
 - **git**. Every reviewer works from diffs, branches, and history.
