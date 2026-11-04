@@ -86,6 +86,23 @@
       ]
     },
     {
+      "id": 15,
+      "name": "excerpts-only-returns-lines-and-refuses-write-report",
+      "prompt": "Make these three audit-sessions calls in order, each on its own, and show me each result apart: `/session-flow:audit-sessions excerpts-only --scope project --since 2026-09-01`, then `/session-flow:audit-sessions excerpts-only --scope machine --write-report`, then `/session-flow:audit-sessions excerpts-only --since 2026-09-01`.",
+      "expected_output": "Consumer mode. The first call runs no collect, takes the key from lib/state-key.sh because no --state-key was passed, runs sweep.py with --excerpts, --scope project, that --state-key and --since 2026-09-01, and returns stdout verbatim with its exit code, summarizing nothing and writing nothing. On exit 3 it still returns the envelope and exit code first, then adds one line naming /session-flow:audit-sessions as the step that creates the store. The second call stops and names the accepted set because --write-report is refused. The third stops because excerpts-only requires --scope. Neither of those two runs a script.",
+      "files": [],
+      "expectations": [
+        "Does not run collect.py on any call",
+        "Runs lib/state-key.sh for the --scope project call and passes its output as --state-key",
+        "Runs sweep.py with --excerpts and an explicit --scope, without --write-report",
+        "Returns sweep.py's stdout as printed, with its exit code, without summarizing or ranking the lines",
+        "On exit 3 returns the envelope and exit code, then names /session-flow:audit-sessions as creating the store",
+        "Refuses the --write-report call, naming the accepted set, and runs no script for it",
+        "Stops on the call with no --scope and runs no script for it",
+        "Writes no report or other file"
+      ]
+    },
+    {
       "id": 8,
       "name": "skip-route-to-go-faster",
       "prompt": "How can we go faster across the whole dev process: sessions, hooks, CI, git and this machine?",
