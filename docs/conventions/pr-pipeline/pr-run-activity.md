@@ -1464,7 +1464,10 @@ warns of a [classifier gap](README.md#classifier-gaps).
      it, proposing the `.github/dependabot.yml` `ignore` entry, then posts the marker, then closes
      an open pull request. Each step is safe to repeat, so a re-run after a partial failure
      resumes;
-   - `escalate`: escalates `dependency-escalate`;
+   - `escalate`: escalates `dependency-escalate-<owner_reason>`. `intent`, `design`, `security`
+     and `cost` hold for a person, and the hold comment carries that code's stop-reason marker
+     (`.github/scripts/lib/stop-reason.mjs`); `none` routes `fail` with `needs-session`, so it
+     never reaches the owner. A verdict without `owner_reason` is invalid;
    - posts the round marker once per model run, the scan job's verdict attempt; a run with none
      is named `none`, and its marker always posts, since a re-run cannot tell it from another
      round's.

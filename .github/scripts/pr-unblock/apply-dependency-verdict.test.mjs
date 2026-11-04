@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { apply, main, validateRun } from "./apply-dependency-verdict.mjs";
+import { escalationRoute, ROUTES, stopSkip } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
@@ -13,6 +14,7 @@ const APP = 337595936;
 
 const output = (overrides = {}) => ({
   verdict: "merge",
+  owner_reason: "none",
   reasons: ["The major bump drops Node 18; this repository pins Node 24."],
   evidence: [".node-version:1"],
   ...overrides,
@@ -199,6 +201,9 @@ test("validateRun accepts the runner's record and refuses anything off the templ
     runOf({ head_sha: "nope" }),
     runOf({ output: null }),
     runOf({ output: output({ verdict: "ship-it" }) }),
+    runOf({ output: output({ owner_reason: "risk" }) }),
+    runOf({ output: output({ owner_reason: "Intent" }) }),
+    runOf({ output: output({ owner_reason: null }) }),
     runOf({ output: output({ reasons: [] }) }),
     runOf({ output: output({ reasons: ["x".repeat(501)] }) }),
     runOf({ output: output({ reasons: ["ping @someone"] }) }),
@@ -501,7 +506,7 @@ test("a merge verdict on a review-only dependency must quote each matched contro
   assert.equal((await go(two, runOf({ controls: [CONTROL, "docs/y.md#z"], output: cited }))).escalationReason, "dependency-control-uncited");
   // No control to cite: a merge stands, and a non-merge verdict is not checked.
   assert.equal((await go(fakeApi(), runOf())).escalationReason, "");
-  assert.equal((await go(fakeApi(), runOf({ controls: [CONTROL], output: output({ verdict: "escalate" }) }))).escalationReason, "dependency-escalate");
+  assert.equal((await go(fakeApi(), runOf({ controls: [CONTROL], output: output({ verdict: "escalate" }) }))).escalationReason, "dependency-escalate-none");
 });
 
 test("validateRun refuses a run.json without a list of controls", () => {
@@ -523,9 +528,33 @@ test("a security update is never closed: it escalates", async () => {
   assert.equal((await go(flagged, runOf({ security: true, output: output({ verdict: "close" }) }))).escalationReason, "dependency-security-close");
 });
 
-test("escalate hands the pull request to a person", async () => {
-  const api = fakeApi();
-  assert.equal((await go(api, runOf({ output: output({ verdict: "escalate" }) }))).escalationReason, "dependency-escalate");
+test("escalate with an owner reason holds for a person on a stop that carries that reason", async () => {
+  for (const code of ["intent", "design", "security", "cost"]) {
+    const result = await go(fakeApi(), runOf({ output: output({ verdict: "escalate", owner_reason: code }) }));
+    assert.equal(result.escalationReason, `dependency-escalate-${code}`, code);
+    // report-escalation.sh writes the stop-reason marker from the row's owner-reason.
+    assert.equal(escalationRoute(result.escalationReason), "hold", code);
+    assert.equal(ROUTES[result.escalationReason]["owner-reason"], code, code);
+  }
+});
+
+test("escalate with owner reason none goes to the session-builder queue, never to a person", async () => {
+  const env = mainFiles({ verdict: output({ verdict: "escalate", owner_reason: "none" }) });
+  const result = await outcome(env);
+  assert.equal(result.escalation, "dependency-escalate-none");
+  assert.equal(result.skip, stopSkip("dependency-escalate-none"));
+  assert.equal(result.skip, "lane-stopped");
+  assert.equal(escalationRoute("dependency-escalate-none"), "fail");
+  assert.equal(ROUTES["dependency-escalate-none"].label, "needs-session");
+  assert.equal(Object.hasOwn(ROUTES["dependency-escalate-none"], "owner-reason"), false);
+});
+
+test("a verdict without owner_reason is refused as invalid, so the lane acts on none of it", async () => {
+  const { owner_reason: _, ...missing } = output({ verdict: "escalate" });
+  assert.throws(() => validateRun(runOf({ output: missing }), 7), /fields are not the template's/);
+  const result = await outcome(mainFiles({ verdict: missing }));
+  assert.equal(result.escalation, "dependency-invalid");
+  assert.match(result.comments[0], /verdict=invalid/);
 });
 
 test("a pull request that is no longer open gets nothing", async () => {
