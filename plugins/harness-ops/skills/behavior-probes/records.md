@@ -502,3 +502,57 @@ variables it removes.
 |---|---|---|---|
 | `env-scrub/planted-credential-not-readable` | refused, `planted-value own=not-found others=not-found` | refused, with that marker | pass |
 | `env-scrub/planted-credential-readable-without-scrub` | ran, `planted-value own=found others=found` | ran, with that marker | pass |
+
+## Basis for record 21
+
+One live run of the `plugin-eval` area's case, `probe.py run --live --case
+plugin-eval/unlisted-tools-offered --max-runs 1 --max-cost-usd 1 --retries 0`, with the launch above
+plus `--permission-mode dontAsk` and the checker as the one allowed command. The checker ran the
+fixture's one eval case once: `claude plugin eval <fixture> --runs 1 --ablation none --trust-plugin
+--keep-temp --no-publish --max-cost-usd 1`, no `--allow-tools`, its `TMPDIR` a short directory under
+`HOME`. Linux (WSL2), Claude Code **2.1.318** (`claude --version` and the trace's init line agree),
+2026-11-03: 1 run, no retry. Reported cost: 0.11 USD for the driver session, 0.13 USD for the nested
+eval. The checker read the kept trace's init line for the offered tools and each call's `tool_use`
+and `tool_result` blocks, plus the trace's permission denial records, for its outcome, then removed
+the trace; its one printed line is the evidence kept. The recheck trigger and expiry above apply.
+
+## 21. A plugin eval case is offered and runs tools its `allowed_tools` leaves out
+
+**Claim.** A `claude plugin eval` case whose `allowed_tools` is `[Read, Glob, Grep]`, run with no
+`--allow-tools` grant, starts with `Task`, `Glob`, `Grep`, `Read`, `Skill`, `TaskStop` and
+`ToolSearch` in its init tools. Its calls came out:
+
+| Tool | In init tools | Call | Denied or allowed |
+|---|---|---|---|
+| `Skill` | yes | ran, no denial | allowed |
+| `Task` (`Agent`) | yes | ran, no denial | allowed |
+| `TaskStop` | yes | refused: an error result with no permission denial; the checker keeps no error text, and the fixture's task id `probe-none` names no task | not denied; whether it was allowed is undetermined |
+| `ToolSearch` | yes | ran, no denial | allowed |
+
+**Docs comparison.** The [plugin-evals page](https://code.claude.com/docs/en/plugin-evals#grant-tools),
+read 2026-11-03, says: "A run allows only the read-only tools the case lists in `allowed_tools`, from
+`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, and the task
+tools `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, and `TaskStop`, plus whatever you grant with
+`--allow-tools`." Its [prompt.md fields](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields)
+row for `allowed_tools` says: "Read-only tools are granted when listed here". The result contradicts
+the first sentence: `Skill` and `Agent` are on its list, were not listed by the case, and ran;
+`TaskStop` was offered unlisted, though its call does not show whether it would have run;
+`ToolSearch`, on neither list, was offered and ran.
+
+**Upstream report candidate (for the owner; not filed).**
+
+- Title: `claude plugin eval` offers and runs tools a case's `allowed_tools` omits (2.1.318)
+- Repro: a plugin with one skill and one eval case, `allowed_tools: [Read, Glob, Grep]`, whose prompt
+  asks for one call each to `Skill`, `Agent`, `TaskStop` and `ToolSearch`; run `claude plugin eval
+  <plugin> --runs 1 --ablation none --keep-temp`, no `--allow-tools`, and read the kept trace.
+- Expected, per the Grant tools section: only `Read`, `Glob` and `Grep` offered; the other calls
+  absent or denied.
+- Actual: the init tools also hold `Task`, `Skill`, `TaskStop` and `ToolSearch`; the `Skill`,
+  `Agent` and `ToolSearch` calls run with no denial.
+
+**Recheck trigger.** A release note or a change to the plugin-evals Grant tools section touching
+which tools a run allows.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `plugin-eval/unlisted-tools-offered` | ran, `Skill=ran` | ran, `Skill=ran Task=ran TaskStop=refused ToolSearch=ran` | pass |
