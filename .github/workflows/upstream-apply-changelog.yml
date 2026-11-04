@@ -23,9 +23,10 @@ name: upstream-apply-changelog
 # A release is skipped only when this workflow's
 # upstream-apply-changelog-done-<release> artifact exists, since --ci never
 # moves the read marker; existing branches and PRs are skipped per item. At most limits.upstream-apply-changelog-per-day
-# runs start in any 24 hours (docs/conventions/pr-pipeline.yaml). After the
-# model's key ends in a credit stop, runs inside the key-credit window start
-# no model and leave the release for a later run.
+# runs whose leg ran start in any 24 hours (docs/conventions/pr-pipeline.yaml).
+# After the model's key ends in a credit stop, runs inside the key-credit
+# window start no model and leave the release for a later run, and the run
+# that credit-stopped is not counted.
 #
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false"; every job checks it first and the broker
@@ -184,26 +185,9 @@ jobs:
           if [ -n "$created" ] && [[ $WINDOW_HOURS =~ ^[0-9]+$ ]] && start=$(date -u -d "$created" +%s); then
             ends=$(date -u -d "@$((start + WINDOW_HOURS * 3600))" +%Y-%m-%dT%H:%MZ) || ends=""
           fi
-          echo "::notice::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN; release $RELEASE waits and the model does not run until the ${WINDOW_HOURS}-hour window ends at ${ends:-an unread time}"
-
-      # The per-day cap counts these, so it counts runs that reached the model.
-      - name: Record the start
-        if: steps.gate.outputs.proceed == 'true' && steps.credit.outputs.skip-key != 'true'
-        env:
-          DIR: ${{ runner.temp }}/started
-          RELEASE: ${{ steps.gate.outputs.release }}
-        run: |
-          mkdir -p "$DIR"
-          printf '%s\n' "$RELEASE" >"$DIR/release.txt"
-
-      - name: Upload the start record
-        if: steps.gate.outputs.proceed == 'true' && steps.credit.outputs.skip-key != 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: upstream-apply-changelog-started
-          path: ${{ runner.temp }}/started/release.txt
-          retention-days: 2
-          if-no-files-found: error
+          line="ISSUE_LANE_CLAUDE_API_KEY hit a credit stop in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN; release $RELEASE waits and the model does not run until the ${WINDOW_HOURS}-hour window ends at ${ends:-an unread time}"
+          echo "::notice::$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Log the API budget at the end
         if: always()
@@ -444,6 +428,7 @@ jobs:
           path: ${{ runner.temp }}/key-credit-stop/run-id
 
       - name: Upload the key's credit-stop marker
+        id: credit-marker-upload
         if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
@@ -453,6 +438,56 @@ jobs:
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
           retention-days: 1
+
+      # The gate's per-day cap counts these: every run whose leg ran, success
+      # or failure, except one whose key credit-stopped with its marker
+      # uploaded, since the credit gate then holds the next runs off the key.
+      # A credit stop with no marker (the gate could not read the key's
+      # history) still counts, so the cap stays the brake. The file is
+      # rewritten after the leg and scanned, as the marker is.
+      - name: Record the start
+        id: start
+        if: always() && steps.run.outcome != 'skipped' && (steps.run.outputs.handoff-reason != 'credit-stop' || steps.credit-marker-upload.outcome != 'success')
+        env:
+          RELEASE: ${{ needs.gate.outputs.release }}
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/started"
+          mkdir -p "$RUNNER_TEMP/started"
+          printf '%s\n' "$RELEASE" >"$RUNNER_TEMP/started/release.txt"
+
+      - name: Scan the start record for credentials
+        id: start-scan
+        if: always() && steps.start.outcome == 'success'
+        uses: ./.lane-trusted/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/started/release.txt
+
+      - name: Upload the start record
+        id: start-upload
+        if: (always() && steps.start.outcome == 'success') && steps.start-scan.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upstream-apply-changelog-started
+          path: ${{ runner.temp }}/started/release.txt
+          retention-days: 2
+          if-no-files-found: error
+
+      - name: Report the credit stop
+        if: always() && steps.run.outputs.handoff-reason == 'credit-stop'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          RELEASE: ${{ needs.gate.outputs.release }}
+          COUNTED: ${{ steps.start-upload.outcome == 'success' }}
+        run: |
+          if [ "$COUNTED" = true ]; then
+            counted="counts toward the per-day cap, since no credit-stop marker was uploaded"
+          else
+            counted="does not count toward the per-day cap"
+          fi
+          line="ISSUE_LANE_CLAUDE_API_KEY hit a credit stop (class credit-stop); release $RELEASE waits for a later run, and this run $counted"
+          echo "::warning::$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
