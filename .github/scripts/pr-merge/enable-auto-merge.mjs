@@ -562,10 +562,18 @@ const carries = (pull, label) => (pull.labels?.nodes ?? []).some((node) => Strin
 const vetoNoted = (comments, bot) => (comments ?? []).some((c) => c?.author?.__typename === "Bot" && c.author.login === bot && String(c.body ?? "").split("\n", 1)[0].replace(/\r$/, "") === VETO_MARKER);
 
 // Whether VETO_LABEL on the REST issue `timeline` is the lanes App's for a
-// member veto: see VETO_MARKER.
-export function vetoLabelOwned(timeline, login) {
+// member veto: see VETO_MARKER. A second hold placed while the label is on
+// records no `labeled` event, so the label also stays when `body` holds (hold
+// text or the lane's hold line, whoever wrote it) or anyone but the lanes App
+// commented naming do-not-merge since the label went on: a session applies the
+// label, then explains it (AGENTS.md), and that explanation keeps it.
+export function vetoLabelOwned(timeline, login, body = "") {
   const { labeled, since } = labelHistory(timeline, VETO_LABEL, new Set());
-  if (!isApp(labeled?.actor, login) || Number.isNaN(since)) {
+  if (!isApp(labeled?.actor, login) || Number.isNaN(since) || BODY_HOLD.test(body) || LANE_HOLD.test(body)) {
+    return false;
+  }
+  const named = /\bdo[\s-]*not[\s-]*merge\b/i;
+  if (timeline.some((item) => item.event === "commented" && !isApp(item.user, login) && Date.parse(item.created_at) >= since && named.test(String(item.body ?? "")))) {
     return false;
   }
   return timeline.some((item) => {
@@ -2058,7 +2066,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
             console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: its timeline did not read: ${describe(error)}`);
             return false;
           }
-          if (!vetoLabelOwned(timeline, env.LANES_BOT_LOGIN)) {
+          if (!vetoLabelOwned(timeline, env.LANES_BOT_LOGIN, pull.body ?? "")) {
             console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: the lanes App did not add it for a member veto`);
             return false;
           }

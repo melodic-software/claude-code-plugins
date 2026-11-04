@@ -4238,4 +4238,11 @@ test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
   assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(KYLE, vetoNote(["kyle-sexton"]), NOTED_AT)], login), false);
   assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(APP_USER, "a note", NOTED_AT)], login), false);
   assert.equal(vetoLabelOwned([], login), false);
+  // A second hold placed while the label is on records no labeled event, so
+  // a session's explanation naming the label, or a body hold, keeps it.
+  assert.equal(vetoLabelOwned([...ownedTimeline, restSaid(KYLE, "Holding: applied the `do-not-merge` label for a regression.", "2026-10-23T09:45:00Z")], login), false);
+  assert.equal(vetoLabelOwned([...ownedTimeline, restSaid(KYLE, "Fine now, go ahead.", "2026-10-23T09:45:00Z")], login), true);
+  assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nHold: waiting on #1\n"), false);
+  assert.equal(vetoLabelOwned(ownedTimeline, login, "x\nHold: a human merges this\n"), false);
+  assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nno hold here\n"), true);
 });
