@@ -166,10 +166,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs"
-            ],
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs\"",
             "timeout": 15,
             "statusMessage": "Checking the enabled plugins' prerequisites..."
           }

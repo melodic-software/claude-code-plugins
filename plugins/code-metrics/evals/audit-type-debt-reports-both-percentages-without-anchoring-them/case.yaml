@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: audit-type-debt-reports-both-percentages-without-anchoring-them
+description: on a scaffolded repository with a default branch and an uncommitted change (a TypeScript file and a Python file, each with some any), the type-debt report measures the change. The scaffold adds no package.json or node_modules, so the TypeScript lane is measured only on a host where type-coverage runs and typescript resolves from the working directory, and the Python lane only where mypy is on PATH; on any other host the lane reads unavailable with its reason
+tags: [audit, type-debt, change-scope]
+expected_outcome: 'Runs the bundled audit-type-debt.sh against the change, presents the markdown report with its Coverage of this run table, and states that no standard or CWE anchors the measure so the reference is null, without declaring any lane a pass or a failure.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-metrics:audit type-debt
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-the-entry-script
+    type: tool_used
+    tool: Bash
+    input_match: audit-type-debt\.sh
+  - name: expectation-1
+    type: llm
+    criteria: 'Invokes the skill''s scripts/audit-type-debt.sh rather than grepping for any by hand'
+    focus: trace
+  - name: expectation-2
+    type: llm
+    criteria: 'For each of the TypeScript and Python lanes, presents either its percentage with the collector named, or the lane as unavailable with the reason the collector gave (for TypeScript, a missing type-coverage or a typescript that does not resolve; for Python, a missing mypy) and its install hint, without installing anything and without stating a percentage for a lane it did not measure'
+    focus: trace
+  - name: expectation-3
+    type: llm
+    criteria: 'States that no standard or CWE anchors the measure and that the reference is null'
+    focus: trace
+  - name: expectation-4
+    type: llm
+    criteria: 'Does not average the TypeScript and Python percentages or compare them with each other'
+    focus: trace
+  - name: expectation-5
+    type: llm
+    criteria: 'Does not declare any lane a failure, defect, or violation'
+    focus: trace

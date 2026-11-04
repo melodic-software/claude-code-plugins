@@ -215,6 +215,15 @@ print nothing and only start processes. `clear`, `resume` and `fork` stay: each 
 notice. `scripts/node-notice-rows.test.sh` pins both rows, their matcher, and that no other plugin
 carries a prerequisites row.
 
+No `SessionStart` row launches `node` in exec form, because that spawn fails on every new session
+when `node` is missing, and the node notice already tells the user. A `SessionStart` row that
+needs `node`, the runner row included, runs `lib/node-or-skip.sh` and then `lib/node-or-skip.ps1`
+in the node-notice row's polyglot shape, both with the same arguments. With `node` on `PATH` the
+stub runs it with those arguments, stdin and exit code; without it, the stub exits 0 and prints
+nothing. The same test pins that no `SessionStart` row is exec-form `node`, that each node-or-skip
+row is the canonical polyglot, and that each one exits 0 silently without `node` under bash,
+dash and PowerShell.
+
 - **Pointer**: when checking the SessionStart sources, or what a compaction does to the session
   id, fetch [hooks § SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live.
 - **As of**: 2026-11-03
