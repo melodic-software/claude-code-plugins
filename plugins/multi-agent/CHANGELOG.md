@@ -3,6 +3,17 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-04
+
+### Changed
+
+- Shared config-cascade library synced: comments now call the personal layer the personal override (#13187). No behavior or printed text changed.
+
+### Fixed
+
+- `reference/config.md`: a named agent that sets no `effort` runs at the session's level only on the
+  main conversation's model.
+
 ## [2.0.2] - 2026-11-04
 
 ### Fixed

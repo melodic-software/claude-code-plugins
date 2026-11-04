@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1] - 2026-11-04
+
+### Changed
+
+- Shared config-cascade library synced: comments now call the personal layer the personal override (#13187). No behavior or printed text changed.
+
 ## [0.12.0] - 2026-11-04
 
 ### Added
