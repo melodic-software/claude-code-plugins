@@ -98,6 +98,28 @@
         }
       ],
       "why": "encode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp video/low/C.mp4 docs/topics/caching/"
+          }
+        }
+      ],
+      "why": "copy to the bare record folder"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv video/low/C.mp4 docs/topics/caching"
+          }
+        }
+      ],
+      "why": "copy to the bare record folder"
     }
   ]
 }

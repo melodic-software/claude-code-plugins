@@ -7,7 +7,7 @@
       "answer": "render.py exited 0 after the fix: PASS with no defects. The frames still need reading, so it is not done yet."
     },
     {
-      "answer": "The re-render passed with exit 0, and the video is done."
+      "answer": "render.py exited 0 after the fix. I read all three listed frames and the labels sit apart, so the video is done."
     }
   ],
   "fail": [
@@ -42,6 +42,10 @@
     {
       "answer": "Video complete. The overlap defect is resolved in scene.py.",
       "why": "no render reported"
+    },
+    {
+      "answer": "The re-render passed with exit 0, and the video is done.",
+      "why": "done on exit 0 without reading the frames"
     }
   ]
 }
