@@ -139,6 +139,7 @@ ALLOWLIST = [
     phrase("overlay", r"\bagentic[- ]overlays?\b", "The agentic overlay layers on the harness."),
     path("overlay", "plugins/testing/skills/audit/evals/judge-calibration/**", "plugins/testing/skills/audit/evals/judge-calibration/case.md", OVERLAY_LINE),
     phrase("overlay", r"\b(css|ui|video|image|visual|modal)[- ]overlays?\b", "The modal overlay layers on the page."),
+    phrase("overlay", r"\badr/[0-9]{4}-[a-z0-9-]*overlay[a-z0-9-]*\.md\b", "Read [ADR 0015](../../adr/0015-bind-the-tracker-with-a-personal-overlay.md) on the layer."),
     phrase("tier-precedence", r"\bview tiers?\b", "The view tier overrides the page default."),
     phrase("tier-precedence", r"\b(static|client-interactive|animated|claude-interactive) tiers?\b", "The static tier overrides the page default."),
     phrase("tier-precedence", r"\benforcement[- ]ladder\b", "The enforcement ladder tier overrides the default."),
