@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654); no other change to this plugin.
+
 ## [1.0.1] - 2026-11-04
 
 ### Changed

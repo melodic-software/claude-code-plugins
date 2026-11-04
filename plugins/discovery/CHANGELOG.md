@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [1.4.4] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654). The shared `reference/rendered-view.md` copy names the planning views' reply text `notes.comment`; no other change to this plugin.
+
+- The shared `reference/rendered-view.md` now lists `architecture` as a medium-resolver lane beside `planning`; the blindspot view still reads the rendered-views cascade itself.
+
 ## [1.4.3] - 2026-11-04
 
 ### Fixed
