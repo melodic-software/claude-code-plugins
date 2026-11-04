@@ -38,7 +38,7 @@ Every implementation starts with a clear design, evidence, a test strategy, and 
 
 ## Emit checklist
 
-For multi-step planning (almost always steps 1-5), copy `templates/checklist.md` to `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`) and tick each `- [ ]` as its step completes. Step 3 (fresh-context plan stress-test) and Step 5 (present for approval) are non-negotiable ticks, except that `plan_stress_test`'s `devils-advocate` value moves Step 3's tick to Step 4. Stress-test before presenting, always.
+For multi-step planning (almost always steps 1-5), copy `templates/checklist.md` to `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`) by reading the template with the Read tool and writing the copy with the Write tool, never `cp`, `sed` or a shell redirect from a plugin file, and tick each `- [ ]` as its step completes. Step 3 (fresh-context plan stress-test) and Step 5 (present for approval) are non-negotiable ticks, except that `plan_stress_test`'s `devils-advocate` value moves Step 3's tick to Step 4. Stress-test before presenting, always.
 
 **Skip when:** the one-sentence skip (Purpose) applied, so no plan is written. On a mid-flight `review` replan, append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
