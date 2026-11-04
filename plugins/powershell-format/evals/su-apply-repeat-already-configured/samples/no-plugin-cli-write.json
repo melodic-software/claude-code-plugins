@@ -70,6 +70,18 @@
         }
       ],
       "why": "inside echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin configure --help",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "--help only prints usage"
     }
   ],
   "fail": [
@@ -179,6 +191,18 @@
         }
       ],
       "why": "flag before plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin uninstall powershell-format@example-marketplace; claude --help",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a later --help does not excuse the uninstall"
     }
   ]
 }
