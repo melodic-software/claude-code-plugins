@@ -7,7 +7,7 @@
 #                                     direct commit), revert commit; then "pairs<TAB><n>". Each
 #                                     revert it skips goes to stderr as "skip<TAB><sha><TAB><why>".
 #   build <original> <revert> <slug>  Writes the case revert-<pr>-<slug> beside this script and
-#                                     its fixtures as fixtures/<case>.tar.gz, an archive because
+#                                     its fixtures as <case>/fixtures.tar.gz, an archive because
 #                                     they are byte copies of history that repository lints must
 #                                     not judge.
 #   scaffold <case>                   A case's scaffold: rebuilds its files in the empty
@@ -184,11 +184,11 @@ build() {
   reverses_cleanly "$orig" "$rev" "${paths[@]}" || die "#$pr does not reverse cleanly onto $rev^"
   name="revert-$pr-$3"
   case_dir="$EVALS/$name"
-  fixtures="$EVALS/fixtures/$name"
-  [[ ! -e "$case_dir" && ! -e "$fixtures.tar.gz" ]] || die "$name already exists"
+  [[ ! -e "$case_dir" ]] || die "$name already exists"
+  fixtures="$(mktemp -d)"
   rpr="$(pr_number "$rev")"
   subject="$(git log -1 --format=%s "$orig" | sed -E 's/ \(#[0-9]+\)$//')"
-  mkdir -p "$case_dir/graders" "$fixtures"
+  mkdir -p "$case_dir/graders"
 
   for path in "${paths[@]}"; do
     for side in base head; do
@@ -254,7 +254,7 @@ This run has no GitHub access, so post nothing. Put every finding in your final 
 MD
 
   printf -- "---\ntype: regex\npattern: '%s'\nflags: i\n---\n" "${alt//$q/$q$q}" >"$case_dir/graders/caught.md"
-  tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$fixtures" -c . | gzip -n >"$fixtures.tar.gz"
+  tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$fixtures" -c . | gzip -n >"$case_dir/fixtures.tar.gz"
   rm -rf "${fixtures:?}"
   echo "$case_dir"
 }
@@ -272,7 +272,7 @@ place() { # <fixture dir>: copy each <path>.txt under it to <path> in the worksp
 
 scaffold() {
   [[ $# -eq 1 ]] || die "usage: scaffold <case>"
-  local archive="$EVALS/fixtures/$1.tar.gz" fixtures subject
+  local archive="$EVALS/$1/fixtures.tar.gz" fixtures subject
   [[ -f "$archive" ]] || die "no fixtures for $1"
   if grep -q '^# confirmed-by: pending' "$EVALS/$1/case.yaml"; then
     die "$1 is unconfirmed: a verifier agent checks its lines and names itself on the confirmed-by line"
