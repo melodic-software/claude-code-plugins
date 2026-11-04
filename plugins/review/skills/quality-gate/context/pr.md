@@ -9,10 +9,7 @@ marketplace plugin, plus two that ship with Claude Code itself. They share a nam
 routinely conflated; they are distinct:
 
 - **`code-review` marketplace plugin**: `/code-review:code-review`, installed from the
-  `claude-plugins-official` marketplace like any other plugin. A PR is its only target: it runs
-  parallel review agents with confidence scoring against that PR, then posts the surviving findings
-  back as a PR comment as its final step. It has no mode that returns them to the session instead.
-  This mode never runs it as a
+  `claude-plugins-official` marketplace like any other plugin. This mode never runs it as a
   read-only pass: it is a gated surface (Mutation gate below), dispatched only on explicit opt-in.
   - **Pointer**: for what the plugin targets and where its findings go, see
     [code-review plugin: Commands](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/code-review#commands).
@@ -47,12 +44,10 @@ the bundled-skill list.
 
 **Mutation gate.** The gate is by effect, not by flag name. It covers the plugin unconditionally,
 the managed service, and any bundled `/code-review` invocation whose arguments, as read live at the
-pointer above, edit the working tree or post to the PR. Every
-`/code-review:code-review` run ends by posting its findings as a PR comment, and triggering the
-managed service posts a full review; both violate the review modes' report-only contract, as does
-any bundled invocation that posts or edits. Dispatch any gated surface only on explicit user opt-in
-("post the review comment", "apply the fixes"), otherwise skip and name the skip in the review
-report.
+pointer above, edit the working tree or post to the PR. A surface that posts to the PR or edits the
+working tree violates the review modes' report-only contract. Dispatch any gated surface only on
+explicit user opt-in ("post the review comment", "apply the fixes"), otherwise skip and name the
+skip in the review report.
 
 - **Pointer**: for what the bundled command's run reads and edits, see
   [code-review: What the review reads and edits](https://code.claude.com/docs/en/code-review-local#what-the-review-reads-and-edits).

@@ -56,6 +56,8 @@ or its as-of date changes):
 | `mcp__context7__resolve-library-id` | `ctx7 library <name> <query>` |
 | `mcp__context7__query-docs` | `MSYS_NO_PATHCONV=1 ctx7 docs <id> <query>` |
 
+Same input shape as CLI, same backend, and same output substance. Only the transport differs.
+
 - **Pointer**: for what each tool does and the arguments it takes, fetch
   [Context7: MCP Tools](https://github.com/upstash/context7#mcp-tools) live.
 - **As of**: 2026-11-03
