@@ -18,7 +18,7 @@ graders:
     target: { source: file, path: scratch/work-outcome.json }
   - name: already-done-cites-sha
     type: regex
-    pattern: '"reason"\s*:\s*"already-done:[^"]*\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b'
+    pattern: '"reason"\s*:\s*"already-done:(?:[^"\\]|\\.)*\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b'
     target: { source: file, path: scratch/work-outcome.json }
   - name: no-edit
     type: tool_used
