@@ -90,7 +90,7 @@ marketplace-wide consumer-config layering contract.
 |---|---|---|
 | 1 | user-global | `~/.claude/github/routing.yaml` |
 | 2 | team | `${CLAUDE_PROJECT_DIR}/.claude/github/routing.yaml` |
-| 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/github/routing.local.yaml` |
+| 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/github/routing.local.yaml` |
 
 Resolution rules:
 
@@ -108,7 +108,7 @@ Resolution rules:
 The **write-posture keys**, every `<scope>.default` and every `<scope>.areas.<area-key>` routing
 value, are a policy-floor surface. For these keys, and only these:
 
-- The **team layer is a floor**. Personal layers (user-global and the local overlay) may only
+- The **team layer is a floor**. Personal layers (user-global and the personal override) may only
   **tighten** a team-declared value, concretely by replacing it with `propose`. They may never
   supply a looser value that takes effect, and a lateral swap (`guided-apply` ↔ `handoff`) is not
   a tightening: the team's channel choice stands.
@@ -165,8 +165,8 @@ descriptor still emits the change request and names the missing descriptor.
 
 ## Consumer `.gitignore`
 
-The overlay must never reach team history. Recommend this single recursive line. It covers this
-surface and every other `.claude/` overlay a consumer may adopt:
+The personal override must never reach team history. Recommend this single recursive line. It
+covers this surface and every other `.claude/` personal override a consumer may adopt:
 
 ```gitignore
 .claude/**/*.local.*

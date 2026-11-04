@@ -31,13 +31,13 @@
       "id": 3,
       "name": "apply-is-idempotent-and-scoped",
       "prompt": "/plugin-quality:setup apply sink=markdown-dir markdown_dir=~/audit-items\n\nThe convention home is already bound to docs/conventions. Run it twice.",
-      "expected_output": "First run converges the topic doc at docs/conventions/plugin-quality/README.md (only the named keys; other keys and prose preserved) and reports old->new; second run reports no diff. Writes nothing outside the pointer-line region and the topic doc: no .claude/plugin-quality.md, no overlay, no user-global file.",
+      "expected_output": "First run converges the topic doc at docs/conventions/plugin-quality/README.md (only the named keys; other keys and prose preserved) and reports old->new; second run reports no diff. Writes nothing outside the pointer-line region and the topic doc: no .claude/plugin-quality.md, no personal override, no user-global file.",
       "files": [],
       "expectations": [
         "Writes only the topic doc at the convention home (the region is already bound and untouched)",
         "Second identical apply produces no content change and says so",
         "Never writes any dedicated .claude/plugin-quality* file — the surface is retired",
-        "Never creates or edits the user-global or overlay layers"
+        "Never creates or edits the user-global layer or the personal override"
       ]
     },
     {
@@ -55,13 +55,13 @@
     },
     {
       "id": 5,
-      "name": "retirement-r002-overlay-warns-never-silent",
-      "prompt": "/plugin-quality:setup check in a repo that still carries a pre-existing .claude/plugin-quality.local.md overlay from before the migration.",
-      "expected_output": "check reports the plugin-quality-r002 row as WARN — the overlay has no effect and a convention-doc surface has no overlay channel — never silently ignoring the file, and never reading its values into the effective config. apply offers the gated --clean plugin-quality-r002 (action delete) and reports what was removed.",
+      "name": "retirement-r002-personal-override-warns-never-silent",
+      "prompt": "/plugin-quality:setup check in a repo that still carries a pre-existing .claude/plugin-quality.local.md personal override from before the migration.",
+      "expected_output": "check reports the plugin-quality-r002 row as WARN — the personal override has no effect and a convention-doc surface has no personal override channel — never silently ignoring the file, and never reading its values into the effective config. apply offers the gated --clean plugin-quality-r002 (action delete) and reports what was removed.",
       "files": [],
       "expectations": [
-        "The pre-existing overlay produces a visible WARN, not silence",
-        "The overlay's values do not appear in the effective config or its provenance",
+        "The pre-existing personal override produces a visible WARN, not silence",
+        "The personal override's values do not appear in the effective config or its provenance",
         "Cleanup is individually gated and uses --clean plugin-quality-r002, not an ad-hoc rm",
         "Severity is WARN (delete leftovers are inert clutter), distinct from the r001 FAIL"
       ]

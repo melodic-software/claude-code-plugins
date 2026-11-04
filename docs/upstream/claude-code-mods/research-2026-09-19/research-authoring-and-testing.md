@@ -14,10 +14,10 @@ Everything here was exercised on this machine unless marked otherwise.
                                   + "types": "./types/index.d.ts"  (if it provides a noun)
                                   + "userConfig": { … }            (if it takes options)
   hooks/hooks.json                { "description": "…", "modules": ["./register.ts"] }
-  hooks/register.ts               export function register(on, options) { … }
+  hooks/register.ts               exports register(on, options), the entry point
   hooks/index.ts                  a barrel; NOT an entry point, never referenced by hooks.json
   types/index.d.ts                the noun contract, if any
-  tests/register.test.ts          beside hooks/register.ts
+  tests/register.test.ts          mirrors the module's path under hooks/
   tests/fixtures/                 one export per file, for what several tests share
 ```
 
@@ -33,17 +33,17 @@ esnext, `moduleResolution` bundler, `strict`, `noUncheckedIndexedAccess`,
 `jsxFragmentFactory: "Fragment"`, `include: ["types", "*/types/**/*.d.ts",
 "*/hooks", "*/tests"]`. The single-plugin variant the `.d.ts` recommends is
 identical except `"include": [".claude/types", "hooks", "tests"]`. `lib` names no
-DOM deliberately: *"the environment has none, and its `Text` would shadow the
-element."* `SOURCE` · HIGH.
+DOM deliberately: the runtime has no DOM, and the DOM's `Text` type would hide
+the element of that name. `SOURCE` · HIGH.
 
 Minimum toolchain: **TypeScript 5.4+**. `SOURCE` · HIGH · `.d.ts:L1-10`.
 
 ## `/plugin-types`
 
 The `.d.ts` is generated, not hand-written. Its header names the version that
-wrote it (`// Written by Claude Code 2.1.277.`) and says: *"Written by
-`/plugin-types`; regenerate with that command after an update rather than
-editing."* `SOURCE` · HIGH.
+wrote it (2.1.277), credits `/plugin-types` as the generator, and tells readers
+to rerun it whenever Claude Code updates instead of changing the file by hand.
+`SOURCE` · HIGH.
 
 Four artifact families under `.claude/types/`:
 
@@ -51,7 +51,7 @@ Four artifact families under `.claude/types/`:
 |---|---|
 | `claude-code.d.ts` | the engine API (12,990 lines) |
 | `claude-code-mcp.d.ts` | MCP surface |
-| `claude-code-plugins.d.ts` | index of the enabled plugins' type contracts |
+| `claude-code-plugins.d.ts` | lists the type contracts of every enabled plugin |
 | `claude-code-plugins/<plugin>.d.ts` | one per plugin naming a `"types"` contract |
 
 `SOURCE` · HIGH · `.d.ts:L74-81`, with the generator and its filename-collision
@@ -65,8 +65,8 @@ CLI subcommand while the README describes a slash command, so the MEDIUM is not
 fully earned by its cited evidence; see `official-docs-changelog/VERIFICATION.md`
 row 7). **Not run end to end in any lane.**
 
-Staff: *"If anyone decides to enable the experimental flag, `/plugin-types` will
-make available a full listing of the available `$` affordances."* `STAFF` · HIGH.
+Staff: once someone turns the experimental flag on, `/plugin-types` lists every
+`$` affordance there is. `STAFF` · HIGH.
 
 Known defect: `/plugin-types` omitted op events `session.authorize` and
 `flag.value` that the hooks load line lists (issue #92469, 2.1.263), and
@@ -78,26 +78,23 @@ own comments. `COMMUNITY` · HIGH.
 
 Listed **unconditionally** in `claude plugin --help` on 2.1.278. `OBSERVED` · HIGH.
 
-For a hooks module it does more than manifest linting: it *"reads a plugin's
-manifest and its hooks module's source the way the engine will and reports what
-the module hooks and calls and everything the engine would refuse, before any
-session loads it."* The lists it prints are exactly `PluginRegisterUses`'s
+For a hooks module it does more than manifest linting: it parses the manifest
+and the module's source as the engine would, then lists the module's hooks and
+calls and every refusal the engine would raise, all before a session ever loads
+the plugin. The lists it prints are exactly `PluginRegisterUses`'s
 `events`, `calls` and `env`. `SOURCE` · HIGH.
 
-Staff caveat: *"`validate` only syntactically checks your plugin"*: it does not
+Staff caveat: `validate` checks syntax and nothing more, so it does not
 prove that a `$` noun the plugin calls is provided by anything upstream.
 `STAFF` · HIGH.
 
 ## `claude plugin test [dir]`
 
-```
-Usage: claude plugin test [dir]
-
-Runs a function-hooks plugin's tests: every *.test.ts and *.test.tsx under
-dir (default: the current folder), each file in a child of this binary, in
-an environment like the one its hooks run in. A test file imports its kit
-from 'claude-code/testing'. Exits 1 when a test fails.
-```
+Its help text, in our words: the command runs the `*.test.ts` and `*.test.tsx` files
+of a plugin built on function hooks, under `[dir]` (the current folder by default),
+each in a child process of the binary, inside an environment that mirrors the
+hooks runtime. Test files import their kit from `claude-code/testing`, and the
+command exits with status 1 when any test fails.
 
 `OBSERVED` · HIGH. It is **not registered** without the gate
 (`error: unknown command 'test'`) and **stays hidden from `claude plugin --help`
@@ -115,9 +112,9 @@ the test runner. `BINARY` · MEDIUM · `surfaces-desktop/VERIFICATION.md`.
 
 `claude --plugin-dir mods/diff`. `SOURCE` · HIGH. Long-established and
 well-covered in the CHANGELOG (12 entries, none about hooks modules). Relevant
-behaviors: accepts a **folder of plugins** (children added or removed while
-running are picked up); accepts `.zip`; a local dev copy overrides an installed
-marketplace plugin of the same name unless force-enabled by managed settings; one
+behaviors: accepts a **folder of plugins** (it notices children that come or go
+mid-run); accepts `.zip`; a local dev copy overrides an installed marketplace
+plugin of the same name unless managed settings force that plugin on; one
 path per flag. `SOURCE` · HIGH.
 
 Sets `provenance` to `<name>@inline` (`.d.ts:L6167`), and a `--plugin-dir` plugin
@@ -130,15 +127,15 @@ lands in the **`user` tier**, so `next.to` is refused. `SOURCE` · HIGH.
 
 ### The seating model: the part worth copying
 
-> A test gets the engine's own `$` and a plugin's `on`. Each call on `$` is one
-> the engine makes, through every hook of the mod loaded as it ships. The hooks
-> the test registers with `on` sit beneath the mod, where the rest of the world
-> would be, and **nothing is beneath them: a call they leave unanswered throws,
-> naming its event.**
+In our words: a test receives the engine's real `$` and a plugin's `on`. Every
+`$` call travels through each hook of the mod as shipped. Hooks the test
+registers through `on` sit under the mod, standing in for everything else, and
+**nothing sits under them: a call none of them answers throws an error that
+names the event.**
 
 `SOURCE` · HIGH · `mods/README.md:L28-32`. The test **is the world**. An
-unstubbed call is a loud failure, not a silent undefined. Plugins load at the
-test's first call on `$`, so a test registers its hooks before it.
+unstubbed call is a loud failure, not a silent undefined. Plugins load when the
+test first calls `$`, so its hooks must be registered ahead of that call.
 
 ### `tier`, `mock`, inline plugins
 
@@ -154,9 +151,9 @@ test's first call on `$`, so a test registers its hooks before it.
   which needs Claude Code v2.1.293 or later. Read the current list at
   [test: Stub what Claude Code would answer](https://code.claude.com/docs/en/plugins/mods/test#stub-what-claude-code-would-answer)
   (as of 2026-10-30; recheck when that section adds or drops a `mock` export).
-- `mock.clock` answers from an in-memory clock that moves only when the test
-  moves it; a held wait *"past a hook's budget (ten seconds of real time) is let
-  go, as a hook that overran."* `await clock.settle()` lets fire-and-forget work
+- `mock.clock` answers from an in-memory clock that advances solely under the
+  test's control; a wait held beyond the hook's ten-second real-time budget is
+  released and counted as an overrun. `await clock.settle()` lets fire-and-forget work
   land before asserting. `SOURCE` · HIGH.
 - `mock.env` covers the static case; a **varying** environment inside one test is
   a hand-written `on('env.get', …)`. `SOURCE` · HIGH ·
@@ -168,9 +165,9 @@ test's first call on `$`, so a test registers its hooks before it.
 - Matchers observed in use: `toEqual`, `toMatchObject`, `toBe`, `toContain`,
   `toEndWith`, `toHaveLength`, `toBeDefined`, plus a **message as `expect`'s
   second argument**. `SOURCE` · HIGH.
-- `$.ui.mount` draws a component through the plugin on a named surface; one body
-  can run over several surfaces. It exercises the mod, *"never a surface's
-  paint"*. `SOURCE` · HIGH.
+- `$.ui.mount` renders a component via the plugin for a chosen surface; one test
+  body can cover several surfaces. It tests the mod, not how a surface paints.
+  `SOURCE` · HIGH.
 
 ### Two limits of the kit, both observed
 
@@ -246,8 +243,8 @@ not an exception; `$.ui.resolve(e)` is **awaited** and destructured.
   author. `COMMUNITY` · HIGH
 - **Not defect-free.** Issue #92533 (below) carries an independent **Windows**
   reproduction at 2.1.272 as its sole comment. `COMMUNITY` · HIGH
-- claudefa.st argues Windows gains most from mods because there is *"no shell in
-  the execution path"*, citing ~90 ms process-spawn latency on Windows against
+- claudefa.st argues Windows gains most from mods because no shell sits between
+  Claude Code and the hook, citing ~90 ms process-spawn latency on Windows against
   2–14 ms on macOS for classic bash hooks. **Tier 2, unreplicated.**
   `COMMUNITY` · LOW
 - The Windows bugs that do exist in the tracker (#94313 `/diff` syntax
@@ -256,15 +253,15 @@ not an exception; `$.ui.resolve(e)` is **awaited** and destructured.
 
 ## Undocumented sharp edges reported by the first non-trivial implementer
 
-An `h` local-variable rule in surface modules; `Client` module paths that must be
-string literals; a render band about half the terminal height redrawing about ten
-times a second. His own summary: *"All of that is workable, just undocumented
-right now."* `COMMUNITY` · HIGH · `x-threads/RESEARCH-community-claims.md`.
+A rule about the local variable `h` in surface modules; `Client` module paths that
+must be string literals; a render band about half the terminal height redrawing
+roughly 10 times per second. His own summary: each one can be worked around, but none is
+documented yet. `COMMUNITY` · HIGH · `x-threads/RESEARCH-community-claims.md`.
 
 ## One first-party resource not read by any lane
 
-2.1.278 bundles a `plugin-authoring` skill: *"Write or debug a Claude Code plugin
-made of function hooks … Load it before writing or changing such a plugin; it
-says where the exact types come from, how to run a plugin under development, and
-where the engine reports what it refused."* `BINARY` · HIGH. **Its body was never
+2.1.278 bundles a `plugin-authoring` skill. Its description, in our words: it is
+for writing and debugging function-hook plugins, should be loaded before such a
+plugin is written or changed, and covers the source of the exact types, running
+a plugin during development, and finding the engine's refusals. `BINARY` · HIGH. **Its body was never
 extracted.** This is the cheapest unexploited first-party source in the corpus.

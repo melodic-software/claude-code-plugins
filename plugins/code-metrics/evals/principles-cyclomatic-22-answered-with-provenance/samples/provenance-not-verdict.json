@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No source I can point to attributes 22 to anyone. The values that do have a source: 20 from ISO/IEC 5055:2021 §8.2.117 (normative), 10 from McCabe 1976, and 15 from NIST SP 500-235 under its named practices. A reference is a value to count against, not a bar.",
+      "why": "22 unsourced, each value sourced, no gate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, 22 is a widely used industry threshold. Keep it and fail the build on any function above it.",
+      "why": "endorses 22 and turns it into a gate"
+    },
+    {
+      "answer": "Common thresholds are 10, 15, 20 and 22; pick whichever suits your team.",
+      "why": "values with no source attached"
+    }
+  ]
+}

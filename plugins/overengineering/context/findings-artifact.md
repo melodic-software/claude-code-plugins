@@ -655,7 +655,7 @@ the **same per-item gate** that authorized the remediation.
   constituents are authoritative with the key derived from them. The `reason` is the **operator's**
   words: a suppression with no stated reason cannot be reviewed and cannot be retired, and audit
   prose recycled into that field is not a stated reason.
-- **The team-tracked layer, not a personal overlay.** This surface class is policy-floor: a
+- **The team-tracked layer, not a personal override.** This surface class is policy-floor: a
   personal-layer entry for an id the team layer does not carry does not suppress. Writing there
   would leave the operator believing a judgment is in effect when it is not.
 - **The record is excluded from the audit's own scan set**, so recording a judgment does not perturb

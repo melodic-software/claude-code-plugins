@@ -45,7 +45,7 @@ Resolve both format and location in this order:
 
 The two file names come from the domain-driven-design settings, resolved by
 `scripts/glossary-settings.mjs` (plugin root) through the config cascade: the plugin default,
-`userConfig`, the team file `<home>/domain-driven-design.yaml` and the personal overlay
+`userConfig`, the team file `<home>/domain-driven-design.yaml` and the personal override
 `<home>/domain-driven-design.local.yaml`, where `<home>` defaults to `docs/conventions`. Each value is
 a file name, never a path. When proposing a name, say which layer supplied it (`provenance`), and name
 any layer the script reports invalid.

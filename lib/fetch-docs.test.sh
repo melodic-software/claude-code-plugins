@@ -821,6 +821,24 @@ gen_run "$src" go-b1 "$PYNONE" $G1 "$PAGE_URL"
 assert_eq "generic: a same-origin llms.txt link for the path is the third channel" "read markdown from bundle" \
   "$(gpage go-b1 '"\(.state) \(.format)"') $(sed -n 2p "$TEST_TMPDIR/go-b1/docs-test/guide/page.md")"
 
+# text/plain on the URL's own request: markdown for a .md path, not for any other.
+src="$TEST_TMPDIR/gs-plainmd"
+mkdir -p "$src"
+printf '%s\n' '# Page' 'plain md' >"$src/page.md"
+printf '%s' 'text/plain; charset=utf-8' >"$src/page.md.ctype"
+gen_run "$src" go-pm1 "$PYNONE" $G1 "$PAGE_URL.md"
+assert_eq "generic: a text/plain 2xx for a .md path is read as markdown on the first request" \
+  "read markdown text/plain; charset=utf-8 1" \
+  "$(gpage go-pm1 '"\(.state) \(.format) \(.content_type)"') $(wc -l <"$src.log" | tr -d ' ')"
+assert_eq "generic: the .md page file is the body" "$(cat "$src/page.md")" "$(cat "$TEST_TMPDIR/go-pm1/docs-test/guide/page.md")"
+src="$TEST_TMPDIR/gs-plainhtml"
+mkdir -p "$src"
+printf '%s\n' 'plain text, not markdown' >"$src/page"
+printf '%s' 'text/plain' >"$src/page.ctype"
+gen_run "$src" go-pm2 "$PYOK" $G1 "$PAGE_URL"
+assert_eq "generic: text/plain for a non-.md path is refused" "unread unexpected-content-type" \
+  "$(gpage go-pm2 '"\(.state) \(.reason)"')"
+
 # A retitled page quarantines its key.
 src="$TEST_TMPDIR/gs-title"
 mkdir -p "$src"

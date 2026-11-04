@@ -9,6 +9,18 @@
     {
       "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Q3 churn\n- [__]\n\n## Slide 2: Hartwell customer quote\n\n> [__]\n\n**Missing:** the Q3 churn rate and the Hartwell quote.",
       "why": "the marker sits under the heading that names the figure"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Q3 churn\n\nNew plans launched July 8.\n\n- Churn rate: [__]\n\n## Slide 2: Hartwell customer quote\n\nFrom the survey.\n\n> [__]\n\n**Missing:** the Q3 churn rate and the Hartwell quote.",
+      "why": "the marker sits four lines under the heading, past blank lines"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__%]\n\n## Slide 2: What customers said\n- Hartwell quote: [__]\n\n**Missing:** Q3 churn rate, Hartwell quote.",
+      "why": "percent-shaped marker for the churn rate"
+    },
+    {
+      "answer": "**Title:** Q3 Self-Serve Pricing Review\n\n**Slide 1: Q3 churn**\n\nNew plans launched July 8.\n\n- Rate: [__]\n\n**Slide 2: Hartwell customer quote**\n\nFrom the survey.\n\n> [__]\n\n**Missing:** the Q3 churn rate and the Hartwell quote.",
+      "why": "bold slide labels, each marker several lines under its own label"
     }
   ],
   "fail": [
@@ -25,6 +37,22 @@
     {
       "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n- Upgrades to Team: [__]\n\n## Slide 2: What customers said\n- Hartwell quote: pending\n\n**Missing:** Q3 churn rate, Hartwell quote.",
       "why": "two markers, but none where the quote belongs"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n- Upgrades: [__]\n\n## Slide 2: What customers said\n\nThe survey ran in August.\n\n- Hartwell quote: TBD\n\n**Missing:** Q3 churn rate, Hartwell quote.",
+      "why": "the quote slide, several lines long, still has no marker"
+    },
+    {
+      "answer": "# Customer Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n- Upgrades: [__]\n\n## Slide 2: What customers said\n- Hartwell quote: TBD\n\n**Missing:** Q3 churn rate, Hartwell quote.",
+      "why": "a quote word in the title above the churn marker must not stand in for the quote's own marker"
+    },
+    {
+      "answer": "**Title:** Customer Pricing Review\n\n**Slide 1: Where we landed**\n- Launched July 8.\n- Q3 churn: [__]\n- Upgrades: [__]\n\n**Slide 2: What customers said**\n- Hartwell quote: TBD",
+      "why": "bold slide labels: the title's quote word must not reach the churn marker"
+    },
+    {
+      "answer": "**Customer Pricing Review**\n\n1. **Where we landed**\n- Q3 churn: [__]\n- Upgrades: [__]\n\n2. **What customers said**\n- Hartwell quote: TBD",
+      "why": "numbered bold slide labels bound the window too"
     }
   ]
 }

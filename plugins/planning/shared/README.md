@@ -1014,23 +1014,19 @@ It reads `GET /api/owner/health` (auth class owner; a request without the owner'
 
 ## Themes
 
-The page's theme is a mode, an accent and a palette. The owner sets the default for everyone in
-Session settings ("Default theme for everyone", the `theme` setting); each person can choose their
-own in their card ("Theme, just for you", the `theme`, `accent` and `palette` prefs), which wins on
-their own page.
+The page carries the marketplace's canonical chrome ([`html-chrome.html`](../reference/html-chrome.html)): its theme
+toggle and its comment box. The toggle, System, Light and Dark, is the only theme choice. Each person
+picks for themselves in their card ("Theme, just for you", the `theme` pref), and the top bar's theme
+button cycles the same three. System, the default, follows the device. The owner sets no theme for
+everyone, and the page offers no accent or palette choice. The prototype page follows the same pref.
 
-| Part | Values | Default |
-|---|---|---|
-| `mode` | `system` (follows the device), `light`, `dark` | `system` |
-| `accent` | `teal`, `indigo`, `violet`, `amber` | `teal` |
-| `palette` | `default`, `midnight`, `slate`, `paper`, `contrast` (High contrast) | `default` |
+A session saved with a `theme` setting, or `accent` and `palette` prefs, from before the toggle still
+loads, and the server still accepts those fields. The page paints none of them, so it shows the
+default colors in the mode the person picked.
 
-Each palette has a light and a dark variant, chosen by the mode, and sets the whole page's surfaces
-and text. The accent applies over every palette except High contrast, which uses its own accent; with
-High contrast chosen for yourself, your accent swatches are disabled and say so. The owner's default
-accent stays settable, since it still reaches anyone who picks another palette. `palette` is optional
-in the `theme` setting: a session written before palettes has none, loads as it was, and shows the
-default palette until the owner, or a person for themselves, picks one.
+The Discussion composer is the chrome's comment box: its "Comment" heading, its "Your comment for
+the session" label and its field (`#rv-comment-text`). A comment posts to the question's Discussion
+as before.
 
 ## Read aloud and dictation
 
@@ -1367,10 +1363,15 @@ scrolling, the later question's version list with the current version marked, op
 from it, the two side by side on a desktop and stacked on a phone, a note staying on its version, and
 a question stored with no look-at line showing none.
 
-`ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in every palette, in light
-and dark: text and placeholders, field edges, icon-only buttons and the Propose button's edge; per
-palette, mode and accent, the accent's text on every surface, text on the accent and the ten person
-colors; and that a palette picked in Session settings or in a person's own card applies on the page.
+`ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in light and dark: text and
+placeholders, field edges, icon-only buttons and the Propose button's edge; per mode, the accent's
+text on every surface, text on the accent and the ten person colors.
+
+`test_page_chrome.py` checks that `app.css` carries the canonical chrome's rules verbatim, that
+`app.js` builds the chrome's toggle and comment box from the chrome's own words, and that no accent,
+palette or session theme remains in the page's code. `ui_surfaces.js` checks the rendered page: a
+person's card carries the toggle, opening on System; no accent or palette picker renders; the
+owner's Session settings set no theme; and the Discussion composer is the comment box.
 
 `ui_layout.js` checks no page scroll at five sizes and 200% zoom in both themes, 44 px phone
 targets, no sideways scroll in Ask Claude on a phone with "Run it on my own Claude" on, the

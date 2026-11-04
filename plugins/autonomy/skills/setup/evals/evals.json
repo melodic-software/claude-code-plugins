@@ -44,11 +44,11 @@
       "id": 4,
       "name": "check-is-read-only-across-layers",
       "prompt": "/autonomy:setup check",
-      "expected_output": "Resolves the effective binding additively across every rung of the ladder: user-global, project, and local overlay layers, PLUS the org layer when the merged layers carry an org_policy_home pointer (fetched via the host CLI with the consumer's own auth). Reports which layer or rung contributes each value and what is missing, warns when a layer or the org-policy home could not be read (not-considered, never silently omitted), and performs no writes of any kind.",
+      "expected_output": "Resolves the effective binding additively across every rung of the ladder: user-global and project layers and the personal override, PLUS the org layer when the merged layers carry an org_policy_home pointer (fetched via the host CLI with the consumer's own auth). Reports which layer or rung contributes each value and what is missing, warns when a layer or the org-policy home could not be read (not-considered, never silently omitted), and performs no writes of any kind.",
       "files": [],
       "expectations": [
         "No file writes in check mode",
-        "Reports per-layer contributions (user-global, org rung when pointed, project, local overlay)",
+        "Reports per-layer contributions (user-global, org rung when pointed, project, personal override)",
         "Fetches and folds in the org binding when an org_policy_home pointer exists",
         "Warns when a layer or the org-policy home exists but could not be read, never silently omitting it"
       ]
