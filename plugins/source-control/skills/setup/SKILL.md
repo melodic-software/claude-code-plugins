@@ -298,7 +298,7 @@ In brief:
   repository there is no team to share with) and offer `layer=user`.
 - **Non-interactive** (`subject_pattern=`): an in-place *update*, never a fresh file. Carry every
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
-  non-machine-checkable value, and for a personal override omit requested keys the layers below already
+  non-machine-checkable value, and for a `user` or `local` write omit requested keys the layers below already
   resolve identically.
 - **`branch_issue_pattern=`**: alone, it writes or replaces only the `branch_issue_pattern` key of
   the chosen layer (a quoted scalar in the team YAML; the `## branch_issue_pattern` section, value in

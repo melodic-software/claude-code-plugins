@@ -81,13 +81,13 @@ vocabulary the pattern does not use. Moving the other way re-adds the bundled 11
 `pr_title_pattern` follows the same rule unless the user set it to a value independent of
 `subject_pattern`, which is carried through like any other independent key.
 
-**Writing a personal override layer, `user` or `local`, resolve the layers below first and omit any
+**Writing the `user` or `local` layer, resolve the layers below first and omit any
 *requested* key already equal to that merge.** A non-interactive argument is not evidence of a genuine
 deviation: `apply layer=local subject_pattern=X` against a team file that already declares `X` would
 otherwise pin `X` locally, so a later team change would be silently ignored on this machine, the
 exact failure per-key override exists to prevent. This applies to the requested keys only; it never
-licenses dropping an unrelated key the personal override already carries. When every requested key already holds
-and the personal override would otherwise be empty, write nothing and say so rather than materializing an empty
+licenses dropping an unrelated key the written layer already carries. When every requested key already holds
+and the written layer would otherwise be empty, write nothing and say so rather than materializing an empty
 file.
 
 **`branch_issue_pattern=<ERE>` writes the branch-to-issue grammar.** It is independent of
@@ -112,7 +112,7 @@ file.
   is. For `user` and `local` it is the `## branch_issue_pattern` section, value in backticks on the
   first line under the heading (a value that itself contains a backtick goes in a fenced code block
   instead), every other section and the preamble untouched. When the target file does not exist yet, write the step 5 template's
-  preamble plus this one section, never placeholder sections for the other keys. The personal override rule
+  preamble plus this one section, never placeholder sections for the other keys. The layered-write rule
   above applies: writing `user` or `local`, when the layers below already resolve the same value,
   write nothing and say so.
 - **Combined** with `subject_pattern=`: one pass writes both. The `subject_pattern=` rules above
@@ -136,8 +136,8 @@ With no argument in an interactive session, run the interview:
    every self-contained Bash call.
 1. **Read the current config first**, all three layers, not just the target. Present the effective
    merge and which layer supplies each key; the interview proposes changes against that baseline and
-   overwrites nothing without confirmation. Writing a personal override layer, carry only the keys that
-   genuinely differ from the merge below it: a personal override that restates every key silently pins values
+   overwrites nothing without confirmation. Writing the `user` or `local` layer, carry only the keys that
+   genuinely differ from the merge below it: a layer that restates every key silently pins values
    the base layer should still own, which is the failure mode per-key override exists to avoid.
 2. **Infer before asking.** Gate this on the resolved value, not on file presence: infer whenever the
    **effective merged `subject_pattern` is unresolved**, which includes the case where layers exist
@@ -242,7 +242,7 @@ With no argument in an interactive session, run the interview:
      *below* the one being written already resolve to the portable default (or the key is unset
      everywhere), since writing the explicit default there would just add redundant noise. When the intent
      is genuinely to reset back to the portable default *over* a lower layer that sets something else
-     (a team config requiring `Related`, and this write is a personal override or a team rewrite meant
+     (a team config requiring `Related`, and this write is a `user` or `local` layer or a team rewrite meant
      to drop it), the portable default must be written out explicitly as the keyword `briefing`. An
      omitted section would silently keep inheriting the lower layer's list instead.
      State the one-line reason when this applies ("written explicitly to override the team layer's
