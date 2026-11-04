@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**@tidewren** · 2026-10-27 · https://x.com/tidewren/status/2468013579\n\nLow tide at Pebblewick tomorrow is 04:18.",
+      "why": "attribution line"
+    },
+    {
+      "answer": "[Post](https://x.com/tidewren/status/2468013579)",
+      "why": "markdown link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Source: https://mobile.twitter.com/tidewren/status/2468013579",
+      "why": "the converter-echoed legacy URL"
+    },
+    {
+      "answer": "Source: https://twitter.com/tidewren/status/2468013579",
+      "why": "host not canonicalized"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call: refused"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://example.invalid/roundup", "prompt": "List the X links"}}],
+      "why": "the user's page"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://x.com/b/status/2", "prompt": "Return the text of this post, especially anything about the Tarnmoor ferry timetable change."}}],
+      "why": "the first smoke's without-arm call: the string trimmed at the apostrophe"
+    }
+  ]
+}

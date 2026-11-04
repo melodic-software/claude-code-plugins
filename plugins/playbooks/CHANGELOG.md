@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.1] - 2026-11-04
+
+### Changed
+
+- `skill-authoring`'s skill criteria exempt replacing a restated upstream fact with a pointer to
+  its live upstream section from the cut eval rule. A removed sentence that gives a reason the
+  skill acts on still needs eval evidence of no loss, or it stays.
+
+### Fixed
+
+- Shared `fetch-docs.sh` synced where this plugin carries it ([#12945](https://github.com/melodic-software/claude-code-plugins/issues/12945)): with `--profile generic`, an x.com or twitter.com page that is X's logged-out shell (`redirect_after_login` links and no article text) is now `unread` with reason `login-wall` instead of `read`, whether fetched or served from the cache or a fixture, and is never cached; no other change to this plugin.
+
 ## [0.28.0] - 2026-11-03
 
 ### Added

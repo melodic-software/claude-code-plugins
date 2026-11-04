@@ -1,0 +1,12 @@
+{
+  "no-trimmed-command": [
+    {
+      "use": "command_position"
+    },
+    "(?:curl|wget|nc|ncat|http|xh|python3?|node|perl|ruby|pwsh)\\b",
+    {
+      "use": "token_argument"
+    },
+    "x\\.com/b/status/2(?![0-9])"
+  ]
+}
