@@ -39,10 +39,15 @@ console.log(JSON.stringify({ medium, publishes: MEDIA[medium] }));
 JS
 
 cat >plugins/digest/lib/view-settings.test.mjs <<'JS'
-import { test } from "node:test";
-// a publishing value counts only from a trusted scope
-test("hosted on a private repository gives file", () => {});
-test("an unknown value gives file", () => {});
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+const resolve = (option) => JSON.parse(execFileSync("node", [new URL("./view-settings.mjs", import.meta.url).pathname, "resolve", "--option", option]).toString());
+describe("a publishing value counts only from a trusted scope", () => {
+  test("an unknown value gives file", () => {
+    assert.deepEqual(resolve("banner"), { medium: "file", publishes: false });
+  });
+});
 JS
 
 cat >plugins/digest/skills/digest/SKILL.md <<'MD'

@@ -291,10 +291,13 @@ eligible for skip 2. Compare the base and head manifests:
   argument to an in-repository script that accepts only the listed values is still a selector,
   unless a listed value sends content off the machine. Nor is it one when a listed value enables
   sending repository or session content off the machine (publishing, uploading, posting, an
-  external write), with one exception: a view `medium` key is a selector when the diff or the
-  repository shows the code that reads it passing the value to a plugin's `lib/view-settings.mjs`
-  resolver, whose trust rules gate what publishes; cite that line. A `medium` key read any other
-  way, with a value that publishes, is not a selector. A selector gets one summary line,
+  external write), with one exception: a view `medium` key is a selector when all of these hold,
+  each cited by file and line: the code that reads it passes the value to that plugin's
+  `lib/view-settings.mjs` resolver; the diff neither adds nor changes that plugin's
+  `lib/view-settings.mjs` or `lib/view-settings.test.mjs`; and at head that
+  `lib/view-settings.test.mjs` holds the test block "a publishing value counts only from a
+  trusted scope". In every other case a `medium` key with a value that publishes is not a
+  selector. A selector gets one summary line,
   `manifest userConfig.<key>: pass, advisory, <what the value picks and the file and line that
   reads it>`, and no inline comment and no `severity:` line; it adds nothing to the findings
   total or `critical-findings: <n>` and never sets `hold`. Pointer: the resolver's trust rules are

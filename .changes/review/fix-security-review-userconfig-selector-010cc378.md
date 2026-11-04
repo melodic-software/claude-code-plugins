@@ -13,8 +13,10 @@ bump: patch
   LSP or monitor server, a channel, a path, a URL or an unquoted shell string, or whose value
   turns on sending repository or session content off the machine, stays a
   `manifest <field>: flag`, and the guard-default rule still runs first. The one exception is a
-  view `medium` key whose value the diff or repository shows passed to a plugin's
-  `lib/view-settings.mjs` resolver, whose trust rules `lib/view-settings.test.mjs` pins; a
-  `medium` key read any other way, with a publishing value, still flags. Five eval cases cover an
-  advisory layout key, a key substituted into a hook command, a share switch that uploads a
-  session summary, and a publishing `medium` key read through the resolver and read directly.
+  view `medium` key whose value is passed to the plugin's `lib/view-settings.mjs` resolver, when
+  the diff changes neither that resolver nor its `lib/view-settings.test.mjs` and that test file
+  still holds the "a publishing value counts only from a trusted scope" block; a publishing
+  `medium` key in any other case still flags. Six eval cases cover an advisory layout key, a key
+  substituted into a hook command, a share switch that uploads a session summary, and a
+  publishing `medium` key read through an unchanged resolver, read directly, and read through a
+  resolver the same diff edits.
