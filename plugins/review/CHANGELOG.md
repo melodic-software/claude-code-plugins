@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.2.0] - 2026-11-04
+
+### Changed
+
+- The CI review lanes post only blocking findings once they have reviewed an earlier head of the pull request, not only past the `loop.review-rounds` cap. `prior-findings.mjs` now writes `blocking only: yes` once the lane reviewed an earlier head (a clean review counts, a skip does not), and no longer reads `CAP_CONFIG`. `/review:code-review` and `/review:security-review` apply the rule as "After the first review".
+
+## [7.1.8] - 2026-11-04
+
+### Fixed
+
+- The run-everything sweep waits for the `review:fanout-sweep` workflow's completion notification and takes each leaf's text from the returned `raw` array or its findings file, instead of listing or reading the workflow's run directory. Those run-directory reads were denied in eval runs, which made the reviewer-diversity suites invalid.
+
 ## [7.1.7] - 2026-11-04
 
 ### Fixed

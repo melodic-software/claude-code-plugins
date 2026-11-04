@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "{\"typos_format_enabled\": \"false\"}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"typos_format_enabled\": false}",
+      "why": "near miss: not a string"
+    },
+    {
+      "answer": "{\"typos_format_end_of_turn\": \"false\"}",
+      "why": "near miss: the other key"
+    }
+  ]
+}

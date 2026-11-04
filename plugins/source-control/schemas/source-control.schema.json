@@ -12,6 +12,11 @@
       "default": "ready",
       "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
     },
+    "review_venue": {
+      "enum": ["auto", "local", "ci", "both"],
+      "default": "auto",
+      "description": "Which venue reviews a pull request, read at its base branch and honored only when that base is the default branch. auto reads each review lane's CI health and runs a local review only where CI does not cover the lane; local runs every local review step; ci skips the local review steps and leaves the review to the CI lanes; both runs the local steps and still counts the CI lanes. An unknown value falls back to auto."
+    },
     "sync_stale_base": {
       "type": "boolean",
       "default": false,

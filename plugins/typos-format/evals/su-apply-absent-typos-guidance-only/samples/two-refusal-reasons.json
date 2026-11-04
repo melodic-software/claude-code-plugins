@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "It refuses for two reasons: every install is machine-level, not a dependency recorded through the repo's package manager, and typos publishes several official install methods, so choosing one is yours."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Every install is machine-level, so it is not recorded in the repo.",
+      "why": "near miss: one reason"
+    },
+    {
+      "answer": "Installing needs network access.",
+      "why": "wrong reason"
+    }
+  ]
+}

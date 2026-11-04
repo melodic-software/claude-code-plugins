@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "verify reports the entry missing here, so nothing runs at commit yet."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings arrive from the pre-commit entry.",
+      "why": "near miss: says nothing of its state here"
+    },
+    {
+      "answer": "The pre-commit entry is installed and passes.",
+      "why": "wrong state"
+    }
+  ]
+}

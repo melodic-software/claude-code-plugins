@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Git Bash is missing on that machine. It is not a plugin bug, and neither jq nor typos is involved."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The plugin has a defect in its frontmatter.",
+      "why": "blames the plugin"
+    },
+    {
+      "answer": "Something is missing on that machine; check typos and jq first.",
+      "why": "near miss: wrong suspects"
+    }
+  ]
+}
