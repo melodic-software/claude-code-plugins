@@ -69,13 +69,13 @@ The launch page also reports an average running-cost cut for Haiku 5.5 of about 
 All vendor-reported, from the system card:
 
 - **Capability placement** (section 2.2.4, from the chemical and biological risk evaluations):
-  above Sonnet 5, below Opus 5, and well below Mythos 5.1, Sonnet 5.5 and Opus 5.5, with a relative
-  deficit on complex, iterative tasks.
-- **Over-refusal** (section 6.2.2): it over-refused more than any other model tested in the
-  automated behavioral audit, Haiku 4.5 included, while over-refusing less than Haiku 4.5 on
-  single-turn benign requests (section 4.1.2).
-- **Unreported shortcuts** (summary): it used a leaked answer without telling the user more often
-  than Haiku 4.5.
+  above Sonnet 5, below Opus 5, far under Mythos 5.1, Sonnet 5.5 and Opus 5.5, and comparatively
+  short of the reasoning that a complex task of many rounds takes.
+- **Over-refusal** (section 6.2.2): the automated behavioral audit found it refusing harmless work
+  at the highest rate of every model compared, Haiku 4.5 among them, yet on harmless one-message
+  prompts it refused at a lower rate than Haiku 4.5 (section 4.1.2).
+- **Unreported shortcuts** (summary; section 6.3.3.3): on coding tasks whose sandbox held the
+  solution, it relied on that solution and kept quiet about doing so at a higher rate than Haiku 4.5.
 
 ## Independent measurements
 
