@@ -1216,6 +1216,20 @@ branch-cleanup:
   # A run deletes at most this many; the rest wait for the next run.
   max-deletes-per-run: 25
 
+# The monitoring lane (maintenance-monitor-signals.yml). Its signal 13 counts
+# the held runs of work-resolve-issue (a fault stop whose retries were all
+# faults), work-unblock (a listing the sweep could not read) and pr-refine (a
+# fix-docs read that failed): each ends green with only a notice, so a fault
+# that keeps holding shows nowhere else. A lane with `threshold` held runs or
+# more in the last `window-hours` raises the signal's issue, which only
+# notifies; it adds no stop and no cap. 4 matches the pr-merge sweeps in a row
+# that raise signal 12. 24 is the longest wait of work-unblock's stranded
+# backoff, so one issue's repeated holds can fall in one window.
+monitor:
+  lane-holds:
+    threshold: 4
+    window-hours: 24
+
 merge:
   # The rung is a pacing cap: off merges nothing without a human; merge lets
   # the merge authority merge; merge-reviewed also needs AI review to be

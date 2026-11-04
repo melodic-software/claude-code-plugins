@@ -17,31 +17,60 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseJobsCarry } from "./collect.mjs";
+import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf, unreadSignals } from "./issues.mjs";
-import { detect } from "./signals.mjs";
+import { detect, holdRule } from "./signals.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
 
 const WORKFLOW_PATH = ".github/workflows/maintenance-monitor-signals.yml";
+// The checkout's pipeline config, three levels above this file.
+const CONFIG = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
 
-// The last run's completed job reads (collect.mjs parseJobsCarry), from the
-// newest scheduled or hand-started run of main's copy of this workflow that
-// holds the JOBS_ARTIFACT, this run aside: only a run's own steps upload its
-// artifacts. Empty, with a warning, when there is none or it cannot be read,
-// so every run's jobs are read as before. Off unless JOBS_CARRY_PATH is set.
+// The last run's carry, from the newest scheduled or hand-started run of
+// main's copy of this workflow that holds the JOBS_ARTIFACT, this run aside:
+// only a run's own steps upload its artifacts. `jobs` is its completed job
+// reads (collect.mjs parseJobsCarry), empty with a warning when there is none
+// or it cannot be read, so every run's jobs are read as before. `held` is its
+// held runs (parseHeldCarry), null when there is none or, with a warning, when
+// it cannot be read. Off unless JOBS_CARRY_PATH is set.
 export async function readJobsCarry({ env, repo, actions, download }) {
-  if (!env.JOBS_CARRY_PATH) return new Map();
+  const none = { jobs: new Map(), held: null };
+  if (!env.JOBS_CARRY_PATH) return none;
+  const warn = (what, error) => console.log(`::warning::monitoring lane: ${what}: ${error?.message ?? error}`);
+  let text;
   try {
     const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name: JOBS_ARTIFACT, workflow: WORKFLOW_PATH });
-    if (id === undefined) return new Map();
+    if (id === undefined) return none;
     download ??= ghDownload({ repo, token: env.GITHUB_TOKEN, dir: env.RUNNER_TEMP ?? tmpdir(), name: JOBS_ARTIFACT, file: JOBS_FILE });
-    return parseJobsCarry(download(id), repo);
+    text = download(id);
   } catch (error) {
-    console.log(`::warning::monitoring lane: no job reads carried, so every run's jobs are read: ${error?.message ?? error}`);
-    return new Map();
+    warn("nothing carried, so every run's jobs are read", error);
+    return none;
+  }
+  const carry = { jobs: new Map(), held: null };
+  try {
+    carry.jobs = parseJobsCarry(text, repo);
+  } catch (error) {
+    warn("no job reads carried, so every run's jobs are read", error);
+  }
+  try {
+    carry.held = parseHeldCarry(text, repo);
+  } catch (error) {
+    warn("no held runs carried", error);
+  }
+  return carry;
+}
+
+// pr-pipeline.yaml's monitor.lane-holds rule (signals.mjs holdRule), read with
+// yq as the workflow reads merge.agent-identity, or the error that stopped it.
+export function readHoldRule({ path = CONFIG, run = execFileSync } = {}) {
+  try {
+    return holdRule(JSON.parse(run("yq", ["-o=json", '.monitor."lane-holds" // {}', path], { encoding: "utf8" })));
+  } catch (error) {
+    return new Error(`the monitor.lane-holds rule was not read: ${error?.message ?? error}`);
   }
 }
 
@@ -173,10 +202,11 @@ async function main(env = process.env) {
   };
   // GET /rate_limit does not count against the limit.
   const ownRate = replay ? null : ((await get("/rate_limit").catch(() => null))?.resources?.core ?? null);
-  const carriedJobs = await readJobsCarry({ env, repo, actions: call });
+  const carry = await readJobsCarry({ env, repo, actions: call });
 
   const data = await collect({
-    carriedJobs,
+    carriedJobs: carry.jobs,
+    holds: { rule: readHoldRule(), carried: carry.held },
     get,
     graphql,
     getStatus,
@@ -189,7 +219,7 @@ async function main(env = process.env) {
   });
   if (env.JOBS_CARRY_PATH) {
     try {
-      writeFileSync(env.JOBS_CARRY_PATH, jobsCarryFile(repo, data.jobsCarry));
+      writeFileSync(env.JOBS_CARRY_PATH, jobsCarryFile(repo, data.jobsCarry, data.heldCarry));
     } catch (error) {
       console.log(`::warning::monitoring lane: the job reads were not carried: ${error.message}`);
     }
