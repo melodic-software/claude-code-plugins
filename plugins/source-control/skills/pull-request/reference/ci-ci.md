@@ -34,6 +34,10 @@ The system prompt names its path. It is JSON:
 }
 ```
 
+Every `path` in the file, and every file you edit, is relative to the working directory, the pull
+request's checkout. Resolve it there, never against this skill's own directory, even when the same
+relative path exists in both.
+
 `workflow` is the file that defines the check's job, or `null` when the check is not a workflow
 job. `annotations` and `log_excerpt` may be empty. `review_findings` holds the review lanes' open
 review-thread findings on the pull request, and may be empty. A finding is a lead, not evidence:
