@@ -15,9 +15,17 @@
     {
       "answer": "ssh.exe laptop-win 'Get-ChildItem C:\\Users'",
       "why": "from a Windows terminal"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe -n laptop-win 'Get-ChildItem C:\\Users'",
+      "why": "observed reply form: ssh -n, which the skill recommends"
     }
   ],
   "fail": [
+    {
+      "answer": "ssh.exe -n laptop-wsl 'powershell.exe -Command Get-ChildItem C:\\\\Users'",
+      "why": "WSL hop behind ssh -n, not port 22"
+    },
     {
       "answer": "",
       "why": "empty reply"

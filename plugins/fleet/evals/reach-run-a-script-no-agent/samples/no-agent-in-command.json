@@ -11,9 +11,17 @@
     {
       "answer": "Run this from your WSL shell on desk-01:\n\n```sh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-win 'Get-ChildItem C:\\Users'\n```\n\n- **Why this route:** you asked for no agent, so this is a plain script. The fleet setup sends Windows scripts on another machine to that machine's Windows SSH login on port 22 (`laptop-win`, account `ssh-admin`, shell `pwsh`). It doesn't go through the laptop's WSL.\n- **Why the full `ssh.exe` path:** your WSL distro has no SSH key, so you need the Windows SSH client. Your `~/.ssh/config` is set up for that client.\n- **Quoting:** the single quotes stop zsh from touching the backslash, so pwsh on the laptop gets `Get-ChildItem C:\\Users` exactly as typed.\n- **Not yet tried:** the fleet notes mark port-22 script runs as untested. It also runs as `ssh-admin`, not `EvalUser`. That doesn't matter for listing `C:\\Users`.\n\nFrom a native Windows terminal, the command is shorter: `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`.",
       "why": "observed reply, check3 run 2"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe -n laptop-win 'Get-ChildItem C:\\Users'",
+      "why": "observed reply form: ssh -n, which the skill recommends, with no agent"
     }
   ],
   "fail": [
+    {
+      "answer": "ssh.exe -n laptop-wsl 'claude -p \"Run Get-ChildItem C:\\Users\"'",
+      "why": "starts an agent behind ssh -n"
+    },
     {
       "answer": "ssh.exe laptop-wsl 'claude -p \"Run Get-ChildItem C:\\Users\" < /dev/null'",
       "why": "starts an agent"

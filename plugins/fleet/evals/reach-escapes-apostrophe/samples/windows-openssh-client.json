@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"what'\\''s using the most disk space?\" < /dev/null'",
+      "why": "the Windows OpenSSH client from WSL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "ssh desk-wsl \"claude -p \\\"what's using the most disk space?\\\" < /dev/null\"",
+      "why": "observed without-arm form: the distro's ssh, which holds no key"
+    }
+  ]
+}
