@@ -3,6 +3,7 @@ description: "Verified, classified map of a multi-resource documentation corpus 
 argument-hint: "<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Workflow(knowledge:docpage-digest-batch)"]
 ---
 
 **Arguments.** `<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N]`. Full form: <topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N] [--granularity deep|section] [--include <glob>...] [--exclude <glob>...]
@@ -196,11 +197,15 @@ resources get digests); the parent's invariant governs each downstream run untou
 ## Phase 5. Queue and handoff
 
 1. `queue.json`: the approved queue. Every `in-corpus` resource in map order with its canonical
-   URL, snapshot hash, and verdict tallies.
+   URL, snapshot hash, verdict tallies, and `verification` (step 3).
 2. `mapper-handoff.md`: per-classification tallies, every `uncertain` verdict with evidence, the
    `companion` and `referenced-external` lists, and any all-`not-relevant` resource (a candidate
    to drop from the queue. Flag, never silently drop).
 3. Hand the queue to **N runs of `/knowledge:docpage-digest`, each invoked via the Skill tool**, unrenamed, unmodified, one URL per run, each under its own contract.
+   With more than one URL and the Workflow tool available, launch the
+   `knowledge:docpage-digest-batch` workflow over the queue instead, as `/knowledge:docpage-digest`
+   describes under Batch path. Each queue entry carries `verification`, `not-run` until a
+   digest reports, then the page's checklist `Verification status` value.
 4. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
    otherwise present and stop.
 
