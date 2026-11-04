@@ -176,21 +176,23 @@ const CAPABILITY = new RegExp(
 const TOKEN_COUNT =
   /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b(?=\s*(?:\.?\s*$|\))|\s+(?:headless|interactive|vs|versus|per|spent|used|total|budget|startup|payload|context|prompt|cached|saved|more|fewer|less)\b)/g;
 const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|cop(?:y|ie[ds])|gist|screenshot)|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
-// The technical senses of a secret noun, which name no secret. A measure (an
-// input, output or cache token, a per-token rate, token spending) can never
-// name a credential, so it releases wherever it stands (TOKEN_MEASURE). A
-// phrase that names a real credential by its kind or scope (a subscription,
-// model, read or write token, "whose token has no `statuses: read`", "the
-// token's permissions", "has no credentials") is read like a capability
-// phrasing (CRED_SENSE): it releases only when every other word of the reason
-// is a capability word, so any word before or after it that could state an
-// exposure ("the public run log now holds the write token", "the write token
-// the lane uses is in ...") holds. Like a count, each releases nothing in a
-// reason that also says what was done with a secret (TOKEN_HANDLING).
-const TOKEN_MEASURE = /\b(?:input|output|cache)\s+tokens?\b|\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b/gi;
+// The technical senses of a secret noun, which name no secret. A hyphenated
+// measure (a per-token rate, token spending) can never name a credential, so
+// it releases wherever it stands (TOKEN_MEASURE). A phrase that can name a
+// real credential by its kind or scope (a subscription, model, read or write
+// token; an input, output or cache token, which in Actions wording is an
+// action's `token` input or a step's token output; "whose token has no
+// `statuses: read`"; "the token's permissions"; "has no credentials") is read
+// like a capability phrasing (CRED_SENSE): it releases only when every other
+// word of the reason is a capability word, so any word before or after it
+// that could state an exposure ("the public run log now holds the write
+// token", "the output token is in ...") holds. Like a count, each releases
+// nothing in a reason that also says what was done with a secret
+// (TOKEN_HANDLING).
+const TOKEN_MEASURE = /\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b/gi;
 const SCOPE = String.raw`(?:\x60[^\x60\n]{1,40}\x60|[\w-]+:\s*(?:read|write)|(?:[\w-]+\s+)?(?:permissions?|scopes?))`;
 const CRED_SENSE = new RegExp(
-  String.raw`\b(?:subscription|model)\s+tokens?\b|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?\b|\btokens?\s+(?:has|have|had)\s+no\s+${SCOPE}|\btoken['’]s\s+(?:permissions?|scopes?)\b|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?\b`,
+  String.raw`\b(?:subscription|model|input|output|cache)\s+tokens?\b|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?\b|\btokens?\s+(?:has|have|had)\s+no\s+${SCOPE}|\btoken['’]s\s+(?:permissions?|scopes?)\b|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?\b`,
   "gi",
 );
 const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " ").replace(TOKEN_MEASURE, " "));

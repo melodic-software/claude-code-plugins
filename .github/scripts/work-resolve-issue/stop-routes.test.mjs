@@ -260,6 +260,9 @@ test("an ending reason that names a token or credential only in a technical sens
     "host-only: the issue body contains the subscription token",
     "host-only: anyone reading the public issue can see the model token",
     "host-only: the public log includes the read token",
+    "host-only: the output token is in the public run log",
+    "host-only: the checkout input token sits in the issue body",
+    "host-only: the step's output token appears in the public job log",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
   }
