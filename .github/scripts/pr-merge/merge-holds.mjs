@@ -175,7 +175,7 @@ export function linkHold(record, body, closing, repo) {
   return null;
 }
 // babysit_merge_policy.BLOCKER_ASSOCIATIONS.
-const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+export const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 // The pull request's author and the editors of its body, for personWrote.
 export const BODY_WRITERS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -1651,7 +1651,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     const lifters = approved.length ? approved : lifted.lifters;
     // A body hold is not judged here: the lanes App's hold line puts on the
     // `do-not-merge` label, which ci-status's label steps hold on. A member's
-    // veto comment still holds, since nothing labels it.
+    // veto comment holds twice: enable-auto-merge labels it `do-not-merge` on
+    // its next reader run, and this read holds it until then and whenever the
+    // label is off.
     const reasons = holds("", items, files, holdPaths, lifters, decision, true, widened, pathHolds);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
