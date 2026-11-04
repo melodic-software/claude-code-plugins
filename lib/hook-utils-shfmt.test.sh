@@ -91,17 +91,11 @@ has_seg() {
   has_seg 'a backtick in an unquoted here-doc body' $'cat <<E\n`git reset --hard`\nE' 'git reset --hard'
   has_seg 'the round-4 reading ends the first statement' \
     'echo $(case x in a|esac) :;; esac)#; git reset --hard' 'git reset --hard'
-  has_seg 'extglob-off reading of !(…) runs the subshell' '!(git reset --hard)' 'git reset --hard'
-  has_seg 'extglob-on reading of !(x)# runs what follows' '!(x)#; git reset --hard' 'git reset --hard'
   has_seg 'array then # keeps what follows' 'a=(x)#y; git reset --hard' 'git reset --hard'
 
   # The extglob-off reading applies to a `!(` that opens a command. As an
   # argument or a [[ ]] pattern, bash with extglob off rejects the line and runs
   # nothing, so the call is read once and allowed.
-  parses_with 'a !(…) argument is allowed' 'ls !(*.md)' 'ls !(*.md)'
-  parses_with 'a !(…) after -- is allowed' 'rm -- !(keep.txt)' 'rm -- !(keep.txt)'
-  parses_with 'a !(…) [[ pattern is allowed' '[[ $x == !(foo) ]]' '[[ $x == !(foo) ]]'
-  parses_with 'shopt then a !(…) argument is allowed' $'shopt -s extglob\nls !(x)' 'ls !(x)'
   # Multibyte UTF-8 is read as written; a byte that is not UTF-8 is refused.
   segs_are 'multibyte UTF-8 words are read as written' 'echo héllo 日本 ✓' 'echo héllo 日本 ✓'
   # A quoted here-doc body expands nothing, and is not a command.
@@ -345,51 +339,55 @@ else
   fail "a shfmt that answers in time: [$out]"
 fi
 
-# --- bash 5.3 command substitutions inside an extglob pattern ----------------
-# `${ cmd; }` and `${| cmd; }` run cmd in the current shell when bash 5.3
-# expands the word. Refused whatever bash runs these rows, so no bash check.
-pattern_refused() { # <desc> <command>
+# --- extglob syntax is refused -----------------------------------------------
+# shfmt keeps an extglob pattern as one literal and ends it at a `)` bash may
+# read inside a quote, `${…}` or `$[…]`, and bash reads the same text as
+# commands with extglob off. Every extglob form is refused, whatever its text,
+# so these rows need no bash check (bash 5.2 does not run `${ cmd; }`).
+extglob_refused() { # <desc> <command>
   local out rc=0
   # shellcheck disable=SC2016  # the child shell expands these
   out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; hook::bash_parse_segments_shfmt "$2" :' -- "$_T_ROOT" "$2" 2>&1) || rc=$?
-  if ((rc == 2)) && [[ "$out" == *'a substitution inside an extglob pattern'* ]]; then ok "$1"; else fail "$1: exit $rc, [${out:0:200}]"; fi
+  if ((rc == 2)) && [[ "$out" == *'an extglob pattern, which shfmt and bash do not read the same way'* ]]; then
+    ok "$1"
+  else
+    fail "$1: exit $rc, [${out:0:200}]"
+  fi
 }
 # shellcheck disable=SC2016  # the command text under test
 {
-  pattern_refused 'a ${ cmd; } inside a pattern is refused' 'echo @(${ git reset --hard; })'
-  pattern_refused 'a ${| cmd; } inside a pattern is refused' 'echo @(${| git reset --hard; })'
-  pattern_refused 'a ${<tab>cmd; } inside a pattern is refused' $'echo @(${\tgit reset --hard; })'
-  pattern_refused 'a ${<newline>cmd; } inside a pattern is refused' $'echo @(${\ngit reset --hard; })'
+  extglob_refused 'a !(…) at a command start is refused' '!(git reset --hard)'
+  extglob_refused 'a !(x)# then a command is refused' '!(x)#; git reset --hard'
+  extglob_refused 'a !(…) argument is refused' 'ls !(*.md)'
+  extglob_refused 'a !(…) after -- is refused' 'rm -- !(keep.txt)'
+  extglob_refused 'a !(…) [[ pattern is refused' '[[ $x == !(foo) ]]'
+  extglob_refused 'shopt then a !(…) argument is refused' $'shopt -s extglob\nls !(x)'
+  extglob_refused 'a plain @(a|b) is refused' 'ls @(a|b)'
+  extglob_refused 'a ${var} inside a pattern is refused' 'ls @(${x}|y)'
+  extglob_refused 'a handful of extglob patterns are refused' 'ls @(a) @(b) !(c) +(d)'
+  extglob_refused 'a ${ cmd; } inside a pattern is refused' 'echo @(${ git reset --hard; })'
+  extglob_refused 'a ${| cmd; } inside a pattern is refused' 'echo @(${| git reset --hard; })'
+  extglob_refused 'a ${<tab>cmd; } inside a pattern is refused' $'echo @(${\tgit reset --hard; })'
+  extglob_refused 'a ${<newline>cmd; } inside a pattern is refused' $'echo @(${\ngit reset --hard; })'
+  # The forms that end shfmt's pattern early (inline 4462099922).
+  extglob_refused 'a ) inside ${…} in a pattern is refused' $'( echo @(${x:-) #$(git reset --hard)})\n)'
+  extglob_refused 'a ) inside $[…] in a pattern is refused' $'( echo @($[ ) ] #$(git reset --hard))\n)'
 }
-# The paired pass: a parameter expansion in a pattern stays a pattern.
-# shellcheck disable=SC2016  # the command text under test
-parses_with 'a ${var} inside a pattern parses' 'ls @(${x}|y)' 'ls @(${x}|y)'
+# The paired pass: a command with no extglob form parses.
+parses_with 'a command with no extglob form parses' 'ls a* b?; echo x' 'echo x'
 
 # --- the parse budget ---------------------------------------------------------
-# Nested extglob patterns each take a parse of their own, and an extglob-off
-# reading parses the pattern again, so the count can double per level. Past
-# HOOK_BPS_MAX_PARSES parses for one command the reader refuses, in seconds.
-# budget_refuses <desc> <command> <max seconds>: in a child, exit 2 naming the
-# budget, within the time.
-budget_refuses() {
-  local out rc=0 t0=$SECONDS
-  # shellcheck disable=SC2016  # the child shell expands these
-  out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; hook::bash_parse_segments_shfmt "$2" :' -- "$_T_ROOT" "$2" 2>&1) || rc=$?
-  local dt=$((SECONDS - t0))
-  if ((rc == 2 && dt <= $3)) && [[ "$out" == *'parses'* ]]; then
-    ok "$1 (refused in ${dt} s)"
-  else
-    fail "$1: exit $rc after ${dt} s, [${out:0:200}]"
-  fi
-}
+# HOOK_BPS_MAX_PARSES still caps the second readings one command may take. The
+# nest that once doubled per level (extglob patterns) is now refused as extglob
+# syntax before any second reading, in well under the bound.
 bps_nest='x'
 for ((i = 0; i < 16; i++)); do bps_nest="!(x); @($bps_nest)"; done
-budget_refuses 'nested extglob patterns sixteen deep stop at the parse budget' "echo @($bps_nest)" 20
+bps_t0=$SECONDS
+extglob_refused 'nested extglob patterns sixteen deep are refused' "echo @($bps_nest)"
+if ((SECONDS - bps_t0 <= 20)); then ok 'the sixteen-deep nest refuses quickly'; else fail "the sixteen-deep nest took $((SECONDS - bps_t0)) s"; fi
 bps_flat='echo'
 for ((i = 0; i < 100; i++)); do bps_flat+=" @(a$i)"; done
-budget_refuses 'a hundred extglob patterns stop at the parse budget' "$bps_flat" 20
-# The paired pass: a few patterns stay well under the budget.
-parses_with 'a handful of extglob patterns parse' 'ls @(a) @(b) !(c) +(d)' 'ls @(a) @(b) !(c) +(d)'
+extglob_refused 'a hundred extglob patterns are refused' "$bps_flat"
 
 # --- each form plugins/guardrails/reference/shfmt-parse-differences.md lists --
 # handled: bash runs the trailing command in some extglob mode, and the reader
@@ -421,11 +419,11 @@ hit_print() { printf '%s\n' "$*"; }
 # shellcheck disable=SC2016  # the substitutions are the command text under test
 {
   # Extglob.
-  form handled '!(x)#; echo HIT >&2'
-  form handled '@(x)#; echo HIT >&2'
-  form handled 'echo @(a|b)#; echo HIT >&2'
-  form handled 'echo @(x;y)#; echo HIT >&2'
-  form handled '!(echo HIT >&2)'
+  form refused '!(x)#; echo HIT >&2'
+  form refused '@(x)#; echo HIT >&2'
+  form refused 'echo @(a|b)#; echo HIT >&2'
+  form refused 'echo @(x;y)#; echo HIT >&2'
+  form refused '!(echo HIT >&2)'
   # A substitution inside a pattern is refused outright, however the pattern reads.
   form refused 'echo @(`echo HIT >&2`)'
   form refused 'echo @(<(echo HIT >&2))'
@@ -450,7 +448,7 @@ hit_print() { printf '%s\n' "$*"; }
   # one literal, so only the extglob-off reading sees the body.
   form refused $'!(bash <<A\necho HIT >&2\nA\n)'
   # Nested: the extglob-off rewrite applies its edits in offset order.
-  form handled $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
+  form refused $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
   # The extglob-off reading runs a here-doc before its open quote's error.
   form refused $'!(x)#\'\ncat <<B\n$(echo HIT >&2)\nB\n\' ; cat <<C\nc\nC'
   # case patterns.

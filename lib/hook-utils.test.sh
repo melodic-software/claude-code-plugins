@@ -4059,29 +4059,34 @@ bps_refused() {
 
 bps_bash_hit 'array assignment ) leaves a # after it literal' \
   'a=(x)#y; git reset --hard'
-bps_bash_hit 'extglob ) leaves a # after it literal' \
-  '@(x)#y; git reset --hard'
+bps_refused 'extglob ) leaves a # after it literal' \
+  '@(x)#y; git reset --hard' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
 bps_bash_hit '# after whitespace past an array assignment is a comment' \
   'a=(x) #; git reset --hard'
 bps_segments_are 'subshell ) still starts a comment at a following #' \
   '(x)#y; git reset --hard' 'x'
 bps_segments_are 'subshell ( at a word boundary still splits' \
   'true; (git reset --hard)' 'true' 'git reset --hard'
-bps_bash_hit 'extglob alternation | keeps the frame open' \
-  '@(a|b)#y; git reset --hard'
+bps_refused 'extglob alternation | keeps the frame open' \
+  '@(a|b)#y; git reset --hard' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
 # shellcheck disable=SC2016  # the backticks are shfmt's message text
 bps_refused 'f@()# yields the extglob-on word reading, then the function-definition comment' \
   'f@()#y; git reset --hard' \
   '`foo()` must be followed by a statement'
-bps_bash_hit 'bare !(x)# yields the extglob-on word reading, then the negated-subshell comment' \
-  '!(x)#; git reset --hard'
-bps_bash_hit 'the extglob-on reading keeps a second # in the word' \
-  '!(x)##; git reset --hard'
+bps_refused 'bare !(x)# yields the extglob-on word reading, then the negated-subshell comment' \
+  '!(x)#; git reset --hard' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
+bps_refused 'the extglob-on reading keeps a second # in the word' \
+  '!(x)##; git reset --hard' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
 bps_refused 'the extglob-on reading runs past the line: a quote it opens can close later' \
   $'!(x)#\'\n\'; git reset --hard' \
-  reached\ EOF\ without\ closing\ quote\ \`\'\`
-bps_bash_hit 'the extglob-on reading keeps a pending here-doc body out of commands' \
-  $'cat <<EOF; !(x)#; :\ngit reset --hard\nEOF\necho done'
+  'an extglob pattern, which shfmt and bash do not read the same way'
+bps_refused 'the extglob-on reading keeps a pending here-doc body out of commands' \
+  $'cat <<EOF; !(x)#; :\ngit reset --hard\nEOF\necho done' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
 # shellcheck disable=SC2016  # the substitutions are the command text under test
 {
   bps_bash_hit '$(…) ) leaves a # after it literal' \
@@ -4168,8 +4173,9 @@ bps_heredocs_are() {
     fail "bash_parse_segments $desc: got [$got], want [$want]"
   fi
 }
-bps_heredocs_are 'a here-doc both extglob readings see is listed once' \
-  $'cat <<EOF; !(x)#; :\nbody\nEOF\necho done' '20 29 0 1 EOF'
+bps_refused 'a here-doc both extglob readings would see is refused with the extglob' \
+  $'cat <<EOF; !(x)#; :\nbody\nEOF\necho done' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
 bps_refused 'a [[ =~ ]] regex group keeps a pending here-doc' \
   $'cat <<E; [[ $s =~ k=(a|b) ]]\nit\'s\nE\ngit reset --hard' \
   reached\ EOF\ without\ closing\ quote\ \`\'\`
@@ -4219,14 +4225,15 @@ bps_refused 'a here-doc read before a backtick takes its body after the backtick
   'a here-doc body that starts inside backticks, which bash reads differently'
 bps_refused 'here-docs from both extglob readings come in source order' \
   $'!(x)#\'\ncat <<B\nb\nB\n\' ; cat <<C\nc\nC' \
-  reached\ EOF\ without\ closing\ quote\ \`\'\`
+  'an extglob pattern, which shfmt and bash do not read the same way'
 bps_refused 'a quote inside backticks ends at the closing backtick' \
   "echo \`'\`; git reset --hard #'" \
   'reached EOF without closing quote "`"'
 bps_bash_hit 'process substitution ) leaves a # after it literal' \
   'cat <(:)#; git reset --hard'
-bps_bash_hit 'a ; inside an extglob keeps its frame' \
-  'echo @(x;y)#; git reset --hard'
+bps_refused 'a ; inside an extglob keeps its frame' \
+  'echo @(x;y)#; git reset --hard' \
+  'an extglob pattern, which shfmt and bash do not read the same way'
 bps_bash_hit 'a newline inside an array assignment keeps its frame' \
   $'a=(x\ny)#; git reset --hard'
 # shellcheck disable=SC2016  # the substitution is the command text under test

@@ -4567,9 +4567,7 @@ hook::bash_parse_segments_uncached() {
 #   CmdSubst, ProcSubst, Subshell, nothing of its own: the walk reaches each Stmt
 #   Block, If/While/Func/Time...   inside them, here-doc bodies included
 #   Redirect with a Hdoc           H, start offset, quoted, strip, delimiter
-#   ExtGlob                        P and its pattern, parsed as a command too
-#   ExtGlob `!(` at offset o       X, 0, o: the extglob-off reading
-#   ExtGlob `f@()` at offset o     X, 1, o: the extglob-off reading
+#   any ExtGlob in the tree        E: the call is refused (see below)
 #   Assign with an Array           Y, its end: a `#` there is in bash's next word,
 #                                  where shfmt reads a comment
 #   CmdSubst in backticks          B, start, end, whether a here-doc opens in it
@@ -4654,15 +4652,7 @@ def strip_q: [.Parts[]? |
             (if (.Word | has_quoted or has_esc) then 1 else 0 end),
             (if .Op == "<<-" then 1 else 0 end), (.Word | strip_q)]}]
      | sort_by(.o) | map(.t) | add // [])
-  + ([$all[] | select(.Type == "ExtGlob") | ["P", .Pattern.Value]] | add // [])
-  # The extglob-off reading is of a `!(` or `f@()` that opens a command. As an
-  # argument or a [[ ]] pattern, bash with extglob off rejects the line and runs
-  # nothing, so there is no second reading to take.
-  + ([$all[] | select(.Type == "CallExpr") | .Args[0].Pos.Offset?] as $cw
-     | [$all[] | select(.Type == "ExtGlob") | select(.OpPos.Offset as $o | any($cw[]; . == $o))
-      | if .Op == "!(" then ["X", 0, .OpPos.Offset]
-        elif (.Pattern.Value == "") then ["X", 1, .OpPos.Offset]
-        else empty end] | sort_by(.[2]) | add // [])
+  + (if any($all[]; .Type == "ExtGlob") then ["E"] else [] end)
   + ([$all[] | select(.Array != null) | ["Y", .End.Offset]] | sort_by(.[1]) | add // [])
   + ([$all[] | select(.Type == "CmdSubst" and .Backquotes)
       | ["B", .Pos.Offset, .End.Offset,
@@ -4675,11 +4665,9 @@ def strip_q: [.Parts[]? |
 # 2026-11-02; recheck when that section changes the default for command hooks).
 HOOK_BPS_TIMEOUT=5
 
-# Parses one top-level command may take, its second readings, extglob patterns
-# and the callback's own re-parses included. Nested patterns can double the
-# count per level (each is parsed, and an extglob-off reading parses it again),
-# so a short command could otherwise run past the hook's timeout. A real
-# command takes a handful.
+# Parses one top-level command may take, its second readings and the
+# callback's own re-parses included, so a short command whose readings nest
+# cannot run past the hook's timeout. A real command takes a handful.
 HOOK_BPS_MAX_PARSES=64
 
 # Set to 1 by a hook that runs after the call (PostToolUse) and fails open: a
@@ -4902,22 +4890,12 @@ hook::_bps_tree_decode() {
         __hu_bt_more+=("${__hu_bl//$'\x01'/\\}")
       fi
       ;;
-    P) __hu_pt+=("${__hu_bt[__hu_bi++]}") ;;
-    X)
-      # The extglob-off reading: `!(` is a negated subshell, `f@()` a function.
-      # The entries come in offset order, so each shift lands past the last.
-      __hu_bk=${__hu_bt[__hu_bi++]}
-      __hu_bs=${__hu_bt[__hu_bi++]}
-      if ((__hu_bk == 0)); then
-        __hu_off=${__hu_off:-$__hu_bcmd}
-        __hu_off=${__hu_off:0:__hu_bs+__hu_bshift}'! ('${__hu_off:__hu_bs+__hu_bshift+2}
-        __hu_offins+=($((__hu_bs + __hu_bshift + 1)))
-        ((__hu_bshift += 1))
-      else
-        __hu_off=${__hu_off:-$__hu_bcmd}
-        __hu_off=${__hu_off:0:__hu_bs+__hu_bshift}_${__hu_off:__hu_bs+__hu_bshift+1}
-      fi
-      ;;
+    # An extglob form (`@(…)`, `!(…)`, `f@()` and the rest). shfmt keeps a
+    # pattern as one literal and ends it at a `)` bash may read as part of a
+    # quote, `${…}` or `$[…]`; bash reads the same text as a pattern with
+    # extglob on and as commands with it off. Seven ways through re-reading
+    # those patterns were found, so the reader does not read them at all.
+    E) __hu_bext=1 ;;
     Y)
       # Bash keeps a `#` right after an array's `)` in the next word.
       __hu_bs=${__hu_bt[__hu_bi++]}
@@ -4941,12 +4919,12 @@ hook::_bps_tree_decode() {
 # first tree holds (__hu_hb, the caller's). A body only the second reading sees
 # is shown to no guard (HOOK_HEREDOC_BODIES ends up the first tree's), so the
 # call refuses, or a soft caller returns 1. <mode>:
-#   none    an extglob pattern or a backtick's text: the first tree holds no
-#           body of it, so any body is unseen.
+#   none    a backtick's text: the first tree holds no body of it, so any
+#           body is unseen.
 #   joined  a joined here-doc body read as `: <<D` then the joined text: its
 #           first body is the joined form of a first-tree body; any other is
 #           unseen.
-#   map     a whole-command rewrite (the extglob-off or array `#` reading) that
+#   map     a whole-command rewrite (the array `#` reading) that
 #           inserted one character at each <insertion> offset of <text>: each
 #           body's start and end, moved back past those, must be a first-tree
 #           body's.
@@ -4986,18 +4964,16 @@ hook::_bps_hd_check() {
 }
 
 # hook::bash_parse_segments_shfmt <command> <callback> [soft]: every simple
-# command in the tree reaches <callback>, the extglob-off reading and each
-# extglob pattern's commands too. With no parse it refuses the call (exit 2),
-# or with [soft] returns 1. An extglob pattern holding a substitution refuses;
-# one without is parsed soft, since a pattern that is no command list runs
-# nothing. A whole-command second reading (the extglob-off one, the
-# array `#` one), a backtick's unescaped text and a joined here-doc body are not
-# soft: bash runs every command before its syntax error, so they refuse.
+# command in the tree reaches <callback>. With no parse it refuses the call
+# (exit 2), or with [soft] returns 1. A command holding any extglob form is
+# refused, soft or not (see E in hook::_bps_tree_decode). A second reading (the
+# array `#` one, a backtick's unescaped text, a joined here-doc body) is not
+# soft: bash runs every command before its syntax error, so it refuses.
 # shellcheck disable=SC2034  # HOOK_SEG_* are read by the callback's caller
 hook::bash_parse_segments_shfmt() {
   local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bout=""
-  local __hu_off="" __hu_sp="" __hu_bshift=0 __hu_bsshift=0
-  local -a __hu_offins=() __hu_spins=()
+  local __hu_sp="" __hu_bsshift=0 __hu_bext=0
+  local -a __hu_spins=()
   # The budget is shared down the nested calls (dynamic scope) and starts over
   # at a top-level call. Past it the call refuses, soft or not: dropping the
   # rest would leave commands unread.
@@ -5007,14 +4983,10 @@ hook::bash_parse_segments_shfmt() {
   fi
   HOOK_BPS_PARSES=$((${HOOK_BPS_PARSES:-0} + 1))
   if ((HOOK_BPS_PARSES > HOOK_BPS_MAX_PARSES)); then
-    HOOK_BPS_FAIL="more than $HOOK_BPS_MAX_PARSES parses for one command (nested or repeated extglob patterns)"
+    HOOK_BPS_FAIL="more than $HOOK_BPS_MAX_PARSES parses for one command (nested second readings)"
     hook::_bps_refuse
   fi
-  # A newline-delimited list of %q-quoted pattern texts, not an associative
-  # array: on bash 3.2 `local -A` fails and an indexed array would evaluate the
-  # pattern text as an arithmetic subscript, running any `$(...)` in it.
-  local __hu_pseen=$'\n' __hu_pk
-  local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_hs=() __hu_pt=() __hu_bt_more=()
+  local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_hs=() __hu_bt_more=()
   if ! hook::_bps_shfmt_to __hu_bout "$__hu_bcmd"; then
     ((__hu_bsoft)) && return 1
     hook::_bps_refuse
@@ -5024,6 +4996,10 @@ hook::bash_parse_segments_shfmt() {
     ((__hu_bsoft)) && return 1
     hook::_bps_refuse
   }
+  if ((__hu_bext)); then
+    HOOK_BPS_FAIL="an extglob pattern, which shfmt and bash do not read the same way"
+    hook::_bps_refuse
+  fi
   local __hu_s __hu_w=0 __hu_r=0 __hu_a __hu_c __hu_x
   local -a __hu_argv=()
   for ((__hu_s = 0; __hu_s < ${#__hu_ac[@]}; __hu_s++)); do
@@ -5046,47 +5022,9 @@ hook::bash_parse_segments_shfmt() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
-  # Each extglob pattern's text (shfmt keeps a pattern as one literal). A pattern
-  # holding `$(`, a backtick, `<(`, `>(`, or bash 5.3's `${ cmd; }` and
-  # `${| cmd; }` (a blank, tab, newline or `|` after `${`) is refused outright: bash runs those
-  # substitutions when it expands the word, and no reparse of the pattern as a
-  # command reads it as bash does (a `#` or newline there is literal to bash and
-  # a comment or separator to a command parse). A pattern without one runs
-  # nothing, so it is parsed soft for any commands its text spells.
-  for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"}; do
-    [[ -n "$__hu_x" ]] || continue
-    # shellcheck disable=SC2016  # literal substitution openers, not expansions
-    case "$__hu_x" in
-    *'$('* | *'`'* | *'<('* | *'>('* | *'${ '* | *'${|'* | *$'${\t'* | *$'${\n'*)
-      HOOK_BPS_FAIL="a substitution inside an extglob pattern, which bash runs when it expands the word"
-      ((__hu_bsoft)) && return 1
-      hook::_bps_refuse
-      ;;
-    # shfmt ends a pattern at a `)` whatever its quoting, while bash skips a
-    # quoted one, so a pattern holding a quote or backslash may have been cut
-    # short with a substitution left outside what shfmt reports.
-    *"'"* | *'"'* | *\\*)
-      HOOK_BPS_FAIL="a quote or backslash inside an extglob pattern, where shfmt and bash may end the pattern at different places"
-      ((__hu_bsoft)) && return 1
-      hook::_bps_refuse
-      ;;
-    *) ;;
-    esac
-    printf -v __hu_pk '%q' "$__hu_x"
-    [[ "$__hu_pseen" == *$'\n'"$__hu_pk"$'\n'* ]] && continue
-    __hu_pseen+="$__hu_pk"$'\n'
-    HOOK_HEREDOC_BODIES=()
-    hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1
-    hook::_bps_hd_check none "$__hu_x" || return 1
-  done
-  # The extglob-off reading and the array `#` reading (which replaces a tree
-  # that took the rest of its line for a comment) are readings of the whole
-  # command, and refuse when they do not parse.
-  if [[ -n "$__hu_off" ]]; then
-    HOOK_HEREDOC_BODIES=()
-    hook::bash_parse_segments_shfmt "$__hu_off" "$__hu_bcb" "$__hu_bsoft" || return 1
-    hook::_bps_hd_check map "$__hu_off" ${__hu_offins[@]+"${__hu_offins[@]}"} || return 1
-  fi
+  # The array `#` reading (which replaces a tree that took the rest of its line
+  # for a comment) is a reading of the whole command, and refuses when it does
+  # not parse.
   if [[ -n "$__hu_sp" ]]; then
     HOOK_HEREDOC_BODIES=()
     hook::bash_parse_segments_shfmt "$__hu_sp" "$__hu_bcb" "$__hu_bsoft" || return 1

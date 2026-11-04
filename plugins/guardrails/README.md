@@ -1482,8 +1482,11 @@ guards behave exactly as before.
 
 - **shfmt v3.14.1 or later**, which the guards read every Bash and PowerShell command
   through. Without it the guards deny every Bash and PowerShell call they read, naming the
-  cause. An older build is used as found and may read some commands differently. In a cloud session (`CLAUDE_CODE_REMOTE=true`) a SessionStart
-  step installs the pinned, hash-checked build into `~/.local/bin`.
+  cause. An older build is used as found and may read some commands differently.
+  A command holding extglob syntax (`@(…)`, `!(…)`, `+(…)`, `*(…)`, `?(…)`) is refused: shfmt and
+  bash do not read those patterns the same way (`reference/shfmt-parse-differences.md`). In a
+  cloud session (`CLAUDE_CODE_REMOTE=true`) a SessionStart step installs the pinned, hash-checked
+  build into `~/.local/bin`.
 - **bash 5.0+** and **jq**, the guards' runtime. Without **jq**, the guards that
   block irreversible operations deny every Bash and PowerShell call, with one
   line naming jq per call, and the other guards skip their work after one

@@ -762,7 +762,9 @@ hd_nest_amb() { # <levels> <inner> [<after>]: hd_nest with <after> (default `; !
 run "here-docs nested four deep, a \`!(x)#\` at each opener, innermost git reset --hard (blocked)" "$(hd_nest_amb 4 'git reset --hard')" 2
 bdg_pad=$(hd_lines ': padding padding padding padding padding padding' 60)
 bdg_t0=${EPOCHREALTIME/./}
-run "here-docs nested nine deep, a \`!(x)#\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}")" 0
+# Extglob syntax is refused outright (shfmt-parse-differences.md), so the nest
+# is denied, still well inside the time bound below.
+run "here-docs nested nine deep, a \`!(x)#\` at each opener, padding innermost (refused: extglob)" "$(hd_nest_amb 9 "${bdg_pad#?}")" 2
 bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
 if ((bdg_ms < 10000)); then ok "nine nested !(x)# here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)# here-docs took ${bdg_ms} ms (limit 10000)"; fi
 bdg_t0=${EPOCHREALTIME/./}

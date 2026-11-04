@@ -12,19 +12,22 @@ does with the same text, as measured against bash 5 with extglob off and on, and
 
 ## Extglob
 
-shfmt always parses extglob on. Bash's default in `bash -c` is off, and the command string cannot
-say which mode applies.
+Every extglob form is refused: any command whose parse holds `@(…)`, `!(…)`, `+(…)`, `*(…)`,
+`?(…)` or `f@()`, whatever its text and wherever it sits. The reason names it: "an extglob
+pattern, which shfmt and bash do not read the same way".
+
+Why: shfmt always parses extglob on and keeps a pattern as one literal, ending it at a `)` that
+bash reads as part of a quote, a `${…}` or a `$[…]`. Bash's default in `bash -c` is extglob off,
+where the same text is commands (`!(cmd)` is a negated subshell), and the command string cannot say
+which mode applies. Re-reading patterns and the extglob-off text was found to let a command through
+seven different ways, so the reader does not read them.
 
 | Form | Bash | shfmt | Status |
 |---|---|---|---|
-| `!(x)#; cmd` | off: negated subshell, then a comment; on: a pattern word, then `cmd` | the on reading | handled: the reader also parses the off reading |
-| `!(cmd)` | off: a subshell running `cmd` | a pattern, no command | handled: each pattern is also parsed as a command |
-| `ls !(*.md)`, `[[ $x == !(y) ]]` (a `!(` that is not a command word) | off: a syntax error, so nothing on that line runs | a pattern | handled: read once; the extglob-off reading applies only where `!(` opens a command |
-| `@(x)#; cmd`, `echo @(a\|b)#; cmd` | on: one word, then `cmd`; off: syntax error | the on reading | handled |
-| `echo @(x;y)#; cmd` | on: `;` is pattern text | the on reading | handled |
-| `` echo @(`cmd`) ``, `echo @(<(cmd))`, `echo @(#$(cmd))`, `echo @(x #$(cmd))` | on: `cmd` runs (a `#` or newline in a pattern is literal) | pattern text | refused: a pattern holding a substitution is refused, since no reparse of it as a command reads it as bash does |
+| `!(x)#; cmd`, `!(cmd)`, `ls !(*.md)`, `[[ $x == !(y) ]]` | depends on extglob | an ExtGlob node | refused |
+| `@(x)#; cmd`, `echo @(a\|b)`, `ls @(a) +(b)` | on: patterns; off: syntax error | an ExtGlob node | refused |
+| `echo @(${x:-) #$(cmd)})`, `echo @($[ ) ] #$(cmd))` | on: the `)` inside `${…}` or `$[…]` does not end the pattern, so `cmd` runs | the pattern ends at that `)` | refused |
 | `f@()#; cmd` | on: one word, then `cmd`; off: a function | syntax error | refused |
-| `!(x)#'` newline `cat <<B` … `B` newline `'` | off: the lines before the open quote run, a here-doc and its body included, then a syntax error | the on reading | refused: a second reading of the whole command that does not parse refuses, since bash runs every line before its error |
 
 ## `case` patterns
 
