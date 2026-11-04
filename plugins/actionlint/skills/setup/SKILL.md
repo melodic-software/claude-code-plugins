@@ -49,6 +49,7 @@ of truth for what it requires and how it resolves things.
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Option values are rendered into this text at load: read them here, and never put a `${user_config.*}` string in a shell command.
 
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
 FAIL to INFO. The Claude Code hooks exit through their enabled-gate before probing anything, so a
@@ -56,7 +57,7 @@ deliberately disabled plugin is not broken. Report those probes informationally 
 re-enabling restores the FAIL semantics. A missing `node` stays FAIL: the launcher runs before the
 enabled-gate.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements).
+1. **Bash version.** Check against the floor, Bash 3.2 or newer (README Requirements).
 2. **`node`.** The pre-computed `node` row. FAIL if absent, even when the toggle is off: every
    hook row launches through `node hooks/exec-bash.mjs`, so the hooks do not launch and the
    session-start probe does not run. The hooks cannot report this themselves. Probed here
