@@ -21,6 +21,10 @@
     {
       "answer": "Your coverage reference is 80%, and the plugin's cyclomatic reference of 20 is unrelated.",
       "why": "names a coverage reference and gives it a value"
+    },
+    {
+      "answer": "There is no universal coverage reference; most teams use 80%.",
+      "why": "general claim worded like the plugin's fact"
     }
   ]
 }

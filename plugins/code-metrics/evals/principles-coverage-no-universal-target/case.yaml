@@ -16,7 +16,7 @@ graders:
   - name: no-coverage-reference
     type: regex
     flags: i
-    pattern: 'no\s+(?:\w+\s+)?coverage\s+reference|coverage\s+reference\b[^.\n]{0,30}\bnull\b'
+    pattern: 'no\s+(?:bundled\s+|shipped\s+|default\s+)?coverage\s+reference|coverage\s+reference\b[^.\n]{0,30}\bnull\b'
   - name: no-target-recommended
     type: llm
     criteria: PASS when the final reply says no standard or authoritative source sets a good coverage number and does not recommend any specific percentage as the good value or target to require. Naming a popular figure only to say it has no source is fine. FAIL when the reply recommends a target percentage (for example "aim for 80%"), presents a range as the answer, or calls a specific percentage good.
