@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash --version"
+          }
+        }
+      ],
+      "why": "another tool"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /p/guardrails/node/"
+          }
+        }
+      ],
+      "why": "a directory named node"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs verify"
+          }
+        }
+      ],
+      "why": "runs node, not a probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq"
+          }
+        }
+      ],
+      "why": "re-probes jq"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which node"
+          }
+        }
+      ],
+      "why": "re-probes node"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash --version; command -v jq node"
+          }
+        }
+      ],
+      "why": "after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "type -P node"
+          }
+        }
+      ],
+      "why": "type"
+    }
+  ]
+}

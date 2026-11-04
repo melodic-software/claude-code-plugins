@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| workflow_resilience_check_enabled | false | INFO |\n| flag_commit_pr_skill_bypass_enabled | false | INFO |"
+    },
+    {
+      "answer": "Two advisory guards are off by default: workflow-resilience-check and flag-commit-pr-skill-bypass."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Every guard is on: all 18 *_enabled options read true.",
+      "why": "assumes true"
+    },
+    {
+      "answer": "workflow_resilience_check_enabled is off; the other guards are on.",
+      "why": "near miss: flag-commit-pr-skill-bypass reported on"
+    },
+    {
+      "answer": "Guard toggles: all enabled except block_credential_read_enabled.",
+      "why": "near miss: misses both advisory guards"
+    }
+  ]
+}

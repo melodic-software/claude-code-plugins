@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "block_dangerous_git_allow: empty (blocks all)."
+    },
+    {
+      "answer": "| Dangerous-git allowlist | (empty) | INFO | every form is blocked |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "block_dangerous_git_allow: push-force,reset-hard",
+      "why": "invents a value"
+    },
+    {
+      "answer": "The allowlist could not be read.",
+      "why": "near miss: no value"
+    },
+    {
+      "answer": "block_dangerous_git_allow is empty, so every form is allowed.",
+      "why": "near miss: reverses the meaning"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/lib/check-retirements.sh --manifest /p/r.yaml --clean guardrails-r002"
+          }
+        }
+      ],
+      "why": "the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .git/hooks/guardrails-resolve-convention.sh"
+          }
+        }
+      ],
+      "why": "a probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm .git/hooks/guardrails-resolve-convention.sh"
+          }
+        }
+      ],
+      "why": "by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm -f '/w/.git/hooks/guardrails-resolve-convention.sh'"
+          }
+        }
+      ],
+      "why": "quoted absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status; unlink .git/hooks/guardrails-resolve-convention.sh"
+          }
+        }
+      ],
+      "why": "unlink after ;"
+    }
+  ]
+}

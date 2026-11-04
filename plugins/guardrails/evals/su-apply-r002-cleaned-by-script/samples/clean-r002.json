@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" --clean guardrails-r002"
+          }
+        }
+      ],
+      "why": "quoted paths"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/lib/check-retirements.sh --clean guardrails-r002 --manifest /p/retirements.yaml"
+          }
+        }
+      ],
+      "why": "flag first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/lib/check-retirements.sh --manifest /p/retirements.yaml"
+          }
+        }
+      ],
+      "why": "detection only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/lib/check-retirements.sh --manifest /p/retirements.yaml --clean guardrails-r001"
+          }
+        }
+      ],
+      "why": "another id"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm .git/hooks/guardrails-resolve-convention.sh"
+          }
+        }
+      ],
+      "why": "by hand"
+    }
+  ]
+}

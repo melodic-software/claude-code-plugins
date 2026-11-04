@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "No, it is not broken: the guards were deliberately disabled, so a missing jq is informational."
+    },
+    {
+      "answer": "Not broken; the plugin is off on purpose."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, the plugin is broken without jq.",
+      "why": "calls it broken"
+    },
+    {
+      "answer": "It depends on the hook PATH.",
+      "why": "near miss: no answer"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .git/hooks/pre-commit"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -5 .git/hooks/pre-commit.pre-guardrails"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv .git/hooks/pre-commit.pre-guardrails .git/hooks/pre-commit"
+          }
+        }
+      ],
+      "why": "the move"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash .git/hooks/pre-commit"
+          }
+        }
+      ],
+      "why": "runs it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ".git/hooks/pre-commit"
+          }
+        }
+      ],
+      "why": "runs it directly"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh /w/.git/hooks/pre-commit.pre-guardrails"
+          }
+        }
+      ],
+      "why": "runs the chained hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status && ./.git/hooks/pre-commit"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ]
+}

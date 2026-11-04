@@ -1,0 +1,33 @@
+{
+  "clean-r002": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--clean(?:\\s|\\\\\\\\\\\\n)+guardrails-r002\\b"
+  ],
+  "detection-rerun": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    "(?!(?:\\\\\\\\(?:\\\\r)?\\\\n|(?![;|]|&&|(?<!\\\\\\\\)\\\\n)(?:[^\"\\\\]|\\\\.))*?--clean\\b)",
+    {
+      "use": "token_argument"
+    },
+    "--manifest\\b"
+  ],
+  "no-hand-delete": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:rm|unlink)(?:\\.exe)?(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "guardrails-resolve-convention\\.sh"
+  ]
+}

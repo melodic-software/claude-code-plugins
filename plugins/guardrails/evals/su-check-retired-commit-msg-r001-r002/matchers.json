@@ -1,0 +1,32 @@
+{
+  "retirements-ran": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--manifest(?:\\s|\\\\\\\\\\\\n)+(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|]*retirements\\.yaml\\b"
+  ],
+  "no-clean": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--clean\\b"
+  ],
+  "no-hook-removal": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:rm|mv|unlink|truncate)(?:\\.exe)?(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "\\.git/hooks/"
+  ]
+}

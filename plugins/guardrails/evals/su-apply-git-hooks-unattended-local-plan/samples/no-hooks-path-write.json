@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git config --get core.hooksPath"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git config core.hooksPath"
+          }
+        }
+      ],
+      "why": "a read without --get"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'core.hooksPath .githooks' SKILL.md"
+          }
+        }
+      ],
+      "why": "a search term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git config core.hooksPath .githooks"
+          }
+        }
+      ],
+      "why": "sets it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w config --local core.hooksPath '.githooks'"
+          }
+        }
+      ],
+      "why": "-C and a quoted value"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status && git config core.hooksPath x"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ]
+}

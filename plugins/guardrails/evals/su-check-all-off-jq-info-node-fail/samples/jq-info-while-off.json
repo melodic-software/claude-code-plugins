@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "With every guard off, the missing jq is reported as INFO."
+    },
+    {
+      "answer": "jq: INFO there, since each guard exits at its enabled gate before it needs jq."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jq is FAIL even with the guards off.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "jq is WARN while off.",
+      "why": "near miss: wrong verdict"
+    },
+    {
+      "answer": "jq is skipped.",
+      "why": "near miss: no verdict"
+    }
+  ]
+}
