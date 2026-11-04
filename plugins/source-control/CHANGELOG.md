@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.0.0] - 2026-11-04
+
+### Changed
+
+- `/source-control:worktree`: the nesting invariant's dated measurement, its disputed arms and its
+  expiry stamp move to `skills/worktree/reference/nesting-invariant.md`, and every pointer moves
+  with them. The hub keeps the placement rule and says when to read the file. The worktree eval
+  suite gains three cases on rules the hub states, so a loss of the body now shows.
+
+### Removed
+
+- The `resolve-conflicts` skill and its ten eval cases ([#13197](https://github.com/melodic-software/claude-code-plugins/issues/13197)). Use `/source-control:pull-request` instead: `ready` merges the base and resolves a conflicted merge under the same rules (both sides' intent first, no `--ours`/`--theirs`, a semantic-conflict sweep, the version-bump script), and `conflicts --ci` is the pr-unblock lane's unattended mode. The pr-unblock activity keeps its `resolve-conflicts` name.
+
 ## [7.1.4] - 2026-11-04
 
 ### Fixed

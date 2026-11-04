@@ -192,19 +192,41 @@ brackets_valid() {
 }
 
 # ---------------------------------------------------------------------------
-# Glob -> ERE, path-aware.
+# Glob -> ERE, path-aware. Takes one brace expansion, since each is its own
+# pattern with its own form. The form sets where the match is anchored:
+#
+#   no slash          ->  (.*/)? prefix    any depth under the base
+#   leading /         ->  slash dropped    anchored at the base
+#   slash elsewhere   ->  as written       anchored at the base
+#
+# Inside the pattern:
 #
 #   **/   ->  (.*/)?     so `**/*.ts` matches a root-level `a.ts` too
 #   **    ->  .*         crosses directory separators
-#   *     ->  [^/]*      does NOT cross a separator
+#   *     ->  [^/]*      stays within one path segment
 #   ?     ->  [^/]
 #   [...] ->  preserved as a bracket expression
 #
 # Everything else is escaped, so a `.` in a pattern is a literal dot.
+#
+# The upstream table shows the slash-free form only as a wildcard; a slash-free
+# literal takes the same any-depth reading here, because reading it as root-only
+# would report a rule broken on a form upstream does not rule out.
+#   Pointer: when deciding what a pattern form matches, fetch
+#     https://code.claude.com/docs/en/memory#path-specific-rules live.
+#   As of: 2026-11-04.
+#   Recheck trigger: that section's pattern table changes what a form matches, or
+#     says what a slash-free literal matches.
 # ---------------------------------------------------------------------------
 glob_to_ere() {
   local pattern="$1"
-  local out="" i=0 len="${#pattern}" char
+  local out="" i=0 len char
+  case "$pattern" in
+  /*) pattern="${pattern#/}" ;;
+  */*) ;;
+  *) out="(.*/)?" ;;
+  esac
+  len="${#pattern}"
   while ((i < len)); do
     char="${pattern:i:1}"
     case "$char" in
@@ -335,7 +357,8 @@ fi
 # that a teammate would see.
 TRACKED_FILE="$(mktemp)"
 ROWS_FILE="$(mktemp)"
-trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE"' EXIT
+BASE_TRACKED_FILE="$(mktemp)"
+trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE" "$BASE_TRACKED_FILE"' EXIT
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git ls-files -z 2>/dev/null | tr '\0' '\n' | LC_ALL=C sort >"$TRACKED_FILE"
 else
@@ -397,6 +420,25 @@ for idx in "${!PATTERNS[@]}"; do
   if [[ "$budget_key" != "$PREV_BUDGET_KEY" ]]; then
     PREV_BUDGET_KEY="$budget_key"
     RUNNING_EXPANDED=0
+
+    # A rule's patterns match from its base, the directory holding its `.claude`
+    # folder, so a nested rule sees only its own subtree, as paths relative to it.
+    #   Pointer: when deciding what a rule's patterns are relative to, fetch
+    #     https://code.claude.com/docs/en/memory#path-specific-rules live.
+    #   As of: 2026-11-04.
+    #   Recheck trigger: that section changes a project rule's base directory.
+    UNIVERSE="$TRACKED_FILE"
+    UNIVERSE_TOTAL="$TRACKED_TOTAL"
+    case "$source" in
+    */.claude/rules/*)
+      UNIVERSE="$BASE_TRACKED_FILE"
+      IP_BASE="${source%%/.claude/rules/*}/" awk '
+        index($0, ENVIRON["IP_BASE"]) == 1 { print substr($0, length(ENVIRON["IP_BASE"]) + 1) }
+      ' "$TRACKED_FILE" >"$BASE_TRACKED_FILE"
+      UNIVERSE_TOTAL=$(($(wc -l <"$BASE_TRACKED_FILE")))
+      ;;
+    *) ;;
+    esac
   fi
 
   if ! brackets_valid "$pattern"; then
@@ -427,13 +469,13 @@ for idx in "${!PATTERNS[@]}"; do
         for exp in "${expansions[@]}"; do
           [[ -z "$exp" ]] && continue
           ere="$(glob_to_ere "$exp")"
-          grep -E "^${ere}$" "$TRACKED_FILE" 2>/dev/null
+          grep -E "^${ere}$" "$UNIVERSE" 2>/dev/null
         done | LC_ALL=C sort -u | grep -c . || true
       )
 
       if ((match_count == 0)); then
         status="zero-match"
-      elif ((TRACKED_TOTAL > 0)) && ((match_count * 100 >= TRACKED_TOTAL * BREADTH_MAX)); then
+      elif ((UNIVERSE_TOTAL > 0)) && ((match_count * 100 >= UNIVERSE_TOTAL * BREADTH_MAX)); then
         status="over-broad"
       fi
     fi
