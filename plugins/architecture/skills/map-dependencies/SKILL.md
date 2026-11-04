@@ -1,5 +1,5 @@
 ---
-description: "Project dependency graph from build manifests, citing the file and declaration on every edge. Use when 'map dependencies', 'project reference graph', 'dependency graph', 'what references what', 'internal dependencies', 'package references', 'which projects depend on which'. Skip when the question is which repositories exist (/architecture:map-landscape), shallow modules (/architecture:improve), or source imports and call graphs."
+description: "Project dependency graph from build manifests, citing the file and declaration on every edge. Use when 'project reference graph', 'what references what', 'internal dependencies', 'package references', 'which projects depend on which'. Skip for which repositories exist (map-landscape), shallow modules (improve), or source imports and call graphs."
 argument-hint: "[path] [--include-external] [--external-only] [--cycles-only] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
