@@ -177,6 +177,15 @@ export const reachedIntake = (jobs) =>
 // while githubstatus.com lists Actions in an outage, which marks it `-`, and
 // nothing records an API incident at the time a run ran.
 const TRANSIENT = /failed with status 5\d\d\b|GitHub answered 5\d\d\b|\bfetch failed\b|aborted due to timeout/;
+// apply-verdict joins several write failures into one annotation (its
+// missedAnnotation), so a note is transient only when every status it reports
+// is a 5xx: "GitHub answered 500" beside "GitHub answered 403" counts. A note
+// that reports no status is read by TRANSIENT alone (a timeout, a reset).
+const STATUS = /(?:failed with status|GitHub answered) (\d{3})\b/g;
+const transientNote = (message) => {
+  const statuses = [...message.matchAll(STATUS)].map((m) => m[1]);
+  return statuses.length > 0 ? statuses.every((code) => code.startsWith("5")) : TRANSIENT.test(message);
+};
 const DEFERRED = "permission denial(s) on an otherwise clean triage";
 const EXIT_LINE = /^Process completed with exit code \d+\.$/;
 const checkRunPath = (job) => {
@@ -198,7 +207,7 @@ export async function classifyRun(jobs, annotations) {
   const notes = ((await annotations(path)) ?? [])
     .filter((a) => a?.annotation_level === "failure" || (a?.annotation_level === "warning" && /not written/.test(String(a.message ?? ""))))
     .filter((a) => !EXIT_LINE.test(String(a.message ?? "")));
-  return notes.length > 0 && notes.every((a) => TRANSIENT.test(String(a.message ?? ""))) ? "~" : "+";
+  return notes.length > 0 && notes.every((a) => transientNote(String(a.message ?? ""))) ? "~" : "+";
 }
 
 // What the marks add up to: `attempts` the runs that count (an unread run
