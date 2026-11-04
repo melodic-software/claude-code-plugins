@@ -5562,13 +5562,26 @@ jobs:
             echo "::warning::wake-pr-merge: the passing job named no pull request number; nothing woken"
             exit 0
           fi
-          # pr-merge arms only lanes App pull requests, so one author read here
-          # spares every other pass a whole pr-merge run. A failed read, or no
-          # lanes App id, dispatches anyway: pr-merge filters by author itself.
+          # pr-merge arms only lanes App pull requests, and the token broker
+          # mints for this wake only on one, so one read here spares every
+          # other pass a whole pr-merge run. One already armed or held by
+          # do-not-merge needs no wake: the scheduled sweep runs the same
+          # decision on it, disarms included, and ci-status holds do-not-merge
+          # in the merge queue. A failed read, or no lanes App id, dispatches
+          # anyway: pr-merge decides all of this itself.
           if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
-            author=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '"\(.user.id) \(.user.type)"'); then
-            if [ "$author" != "$LANES_APP_ID Bot" ]; then
+            read -r id type armed held < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
+              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null)"'); then
+            if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
               echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict not a lanes App pull request; nothing woken"
+              exit 0
+            fi
+            if [ "$armed" = true ]; then
+              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict already armed; nothing woken"
+              exit 0
+            fi
+            if [ "$held" = true ]; then
+              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict held (do-not-merge); nothing woken"
               exit 0
             fi
           fi
