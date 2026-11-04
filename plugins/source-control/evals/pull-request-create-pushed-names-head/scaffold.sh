@@ -16,6 +16,7 @@ git add src README.md
 git commit -q -m "chore: seed"
 
 git checkout -q -b feat/csv-quote-cells
+# shellcheck disable=SC2016 # ${String(v)...} is a JavaScript template expression, not a shell one
 printf 'export const cell = (v) => (/[",\\n]/.test(String(v)) ? `"${String(v).replaceAll("\\"", "\\"\\"")}"` : String(v));\n' >src/csv.ts
 git commit -q -am "feat: quote CSV cells holding a comma, quote or line break"
 git checkout -q main
