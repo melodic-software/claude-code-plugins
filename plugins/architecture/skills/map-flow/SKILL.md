@@ -1,5 +1,5 @@
 ---
-description: "Sequence diagram of one C# entry point, each hop citing a tracked call site: an interface, service-locator, or reflection hop stays unresolved, and Publish or Send is a hand-off to map-events. Use when 'trace this request', 'walk me through what happens', 'dynamic diagram from this endpoint'."
+description: "Sequence diagram of one C# entry point, each hop citing a tracked call site: an interface, service-locator, or reflection hop stays unresolved, and Publish or Send is a hand-off to map-events. Use when 'map flow', 'sequence diagram', 'trace this request', 'walk me through what happens', or 'dynamic diagram from this endpoint'. Skip when the question is who publishes which message (/architecture:map-events) or which repositories exist (/architecture:map-landscape)."
 argument-hint: "<entry point> [--depth N] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
