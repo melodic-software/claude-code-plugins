@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A missing node is a FAIL: every hook launch goes through `node hooks/exec-bash.mjs`, so it is a hook launch error, not a skip notice. This machine does have node."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing node is INFO; the hook prints a skip notice.",
+      "why": "wrong grade and consequence"
+    },
+    {
+      "answer": "Missing node is a FAIL.",
+      "why": "near miss: no consequence or reason"
+    }
+  ]
+}

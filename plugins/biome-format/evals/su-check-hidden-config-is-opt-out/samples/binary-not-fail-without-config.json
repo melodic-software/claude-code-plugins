@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No: the binary FAIL applies only while a Biome config governs the repo. The SessionStart probe would still report a missing biome."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, a missing biome is always a FAIL.",
+      "why": "ignores the condition"
+    },
+    {
+      "answer": "Biome resolves on PATH here.",
+      "why": "near miss: does not answer the grading question"
+    }
+  ]
+}
