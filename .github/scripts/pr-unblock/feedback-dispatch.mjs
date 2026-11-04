@@ -93,13 +93,14 @@
 // main whose head's newest reply check took one of those skips, fewer than
 // SWEEP_HEAD_CAP times at that head, is decided as above with the
 // newest completed review run at that head as the upstream (reviewRunAt),
-// which the record names. With no such head and no stale stop, it sends the
-// first lanes App head with an unresolved thread that no round was sent for
+// which the record names. It then decides each lanes App head with a stale
+// stop (sweepStale), each with an unresolved thread that no round was sent for
 // (sweepUnsent): its review completion skipped on a cause that may clear, such
-// as an unreadable FAIL cap. With none, it sends the first idle adopted owner
-// PR whose reviewed head has no round yet, or whose round's stop no thread
-// holds any more (sweepIdleOwner), since that PR's own review completion found
-// it active.
+// as an unreadable FAIL cap, and each idle adopted owner PR whose reviewed
+// head has no round yet, or whose round's stop no thread holds any more
+// (sweepIdleOwner), since that PR's own review completion found it active.
+// The passes run in that order, after the fix requests below; a tick decides
+// each PR at most once and at most SWEEP_TICK_CAP in all, then sends them.
 //
 // Before those, the tick takes a fix request nothing else would start: no
 // review run follows a reply on a head, and an earlier round's check run holds
@@ -127,8 +128,9 @@
 // keeps its thread workable on any head (address-feedback.mjs onReviewedHead),
 // so the review run after resolve-conflicts' push dispatches it.
 //
-// A sweep dispatches at most once, since the
-// dispatched-run record names one upstream and one run, and keeps no record.
+// A sweep decides every round before it sends any, so each round's
+// dispatched-run record, which names its upstream and its run, uploads seconds
+// after its POST; it keeps no dispatch record.
 // The unsent sweep also sends a head with no unresolved thread and a fail note
 // from another head, while its newest review run completed within
 // EARLIER_FAIL_WINDOW_MS: its verifier read may have failed, or a pass's
@@ -474,6 +476,9 @@ export async function dispatchFeedback({
   // The verifier reads this pass may still spend on PRs with no unresolved
   // thread (EARLIER_FAIL_READS); main shares one across the pass's sweeps.
   earlierFailReads = { left: EARLIER_FAIL_READS },
+  // The sweep decides every PR before it sends any: the decision then
+  // returns { number, send } and send() posts it.
+  defer = false,
 }) {
   // Each skip names the upstream run, so a relay or review run traces to its
   // dispatch decision in one log read.
@@ -767,30 +772,33 @@ export async function dispatchFeedback({
       ...(earlierFail.length > 0 ? { "verify-earlier-fail-heads": earlierFail.join(" ") } : {}),
     },
   };
-  let workflowRunId;
-  try {
-    ({ workflowRunId } = await api.dispatchWorkflow(request));
-  } catch (error) {
-    if (!connectionLost(error)) {
-      throw error;
+  const send = async () => {
+    let workflowRunId;
+    try {
+      ({ workflowRunId } = await api.dispatchWorkflow(request));
+    } catch (error) {
+      if (!connectionLost(error)) {
+        throw error;
+      }
+      // The connection broke before any answer, so GitHub may still have taken
+      // the POST: a run it started for this PR holds the second send, as the
+      // listing above would. This run never sends an HTTP error answer again;
+      // the run fails, and recoverLost may send it within
+      // FAILED_RUN_WINDOW_HOURS.
+      const since = new Date(now - 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+      const started = (await api.listRecentRuns(settings.workflow, since)).find((run) => holds(run, number));
+      log(`::warning::#${number}: the ${settings.workflow} dispatch got no answer (${errorLabel(error)}); ${started ? `run ${started.id} for it is listed, so it is not sent again` : "sending it once more"}`);
+      ({ workflowRunId } = started ? { workflowRunId: started.id } : await api.dispatchWorkflow(request));
     }
-    // The connection broke before any answer, so GitHub may still have taken
-    // the POST: a run it started for this PR holds the second send, as the
-    // listing above would. This run never sends an HTTP error answer again;
-    // the run fails, and recoverLost may send it within
-    // FAILED_RUN_WINDOW_HOURS.
-    const since = new Date(now - 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
-    const started = (await api.listRecentRuns(settings.workflow, since)).find((run) => holds(run, number));
-    log(`::warning::#${number}: the ${settings.workflow} dispatch got no answer (${errorLabel(error)}); ${started ? `run ${started.id} for it is listed, so it is not sent again` : "sending it once more"}`);
-    ({ workflowRunId } = started ? { workflowRunId: started.id } : await api.dispatchWorkflow(request));
-  }
-  const id = String(workflowRunId);
-  if (!RUN_ID.test(id)) {
-    throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
-  }
-  record.dispatched.set(head, { number, runId: id });
-  log(`dispatched #${number} head ${head} upstream run ${upstreamRunId} workflow_run_id=${id}`);
-  return { number, workflowRunId: id };
+    const id = String(workflowRunId);
+    if (!RUN_ID.test(id)) {
+      throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
+    }
+    record.dispatched.set(head, { number, runId: id });
+    log(`dispatched #${number} head ${head} upstream run ${upstreamRunId} workflow_run_id=${id}`);
+    return { number, workflowRunId: id };
+  };
+  return defer ? { number, send } : send();
 }
 
 // The verifier reads one dispatcher pass spends on lanes App PRs with no
@@ -818,41 +826,86 @@ export const earlierFailNoted = (threads, head) =>
 const LOST_CONNECTION = new Set(["ECONNRESET", "UND_ERR_SOCKET"]);
 const connectionLost = (error) => error?.name === "TypeError" && error.message === "fetch failed" && LOST_CONNECTION.has(error.cause?.code);
 
-// The sweep: the first open lanes App PR into main with a fix request newer
-// than its head's last round (sweepFixRequest), else the first whose head's
-// newest reply check took a releasing skip, under SWEEP_HEAD_CAP such checks,
-// that dispatchFeedback dispatches for the head's newest completed review run.
-// Returns dispatchFeedback's result with that run's id, or null.
-export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
-  const context = { api, repository, appSenderId, log, settings, rest };
+// Rounds one tick sends (judgment: five bounds the extra dispatches and their
+// reads per tick well under the GITHUB_TOKEN's 1,000 requests an hour).
+export const SWEEP_TICK_CAP = 5;
+// Time after which the sweep decides no further PR. The gate trusts a
+// dispatched run only if it was created within 10 minutes of this run's start
+// (check-trusted-trigger.mjs WINDOW_MS), and the dispatch job's timeout is 10
+// minutes too: setup (18 s on run 41759929522), this budget, the decision in
+// flight (one verifier read, VERIFY_CAP_TIMEOUT_MS) and the sends leave about
+// 2.5 minutes of margin (judgment).
+export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
+
+// The sweep, in pass order: each open lanes App PR into main with a fix
+// request newer than its head's last round (sweepFixRequest); each whose
+// head's newest reply check took a releasing skip, under SWEEP_HEAD_CAP such
+// checks (sweepOne); then sweepStale, sweepUnsent and sweepIdleOwner. Each PR
+// is decided at most once a tick, until SWEEP_TICK_CAP PRs are decided or
+// SWEEP_DECIDE_BUDGET_MS is spent. Only then are the decided rounds sent, back
+// to back, so each record uploads seconds after its POST, well inside the
+// gate's wait for it (check-trusted-trigger.mjs requireRecorded). Each send's
+// result, with the head's newest completed review run id, goes to onSent;
+// returns the first, or null.
+export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, ...rest }) {
+  const context = { api, repository, appSenderId, log, settings, rest: { ...rest, defer: true } };
   const listed = await openPulls(context);
   const pulls = listed.filter((pull) => pull.user?.id === appSenderId);
-  const requested = await sweepPulls(context, (pull) => sweepFixRequest({ ...context, pull }), pulls);
-  if (requested !== null) {
-    return requested;
-  }
-  log("sweep: no head with a fix request newer than its last round");
-  const dispatched = await sweepPulls(context, (pull) => sweepOne({ ...context, pull }), pulls);
-  if (dispatched !== null) {
-    return dispatched;
-  }
-  log("sweep: no head whose last round left it for another round to dispatch");
-  const stale = await sweepPulls(context, (pull) => sweepStale({ ...context, pull }), pulls);
-  if (stale !== null) {
-    return stale;
-  }
-  log("sweep: no head with a failing address-feedback stop and nothing left to fix");
-  const unsent = await sweepPulls(context, (pull) => sweepUnsent({ ...context, pull }), pulls);
-  if (unsent !== null) {
-    return unsent;
-  }
-  log("sweep: no head with an unresolved thread that no round was sent for");
   const owners = listed.filter((pull) => pull.user?.id !== appSenderId);
-  const idle = owners.length === 0 ? null : await sweepPulls(context, (pull) => sweepIdleOwner({ ...context, pull }), owners);
-  if (idle === null) {
-    log("sweep: no idle owner PR whose reviewed head the lane has not answered");
+  const decided = [];
+  const taken = new Set();
+  const started = clock();
+  const passes = [
+    [sweepFixRequest, pulls, "sweep: no head with a fix request newer than its last round"],
+    [sweepOne, pulls, "sweep: no head whose last round left it for another round to dispatch"],
+    [sweepStale, pulls, "sweep: no head with a failing address-feedback stop and nothing left to fix"],
+    [sweepUnsent, pulls, "sweep: no head with an unresolved thread that no round was sent for"],
+    [sweepIdleOwner, owners, "sweep: no idle owner PR whose reviewed head the lane has not answered"],
+  ];
+  decide: for (const [pass, rows, none] of passes) {
+    const before = decided.length;
+    for (const pull of rows) {
+      if (decided.length >= SWEEP_TICK_CAP) {
+        log(`sweep: ${SWEEP_TICK_CAP} rounds decided, the tick's cap; the next tick decides the rest`);
+        break decide;
+      }
+      if (clock() - started >= SWEEP_DECIDE_BUDGET_MS) {
+        log(`sweep: ${SWEEP_DECIDE_BUDGET_MS / 60_000} minutes spent deciding; the next tick decides the rest`);
+        break decide;
+      }
+      if (taken.has(pull.number)) {
+        continue;
+      }
+      try {
+        const round = await pass({ ...context, pull });
+        if (round !== null) {
+          decided.push(round);
+          taken.add(pull.number);
+        }
+      } catch (error) {
+        // One PR's failed read leaves the PRs after it to the sweep.
+        log(`::warning::#${pull.number}: the sweep could not decide head ${pull.head.sha}: ${error.message}`);
+      }
+    }
+    if (decided.length === before) {
+      log(none);
+    }
   }
-  return idle;
+  const sent = [];
+  for (const { number, send, upstreamRunId } of decided) {
+    let result;
+    try {
+      result = { ...(await send()), upstreamRunId };
+    } catch (error) {
+      // A POST the API rejects starts no round to hold the PR: log it and
+      // send the rounds after it, as the per-PR sweep did.
+      log(`::warning::#${number}: the sweep could not send its round: ${error.message}`);
+      continue;
+    }
+    sent.push(result);
+    onSent(result);
+  }
+  return sent[0] ?? null;
 }
 
 // Hours after an owner PR turns idle during which the tick still sends a head
@@ -904,8 +957,8 @@ async function openPulls({ api, repository, appSenderId, settings, rest }) {
   );
 }
 
-// Each of `pulls` (default: the open lanes App PRs), decided by `decide` in
-// listing order until one dispatches.
+// The recovery's walk: each of `pulls` (default: the open lanes App PRs),
+// decided by `decide` in listing order until one dispatches.
 async function sweepPulls(context, decide, pulls = null) {
   const { log } = context;
   for (const pull of pulls ?? (await openPulls(context)).filter((row) => row.user?.id === context.appSenderId)) {
@@ -979,17 +1032,20 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
     log(`skip: #${number}: head ${head} has no completed review run`);
     return null;
   }
-  const { workflowRunId } = await api.dispatchWorkflow({
-    workflow: settings.workflow,
-    ref: `refs/heads/${settings.base}`,
-    inputs: { "pr-number": String(number), activity: settings.activity, "dispatcher-run-id": String(rest.runId) },
-  });
-  const id = String(workflowRunId);
-  if (!RUN_ID.test(id)) {
-    throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
-  }
-  log(`dispatched #${number} head ${head} to clear a stop with no thread left, upstream run ${upstream.id} workflow_run_id=${id}`);
-  return { number, workflowRunId: id, upstreamRunId: upstream.id };
+  const send = async () => {
+    const { workflowRunId } = await api.dispatchWorkflow({
+      workflow: settings.workflow,
+      ref: `refs/heads/${settings.base}`,
+      inputs: { "pr-number": String(number), activity: settings.activity, "dispatcher-run-id": String(rest.runId) },
+    });
+    const id = String(workflowRunId);
+    if (!RUN_ID.test(id)) {
+      throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
+    }
+    log(`dispatched #${number} head ${head} to clear a stop with no thread left, upstream run ${upstream.id} workflow_run_id=${id}`);
+    return { number, workflowRunId: id, upstreamRunId: upstream.id };
+  };
+  return rest.defer ? { number, send, upstreamRunId: upstream.id } : send();
 }
 
 // pr-feedback-dispatch.yml's dispatch job timeout-minutes.
@@ -1548,8 +1604,9 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
   });
 }
 
-// Writes run-id, the dispatched run, as a step output; the workflow records
-// it with the upstream run id as an artifact on this run.
+// Writes run-id, the dispatched run, as a step output (a tick's later sends as
+// run-id-2 to run-id-<SWEEP_TICK_CAP>); the workflow records each with its
+// upstream run id as an artifact on this run.
 export async function main(env, { api, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
@@ -1599,11 +1656,20 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
       log(`skip: run ${upstream.id} is not a scheduled tick`);
       return 0;
     }
-    // A lost run is recovered only on a tick the released heads leave idle.
-    const sweep = async () => (await sweepReleased(common)) ?? recoverLost({ ...common, now });
+    // Each send's outputs are written as it is sent, so a later send's
+    // failure still leaves the earlier ones recorded: the first as run-id,
+    // the nth as run-id-<n>.
+    let sends = 0;
+    const write = (swept) => {
+      sends += 1;
+      const suffix = sends === 1 ? "" : `-${sends}`;
+      appendFileSync(env.GITHUB_OUTPUT, `run-id${suffix}=${swept.workflowRunId}\nupstream-run-id${suffix}=${swept.upstreamRunId}\n`);
+    };
+    // A lost run is recovered only on a tick the sweep sent nothing on.
+    const sweep = async () => (await sweepReleased({ ...common, onSent: write })) ?? recoverLost({ ...common, now });
     const swept = await sweep().finally(summary);
-    if (swept !== null) {
-      appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n`);
+    if (swept !== null && sends === 0) {
+      write(swept);
     }
     return 0;
   }

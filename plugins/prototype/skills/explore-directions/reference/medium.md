@@ -9,11 +9,9 @@ node "<plugin-root>/lib/view-settings.mjs" resolve --lane prototype:explore-dire
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line
-per notice. Print the report line and each notice in the handover as they stand, except that a
-notice's closing "; per user, the prototype plugin's medium option also works" clause is dropped,
-since this plugin has no such option. Leave every settings file to the resolver. A usage error
-(exit 2) means the argument named no medium: say so in one line and run it again without
-`--argument`.
+per notice. Print the report line and each notice in the handover as they stand. Leave every
+settings file to the resolver. A usage error (exit 2) means the argument named no medium: say so in
+one line and run it again without `--argument`.
 
 - **The JSON's `publishes` is `false`**: the medium keeps the view on this machine. Build the
   mockup and make no design-canvas offer, since the canvas is published. When `page` is also

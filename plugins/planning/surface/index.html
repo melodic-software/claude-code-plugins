@@ -2215,11 +2215,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         renderDetail(); const th = $("thread"); if (th) th.classList.add("flash");
         return;
       }
-      S.armed = null;
       const now = staleNow(), fresh = now.stale.filter(id => !was.stale.includes(id)), more = now.up.filter(id => !was.up.includes(id)).length, onClaude = now.changed.filter(id => !was.changed.includes(id));
       const dm = {}; fresh.sort((a, b) => depthOf(a, dm) - depthOf(b, dm) || byIdCmp(Q[a], Q[b])); // dependency order
       const sm = (fresh.length ? " " + (fresh.length > 1 ? fresh.slice(0, -1).join(", ") + " and " + fresh[fresh.length - 1] + " need" : fresh[0] + " needs") + " review" + (more ? "; " + more + " more wait on " + (fresh.length > 1 ? "them" : "it") : "") + "." : "") +
         (onClaude.length ? " " + joinIds(onClaude) + (onClaude.length > 1 ? " wait" : " waits") + " on Claude to revise or reconfirm " + (onClaude.length > 1 ? "them" : "it") + "." : "");
+      if (S.sel !== q.id) { // the user moved to another question while the save was in flight: stay there, with its armed choice and note
+        if (kind !== "reopen") offerUndo(data.seq, q.id, typed);
+        toast((kind === "reopen" ? "Reopened " : "Saved ") + q.id + "." + sm + queued(), false, kind !== "reopen"); renderAll(); return;
+      }
+      S.armed = null;
       if (kind === "reopen") { toast("Reopened. Your note is kept under Your earlier answer." + sm); fillNote(); renderAll(); return; }
       offerUndo(data.seq, q.id, typed);
       if (held || noted) { // stays on the question: the answer waits on research, or Claude answers the note

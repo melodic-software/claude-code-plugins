@@ -77,6 +77,7 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_merge_policy as policy
+import babysit_run_cache as run_cache
 import babysit_tracker_binding as tracker_binding
 from babysit_gh import (
     RUN_SEARCH_CAP,
@@ -140,6 +141,9 @@ _LANE_RECORD_NAME = re.compile(
 # file, and every attempt is read as before.
 ATTEMPTS_ENV = "BABYSIT_POSTMERGE_ATTEMPTS"
 ATTEMPTS_VERSION = 1
+# The run cache section holding compare answers between two full SHAs
+# (`_Context._compare`). A branch tip is never kept there: it moves.
+COMPARE_SECTION = "postmerge-compare"
 _ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
@@ -1791,7 +1795,7 @@ class _Context:
         if self.quarantine_issues is None:
             found: dict[str, dict[str, Any]] = {}
             for issue in _demotion_issues(
-                self.owner, self.name, (self.identity, *DEMOTION_FILERS)
+                self.owner, self.name, (self.identity, *DEMOTION_FILERS), state="open"
             ):
                 suite = _quarantined_suite(issue.get("body"))
                 if suite is None or issue.get("state") != "open":
@@ -2207,13 +2211,26 @@ class _Context:
         return self.contains_cache[key]
 
     def _compare(self, ancestor: str, sha: str) -> bool:
-        """The compare API's answer to `contains`; a failed read raises."""
+        """The compare API's answer to `contains`; a failed read raises.
+        Between two full SHAs the answer, yes or no, never changes, so the
+        run's gate processes share it (`run_cache`, `COMPARE_SECTION`). A
+        shared answer still counts in `compare_reads`, so every compare
+        budget spends exactly as it would on a read."""
         self.compare_reads += 1
+        key = None
+        if _FULL_SHA.fullmatch(ancestor) and _FULL_SHA.fullmatch(sha):
+            key = f"{self.owner}/{self.name}|{ancestor}...{sha}"
+            shared = run_cache.get(COMPARE_SECTION, key, None)
+            if isinstance(shared, bool):
+                return shared
         compare = _read(
             ["api", f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}"],
             f"compare {ancestor[:12]}...{sha[:12]}",
         )
-        return json_object(compare).get("status") in ("ahead", "identical")
+        answer = json_object(compare).get("status") in ("ahead", "identical")
+        if key is not None:
+            run_cache.put(COMPARE_SECTION, key, answer)
+        return answer
 
     def _tip_bridge(self, tip: str) -> str | None:
         """The first full-history clone's copy of the branch, read from
@@ -3556,11 +3573,14 @@ pin_reader = PinReader
 
 
 def _demotion_issues(
-    owner: str, name: str, filers: Iterable[str]
+    owner: str, name: str, filers: Iterable[str], *, state: str
 ) -> list[dict[str, Any]]:
+    """Every issue (no pull request) one of `filers` opened in `state`:
+    `open` for a reader that keeps only open issues, `all` for one that
+    reopens a closed record."""
     issues: list[dict[str, Any]] = []
     for filer in dict.fromkeys(filers):
-        endpoint = f"repos/{owner}/{name}/issues?state=all&creator={quote(filer, safe='')}&per_page=100"
+        endpoint = f"repos/{owner}/{name}/issues?state={state}&creator={quote(filer, safe='')}&per_page=100"
         issues += [
             i
             for i in _paginated(endpoint, f"issues by {filer}")
@@ -3721,7 +3741,7 @@ def file_quarantines(
     filers = (agent_identity, *DEMOTION_FILERS)
     keys = {_login_key(f) for f in filers}
     open_issues: dict[str, dict[str, Any]] = {}
-    for issue in _demotion_issues(owner, name, filers):
+    for issue in _demotion_issues(owner, name, filers, state="open"):
         suite = _quarantined_suite(issue.get("body"))
         if suite is not None and issue.get("state") == "open":
             open_issues.setdefault(suite, issue)
@@ -3853,7 +3873,9 @@ def remediate(
     created = 0
     try:
         filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
-        existing = _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS))
+        existing = _demotion_issues(
+            owner, name, (agent_identity, *DEMOTION_FILERS), state="all"
+        )
         role_label = label or _role_label(owner, name)
         # One record per marker (signal, SHA); every distinct sighting under it
         # is checked against that record, so a second red run on a closed
@@ -4359,14 +4381,21 @@ VERIFYING_WORKFLOWS = frozenset(
 
 
 def _verifying_runs_unchanged(
-    repo: str, branch: str, *, created: datetime, since: datetime
+    repo: str,
+    branch: str,
+    *,
+    created: datetime,
+    since: datetime,
+    running: bool = False,
 ) -> bool:
     """Whether no full or canary run on `branch` created at or after
     `created` completed, or was re-run, at or after `since`, from one listing
     per verifying workflow: every workflow's runs on a busy branch fill more
     than one page in an hour or two. A run started since and still running
-    changes nothing yet. A listing that is not whole raises
-    `PostMergeReadError`."""
+    changes nothing yet, unless `running`: then any run created, started
+    again or updated since counts, whatever its status, since a fresh check
+    reads a red run re-run since as pending. A listing that is not whole
+    raises `PostMergeReadError`."""
     owner, name = _split_repo(repo)
     floor = quote(
         f">={created.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
@@ -4387,7 +4416,7 @@ def _verifying_runs_unchanged(
             raise PostMergeReadError(f"{workflow} runs: the listing is not whole")
         if any(
             run.get("path") in VERIFYING_WORKFLOWS
-            and run.get("status") == "completed"
+            and (running or run.get("status") == "completed")
             and _time(run.get("updated_at")) >= since
             for run in map(json_object, runs)
         ):
@@ -4578,9 +4607,11 @@ def idle_runs_refusal(
     branch: str,
     *,
     confirm_wait_minutes: int,
+    running: bool = False,
 ) -> str | None:
     """`idle_refusal`'s verifying runs, in two one-page listings
-    (`_verifying_runs_unchanged`), for a report `idle_report_refusal` passed."""
+    (`_verifying_runs_unchanged`, with `running`), for a report
+    `idle_report_refusal` passed."""
     report = shared.gate.report
     try:
         created = shared.computed_at - (
@@ -4592,7 +4623,9 @@ def idle_runs_refusal(
         if report["outstandingSince"] is not None:
             created = min(created, _time(report["outstandingSince"]))
         since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
-        if not _verifying_runs_unchanged(repo, branch, created=created, since=since):
+        if not _verifying_runs_unchanged(
+            repo, branch, created=created, since=since, running=running
+        ):
             return "runs-changed"
     except (PostMergeReadError, ValueError, KeyError) as exc:
         return f"unreadable: {exc}"
@@ -4613,6 +4646,91 @@ def idle_marks_refusal(repo: str, shared: policy.SharedPostMerge) -> str | None:
     except (PostMergeReadError, ValueError, KeyError, TypeError) as exc:
         return f"unreadable: {exc}"
     return None
+
+
+# `idle_report_refusal`'s refusals a check reading the same inputs gives
+# again: what the report found, not its age, a deadline or a failed read. A
+# hold comes only with an unreadable report, and `reruns` can lapse with
+# nothing moved once its red run leaves the `_lane_reruns` lookback.
+CONTENT_REFUSALS = frozenset(
+    {"needs-dispatch", "unattributed", "quarantines", "excused"}
+)
+
+
+def content_refusal(
+    shared: policy.SharedPostMerge, *, now: datetime | None = None
+) -> str | None:
+    """Why a readable report refuses on what it found (`failing` for exit 1,
+    else one of `CONTENT_REFUSALS`), or None: it passes the idle tick, its
+    refusal is age or time (`stale-soon`, `dispatch-deadline`), or it lacks
+    what `refusal_moved` reads again (pins, `outstandingSince`, a
+    `_lane_reruns` read that did not fail), or it asks for a re-run. Reads
+    nothing."""
+    report = shared.gate.report
+    if (
+        report.get("readable") is not True
+        or json_array(report.get("reruns"))
+        or not is_json_object(report.get("pins"))
+        or "outstandingSince" not in report
+        or any(
+            str(w).startswith("lane-rerun-unreadable")
+            for w in json_array(report.get("warnings"))
+        )
+    ):
+        return None
+    if report.get("ok") is not True:
+        return "failing"
+    refusal = idle_report_refusal(shared, now=now)
+    return refusal if refusal in CONTENT_REFUSALS else None
+
+
+def refusal_moved(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    identity: str,
+    confirm_wait_minutes: int,
+    now: datetime | None = None,
+) -> str | None:
+    """What a report refusing on its content (`content_refusal`) was read
+    from that has moved since, or None when a check run now would read the
+    same and refuse it too: no older than `SHARED_MAX_AGE` (else `stale`),
+    bound to `identity` and the lane, the default branch head, its config
+    commit and the demotion unchanged (`policy._moved`, a tripped demotion
+    probe read again), no verifying run created, re-run or updated since
+    (`idle_runs_refusal` with `running`), and the quarantine issues and pins
+    as they were (`idle_marks_refusal`). A failed read is moved. Past
+    `computedAt` the check's time rules only refuse more: a pending merge
+    past `DISPATCH_DEADLINE` or an expired excuse fails."""
+    age = (now or datetime.now(UTC)) - shared.computed_at
+    if not timedelta(0) <= age <= policy.SHARED_MAX_AGE:
+        return "stale"
+    if _login_key(shared.identity) != _login_key(identity):
+        return "identity-differs"
+    if not shared.lane_merges_only:
+        return "lane-differs"
+    try:
+        moved = policy._moved(
+            repo,
+            branch,
+            identity,
+            shared,
+            lambda answer, default: (
+                idle_runs_refusal(
+                    repo,
+                    answer,
+                    default,
+                    confirm_wait_minutes=confirm_wait_minutes,
+                    running=True,
+                )
+                is None
+            ),
+            reread_demotion=True,
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        return f"unreadable: {exc}"
+    return moved or idle_marks_refusal(repo, shared)
 
 
 def read_shared(path: str) -> policy.SharedPostMerge | None:

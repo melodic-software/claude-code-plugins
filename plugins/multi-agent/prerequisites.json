@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the multi-agent hooks cannot launch, so they do nothing. After node resolves, run `bash <plugin root>/scripts/check-hook-registration.sh`: it reports whether the fetch gate is registered and denies a sample off-host fetch.",
+      "degrade": "Without node, the multi-agent hooks cannot launch, so they do nothing. After node resolves, run `bash scripts/check-hook-registration.sh` from the plugin root, the directory passed to `prerequisites.mjs check`. It reports whether the fetch gate is registered and denies a sample off-host fetch.",
       "install": {
         "docs": "https://nodejs.org/en/download"
       }

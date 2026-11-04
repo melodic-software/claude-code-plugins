@@ -1,0 +1,123 @@
+{
+  "skill": "code-metrics:audit-coverage",
+  "plugin": "code-metrics",
+  "skill_dir": "plugins/code-metrics/skills/audit-coverage",
+  "ranking_note": "The target reads test-execution artifacts a build already wrote and reports per-function line figures and CRAP, while its competitors measure complexity alone, compare against a baseline, plan tests, or judge whether tests can catch faults. The set was authored blind from before descriptions.",
+  "competitors": [
+    "code-metrics:audit",
+    "verification:measure",
+    "testing:plan",
+    "testing:audit",
+    "mutation-testing:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The nightly build left build/lcov.info in the billing-service repo. Without rerunning anything, give me the line percentage for each function in src/invoice/tax.ts."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which functions in the payments module have the worst CRAP numbers? The cobertura.xml from CI is already sitting in target/site."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "pytest-cov already wrote its JSON report for orders-api. How many lines of the functions I changed on this branch actually ran?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "go test saved profile.out yesterday for the ledger package. Break it down by function so I can see which ones never got hit."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I don't need a before-and-after or a baseline here. Just pull today's line percentage for shipping/rates.py out of the lcov.info our pipeline produced."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Find the gnarly functions in checkout-web that nobody tests: lots of branching, few lines hit. The lcov.info is already in the reports folder."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My suite for parser.go seems thin. Tell me what percent of each function's lines ran, using the profile CI saved, and don't start any tests."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Open target/cobertura.xml and tell me how well exercised src/Auth/TokenStore.cs is, method by method."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "A mutation score isn't what I'm after. Give me a CRAP number for every function under services/notifier, from the report the last CI job uploaded."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What's the cyclomatic complexity per function in src/router.ts? I don't need any coverage numbers, only how tangled the code is."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Capture a coverage baseline before I refactor the cart module, so that afterwards we can compare and prove the number went up."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I just changed the scheduler. What kinds of tests does this need, where are the coverage gaps, and what should I tackle first given regression risk?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our line coverage is 90% but I suspect plenty of those tests have no assertions at all. Find the ones in tests/api that can't fail."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Coverage on the pricing engine is high but I don't trust it. Run mutation testing on this diff and show me the survivors."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How much of packages/core is typed? Give me the type coverage and how many anys are left."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Did coverage actually rise after my test PR, compared with the baseline we took before starting it?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I'm prepping the PR for the webhook handler. Draw up a test plan: which changed files need unit or integration tests to close the coverage holes?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The tests I just wrote for discount.py hit every line. Would they notice a broken implementation? Get me a mutation score."
+    }
+  ]
+}
