@@ -242,37 +242,14 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          # A failed read names its error text and class. A 5xx, a network
-          # error or a body that is not JSON is read once more after 5 to 10 s;
-          # a rate limit (the gh wrapper's refusal included) is never read
-          # again, and any other failure is final.
-          err=$(mktemp)
-          for attempt in 1 2; do
-            if pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref, .head.repo.full_name' 2>"$err"); then
-              break
-            fi
-            class=other
-            if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429|was not sent' "$err" ||
-              { declare -F api_budget_stop_until >/dev/null && [[ -n $(api_budget_stop_until core) ]]; }; then
-              class=rate-limit
-            elif grep -qiE 'HTTP 5[0-9][0-9]|unexpected end of JSON input|invalid character|error connecting to|connection reset|connection refused|i/o timeout|tls handshake timeout|unexpected eof|timed out|timeout' "$err"; then
-              class=transient
-            fi
-            reason=$(tr '\r\n' '  ' <"$err" | cut -c1-300 | sed 's/ *$//')
-            reason=${reason//%/%25}
-            if [[ $class == transient && $attempt == 1 ]]; then
-              echo "::warning::reading #$PR_NUMBER failed (transient): ${reason:-no error text}; reading again"
-              sleep $((5 + RANDOM % 6))
-              continue
-            fi
-            echo "::error::the PR could not be read ($class): ${reason:-no error text}"
-            exit 1
-          done
-          { read -r sha && read -r base && read -r head_repo; } <<<"$pr" || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .base.ref, .head.repo.full_name' || exit 1
+          { read -r sha && read -r base && read -r head_repo; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
@@ -962,6 +939,8 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
@@ -970,7 +949,8 @@ jobs:
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
           fi
-          { read -r sha && read -r base && read -r head_repo && read -r author; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref, .head.repo.full_name, .user.id') || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .base.ref, .head.repo.full_name, .user.id' || exit 1
+          { read -r sha && read -r base && read -r head_repo && read -r author; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
@@ -1386,11 +1366,14 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .head.repo.full_name' || exit 1
+          { read -r sha && read -r head_repo; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
@@ -2443,11 +2426,14 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          read_pr_fields "$PR_NUMBER" '.head.sha, .head.repo.full_name' || exit 1
+          { read -r sha && read -r head_repo; } <<<"$pr_fields" || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1

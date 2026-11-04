@@ -5,7 +5,7 @@
 // skipped subscription call or a forged model-call output must not turn.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -1198,12 +1198,14 @@ for (const [job, written] of [
   const dir = mkdtempSync(join(tmpdir(), "pr-head-"));
   try {
     writeFileSync(join(dir, "gh"), '#!/usr/bin/env bash\nexec jq -r "$4 | . // \\"\\"" "$PR_PAYLOAD"\n', { mode: 0o755 });
+    placeReader(dir);
     const read = (name, headRepo) => {
       const payload = join(dir, `${name}.json`);
       const output = join(dir, `${name}.output`);
       writeFileSync(payload, JSON.stringify({ head: { sha, repo: headRepo }, base: { ref: "main" } }));
       writeFileSync(output, "");
       const run = spawnSync("bash", ["-e", "-c", script], {
+        cwd: dir,
         env: { PATH: `${dir}:${process.env.PATH}`, PR_PAYLOAD: payload, PR_NUMBER: "7", DEFAULT_BRANCH: "main", GITHUB_REPOSITORY: repo, GITHUB_OUTPUT: output },
         encoding: "utf8",
       });
@@ -1222,6 +1224,22 @@ for (const [job, written] of [
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// The default branch checkout's copy of the shared PR read, as the steps source it.
+function placeReader(dir) {
+  const target = join(dir, ".base/.github/scripts/pr-unblock");
+  mkdirSync(target, { recursive: true });
+  copyFileSync(new URL("./read-pr-head.bash", import.meta.url), join(target, "read-pr-head.bash"));
+}
+
+for (const job of ["resolve-conflicts-select", "sync-shared-copies-select", "address-feedback-select", "review-dependency-select"]) {
+  test(`pr-unblock.yml: ${job} reads the PR head through the shared helper from the default branch checkout`, () => {
+    const script = stepScript(stepBlock(UNBLOCK, job, "Read the PR head"));
+    assert.match(script, /^\. \.base\/\.github\/scripts\/pr-unblock\/read-pr-head\.bash$/m);
+    assert.match(script, /^read_pr_fields "\$PR_NUMBER" '[^']+' \|\| exit 1$/m);
+    assert.doesNotMatch(script, /^ *\{ read .*< <\(gh api/m);
+  });
+}
 
 // A failed read of the PR reports its error text and class. The stub gh answers
 // from a script of one spec per call (ok, empty, or fail:<stderr>); the stub
@@ -1247,6 +1265,7 @@ esac
       { mode: 0o755 },
     );
     writeFileSync(join(dir, "sleep"), '#!/usr/bin/env bash\necho "$1" >>"$STUB_DIR/sleeps"\n', { mode: 0o755 });
+    placeReader(dir);
     const read = (specs) => {
       for (const file of ["calls", "sleeps", "output"]) writeFileSync(join(dir, file), "");
       writeFileSync(join(dir, "script"), specs.join("\n") + "\n");
