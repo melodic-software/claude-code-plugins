@@ -4826,6 +4826,20 @@ test("closing a split parent removes the queue labels it carries before the clos
   ]);
 });
 
+// A parked parent carries status: confirmed; its state labels come off only
+// after the close, and attended stays.
+test("closing a split parent removes its state labels after the close and keeps attended", async () => {
+  const { github, calls } = splitWorld({ parent: issue(30, { labels: ["agent-ready", "status: confirmed", "host-run", "attended"] }) });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), [
+    closeParentWrites[0],
+    `DELETE /repos/${REPO}/issues/30/labels/agent-ready`,
+    closeParentWrites[1],
+    `DELETE /repos/${REPO}/issues/30/labels/status%3A%20confirmed`,
+    `DELETE /repos/${REPO}/issues/30/labels/host-run`,
+  ]);
+});
+
 // A failed removal stops the close, so the parent stays open with agent-ready
 // for the next sweep.
 test("a failed queue-label removal leaves the split parent open", async (t) => {
