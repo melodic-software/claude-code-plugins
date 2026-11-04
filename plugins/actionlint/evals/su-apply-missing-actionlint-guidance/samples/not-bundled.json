@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The plugin ships no actionlint binary and never installs system packages, so install it yourself from the install guide."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /actionlint:setup apply and it will install actionlint for you.",
+      "why": "claims the plugin installs it"
+    },
+    {
+      "answer": "Install actionlint from the install guide.",
+      "why": "near miss: does not say the plugin bundles or installs nothing"
+    }
+  ]
+}

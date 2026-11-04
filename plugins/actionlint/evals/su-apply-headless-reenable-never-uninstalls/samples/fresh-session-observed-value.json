@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Then rerun `/actionlint:setup check` in a fresh session: this session still reports the old value, so go by the value that check observes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done: the hooks are back on.",
+      "why": "claims the change unobserved"
+    },
+    {
+      "answer": "Run `/actionlint:setup check` again here to confirm.",
+      "why": "same-session check still reports the old value"
+    }
+  ]
+}

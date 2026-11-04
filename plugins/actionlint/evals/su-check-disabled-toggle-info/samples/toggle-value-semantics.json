@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "An unexpanded or empty actionlint_enabled means the default true; any value other than true disables the hooks."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set actionlint_enabled to false to disable the hooks.",
+      "why": "near miss: no default and no any-other-value rule"
+    },
+    {
+      "answer": "An empty actionlint_enabled disables the hooks.",
+      "why": "wrong: empty means the default true"
+    }
+  ]
+}
