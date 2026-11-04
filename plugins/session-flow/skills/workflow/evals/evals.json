@@ -27,7 +27,7 @@
     {
       "id": 3,
       "name": "never-invent-skill-names",
-      "prompt": "The contract for this feature is already locked in PLAN.md's Brief, and it names the modules I haven't read yet. I'm ready to explore the codebase for it — route me to the right stage.",
+      "prompt": "The Brief for this feature is already locked in PLAN.md, and it names the modules I haven't read yet. I'm ready to explore the codebase for it — route me to the right stage.",
       "expected_output": "The skill suggests the explore stage but only names a stage skill that actually exists in the consuming repo (its skill listing / CLAUDE.md). If no explore skill exists, it describes inline exploration work per the stage definition rather than inventing a skill name.",
       "files": [],
       "expectations": [

@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: resolve-conflicts-cherry-pick-reads-pick-head
-context:
-  scaffold_script: scaffold.sh

@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.3.1] - 2026-11-04
+
+### Fixed
+
+- `/review:code-review` and `/review:security-review` link the current plugin manifest reference page instead of its retired URL.
+
 ## [7.3.0] - 2026-11-04
 
 ### Added

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash \"/plugin/scripts/worktree-claim.sh\" check-enter ../eval-linked --session-id abc" } }
+      ],
+      "why": "the gate ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git -C ../eval-linked status" } }
+      ],
+      "why": "no gate"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash \"/plugin/scripts/worktree-claim.sh\" claim ../eval-linked --session-id abc" } }
+      ],
+      "why": "claimed without the gate"
+    }
+  ]
+}

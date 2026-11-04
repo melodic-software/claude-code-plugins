@@ -184,7 +184,7 @@ approval outside `.claude/worktrees/`, and what a worktree shares with the main 
 measurement is the only adjudicator and why an undisclosed fixture was fatal.
 
 **When you re-run it:** record the outcome here, *including a null, which is a finding*, and
-refresh the as-of stamp in `SKILL.md` with the verdict, per the upstream-drift convention's
+refresh the as-of stamp in `reference/nesting-invariant.md` with the verdict, per the upstream-drift convention's
 "When a trigger fires" procedure. Do not treat a zero-event fixture failure as a null.
 
 ## `project-scope-reap-probe.sh`: what `plugin uninstall -s project` acts on

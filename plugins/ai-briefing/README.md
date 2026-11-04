@@ -35,7 +35,7 @@ moves with Playwright releases, so re-check
 [Playwright system requirements](https://playwright.dev/docs/intro#system-requirements)
 before installing. As verified on 2026-07-18, the pipeline requires:
 
-- the latest Node.js 22.x, 24.x, or 26.x release, with npm;
+- the latest Node.js 24.x or 26.x release, with npm (unpdf 2.x needs Node.js 24 or later);
 - Windows 11+ or Windows Server 2019+;
 - macOS 14 Sonoma or later; or
 - Debian 12/13 or Ubuntu 22.04/24.04/26.04 on x86-64 or arm64.

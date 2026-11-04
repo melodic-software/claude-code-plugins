@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.post_summary: flag, enables posting session content\n\nseverity: IMPORTANT",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.post_summary: pass, inert, plugins/recap/skills/recap/SKILL.md:6",
+      "why": "an inert pass on a key that sends content off the machine"
+    },
+    {
+      "answer": "manifest userConfig.post_summary: pass, advisory, a boolean",
+      "why": "an advisory pass on a key that sends content off the machine"
+    }
+  ]
+}
