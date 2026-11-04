@@ -203,6 +203,32 @@ describe("writeEdges", () => {
     });
   });
 
+  test("the edge write is marked safe to resend once, and a 422 on an edge that landed counts as the run's own", async () => {
+    // A first copy GitHub applied but answered 5xx for: the resend is refused
+    // and the edge is there, so a later miss deletes it with the rest.
+    const listed = [];
+    const options = [];
+    const github = async (method, path, body, headers, opts) => {
+      if (method === "GET" && path.startsWith("/repos/o/r/issues/7/dependencies/blocked_by")) return listed;
+      if (method === "GET") return open(Number(path.split("/").at(-1)));
+      if (method === "POST" && body.issue_id === 1012) {
+        options.push(opts);
+        listed.push({ number: 12 });
+        throw new GitHubError(422, "POST");
+      }
+      if (method === "POST") throw new GitHubError(500, "POST");
+      return {};
+    };
+    assert.deepEqual(await writeEdges({ github, repository: "o/r", number: 7, blockers: [12, 13] }), {
+      written: [],
+      skipped: [],
+      missed: [{ number: 13, status: 500 }],
+      unwritten: [12],
+      undeleted: [],
+    });
+    assert.deepEqual(options, [{ resendOnce: true }]);
+  });
+
   for (const status of [403, 429, 500, 502]) {
     test(`a ${status} on the edge write misses that edge, and the edge the run wrote is deleted, so no partial set stands`, async () => {
       const fake = fakeGitHub({ issues: { 12: open(12), 13: open(13) } });
