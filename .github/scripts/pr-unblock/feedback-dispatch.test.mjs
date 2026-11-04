@@ -1222,6 +1222,23 @@ test("a refused read's annotation carries the status, the rate-limit headers and
   }
 });
 
+test("a dispatch whose fetch fails names the call and the cause, never the cause's message", async () => {
+  const secret = "ghs_" + "T".repeat(36);
+  const annotationFor = async (cause) => {
+    const fetch = async () => {
+      throw new TypeError("fetch failed", { cause });
+    };
+    const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+    return failureAnnotation(await api.dispatchWorkflow({ workflow: "pr-unblock.yml", ref: "main", inputs: {} }).then(() => assert.fail("the dispatch resolved"), (error) => error));
+  };
+  const call = `POST https://api.example/repos/${REPOSITORY}/actions/workflows/pr-unblock.yml/dispatches`;
+  const noCode = Object.assign(new Error(`Authorization: Bearer ${secret}`), { name: "SocketError" });
+  const coded = Object.assign(new Error(`Authorization: Bearer ${secret}`), { code: "UND_ERR_CONNECT_TIMEOUT" });
+  assert.equal(await annotationFor(noCode), `::error::pr-feedback dispatch failed: fetch failed on ${call} (TypeError cause SocketError)`);
+  assert.equal(await annotationFor(coded), `::error::pr-feedback dispatch failed: fetch failed on ${call} (TypeError UND_ERR_CONNECT_TIMEOUT)`);
+  assert.equal(await annotationFor("no name"), `::error::pr-feedback dispatch failed: fetch failed on ${call} (TypeError)`);
+});
+
 // The GraphQL fallback is a read: it is aborted at the attempt timeout (5 ms
 // here) instead of hanging the step. Without it the test times out.
 test("pullsForCommit aborts a hung GraphQL fallback at the attempt timeout", { timeout: 5000 }, async () => {

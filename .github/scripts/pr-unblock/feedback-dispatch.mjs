@@ -1395,6 +1395,9 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
+    }).catch((error) => {
+      // A network error names no call; the annotation needs which one failed.
+      throw Object.assign(error, { call: `${method} ${url}` });
     });
     if (!response.ok) {
       throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true, detail: await responseDetail(response) });
@@ -1736,10 +1739,19 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
 }
 
 // The step's error annotation for a failed run. A thrown fetch names its
-// cause only in error.cause; the label carries its code, never its message,
-// which can hold a header value. A refused GitHub call adds its answer's detail.
+// cause only in error.cause; the label carries its code, else its name, never
+// its message, which can hold a header value. A refused GitHub call adds its
+// answer's detail.
+const causeLabel = (error) => {
+  const { cause } = error;
+  if (!cause) {
+    return "";
+  }
+  const name = typeof cause.code !== "string" && typeof cause.name === "string" ? ` cause ${cause.name}` : "";
+  return ` (${errorLabel(error)}${name})`;
+};
 export const failureAnnotation = (error) =>
-  `::error::pr-feedback dispatch failed: ${error.message}${error?.cause?.code ? ` (${errorLabel(error)})` : ""}${detailSuffix(error)}`;
+  `::error::pr-feedback dispatch failed: ${error.message}${error.call ? ` on ${error.call}` : ""}${causeLabel(error)}${detailSuffix(error)}`;
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.env).then(
