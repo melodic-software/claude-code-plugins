@@ -79,8 +79,9 @@ ip_realpath() {
 # against a rule that was correct. Three copies meant three places to fix and
 # three places to drift, so the parser is defined once and the copies are gone.
 #
-# Splits on commas ONLY at brace depth zero and outside quotes, which is what
-# makes brace expansion survive the flow form and the comma-separated string.
+# Splits on commas ONLY at brace depth zero and outside a quote that opens an
+# entry, which is what makes brace expansion survive the flow form and the
+# comma-separated string.
 #   Pointer: when deciding which shapes `paths` accepts, fetch
 #     https://code.claude.com/docs/en/memory#rule-frontmatter-reference live.
 #   As of: 2026-11-04.
@@ -104,7 +105,7 @@ ip_parse_paths() {
       for (i = 1; i <= n; i++) {
         c = substr(line, i, 1)
         if (q != "") { if (c == q) q = ""; part = part c; continue }
-        if (c == "\"" || c == "'"'"'") { q = c; part = part c; continue }
+        if ((c == "\"" || c == "'"'"'") && part ~ /^[[:space:]]*$/) { q = c; part = part c; continue }
         if (c == "{") depth++
         else if (c == "}") depth--
         else if (c == "," && depth == 0) { emit(part); part = ""; continue }
@@ -145,7 +146,7 @@ ip_parse_paths() {
       }
       if (c ~ /[*@`|>&!%{#]/) next
       sub(/[[:space:]]+#.*$/, "", line)
-      if (line ~ /^(~|null|Null|NULL)$/) next
+      if (line ~ /^(~|null|Null|NULL|true|True|TRUE|false|False|FALSE)$/) next
       emit_list(line)
       next
     }

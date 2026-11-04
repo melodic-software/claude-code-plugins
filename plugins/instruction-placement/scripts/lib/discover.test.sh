@@ -202,6 +202,9 @@ scalar yaml-alias '**/*.ts'
 scalar block-scalar '>'
 scalar yaml-null 'null'
 scalar yaml-tilde '~'
+scalar yaml-true 'true'
+scalar apostrophe-quoted "\"it's/*.ts, b/**\""
+scalar apostrophe-plain "it's/*.ts, b/**"
 
 assert_lists "a plain comma-separated string splits" 'src/**/*.ts
 lib/**/*.ts' "$(ip_parse_paths "$pp/comma-plain.md")"
@@ -213,6 +216,11 @@ assert_lists "an unquoted leading * is unparsable YAML, so no pattern" '' "$(ip_
 assert_lists "a block-scalar marker is not a pattern" '' "$(ip_parse_paths "$pp/block-scalar.md")"
 assert_lists "a YAML null is not a pattern" '' "$(ip_parse_paths "$pp/yaml-null.md")"
 assert_lists "nor is its tilde spelling" '' "$(ip_parse_paths "$pp/yaml-tilde.md")"
+assert_lists "a YAML boolean is not a pattern" '' "$(ip_parse_paths "$pp/yaml-true.md")"
+assert_lists "an apostrophe inside a quoted string does not hide its comma" "it's/*.ts
+b/**" "$(ip_parse_paths "$pp/apostrophe-quoted.md")"
+assert_lists "nor inside a plain string" "it's/*.ts
+b/**" "$(ip_parse_paths "$pp/apostrophe-plain.md")"
 
 # A circular symlink must not hang or explode the listing.
 circ="$(mktemp -d "$TMP/x.XXXX")"
