@@ -5,7 +5,7 @@
 // again unconditionally.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -145,6 +145,17 @@ function refineJobEnv(name) {
   const value = /^ {6}HANDOFF_EVIDENCE_LAG: (\S+)$/m.exec(blocks.find((block) => block.startsWith(`  ${name}:`)))?.[1];
   return value ? { HANDOFF_EVIDENCE_LAG: value } : {};
 }
+
+// An empty output starts a second leg in pr-unblock.yml, so the opt-in stays on
+// the two jobs whose empty facts start nothing.
+test("only pr-refine.yml's two fix-docs handoff jobs name HANDOFF_EVIDENCE_LAG", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  const text = (file) => readFileSync(new URL(file, dir), "utf8");
+  const files = readdirSync(dir).filter((file) => /\.ya?ml$/.test(file) && text(file).includes("HANDOFF_EVIDENCE_LAG"));
+  assert.deepEqual(files, ["pr-refine.yml"]);
+  const blocks = text("pr-refine.yml").split(/^(?=  [\w-]+:$)/m).filter((block) => block.includes("HANDOFF_EVIDENCE_LAG"));
+  assert.deepEqual(blocks.map((block) => /^ {2}([\w-]+):$/m.exec(block)?.[1]), ["fix-docs-handoff", "fix-docs-subscription-handoff"]);
+});
 
 test("a fact still unsettled in a listing that was read fails with no output by default", () => {
   const out = run(lagged(), "0");
