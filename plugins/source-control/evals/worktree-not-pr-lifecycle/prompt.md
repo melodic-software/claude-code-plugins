@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: No git push, gh pr create/merge/close, git add, or git commit
 ---
 
-This branch is done. Use the worktree skill to push it and open and merge the PR for me.
+This branch is done. With the source-control:worktree skill, push it and open and merge the PR for me.

@@ -469,6 +469,45 @@ describe("decide", () => {
       assert.deepEqual(decide(sized("unset", { comments })).unsetOnly, ["size"]);
       assert.deepEqual(decide(sized("medium", { comments, rules: { ...RULES, sizes: [...RULES.sizes, "large"] } })), { verdict: "admit", reasons: [] });
     });
+
+    // #13197: a trusted size-split sub-issue never splits again (owner Q93),
+    // so a cap stop on one parks it for a builder instead of re-admitting it
+    // unchanged into the same stop.
+    describe("on a trusted size-split sub-issue", () => {
+      const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
+      const childBody = `${splitChildHeader(5, 1, 3)}\n${lines[0]}`;
+      const spec = { body: childBody, lastEditedAt: null, author: APP_ACTOR, editor: null, comments: [], splitParent: { number: 5, spec: written(USER(HUMAN), { body: lines.join("\n") }), appId: APP } };
+      const child = (comments) => sized("medium", { issue: issueOf({ user: { id: APP }, body: childBody }), spec, comments });
+      const comment = (body, at) => ({ user: { id: APP }, created_at: at, body });
+      // #13197's comments as the lanes App wrote them.
+      const capStop = comment(
+        [
+          "<!-- work-resolve-issue outcome=intake run=41831397269 -->",
+          "The work-resolve-issue lane stopped on this issue (`scan-refused-patch`): the scan job refused the run's patch for its size, and the run job's scan of it found no credential shape or binary hunk: the work is too large for one patch, so admission parks it for intake's split (owner Q93) at whatever Size it was triaged (admit.mjs patchCapStopped), and the split files its sub-issues, as for split-required.",
+          "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
+        ].join("\n"),
+        "2026-11-04T12:53:39Z",
+      );
+      const intentStop = comment(
+        [
+          "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->",
+          "<!-- work-resolve-issue outcome=stopped run=41824036052 credential=ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN -->",
+          "<!-- stop-reason lane=work-resolve-issue reason=intent -->",
+        ].join("\n"),
+        "2026-11-04T11:56:59Z",
+      );
+
+      test("is refused with no hold, not re-admitted", () => {
+        assert.deepEqual(decide(child([intentStop, capStop])), {
+          verdict: "refuse",
+          reasons: ["its last run's patch was over the scan job's size cap (scan-refused-patch), and a size-split sub-issue never splits again (owner Q93), so a builder session takes it"],
+        });
+      });
+
+      test("is admitted as before after a stop of another kind", () => {
+        assert.deepEqual(decide(child([intentStop])), { verdict: "admit", reasons: [] });
+      });
+    });
   });
 
   test("Size Large beside a real refusal reason still refuses, and names both", () => {
@@ -3598,5 +3637,66 @@ describe("bodyUnpushablePaths", () => {
       verdict: "refuse",
       reasons: ["its body or a criterion names .github/workflows/pr-require-checks.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
     });
+  });
+
+  // A section that says what the work changes counts a path cited at a line;
+  // one that holds what was observed counts no path at all.
+  const SHAPE_13233 = (section) =>
+    [
+      "Refs: #6958, #12526",
+      "",
+      "## Problem",
+      "",
+      "`upstream-apply-changelog` has produced no pull request or issue since it was added.",
+      "",
+      "## Evidence",
+      "",
+      "| Run | Started | Result |",
+      "|---|---|---|",
+      "| [41760968895](https://github.com/o/r/actions/runs/41760968895) | 2026-11-04T02:28Z | `class=credit-stop` |",
+      "",
+      section,
+      "",
+      "- `.github/workflows/upstream-apply-changelog.yml:300-316` passes only `ISSUE_LANE_CLAUDE_API_KEY`, with `continue-on-error: true`.",
+      "",
+      "## Done when",
+      "",
+      "- [ ] A credit stop in this lane does not use up its daily cap.",
+      "- [ ] A credit stop shows up in the lane's records.",
+    ].join("\n");
+  const PUSH_13233 = "its body or a criterion names .github/workflows/upstream-apply-changelog.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it";
+
+  test("#13233's shape, its workflow cited at a line under a fix section, parks as a criterion's path does", () => {
+    for (const section of ["## Fix", "## Proposed fix", "### Outcome", "## Expected behavior", "## Done when:"]) {
+      const issue = issueOf({ body: SHAPE_13233(section) });
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233] }, section);
+    }
+    assert.deepEqual(paths("**Severity**: low\n**Suggested fix location**: `.github/workflows/pr-require-checks.yml:40` `check-plugins`"), [".github/workflows/pr-require-checks.yml"]);
+  });
+
+  test("a body citing a workflow only under an evidence section is admitted, with or without a line", () => {
+    for (const section of ["## Evidence", "### Steps to reproduce", "## Actual behavior", "## Current behavior", "### Environment"]) {
+      assert.deepEqual(decide(facts({ issue: issueOf({ body: SHAPE_13233(section) }) })), { verdict: "admit", reasons: [] }, section);
+      assert.deepEqual(paths(`${section}\n\nThe step in .github/workflows/pr-require-checks.yml calls the script.`), [], section);
+    }
+  });
+
+  test("a done-when checkbox naming a workflow still parks beside the sections", () => {
+    const issue = issueOf({ body: SHAPE_13233("## Evidence").replace("- [ ] A credit stop in this lane", "- [ ] `.github/workflows/upstream-apply-changelog.yml` stops") });
+    assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233] });
+  });
+
+  test("a deeper heading with no section of its own stays inside the section above it", () => {
+    const wf = [".github/workflows/pr-require-checks.yml"];
+    assert.deepEqual(paths("## Proposed fix\n\n### Option A\n\n- `.github/workflows/pr-require-checks.yml:30` drops the step."), wf);
+    assert.deepEqual(paths("## Evidence\n\n### Run 41760968895\n\nThe step in .github/workflows/pr-require-checks.yml calls it."), []);
+    // A heading at the same level or higher ends the section.
+    assert.deepEqual(paths("### Evidence\n\n## Scope\n\nThe step in .github/workflows/pr-require-checks.yml calls it."), wf);
+    assert.deepEqual(paths("## Fix\n\n## Notes\n\nThe step at .github/workflows/pr-require-checks.yml:30 calls it."), []);
+  });
+
+  test("a suggested-fix-location line counts even under an evidence section", () => {
+    assert.deepEqual(paths("## Evidence\n\n**Suggested fix location**: .github/workflows/pr-require-checks.yml"), [".github/workflows/pr-require-checks.yml"]);
+    assert.deepEqual(paths("## Current behavior\n\n- **Suggested fix location**: `.github/workflows/pr-require-checks.yml:40`"), [".github/workflows/pr-require-checks.yml"]);
   });
 });

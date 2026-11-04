@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [7.0.1] - 2026-11-04
+
+### Fixed
+
+- `handoff` now names the save-point script by its path, `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py`,
+  so a run calls it directly instead of searching the plugin root for it.
+
 ## [7.0.0] - 2026-11-04
 
 ### Added
