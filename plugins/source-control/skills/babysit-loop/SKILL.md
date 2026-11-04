@@ -65,8 +65,8 @@ Everything else resolves in order:
 
 1. **Invocation arguments**, the tier keyword (babysit-prs vocabulary) and any per-dimension or
    loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge human-only`).
-2. **The layered config seam**, the `babysit_loop_*` keys on the `.claude/source-control.md`
-   surface (user-global → team-tracked → local overlay, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml`, and for one release from the legacy file's `## <key>` H2 when the YAML lacks the key. Key table, defaults, and layering semantics:
+2. **The layered config seam**, the `babysit_loop_*` keys on the source-control config
+   surface (user-global → team-tracked → local overlay, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml` only. Key table, defaults, and layering semantics:
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
 3. **Tier defaults**, the resolved tier's own dimension values (`safe` when nothing resolves a tier).
 
@@ -87,11 +87,11 @@ name a repository other than the current checkout (or the lane may launch from a
 directory), and the config resolver's ambient team layer reads the current git root. So for every
 policy key that can raise behavior (above all the merge rung and its tracked-adoption activation),
 whenever the current checkout is not the target, the lane reads the TARGET repository's tracked
-`docs/conventions/source-control.yaml` and `.claude/source-control.md` from its default branch (the
+`docs/conventions/source-control.yaml` from its default branch (the
 forge's contents read; provider reference: [GitHub](../../reference/providers/github/README.md)).
 For the stop mode, tier, merge rung and grace window, run
 `python3 ${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/babysit_repo_config.py loop-keys <owner/repo>`, which prints each value with the layer that supplied it and exits 1 when the team layer cannot be read;
-without Python, and for the other loop keys, make the same two reads by hand, YAML first. Unreadable or absent = no tracked
+without Python, and for the other loop keys, make the same read by hand. Unreadable or absent = no tracked
 adoption = merges stay human-only (fail closed); a caller-side tracked file never enables merges
 for a target that did not adopt the lane. The config reference owns full precedence mechanics. At
 lane start, report the effective config, the source of each value, and which repository's team
@@ -100,7 +100,7 @@ layer bound the merge rung.
 **Interactive ambiguity**: an interactive launch with absent or ambiguous config (no stop mode,
 no tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
 unresolved keys, then offers to persist the answers: repo policy (stop mode, tier, merge rung) to
-the team-tracked layer, `docs/conventions/source-control.yaml`; personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only; that write is the recorded ratification. While the repository still has `.claude/source-control.md`, a merge-rung change also goes into its `## babysit_loop_merge` H2: the merge gate takes the lower of the two files (config reference, "The team layer of every loop key is the YAML").
+the team-tracked layer, `docs/conventions/source-control.yaml`; personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only; that write is the recorded ratification.
 
 **Headless never blocks** (headless-config floor, per the convention): take explicit or persisted
 config, else tier defaults, and log the assumption.
@@ -117,8 +117,8 @@ table, defaults, and precedence, including the merge dimension's policy-floor ex
 
 **Dimension 6 ships safe: with no tracked adoption, every merge is human.** A repository gets the
 convention's baseline rung (human merge for everything except gate-proven PRs at the `c2-mechanical` rung) by
-*adopting* the lane in its team-tracked config. While neither the target repo's
-tracked `docs/conventions/source-control.yaml` nor its `.claude/source-control.md` carries a loop-lane key, the merge dimension resolves to `human-only`; a merge-capable tier from the invocation or any other source never substitutes
+*adopting* the lane in its team-tracked config. While the target repo's
+tracked `docs/conventions/source-control.yaml` carries no loop-lane key, the merge dimension resolves to `human-only`; a merge-capable tier from the invocation or any other source never substitutes
 for that recorded adoption, and the lane merges nothing and reports why. With tracked adoption,
 the `c2-mechanical` rung merges a gate-proven PR once that rung's promotion cells are promoted;
 no work-class label is read, and only the untrusted-provenance hold names a class. Higher rungs

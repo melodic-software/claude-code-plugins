@@ -23,19 +23,19 @@ script written in the session.
 2. **Offer the view in one sentence.** Build only when the reader accepts and the environment can serve a
    file. A CI or other non-interactive run emits no view: the record stands.
 3. **Resolve `medium`.** The path depends on whether the lane's skill has migrated to the shared medium
-   resolver, not on whether the resolver registers the lane. Only `planning` and `architecture` have
-   migrated today; discovery and debugging are registered but read the cascade themselves until their own
-   change migrates them.
-   - **Resolver lanes** (`planning`, `architecture`). Do not read the rendered-views convention files
-     yourself.
+   resolver, not on whether the resolver registers the lane. `planning`, `architecture` and `debugging`
+   have migrated; discovery is registered but reads the cascade itself until its own change migrates it.
+   - **Resolver lanes** (`planning`, `architecture`, `debugging`). Do not read the rendered-views convention
+     files yourself.
      - `planning`: the lane's build command runs the resolver, the publish gate and delivery in one call:
        follow its section in place of steps 3 and 5, and step 4's rule for a missing `node` or a non-zero
        exit still applies.
-     - `architecture`: run the resolver. `--option` takes this plugin's `medium` option as the calling skill
-       states it; add `--argument` only when the reader named a medium in the request:
+     - `architecture`, `debugging`: run the resolver with the `--lane` its section names. `--option` takes
+       this plugin's `medium` option as the calling skill states it; add `--argument` only when the reader
+       named a medium in the request:
 
        ```bash
-       node "<plugin-root>/lib/view-settings.mjs" resolve --lane architecture --option "<medium option>" [--argument terminal|file|artifact]
+       node "<plugin-root>/lib/view-settings.mjs" resolve --lane <lane> --option "<medium option>" [--argument terminal|file|artifact]
        ```
 
        It prints one JSON line, then the report line naming the medium and what decided it, then any notice;
@@ -287,7 +287,8 @@ copyable prompt-fix line).
 
 `/debugging:debug` records its Phase 6 post-mortem in the commit message, the PR description or the project's
 notes. Genre: a post-mortem that a later session or a teammate re-reads. Write the post-mortem first;
-everything in it passes the skill's secret redaction before it reaches the data.
+everything in it passes the skill's secret redaction before it reaches the data. Resolver lane:
+`--lane debugging:debug`.
 
 Build: pipe one JSON object (shape below) to the builder:
 

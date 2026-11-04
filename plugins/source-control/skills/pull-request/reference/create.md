@@ -157,7 +157,7 @@ It writes a fragment, with the bump and section the title's Conventional Commits
 
 Before building the PR body, resolve the work item the branch names and its link line (injected at the top of the body in §2.4.1), and prompt for any additional links. With a work-item tracker bound, its adapter owns the link text and the default branch grammar (the tracker-bound path below); otherwise the GitHub default applies.
 
-The parser resolves the grammar itself: the `branch_issue_pattern` key across the layers (the team YAML `docs/conventions/source-control.yaml`, then the legacy `source-control.md` for a key the YAML lacks; add `--explain` to print the supplying layer on stderr), then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
+The parser resolves the grammar itself: the `branch_issue_pattern` key across the layers (the team YAML `docs/conventions/source-control.yaml`; add `--explain` to print the supplying layer on stderr), then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
 
 ```bash
 ISSUE_NUM=$(bash "<skill-dir>/scripts/parse-branch-issue.sh" || true)
@@ -218,6 +218,24 @@ on the tracker-bound path, the `refs` item's `ISSUE_BODY` serves.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment: `<!-- Closes #N -->` still parses and auto-closes the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
+**Siblings of a closing pull request.** Once `${CLOSES_LINE}` is final, when it closes one or more
+GitHub issues, earlier pull requests may have delivered part of one with `Refs: #N`. Name them so
+pr-verify judges this diff only for what they left (the pr-verify section of the marketplace's
+[pr-pipeline convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-pipeline/README.md)).
+Run it once with every issue number `${CLOSES_LINE}` closes:
+
+```bash
+SIBLINGS_LINE=$(bash "<skill-dir>/scripts/siblings-line.sh" <N>...)
+```
+
+It prints one `Siblings: #<a>, #<b>` line for the merged pull requests in this repository whose
+body has a `Refs: #N` line of its own and that close no issue, the 10 newest, since pr-verify
+credits none from a body naming more; with none it prints nothing. §2.4.1 writes a non-empty
+`${SIBLINGS_LINE}` directly below `${CLOSES_LINE}`. When it exits 2, a read failed: tell the user
+and write no line. The list comes from GitHub search, which can lag a merge by a few minutes.
+pr-verify checks each named pull request's author, base and edits itself. Under §2.7 run it from
+`$WT`, since `gh` reads the repository from the current directory.
+
 ### 2.4.1 Push and assemble PR body
 
 **Merge the base first when the PR will go ready.** Resolve §2.4.3's open state before the push
@@ -248,7 +266,7 @@ again.
 
 Derive the PR title from the commit subject, shaped to the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered source-control config → project convention → Conventional Commits default). Build the body with `${CLOSES_LINE}` at top, then the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's value is taken whole, never merged with an earlier layer's). The team layer is `docs/conventions/source-control.yaml`: `bash "<plugin-root>/lib/convention-key.sh" layer "<repo-root>" pr_body_required_sections` prints `yaml`, `legacy-md` or `none`, and `list` or `value` prints the YAML's heading list or keyword. Only when it prints `legacy-md` is the key read from the legacy markdown file's `## pr_body_required_sections` section, the compatibility read kept for one release. Either team file is a layer only when git tracks it, as in `parse-branch-issue.sh` and `/source-control:commit`; `convention-key.sh` does not check trackedness, so check `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"` before trusting `layer`, `list` or `value`, and `git ls-files --error-unmatch -- ":/.claude/source-control.md"` before the legacy read. Skip an untracked or gitignored team file with a note; when only the YAML is untracked, read the key from the legacy file's section if that file is tracked and carries it. The value is a heading list or one of three keywords, each overriding a lower layer as a list would (never an absence; parallel to `trailer_policy`/`pr_body_attribution`):
+**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's value is taken whole, never merged with an earlier layer's). The team layer is `docs/conventions/source-control.yaml`: `bash "<plugin-root>/lib/convention-key.sh" layer "<repo-root>" pr_body_required_sections` prints `yaml` or `none`, and `list` or `value` prints the YAML's heading list or keyword; the retired `.claude/source-control.md` is not read. The YAML is a layer only when git tracks it, as in `parse-branch-issue.sh` and `/source-control:commit`; `convention-key.sh` does not check trackedness, so check `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"` before trusting `layer`, `list` or `value`. Skip an untracked or gitignored team file with a note. The value is a heading list or one of three keywords, each overriding a lower layer as a list would (never an absence; parallel to `trailer_policy`/`pr_body_attribution`):
 
 - **Absent everywhere, or `briefing`**: the short-briefing preset below. No `Related` is required (see [`docs/contracts/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pr-body-convention/README.md) for why the default excludes it).
 - **`summary-test-plan`**: `Summary` and `Test plan`, both required.
@@ -300,8 +318,6 @@ REQUIRED_SECTIONS_SOURCE="plugin default, briefing (no layer sets pr_body_requir
 # When the winning layer declares `none` (no required sections):
 #   SECTION_ORDER=(); REQUIRED_SECTIONS=()
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/docs/conventions/source-control.yaml, pr_body_required_sections (team layer, none)"
-# The compatibility read: when the YAML lacks the key and the legacy file has the H2, name that file.
-#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, legacy)"
 ```
 
 Build one `## <heading>` block per entry in `${SECTION_ORDER[@]}`, real content in each, never
@@ -392,7 +408,7 @@ Section content is prose a reviewer reads: plain language, bottom line first, no
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
 
-**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; when §2.7's `--hold` gave a line, that line on its own line directly below `${CLOSES_LINE}`, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when either is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; when §2.7's `--hold` gave a line, that line on its own line below those, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when any is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
 **Why a file, not a shell variable:** the Write tool's content is a JSON string no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal, and a long body never pushes a Bash command past the tool's length cap (inline `--body` calls were rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
 
@@ -647,7 +663,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - `--draft '<reason>'` is §2.4.3's request level, the same flag the normal `create` path takes,
   for example `Draft: merge hold unread`.
 - `--hold '<line>'` takes a line starting `Hold:`, which §2.4.1's body composition places
-  directly below `${CLOSES_LINE}` in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
+  below `${CLOSES_LINE}` and any `Siblings:` line in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
   with the hold before `ready --unattended` can flip it. A value not starting `Hold:` is refused:
   STOP and report it.
 
@@ -656,7 +672,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
 - **§2.2 (rebase onto the default branch):** skipped. The worker brings the branch current before returning; the Phase 3 mergeability read and CI catch residual staleness. The out-of-tree orchestrator cannot rebase a branch it is not on, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above, except §2.4.1's base merge: when it applies and `$BRANCH` is behind `$BASE`, merge in `$WT` (`git -C "$WT"`, the fetch remote from `resolve-remote.sh` without `--push` run from `$WT`, `$BASE` resolved as the §2.4.3 bullet below says, before the merge) and push it with `push-branch.sh --dir "$WT"`. When the merge conflicts, run `git -C "$WT" merge --abort`, so `$WT` returns to the worker's clean tree, then STOP and report the conflict: no push and no PR create, since this unattended run has no PR to leave in draft and cannot resolve the conflict itself.
-- **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers, not the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which `git -C` cannot redirect, so leaving it implicit would parse `Closes #N` from the orchestrator's branch and silently drop the linkage.
+- **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own source-control config layers, not the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which `git -C` cannot redirect, so leaving it implicit would parse `Closes #N` from the orchestrator's branch and silently drop the linkage.
 - **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready "$PR_NUMBER" --unattended`, whose holds still apply. It runs with `$WT` as its working directory: every Phase 2.5 command takes the `( cd "$WT" && … )` form this section uses for `resolve-remote.sh`, and every forge call names `$PR_NUMBER`, the PR this run just opened. It stops when the branch in `$WT` resolves a different PR. Its code and security reviews run in fresh-context subagents at their own model binding ([ready-for-review.md](ready-for-review.md) §2.5.3); a caller that needs the base merge and the fixes at a stronger tier invokes `create --pushed` from an agent dispatched at that tier.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section uses for `resolve-remote.sh`.

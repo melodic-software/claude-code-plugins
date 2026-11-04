@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.8] - 2026-11-04
+
+### Changed
+
+- The `visualize` and `present` skills no longer list medium values ([#12669](https://github.com/melodic-software/claude-code-plugins/issues/12669)). `visualize` passes a named medium to the shared resolver as `--argument <medium>`, retries without it when the resolver rejects the word, and delivers by the resolver's `page` and `publishes` fields and the registry's fallback chain. `present` reads the new `publishes` field in `check-deck.mjs`'s output. `check-deck.mjs` accepts any medium the registry knows for `--argument`, the same set as before.
+
 ## [1.0.7] - 2026-11-04
 
 ### Changed

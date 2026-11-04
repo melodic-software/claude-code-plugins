@@ -1180,6 +1180,27 @@ class EvalToolsCheckTests(unittest.TestCase):
         self.assertEqual(seen.parent, self.tmp)
         self.assertFalse(seen.exists())
 
+    def test_a_sealed_dir_in_the_run_tmpdir_is_removed(self):
+        # `claude plugin eval --keep-temp` leaves a mode-000 directory in its temp tree.
+        log = self.tmp / "tmpdir.log"
+        stub = self.tmp / "bin" / "claude"
+        stub.write_text(
+            self.STUB
+            + f'printf %s "$TMPDIR" >"{log}"\n'
+            + 'mkdir -p "$TMPDIR/claude-eval-x/sealed/inner"\n'
+            + 'touch "$TMPDIR/claude-eval-x/sealed/inner/file"\n'
+            + 'chmod 000 "$TMPDIR/claude-eval-x/sealed"\n'
+        )
+        self.check([])
+        seen = Path(log.read_text())
+        self.addCleanup(
+            subprocess.run,
+            ["chmod", "-R", "u+rwx", str(seen)],
+            check=False,
+            stderr=subprocess.DEVNULL,
+        )
+        self.assertFalse(seen.exists())
+
     def test_reports_each_watched_tool_state_and_the_init_tools(self):
         init = {
             "type": "system",

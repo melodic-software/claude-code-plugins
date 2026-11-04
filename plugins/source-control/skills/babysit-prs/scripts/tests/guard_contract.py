@@ -1769,8 +1769,8 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what="nothing",
         gate="n/a",
         claim=(
-            "`loop-keys <owner/repo>` reads docs/conventions/source-control.yaml and "
-            ".claude/source-control.md from the target's default branch through the "
+            "`loop-keys <owner/repo>` reads docs/conventions/source-control.yaml "
+            "from the target's default branch through the "
             "contents API and prints the four babysit_loop_* values as JSON; it performs "
             "no GitHub write and writes only a temporary file for the shared YAML reader."
         ),

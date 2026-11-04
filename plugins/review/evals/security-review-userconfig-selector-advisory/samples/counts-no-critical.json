@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.layout: pass, advisory, picks a layout\n\ncritical-findings: 0",
+      "why": "zero CRITICAL findings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "critical-findings: 1",
+      "why": "counts a CRITICAL finding"
+    }
+  ]
+}

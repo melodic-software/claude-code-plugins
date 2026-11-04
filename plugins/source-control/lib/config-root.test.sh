@@ -160,8 +160,8 @@ assert_silent "sourcing the library prints nothing and runs no subcommand" \
   "$(bash -c 'source "$1"' _ "$LIB" 2>&1)"
 
 # --- convention key layers (convention-key.sh) -------------------------------
-# The team layer of the commit and PR convention keys: docs/conventions/source-control.yaml
-# wins, and the legacy .claude/source-control.md is read only for a key the YAML lacks.
+# The team layer of the commit and PR convention keys is docs/conventions/source-control.yaml;
+# the retired .claude/source-control.md is never read.
 KEYLIB="$SCRIPT_DIR/convention-key.sh"
 # shellcheck source=convention-key.sh
 source "$KEYLIB"
@@ -174,9 +174,9 @@ printf '%s\n' 'pr_open_state: ready' 'pr_body_required_sections:' '  - Summary' 
   'branch_issue_pattern: "^[^/]+/([0-9]+)-#x"' >"$YAML_FILE"
 printf '# Source control\n\n## pr_body_required_sections\n\n- Why\n\n## subject_pattern\n\nConventional Commits\n' >"$MD_FILE"
 
-assert_eq "the YAML value wins over the legacy file: layer is yaml" yaml \
+assert_eq "the YAML carries the key: layer is yaml" yaml \
   "$(convention_key_layer "$KROOT" pr_body_required_sections)"
-assert_eq "the YAML list is the one the YAML holds, not the legacy list" $'Summary\nFix' \
+assert_eq "the YAML list is the one the YAML holds, not the retired file's list" $'Summary\nFix' \
   "$(convention_key_yaml_list "$KROOT" pr_body_required_sections)"
 assert_eq "a quoted YAML scalar keeps a # inside the value" '^[^/]+/([0-9]+)-#x' \
   "$(convention_key_yaml_value "$KROOT" branch_issue_pattern)"
@@ -185,27 +185,21 @@ mkdir -p "$SLASH_ROOT/docs/conventions"
 printf '%s\n' "branch_issue_pattern: '^[a-z]+/([0-9]+)/'" >"$SLASH_ROOT/docs/conventions/source-control.yaml"
 assert_eq "a trailing slash in a YAML regex is kept, not normalized away" '^[a-z]+/([0-9]+)/' \
   "$(convention_key_yaml_value "$SLASH_ROOT" branch_issue_pattern)"
-assert_eq "the legacy file is read when the YAML lacks the key: layer is legacy-md" legacy-md \
+assert_eq "the retired .claude/source-control.md is not read for a key the YAML lacks" none \
   "$(convention_key_layer "$KROOT" subject_pattern)"
 assert_eq "a key the YAML lacks yields no YAML value" "" "$(convention_key_yaml_value "$KROOT" subject_pattern)"
-assert_eq "a key in neither file resolves to none" none "$(convention_key_layer "$KROOT" trailer_policy)"
-assert_eq "a legacy heading with a closing # sequence still counts" legacy-md \
-  "$(printf '## trailer_policy ##\n\nnone\n' >"$MD_FILE.tmp" && mv "$MD_FILE.tmp" "$MD_FILE" && convention_key_layer "$KROOT" trailer_policy)"
 
 printf '%s\n' 'pr_open_state: ready' >"$YAML_FILE"
-assert_eq "a YAML and a legacy file that both lack the key resolve to none" none \
+assert_eq "a YAML that lacks the key resolves to none beside a retired file that has it" none \
   "$(convention_key_layer "$KROOT" pr_body_required_sections)"
-rm -f "$MD_FILE"
-assert_eq "no legacy file and no YAML key resolves to none" none "$(convention_key_layer "$KROOT" subject_pattern)"
 rm -f "$YAML_FILE"
-assert_eq "no YAML file resolves to none" none "$(convention_key_layer "$KROOT" subject_pattern)"
+assert_eq "no YAML file resolves to none, the retired file notwithstanding" none \
+  "$(convention_key_layer "$KROOT" subject_pattern)"
+rm -f "$MD_FILE"
 
 printf '%s\n' 'subject_pattern: a' 'subject_pattern: b' >"$YAML_FILE"
 convention_key_layer "$KROOT" subject_pattern >/dev/null
 assert_exit "a YAML the shared reader rejects stops the layer lookup with exit 3" 3 "$?"
-printf '## subject_pattern\n\nConventional Commits\n' >"$MD_FILE"
-assert_eq "a rejected YAML never falls through to the legacy file" "" \
-  "$(convention_key_layer "$KROOT" subject_pattern 2>/dev/null)"
 
 printf '%s\n' 'trailer_policy: none' >"$YAML_FILE"
 assert_eq "CLI layer names the YAML" yaml "$(bash "$KEYLIB" layer "$KROOT" trailer_policy)"

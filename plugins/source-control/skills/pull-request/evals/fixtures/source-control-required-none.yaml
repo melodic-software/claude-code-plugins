@@ -1,0 +1,3 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml whose convention requires no
+# PR-body sections. A generic example, not any one repo's policy.
+pr_body_required_sections: none
