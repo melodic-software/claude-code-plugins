@@ -109,7 +109,7 @@ Suggestion: none | install app-control | /app-control:map create
 ```
 
 How to install a plugin from its marketplace: the "Install a plugin" section of
-<https://code.claude.com/docs/en/discover-plugins#install-a-plugin>. As of 2026-10-28. Recheck
+<https://code.claude.com/docs/en/plugins/install#install-a-plugin>. As of 2026-11-04. Recheck
 trigger: that section moves or changes how a plugin is installed.
 
 ## Step 2: Choose the entry points
