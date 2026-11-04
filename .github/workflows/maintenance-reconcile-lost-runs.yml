@@ -75,7 +75,9 @@ name: maintenance-reconcile-lost-runs
 # (.github/actions/check-trusted-trigger/README.md).
 #
 # It does nothing while githubstatus.com shows Actions as anything but
-# operational, or the page cannot be read, so it adds no load mid-incident. At
+# operational, or the page cannot be read, so it adds no load mid-incident, nor
+# while the GITHUB_TOKEN pool is under its read floor or cannot be read
+# (.github/actions/check-read-floor). At
 # most 3 re-runs are in flight at once, auto-merge PRs first, and its writes
 # are at least a second apart. A lost pull_request review or refine lane run is listed in
 # the run summary for a person: those lanes, or the lanes token broker, refuse
@@ -134,9 +136,17 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Under the GITHUB_TOKEN pool's read floor, or with the pool unreadable,
+      # the run reads and re-runs nothing, on every event, the hub's
+      # breaker-clear dispatch included.
+      - name: Check the read floor
+        id: floor
+        uses: ./.base/.github/actions/check-read-floor # zizmor: ignore[self-repository]
+
       # The base config's limits.api, in resolve-config's output shape, for
       # the pacer; a failed read leaves rate-limits.json's defaults.
       - name: Read the pace override from the base config
+        if: steps.floor.outputs.skip == 'false'
         continue-on-error: true
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
@@ -149,6 +159,7 @@ jobs:
       # fails, runs as before (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
+        if: steps.floor.outputs.skip == 'false'
         continue-on-error: true
         env:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
@@ -159,7 +170,7 @@ jobs:
 
       - name: Find lost runs
         id: plan
-        if: steps.pace.outputs.paced != 'true'
+        if: steps.floor.outputs.skip == 'false' && steps.pace.outputs.paced != 'true'
         env:
           MODE: plan
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
@@ -253,7 +264,7 @@ jobs:
           retention-days: 2
 
       - name: Re-run lost runs
-        if: steps.pace.outputs.paced != 'true'
+        if: steps.floor.outputs.skip == 'false' && steps.pace.outputs.paced != 'true'
         env:
           MODE: act
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
