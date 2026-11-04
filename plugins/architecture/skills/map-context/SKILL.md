@@ -229,10 +229,9 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   common case: the run still writes `context.json` and a `context.md` with no diagram, and the report says no
   view was emitted. The
   key is documented in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
-  - **Pointer**: for what mermaid's C4 support covers, see
-    [Mermaid: C4 Diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that page changes the status of C4 support or adds a diagram type.
+  Mermaid stays out, and `render-context.sh` has no mermaid C4 path. The decision, its pointer
+  and its recheck trigger live in the convention's
+  [record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key).
 - **Redaction keeps the shape.** Host, service kind, and an optional numeric port. A secret-only
   key (`Password`, `ClientSecret`, `AccountKey`, and the rest named in `redact-connection.awk`)
   produces no row. Loopback hosts are not external systems. Do not paste a raw value into the

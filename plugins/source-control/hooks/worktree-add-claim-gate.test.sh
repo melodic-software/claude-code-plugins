@@ -144,4 +144,21 @@ dashc=$(wt_stanza "$REPO_B" wt-dashc)
 assert_not_contains "payload-cwd unclaimed tree is not claimed by git -C" "$cwd_u" "locked"
 assert_contains "git -C add target is claimed in the other repo" "$dashc" "dashc-sess"
 
+# --- Fail open when the command cannot be read ------------------------------
+# The add has already run, so a reader that cannot parse (here: no shfmt on PATH
+# and none in ~/.local/bin) must leave the call alone: exit 0, no refusal text.
+NOSHFMT="$TEST_TMPDIR/noshfmt-bin"
+mkdir -p "$NOSHFMT" "$TEST_TMPDIR/noshfmt-home"
+# jq through a wrapper that keeps the real HOME, so a version manager's shim resolves.
+printf '#!/bin/sh\nHOME=%q exec %q "$@"\n' "$HOME" "$(command -v jq)" >"$NOSHFMT/jq"
+chmod +x "$NOSHFMT/jq"
+git -C "$REPO" worktree add -q "$EXT/wt-noshfmt" -b feat/noshfmt
+payload=$(jq -n --arg cwd "$REPO" --arg cmd "git worktree add $EXT/wt-noshfmt -b feat/noshfmt" \
+  '{session_id:"s-noshfmt",cwd:$cwd,hook_event_name:"PostToolUse",tool_name:"Bash",tool_input:{command:$cmd}}')
+RC=0
+OUT=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED \
+  HOME="$TEST_TMPDIR/noshfmt-home" PATH="$NOSHFMT:/usr/bin:/bin" bash "$HOOK" <<<"$payload" 2>&1) || RC=$?
+assert_exit "no shfmt: the claim gate fails open" 0 "$RC"
+assert_not_contains "no shfmt: no refusal text" "$OUT" "BLOCKED"
+
 [[ $FAILED -eq 0 ]] || exit 1

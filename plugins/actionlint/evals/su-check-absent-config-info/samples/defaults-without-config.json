@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "No. The missing .github/actionlint.yaml isn't why linting isn't happening: actionlint picks that file up when it exists and runs with its built-in defaults when it is absent."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Create .github/actionlint.yaml first; actionlint cannot lint workflows without it.",
+      "why": "wrong: the config is optional and actionlint runs on defaults without it"
+    },
+    {
+      "answer": "actionlint reads .github/actionlint.yaml.",
+      "why": "near miss: never says what happens without the file"
+    },
+    {
+      "answer": "The config file is missing, which is why nothing is linted.",
+      "why": "wrong: blames the absent file"
+    }
+  ]
+}

@@ -111,6 +111,8 @@ ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.s
 
 ## Requirements
 
+- `shfmt` v3.14.1 or later, which the destructive guard reads commands through. Without it the
+  guard denies the commands it reads, naming the cause.
 - `git` on PATH.
 - Node.js on PATH. Every hook row runs `node hooks/exec-bash.mjs`, and a Claude Code install does
   not guarantee Node, so without it the destructive guard does not launch and is not enforced.

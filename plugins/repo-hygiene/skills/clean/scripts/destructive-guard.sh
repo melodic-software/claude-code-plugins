@@ -262,9 +262,11 @@ guard_parse() {
   local _gp_hd_seen=0 _gp_s _gp_e _gp_start _gp_end
   hook::bash_parse_segments "$1" argv_segment
   _gp_bodies=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})
-  # A here-doc on a segment with no command word reaches no callback, so the
-  # count no longer numbers the bodies; then every body is read.
-  if ((${#_gp_hd_feed[@]} && ${#_gp_bodies[@]} != _gp_hd_seen)); then
+  # When any command reads a here-doc as its script, every body is read as one:
+  # a statement with no command word, a substitution's or a body's own
+  # here-doc, or a second reading of the command can each shift a count of
+  # openers, so the body a shell reads cannot be named for certain.
+  if ((${#_gp_hd_feed[@]})); then
     _gp_hd_feed=("${!_gp_bodies[@]}")
   fi
   for _gp_s in ${_gp_hd_feed[@]+"${_gp_hd_feed[@]}"}; do
@@ -316,6 +318,12 @@ substitutions_to() {
   n=${#chars[@]}
   while ((i < n)); do
     ((hd && i >= hd_end)) && hd=0
+    # A body inside a substitution already scanned past (subst_end_to's span).
+    while ((!hd && b < nb)); do
+      rest="${bodies[b]#* }"
+      ((${rest%% *} <= i && ${bodies[b]%% *} < i)) || break
+      b=$((b + 1))
+    done
     if ((!hd && b < nb)); then
       start="${bodies[b]%% *}"
       if ((i >= start)); then
@@ -384,21 +392,22 @@ substitutions_to() {
 # subst_end_to <var> <from> : the index of the `)` that closes a $( whose text
 # starts at <from> in substitutions_to's cmd and chars (dynamic scope), or the
 # end of the text when none does. Quoted spans, escapes, comments and here-doc
-# bodies inside it hold no paren. Only a span holding `<<` pays for the parse
-# that finds the bodies.
+# bodies inside it hold no paren. The bodies are the whole command's, from
+# substitutions_to's `bodies` (the parser reports a substitution's here-docs
+# too), so only a span holding `<<` scans again with them.
 subst_end_to() {
   local -n _se_out="$1"
-  local from="$2" close tail e
+  local from="$2" close tail e s
   local -a hs=() he=()
   paren_close_to close "$from"
   hook::_c_locale byte_slice_to tail "$cmd" "$from" $((close - from))
   if [[ "$tail" == *'<<'* ]]; then
-    hook::_c_locale byte_slice_to tail "$cmd" "$from"
-    hook::bash_parse_segments "$tail" :
-    for e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
-      hs+=("$((from + ${e%% *}))")
+    for e in ${bodies[@]+"${bodies[@]}"}; do
+      s="${e%% *}"
+      ((s >= from)) || continue
       e="${e#* }"
-      he+=("$((from + ${e%% *}))")
+      hs+=("$s")
+      he+=("${e%% *}")
     done
     paren_close_to close "$from"
   fi

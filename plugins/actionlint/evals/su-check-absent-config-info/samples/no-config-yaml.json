@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [".github/workflows/ci.yml"],
+      "why": "the scaffold's workflow"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".github/actionlint.yaml"],
+      "why": "created the config"
+    }
+  ]
+}

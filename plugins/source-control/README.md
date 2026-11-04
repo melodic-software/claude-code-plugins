@@ -383,6 +383,8 @@ them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremo
 
 ## Requirements
 
+- **shfmt v3.14.1 or later**, which the PR-linkage and worktree gates read commands through.
+  Without it the gates deny the commands they read, naming the cause.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
   Code's native binary neither ships nor uses Node
   ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page

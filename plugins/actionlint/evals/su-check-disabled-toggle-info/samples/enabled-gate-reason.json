@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The Claude Code hooks exit through their enabled-gate before probing anything, so a deliberately disabled plugin is not broken."
+    },
+    {
+      "answer": "The Claude Code hooks stop at their enabled-gate before any probe runs, so the plugin is not broken; an installed pre-commit entry would still need actionlint at commit.",
+      "why": "the pre-commit caveat is accurate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It is reported as INFO.",
+      "why": "near miss: no reason"
+    }
+  ]
+}

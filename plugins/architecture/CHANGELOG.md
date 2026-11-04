@@ -3,6 +3,21 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.7] - 2026-11-04
+
+### Changed
+
+- `map-components`, `map-containers` and `map-context` say mermaid stays out of `diagram_dialect.system` and that their render script has no mermaid C4 path. Each links the authoring-formats convention's record in place of its own Mermaid C4 page pointer and stamp ([#12998](https://github.com/melodic-software/claude-code-plugins/issues/12998)).
+- `map-landscape` links the same record for its mermaid default and output shape, and its own stamp now covers only the Structurizr landscape view.
+- `reference/config.md` states why the system key stays closed to mermaid, and says a recheck outcome goes in a `.changes/architecture/` fragment.
+- The `landscape_dialect` mermaid default and the `C4Context` landscape output are unchanged.
+
+## [1.4.6] - 2026-11-04
+
+### Changed
+
+- The `map-components`, `map-containers`, `map-context`, `map-dependencies` and `map-landscape` descriptions are shorter, each under the 419-character warn line (347 to 403 characters, from 432 to 467). Each keeps its distinct opening phrase and drops trigger phrases that repeat the skill name or that phrase.
+
 ## [1.4.5] - 2026-11-04
 
 ### Changed

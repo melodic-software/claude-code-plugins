@@ -108,14 +108,19 @@ and a message topology are neither, so `map-flow` and `map-events` follow the re
 unkeyed rule for those shapes, the one `/planning:design` applies to its `sequenceDiagram`
 flows. Neither emits mermaid C4.
 
+The system key stays closed to mermaid: `lib/resolve-diagram-dialect.sh` and the four C4 views'
+render scripts (`render-components.sh`, `render-context.sh`, `render-containers.sh`,
+`render-deployment.sh`) have no mermaid C4 path, and the convention offers a C4 dialect only once
+its maintainers document the C4 syntax as stable.
+
 `landscape_dialect` keeps its mermaid default: it predates this decision, and the convention gives
-a landscape no key. The record of mermaid's C4 support and its recheck trigger live in the
-authoring-formats convention
+a landscape no key. The record behind both decisions, with its basis and recheck trigger, lives in
+the authoring-formats convention
 ([Why mermaid is not offered for the system key](../../../docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
 This document does not carry a second stamp. When that trigger fires, re-derive whether this
 key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
-and record the outcomes in this plugin's `CHANGELOG.md`.
+and record the outcomes in a `.changes/architecture/` changelog fragment.
 
 ## Script paths
 

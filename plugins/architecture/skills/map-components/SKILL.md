@@ -236,10 +236,9 @@ Procedure: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_
   which refuses mermaid. The key is documented in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
   Unset, `components.md` carries the tables and no diagram, and the report says no view was
   emitted.
-  - **Pointer**: for what mermaid's C4 support covers, see
-    [Mermaid: C4 Diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that page changes the status of C4 support or adds a diagram type.
+  Mermaid stays out, and `render-components.sh` has no mermaid C4 path. The decision, its pointer
+  and its recheck trigger live in the convention's
+  [record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key).
 - **A component diagram is one container.** Claim: the C4 component diagram
   scopes to a single container, and its primary elements are the components
   inside that container. The model is notation-independent. Basis:
