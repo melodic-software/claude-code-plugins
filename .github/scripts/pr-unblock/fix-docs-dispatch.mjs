@@ -23,12 +23,19 @@
 // gate, posts no check (post-decline: false), so a check run alone would let a
 // PR be dispatched every cycle. The newest runs of the workflow, read once
 // for the in-flight guard, settle it too: a PR with a completed run titled
-// for it is done, and its head goes into the dispatch record, unless every
-// such run was lost (LOST: cancelled, timed_out or startup_failure) and there
-// is only one, which gets one more dispatch. The listing cannot tell a run
-// the broker refused, a hold skipped or a kill switch stopped from one that
-// ran the model, so each of those ends the PR too. A run older than that
-// listing costs one more run.
+// for it is done, and its head goes into the dispatch record, unless each such
+// run says nothing about the PR. Those get another dispatch, the next tick
+// being the probe (outage posture element 3):
+//   - one lost run (LOST: cancelled, timed_out or startup_failure);
+//   - fewer than maxRunsPerHead runs that went red, or that ended green on a
+//     failed or lagging handoff read (heldHandoff, the one green run whose jobs
+//     are read).
+//     A red run that posted its check is ended by that check. Red alone names no
+//     cause, a read that failed or a broker that refused, so the count is what
+//     ends a refusal, and an outage past that many runs still ends the PR.
+// The listing cannot tell a run the broker's refusal skipped, a hold skipped or
+// a kill switch stopped from one that ran the model, so each that ended green
+// ends the PR too. A run older than that listing costs one more run.
 //
 // The dispatch record also keeps the fix-docs runs dispatched on each head;
 // once `limit-stops-per-head` are kept, each one's status and jobs are read
@@ -139,16 +146,48 @@ function historyHasRun(pullRequest) {
   });
 }
 
+// Whether a run held on a handoff read (handoff-evidence.sh's hold or lag notice,
+// each of which ends the run green): a leg handed off, read from job conclusions as that script
+// reads them, its handoff job succeeded, and the next leg never started, which
+// pr-refine.yml starts on a handoff that read settled. A scan job skips on the run
+// job's handed-off output, which head code can forge, so the handoff job's own
+// conclusion is what shows a read ran: a leg with no fallback token has none.
+export function heldHandoff(run, activity = DEFAULTS.activity) {
+  const jobs = run?.jobs ?? [];
+  const conclusion = (name) => jobs.find((job) => job?.name === name)?.conclusion;
+  const legs = [activity, `${activity}-subscription`, `${activity}-fallback`];
+  return legs.slice(0, -1).some((leg, index) => {
+    const scan = conclusion(`${leg} / scan`);
+    return (
+      conclusion(`${leg} / broker-allowed`) === "success" &&
+      conclusion(`${leg} / run`) === "success" &&
+      (scan === undefined || scan === "skipped") &&
+      conclusion(`${leg}-handoff`) === "success" &&
+      !jobs.some((job) => job?.name?.startsWith(`${legs[index + 1]} / `) && job.conclusion !== "skipped")
+    );
+  });
+}
+
 // The run-name the workflow gives a dispatch: its file stem, the activity
 // and the PR (pr-refine.yml's run-name).
 const runTitle = (workflow, activity, number) => `${workflow.replace(/\.ya?ml$/, "")} ${activity} #${number}`;
 
-// Whether the PR's completed runs among the listed ones make it done: any run
-// that was not lost, or a second lost one.
-function docsRunsEnded(runs, title) {
+// Whether the PR's completed runs among the listed ones make it done: any that
+// ended the PR, a second lost one, or maxRuns red or held ones.
+async function docsRunsEnded(runs, title, readRunJobs, activity, maxRuns) {
   const ended = runs.filter((run) => run.status === "completed" && run.display_title === title);
   const lost = ended.filter((run) => LOST.has(run.conclusion)).length;
-  return ended.length > lost || lost > 1;
+  let again = ended.filter((run) => run.conclusion === "failure").length;
+  for (const run of ended) {
+    if (LOST.has(run.conclusion) || run.conclusion === "failure") {
+      continue;
+    }
+    if (run.conclusion !== "success" || !heldHandoff(await readRunJobs(run.id), activity)) {
+      return true;
+    }
+    again += 1;
+  }
+  return lost > 1 || again >= maxRuns;
 }
 
 // What a fix-docs run (its status and the REST listing's latest jobs) shows:
@@ -225,7 +264,14 @@ export async function dispatchDocsFixes({
   let sent = 0;
   for (const node of candidates) {
     const title = runTitle(workflow, activity, node.number);
-    if (docsRunsEnded(runs, title)) {
+    let runEnded;
+    try {
+      runEnded = await docsRunsEnded(runs, title, (id) => api.readRunJobs(id), activity, maxRunsPerHead);
+    } catch (error) {
+      log(`::warning::#${node.number}: a ${workflow} run's jobs ${error.rateLimited ? "are rate limited" : "could not be read"} (${error.message}); no fix-docs dispatched, a later run retries`);
+      continue;
+    }
+    if (runEnded) {
       markHandled(record, checkName, node.headRefOid);
       record.docsRuns.delete(node.headRefOid);
       log(`skip fix-docs #${node.number}: a ${workflow} run for it already ended`);
