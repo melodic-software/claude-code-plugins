@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "shellcheck and shfmt resolve. Already configured: no change made."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "shellcheck and shfmt resolve. To keep them current, run `brew install shellcheck shfmt`.",
+      "why": "guidance for resolved tools"
+    },
+    {
+      "answer": "shfmt resolves; the install guide is https://github.com/mvdan/sh#shfmt.",
+      "why": "near miss: an install link for what resolves"
+    }
+  ]
+}

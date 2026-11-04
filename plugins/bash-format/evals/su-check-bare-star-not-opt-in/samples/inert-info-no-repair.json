@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "This is INFO, not a defect: the format pass stays inert by design until the repo opts in. You can add a `[*.sh]` section if you want formatting."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is INFO. Want me to add `[*.sh]` to your `.editorconfig`?",
+      "why": "near miss: offers the repair"
+    },
+    {
+      "answer": "This is a FAIL: formatting is broken in this repo.",
+      "why": "wrong grade"
+    }
+  ]
+}

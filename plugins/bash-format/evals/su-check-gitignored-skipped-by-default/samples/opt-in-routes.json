@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Set `bash_format_lint_gitignored` to `true` with `/plugin configure`, or headless with `claude plugin configure --values-stdin`, or a `claude plugin install --config` rerun as the fallback. It takes effect in a fresh session."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set `bash_format_lint_gitignored` to `true`.",
+      "why": "near miss: no route, nothing on when it applies"
+    },
+    {
+      "answer": "Remove `.work/` from `.gitignore` and it will format right away.",
+      "why": "not the opt-in"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "`[*]` is not the opt-in. The format pass needs a section that names shell files, such as `[*.sh]`, `[*.bash]` or `[*.{sh,bash}]`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your `[*]` section does not count.",
+      "why": "near miss: not what does"
+    },
+    {
+      "answer": "`[*]` covers shell files, so the problem must be shfmt.",
+      "why": "treats [*] as the opt-in"
+    }
+  ]
+}

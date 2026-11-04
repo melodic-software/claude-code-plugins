@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A tracked file matching the pattern stays in scope, and when git cannot decide the hook acts as before, so the file is processed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A tracked file stays in scope.",
+      "why": "near miss: does not answer the undecidable case"
+    },
+    {
+      "answer": "Any file matching an ignore pattern is skipped, tracked or not, and if git cannot decide it is skipped too.",
+      "why": "wrong on both"
+    }
+  ]
+}
