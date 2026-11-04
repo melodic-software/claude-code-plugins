@@ -339,8 +339,8 @@ memory page's `AGENTS.md` section changes again.
 The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and
 `AGENTS.md` support is available, or through a `CLAUDE.md` that imports or symlinks it, on that
-`CLAUDE.md`'s row. Read directly, it differs from a `CLAUDE.md` in the ways the pointer lists
-(which hooks fire for it, where it is listed); imported, it behaves as part of its `CLAUDE.md`. No hooks setting makes direct
+`CLAUDE.md`'s row. Read directly, it differs from a `CLAUDE.md` in the ways the pointer lists;
+imported, it behaves as part of its `CLAUDE.md`. No hooks setting makes direct
 support unavailable: the loader is a built-in mod, and the audit never counts `disableAllHooks` or
 `allowManagedHooksOnly` against it. The model assumes the default value of the setting that chooses
 which instruction files load; a repository on another value is outside it, and the audit says so

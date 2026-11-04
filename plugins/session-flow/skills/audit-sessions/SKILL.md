@@ -87,13 +87,14 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
   absolute path, in its Windows drive form when `pwd -W` gives one, with every character outside
   `[A-Za-z0-9]` replaced by `-`. When no score file exists at that slug, use the name of the
   `~/.claude/projects/` directory that holds the current session's JSONL as the slug.
-- **Uninstall deletes the store.** Say so before the first collect on a machine: the store is the
+- **Uninstall can delete the store.** Say so before the first collect on a machine: the store is the
   only lasting copy of these numbers, because Claude Code removes old transcripts on its own
-  schedule and a deleted store cannot be rebuilt for sessions already removed.
+  schedule and a deleted store cannot be rebuilt for sessions already removed. Which uninstall
+  deletes it, and when it stays, is at the first pointer.
   - **Pointer**: for what uninstall removes, see
-    <https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall>; for transcript
-    retention, see <https://code.claude.com/docs/en/data-usage#data-retention>.
-  - **As of**: 2026-10-02
+    <https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps>; for
+    transcript retention, see <https://code.claude.com/docs/en/data-usage#data-retention>.
+  - **As of**: 2026-11-04
   - **Recheck trigger**: either section changes what uninstall deletes or how long transcripts
     are kept.
 - **The collector parses transcript files directly**, although Claude Code does not document their

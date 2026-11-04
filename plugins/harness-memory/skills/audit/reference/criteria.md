@@ -424,7 +424,9 @@ already loads would spend budget restating it), so "unreferenced" alone proves n
 `bash "<skill-dir>/scripts/orphan-rule-check.sh"` (deterministic
 set-difference: enumerate always-loaded rules without `description:`, `git grep` each basename across
 tracked files excluding the rule's own file; zero hits = orphan). Path-scoped rules are exempt: they
-load only on matching-file Read, so being unreferenced costs nothing per session. WARN per orphan.
+load only on demand, so being unreferenced costs nothing per session. What fires one is read at
+[Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) (as of 2026-11-04;
+recheck when that section stops loading a rule on demand). WARN per orphan.
 Each finding carries the file's provenance (see "Provenance routing" below): a synced rule is still a
 finding, but its fix line names the sync's source rather than a local edit.
 
@@ -526,9 +528,10 @@ Four readings the strip applies, so a hand count matches the reported figures:
 4. Byte counts measure LF-normalized content, so a CRLF index reports about one byte per line
    under its on-disk size, well under 1% of the 25KB cap.
 
-**Provenance**: the strip rule itself is doc-derived (pointer above). The four readings are not:
-they cover cases we did not find the docs to settle for MEMORY.md (fenced code, unterminated or
-unbounded blocks, partial lines, line endings). They are this plugin's reading, chosen so that no
+**Provenance**: the strip and its four readings are this gate's rule, not a documented load behavior
+of `MEMORY.md` ([official-guidance.md, Auto-memory limits](official-guidance.md#auto-memory-limits)).
+The readings cover cases we did not find the docs to settle for MEMORY.md (fenced code, unterminated
+or unbounded blocks, partial lines, line endings). They are this plugin's reading, chosen so that no
 input silently under-reports and leaves this `[FAIL]` gate unable to fire. Where a reading has to guess, it guesses
 toward counting: an over-count can only make the gate fire early on a file near its limit, while an
 under-count stops it firing at all. The `update` action must not overwrite them.

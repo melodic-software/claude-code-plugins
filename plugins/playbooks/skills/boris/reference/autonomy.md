@@ -108,7 +108,7 @@ Pair with proactive `/compact <hint>` when you feel bad-compact risk.
 > - **Recheck trigger**: that bullet changes its long-context claim, or a later model's guide
 >   states a different one.
 
-Docs: [Claude Code settings](https://code.claude.com/docs/en/settings)
+Docs: [Environment variables](https://code.claude.com/docs/en/env-vars)
 Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548257058328723)
 
 ## 65. Delegation over Guidance (Opus 4.7)

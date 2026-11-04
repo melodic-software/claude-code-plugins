@@ -15,7 +15,10 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   2026-11-03; recheck when its `CLAUDE_CONFIG_DIR` row changes what the variable moves).
 - Project: `./CLAUDE.md` or `./.claude/CLAUDE.md`, `./CLAUDE.local.md`, and every nested
   `CLAUDE.md` / `CLAUDE.local.md` in subdirectories of the project tree (Claude loads these on
-  demand when it reads files in those directories, so walk the tree and do not stop at the root);
+  demand once it works with a file in those directories, so walk the tree and do not stop at the
+  root; what counts is at
+  [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
+  as of 2026-11-04, recheck when that section changes what loads a nested file);
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - **A natively read `AGENTS.md`**: `./AGENTS.md` and `./.claude/AGENTS.md`, each its own record, and
   every nested `AGENTS.md` in subdirectories of the project tree, on the same on-demand footing as

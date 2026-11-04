@@ -94,8 +94,8 @@ reports "already configured".
    nothing, but stores an empty string as `""`; the rerun prints a warning for a rejected value yet
    exits 0, so read its output. Afterwards rerun `check` in a **fresh session** and report the
    observed effective value, never an unobserved change. For where `${user_config.*}` resolves, see
-   [Plugin manifest reference: Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-   (as of 2026-11-03; recheck when that section changes when skill content takes a value).
+   [Plugin manifest reference: Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+   (as of 2026-11-04; recheck when that section changes when skill content takes a value).
    For a root outside the project and home directories, recommend the portable value forms from the
    README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
    machine path, which guardrail hardcoded-path checks rightly block.

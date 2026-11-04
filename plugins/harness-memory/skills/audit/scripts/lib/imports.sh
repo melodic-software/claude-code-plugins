@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # imports.sh — the `@path` import graph of a memory file, as Claude Code reads it.
 # One parser so every caller agrees on what an import is. Paths resolve against the
-# importing file, the walk stops at four hops, and fences and code spans are skipped;
-# those are this walker's firing values, set to match the docs.
+# importing file, the walk stops at four hops, and fences and code spans are skipped.
+# A backslash keeps a space inside the path, a bare space ends it, and a path wrapped
+# in quotes is no import. Those are this walker's firing values, set to match the docs.
 #   Pointer: https://code.claude.com/docs/en/memory#import-additional-files
-#   As of: 2026-10-11.
-#   Recheck trigger: that section changes path resolution, the recursion depth, or what
-#     import parsing skips; update the depth here and in il_reaches together.
+#   As of: 2026-11-04.
+#   Recheck trigger: that section changes path resolution, the recursion depth, what
+#     import parsing skips, or how spaces or quotes in a path are read; update the depth
+#     here and in il_reaches together.
 
 # Print the import targets of one file as absolute paths; `~/` expands against HOME.
 il_imports_of() {
@@ -19,11 +21,15 @@ il_imports_of() {
     {
       line = $0
       gsub(/`[^`]*`/, "", line)
+      gsub(/\\ /, "\001", line)
       n = split(line, tok, /[[:space:]]+/)
       for (i = 1; i <= n; i++) {
         if (substr(tok[i], 1, 1) == "@" && length(tok[i]) > 1) {
           t = substr(tok[i], 2)
+          c = substr(t, 1, 1)
+          if (c == "\"" || c == "'"'"'") continue
           sub(/[.,;:)]+$/, "", t)
+          gsub(/\001/, " ", t)
           if (t != "") print t
         }
       }
