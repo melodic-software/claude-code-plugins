@@ -94,6 +94,28 @@ def path(sense: str, glob: str, file: str, line: str):
     return (sense, "path", glob, file, line)
 
 
+JUDGE_CALIBRATION = "plugins/testing/skills/audit/evals/judge-calibration/**"
+
+
+def eval_rows(sense: str, line: str):
+    return [
+        path(sense, "**/evals/**/samples/**", EVAL, line),
+        path(
+            sense, "**/evals/**/graders/**", "plugins/x/evals/case/graders/a.md", line
+        ),
+        (
+            sense,
+            "phrase",
+            r"""^\s*(?:-\s*)?pattern:\s*['"]""",
+            GUIDE,
+            f"    pattern: '{line}'",
+        ),
+        path(
+            sense, JUDGE_CALIBRATION, JUDGE_CALIBRATION.replace("**", "case.md"), line
+        ),
+    ]
+
+
 # Every allowlist entry in the data file, each with one line that a rule of
 # its sense matches and that the entry keeps: (sense, kind, value, path, line).
 # Deleting or renaming an entry fails test_the_table_names_every_allowlist_entry,
@@ -181,7 +203,7 @@ ALLOWLIST = [
         "plugins/session-flow/skills/recommend-skills/SKILL.md",
         RUNG_LINE,
     ),
-    path("rung", "plugins/*/**/evals/**", EVAL, RUNG_LINE),
+    *eval_rows("rung", RUNG_LINE),
     phrase("rung", r"\brungs?[- ][0-9]", "Rung 2 opens the page."),
     phrase(
         "rung", r"\bfetch-route rungs?\b", "Read the page by the fetch-route rungs."
@@ -370,12 +392,6 @@ ALLOWLIST = [
         r"\bagentic[- ]overlays?\b",
         "The agentic overlay layers on the harness.",
     ),
-    path(
-        "overlay",
-        "plugins/testing/skills/audit/evals/judge-calibration/**",
-        "plugins/testing/skills/audit/evals/judge-calibration/case.md",
-        OVERLAY_LINE,
-    ),
     phrase(
         "overlay",
         r"\b(css|ui|video|image|visual|modal)[- ]overlays?\b",
@@ -386,7 +402,7 @@ ALLOWLIST = [
         r"\badr/[0-9]{4}-[a-z0-9-]*overlay[a-z0-9-]*\.md\b",
         "Read [ADR 0015](../../adr/0015-bind-the-tracker-with-a-personal-overlay.md) on the layer.",
     ),
-    path("overlay", "plugins/*/**/evals/**", EVAL, OVERLAY_LINE),
+    *eval_rows("overlay", OVERLAY_LINE),
     path(
         "overlay",
         "plugins/disk-hygiene/skills/clean/**",
@@ -442,7 +458,12 @@ ALLOWLIST = [
         r"\b(model|strong|frontier|capability|cheap|fast)(:`)?[- ]tiers?\b|\bmodel:<tier>",
         "The model tier overrides the default.",
     ),
-    path("tier-precedence", "plugins/*/**/evals/**", EVAL, TIER_LINE),
+    *eval_rows("tier-precedence", TIER_LINE),
+    phrase(
+        "tier-precedence",
+        r"\benterprise-tier keys\b",
+        "Enterprise-tier keys override the limit.",
+    ),
     phrase(
         "tier-precedence",
         r"\btiers?[- ](?:[0-9]|(?-i:[A-D])\b)",
@@ -583,11 +604,16 @@ ALLOWLIST = [
         r"\bemitting surfaces?\b",
         "The emitting surface reads settings.json.",
     ),
-    path("surface-config", "plugins/*/**/evals/**", EVAL, SURFACE_LINE),
+    *eval_rows("surface-config", SURFACE_LINE),
     phrase(
         "surface-config",
-        r"\bsettings surfaces?\b.*\b(ladder|fetched docs|UI-only)\b|\bladder\b.*\bsettings surfaces?\b",
-        "The ladder resolves the exact settings surface.",
+        r"\bshop surface is http\b",
+        "The shop surface is http://127.0.0.1:8080 in config.yaml.",
+    ),
+    phrase(
+        "surface-config",
+        r"\bsettings surfaces?\b.*\b(ladder|fetched docs?|UI-only)\b|\b(ladder|UI-only)\b.*\bsettings surfaces?\b",
+        "The UI-only step names the exact settings surface.",
     ),
     phrase(
         "surface-config",
@@ -674,7 +700,7 @@ ALLOWLIST = [
         r"\bcontract case\b",
         "Contract case for the hand-off once the Brief is locked.",
     ),
-    path("contract-brief", "plugins/*/**/evals/**", EVAL, CONTRACT_LINE),
+    *eval_rows("contract-brief", CONTRACT_LINE),
     path(
         "contract-brief",
         "plugins/implementation/agents/*.md",
@@ -821,6 +847,18 @@ class Paths(unittest.TestCase):
         files = {p: HITS["rung"] for p in self.EXCLUDED}
         code, out, err = run_gate(files)
         self.assertEqual((code, out), (0, ""), err)
+
+    def test_authored_eval_text_is_checked(self):
+        authored = (
+            "plugins/x/skills/y/evals/evals.json",
+            "plugins/x/evals/case/case.yaml",
+            "plugins/x/evals/case/prompt.md",
+        )
+        code, out, err = run_gate({p: HITS["rung"] for p in authored})
+        self.assertEqual(code, 1, err)
+        self.assertEqual(
+            sorted(line.split(":")[0] for line in out.splitlines()), sorted(authored)
+        )
 
     def test_an_excluded_path_named_as_an_argument_is_still_skipped(self):
         files = {p: HITS["rung"] for p in self.EXCLUDED}
