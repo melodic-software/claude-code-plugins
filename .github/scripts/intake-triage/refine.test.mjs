@@ -8,7 +8,7 @@ import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-t
 
 import { ADMIT_MARKER, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
-import { DECISION_REPLY, titleLine, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, validateOutput } from "./refine.mjs";
+import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -839,7 +839,7 @@ describe("size split", () => {
   const LINES = ["- [ ] L1", "- [ ] L2", "  - [ ] L3"];
   const BODY = ["## Done when", "", ...LINES].join("\n");
   const parked = (reasons = PENDING) => appComment(`${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${reasons}.`);
-  const sizeIssue = (overrides = {}) => issueOf({ id: 700, title: "Big work", body: BODY, type: { name: "Task" }, labels: [{ name: "status: ready" }], ...overrides });
+  const sizeIssue = (overrides = {}) => issueOf({ id: 700, title: "refactor(x)!: big @work", body: BODY, type: { name: "Task" }, labels: [{ name: "status: ready" }], ...overrides });
   const record = (filed = []) => ({ ...appComment(`${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: linesDigest(LINES), parts: [[1, 2], [3]], order: [[1, 2]], filed })}`), id: 900 });
 
   test("sizeSplitPending reads only the lanes App's wait naming the pending split", () => {
@@ -975,7 +975,7 @@ describe("size split", () => {
   });
 
   test("applySizeDecline posts the reason once per reason and body version, and nothing on a changed body", async () => {
-    const declineContext = { issue: { number: 7, title: "Big work", body: BODY }, size_decline: "not-human" };
+    const declineContext = { issue: { number: 7, title: "refactor(x)!: big @work", body: BODY }, size_decline: "not-human" };
     const decline = (comments, issue = sizeIssue()) => {
       const fake = fakeGitHub({ issue, comments, spec: specOf(BODY) });
       return applySizeDecline({ github: fake.github, repository: "o/r", number: 7, appId: APP, context: declineContext, log: () => {} }).then(() => writes(fake.calls));
@@ -1036,7 +1036,7 @@ describe("size split", () => {
     };
     return { github, calls };
   }
-  const context = { issue: { number: 7, title: "Big work", body: BODY }, size_split: { digest: linesDigest(LINES) } };
+  const context = { issue: { number: 7, title: "refactor(x)!: big @work", body: BODY }, size_split: { digest: linesDigest(LINES) } };
   const splitRules = { ...rules, types: ["Bug", "Task"], "types-under-parent": [], "types-parent-if-present": ["Feature"] };
   const run = (fake, output, notes = []) =>
     applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output, context, log: () => {}, note: (text) => notes.push(text) });
@@ -1076,6 +1076,8 @@ describe("size split", () => {
       ],
     );
     assert.deepEqual([w[1].body.body, w[3].body.body], [CHILD_1, CHILD_2]);
+    // The title keeps its scope unescaped and still breaks the mention.
+    assert.deepEqual([w[1].body.title, w[3].body.title], ["refactor(x)!: big @\u200bwork - part 1 of 2", "refactor(x)!: big @\u200bwork - part 2 of 2"]);
     // Admission refuses an issue with no Issue Type, so each part takes the issue's.
     assert.deepEqual([w[1].body.type, w[3].body.type], ["Task", "Task"]);
     assert.ok(w.every(({ body }) => !body?.labels), "no label on any sub-issue");
@@ -1202,7 +1204,7 @@ describe("size split", () => {
       { n: 2, text: "- [ ] R2" },
     ], "only the refinement's task-list lines, never its prose");
     const fake = splitFake({ issue: sizeIssue({ body }), spec });
-    const result = await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output: { parts: [[1], [2]], order: [] }, context: { issue: { number: 7, title: "Big work", body }, size_split: selected.context.size_split }, log: () => {} });
+    const result = await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output: { parts: [[1], [2]], order: [] }, context: { issue: { number: 7, title: "refactor(x)!: big @work", body }, size_split: selected.context.size_split }, log: () => {} });
     assert.deepEqual(result, { outcome: "split", children: [71, 72] });
     const filed = writes(fake.calls).filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues");
     assert.equal(filed[0].body.body.split("\n")[2], splitSourceLine({ id: 901, updatedAt: REFINED_AT }));
@@ -1390,5 +1392,5 @@ describe("an instruction in issue text is not followed", () => {
 
 test("a split child's title keeps a Conventional Commits scope unescaped and still breaks mentions and links", () => {
   assert.equal(titleLine("refactor(source-control)!: drop [old] <x>"), "refactor(source-control)!: drop [old] <x>");
-  assert.equal(titleLine("fix  @owner #12 GH-3\nhttps://www.example.com"), "fix @​owner #​12 GH-​3 https:/​/www​.example.com");
+  assert.equal(titleLine("fix  @owner #12 GH-3\nhttps://www.example.com"), "fix @\u200bowner #\u200b12 GH-\u200b3 https:/\u200b/www\u200b.example.com");
 });
