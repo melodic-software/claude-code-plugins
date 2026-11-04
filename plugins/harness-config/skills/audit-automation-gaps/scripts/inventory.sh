@@ -40,13 +40,15 @@
 # rows read .claude/settings.json in the directory the run starts in, and the
 # local-settings rows read .claude/settings.local.json at the repository root, or
 # at the main checkout's root in a linked worktree: the files a session started
-# there reads. The tree counts still cover the whole repository root. With
-# INVENTORY_PROJECT_DIR set, both files are read from that directory.
+# there reads. On Windows the local-settings rows read the file beside the
+# shared one instead, as the docs say. The tree counts still cover the whole
+# repository root. With INVENTORY_PROJECT_DIR set, both files are read from that
+# directory.
 # Source: https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
 # As of: 2026-11-04.
 # Recheck trigger: that section moves either file, or adds a case (it already
-#   names Windows, a home-directory repository root and foreign ownership, where
-#   the local file stays beside the shared one; this script does not model them).
+#   names a home-directory repository root and foreign ownership, where the
+#   local file stays beside the shared one; this script does not model those two).
 #
 # STATUS, NEVER A SILENT ZERO. A location that could not be read reports
 # unreadable, invalid-json, skipped or not-probed. A count is printed only for a
@@ -189,7 +191,17 @@ local_settings=".claude/settings.local.json"
 if [[ -n "$git_root" ]]; then
   root_real="$(pwd -P)"
   [[ "$start_dir" == "$root_real" ]] || project_settings="$start_dir/.claude/settings.json"
-  [[ -z "$main_root" || "$main_root" == "$root_real" ]] || local_settings="$main_root/.claude/settings.local.json"
+  # On Windows the local file stays beside the shared one, so a linked worktree
+  # is never swapped to the main checkout there. The OSTYPE test is the idiom
+  # lib/managed-scope.sh and permission-state.sh already use for the platform.
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32*)
+    local_settings="${project_settings%settings.json}settings.local.json"
+    ;;
+  *)
+    [[ -z "$main_root" || "$main_root" == "$root_real" ]] || local_settings="$main_root/.claude/settings.local.json"
+    ;;
+  esac
 fi
 
 managed_file=""

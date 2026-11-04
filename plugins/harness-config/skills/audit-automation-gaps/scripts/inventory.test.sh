@@ -629,6 +629,12 @@ if command -v git >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     "$(row_for local-settings "$wt_out")" "$main_real/.claude/settings.local.json"
   assert_eq "linked worktree at its root: project-settings is the worktree's own, absent" \
     "project-settings absent standing 1 - -" "$(row6 project-settings "$wt_out")"
+  # On Windows the local file stays beside the shared one, so a linked worktree
+  # reads its own file. bash keeps an OSTYPE it inherits, so this runs on any host.
+  win_out="$(cd "$WORK/git-linked" && env -u INVENTORY_PROJECT_DIR -u CLAUDE_PROJECT_DIR \
+    INVENTORY_USER_SETTINGS="$WORK/none.json" OSTYPE=msys bash "$INVENTORY" 2>/dev/null)"
+  assert_eq "linked worktree on Windows: local-settings is the worktree's own, absent" \
+    "local-settings absent standing 1 - -" "$(row6 local-settings "$win_out")"
   sub_out="$(cd "$GMAIN/sub" && env -u INVENTORY_PROJECT_DIR -u CLAUDE_PROJECT_DIR \
     INVENTORY_USER_SETTINGS="$WORK/none.json" bash "$INVENTORY" 2>/dev/null)"
   assert_eq "subdirectory: project-settings reads the subdirectory's file" \
