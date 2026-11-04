@@ -2152,6 +2152,19 @@ describe("the triage prompt", () => {
     assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
   });
 
+  // Run 41807993284: with no meanings in the prompt, the model grepped for
+  // them outside the checkout, dontAsk denied it, and the clean triage deferred.
+  test("the Work class line names each class admission admits and points at a checkout file that defines it", () => {
+    const line = /- Work class: (.*?) - Size:/.exec(PROMPT)?.[1] ?? "";
+    const rules = JSON.parse(readFileSync(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url), "utf8"));
+    const doc = readFileSync(new URL("../../../plugins/work-items/reference/work-class-labels.md", import.meta.url), "utf8");
+    assert.match(line, /Description column of plugins\/work-items\/reference\/work-class-labels\.md from the repository root/);
+    for (const name of [...rules.classes, "work-class: structural", "work-class: untrusted-provenance"]) {
+      assert.ok(line.includes(`\`${name}\``), `the rubric names ${name}`);
+      assert.match(doc, new RegExp(`^\\| \`${name}\` \\| C[1-5] \\| \\S`, "m"), `the doc defines ${name}`);
+    }
+  });
+
   test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
     assert.match(PROMPT, /Write a Cost line exactly as `Cost: <what bills, where; the owner decision it lacks>` or `Cost decided: <what bills; the decision that covers it>`/);
     assert.match(PROMPT, /Work with no charge gets no Cost line/);
