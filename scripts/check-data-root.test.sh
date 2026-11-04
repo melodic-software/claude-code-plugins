@@ -79,6 +79,19 @@ check "plugin-options-docs block carries its as-of date and recheck trigger" \
   '[[ $block == *"As of 20"* && $block == *"Recheck trigger:"* ]]'
 check "plugin-options-docs block keeps a sensitive option off the command line" \
   '[[ $block == *"Never put this plugin'"'"'s \`sensitive\` option(s) (\`tok\`) on a command line"* ]]'
+check "plugin-options-docs points a mixed plugin at the install fallback" \
+  '[[ $block == *"see [Plugin install]"* ]]'
+
+opts_sens="$tmp/opts-sens"
+mkdir -p "$opts_sens/plugins/p/.claude-plugin"
+printf '# p\n' >"$opts_sens/plugins/p/README.md"
+printf '{"name":"p","userConfig":{"tok":{"type":"string","sensitive":true}}}\n' \
+  >"$opts_sens/plugins/p/.claude-plugin/plugin.json"
+run_in "$opts_sens" python3 "$SELF_DIR/sync-plugin-options-docs.py"
+# shellcheck disable=SC2034 # read inside the check condition, which runs through eval
+block="$(cat "$opts_sens/plugins/p/README.md")"
+check "plugin-options-docs withholds the install fallback when every option is sensitive" \
+  '[[ $block != *"see [Plugin install]"* && $block == *"the install fallback for a release without \`plugin configure\` does not apply"* ]]'
 
 # Every README carrying the block passes the stamp check's trigger-less rule. Only that rule is
 # read: an expiry finding depends on today's date, so it would fail this test as the dates age.

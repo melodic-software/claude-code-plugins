@@ -146,7 +146,9 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         *sensitive_note,
         "",
         f"Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps]({UNINSTALL_DOCS}).",
-        f"For a Claude Code release without `plugin configure`, see [Plugin install]({INSTALL_DOCS}).",
+        f"For a Claude Code release without `plugin configure`, see [Plugin install]({INSTALL_DOCS})."
+        if len(sensitive) < len(options)
+        else "Every option here is `sensitive`, so the install fallback for a release without `plugin configure` does not apply.",
         "",
         "### Upstream documentation",
         "",

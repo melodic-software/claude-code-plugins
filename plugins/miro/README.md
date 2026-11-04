@@ -222,7 +222,7 @@ marketplace you installed this plugin from:
 Never put this plugin's `sensitive` option(s) (`miro_api_token`) on a command line. How `plugin configure` handles one is recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+Every option here is `sensitive`, so the install fallback for a release without `plugin configure` does not apply.
 
 ### Upstream documentation
 
