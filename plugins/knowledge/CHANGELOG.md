@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.2.1] - 2026-11-04
+
+### Fixed
+
+- docpage-digest: the checklist's `Verification status` line starts as `unverified: not recorded`, so a batch run that stops before close cannot leave a line listing `verified`.
+
 ## [1.2.0] - 2026-11-04
 
 ### Added
