@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Once in-project mode is on: `poetry add --group dev ruff`."},
+    {"answer": "poetry add -G dev ruff", "why": "short flag"},
+    {"answer": "poetry add ruff --group=dev", "why": "flag after the package"},
+    {"answer": "poetry add --dev ruff", "why": "older flag"}
+  ],
+  "fail": [
+    {"answer": "Run `pip install ruff` inside the Poetry shell.", "why": "bare pip"},
+    {"answer": "poetry add ruff", "why": "near miss: not a dev dependency"},
+    {"answer": "", "why": "empty"}
+  ]
+}

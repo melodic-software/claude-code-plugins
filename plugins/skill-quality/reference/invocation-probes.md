@@ -153,6 +153,20 @@ elimination. Competitors did take near-miss should-not probes on both sides
 no `knowledge` skill was called. Its probe set needs should-trigger queries that a
 neighboring skill could plausibly take, frozen before any description cut.
 
+Those queries and cross-plugin rivals are not always enough. On 2026-11-04 (Claude Code 2.1.318,
+Opus 5.5, 3 runs per probe, all passes VALID, every rival on the init line) four
+`architecture` skills got 6 blind should-trigger probes each, written to contest a named rival:
+
+| Skill | Rival plugins added | Should-trigger fired, shipped / control |
+|---|---|---|
+| `architecture:map-data` | discovery, visualization | 18/18 / 18/18 |
+| `architecture:map-events` | discovery, event-storming, visualization | 18/18 / 18/18 |
+| `architecture:map-flow` | debugging, discovery, visualization | 18/18 / 18/18 |
+| `architecture:map-deployment` | discovery, visualization | 18/18 / 18/18 |
+
+All four are unmeasurable, so they keep the before text. What makes the control fire was not
+tested: the listing always keeps a skill's name, which the generic description leaves in place.
+
 ## Outside the marketplace checkout
 
 The shipped seed probes name skills of this marketplace checkout (`plugins/skill-quality/...`

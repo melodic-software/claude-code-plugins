@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.4.1] - 2026-11-04
+
+### Changed
+
+- Shared `reference/rendered-view.md` synced where this plugin carries it ([#12732](https://github.com/melodic-software/claude-code-plugins/issues/12732)): it now lists debugging as a resolver lane beside planning; no other change to this plugin.
+
 ## [1.4.0] - 2026-11-04
 
 ### Added
