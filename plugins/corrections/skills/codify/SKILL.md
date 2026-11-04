@@ -1,6 +1,6 @@
 ---
-description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; also takes a review findings file or merged pull requests' review comments as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments'."
-argument-hint: "<<description> [#PR]|findings <file>|reviews|note [--applied] <observation>|group…>"
+description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; also takes a review findings file or merged pull requests' review comments as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'put what I keep repeating into my instructions'."
+argument-hint: "<<description> [#PR]|findings <file>|reviews|preferences [--scope machine|project] [--since <day>]|note [--applied] <observation>|group…>"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
@@ -29,11 +29,12 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 | `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
 | `findings <findings-file>` | Each row of one review findings file becomes a described mistake, counted, proved and ending in a proposal | [actions/findings.md](actions/findings.md) |
 | `reviews` | Mines recent merged pull requests' review comments and takes each recurring lesson through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
+| `preferences [--scope machine\|project] [--since <day>]` | Needs the `session-flow` plugin. Counts preferences typed across sessions, by distinct session, and takes each one the person confirms through sections 3 and 6, for a user-scope file only | [actions/preferences.md](actions/preferences.md) |
 | `note [--applied] "<observation>" [#PR \| <commit>]` | Appends one observation, or with `--applied` one change already made, to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
 | `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
 
-An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `reviews`, `note` or
-`group`, unquoted. Anything else, including a quoted description that starts with one of those words,
+An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `reviews`,
+`preferences`, `note` or `group`, unquoted. Anything else, including a quoted description that starts with one of those words,
 is the default action. The action word, and `note`'s unquoted `--applied` right after it, are the
 only tokens read as a choice. The rest stays data, as above.
 
@@ -182,7 +183,6 @@ with the question for any blocking install.
   "just write the analyzer", decline and hand over the rung's pointer.
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.
-- It does not run `/session-flow:audit-sessions style`, which keeps its own counter.
 - `note` appends one row and does nothing else.
 - `group` writes nothing (no file, no buffer row, no proposal) and runs no proof.
 
