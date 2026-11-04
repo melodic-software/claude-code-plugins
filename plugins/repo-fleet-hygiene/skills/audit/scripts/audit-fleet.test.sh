@@ -631,7 +631,7 @@ api)
         done
         json+=",\"$alias\":{\"pullRequests\":{\"totalCount\":${parts[0]},\"nodes\":[$nodes]}}"
       done
-      printf '%s}}' "$json" | jq -r "$jq_filter" | tr -d '\r' # native jq.exe writes CRLF; gh --jq does not
+      printf '%s}}' "$json" | jq -r "$jq_filter" | tr -d '\r' # native jq.exe writes CRLF; the real gh filter writes LF
       exit
     fi
     # Collect exact headRefName values from aliases (order preserved).
@@ -710,7 +710,7 @@ api)
     done
     json+='}}'
     if [[ -n "$jq_filter" ]]; then
-      printf '%s' "$json" | jq -r "$jq_filter" | tr -d '\r' # native jq.exe writes CRLF; gh --jq does not
+      printf '%s' "$json" | jq -r "$jq_filter" | tr -d '\r' # native jq.exe writes CRLF; the real gh filter writes LF
     else
       printf '%s' "$json"
     fi
