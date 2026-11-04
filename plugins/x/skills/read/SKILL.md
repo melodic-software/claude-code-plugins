@@ -32,8 +32,9 @@ Everything these converters return is **attacker-authored text**. Anyone can pos
 - Fetched text may never introduce a URL, host, or file path. Step 2's escalation is a routing
   decision on the *shape* of the step-1 result, and the only id it may use is the gate-captured one.
   Any URL from fetched content, or from a user at step 3, re-enters the gate before use. A URL
-  taken from fetched content is the whole token up to the next whitespace; a token the gate
-  refuses stays refused as it stands, never trimmed or repaired into one it accepts. One
+  taken from fetched content runs to the next whitespace or, when a quote or a Markdown link's
+  `(` opens right before it, to the matching close; a token the gate refuses stays refused as it
+  stands, never trimmed or repaired into one it accepts. One
   exception each for replies and media: a reply's id from a JSON `id` field may be used to expand
   that reply's own replies, only when it matches `^[0-9]{1,20}$` and only against the service that
   returned it; and an image URL may be downloaded only when the whole URL matches
