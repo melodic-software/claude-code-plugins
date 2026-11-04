@@ -3384,7 +3384,12 @@ match the filed sub-issues; a split by hand when its body has a task list whose 
 cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
 work, unless a split record took it because the comment was last written before the record. A
 parent left open goes through admission's rules like any issue, and a Size Large one is refused
-with `SIZE_SPLIT_DONE`.
+with `SIZE_SPLIT_DONE`, except a finished parent: every sub-issue closed as completed by a close
+`subIssueLeftOpen` accepts (`admit.mjs` `finishedParent`). Admission takes that one at any Size
+for one issue-lane run that checks the parent's own done-when and closes it `verified-done` or
+parks it `verify-unmet` (`.github/scripts/work-resolve-issue/stop-routes.json`), and work-unblock
+sends one already parked on `SIZE_SPLIT_DONE` back to intake once its sub-issues finish
+(`label-unblocked.mjs` `reenterFinished`).
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
