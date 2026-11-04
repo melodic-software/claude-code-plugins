@@ -306,6 +306,9 @@ updates:
   # The explainer-video plugin's hash-locked Python packages (ManimCE). Nothing is vendored:
   # the SessionStart hook installs requirements.txt on demand
   # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
+  # Version updates skip manim, so bump it by hand with Rule P1's command. Dependabot's pip-compile
+  # cannot resolve it: manimpango has no Linux wheel, and building its metadata needs pangocairo.
+  # update-types leaves security updates on; a bare ignore would stop those too.
   - package-ecosystem: pip
     directory: /plugins/explainer-video
     labels:
@@ -315,6 +318,12 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 3
+    ignore:
+      - dependency-name: "manim"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     groups:
       pip-minor-patch:
         patterns:
