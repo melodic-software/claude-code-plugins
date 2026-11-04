@@ -7,6 +7,7 @@ import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
+import { budgetedFetch } from "./request-budget.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1249,13 +1250,76 @@ test("a permission read whose fetch fails names the call, and a 404 is still non
   assert.equal(await api.getPermission("someone"), "none");
 });
 
-test("a token real fetch refuses as a header value never reaches the annotation or a logged message", async () => {
-  const secret = "ghs_" + "T".repeat(36);
-  const token = `${secret}\nx`;
-  const api = createGitHubApi({ token, repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: globalThis.fetch });
-  const error = await api.getPermission("someone").then(() => assert.fail("the read resolved"), (thrown) => thrown);
-  assert.equal(error.message, 'Headers.append: "Bearer [redacted]" is an invalid header value.');
-  assert.equal(failureAnnotation(error, token), `::error::pr-feedback dispatch failed: Headers.append: "Bearer [redacted]" is an invalid header value. on GET https://api.example/repos/${REPOSITORY}/collaborators/someone/permission`);
+// Real fetch, which refuses the header before any network: it strips trailing
+// whitespace from what it quotes, so these tokens differ from the quoted text.
+const ILLEGAL_TOKENS = ["secret\nx", "secret\nx\n", "secret\nx "];
+
+test("a token real fetch refuses as a header value leaves nothing of it in the error or the annotation", async () => {
+  const call = `GET https://api.example/repos/${REPOSITORY}/collaborators/someone/permission`;
+  for (const token of ILLEGAL_TOKENS) {
+    const api = createGitHubApi({ token, repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: globalThis.fetch });
+    const error = await api.getPermission("someone").then(() => assert.fail("the read resolved"), (thrown) => thrown);
+    const annotation = failureAnnotation(error, token);
+    for (const text of [error.message, String(error.stack), annotation]) {
+      assert.ok(!text.includes("secret"), JSON.stringify(token));
+    }
+    assert.ok(error.message.includes(call), error.message);
+    assert.ok(annotation.includes(call), annotation);
+    assert.ok(annotation.includes("not a valid header value"), annotation);
+  }
+});
+
+test("a run on such a token writes it to no log line, on a review's run and on a sweep tick", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  for (const token of ILLEGAL_TOKENS) {
+    for (const run of [upstreamRun(), TICK]) {
+      const lines = [];
+      const env = { GITHUB_TOKEN: token, GITHUB_API_URL: "https://api.example", GITHUB_GRAPHQL_URL: "https://api.example/graphql", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: output, GITHUB_EVENT_PATH: eventFile(dir, run), APP_SENDER_ID: String(APP_ID), TRUSTED_ACTORS: noActors(dir) };
+      // The slot resolver's own client, which send does not wrap, is never reached.
+      let resolved = 0;
+      const resolveSlot = async () => {
+        resolved += 1;
+        return resolvedLane();
+      };
+      await main(env, { resolveSlot, log: (line) => lines.push(line) }).catch((error) => lines.push(failureAnnotation(error, token)));
+      assert.equal(resolved, 0);
+      assert.ok(lines.length > 0, "the run reports the failure");
+      assert.ok(!lines.join("\n").includes("secret"), lines.join("\n"));
+    }
+  }
+});
+
+test("send redacts the exact header in any other message and leaves a network error as it came", async () => {
+  const lost = new TypeError("fetch failed", { cause: Object.assign(new Error("reset"), { code: "ECONNRESET" }) });
+  const answers = [new TypeError("refused Bearer abc here"), lost];
+  const fetch = async () => {
+    throw answers.shift();
+  };
+  const api = createGitHubApi({ token: "abc", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  const refused = await api.getPermission("someone").then(() => assert.fail("the read resolved"), (thrown) => thrown);
+  assert.equal(refused.message, "refused Bearer [redacted] here");
+  // connectionLost reads this name, message and cause code.
+  const dropped = await api.dispatchWorkflow({ workflow: "pr-unblock.yml", ref: "main", inputs: {} }).then(() => assert.fail("the dispatch resolved"), (thrown) => thrown);
+  assert.equal(dropped, lost);
+  assert.deepEqual([dropped.name, dropped.message, dropped.cause.code], ["TypeError", "fetch failed", "ECONNRESET"]);
+});
+
+test("a read that loses its socket is still sent again under the send path", async () => {
+  let attempts = 0;
+  const raw = async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      throw new TypeError("fetch failed", { cause: Object.assign(new Error("reset"), { code: "ECONNRESET" }) });
+    }
+    return new Response(JSON.stringify({ permission: "write" }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const { fetch } = budgetedFetch({ fetch: raw, sleep: async () => {}, log: () => {} });
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  assert.equal(await api.getPermission("someone"), "write");
+  assert.equal(attempts, 2);
 });
 
 test("the annotation redacts the token from any error's message and stays one line", () => {

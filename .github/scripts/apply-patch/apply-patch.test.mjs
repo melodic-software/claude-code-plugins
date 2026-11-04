@@ -1704,6 +1704,14 @@ test("a 422 on a moved branch keeps GitHub's refusal on the superseded line, wha
   assert.match(lines[0], /superseded \(.*returned 422: \{"message":"Repository rule violations found"\}\)$/);
 });
 
+test("the superseded line redacts the token and any credential shape in GitHub's message", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const lines = [];
+  const api = refusedWrite(fix, [fix.head, "e".repeat(40)], 422, `refused lane-token ${"github_pat_" + "a".repeat(30)}`);
+  assert.deepEqual(await ciPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "superseded" });
+  assert.deepEqual(lines, [`the PR branch moved from ${fix.head} to ${"e".repeat(40)}; the patch is superseded (PATCH git/refs/heads/feat/x returned 422: {"message":"refused [redacted] [redacted]"})`]);
+});
+
 test("a re-read with no usable SHA is a failed re-read: the 422 stays red, and a ready check stays red", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
   for (const tip of [undefined, "", "not-a-sha"]) {

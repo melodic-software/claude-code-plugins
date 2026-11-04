@@ -1442,15 +1442,20 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  // A network error names no call; the annotation needs which one failed. A
-  // token that is no legal header value comes back quoted in the error, whose
-  // message the warnings log too.
+  // A network error names no call; the annotation needs which one failed. Fetch
+  // quotes a token that is no legal header value in its error, altered enough
+  // that matching the token misses it, so nothing of that error is kept. The
+  // warnings log a thrown message too.
   const send = (url, init) =>
     fetch(url, init).catch((error) => {
+      const call = `${init.method ?? "GET"} ${url}`;
+      if (/invalid header value/i.test(String(error.message))) {
+        throw new Error(`${call}: the token is not a valid header value`);
+      }
       if (String(error.message).includes(headers.Authorization)) {
         error.message = error.message.split(headers.Authorization).join("Bearer [redacted]");
       }
-      throw Object.assign(error, { call: `${init.method ?? "GET"} ${url}` });
+      throw Object.assign(error, { call });
     });
 
   async function request(url, method = "GET", body, signal) {
