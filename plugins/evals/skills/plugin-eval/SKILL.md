@@ -296,10 +296,14 @@ Read in this order. Stopping early at any step is the finding.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
-   for a plugin file it could not read, so the fact belongs in the hub. The exceptions that turn a
+   for a plugin file it could not read, so the fact belongs in the hub. So is a with-arm Bash call
+   whose result reports a sandbox network denial (Sources: sandbox network denial report), whose
+   hosts the summary names: the score measured a blocked request. Only an invocation probe, a
+   control, or a case whose `prompt.md` tags include `no-network` turns it into a warning; a
+   without-arm one is not read. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
-   probe's denial; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control), Bash denial paths, A/B gating,
+   probe's denial; a sandbox network denial in an invocation probe, control or `no-network` case; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control), Bash denial paths, A/B gating,
    the 0-turn `context: fork` run the gate passes, and invocation-probe misses and tools: [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
@@ -465,6 +469,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Sandbox backend table and the no-backend refusal | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); plugin-evals platform notes | 2026-10-04 | Either names a Windows backend, or adds or drops a package or WSL note |
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | `eval_tmpdir` 24-character bound and its refusal | [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) `sun_path`; sandbox-runtime's bridge sockets and the 63- and 24-character pair in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start) | 2026-10-31 | sandbox-runtime renames its bridge sockets, a release note touches `plugin eval` sandbox paths or `TMPDIR`, or a `<dir>` within the bound fails with the bridge-socket error |
+| Sandbox network denial report, read by the permission denials check | [Sandboxing, The unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing#the-unsandboxed-retry-escape-hatch) says only that the result names the denied host; no page documents the report's format, observed in a with-arm Bash result on Claude Code 2.1.317 (issue #12988), its shape kept in `scripts/fixtures/run-validity/traces/network-denied.jsonl` | 2026-11-04 | That page documents the violation report, a release note touches sandbox violation reporting, or a kept trace shows a network denial the check missed |
 | Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
 | Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.316 ([records.md](reference/records.md#worktrees)) | 2026-10-31 | A release note touches worktree isolation or `plugin eval` |
