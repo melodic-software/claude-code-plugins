@@ -2377,7 +2377,7 @@ elif [[ -z "$DMI_BOOL" ]]; then
   if [[ "$DMI_TRIMMED" == \"*\" || "$DMI_TRIMMED" == \'*\' ]]; then
     err "disable-model-invocation is the quoted string $DMI_TRIMMED — YAML reads that as a string, not a boolean; write it unquoted as true or false"
   else
-    err "disable-model-invocation is '$DMI_TRIMMED' — expected the boolean true or false"
+    err "disable-model-invocation is '$DMI_TRIMMED' — expected a boolean: true, yes, on or 1, or false, no, off or 0"
   fi
 elif [[ "$DMI_BOOL" == "true" ]]; then
   if [[ "$SKILL_NAME" == "setup" ]]; then

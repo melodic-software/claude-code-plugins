@@ -3413,7 +3413,7 @@ None known.
 '
 out="$(run dmi-split-value 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'expected the boolean true or false' <<<"$out"; then
+if [[ $rc -eq 1 ]] && grep -q 'expected a boolean: true, yes, on or 1, or false, no, off or 0' <<<"$out"; then
   pass "internal whitespace is not collapsed into a passing boolean"
 else
   fail "internally-spaced value should fail (rc=$rc): $out"
