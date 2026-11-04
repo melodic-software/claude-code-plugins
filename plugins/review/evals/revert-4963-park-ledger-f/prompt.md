@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/playground-pilot-user-run.md:1,3,5-8,10-17,19,21-24,26-36,38,40-43,45,47-48,50,52-53. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/playground-pilot-user-run.md lines 1,3,5-8,10-17,19,21-24,26-36,38,40-43,45,47-48,50,52-53. Its other findings are recorded, not graded"
 ---
 
 /review:code-review

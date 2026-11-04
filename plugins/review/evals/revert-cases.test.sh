@@ -77,7 +77,7 @@ expect "$(same "$case_out" "$case_dir")" "build prints the case directory"
 yaml="$(cat "$case_dir/case.yaml")"
 expect "$(has "# revert: #4 $D" "$yaml")" "case.yaml records the revert"
 expect "$(has "# pr: melodic-software/claude-code-plugins#2 (merged as $B)" "$yaml")" "case.yaml records the original"
-expect "$(has "app.sh:2-3" "$yaml")" "case.yaml records the reverted lines"
+expect "$(has "app.sh lines 2-3" "$yaml")" "case.yaml records the reverted lines"
 expect "$(has "confirmed-by: pending" "$yaml")" "case.yaml leaves the confirmation pending"
 expect "$(has "PR NUMBER: 2" "$(cat "$case_dir/prompt.md")")" "prompt names the original pull request"
 

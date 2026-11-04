@@ -214,7 +214,7 @@ build() {
 
   while IFS=$'\t' read -r path nums; do
     alt+="${alt:+|}(?<![\\w.-])$(basename "$path" | sed 's/[][\\.*^$+?(){}|]/\\&/g')\`?(?::L?|#L|,? \\(?lines? )(?:${nums//,/|})(?!\\d)"
-    where+="${where:+; }$path:$(ranges "$nums")"
+    where+="${where:+; }$path lines $(ranges "$nums")"
   done <<<"$lines"
 
   {

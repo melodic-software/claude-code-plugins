@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/context-budget-unpaid-measurements.md:1,3,5-7,9-17,19,21-26,28,30-32,34,36-37. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/context-budget-unpaid-measurements.md lines 1,3,5-7,9-17,19,21-26,28,30-32,34,36-37. Its other findings are recorded, not graded"
 ---
 
 /review:code-review

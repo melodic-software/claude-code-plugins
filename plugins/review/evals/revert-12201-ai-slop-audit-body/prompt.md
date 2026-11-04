@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: plugins/ai-slop/skills/audit/SKILL.md:42-43,45,48-49,96-112,128-135,274-288. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: plugins/ai-slop/skills/audit/SKILL.md lines 42-43,45,48-49,96-112,128-135,274-288. Its other findings are recorded, not graded"
 ---
 
 /review:code-review

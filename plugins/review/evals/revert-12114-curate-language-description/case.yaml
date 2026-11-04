@@ -3,7 +3,7 @@
 # base: 636da980cf1d01781aa5b1e7caf071cad0500ee1
 # revert: #12247 bee196a5e2fda2c0ab61300b15142353364e8a9b
 # lines: at the merge, the lines the pull request added that the revert removed:
-#   plugins/domain-driven-design/skills/curate-language/SKILL.md:2
+#   plugins/domain-driven-design/skills/curate-language/SKILL.md lines 2
 # confirmed-by: verifier agent, every listed line blamed over PR^..revert^ to this PR and removed by the revert; revert diff read, compared with the original's by script
 # rebuilt: only the files above, at base and merge.
 schema_version: "1.1"

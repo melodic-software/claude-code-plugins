@@ -3,7 +3,7 @@
 # base: e917a479e2e3f7bc5c1587a1bda2e2157deea80a
 # revert: #6544 73f5de8576b7773929261f67461896648e51a6cc
 # lines: at the merge, the lines the pull request added that the revert removed:
-#   lib/docs-lookup-procedure.md:61-64; plugins/discipline/reference/docs-lookup-procedure.md:64-67; plugins/discovery/reference/docs-lookup-procedure.md:64-67; plugins/harness-memory/reference/docs-lookup-procedure.md:64-67; plugins/instruction-placement/reference/docs-lookup-procedure.md:64-67; plugins/knowledge/reference/docs-lookup-procedure.md:64-67; plugins/plugin-quality/reference/docs-lookup-procedure.md:64-67
+#   lib/docs-lookup-procedure.md lines 61-64; plugins/discipline/reference/docs-lookup-procedure.md lines 64-67; plugins/discovery/reference/docs-lookup-procedure.md lines 64-67; plugins/harness-memory/reference/docs-lookup-procedure.md lines 64-67; plugins/instruction-placement/reference/docs-lookup-procedure.md lines 64-67; plugins/knowledge/reference/docs-lookup-procedure.md lines 64-67; plugins/plugin-quality/reference/docs-lookup-procedure.md lines 64-67
 # confirmed-by: verifier agent, every listed line blamed over PR^..revert^ to this PR and removed by the revert; revert diff read, compared with the original's by script
 # rebuilt: only the files above, at base and merge.
 schema_version: "1.1"

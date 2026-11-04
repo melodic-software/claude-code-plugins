@@ -3,7 +3,7 @@
 # base: 4189cc4dcdf0ce971c10eb55e2324d717bdbde14
 # revert: #12235 444ef9e12b5afdf796e8861f6bc69b4529e0ac2e
 # lines: at the merge, the lines the pull request added that the revert removed:
-#   plugins/naming/skills/name-it-better/SKILL.md:2
+#   plugins/naming/skills/name-it-better/SKILL.md lines 2
 # confirmed-by: verifier agent, every listed line blamed over PR^..revert^ to this PR and removed by the revert; revert diff read, compared with the original's by script
 # rebuilt: only the files above, at base and merge.
 schema_version: "1.1"

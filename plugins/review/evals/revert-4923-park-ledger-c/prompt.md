@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/doc-fetcher-fleet-adoption.md:1,3-6,8,10,12-17,19-31,33,35-40,42,44-46,48,50. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/doc-fetcher-fleet-adoption.md lines 1,3-6,8,10,12-17,19-31,33,35-40,42,44-46,48,50. Its other findings are recorded, not graded"
 ---
 
 /review:code-review

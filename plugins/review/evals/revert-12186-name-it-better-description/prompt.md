@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: plugins/naming/skills/name-it-better/SKILL.md:2. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: plugins/naming/skills/name-it-better/SKILL.md lines 2. Its other findings are recorded, not graded"
 ---
 
 /review:code-review

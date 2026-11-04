@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: lib/docs-lookup-procedure.md:61-64; plugins/discipline/reference/docs-lookup-procedure.md:64-67; plugins/discovery/reference/docs-lookup-procedure.md:64-67; plugins/harness-memory/reference/docs-lookup-procedure.md:64-67; plugins/instruction-placement/reference/docs-lookup-procedure.md:64-67; plugins/knowledge/reference/docs-lookup-procedure.md:64-67; plugins/plugin-quality/reference/docs-lookup-procedure.md:64-67. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: lib/docs-lookup-procedure.md lines 61-64; plugins/discipline/reference/docs-lookup-procedure.md lines 64-67; plugins/discovery/reference/docs-lookup-procedure.md lines 64-67; plugins/harness-memory/reference/docs-lookup-procedure.md lines 64-67; plugins/instruction-placement/reference/docs-lookup-procedure.md lines 64-67; plugins/knowledge/reference/docs-lookup-procedure.md lines 64-67; plugins/plugin-quality/reference/docs-lookup-procedure.md lines 64-67. Its other findings are recorded, not graded"
 ---
 
 /review:code-review

@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/provenance-repo-wide-sweep.md:1,3,5-10,12-18,20,22-26,28,30-34,36,38-43,45,47-50,52,54-56. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/provenance-repo-wide-sweep.md lines 1,3,5-10,12-18,20,22-26,28,30-34,36,38-43,45,47-50,52,54-56. Its other findings are recorded, not graded"
 ---
 
 /review:code-review

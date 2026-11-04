@@ -5,7 +5,7 @@ runs: 1
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/audit-enforceability-unicode-normalization.md:1,3,5-9,11-19,21,23-26,28-29,31-34,36-37,39,41-44,46,48-53,55,57-59,61,63-64. Its other findings are recorded, not graded"
+expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/audit-enforceability-unicode-normalization.md lines 1,3,5-9,11-19,21,23-26,28-29,31-34,36-37,39,41-44,46,48-53,55,57-59,61,63-64. Its other findings are recorded, not graded"
 ---
 
 /review:code-review
