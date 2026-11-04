@@ -6,6 +6,7 @@
   "fail": [
     {"answer": ""},
     {"answer": "Move the C# conventions into .claude/rules/csharp.md.", "why": "no glob, so the move saves nothing"},
-    {"answer": "Scope it with `*.cs` at the root.", "why": "a root-only glob that matches no file here"}
+    {"answer": "Scope it with `*.cs` at the root.", "why": "a root-only glob that matches no file here"},
+    {"answer": "Scope it with `src/*.cs`.", "why": "a src-only glob that matches no file here, since both files sit under src/Orders/"}
   ]
 }
