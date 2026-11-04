@@ -1750,9 +1750,6 @@ jobs:
         id: exec_bit
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
-        with:
-          # The review revert cases' fixtures are .txt byte copies of history, never run in place.
-          paths: ". :(exclude)plugins/review/evals/revert-*/fixtures/*"
 
       - name: Check for machine-specific paths
         id: machine_paths

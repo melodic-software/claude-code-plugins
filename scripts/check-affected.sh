@@ -371,8 +371,6 @@ for f in ${changed[@]+"${changed[@]}"}; do
   *.py) py+=("$f") ;;
   *) ;;
   esac
-  # The same exclusion as the exec-bit step's paths in pr-require-checks.yml.
-  [[ "$f" == plugins/review/evals/revert-*/fixtures/* ]] && continue
   [[ -f "$f" && "$(head -c 2 "$f")" == '#!' ]] && shebang+=("$f")
 done
 while IFS= read -r f; do
