@@ -217,6 +217,24 @@ commands instead (see the docs). Write injection commands portably, or declare `
 explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host, and pick a
 `|| echo` fallback that is valid in the shell that will run it.
 
+Grant a `shell: powershell` injection with a `PowerShell(...)` rule, not a `Bash(...)` rule. A
+headless probe in default permission mode on native Windows injected a command that needs approval:
+it was refused with no grant and with a `Bash(<cmd> *)` grant, and it passed the permission check
+with a `PowerShell(<cmd> *)` grant. The probe set `shell: powershell` explicitly; it did not cover a
+skill that reaches the PowerShell tool because bash is unavailable.
+
+- **Pointer**: when deciding which rule form grants a PowerShell-run injection, read the probe table
+  in [the probe record](https://github.com/melodic-software/claude-code-plugins/issues/6871#issuecomment-6632286031)
+  and rerun it on the current release; for the rule syntax, fetch
+  [PowerShell permission rules](https://code.claude.com/docs/en/permissions#powershell) live; for
+  how the render treats a permission check result, fetch
+  [Permission checks on injected commands](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)
+  live.
+- **As of**: 2026-11-04 (Claude Code 2.1.316)
+- **Recheck trigger**: a Claude Code release note changes how a `shell: powershell` injection is
+  permission-checked, or the Permission checks on injected commands section starts naming which rule
+  form covers a PowerShell-run injection.
+
 ## Mechanics not to get wrong (pointers, not copies)
 
 - **Single pass.** Substitution runs once over the file; injected output is inserted as plain
