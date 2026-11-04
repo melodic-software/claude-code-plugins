@@ -59,16 +59,19 @@ assert_absent() {
   esac
 }
 
+# --config reads one JSON document as given, so each fixture gets its own copy
+# of the fixture configuration beside it (<fixture>.json); cases edit that copy.
 new_fixture() {
   d="$TEST_TMPDIR/fx-$CASES-$RANDOM"
   bash "$BUILD" "$d" >/dev/null
+  cp "${BUILD%/*}/config.json" "$d.json"
   printf '%s' "$d"
 }
 
 emit() {
   root="$1"
   shift
-  bash "$SUT" --root "$root" --config "$root/.claude/docs-naming.json" "$@" 2>&1
+  bash "$SUT" --root "$root" --config "$root.json" "$@" 2>&1
 }
 
 # --- emission ----------------------------------------------------------------
@@ -182,8 +185,8 @@ fi
 
 root="$(new_fixture)"
 jq '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**"]}]' \
-  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  "$root.json" >"$root.t.json"
+mv "$root.t.json" "$root.json"
 out="$(emit "$root" --rule)"
 assert_contains "a root object emits" "$out" "EMITTED	scripts/check-file-names.sh"
 assert_contains "the rule lists the root's extension glob" "$(cat "$root/.claude/rules/file-names.md")" "paths: docs/**, **/*.[mM][dD]"
@@ -225,8 +228,8 @@ assert_eq "the emitted suite passes under a root object" "0" "$?"
 # probes it claims.
 root="$(new_fixture)"
 jq '.file_names.roots = [{"path": "docs", "extensions": ["rst"]}]' \
-  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  "$root.json" >"$root.t.json"
+mv "$root.t.json" "$root.json"
 out="$(emit "$root")"
 assert_contains "an rst-only root emits" "$out" "EMITTED	scripts/check-file-names.sh"
 out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
@@ -238,8 +241,8 @@ assert_eq "the emitted suite passes under an rst-only root" "0" "$?"
 for ex in '**/zzz/**' '**/fixtures/**'; do
   root="$(new_fixture)"
   jq --arg ex "$ex" '.file_names.roots += [{"path": "tools", "extensions": ["md"], "exempt_paths": [$ex]}]' \
-    "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+    "$root.json" >"$root.t.json"
+  mv "$root.t.json" "$root.json"
   emit "$root" >/dev/null
   nested="$TEST_TMPDIR/nested-$RANDOM"
   mkdir -p "$nested/scripts" "$nested/tools/fixtures" "$nested/docs"
@@ -261,8 +264,8 @@ done
 for bad in '{"path": ".", "extensions": ["m]d"]}' '{"path": "a\nb"}' '{"path": "../x"}' \
   '{"path": ".", "exempt_paths": ["/abs/**"]}' '{"path": "docs", "exempt_paths": ["docs/../../x"]}'; do
   root="$(new_fixture)"
-  jq --argjson r "$bad" '.file_names.roots += [$r]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  jq --argjson r "$bad" '.file_names.roots += [$r]' "$root.json" >"$root.t.json"
+  mv "$root.t.json" "$root.json"
   emit "$root" >/dev/null
   assert_eq "a root the gate cannot carry is refused ($bad)" "2" "$?"
 done
@@ -271,8 +274,8 @@ done
 # run the rest as shell in the emitted checker.
 for filter in '.file_names.regex += "\ntouch PWNED #"' '.file_names.rule += "\ntouch PWNED #"'; do
   root="$(new_fixture)"
-  jq "$filter" "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
-  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  jq "$filter" "$root.json" >"$root.t.json"
+  mv "$root.t.json" "$root.json"
   emit "$root" >/dev/null
   assert_eq "a newline in the config is refused ($filter)" "2" "$?"
 done
@@ -326,7 +329,7 @@ assert_absent "the overwritten file is the freshly rendered one" \
 # hostile <root> <jq-filter> <arg-value> : write a variant config, print its path
 hostile() {
   out="$TEST_TMPDIR/hostile-$CASES-$RANDOM.json"
-  jq --arg v "$3" "$2" "$1/.claude/docs-naming.json" >"$out"
+  jq --arg v "$3" "$2" "$1.json" >"$out"
   printf '%s' "$out"
 }
 

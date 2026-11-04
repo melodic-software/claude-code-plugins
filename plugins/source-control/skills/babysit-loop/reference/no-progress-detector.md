@@ -35,8 +35,7 @@ itself.
 ## Threshold
 
 `babysit_loop_no_progress_threshold` in the layered config, its team value read from
-`docs/conventions/source-control.yaml` and, for one release, from the `.claude/source-control.md`
-H2 when the YAML lacks it (key table in `SKILL.md`'s config reference; default 3).
+`docs/conventions/source-control.yaml` (key table in `SKILL.md`'s config reference; default 3).
 
 ## Stall escalation
 

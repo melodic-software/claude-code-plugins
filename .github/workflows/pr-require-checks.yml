@@ -1130,7 +1130,6 @@ jobs:
               **/*.sh
               **/*.bash
               plugins/docs-naming/skills/generate-file-name-gate/**
-              .claude/docs-naming.json
               docs/conventions/docs-naming.yaml
             python:
               .github/**
@@ -5212,7 +5211,6 @@ jobs:
             /.github/scripts/pr-merge/merge-holds.mjs
             /docs/conventions/pr-pipeline.yaml
             /docs/conventions/source-control.yaml
-            /.claude/source-control.md
             /.github/scripts/pr-merge/clear-escalations.mjs
             /.github/scripts/pr-merge/enable-auto-merge.mjs
             /.github/scripts/pr-unblock/address-feedback.mjs

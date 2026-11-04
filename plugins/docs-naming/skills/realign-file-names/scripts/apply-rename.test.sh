@@ -478,7 +478,7 @@ case_unresolvable_regenerator() {
   plan="$root/.audit/plan.md"
   id="$(id_for "$plan" docs/Alpha-One.md)"
   accept "$plan" "$id"
-  inplace "$root/.claude/docs-naming.json" 's|bash tools/gen.sh .|bash tools/does-not-exist.sh .|'
+  inplace "$root/docs/conventions/docs-naming.yaml" 's|bash tools/gen.sh .|bash tools/does-not-exist.sh .|'
   out="$(run --artifact "$plan" --id "$id" --root "$root")"
   rc=$?
 

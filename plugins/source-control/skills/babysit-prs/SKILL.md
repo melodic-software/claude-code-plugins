@@ -314,8 +314,7 @@ Seven rows are repository policy: `babysit_merge_method`, `babysit_merge_block_l
 `babysit_review_gate_context`, `babysit_ci_gateway_context`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`, and
 `babysit_skip_downgrade_logins`. Each PR's repository resolves them from its default branch's
-`docs/conventions/source-control.yaml` (for one release, the `.claude/source-control.md` H2 for a
-key it lacks), merged per key with the flag on its row by the modes in
+`docs/conventions/source-control.yaml`, merged per key with the flag on its row by the modes in
 [config-resolution.md](../../reference/config-resolution.md#babysit-prs-repository-policy-keys):
 hold lists union, `babysit_skip_downgrade_logins` is remove-only, and the rest take the repository
 value first. The flag is a deprecated fallback for every one of these except

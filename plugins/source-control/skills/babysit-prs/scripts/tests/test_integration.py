@@ -191,7 +191,7 @@ class FleetRunResolvesPolicyPerRepo(unittest.TestCase):
 
     def test_same_bot_approval_classifies_differently_per_repository(self):
         RepoConfigFake(
-            {"owner/strict": "## babysit_approval_downgrade_logins\n- claude\n"}
+            {"owner/strict": "babysit_approval_downgrade_logins:\n  - claude\n"}
         ).install(self)
         args = argparse.Namespace(owners="owner")
         base = snapshot_cli.build_config(args)

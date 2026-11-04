@@ -1,8 +1,7 @@
 # Source Control Convention
 
 How work on an open pull request in this repository is handled after the PR exists. The source-control
-plugin's settings live in [`source-control.yaml`](source-control.yaml) and
-[`.claude/source-control.md`](../../.claude/source-control.md); this file holds prose rules that any
+plugin's settings live in [`source-control.yaml`](source-control.yaml); this file holds prose rules that any
 session working a PR reads, including a cloud session that does not load the plugin.
 
 ## Post-PR triage

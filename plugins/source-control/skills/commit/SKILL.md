@@ -1,5 +1,5 @@
 ---
-description: "When the bundled commit skill or built-in commit-push-pr command resolves in this session, prefer the first only when none of this skill's contract (convention, trailer, surgical staging, pre-checks) is wanted and the second to commit, push, and open a PR at once; this skill for every other commit. Create a git commit with a subject matching the resolved convention (layered `source-control.md` config → project convention → Conventional Commits default), a Claude Co-authored-by trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message HINT', not for push, branch creation, or PR creation (use /pull-request)."
+description: "When the bundled commit skill or built-in commit-push-pr command resolves in this session, prefer the first only when none of this skill's contract (convention, trailer, surgical staging, pre-checks) is wanted and the second to commit, push, and open a PR at once; this skill for every other commit. Create a git commit with a subject matching the resolved convention (layered source-control config → project convention → Conventional Commits default), a Claude Co-authored-by trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message HINT', not for push, branch creation, or PR creation (use /pull-request)."
 argument-hint: "[message-hint]"
 user-invocable: true
 disable-model-invocation: false
@@ -30,22 +30,20 @@ Keep the `head` and `tail` pipes in the commands: they are the bound
 Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and overlay as not applicable, skip the three probes, and read user-global only ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
 
 The team value of the convention keys (`subject_pattern`, `type_list`, `trailer_policy`) comes from
-`docs/conventions/source-control.yaml`. Read it first, when it is git-tracked
-(`git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"`), through
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$ROOT" <key>`, which prints `yaml`,
-`legacy-md` or `none` for a key; `value` and `list` print the YAML's value. A key the YAML carries is
-authoritative for the team layer. Only a key it lacks is read from the legacy markdown layers below,
-the compatibility read kept for one release. Report which layer supplied each value.
+`docs/conventions/source-control.yaml`, read when probe 1 below reports it tracked, through
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$ROOT" <key>`, which prints `yaml` or
+`none` for a key; `value` and `list` print the YAML's value. The retired `.claude/source-control.md`
+is not read. Report which layer supplied each value.
 
-Then resolve the repo-scoped legacy markdown layers (the compatibility read) as separate calls. Each uses git's repo-root-relative
+Run the repo-scoped probes as separate calls. Each uses git's repo-root-relative
 magic pathspec `:/`, which resolves against the top of the working tree, so these are correct from
 any subdirectory and never need the repository root substituted into them. **Quote the pathspec**,
 the leading `:` is pathspec magic, and quoting keeps the shell from reinterpreting it.
 
-1. Legacy team layer, trackedness.
-   `git ls-files --error-unmatch -- ":/.claude/source-control.md"`
-2. Legacy team layer, existence.
-   `git ls-files --cached --others -- ":/.claude/source-control.md"`
+1. Team layer, trackedness.
+   `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"`
+2. Team layer, existence.
+   `git ls-files --cached --others -- ":/docs/conventions/source-control.yaml"`
 3. Personal overlay, existence.
    `git ls-files --cached --others -- ":/.claude/source-control.local.md"`
 
@@ -110,8 +108,7 @@ these failure modes:
 The subject convention (WHAT shape a subject must take) resolves via a ladder, checked in order:
 
 1. **The layered source-control convention config**. User-global, tracked team
-   (`docs/conventions/source-control.yaml`, then the legacy `source-control.md` for a key the YAML
-   lacks), and gitignored personal overlay, merged per key by
+   (`docs/conventions/source-control.yaml`), and gitignored personal overlay, merged per key by
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
    Resolve all three layers before using any value; a value from one layer alone is not the effective
    config. When any layer declares one, the effective `subject_pattern` (and `type_list`, when
@@ -359,7 +356,7 @@ first step. What each of the three surfaces does is in
 [reference/native-commit.md](reference/native-commit.md).
 
 **Routing.** Prefer this skill whenever it resolves and the repository carries a commit
-convention, a `source-control.md` layer is present, or a workflow composes `/source-control:commit`.
+convention, a source-control config layer is present, or a workflow composes `/source-control:commit`.
 When the bundled `commit` skill resolves in this session, prefer it only for a plain commit where
 none of this skill's contract is wanted. A request to commit, and nothing more, stays here even
 when `/commit-push-pr` resolves: that command also pushes and opens a PR, which

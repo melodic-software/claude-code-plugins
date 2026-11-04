@@ -18,11 +18,14 @@ if [[ "${2:-}" == "--variant" ]]; then
 fi
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../../../lib/layer-yaml.sh
+. "$here/../../../../lib/layer-yaml.sh"
 
 mkdir -p "$dest"
 cp -R "$here/tree/." "$dest/"
-mkdir -p "$dest/.claude"
-cp "$here/config.json" "$dest/.claude/docs-naming.json"
+# The team layer, rendered from config.json, the same document --config reads.
+mkdir -p "$dest/docs/conventions"
+layer_yaml_render "$(jq -c '.file_names' "$here/config.json")" >"$dest/docs/conventions/docs-naming.yaml"
 chmod +x "$dest/tools/gen.sh"
 
 case "$variant" in

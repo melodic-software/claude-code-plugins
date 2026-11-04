@@ -8,12 +8,12 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-mkdir -p .claude src
+mkdir -p docs/conventions src
 printf '.work/\n' > .gitignore
 printf 'export const toCsv = (rows) => rows.join("\\n");\n' > src/export.ts
 printf '# demo\n' > README.md
-printf '# source-control configuration\n\n## pr_body_required_sections\n\n- Summary\n- Verification\n' > .claude/source-control.md
-git add .gitignore .claude src README.md
+printf 'pr_body_required_sections:\n  - Summary\n  - Verification\n' > docs/conventions/source-control.yaml
+git add .gitignore docs src README.md
 git commit -q -m "chore: seed"
 
 git checkout -q -b feat/csv-download
