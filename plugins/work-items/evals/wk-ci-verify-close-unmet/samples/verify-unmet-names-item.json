@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"exit\": \"stopped\",\n  \"reason\": \"verify-unmet: docs/config.md does not document `retries`; sub-issue 812 closed without it.\",\n  \"title\": \"\"\n}",
+      "why": "the code, then the unmet item"
+    },
+    {
+      "answer": "{\n  \"exit\": \"stopped\",\n  \"reason\": \"verify-unmet: done-when item \\\"docs/config.md documents `retries`\\\" is not met.\"\n}",
+      "why": "an escaped quote inside the reason before the item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"exit\": \"stopped\",\n  \"reason\": \"docs/config.md does not document retries.\"\n}",
+      "why": "no code, so the lane cannot route it"
+    },
+    {
+      "answer": "{\n  \"exit\": \"stopped\",\n  \"reason\": \"verified-done: every sub-issue closed.\"\n}",
+      "why": "closed on the sub-issues alone"
+    },
+    {
+      "answer": "{\n  \"reason\": \"verify-unmet: one item lacks its doc.\",\n  \"summary\": \"retries is missing.\"\n}",
+      "why": "the reason names no item; retries sits only in a later field"
+    }
+  ]
+}

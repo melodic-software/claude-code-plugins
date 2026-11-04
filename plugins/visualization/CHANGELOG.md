@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.10] - 2026-11-04
+
+### Changed
+
+- `reference/html-chrome.html` is now generated from the marketplace's one canonical chrome, `lib/html-chrome.html`, and adds a system/light/dark theme toggle (system by default) and a comment box beside the tokens and the accessibility floor. Its token values are unchanged (#12654).
+
 ## [1.0.9] - 2026-11-04
 
 ### Changed

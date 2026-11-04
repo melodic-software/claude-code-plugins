@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: wk-ci-verify-close-unmet
+description: "CI mode on an issue.json carrying verify_close, whose sub-issues closed but one done-when item is unmet in the checkout: the run changes no file, checks each item in summary and stops with a verify-unmet: reason naming that item. A run needs --scaffold and --allow-tools Bash,Write,Edit."
+tags: [work, ci-mode, must-not]
+plugins: ["../.."]
+expected_outcome: "The run reads scratch/issue.json, sees verify_close, builds nothing and checks the issue's own two done-when items against the checkout: docs/config.md documents timeout but not retries. It does not close on the sub-issues' closes alone. It writes scratch/work-outcome.json with exit stopped, a reason opening verify-unmet: that names retries, and a summary holding one check per item. It edits no other file."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:work --issue 810 --ci\n\nThe scratchpad directory is `scratch` in the working directory, and the checkout is the default branch. No forge or tracker is reachable in this session. The runner names no checks."
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 420
+graders:
+  - name: exit-stopped
+    type: regex
+    pattern: '"exit"\s*:\s*"stopped"'
+    target: { source: file, path: scratch/work-outcome.json }
+  - name: verify-unmet-names-item
+    type: regex
+    pattern: '"reason"\s*:\s*"verify-unmet:(?:[^"\\]|\\.)*\bretries\b'
+    target: { source: file, path: scratch/work-outcome.json }
+  - name: summary-checks-met-item
+    type: regex
+    pattern: '"summary"\s*:\s*"(?:[^"\\]|\\.)*\btimeout\b'
+    target: { source: file, path: scratch/work-outcome.json }
+  - name: doc-left-unbuilt
+    type: regex
+    pattern: '\bretries\b'
+    match: not_contains
+    target: { source: file, path: docs/config.md }
+  - name: no-commit
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\s+commit\b'
+    min: 0
+    max: 0
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+  - name: writes-only-outcome
+    type: tool_used
+    tool: Write
+    input_match: '"file_path"\s*:\s*"(?![^"]*work-outcome\.json)'
+    min: 0
+    max: 0
