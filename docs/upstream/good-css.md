@@ -38,8 +38,9 @@ from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`,
 
 The 2026-10-18 re-audit moved the pin from `b645ab15b9fc` (`PRACTICES.md` blob `7d746e65`)
 to <!-- spellchecker:off -->`92d436ba1937`<!-- spellchecker:on --> (blob `b8a6cb6e`). The only change was to technique 7, `content-grid-with-breakouts`:
-upstream now says to use the grid as the container of every page, whether or not anything goes wider
-than the content, and adds a rule to replace each centered `max-width` wrapper with it. The
+upstream now makes the grid the outer layout on every page, including pages where nothing breaks out
+past the content column, and adds a rule that the grid takes the place of any centered `max-width`
+wrapper. The
 reference `layout.md` carries both; no credit changed.
 
 ## Drift check
