@@ -448,14 +448,20 @@ lib/prerequisites.ps1
 lib/prerequisites.ps1 -> plugins/*/lib/prerequisites.ps1
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/node-or-skip.sh and lib/node-or-skip.ps1, the stubs a SessionStart row
-# that launches through node runs, so it exits 0 when node is missing.
+# lib/node-or-skip.sh, the POSIX sh stub a SessionStart row that launches
+# through node runs, so it exits 0 when node is missing.
 lib/node-or-skip.sh
-lib/node-or-skip.ps1
 
-# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster lines for the
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/node-or-skip.sh -> plugins/*/lib/node-or-skip.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/node-or-skip.ps1, the same stub's PowerShell half.
+lib/node-or-skip.ps1
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
 lib/node-or-skip.ps1 -> plugins/*/lib/node-or-skip.ps1
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:

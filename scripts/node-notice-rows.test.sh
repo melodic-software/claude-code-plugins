@@ -32,7 +32,7 @@ carriers=()
 probes=()
 for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
-  jq -e '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("prerequisites.sh\" node-notice"))] | length > 0' "$hooks" >/dev/null && carriers+=("$plugin")
+  jq -e '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("prerequisites.sh"))] | length > 0' "$hooks" >/dev/null && carriers+=("$plugin")
   jq -e '[.hooks.SessionStart[]?.hooks[]? | select(((.args // [])[0] // "" | endswith("/lib/prerequisites.mjs")) and (.args[1] == "probe"))] | length > 0' "$hooks" >/dev/null && probes+=("$plugin")
 done
 if [[ "${carriers[*]}" == harness-ops ]]; then
