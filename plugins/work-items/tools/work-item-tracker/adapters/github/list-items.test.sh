@@ -43,6 +43,14 @@ EOF
     "$(jq -r '[.items[].created_at] | join(",")' <<<"$OUT")"
   assert_contains "createdAt is requested" "$(cat "$FIX/argv")" "url,createdAt"
 
+  # gh returns a milestone as an object or null; a row carries the title, the name a
+  # cordoned-milestones list holds.
+  OUT="$(PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="$(jq -cn --argjson a "$(row 1)" --argjson b "$(row 2)" \
+    '[$a + {milestone: {number: 1, title: "After zero", description: "d", dueOn: null}}, $b + {milestone: null}]')" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "each row carries its milestone title, or null" '["After zero",null]' "$(jq -c '[.items[].milestone]' <<<"$OUT")"
+  assert_contains "milestone is requested" "$(cat "$FIX/argv")" "createdAt,milestone"
+
   # --label goes to gh, so GitHub filters before the ceiling counts.
   : >"$FIX/argv"
   PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="[$(row 1)]" \
@@ -124,6 +132,11 @@ EOF
   # The label is a REST query parameter, so the 1000-result search cap does not apply.
   rest_list --label "area: ci" >/dev/null
   assert_contains "REST session: --label reaches the issues endpoint" "$(cat "$REST/argv")" "labels=area: ci"
+
+  jq -cn --argjson a "$(issue 1 0)" --argjson b "$(issue 2 0)" \
+    '[$a + {milestone: {number: 1, title: "After zero"}}, $b + {milestone: null}]' >"$REST/page-1.json"
+  assert_eq "REST session: each row carries its milestone title, or null" '["After zero",null]' \
+    "$(jq -c '[.items[].milestone]' <<<"$(rest_list)")"
 
   # A full page fetches the next; one row past the ceiling marks the listing truncated.
   # Each row carries a 2 KB body, so a page is past Linux's 128 KiB limit on one argument.

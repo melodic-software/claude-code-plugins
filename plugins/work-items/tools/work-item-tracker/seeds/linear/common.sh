@@ -538,7 +538,8 @@ readonly WIT_LINEAR_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
     parent_id: (if (.parent // null) == null then null
                 else qualify(.parent.team.key // ""; .parent.number) end),
     url: (.url // ""),
-    created_at: (.createdAt | wit_utc_ts)
+    created_at: (.createdAt | wit_utc_ts),
+    milestone: null
   }'
 
 # wit_linear_scope_parts <workspace/TEAM> — split a scope entry, setting

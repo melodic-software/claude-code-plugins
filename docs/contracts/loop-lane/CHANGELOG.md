@@ -12,8 +12,8 @@ Major: a loop-layer invariant changes (§4).
 - **The phase's zero and drain exits exclude cordoned milestones (§2, §4).** An issue in a milestone
   named by `cordoned-milestones` in `admission-rules.json` does not hold the throughput phase or a
   drain open, and a repository without that file cordons nothing. `/source-control:babysit-loop`
-  reads this from its snapshot. `/work-items:work-loop` applies it only once the tracker seam's rows
-  carry a milestone (#13252).
+  reads this from its snapshot, and `/work-items:work-loop` from the tracker seam's `milestone` on
+  each row, which only the GitHub adapter fills (#13252).
 - **Usage-credit consent is stated by launch shape (§3).** The known gap named every unattended lane;
   it now separates CI lanes from local `claude --bg` lanes, with its own upstream record.
 

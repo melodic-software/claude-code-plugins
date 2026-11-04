@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: wl-drain-cordoned-item-does-not-hold
-description: "A described drain snapshot whose rows carry a milestone, a shape the tracker seam does not emit yet: read-only tools, graded on the reply."
+description: "A described drain snapshot whose rows carry a milestone: read-only tools, graded on the reply."
 tags: [work-loop, snapshot, drain-exit]
 plugins: ["../.."]
 expected_outcome: "The snapshot reads are complete. #701's milestone is listed in cordoned-milestones in the target's admission-rules.json, so #701 is dropped from the exit evaluation. #702 is the only other retained id and is closed. The drain is complete: the lane writes its final report, applies the post-snapshot intake report, and stops cleanly, without holding the drain open for #701, escalating it, or working it."

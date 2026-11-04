@@ -332,5 +332,5 @@ wit_emit_local_item() {
     "$WIT_JQ_DEF_UTC_TS"'{schema_version: $sv, id: $id, title: $title, state: $state,
       assignees: $assignees, labels: $labels, type: $type, blocked_by_count: $count,
       blocked_by_wont_do_count: $wont_do, parent_id: $parent, url: $url,
-      created_at: ($created_at | wit_utc_ts)}'
+      created_at: ($created_at | wit_utc_ts), milestone: null}'
 }

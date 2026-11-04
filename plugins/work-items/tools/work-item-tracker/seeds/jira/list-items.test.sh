@@ -50,6 +50,7 @@ assert_eq "page-2 item blocked_by_count" "1" "$(jq -r '.items[1].blocked_by_coun
 assert_eq "page-2 item parent qualified" "jira:test.atlassian.net/ABC#1" "$(jq -r '.items[1].parent_id' <<<"$OUT")"
 assert_eq "created (local offset) becomes UTC created_at" "2026-01-02T08:04:05Z" "$(jq -r '.items[0].created_at' <<<"$OUT")"
 assert_eq "an issue without created reads created_at null" "null" "$(jq -c '.items[1].created_at' <<<"$OUT")"
+assert_eq "a row carries milestone as null" "true" "$(jq -c '.items[0] | has("milestone") and .milestone == null' <<<"$OUT")"
 assert_contains "the search asks for created" \
   "$(awk '/^--data$/{getline; print; exit}' "$JIRA_FIX/1.args" | jq -c '.fields')" '"created"'
 case "$OUT" in *$'\r'*) fail "stdout CR-free" "no CR" "CR present" ;; *) pass "stdout CR-free" ;; esac

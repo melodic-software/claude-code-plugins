@@ -63,7 +63,8 @@ if wit_gh_session_refuses_graphql; then
     page_len="$(jq 'length' <<<"$WIT_GH_OUT")" || exit "$EX_INTERNAL"
     rows="$(printf '%s\n%s' "$rows" "$WIT_GH_OUT" | jq -cs '.[0] + [.[1][] | select(has("pull_request") | not)
       | {number, title, state, assignees: [(.assignees // [])[] | {login}], labels: [(.labels // [])[] | {name}],
-        type: (.type | if . == null then null else {name} end), html_url, created_at, issue_dependencies_summary}]')" ||
+        type: (.type | if . == null then null else {name} end), html_url, created_at, issue_dependencies_summary,
+        milestone: (.milestone | if . == null then null else {title} end)}]')" ||
       exit "$EX_INTERNAL"
     ((page_len == 100 && $(jq 'length' <<<"$rows") <= limit)) || break
     page=$((page + 1))
@@ -83,12 +84,12 @@ if wit_gh_session_refuses_graphql; then
     jq -cs --arg sv "$WIT_SCHEMA_VERSION" --arg or "$target_repo" --argjson limit "$limit" \
       ".[0] as \$nodes | .[1] | {schema_version: \$sv, items: [.[:\$limit][] | {number, title, state, assignees, labels,
         issueType: .type, blockedBy: {nodes: (\$nodes[.number | tostring] // [])}, url: .html_url,
-        createdAt: .created_at} | $WIT_ITEM_JQ], truncated: (length > \$limit)}" || exit "$EX_INTERNAL"
+        createdAt: .created_at, milestone} | $WIT_ITEM_JQ], truncated: (length > \$limit)}" || exit "$EX_INTERNAL"
   exit 0
 fi
 
 wit_run_gh read issue list -R "$target_repo" --state "$state" "${label_args[@]+"${label_args[@]}"}" \
-  --limit "$((limit + 1))" --json number,title,state,assignees,labels,issueType,blockedBy,url,createdAt
+  --limit "$((limit + 1))" --json number,title,state,assignees,labels,issueType,blockedBy,url,createdAt,milestone
 
 printf '%s' "$WIT_GH_OUT" | wit_gh_annotate_blocker_reasons |
   jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$target_repo" --argjson limit "$limit" \
