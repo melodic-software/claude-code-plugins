@@ -1,0 +1,12 @@
+---
+bump: patch
+---
+
+### Changed
+
+- The README no longer explains why ShellCheck misbehaves under actionlint or where actionlint
+  finds its configuration file. It keeps the choice to turn the run-block linters off at commit
+  and run them in CI, and points at actionlint's ShellCheck integration and configuration file
+  sections, each with an as-of date and a recheck trigger.
+- `setup` no longer describes how a missing `node` shows up in the transcript; the FAIL and its
+  reason stay.

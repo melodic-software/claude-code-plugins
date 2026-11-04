@@ -140,6 +140,24 @@ for (const [kind, fixture] of Object.entries(fixtures)) {
     check(`${kind}: browser keeps hostile data as text`, shownBad.includes('class="rv-ready"') && !/<img|<svg/i.test(shownBad) && shownBad.includes("&lt;img src=x"));
   }
 }
+// The design view reads a PLAN.md, not JSON: its Design section's subsections become rows.
+{
+  const record = ["# Plan: Cache", "", "## Design", "", "Gate: PASS.", "", "### Module layout", "", "| Module | Owns |", "", "### Contracts", "", `get(key) ${hostile}`, "", "## Plan", ""].join("\n");
+  const built = build("design", record);
+  const path = `${work}/design-good.html`;
+  check("design: builds from a PLAN.md on stdin", built.status === 0, built.stderr);
+  copyFileSync(built.stdout.trim(), path);
+  check("design: the page passes the interactive profile", verify(path).status === 0, verify(path).stdout);
+  check("design: hostile record text stays inside the JSON block", !readFileSync(path, "utf8").includes("<img src=x"));
+  check("design: a record with no Design section exits 1", build("design", "# Plan\n\n## Plan\n").status === 1);
+  if (chrome) {
+    const shown = dump(path);
+    check("design: browser renders from file://", shown.includes('class="rv-ready"'), shown.slice(0, 160));
+    check("design: browser rows carry builder ids", ["sections-2", "sections-2-lines-1"].every((id) => shown.includes(`id="${id}"`)));
+    check("design: browser keeps hostile record text as text", !/<img|<svg/i.test(shown) && shown.includes("&lt;img src=x"));
+  }
+}
+
 for (const kind of Object.keys(fixtures)) {
   const html = readFileSync(`${dir}/${fixtures[kind].template}`, "utf8");
   check(`${kind}: the template carries the send control and the session replies`, ["data-rv-send=", "data-rv-session=", "data-rv-replies="].every((marker) => html.includes(marker)));

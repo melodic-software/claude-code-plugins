@@ -91,7 +91,7 @@
       "id": 9,
       "name": "default-artifact-falls-back-to-file",
       "narration": true,
-      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"plugin default\", \"explicit\": false}. The publish gate looked up the repository as PRIVATE.",
+      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"plugin default\", \"explicit\": false}. The publish gate looked up the repository as PRIVATE and printed {\"medium\": \"file\", \"reason\": \"repository visibility is PRIVATE, not PUBLIC\", \"opt_in\": \"set medium: artifact in the plugin's medium option to publish anyway\"}.",
       "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: set the review plugin's medium option to artifact.",
       "expectations": [
         "Output does not publish the page with the Artifact tool",

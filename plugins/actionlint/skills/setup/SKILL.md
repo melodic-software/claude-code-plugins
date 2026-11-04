@@ -59,8 +59,8 @@ enabled-gate.
 1. **Bash version.** Check against the hook's documented floor (README Requirements).
 2. **`node`.** The pre-computed `node` row. FAIL if absent, even when the toggle is off: every
    hook row launches through `node hooks/exec-bash.mjs`, so the hooks do not launch and the
-   session-start probe does not run. The hooks cannot report this themselves; the transcript shows
-   a hook error notice. Probed here through Bash, which works without the launcher.
+   session-start probe does not run. The hooks cannot report this themselves. Probed here
+   through Bash, which works without the launcher.
 3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the pre-commit entry then
    fails the commit of an agent with the install command and gives a person a notice, and the
    end-of-turn check does nothing.
