@@ -13,7 +13,7 @@
 - [Consumer `.gitignore`](#consumer-gitignore)
 - [Failure modes](#failure-modes)
 
-How the skills in this plugin resolve the layered `.claude/source-control.md` config surface. The
+How the skills in this plugin resolve the layered source-control config surface. The
 surface carries three key families: the tracked commit-subject / PR-title convention keys, read by
 `/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup`, the
 loop-lane keys, read by `/source-control:babysit-loop`, and the babysit-prs repository-policy keys,
@@ -32,20 +32,18 @@ Implements the tracked-rich-config extensibility contract in
 `docs/conventions/source-control.yaml`, validated by
 [`schemas/source-control.schema.json`](../schemas/source-control.schema.json)
 ([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)).
-The compatibility read, for one release: when the YAML lacks a key, the team value is the `## <key>`
-H2 of `.claude/source-control.md` described below, so an unmigrated repository keeps resolving. The
-YAML wins whenever it carries the key, and a YAML the shared reader rejects stops the lookup for that
-key instead of falling back to the markdown. The personal overlay and the user-global file stay
+The retired team file `.claude/source-control.md` is not read; `/source-control:setup check` names
+it when it is still tracked. A YAML the shared reader rejects stops the lookup for that key instead
+of falling back to a lower layer. The personal overlay and the user-global file stay
 markdown and keep their place in
 [The three layers](#the-three-layers). Every resolver reports the layer that supplied a value:
-`docs/conventions/source-control.yaml`, `.claude/source-control.md (legacy)`, the overlay, the
+`docs/conventions/source-control.yaml`, the overlay, the
 user-global file, `userConfig`, or the default. `lib/convention-key.sh` is the reader
-(`layer ROOT KEY` prints `yaml`, `legacy-md` or `none`; `value` and `list` print the YAML value), and
+(`layer ROOT KEY` prints `yaml` or `none`; `value` and `list` print the YAML value), and
 `parse-branch-issue.sh --explain` prints the layer for `branch_issue_pattern`.
 
 **Team-layer home of the loop-lane and babysit-prs keys.** Every `babysit_loop_*` key and the seven
-babysit-prs repository-policy keys take their team value from the same YAML, with the same
-one-release compatibility read of their `## <key>` H2 in `.claude/source-control.md` and the same
+babysit-prs repository-policy keys take their team value from the same YAML only, with the same
 stop on a YAML the reader rejects. [Loop-lane keys](#loop-lane-keys-babysit_loop_) and
 [babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys) own how each is read.
 
@@ -60,16 +58,15 @@ branch_issue_pattern: '^[^/]+/([0-9]+)-'
 ```
 
 The sections below describe each key's value grammar; read "H2" there as "the key in the YAML, or
-its `## <key>` H2 in the legacy file". A list value is a YAML sequence in the YAML and a bullet list
-in the H2.
+its `## <key>` H2 in the overlay or user-global file". A list value is a YAML sequence in the YAML
+and a bullet list in the H2.
 
-The overlay, the user-global file and the legacy team file are Markdown: one `## <key>` H2 per key,
+The overlay and the user-global file are Markdown: one `## <key>` H2 per key,
 the value as the section body. Seven babysit-prs
 repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
 `babysit_skip_downgrade_logins`, `babysit_review_gate_context`,
-`babysit_ci_gateway_context`) live in the team YAML too, with the legacy file read for one release;
-their values and merge modes are in
+`babysit_ci_gateway_context`) live in the team YAML too; their values and merge modes are in
 [babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys). The convention keys:
 
 - `subject_pattern`: required; the literal keyword `Conventional Commits`, or an anchored regex
@@ -154,39 +151,20 @@ their values and merge modes are in
 
 Absent sections are absent, never empty.
 
-- `convention_source`: optional, **honored in the team-tracked layer only**. A repo-relative
-  forward-slash path to a neutral flat-scalar YAML file, the tool-agnostic convention SSOT other
-  consumers (commit-msg hooks, CI, other agents) read too. When declared, the neutral file is
-  authoritative for the machine keys it carries (`subject_pattern`, `pr_title_pattern`, optionally
-  a flat `pr_body_required_sections:` list and `dialect:`); a key it omits falls back to the team
-  file's own H2 sections, and plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in
-  the markdown surface. The `Conventional Commits` keyword and the pr-title deferral marker work
-  identically in the neutral file. User-global and local-overlay layers still merge per key on top.
-  **The neutral file is resolved by a three-rung precedence, identical on the drafting and
-  enforcement surfaces:** (1) an explicit `convention_source` pointer (the relocation override, where
-  the path stays repo-owned); absent one, (2) the **well-known default path**
-  `docs/conventions/source-control/commit-convention.yml` **when that file is git-tracked** (the
-  common case: ONE tool-agnostic file, no pointer needed); absent both, (3) the team markdown H2
-  sections (legacy / back-compat). The rung-2 **git-tracked requirement is a policy floor shared by
-  both surfaces**: an untracked or gitignored file at the default path must NOT drive resolution. It
-  is a generated/local artifact, not team convention, and honoring it would let drafting diverge from
-  the enforcement gate (which enforces the same floor). Verify with
-  `git ls-files --error-unmatch docs/conventions/source-control/commit-convention.yml`; if it is
-  untracked (or git is unavailable), skip rung 2 and fall through to the markdown H2. Once a neutral
-  file is resolved via rung 1 or 2 it is authoritative and the fail-closed broken-file contract
-  applies; a key it omits still falls back per key to the markdown H2. Value grammar, pointer safety rules, and the fail-closed
-  broken-pointer contract are owned by the
+- `convention_source`: not read when drafting. The pointer was a `## convention_source` H2 of the
+  retired `.claude/source-control.md`, and the team YAML has no such key (the schema allows no
+  other key). The pointer and the neutral convention file it names
+  (`docs/conventions/source-control/commit-convention.yml` by default) are enforcement legacy
+  surfaces: the guardrails resolver reads them for one release, only for a key the team YAML
+  lacks. Their rungs and fail-closed contract are owned by the
   [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/commit-convention/README.md).
-  Drafting honors the same contract (a declared-but-broken pointer is surfaced as a config error,
-  never silently re-read from markdown values a migration may have retired).
 
 ## YAML keys (`docs/conventions/source-control.yaml`)
 
 The seven convention keys in the previous section, the `babysit_loop_*` keys and the babysit-prs
-repository-policy keys are read from this file first (the compatibility read of the legacy file
-applies to them only). A key added after the YAML config home
+repository-policy keys take their team value from this file. A key added after the YAML config home
 ([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md))
-has no H2 in `.claude/source-control.md`. Its team value lives in
+has no markdown H2 in any layer. Its team value lives in
 `docs/conventions/source-control.yaml` at the repo root, a YAML mapping validated by
 [`schemas/source-control.schema.json`](../schemas/source-control.schema.json), and its per-user
 value is the `userConfig` option of the same name, where one exists. The skill that uses a key
@@ -257,7 +235,7 @@ A repository can record how its team triages recurring review-bot findings, so
 [monitor.md](../skills/pull-request/reference/monitor.md) §3.3.1) and `/source-control:babysit-prs`
 ([feedback.md](../skills/babysit-prs/reference/feedback.md)) dispose of the same finding the same
 way. The rubric is optional team-owned prose, not a config key: no `userConfig` option, no entry in
-`docs/conventions/source-control.yaml`, no H2 in `.claude/source-control.md`. Without it, both
+`docs/conventions/source-control.yaml`, no H2 in a markdown layer. Without it, both
 skills triage as they otherwise would.
 
 **Where it is read.** The `## Review-bot triage rubric` section of `docs/conventions/source-control.md`
@@ -344,7 +322,7 @@ lane with a per-domain `--settings` file. Which keys stay in
 [0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
-In the overlay, the user-global file and the legacy team file, one `## <key>` H2 per key, exactly
+In the overlay and the user-global file, one `## <key>` H2 per key, exactly
 like the convention keys above. Every value is a scalar except
 `babysit_loop_trusted_internal_bot_logins`, a closed list like `pr_body_required_sections` (a YAML
 sequence in the team YAML, a bullet list in an H2), so the per-key override semantics below apply
@@ -352,34 +330,27 @@ unchanged (a closed list is taken whole from its one binding layer, never unione
 
 **The team layer of every loop key is the YAML.** Each key in the table below takes its team value
 from `docs/conventions/source-control.yaml`, validated by
-[`schemas/source-control.schema.json`](../schemas/source-control.schema.json). For one release a key
-the YAML lacks is read from its `## <key>` H2 in `.claude/source-control.md`; a YAML the shared
-reader rejects stops the lookup instead of falling back. Any `babysit_loop_*` key in either file is
+[`schemas/source-control.schema.json`](../schemas/source-control.schema.json); a YAML the shared
+reader rejects stops the lookup instead of falling back. Any `babysit_loop_*` key in it is
 tracked adoption (below). Two readers apply this order:
 
 - The local checkout, when it is the target repository: `lib/convention-key.sh layer <root> <key>`
-  names the team layer (`yaml`, `legacy-md` or `none`) and `value` prints the YAML value. A file
+  names the team layer (`yaml` or `none`) and `value` prints the YAML value. A file
   counts only when git tracks it (`git ls-files --error-unmatch <path>`), and a value outside the
   table below is reported and makes the team layer unreadable, as on the remote path.
 - The target repository's default branch, through the contents API with no `ref`:
   `skills/babysit-prs/scripts/babysit_repo_config.py loop-keys <owner/repo>` prints the four values
-  as JSON, each with the layer that supplied it (`docs/conventions/source-control.yaml`,
-  `.claude/source-control.md (legacy)` or `default`), and whether either file carries any
-  `babysit_loop_*` key (`adopted`). It reads no working tree. It exits 1 when a file it needs
-  cannot be fetched, the YAML is rejected or names one of the four keys without a scalar value, or
-  the layer supplying a key holds a value outside the table below. The lane then treats the team
+  as JSON, each with the layer that supplied it (`docs/conventions/source-control.yaml` or
+  `default`), and whether the YAML carries any `babysit_loop_*` key (`adopted`). It reads no
+  working tree. It exits 1 when the YAML cannot be fetched, is rejected, names one of the four keys
+  without a scalar value, or holds a value outside the table below. The lane then treats the team
   layer as unreadable, which keeps merges `human-only`. The other nine keys have no script reader:
-  the lane makes the same two reads, YAML first, and applies the same stops.
+  the lane makes the same read and applies the same stops.
 
-The merge gate (`babysit_merge.py --unattended`) reads `babysit_loop_merge` from both files at the
-pull request's base SHA. With no legacy file the YAML value sets the rung by itself, and a YAML that
-sets none leaves the rung off. While the legacy file exists it must set the key, or the rung is off;
-the gate takes the lower of the two files, so a demotion in either holds it, and a YAML that sets
-none leaves the legacy value. Either file the gate cannot read or trust turns the rung off, never
-falling back to the other file's value: a YAML the shared reader rejects or whose value is empty,
-non-scalar or unknown, and a legacy file the parser rejects or whose `## babysit_loop_merge` H2 is
-empty or repeated. So while the legacy file exists a raise reaches the gate only when both files
-carry it: write every change to `babysit_loop_merge` to both files.
+The merge gate (`babysit_merge.py --unattended`) reads `babysit_loop_merge` from the team YAML at
+the pull request's base SHA. Its value sets the rung by itself, and a YAML that sets none leaves the
+rung off. A YAML the gate cannot read or trust turns the rung off: one the shared reader rejects, or
+whose value is empty, non-scalar or unknown.
 
 | Key | Value | Default when absent |
 |---|---|---|
@@ -453,11 +424,10 @@ never becomes a merge-authority raise by inference.
 **Baseline activation is tracked adoption.** The convention's baseline rung, human merge for
 everything except gate-proven C2-mechanical PRs, is what a repository gets by *adopting* the lane,
 and adoption must be a recorded change: no lane ever auto-merges without a reviewed change having
-enabled it (loop-lane convention, "Autonomy ladder (merge authority)"). While neither the target
-repository's tracked `docs/conventions/source-control.yaml` nor its team-tracked
-`.claude/source-control.md` carries a `babysit_loop_*` key, the merge dimension resolves to
-`human-only`, and the explicit-`autopilot` exception above does not apply either: it requires the
-same adoption every other rung does. Landing loop-lane keys in either tracked file, a reviewable PR
+enabled it (loop-lane convention, "Autonomy ladder (merge authority)"). While the target
+repository's tracked `docs/conventions/source-control.yaml` carries no `babysit_loop_*` key, the
+merge dimension resolves to `human-only`, and the explicit-`autopilot` exception above does not apply either: it requires the
+same adoption every other rung does. Landing loop-lane keys in that tracked file, a reviewable PR
 in the target repository, is the recorded, human-ratified lane-enabling act, after which an absent
 merge key defaults to the `c2-mechanical` baseline. A merge-capable tier supplied by an invocation
 keyword or any other layer never substitutes for tracked adoption: with the tier merge-capable but
@@ -494,14 +464,12 @@ test classifies the org's own automation as untrusted provenance, though `work-c
 org-owned automation's mechanical output in C2. This key is the recorded trust signal reconciling
 the two, and every rule below is fail-closed:
 
-- **Value grammar.** A YAML sequence in the team YAML, or a flat bullet list in a legacy H2, one
+- **Value grammar.** A YAML sequence in the team YAML, one
   exact GitHub App bot login per item (e.g. `- my-lane-bot[bot]`), the same closed-list grammar as
   `pr_body_required_sections`, taken whole from the binding layer. Matching is exact and ASCII case-insensitive (GitHub logins are
   case-insensitive); no globs, prefixes, aliases, or suffix inference.
-- **Team-tracked layer only, target repository, default branch, always.** Like
-  `convention_source`, the key is honored **only** in the team-tracked layer, and that layer is
-  the TARGET repository's tracked `docs/conventions/source-control.yaml`, else for one release its
-  `.claude/source-control.md`, read from its **default branch** (`gh api` contents), on every
+- **Team-tracked layer only, target repository, default branch, always.** The key is honored **only** in the team-tracked layer, and that layer is
+  the TARGET repository's tracked `docs/conventions/source-control.yaml`, read from its **default branch** (`gh api` contents), on every
   resolution, even when the current checkout is that repository.
   This is stricter than the merge rung's checkout-aware read: a working-tree read follows the
   checkout's current branch, and a checkout on a bot-authored branch would let the very PR under
@@ -544,23 +512,18 @@ Seven `/source-control:babysit-prs` keys describe **repository tooling**: merge 
 and the CI and review gate contexts. `/source-control:babysit-prs` resolves them
 **per target repository, on every fleet cycle**, from that repository's tracked
 `docs/conventions/source-control.yaml` on its **default branch**, read through the contents API
-(`gh api repos/<owner>/<repo>/contents/docs/conventions/source-control.yaml`) with no `ref`. For one
-release a key the YAML lacks is read from the `## <key>` H2 of the same branch's
-`.claude/source-control.md`, fetched the same way only when the YAML lacks one of the seven keys. It
+(`gh api repos/<owner>/<repo>/contents/docs/conventions/source-control.yaml`) with no `ref`. It
 never reads the launching checkout's working tree, the user-global layer, or the local overlay, so
 the layers of "The three layers" below do not apply to these keys: the repository's default-branch
-files are the one repository layer, and the plugin's `userConfig` value (the matching `babysit-prs`
+YAML is the one repository layer, and the plugin's `userConfig` value (the matching `babysit-prs`
 CLI flag) is a deprecated fallback merged per key as below. In the YAML, a list value is a sequence
-and every other value a scalar, as the schema declares. In the legacy file, one `## <key>` H2 per
-key, the value as the section body; list values are `- <item>` bullets (a comma-separated line is
-also accepted).
+and every other value a scalar, as the schema declares.
 
 An absent file (HTTP 404 while the repository root listing, `contents/`, is readable) contributes
-nothing; with neither file the fallback stands alone. A 404 with an unreadable root may be a hidden
-file, so it is an error like any other failure. Any other failure to fetch or parse either file
-(another HTTP status, a timeout, a YAML the shared reader rejects, a key holding the wrong shape, a
-malformed section, an invalid value) is a repository config error, and a rejected YAML never falls
-back to the legacy file: the merge gate and `request_review` refuse for that repository, and the
+nothing, and the fallback stands alone. A 404 with an unreadable root may be a hidden
+file, so it is an error like any other failure. Any other failure to fetch or parse the file
+(another HTTP status, a timeout, a YAML the shared reader rejects, a key holding the wrong shape, an
+invalid value) is a repository config error: the merge gate and `request_review` refuse for that repository, and the
 snapshot marks its PRs unclassified with an `errors` entry, never merge-ready. Identity and trust keys stay in
 `userConfig` permanently, and `branch_issue_pattern` resolves through the three layers below. The
 split and its rationale are in
@@ -571,9 +534,9 @@ split and its rationale are in
 | `babysit_merge_block_labels` | list of labels | hold list: add-only union |
 | `babysit_extra_dependency_manager_logins` | list of logins | hold list: add-only union |
 | `babysit_approval_downgrade_logins` | list of logins | hold list: add-only union |
-| `babysit_review_bot_logins` | bullet list of logins | `userConfig`-only; a legacy H2 is ignored, and the YAML has no such key |
-| `babysit_review_settle_minutes` | number of minutes, at least one second | `userConfig`-only; a legacy H2 is ignored, and the YAML has no such key |
-| `babysit_review_trigger_phrase` | the review-request comment text | `userConfig`-only; a legacy H2 is ignored, and the YAML has no such key |
+| `babysit_review_bot_logins` | bullet list of logins | `userConfig`-only; the YAML has no such key |
+| `babysit_review_settle_minutes` | number of minutes, at least one second | `userConfig`-only; the YAML has no such key |
+| `babysit_review_trigger_phrase` | the review-request comment text | `userConfig`-only; the YAML has no such key |
 | `babysit_skip_downgrade_logins` | list of logins | remove-only |
 | `babysit_merge_method` | `squash`, `merge`, or `rebase` | repository value wins |
 | `babysit_review_gate_context` | a check-context name | repository value wins |
@@ -617,12 +580,11 @@ pair, the trigger phrase and `babysit_skip_downgrade_logins` are not deprecated 
 
 Resolve every read from the repo root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
 `git rev-parse --show-toplevel`. A cwd-relative read from a nested directory finds
-`<subdir>/.claude/source-control.md`, misses the repo-root config, and silently degrades.
+`<subdir>/docs/conventions/source-control.yaml`, misses the repo-root config, and silently degrades.
 
 When that root is `$HOME` or an ancestor of `$HOME`, or is not inside a git working
 tree, team and overlay are **not applicable** (config-cascade #4672): report both with
-that reason and resolve user-global only. Never read `~/.claude/source-control.md` as
-the team layer; at home those two paths are the same file. `parse-branch-issue.sh`
+that reason and resolve user-global only. `parse-branch-issue.sh`
 skips both layers and prints `team and overlay not applicable: project root is the
 home directory (or an ancestor of it)` or `... project root is not inside a git
 repository` on stderr. A team or overlay path that physically equals the user-global file
@@ -641,8 +603,7 @@ Layers, in resolution order, where a later layer refines an earlier one:
    across repos and machines. Their home directory, not consumer repository data.
 2. **`${REPO_ROOT}/docs/conventions/source-control.yaml`**: team, tracked. The shared convention
    for the seven convention keys, the layer `/source-control:setup apply` writes by default, and for
-   the `babysit_loop_*` keys. For one release a key it lacks is read from the legacy
-   `${REPO_ROOT}/.claude/source-control.md` (the compatibility read).
+   the `babysit_loop_*` keys. The retired `${REPO_ROOT}/.claude/source-control.md` is not read.
 3. **`${REPO_ROOT}/.claude/source-control.local.md`**: personal overlay, gitignored. A per-machine
    or per-operator deviation from team policy, never committed.
 
@@ -684,8 +645,9 @@ any layer resolves to the bundled 11-type list.
 This document owns **drafting** resolution: how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title, reading all three layers with the per-key merge above. A separate
 concern owns **enforcement**: how a zero-dependency guardrails hook decides whether an
-*already-formed* subject/title is allowed. Both read the same team values
-(`docs/conventions/source-control.yaml`, then for one release the legacy files) but differ on
+*already-formed* subject/title is allowed. Both read the team values in
+`docs/conventions/source-control.yaml` (enforcement also reads, for one release, the legacy files
+its README names) but differ on
 purpose: enforcement reads the **team-tracked layer** (a gitignored `*.local.md` must never weaken
 a blocking gate), and only where it sets no `subject_pattern` falls back to the operator's
 git-ignored `docs/conventions/source-control.local.yaml`, never merged with a team pattern.

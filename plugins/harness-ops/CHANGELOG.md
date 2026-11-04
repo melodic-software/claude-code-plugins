@@ -3,6 +3,49 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.3] - 2026-11-04
+
+### Changed
+
+- `behavior-probes` records the first live run of `plugin-eval/unlisted-tools-offered` as record 21 ([#12973](https://github.com/melodic-software/claude-code-plugins/issues/12973)): on Claude Code 2.1.318 an eval case whose `allowed_tools` is `[Read, Glob, Grep]` is still offered `Skill`, `Task`, `TaskStop` and `ToolSearch`, and its `Skill`, `Task` and `ToolSearch` calls run, which contradicts the plugin-evals Grant tools section; the record holds an upstream report candidate for the owner.
+- `behavior-probes` no longer says plugin eval runs remove every ungranted tool: write tools stay withheld until `--allow-tools` grants them, and record 21 shows the unlisted tools a case is still offered.
+
+### Fixed
+
+- The `plugin-eval/unlisted-tools-offered` checker removes its temp directory under `HOME` after the nested eval, including the directories `--keep-temp` leaves at mode 000, instead of leaving one behind on every run.
+
+## [8.4.2] - 2026-11-04
+
+### Changed
+
+- The shared `hook-utils.sh` reads Bash commands from `shfmt --to-json` (`hook::bash_parse_segments`
+  keeps its callback and `HOOK_SEG_*` contract), and the hand-written segmenter is removed. It
+  refuses the call when shfmt or jq is missing, fails, runs past 5 seconds, or rejects the text
+  (an unclosed here-doc, for one, which bash runs with a warning), and the refusal names which of
+  those happened, quoting shfmt's syntax error. It uses a shfmt in `~/.local/bin` when PATH has
+  none. The 5-second bound is the `read -t` builtin, so a parse forks the same processes on every
+  run and needs no `sleep` or `timeout` command.
+
+## [8.4.1] - 2026-11-04
+
+### Changed
+
+- **`plugins`: `cache-content-check.sh` no longer reads its large streams with `mapfile` or `read`** ([#12982](https://github.com/melodic-software/claude-code-plugins/issues/12982)). On Git Bash those builtins read one byte per call, so one 2.3 MB `ls-tree -z` stream took about 2.5 s to read. The `ls-tree`, `find` and `check-ignore` streams are now read with one `tr` capture each and split in memory. A stream holding a path with a newline or an SOH byte is still read with `mapfile -d ''`, so such paths are compared as before. The `hash-object` batch output is split in memory too, and each record's source directory comes from a map lookup instead of a scan of the marketplace entries. Each of the three NUL streams now costs one `tr` process.
+
+## [8.4.0] - 2026-11-04
+
+### Added
+
+- `behavior-probes` has a `plugin-eval` area: its `unlisted-tools-offered` case runs one `claude plugin eval` case whose `allowed_tools` lists only `Read`, `Glob` and `Grep`, and records the run's init tools and what became of a call to each of `Skill`, `Task`, `TaskStop` and `ToolSearch`: not offered, denied, refused, ran, called with no result, or offered but not called. It passes when `Skill` is offered and its call runs.
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650); no other change to this plugin.
+
+### Fixed
+
+- Shared `fetch-docs.sh` synced where this plugin carries it ([#12945](https://github.com/melodic-software/claude-code-plugins/issues/12945)): with `--profile generic`, an x.com or twitter.com page that is X's logged-out shell (`redirect_after_login` links and no article text) is now `unread` with reason `login-wall` instead of `read`, whether fetched or served from the cache or a fixture, and is never cached; no other change to this plugin.
+
 ## [8.3.2] - 2026-11-04
 
 ### Fixed

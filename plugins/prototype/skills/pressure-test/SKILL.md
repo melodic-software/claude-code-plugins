@@ -86,21 +86,25 @@ swaps. Route by audience:
   nothing to install, opened by double-click.
 - **Explicit override wins both ways**. Ask for a TUI or an HTML demo directly and that beats
   the default routing.
-- **Then the `rendered-views` preference.** With no such request, resolve `medium` (`auto`,
-  `terminal`, `file`, `artifact`, `hosted`): a `--medium` argument naming one decides; otherwise
-  read whichever layers exist, in order: user-global
-  `~/.claude/rendered-views.md`, team `<root>/.claude/rendered-views.md`, overlay
-  `<root>/.claude/rendered-views.local.md`. `<root>` is `${CLAUDE_PROJECT_DIR}` when set, else
-  `git rev-parse --show-toplevel`; outside a work tree, read only the user-global layer. The last
-  layer that sets `medium` wins. Count the overlay only when `git ls-files` does not list it and
-  `git check-ignore` matches it; otherwise report it and ignore it. This plugin has no `medium`
-  option, so no rung sits between the argument and the layers. `terminal` picks the TUI. `file`,
-  `artifact` and `hosted` override nothing: `medium` says where a view goes, not which shell an
-  audience needs, so the audience routing above still decides, and when it picks the HTML demo
-  the page stays a local file, since this skill publishes nothing. `auto`, an empty value or no
-  value also leaves the audience routing above; any other value is reported and read as `auto`.
-  Name the source of the shell choice in the handoff: the request, the layer's path, or "shipped
-  default".
+- **Then the resolved medium.** With no such request, run the shared medium resolver. This plugin
+  has no `medium` option, so `--option` is empty; add `--argument` only when the reader passed
+  `--medium`, with the value they gave:
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane prototype:pressure-test --option "" [--argument <the --medium value>]
+  ```
+
+  It prints one JSON line, then the report line naming the medium and what decided it, then one
+  line per notice. Print the report line and each notice in the handoff as they stand, except that
+  a notice's closing "; per user, the prototype plugin's medium option also works" clause is
+  dropped, since this plugin has no such option. Leave every settings file to the resolver. A usage
+  error (exit 2) means the argument named no medium: say so in one line and run it again without
+  `--argument`. When the JSON's `page` is `false`, the medium shows no page: build the TUI. Any
+  other result, a `null` medium, or a resolver that fails (say so in one line) overrides nothing:
+  the medium says where a view goes, not which shell an audience needs, so the audience routing
+  above still decides, and when it picks the HTML demo the page stays a local file, since this
+  skill publishes nothing. Name the source of the shell choice in the handoff: the request, the
+  report line, or "shipped default".
 
 ## HTML demo shell
 

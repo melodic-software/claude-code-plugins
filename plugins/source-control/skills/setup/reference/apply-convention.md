@@ -41,10 +41,9 @@ absent, since a convention is a team artifact until someone says otherwise.
 
 The team layer is YAML, validated by `plugins/source-control/schemas/source-control.schema.json`
 ([config-resolution.md](../../../reference/config-resolution.md), "The config surface"). The user
-and local layers stay markdown, one `## <key>` section per key. A repository's legacy team file
-`REPO_ROOT/.claude/source-control.md` is still read for a key the YAML lacks (the compatibility
-read, one release); `apply layer=team` never writes new keys there, and its migration step (below)
-moves the convention keys it carries into the YAML.
+and local layers stay markdown, one `## <key>` section per key. The retired team file
+`REPO_ROOT/.claude/source-control.md` is not read by this plugin; `apply layer=team` never writes
+there, and its migration step (below) copies the keys it carries into the YAML.
 
 Infer the layer rather than asking when the request names one: "my personal convention" / "on this
 machine" is `local`, "for all my repos" is `user`, "our convention" is `team`. State which layer
@@ -52,9 +51,9 @@ you picked before writing, since writing to the wrong one either fails to reach 
 commits a personal preference to shared history.
 
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, **refuse
-`layer=team` and `layer=local`**. At home the legacy team path and the user-global path collapse onto
-`~/.claude/source-control.md` (and a home-rooted overlay), so a team write would edit the
-operator's personal config under a team label; outside a repository the tracked/ignored probes
+`layer=team` and `layer=local`**. At home the team and overlay paths sit in the operator's home directory, beside the user-global
+`~/.claude/source-control.md`, so a team write would edit the operator's personal config under a
+team label; outside a repository the tracked/ignored probes
 have no repository to answer against. Name the reason, the same note `parse-branch-issue.sh`
 prints (`project root is the home directory (or an ancestor of it)` or `project root is not
 inside a git repository`), and offer `layer=user`. Compare paths physically (slash-fold, case-fold, resolve symlinks when the
@@ -264,10 +263,10 @@ With no argument in an interactive session, run the interview:
    branch_issue_pattern: '^[^/]+/([0-9]+)-'  # only when set
    ```
 
-   Drop any key with no content. Quote a regex, and any value holding a colon or a hash sign that follows a space. Then, when the legacy
-   `REPO_ROOT/.claude/source-control.md` still carries one of these keys, carry its value into the YAML
-   (when the YAML lacks it) and remove that `## <key>` section from the legacy file in the same apply;
-   keep its `babysit_*` sections. Validate the result with `scripts/check-convention-yaml.sh --check`
+   Drop any key with no content. Quote a regex, and any value holding a colon or a hash sign that follows a space. Then, when the retired
+   `REPO_ROOT/.claude/source-control.md` still carries a key the schema declares (these keys or a
+   `babysit_*` key), carry its value into the YAML (when the YAML lacks it; a bullet list becomes a
+   YAML sequence) and remove that `## <key>` section from the retired file in the same apply. Validate the result with `scripts/check-convention-yaml.sh --check`
    where the repository has it, and confirm the layer with
    `bash "<plugin-root>/lib/convention-key.sh" layer "$REPO_ROOT" <key>`, which must print `yaml`.
 
@@ -399,7 +398,7 @@ With no argument in an interactive session, run the interview:
    git -C "$REPO_ROOT" add "$TEAM_FILE"
    # Confirm nothing is left unstaged (exit 0 = worktree matches the index).
    git -C "$REPO_ROOT" diff --quiet -- "$TEAM_FILE"
-   # A migration that removed sections from the legacy markdown file stages that file too.
+   # A migration that removed sections from the retired .claude/source-control.md stages that file too.
    ```
 
    For `layer=local`, run both probes and branch on the pair:
@@ -478,24 +477,24 @@ this skill's part:
   already resolves the commit-msg hooks dir via `git rev-parse --git-path hooks`; when a second
   consumer of the convention is present, a commit-msg hook, a CI title check, or a user-stated one,
   **recommend the neutral SSOT as the default**, because the tool-agnostic file is what that second
-  consumer reads without reimplementing this plugin's markdown-H2 grammar. Fall back to markdown-only
-  only when this plugin is demonstrably the sole consumer. A repo where nothing else reads the
-  convention loses nothing by staying markdown-only; say so rather than forcing the split.
-- **Default the path to the well-known location.** The neutral file's well-known default path is
+  consumer reads without reimplementing the convention grammar. Skip it only when this plugin is
+  demonstrably the sole consumer: `docs/conventions/source-control.yaml` already serves this
+  plugin, so say so rather than forcing a second file.
+- **Write it at the well-known path only.** The neutral file lives at
   `docs/conventions/source-control/commit-convention.yml` (the marketplace's own dogfooded
-  `docs/conventions/<concern>/` layout). Writing it **there** means the resolver finds it with **no
-  `## convention_source` pointer at all** (the resolver probes the well-known path at rung 2), so the
-  common case leaves nothing in agent-rewritable markdown to sever. Only when the repo insists on a
-  different location do you declare `## convention_source` with that repo-relative path (forward
-  slashes, no `..`) in the legacy markdown file (the compatibility read), the rung-1 relocation override. Write the YAML
+  `docs/conventions/<concern>/` layout), where the resolver finds it with no pointer (rung 2).
+  Setup offers no other location: the `## convention_source` relocation pointer lives in the
+  retired `.claude/source-control.md`, so writing one would recreate that file. A repository that
+  insists on another path keeps its own pointer by hand until the guardrails resolver drops that
+  read. Write the YAML
   with machine keys (`subject_pattern`, `pr_title_pattern`, optionally `pr_body_required_sections`,
   `dialect: posix-ere`) plus a **1–2 line** `#` header (what the file is, who reads it), not a
   multi-line preamble; the flat YAML is self-describing and the human document proper lives in
   CONTRIBUTING/AGENTS.md, not in ceremony comments.
-- **Migration retires duplicates.** When the team markdown file already carries a key the neutral
-  file now declares, REMOVE it from the markdown in the same apply. The resolver would prefer the
+- **Migration retires duplicates.** When `.claude/source-control.md` already carries a key the neutral
+  file now declares, REMOVE it from that file in the same apply. The resolver would prefer the
   neutral value anyway, but leaving both invites hand-edit drift, which is the disease this shape
-  cures. Plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in the markdown file.
+  cures. Plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in the team YAML.
 - **Verification adds two probes.** (1) The neutral file round-trips through the enforcement
   resolver (`lib/resolve-convention-pattern.sh <repo_root> subject_pattern` emits the expected
   pattern). This exercises the whole precedence chain, so it confirms resolution whether the file

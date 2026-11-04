@@ -6,6 +6,20 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## [1.0.5] - 2026-11-04
+
+Clarification. No key, allowed value, or default changes.
+
+- **Mermaid-C4 record re-derived (#12998).** The record's recheck trigger fired: the banner it
+  quoted is gone from mermaid's C4 page. Outcome: `mermaid` stays out of `diagram_dialect.system`.
+  Basis: on the 2026-11-04 read, mermaid did not document its C4 syntax as stable, and no reader
+  of the key has a mermaid C4 resolver path or renderer. The landscape default and the landscape
+  output shape are unchanged, since mermaid still documented no landscape type. The record now
+  takes the upstream-drift 2.x shape: the decision in our words, a pointer, an as-of date of
+  2026-11-04, and a trigger for any of three events: mermaid documents the C4 syntax as stable,
+  mermaid documents a landscape type, or an issue in this repository asks for mermaid C4 output
+  from a reader of `diagram_dialect.system`.
+
 ## [1.0.4] - 2026-10-29
 
 Clarification. No key, allowed value, or default changes.

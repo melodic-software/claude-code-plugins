@@ -9,7 +9,7 @@
         {
           "tool": "WebFetch",
           "input": {
-            "url": "https://xtomd.com/api/markdown?url=https://x.com/jack/status/20",
+            "url": "https://xtomd.com/api/markdown?url=https://x.com/brinkmoss/status/1357924680",
             "prompt": "Return the post as Markdown"
           }
         }
@@ -23,7 +23,7 @@
         {
           "tool": "WebFetch",
           "input": {
-            "url": "http://twitter.com/jack/status/20",
+            "url": "http://twitter.com/brinkmoss/status/1357924680",
             "prompt": "Return the post as Markdown"
           }
         }

@@ -3,6 +3,16 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-11-04
+
+### Changed
+
+- `lookup` and its MCP reference no longer list the MCP tools' parameters or describe them; they
+  keep the tool-list check, the tool-to-CLI mapping and why the two transports are treated alike,
+  and point at Context7's MCP Tools section.
+- The Windows Git Bash gotcha keeps the rewrite it guards against and the `MSYS_NO_PATHCONV=1`
+  prefix rule, and points at MSYS2's automatic path conversion section.
+
 ## [1.0.1] - 2026-11-03
 
 ### Changed

@@ -1,5 +1,27 @@
 # Changelog: evals
 
+## [0.15.9] - 2026-11-04
+
+### Changed
+
+- `plugin-eval`'s case-authoring note on relying on `allowed_tools` to keep a tool away now points at harness-ops behavior-probes record 21, the live probe run on Claude Code 2.1.318, instead of calling the question unsettled ([#12973](https://github.com/melodic-software/claude-code-plugins/issues/12973)).
+
+## [0.15.8] - 2026-11-04
+
+### Fixed
+
+- `run-validity.py`'s `permission denials` check no longer reads a grep pattern as a path that may be inside the plugin: a denied plain read pipeline of `cat`, `head`, `wc`, `grep`, `egrep`, `fgrep` and `sed -n` names only its absolute file operands, so `grep -n -E "a|b" "/x/f.js" | head -40` aimed outside the plugin can warn instead of failing the run. Grep's `-e`, `--regexp`, `-f`, `--file` and `--` forms are read the same way, a `-f` pattern file counting as a path.
+
+## [0.15.7] - 2026-11-04
+
+### Changed
+
+- `plugin-eval`'s case-authoring checklist warns not to rely on `allowed_tools` to keep a tool from the model: a run was seen offering `Skill`, `Task`, `TaskStop` and `ToolSearch` to a case that listed only `Read`, `Glob` and `Grep`. It points at the harness-ops behavior probe that rechecks this.
+
+### Fixed
+
+- `/evals:plugin-eval` run-validity counts a with-arm Bash result's sandbox network denial as a permission denial and names the denied hosts in the summary: it is a FAIL, and a warning in an invocation-probe or control case or one tagged `no-network`; a without-arm run's network denials are not read
+
 ## [0.15.6] - 2026-11-03
 
 ### Fixed

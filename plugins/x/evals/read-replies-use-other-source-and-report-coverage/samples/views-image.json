@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/work/notes/x-1234567890123456789-r8.md"}},
+        {"tool": "Read", "input": {"file_path": "/work/notes/x-1234567890123456789-m8.png"}}
+      ],
+      "why": "post, then the image"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-1234567890123456789-r8.md"}}],
+      "why": "infers the image from the post text"
+    }
+  ]
+}

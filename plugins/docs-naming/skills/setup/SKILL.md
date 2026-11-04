@@ -17,9 +17,8 @@ layered as user-global (`docs-naming.json` under `~/.claude/`), team
 `docs/conventions` unless the repository's `AGENTS.md` or `CLAUDE.md` binds
 another. All three absent is a valid state: every key has a bundled default, and
 the defaults are this marketplace's own values, except `generated`, which is empty.
-For one release a team or
-overlay layer whose YAML is absent is still read from the JSON file under
-`.claude/` it used to live in; `check` flags it and `apply` moves it.
+The old team and overlay JSON files under `.claude/` are not read; `check` names
+each, and `apply` seeds an absent team YAML from the old team file.
 
 This skill is the check-centric setup for that surface: `check` inspects and
 verifies, `apply` persists, and neither installs anything. Keys, defaults, layer
@@ -45,10 +44,12 @@ Rows, each PASS, FAIL, WARN, or INFO:
 1. **jq**, **git**: the prerequisites. A missing `jq` is FAIL and stops the
    table, because every skill in this plugin reads the concern file with it.
 2. **layer user-global / team / overlay**: absent (INFO), or present with its
-   path, or WARN when the file is at the pre-YAML location under `.claude/` or
-   still carries the retired `docs-hygiene` name (it is read, and the row names
-   it). A present file that does not parse, or a JSON layer that declares an
-   unknown schema, surfaces at the **resolve** row with the file named.
+   path, or WARN when the user-global file still carries the retired
+   `docs-hygiene` name (it is read, and the row names it). A present file that
+   does not parse, or a user-global layer that declares an unknown schema,
+   surfaces at the **resolve** row with the file named. **old team file** and
+   **old overlay file**: WARN per unread JSON file under `.claude/`, naming the
+   next step (`apply` seeds an absent team YAML, else copy by hand; then delete).
 3. **key shape**: every key carries the type the contract declares.
 4. **rule**, **regex**, **regex quoting**: the casing rule is one this version
    implements, the regex compiles under `grep -E`, and it carries no single
@@ -78,10 +79,9 @@ Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL,
 FAIL, never silent. Bash unavailable → report the step UNKNOWN with remediation,
 never green.
 
-In this plugin's manifest that yields `docs-naming-r001` FAIL while
-`.claude/docs-hygiene.json` persists and `docs-naming-r002` FAIL while
-`.claude/docs-hygiene.local.json` persists. Until their settings move to the
-YAML the resolver still reads them, with a warning, for one release. The user-global
+Both records here, `docs-naming-r001` (`.claude/docs-hygiene.json`) and
+`docs-naming-r002` (`.claude/docs-hygiene.local.json`), are `report-only`: INFO,
+no cleanup, since neither file is read; the old-file rows name the next step. The user-global
 `~/.claude/docs-hygiene.json` sits outside the repository and has no record; the
 layer row reports it as WARN with the same remedy: rename it to
 `docs-naming.json` in the same directory.
@@ -107,14 +107,14 @@ layer row reports it as WARN with the same remedy: rename it to
    list and `rule=lower-kebab` sets a scalar. The script prints
    `already configured` without touching the file when nothing changes, and
    writes `docs/conventions/docs-naming.yaml` (under the repository's convention
-   home) and nothing else. When the YAML is absent and the team layer still
-   lives in the pre-YAML JSON file, the first write seeds the YAML from it, so
-   the new file never shadows those settings; a team layer still at the
-   retired `docs-hygiene` name seeds it the same way. The JSON file stays until
-   a person deletes it. A rewrite keeps the comment block at the top of the file
+   home) and nothing else. When the YAML is absent and an old team JSON file
+   exists (`.claude/docs-naming.json`, else `.claude/docs-hygiene.json`), the
+   first write seeds the YAML from it, so its settings carry over; the resolver
+   no longer reads that file. The JSON file stays until a person deletes it. A rewrite keeps the comment block at the top of the file
    and drops comments between keys.
 4. **Clean up retired files.** After any agreed keys are written, re-run the
-   retirement detection and handle each finding behind its own confirmation. A
+   retirement detection and handle each active finding behind its own
+   confirmation (a `report-only` finding is INFO and has no cleanup). A
    retired file's `file_names` keys are carried into the YAML of its layer as
    top-level keys, adding only the ones that file lacks (step 3 already seeded a
    team YAML that did not exist). The old file's

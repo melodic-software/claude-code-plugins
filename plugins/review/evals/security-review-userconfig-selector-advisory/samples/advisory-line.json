@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.layout: pass, advisory, picks compact or wide; lib/layout.mjs:3 accepts only those\n\ncritical-findings: 0",
+      "why": "the advisory summary line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.layout: flag, added userConfig key\n\nseverity: IMPORTANT",
+      "why": "a flag, not the advisory line"
+    },
+    {
+      "answer": "manifest userConfig.layout: pass\n\ncritical-findings: 0",
+      "why": "a plain pass without the advisory note"
+    }
+  ]
+}

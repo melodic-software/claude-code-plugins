@@ -3,6 +3,19 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3] - 2026-11-04
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the view-kind registry and `render(laneId, kind, record)`, the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650); no other change to this plugin.
+
+- `setup` no longer states which settings file either `plugin configure` route writes. It keeps
+  the scope and failure-signal guidance with their reasons, and points at the `plugin configure`
+  and `plugin install` sections of the plugin commands reference.
+- The Windows check catalog's environment and PATH health entry no longer names the System
+  Properties editor as the source of the 2047 User Path `CRIT` threshold; it keeps that further
+  appends are silently discarded.
+
 ## [0.26.2] - 2026-11-02
 
 ### Changed

@@ -108,6 +108,7 @@ declare -A GUARD_LIBS=(
   ["block-dangerous-git.sh"]='lib/powershell/ps-command.sh'
   ["block-no-verify.sh"]='lib/powershell/ps-command.sh'
   ["block-noncanonical-commit.sh"]='lib/powershell/ps-command.sh'
+  ["block-unresolved-pr-merge.sh"]='lib/powershell/ps-command.sh'
   ["flag-commit-pr-skill-bypass.sh"]='lib/powershell/ps-command.sh'
 )
 

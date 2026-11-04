@@ -4924,30 +4924,23 @@ rdt_interp_check() {
   return 0
 }
 
-# rdt_ix_heredocs <text>: after the parse of <text>, judge each heredoc body an
-# interpreter or a shell reads as its program, in the language rdt_hd_lang
-# records for its index (sh for a shell, read by rdt_shell_prog), under the
-# directory-change state rdt_hd_st recorded where the interpreter ran. The
-# index is trusted only when the parse reports as many bodies as the segments
-# carried openers and each recorded index holds a body with the recorded
-# delimiter; otherwise (an opener on a segment with no word, or one with no
-# body) every body is judged in each recorded language. A directory change an
-# interpreter's code makes is dropped afterwards: it ran in the interpreter's
-# child. A shell body is judged from every origin the command has, and the
-# ones its cd lines add are kept, since its targets index them.
+# rdt_ix_heredocs <text>: after the parse of <text>, judge every heredoc body
+# of the command as the program of each interpreter or shell that reads a
+# heredoc, in the language rdt_hd_lang records for it (sh for a shell, read by
+# rdt_shell_prog), under the directory-change state rdt_hd_st recorded where it
+# ran. No body is matched to its opener by count: a statement with no command
+# word, a substitution's or a body's own here-doc, or a second reading of the
+# command can each shift that count, so the body a shell reads cannot be named
+# for certain. A directory change an interpreter's code makes is dropped
+# afterwards: it ran in the interpreter's child. A shell body is judged from
+# every origin the command has, and the ones its cd lines add are kept, since
+# its targets index them.
 # shellcheck disable=SC2329  # invoked from rdt_parse
 rdt_ix_heredocs() {
-  local k m every=0 st e no d0="$rdt_deleter" unk0="$rdt_cd_unknown" ref0="$rdt_cd_refuse"
+  local k m st no d0="$rdt_deleter" unk0="$rdt_cd_unknown" ref0="$rdt_cd_refuse"
   local -a hdb=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}) ix=() lg=() sts=() bodies=() orig=()
-  ((${#hdb[@]} == rdt_hd_n)) || every=1
-  for k in "${!rdt_hd_lang[@]}"; do
-    st="${rdt_hd_st[k]-}"
-    e="${hdb[k]-}"
-    [[ -n "$e" && "${e#* * * * }" == "${st#* * * }" ]] || every=1
-  done
   for k in "${!rdt_hd_lang[@]}"; do
     for ((m = 0; m < ${#hdb[@]}; m++)); do
-      ((every || m == k)) || continue
       ix+=("$m")
       lg+=("${rdt_hd_lang[k]}")
       sts+=("${rdt_hd_st[k]-}")
@@ -5798,6 +5791,13 @@ rdt_parse() {
     ;;
   *) ;;
   esac
+  # A `{ …; }` group's commands all write into the pipe after it, which the
+  # segment order cannot show (`{ cat list; find build; } | xargs rm`).
+  local rdt_grp=$'(^|[;&|(\n])[[:space:]]*\\{[[:space:]]'
+  if [[ "$t" =~ $rdt_grp ]]; then
+    rdt_flat=0
+    rdt_feed_in=open
+  fi
   hook::bash_parse_segments "$1" rdt_segment
   ((${#rdt_hd_lang[@]} == 0)) || rdt_ix_heredocs "$1"
   return 0
@@ -5813,6 +5813,33 @@ rdt_parse() {
 # command's first heredoc opener.
 # shellcheck disable=SC2329  # invoked as the hook::bash_parse_segments callback
 rdt_segment() {
+  # The reader keeps a substitution inside its word (`eval $(…)`, `~/$(whoami)`,
+  # `bash <(…)`) and hands its commands over as segments of their own. This
+  # guard's rules read a word cut where the substitution starts: the text before
+  # it then `$`, the text before a backtick, and no word for a process
+  # substitution. A word every character of which was quoted stays whole.
+  local -a rdt_sw=() rdt_sq=()
+  local rdt_si rdt_sx rdt_sqv
+  for ((rdt_si = 1; rdt_si <= $#; rdt_si++)); do
+    rdt_sx=${!rdt_si}
+    rdt_sqv=${HOOK_SEG_WORD_QUOTED[rdt_si - 1]:-0}
+    if [[ "$rdt_sqv" != 2 ]]; then
+      # shellcheck disable=SC2016  # literal substitution openers, not expansions
+      case "$rdt_sx" in
+      '<('* | '>('*) continue ;;
+      *'$('*) rdt_sx="${rdt_sx%%'$('*}\$" ;;
+      *'`'*)
+        rdt_sx="${rdt_sx%%'`'*}"
+        [[ -n "$rdt_sx" ]] || continue
+        ;;
+      *) ;;
+      esac
+    fi
+    rdt_sw+=("$rdt_sx")
+    rdt_sq+=("$rdt_sqv")
+  done
+  HOOK_SEG_WORD_QUOTED=(${rdt_sq[@]+"${rdt_sq[@]}"})
+  set -- ${rdt_sw[@]+"${rdt_sw[@]}"}
   local rdt_seg_feed="$rdt_feed_in" j rdt_hd_at="$rdt_hd_n" rdt_dec_feed="$rdt_dec_prev" rdt_dec_out=0
   local rdt_text_feed="$rdt_text_prev" rdt_text_out=""
   if ((rdt_flat == 0)); then

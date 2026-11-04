@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/git-hooks/actionlint-check.sh"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "D:\\plugins\\cache\\m\\actionlint\\1.0.0\\git-hooks\\actionlint-check.sh"
+          }
+        }
+      ],
+      "why": "Windows path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/hooks/actionlint-check.sh"
+          }
+        }
+      ],
+      "why": "the Claude Code hook script, not the git-hook script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/git-hooks/actionlint-check.test.sh"
+          }
+        }
+      ],
+      "why": "the test file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/plugins/cache/m/actionlint/1.0.0/skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "reads only the skill"
+    }
+  ]
+}

@@ -16,7 +16,7 @@ import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 
 const TEMPLATE = "../skills/debug/templates/post-mortem-view.html";
 
-// Data shape from skills/debug/reference/rendered-view.md: top-level text fields,
+// Data shape from reference/rendered-view.md: top-level text fields,
 // then one list of rows whose fields are text.
 const TEXT = ["title", "loop", "cause", "fix", "seam", "prevention"];
 const LIST = "hypotheses";

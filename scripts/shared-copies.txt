@@ -306,6 +306,9 @@ lib/prerequisites.ps1 plugins/playbooks/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/plugin-quality/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/plugin-quality/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/plugin-quality/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/prototype/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/prototype/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/prototype/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/repo-fleet-hygiene/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/repo-fleet-hygiene/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/repo-fleet-hygiene/lib/prerequisites.ps1
@@ -540,7 +543,7 @@ lib/state-key.sh plugins/overengineering/lib/state-key.sh
 lib/rendered-view.md plugins/planning/reference/rendered-view.md
 lib/rendered-view.md plugins/architecture/reference/rendered-view.md
 lib/rendered-view.md plugins/discovery/reference/rendered-view.md
-lib/rendered-view.md plugins/debugging/skills/debug/reference/rendered-view.md
+lib/rendered-view.md plugins/debugging/reference/rendered-view.md
 lib/telemetry-body-gate.sh plugins/work-items/scripts/telemetry-body-gate.sh
 lib/telemetry-body-gate.sh plugins/harness-ops/skills/lanes/scripts/lib/telemetry-body-gate.sh
 lib/telemetry-body-gate.sh plugins/source-control/skills/babysit-loop/scripts/telemetry-body-gate.sh
@@ -646,6 +649,9 @@ lib/prerequisites.ps1 plugins/app-control/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/sql-server/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/sql-server/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/sql-server/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/codebase-health/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/codebase-health/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/codebase-health/lib/prerequisites.ps1
 lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs
 lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
@@ -658,6 +664,8 @@ lib/node-or-skip.sh plugins/disk-hygiene/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/disk-hygiene/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/explainer-video/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/explainer-video/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/guardrails/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/guardrails/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/harness-ops/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/harness-ops/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/playwright/lib/node-or-skip.sh

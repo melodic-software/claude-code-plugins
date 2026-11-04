@@ -7,30 +7,26 @@
 # checkout is its target.
 #
 # The team value lives in docs/conventions/source-control.yaml (ADR 0064),
-# validated by schemas/source-control.schema.json. For one release a key the YAML
-# lacks is still read from the legacy `## <key>` section of
-# .claude/source-control.md; the YAML wins whenever it carries the key. The YAML
-# is parsed by yaml-subset.awk, the shared parser, and the value is printed
-# as written: parse-concern-value.sh is not used because it strips a trailing
+# validated by schemas/source-control.schema.json; the retired
+# .claude/source-control.md is not read. The YAML is parsed by yaml-subset.awk,
+# the shared parser, and the value is printed as written: parse-concern-value.sh is not used because it strips a trailing
 # slash, which belongs to a directory value and would change a regex.
 #
 # Sourced by scripts; run directly for the model-run skills:
 #
 #   bash convention-key.sh layer ROOT KEY   print the team layer that supplies KEY:
-#                                           yaml | legacy-md | none
+#                                           yaml | none
 #   bash convention-key.sh value ROOT KEY   print KEY's scalar from the YAML
 #   bash convention-key.sh list ROOT KEY    print KEY's list items from the YAML
 #
 # `layer` names the file in the form callers report: `yaml` is
-# docs/conventions/source-control.yaml, `legacy-md` is .claude/source-control.md
-# (read only because the YAML lacks the key), `none` means neither carries it.
+# docs/conventions/source-control.yaml, `none` means it does not carry the key.
 # ROOT is the repo root from config-root.sh; the caller has already classified it
 # `repo`. `value` and `list` print nothing for a key the YAML lacks and exit 3
-# for a YAML the parser rejects, so a caller can stop instead of reading the
-# legacy file past a broken team file.
+# for a YAML the parser rejects, so a caller can stop instead of reading a
+# lower layer past a broken team file.
 
 CONVENTION_KEY_YAML_REL="docs/conventions/source-control.yaml"
-CONVENTION_KEY_MD_REL=".claude/source-control.md"
 CONVENTION_KEY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # True when git tracks the repo-relative file REL under ROOT. An untracked or
@@ -72,31 +68,15 @@ convention_key_yaml_has() {
   [[ -n "$items" ]]
 }
 
-# True when the legacy markdown file under ROOT has a `## KEY` heading outside a
-# code fence, as the resolvers' markdown readers see it.
-convention_key_md_has() {
-  local root="$1" key="$2" file="$1/$CONVENTION_KEY_MD_REL"
-  [[ -f "$file" ]] || return 1
-  PCV_KEY="$key" LC_ALL=C awk '
-    NR == 1 { sub(/^\357\273\277/, "") }
-    { sub(/\r$/, ""); sub(/[ \t]+$/, "") }
-    /^(```|~~~)/ { fenced = !fenced; next }
-    !fenced && $0 ~ "^##[ \t]+" ENVIRON["PCV_KEY"] "([ \t]+#+)?$" { found = 1; exit }
-    END { exit !found }
-  ' "$file"
-}
-
-# Print yaml | legacy-md | none. Returns 3 for an unparsable YAML.
+# Print yaml | none. Returns 3 for an unparsable YAML.
 convention_key_layer() {
-  local root="$1" key="$2" rc
-  convention_key_yaml_has "$root" "$key"
+  local rc
+  convention_key_yaml_has "$1" "$2"
   rc=$?
   if ((rc == 0)); then
     echo yaml
   elif ((rc == 3)); then
     return 3
-  elif convention_key_md_has "$root" "$key"; then
-    echo legacy-md
   else
     echo none
   fi

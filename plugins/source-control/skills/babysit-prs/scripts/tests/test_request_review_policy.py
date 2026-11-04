@@ -25,9 +25,9 @@ import request_review
 from repo_config_fake import RepoConfigFake
 
 REPO_FILE = (
-    "## babysit_review_trigger_phrase\n@repo-bot review\n\n"
-    "## babysit_review_bot_logins\n- repo-bot\n\n"
-    "## babysit_review_settle_minutes\n5\n"
+    'babysit_review_trigger_phrase: "@repo-bot review"\n'
+    "babysit_review_bot_logins:\n  - repo-bot\n"
+    "babysit_review_settle_minutes: 5\n"
 )
 
 

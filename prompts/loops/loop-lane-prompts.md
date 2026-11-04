@@ -90,13 +90,13 @@ about that repo, not a preference.
 below reads the *ambient* repository when given no `--repo`, so profiling from
 a neutral directory or a sibling checkout silently describes the wrong backlog,
 and these counts feed the rung decision. The `.work-item-tracker.json` and
-`.claude/source-control.md` reads need that working directory anyway. If you
+`docs/conventions/source-control.yaml` reads need that working directory anyway. If you
 must profile from elsewhere, add `--repo {{REPO}}` to **every** `gh` read below
 without exception; one bare command is enough to mix two repositories' numbers
 into one profile.
 
 - **Merge rung.** Read `babysit_loop_merge` in the target repo's tracked
-  `.claude/source-control.md` on its default branch. Absent or no
+  `docs/conventions/source-control.yaml` on its default branch. Absent or no
   loop-lane keys at all means **every merge is human**, whatever tier you
   pass.
 - **Tracker binding present?** `.work-item-tracker.json` must resolve from
@@ -243,7 +243,7 @@ into one profile.
   ```
 
   **A plugin tree is not the outer edge.** Some of the most behavioral
-  Markdown sits outside it: `.claude/source-control.md` supplies the merge
+  files sit outside it: `docs/conventions/source-control.yaml` supplies the merge
   rung this very profile reads, and a root `CLAUDE.md` (or `AGENTS.md`)
   supplies operating rules every agent loads. Start the boundary at
   `plugins/` and an issue changing either one is ordinary documentation,
@@ -266,7 +266,7 @@ into one profile.
 ## Adopting a new repository
 
 1. Land `babysit_loop_*` keys in that repo's tracked
-   `.claude/source-control.md` on the default branch. Without this the
+   `docs/conventions/source-control.yaml` on the default branch. Without this the
    merge lane runs and merges nothing.
 2. Decide whether this repository wants anything to auto-merge. The merge
    partition reads the class from the `work-class:` **label** only, so a repo

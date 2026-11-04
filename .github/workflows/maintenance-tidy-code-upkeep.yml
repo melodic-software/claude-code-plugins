@@ -281,7 +281,7 @@ jobs:
         if: steps.prepare.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:

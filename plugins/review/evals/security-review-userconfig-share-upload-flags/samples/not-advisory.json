@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.share: flag, enables an upload\n\nseverity: IMPORTANT",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.share: pass, advisory, a boolean",
+      "why": "an advisory pass on a key that sends content off the machine"
+    }
+  ]
+}

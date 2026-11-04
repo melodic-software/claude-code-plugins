@@ -1,5 +1,86 @@
 # Changelog for the PR pipeline convention
 
+## [8.49.2] - 2026-11-04
+
+### Changed
+
+- The local babysit lane's effective rung takes `babysit_loop_merge` from
+  `docs/conventions/source-control.yaml` alone; the source-control plugin no longer reads
+  `.claude/source-control.md`, so the two-file rule is gone
+  ([#9737](https://github.com/melodic-software/claude-code-plugins/issues/9737)).
+
+## [8.49.1] - 2026-11-04
+
+### Changed
+
+- No workflow looks for the artifact listing pr-merge's last run saved any more. The verdict
+  reader reads the FAIL index by exact name and saves a listing only for a pull request past
+  `INDEX_NAMES_CAP` index names, so each search cost one run listing and up to ten runs'
+  artifact listings and almost always found nothing. Past that cap a dispatcher's FAIL-cap
+  read now lists in full. The address-feedback and
+  pr-unblock dispatchers' FAIL-cap reads (`verify-cap.mjs`), pr-merge's `merge` and
+  `enable-auto-merge` jobs, and ci-status's merge-queue reader no longer run it; the run cache
+  and head-ref map are still carried. `BABYSIT_VERIFY_LISTING_CARRY` is gone from every job.
+
+### Removed
+
+- `.github/scripts/pr-merge/listing-carry.mjs` and its floor row, and pr-merge's
+  `pr-merge-verify-listing` upload with its credential scan.
+
+### Fixed
+
+- A pr-verify pass that lands while an address-feedback round for the same lanes App PR is in progress now still sends its pass-only round, so the fail-note threads from earlier heads get resolved ([#13038](https://github.com/melodic-software/claude-code-plugins/issues/13038)). Before, `feedback-dispatch.mjs` skipped the dispatch as "not done yet", and nothing sent the pass again, so the threads blocked the merge until a person resolved them. The pass-only round now waits in `pr-unblock.yml`'s per-PR concurrency group behind that round, and resolves nothing if that round moves the head. A round waiting to start still holds it, because sending would cancel that round. A review run's round still skips while another round is going. `publish-feedback` also writes how many fail-note threads a pass-only round resolved to the run's step summary.
+
+## [8.49.0] - 2026-11-04
+
+### Added
+
+- pr-verify can pass the last pull request of an issue split across several. A closing pull
+  request's body names the earlier ones on a `Siblings: #<a>, #<b>` line. resolve-pr credits each
+  one GitHub shows written by a trusted person or the lanes App, merged into the base in this
+  repository, closing no issue, with a `Refs:` line naming the closing issue and a body unedited
+  unless a trusted person edited it last, or the lanes App did before the merge. It lists each one with its body in the spec entry's `credited_siblings`. The verifier and the
+  whole-spec judge then judge the diff only for the done-when items those siblings did not deliver.
+  A named sibling that did not merge, an outsider wrote, or whose `Refs:` names another issue, earns
+  no credit, and a
+  `Refs:` pull request must still name the work that remains. The merge gate needs no change.
+
+## [8.48.2] - 2026-11-04
+
+### Changed
+
+- A member's veto comment on a lanes App pull request now also gets the `do-not-merge` label:
+  `enable-auto-merge.mjs` adds it on the next reader run that reads the pull request's discussion, at the latest
+  before any run arms it, with a `<!-- member-veto-label -->`
+  comment just after, and dequeues a queued one. It takes the label off once a later comment by
+  each vetoing member lifts the veto, only while the label is that one; a `do-not-merge` the body
+  hold, a session or a person added stays. ci-status still fails on the veto comment itself.
+
+- ci-status no longer fails red while a review lane is still running on a full run. Its review-lanes
+  step polls each waiting lane once a minute, for up to 8 minutes, then judges both lanes as before.
+  A review still running at the cap fails as before, with a message saying pr-feedback-dispatch
+  re-runs ci-status and no manual re-run is needed. `rerun-ci-status` now leaves alone a ci-status
+  that passed with its review step ending after both lanes finished.
+
+### Fixed
+
+- The dispatchers' `budgetedFetch` (`request-budget.mjs`) resends a rate-limited read the way
+  `createGitHub` does: after the reset, inside the read's 3 attempts and the rate latch's 60 s
+  budget, and that refusal no longer fails the step. It counts and logs each request sent, a
+  resend included. A write is still sent once, and a refusal it does not resend still fails the
+  step unless the step holds (`API_BUDGET_HOLD=1`).
+
+- The `pr-verify-failed` fail note, its merge-queue hold reason and the pipeline convention now say
+  that a `pr-verify` pass at the same head removes the label too. Once a trusted person edits the
+  body, and only trusted people have edited it since the fail, that head is judged again, so a fail
+  on the body or the issues it links needs only the body fixed, no new commit.
+
+- The write runner's script step accepts `feedback-already-addressed` from publish-feedback, so an
+  earlier-fail round that finds every pr-verify note already addressed stops for a session as its
+  route says. Before, the step rejected the reason and the run failed with `feedback-publish-failed`.
+  A test now checks that every reason publish-feedback and its adjudication can write is one the
+  step accepts.
+
 ## [8.48.1] - 2026-11-04
 
 ### Changed
