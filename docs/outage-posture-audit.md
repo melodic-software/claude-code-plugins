@@ -316,8 +316,8 @@ A fifth part 2 change fixed the shared rate guard's gaps, each with a test:
   (`SERVER_RETRY_BUDGET_MS`, the resets summed), plus a second so the call lands after the reset,
   and then sends the call instead of refusing it. `createGitHub` sends a read a rate limit refused
   once more after that wait, inside its 3 attempts, and that refusal fails nothing; a write is
-  never resent. `budgetedFetch` keeps its own resend, so its refusal still fails the step. A reset past the
-  budget is still refused without a request (`.github/actions/log-api-budget/rate-guard.mjs`,
+  never resent. A reset past the budget is still refused without a request
+  (`.github/actions/log-api-budget/rate-guard.mjs`,
   `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs`).
 - **shared, element 2.** A step that sets `API_BUDGET_HOLD=1` holds on a rate limit past the
   budget: the Node guard logs a `::notice::`, no `::error::`, and leaves the exit to the caller,
@@ -327,6 +327,15 @@ A fifth part 2 change fixed the shared rate guard's gaps, each with a test:
   reads a refusal as "nothing found" would otherwise pass it: `check-wip-cap.mjs`, for one, starts
   the lane when its listing fails and it has no last state. A stop the job's stop file cannot take
   still fails the step. Each lane holds only once its workflow sets the variable.
+
+A sixth part 2 change fixed this gap, with a test:
+
+- **pr-refine, element 1.** `budgetedFetch` resends a rate-limited read the way `createGitHub`
+  does (`retryServerErrors` with `resendLimited`): after the reset, inside the read's 3 attempts
+  and the latch's 60 s budget, and the guard fails nothing for that refusal. It counts and logs
+  each request sent, a resend included. A write still goes out once, and a refusal it does not
+  resend still fails the step unless the step holds
+  (`.github/scripts/pr-unblock/request-budget.mjs`).
 
 The other script rows below are still open. Part 2 also found two rows that are not script-only
 fixes. Holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
@@ -345,7 +354,6 @@ since it has no cron.
 | work-unblock | 2, 3, 6 | script | `.github/scripts/work-unblock/label-unblocked.mjs` |
 | work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`) |
 | pr-refine | 1, 2, 3, 4 | script | `.github/scripts/lib/handoff-evidence.sh`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs`, `.github/actions/report-check-run/decide.mjs` |
-| pr-refine | 1 | script | `.github/scripts/pr-unblock/request-budget.mjs` (`budgetedFetch` waits out a short rate limit and resends, but its client does not set `resendLimited`, so the guard still fails the step on the refusal it resends) |
 | pr-refine | 1, 2, 4, 5 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
 | pr-review, pr-review-security, pr-verify | 3, 5 | script | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
