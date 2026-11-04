@@ -7,7 +7,8 @@ bump: patch
 - `/harness-config:audit-permission-state`: the reader takes the project file from the primary
   working directory rather than the repository root. Below the repository root, where it cannot tell a
   session started there from one that ran a Bash `cd`, it also reads the root's file as
-  `project toplevel`, so neither file's deny rules are omitted; the output names both directories.
+  `project toplevel`, so neither file's deny rules are omitted; the output names both directories,
+  the lint checks each file's values, and `--merge-only` keeps the note that one may be over-reported.
   Its cloud-session note also covers self-hosted runner images and project cloud threads.
 - `/harness-config:audit`: the baseline drops the `Bash(git push)` ask row, which `Bash(git push *)`
   already covers, so a project with the wider rule is no longer flagged for lacking the bare one. An

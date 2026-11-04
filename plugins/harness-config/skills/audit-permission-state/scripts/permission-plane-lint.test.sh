@@ -156,6 +156,34 @@ C5_MANAGED=$(
 OUT=$(lint "$C5_MANAGED")
 assert_contains "managed scope is checked like any other" "$OUT" "[C5-disableType] managed"
 
+# The reader's two project files are two files: below the repository root it
+# reports both, and a value in one must not hide the other's, in either order.
+TWO_FILES=$(
+  printf '%s\n' "$SURFACES"
+  cat <<'EOF'
+conf project settings disableAutoMode true
+conf project toplevel disableAutoMode "disable"
+conf project settings defaultMode "acceptEdits"
+conf project toplevel defaultMode "auto"
+conf project toplevel autoModePresent true
+conf project toplevel useAutoModeDuringPlan false
+EOF
+)
+OUT=$(lint "$TWO_FILES")
+assert_contains "two project files: this directory's mistyped switch survives the root's" "$OUT" "[C5-disableType] project disableAutoMode is true"
+assert_eq "two project files: the correctly typed switch does not fire" 1 "$(count_matching "$OUT" '\[C5-disableType\]')"
+assert_contains "two project files: the root's ignored mode survives this directory's" "$OUT" "[C2-defaultMode] project:toplevel defaultMode:\"auto\""
+assert_contains "two project files: the root's dead autoMode is named as the root's" "$OUT" "[C2-autoMode] project:toplevel an autoMode section here is never read"
+assert_not_contains "two project files: it carries no local-settings history" "$(grep -F '[C2-autoMode]' <<<"$OUT")" "before v2.1.207"
+assert_contains "two project files: the root's plan key is named as the root's" "$OUT" "[C2-planMode] project:toplevel"
+# A later managed drop-in replaces an earlier value, so that scope stays last-wins.
+LAST_WINS=$(
+  printf '%s\n' "$SURFACES"
+  printf 'conf managed file disableAutoMode true\n'
+  printf 'conf managed dropin-file:z.json disableAutoMode "disable"\n'
+)
+assert_not_contains "managed: a later drop-in's value is the one in force" "$(lint "$LAST_WINS")" "[C5-disableType]"
+
 # --- C6: rules that cannot match ---------------------------------------------
 C6=$(
   printf '%s\n' "$SURFACES"

@@ -81,6 +81,8 @@ assert_contains "subdirectory session: the local rule is read" "$OUT" "rule loca
 MERGED="$(printf '%s\n' "$OUT" | bash "$SCRIPT_DIR/permission-merge.sh" --merge-only)"
 assert_contains "below the root: the merge keeps the root's deny" "$MERGED" "precedence_basis=uncontested Bash(root-deny)"
 assert_contains "below the root: the merge keeps this directory's deny" "$MERGED" "precedence_basis=uncontested Bash(sub-deny)"
+assert_eq "below the root: --merge-only keeps the over-report note" 1 "$(count_matching "$MERGED" '^NOTE: .*can over-report')"
+assert_eq "below the root: --merge-only still drops the reader's other notes" 0 "$(count_matching "$MERGED" '^NOTE: local scope')"
 
 # --- With no shared file here, the root's is still labeled as the root's --------
 OUT="$(run_in "$ROOT/bare-sub")"
