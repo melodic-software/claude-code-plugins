@@ -809,7 +809,7 @@ visualization, adhd and planning plugins carry it. Skills cite the reference inl
 (their plugin's own copy), never by a repository path an installed consumer cannot resolve.
 
 The chrome is one for every page family: the system/light/dark toggle (system by default,
-`button[data-rv-theme]`), the comment box (`textarea[data-rv-note]` under a labelled
+`button[data-rv-theme]`), the comment box (`textarea[data-rv-note]` under a labeled
 heading), and the accessibility floor. A page offers no other theme choice: no team or user
 theme override, no accent or palette picker. A built view copies the chrome's toggle and
 comment markup and its `rv-chrome` style rules verbatim, and its plugin's tests compare them
