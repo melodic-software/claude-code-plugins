@@ -157,6 +157,9 @@ dispatch, PR or babysit step. It works in place:
    what the issue asks for), `design-change` (it changes the primary design, not a detail you can decide), `security-risk` or
    `cost-risk` (a HIGH or CRITICAL risk), `blocked-by-pr` (the work waits on an open pull request:
    name it as `#<n>`, and the lane runs the issue again once it merges or closes),
+   `blocked-by-issue` (the work is in scope but must land after another open issue: name it as
+   `#<n>`, and intake triage records the blocked-by edge, so the issue runs once that one closes;
+   use it, not `intent-change`, for an ordering between issues),
    `already-done` (the work is already on the default branch: cite the commit SHA or merged pull
    request `#<n>`, and the lane closes the issue once it confirms that), `verified-done` and
    `verify-unmet` (a `verify_close` run's two ends, above: the lane closes the issue on the first

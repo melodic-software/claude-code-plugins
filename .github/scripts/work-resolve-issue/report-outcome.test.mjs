@@ -4388,6 +4388,22 @@ test("route wait: a blocked-by-pr code keeps agent-ready and names the pull requ
   assert.equal(waitedPull("blocked-by-pr: nothing named", 77), "");
 });
 
+// Work that must land after another issue names no owner reason: intake
+// triage writes the blocked-by edge the run names, so admission waits for it.
+test("route intake: a blocked-by-issue code sends the issue back through intake, naming the issue it waits on", () => {
+  const plan = stoppedPlan("blocked-by-issue #13187 must land first; see also #77");
+  assert.equal(plan.stop, "blocked-by-issue");
+  assert.equal(plan.action, "intake");
+  assert.equal(plan.after, "13187");
+  assert.equal(plan.pr, undefined, "the marker names no pull request");
+  assert.deepEqual(plan.removeLabels, ["agent-ready", "status: ready", "admission-deferred"]);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=intake run=555 -->\n"), plan.comment);
+  assert.match(plan.comment, /^It must land after #13187: intake triage records #13187 on its `Blocked by:` line/m);
+  assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
+  assert.equal(stoppedPlan("blocked-by-issue: nothing named").after, undefined);
+  assert.equal(capRetries(plan, 1, { "stop-retries": 2 }).action, "fail", "one intake round, then retry-spent");
+});
+
 test("route close: already-done and report-delivered close the issue as completed, to no person", () => {
   for (const reason of ["already-done: both items are on main at abb359be", "report-delivered: the report is below"]) {
     const plan = stoppedPlan(reason, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });

@@ -81,6 +81,28 @@ test("a stop with no code, a done or delivered issue, a wait on a pull request a
   }
 });
 
+// An ordering stop names no owner reason ("When work stops for the owner",
+// docs/contracts/loop-lane/README.md): intake triage writes the blocked-by
+// edge, so admission waits for the blocker.
+test("a blocked-by-issue code goes back through intake once, and an intent-change code still holds", () => {
+  assert.equal(runCode("blocked-by-issue #13187 must land first"), "blocked-by-issue");
+  assert.equal(runCode("blocked-by-issue: #13187 must land first"), "blocked-by-issue");
+  assert.equal(stopRoute("blocked-by-issue"), "intake");
+  assert.equal(stopRetries("blocked-by-issue", 2), 1);
+  assert.equal(stopReasonCode("blocked-by-issue"), "none");
+  assert.equal(runCode("intent-change: must land after the sibling part #13187"), "intent-change");
+  assert.equal(stopRoute("intent-change"), "hold");
+  // Owner Q4: intake removes agent-ready, so a security mention after the
+  // code still reaches a person, as it does with no code.
+  assert.equal(runCode("blocked-by-issue: #5 rotates the leaked token"), "security-risk");
+  assert.equal(runCode("rotates the leaked token"), "security-risk");
+});
+
+test("the issue lane's prompt names the blocked-by-issue code", () => {
+  const prompt = readFileSync(new URL("../../../plugins/work-items/skills/work/reference/ci-mode.md", import.meta.url), "utf8");
+  assert.ok(prompt.includes("`blocked-by-issue`"), "ci-mode.md names blocked-by-issue");
+});
+
 test("a spent cap never retries again", () => {
   for (const spent of ["retry-spent", "turn-cap-spent"]) {
     assert.equal(stopRoute(spent), "fail", spent);
