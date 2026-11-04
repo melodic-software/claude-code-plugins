@@ -9,13 +9,20 @@ marketplace plugin, plus two that ship with Claude Code itself. They share a nam
 routinely conflated; they are distinct:
 
 - **`code-review` marketplace plugin**: `/code-review:code-review`, installed from the
-  `claude-plugins-official` marketplace like any other plugin. This mode never runs it as a
-  read-only pass: it is a gated surface (Mutation gate below), dispatched only on explicit opt-in.
+  `claude-plugins-official` marketplace like any other plugin. Run without `--comment`, it reports
+  its findings to the terminal and posts nothing to GitHub; only the `--comment` form posts to the
+  PR (Mutation gate below). That read-only default rests on the command's instructions, not on its
+  `allowed-tools`, which still grant `gh pr comment` and the inline-comment tool. A default run can
+  return no findings: the command stops early on a closed or draft PR, on one it judges to
+  need no review, and on a PR Claude has already commented on, which a CI review lane's earlier
+  comment can trigger.
   - **Pointer**: for what the plugin targets and where its findings go, see
-    [code-review plugin: Commands](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/code-review#commands).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section adds a target other than a PR, or a mode that returns
-    findings to the session without posting.
+    [code-review plugin: Commands](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/code-review#commands)
+    and the command file,
+    [`commands/code-review.md`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-review/commands/code-review.md).
+  - **As of**: 2026-11-04
+  - **Recheck trigger**: the command file changes its `--comment` handling, its step-1 stop
+    conditions, or its `allowed-tools`.
 - **Bundled `/code-review` command**: invoked with no plugin namespace, and never assumed present
   (settings, the host, and the environment decide whether it resolves). Passing a PR as its target
   reviews that PR locally and reports into the session. Some of its arguments edit the working
@@ -42,10 +49,10 @@ Recheck trigger: the code-review page changes its availability note, its set-up 
 manual-trigger section, the check-run section, or the argument list, or the bundled command leaves
 the bundled-skill list.
 
-**Mutation gate.** The gate is by effect, not by flag name. It covers the plugin unconditionally,
-the managed service, and any bundled `/code-review` invocation whose arguments, as read live at the
-pointer above, edit the working tree or post to the PR. A surface that posts to the PR or edits the
-working tree violates the review modes' report-only contract. Dispatch any gated surface only on
+**Mutation gate.** The gate is by effect, not by flag name. It covers the plugin only in its
+`--comment` form, the managed service, and any bundled `/code-review` invocation whose arguments,
+as read live at the pointer above, edit the working tree or post to the PR. A surface that posts
+to the PR or edits the working tree violates the review modes' report-only contract. Dispatch any gated surface only on
 explicit user opt-in ("post the review comment", "apply the fixes"), otherwise skip and name the
 skip in the review report.
 
@@ -54,13 +61,14 @@ skip in the review report.
 - **As of**: 2026-11-03
 - **Recheck trigger**: that section changes which arguments edit the working tree or post findings.
 
-A bundled `/code-review <target>` whose arguments only report into the session is **not** gated:
-it writes nothing to the PR or the working tree, so it stays available as a read-only option
-alongside the manual path below.
+Two runs are **not** gated, because neither writes to the PR or the working tree: a bundled
+`/code-review <target>` whose arguments only report into the session, and the plugin's
+`/code-review:code-review` without `--comment`. Both are optional read-only passes alongside the
+manual path below.
 
 ## Manual PR review (default read-only path)
 
-Used by default, or alongside a bare `/code-review <target>` pass:
+Used by default, or alongside either optional read-only pass above:
 
 1. `/source-control:pull-request view <n> --diff` for the change set, invoked via the Skill tool when the `source-control` plugin is installed; otherwise the forge's own diff read (page it, since large PRs flood context)
 2. Apply the project's review criteria (or `<plugin-root>/context/severity.md` baseline) manually, or dispatch this plugin's `code-reviewer` agent against the PR's merge-base diff, with a findings path and the read-back per SKILL.md "Shared inputs" "Reviewer handback"
