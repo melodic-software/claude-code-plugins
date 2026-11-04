@@ -134,7 +134,7 @@ nothing, but stores an empty string as `""`; the rerun prints a warning for a re
 exits 0, so read its output. The rendered `${user_config.*}` values are fixed when this skill loads,
 so rerun `check` in a **fresh session** and report the provenance it observes, never an unobserved
 change. The plugin README's Options section lists every option. Pointer:
-<https://code.claude.com/docs/en/plugins-reference#user-configuration>. As of: 2026-10-11.
+<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>. As of: 2026-11-04.
 Recheck: that section changes how an option is edited or where its value is stored.
 
 The user-level instructions file is the one the memory page names for personal preferences across

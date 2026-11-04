@@ -121,7 +121,7 @@ from interview_server import (
     unchecked_constraints,
 )
 
-# The Brief contract's arbiter tokens (the interview skill's context/loop.md "Brief template").
+# The Brief's arbiter tokens (the interview skill's context/loop.md "Brief template").
 ARBITER_USER = "**arbiter: USER-RESERVED**"
 ARBITER_PLAN = "**arbiter: /planning:plan**"
 SEED_NOTE = "Seeded from ledger"

@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "jq: FAIL. Without it the hook can neither classify the notification nor emit its terminal sequence, so every notification is dropped."
+    },
+    {
+      "answer": "A missing jq is FAIL: the hook exits early and drops every notification."
+    },
+    {
+      "answer": "| jq | FAIL | absent, so the hook silently skips every notification |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jq is INFO; the hook still fires the bell.",
+      "why": "wrong grade"
+    },
+    {
+      "answer": "jq is FAIL.",
+      "why": "near miss: no consequence"
+    },
+    {
+      "answer": "jq is FAIL, but the bell and the toast still fire without it.",
+      "why": "near miss: wrong consequence"
+    },
+    {
+      "answer": "Without jq only the OSC 9 channel stops, so it is a FAIL.",
+      "why": "near miss: partial loss"
+    },
+    {
+      "answer": "Every notification is dropped without jq, which check reports as INFO.",
+      "why": "near miss: right consequence, wrong grade"
+    }
+  ]
+}

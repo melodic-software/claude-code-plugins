@@ -25,7 +25,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live" [page]="page" [ui-c]="c" [ui-c-listen]="c_listen" [ui-c-ledger]="c_ledger" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=237 [live]=18 [page]=135)
+declare -A CHECKS=([ab]=98 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=237 [live]=18 [page]=135)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -59,7 +59,7 @@ if [[ "$part" == main || "$part" == all ]]; then
     names="${names:+$names|}${p##*/}"
   done
   # Two exemptions, each naming /planning:plan as the actor on a decision, never a visual's
-  # producer: exporters.py's ARBITER_PLAN line writes the Brief contract's arbiter token (the
+  # producer: exporters.py's ARBITER_PLAN line writes the Brief's arbiter token (the
   # Deferred questions tag in the interview skill's Brief template), and the superseded-by-plan
   # banner in index.html, with its ui_c.js assertion, says the plan changed the user's answer.
   # A CSS declaration after `{` or `;` (`{animation:pulse ...}`) is a property, not a token.

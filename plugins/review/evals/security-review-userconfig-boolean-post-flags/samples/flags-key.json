@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.post_summary: flag, true has the session post the summary to the team channel\n\nseverity: IMPORTANT",
+      "why": "flags the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.post_summary: pass, inert, plugins/recap/skills/recap/SKILL.md:6\n\ncritical-findings: 0",
+      "why": "treats a posting switch as inert"
+    }
+  ]
+}

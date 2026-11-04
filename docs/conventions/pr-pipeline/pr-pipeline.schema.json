@@ -370,6 +370,34 @@
         }
       }
     },
+    "monitor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The monitoring lane's thresholds. Contract: README.md, The monitoring lane.",
+      "properties": {
+        "lane-holds": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Signal 13: a lane whose runs held green on a fault, with only a notice, this often raises the signal's issue. It only notifies, and adds no stop and no cap.",
+          "properties": {
+            "threshold": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 100,
+              "default": 4,
+              "description": "Held runs of one lane in the window that raise the signal. At least 2, so a single hold never does."
+            },
+            "window-hours": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 168,
+              "default": 24,
+              "description": "Hours back from the monitoring run whose held runs count. The lane carries them from one run to the next in its job reads artifact."
+            }
+          }
+        }
+      }
+    },
     "merge": { "$ref": "#/$defs/merge" },
     "models": { "$ref": "#/$defs/models" }
   },

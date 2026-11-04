@@ -150,11 +150,11 @@ do about it**. The three failure statuses have different fixes and saying "inval
 
 | Status | What actually happened | Fix |
 |---|---|---|
-| `zero-match` | No tracked file matches | The glob is wrong, or the code it described was moved or deleted. Correct the pattern, or retire the rule |
+| `zero-match` | No tracked file under the rule's base directory matches | The glob is wrong, or the code it described was moved or deleted. Correct the pattern, or retire the rule |
 | `bad-bracket` | A `[` cannot be read as a bracket expression | Escape it as `\[` if it is a literal, or close the expression |
 | `over-budget` | Expansion exceeded 1,000 patterns or 4 MiB | Split the rule, or replace brace groups with a broader pattern |
 | `unparsable` (`FRONTMATTER`) | The YAML between the `---` markers will not parse | Quote the offending value (`paths: "**/*.ts"`), fix the indentation, then rerun. The rule is loading unscoped until then |
-| `over-broad` | Matches most of the repository | Advisory. Narrow it, or accept it and raise `--breadth-max` |
+| `over-broad` | Matches most of the rule's base: the repository for a root rule, its subtree for a nested one | Advisory. Narrow it, or accept it and raise `--breadth-max` |
 
 ## Hard rules
 

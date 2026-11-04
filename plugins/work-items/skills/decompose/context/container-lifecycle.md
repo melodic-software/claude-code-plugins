@@ -19,7 +19,7 @@ exactly as for the items.
 **Coordination provider required.** Offer the container only when the bound provider is a
 coordination surface. A `local-markdown` binding is worktree-confined, each worktree sees its
 own store, so a container published there is invisible to exactly the later sessions and worker
-worktrees it exists to brief (`<plugin-root>/tools/work-item-tracker/CONTRACT.md`
+worktrees it exists to inform (`<plugin-root>/tools/work-item-tracker/CONTRACT.md`
 "local-markdown adapter": local-markdown "is never that surface"). On a `local-markdown`
 binding, skip the offer and, if the user asks for a container anyway, surface the redirect to a
 coordination provider instead of publishing a spec that cannot travel.

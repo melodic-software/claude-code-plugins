@@ -157,6 +157,14 @@ class TestPasses(BatchPageCase):
         self.assert_ends(self.check(), "verified")
         self.assertNotIn("first line reads it", self.read("docpage-digest-checklist.md"))
 
+    def test_the_template_status_line_reads_unverified_until_a_stage_writes_one(self):
+        template = (SCRIPTS.parent / "templates" / "checklist.md").read_text(encoding="utf-8")
+        line = next(ln for ln in template.splitlines() if "Verification status" in ln)
+        self.assertEqual(line.strip(), "- Verification status: unverified: not recorded")
+        self.put("docpage-digest-checklist.md", checklist(line))
+        self.seal()
+        self.assert_ends(self.check(), "unverified: status-not-awaiting")
+
     def test_the_awaiting_status_in_backticks_or_with_a_period_counts(self):
         self.put("docpage-digest-checklist.md", checklist(f"  - Verification status: `{AWAITING}`"))
         self.put("interview-handoff.md", handoff(f"Verification status: {AWAITING}."))

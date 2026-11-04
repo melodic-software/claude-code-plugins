@@ -1,0 +1,11 @@
+{
+  "no-plugin-cli-write": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?claude(?:\\.exe)?(?:\\\\\\\"|')?(?:(?:\\s|\\\\\\\\\\\\n)+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+plugins?(?:\\s|\\\\\\\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\\b(?!\\s+--help\\b)"
+  ],
+  "no-settings-shell-write": [
+    "\\\"command\\\":\\\"(?:(?!<<)(?:'[^']*'|[^\\\"\\\\']|\\\\.))*?(?:>{1,2}\\s*|\\btee\\s+(?:-a\\s+)?|\\bsed\\s+-i\\S*\\s+(?:'[^']*'|(?!\\\\n)[^\\\"\\\\;&|']|\\\\[^n\\\"])*?|\\b(?:mv|cp)\\s+(?:-\\S+\\s+)*(?:[^\\s;&|<>\\\\]|\\\\.)+\\s+)(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|<>']*/)?(?:\\.claude/plugins/|(?:settings(?:\\.local)?|\\.claude)\\.json(?![\\w.-]))"
+  ]
+}

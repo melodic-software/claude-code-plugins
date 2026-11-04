@@ -190,6 +190,38 @@ assert_lists "a bracket expression inside a flow entry survives" 'photos/a[0-9].
 out="$(ip_parse_paths "$pp/block.md")"
 assert_lists "the block-sequence form still parses" 'src/**/*.ts' "$out"
 
+# The memory page's frontmatter reference: `paths` accepts a comma-separated string.
+scalar() { # <name> <value after `paths: `>
+  printf -- '---\npaths: %s\n---\n\n# Scalar\n' "$2" >"$pp/$1.md"
+}
+scalar comma-plain 'src/**/*.ts, lib/**/*.ts'
+scalar comma-quoted '"src/*.{ts,tsx}, lib/**"'
+scalar one-single-quoted "'only/**'"
+scalar one-commented 'only/** # why this scope'
+scalar yaml-alias '**/*.ts'
+scalar block-scalar '>'
+scalar yaml-null 'null'
+scalar yaml-tilde '~'
+scalar yaml-true 'true'
+scalar apostrophe-quoted "\"it's/*.ts, b/**\""
+scalar apostrophe-plain "it's/*.ts, b/**"
+
+assert_lists "a plain comma-separated string splits" 'src/**/*.ts
+lib/**/*.ts' "$(ip_parse_paths "$pp/comma-plain.md")"
+assert_lists "a quoted string splits outside its brace group only" 'src/*.{ts,tsx}
+lib/**' "$(ip_parse_paths "$pp/comma-quoted.md")"
+assert_lists "a one-pattern string is unquoted" 'only/**' "$(ip_parse_paths "$pp/one-single-quoted.md")"
+assert_lists "a plain string drops its trailing comment" 'only/**' "$(ip_parse_paths "$pp/one-commented.md")"
+assert_lists "an unquoted leading * is unparsable YAML, so no pattern" '' "$(ip_parse_paths "$pp/yaml-alias.md")"
+assert_lists "a block-scalar marker is not a pattern" '' "$(ip_parse_paths "$pp/block-scalar.md")"
+assert_lists "a YAML null is not a pattern" '' "$(ip_parse_paths "$pp/yaml-null.md")"
+assert_lists "nor is its tilde spelling" '' "$(ip_parse_paths "$pp/yaml-tilde.md")"
+assert_lists "a YAML boolean is not a pattern" '' "$(ip_parse_paths "$pp/yaml-true.md")"
+assert_lists "an apostrophe inside a quoted string does not hide its comma" "it's/*.ts
+b/**" "$(ip_parse_paths "$pp/apostrophe-quoted.md")"
+assert_lists "nor inside a plain string" "it's/*.ts
+b/**" "$(ip_parse_paths "$pp/apostrophe-plain.md")"
+
 # A circular symlink must not hang or explode the listing.
 circ="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$circ" init -q .
@@ -445,6 +477,31 @@ printf '# Shared\n' >"$fenced/AGENTS.md"
 commit_all "$fenced"
 ip_index_target_loaded "$fenced" "AGENTS.md" >/dev/null 2>&1
 assert_eq "an @import inside a code fence does not count as an import" "1" "$?"
+
+# The memory page's import section: a backslash keeps a space in the path, a bare
+# space ends it, and a path wrapped in quotes is not imported at all.
+tok="$(mktemp -d "$TMP/x.XXXX")"
+tok_abs="$(cd "$tok" && pwd)"
+cat >"$tok/tokens.md" <<'EOF'
+- API conventions @Design\ Docs/api-conventions.md.
+Bare @Plain Docs/plain.md
+Quoted @"Double Dir/d.md" and @'Single Dir/s.md' and @"Esc\ Dir/e.md"
+EOF
+assert_lists "imports tokenize as the page documents" "$tok_abs/Design Docs/api-conventions.md
+$tok_abs/Plain" "$(_ip_imports_of "$tok/tokens.md")"
+
+spaced="$(mktemp -d "$TMP/x.XXXX")"
+git -C "$spaced" init -q .
+mkdir -p "$spaced/Design Docs"
+printf '# Shared\n' >"$spaced/Design Docs/shared.md"
+printf '%s\n' '@Design\ Docs/shared.md' >"$spaced/CLAUDE.md"
+commit_all "$spaced"
+ip_index_target_loaded "$spaced" "Design Docs/shared.md" >/dev/null 2>&1
+assert_eq "an escaped-space import makes its target reachable" "0" "$?"
+printf '%s\n' '@"Design Docs/shared.md"' >"$spaced/CLAUDE.md"
+commit_all "$spaced"
+ip_index_target_loaded "$spaced" "Design Docs/shared.md" >/dev/null 2>&1
+assert_eq "a quoted import leaves its target unreachable" "1" "$?"
 
 # The `.claude/CLAUDE.md` project location is equally valid.
 alt="$(mktemp -d "$TMP/x.XXXX")"

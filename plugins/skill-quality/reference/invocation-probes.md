@@ -164,8 +164,22 @@ Opus 5.5, 3 runs per probe, all passes VALID, every rival on the init line) four
 | `architecture:map-flow` | debugging, discovery, visualization | 18/18 / 18/18 |
 | `architecture:map-deployment` | discovery, visualization | 18/18 / 18/18 |
 
-All four are unmeasurable, so they keep the before text. What makes the control fire was not
-tested: the listing always keeps a skill's name, which the generic description leaves in place.
+All four are unmeasurable, so they keep the before text.
+
+The name is what keeps such a control firing, at least on Opus. On the same version and model,
+three `code-metrics` leaves ran the description-only control, then a control that also renamed the
+skill's folder (each row 27 runs per arm, 9 should-trigger probes at 3 runs, all passes VALID):
+
+| Skill | Should-trigger fired, shipped / description control / name and description control |
+|---|---|
+| `code-metrics:audit-coverage` | 27/27 / 27/27 / 0/27 |
+| `code-metrics:audit-duplication` | 27/27 / 27/27 / 0/27 |
+| `code-metrics:audit-suppressions` | 27/27 / 27/27 / 0/27 |
+
+A renaming control shows that a probe set can fail, and nothing about the description: it removes
+the skill from view, so it falls all or nothing and never certifies a cut. These three are
+unmeasurable and keep the before text. `naming:name-it-better` above shows the description control
+can still drop, on Sonnet 5.5.
 
 ## Outside the marketplace checkout
 

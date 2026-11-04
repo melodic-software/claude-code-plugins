@@ -79,8 +79,14 @@ ip_realpath() {
 # against a rule that was correct. Three copies meant three places to fix and
 # three places to drift, so the parser is defined once and the copies are gone.
 #
-# Splits on commas ONLY at brace depth zero and outside quotes, which is what
-# makes brace expansion survive the flow form.
+# Splits on commas ONLY at brace depth zero and outside a quote that opens an
+# entry, which is what makes brace expansion survive the flow form and the
+# comma-separated string.
+#   Pointer: when deciding which shapes `paths` accepts, fetch
+#     https://code.claude.com/docs/en/memory#rule-frontmatter-reference live.
+#   As of: 2026-11-04.
+#   Recheck trigger: that section changes the accepted shapes of `paths`, or says
+#     how a comma-separated string treats a brace group.
 # ---------------------------------------------------------------------------
 ip_parse_paths() {
   local file="${1:-}"
@@ -92,6 +98,20 @@ ip_parse_paths() {
       if (length(v) > 1 && ((a == "\"" && b == "\"") || (a == "'"'"'" && b == "'"'"'")))
         v = substr(v, 2, length(v) - 2)
       if (v != "") print v
+    }
+    function emit_list(line,   part, depth, q, n, i, c) {
+      part = ""; depth = 0; q = ""
+      n = length(line)
+      for (i = 1; i <= n; i++) {
+        c = substr(line, i, 1)
+        if (q != "") { if (c == q) q = ""; part = part c; continue }
+        if ((c == "\"" || c == "'"'"'") && part ~ /^[[:space:]]*$/) { q = c; part = part c; continue }
+        if (c == "{") depth++
+        else if (c == "}") depth--
+        else if (c == "," && depth == 0) { emit(part); part = ""; continue }
+        part = part c
+      }
+      emit(part)
     }
     # A file whose first line is not `---` has no frontmatter, and the closing
     # `---` ends the parse, so every rule below runs inside the frontmatter.
@@ -105,22 +125,31 @@ ip_parse_paths() {
       # Drop the final `]` and anything after it. Using the LAST one keeps a
       # bracket expression inside a glob (`a[bc].ts`) intact.
       sub(/\][^]]*$/, "", line)
-      part = ""; depth = 0; q = ""
-      n = length(line)
-      for (i = 1; i <= n; i++) {
-        c = substr(line, i, 1)
-        if (q != "") { if (c == q) q = ""; part = part c; continue }
-        if (c == "\"" || c == "'"'"'") { q = c; part = part c; continue }
-        if (c == "{") depth++
-        else if (c == "}") depth--
-        else if (c == "," && depth == 0) { emit(part); part = ""; continue }
-        part = part c
-      }
-      emit(part)
+      emit_list(line)
       next
     }
 
     /^paths:[[:space:]]*$/ { inpaths = 1; next }
+
+    # The string form. Its quotes wrap the whole list, so they come off before the
+    # split. A value YAML would not read as a one-line string yields no pattern:
+    # a block scalar marker, or an indicator such as the `*` of an unquoted
+    # `**/*.ts`, which ip_frontmatter_problem reports as unparsable.
+    /^paths:[[:space:]]*[^[:space:]]/ {
+      line = $0
+      sub(/^paths:[[:space:]]*/, "", line)
+      c = substr(line, 1, 1)
+      if (c == "\"" || c == "'"'"'") {
+        end = index(substr(line, 2), c)
+        if (end > 0) emit_list(substr(line, 2, end - 1))
+        next
+      }
+      if (c ~ /[*@`|>&!%{#]/) next
+      sub(/[[:space:]]+#.*$/, "", line)
+      if (line ~ /^(~|null|Null|NULL|true|True|TRUE|false|False|FALSE)$/) next
+      emit_list(line)
+      next
+    }
     inpaths && /^[[:space:]]+-[[:space:]]*/ {
       v = $0
       sub(/^[[:space:]]+-[[:space:]]*/, "", v)
@@ -390,7 +419,12 @@ ip_entry_points_on_path() {
 # Emit the @import targets of one markdown file, resolved to absolute paths.
 # Fenced code blocks and inline code spans are skipped: upstream documents that
 # import parsing ignores both, so a `@AGENTS.md` shown inside an example fence
-# is documentation, not wiring.
+# is documentation, not wiring. A backslash keeps a space inside the path, a bare
+# space ends it, and a path wrapped in quotes is no import.
+#   Pointer: when deciding how an import path is written, fetch
+#     https://code.claude.com/docs/en/memory#import-additional-files live.
+#   As of: 2026-11-04.
+#   Recheck trigger: that section changes how spaces or quotes in a path are read.
 _ip_imports_of() {
   local file="$1" dir
   dir="$(cd "$(dirname "$file")" && pwd)"
@@ -400,11 +434,15 @@ _ip_imports_of() {
     {
       line = $0
       gsub(/`[^`]*`/, "", line)          # drop inline code spans
+      gsub(/\\ /, "\001", line)          # an escaped space does not split the token
       n = split(line, tok, /[[:space:]]+/)
       for (i = 1; i <= n; i++) {
         if (substr(tok[i], 1, 1) == "@" && length(tok[i]) > 1) {
           t = substr(tok[i], 2)
+          c = substr(t, 1, 1)
+          if (c == "\"" || c == "'"'"'") continue
           sub(/[.,;:)]+$/, "", t)
+          gsub(/\001/, " ", t)
           if (t != "") print t
         }
       }

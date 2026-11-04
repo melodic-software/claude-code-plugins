@@ -107,13 +107,27 @@ const untrustedSkip = (run) =>
 // `Skipped: <reason>` title).
 const heldSkip = (run) => run.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: awaiting-human";
 
-// Two opt-ins, for a dispatcher that checks the PR's holds itself before it
+// The gate's head-lag stop (check-trusted-trigger.mjs fetchPull), which
+// report-check-run posts as a superseded-sha skip (gate-skip-reasons.json) on
+// the head the run read. Every other superseded-sha check lands on a head the
+// PR has left (a cancel, a moved tip before the mint or the push), so on the
+// head a dispatcher reads, the PR's current one, it is a lag stop that did no
+// work there.
+export const HEAD_LAG_STOP = "Skipped: superseded-sha";
+export const headLagStop = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === HEAD_LAG_STOP;
+
+// Three opt-ins, for a dispatcher that checks the PR's holds itself before it
 // reads the check runs: with `heldSkipsRelease` a held skip stops handling the
 // head, so a head skipped while held is dispatched once the hold is gone; with
-// `failuresRetry` a failed run of any kind does too. Either way the head is
-// handled once `limit-stops-per-head` of them, limit stops included, stand on
-// it, so a dispatcher and a run that disagree about a hold stop there.
-const released = (run, heldSkipsRelease) => (heldSkipsRelease && heldSkip(run)) || killSwitchStop(run);
+// `lagStopsRelease` a head-lag stop on the head read does too, so a round the
+// gate stopped on a lagging API read is sent again; with `failuresRetry` a
+// failed run of any kind does too. Either way the head is handled once
+// `limit-stops-per-head` of them, limit stops included, stand on it, so a
+// dispatcher and a run that disagree about a hold stop there. A newer run
+// still going handles the head, and a newer finished one decides it, so each
+// stop is sent again once.
+const released = (run, { heldSkipsRelease = false, lagStopsRelease = false } = {}) =>
+  (heldSkipsRelease && heldSkip(run)) || (lagStopsRelease && headLagStop(run)) || killSwitchStop(run);
 
 // The neutral check a run the lanes kill switch stopped posts: its own
 // kill-switch step, or the broker refusing its mint for a switch turned on
@@ -132,13 +146,13 @@ export const releasesHead = (run) => laneStop(run) || killSwitchStop(run);
 // Whether `runs` handle the head: any run that is not an untrusted skip, a
 // kill-switch stop or a reset limit stop does, and so do
 // `limit-stops-per-head` such stops.
-export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false }) {
+export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry = false, ...opt }) {
   let stops = 0;
   for (const run of runs) {
     if (untrustedSkip(run)) {
       continue;
     }
-    if (released(run, heldSkipsRelease)) {
+    if (released(run, opt)) {
       stops += 1;
       continue;
     }
@@ -167,9 +181,9 @@ export function permanentlyHandles(runs, options = {}) {
   return done.some((run) => !retryable(run)) || cappedAt(runs, options) > 0;
 }
 
-function completedRuns(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false }) {
+function completedRuns(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, ...opt }) {
   const done = runs.filter((run) => run.status === "completed" && !untrustedSkip(run));
-  const retryable = (run) => released(run, heldSkipsRelease) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run, limits) !== null);
+  const retryable = (run) => released(run, opt) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run, limits) !== null);
   return { done, retryable };
 }
 
@@ -177,11 +191,11 @@ function completedRuns(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, h
 // they reach `limit-stops-per-head`, the head's hard end, else 0: the part of
 // permanentlyHandles a dispatcher reports as a stop. A head with any other
 // finished run (a success, an escalation) is done, not capped.
-export function cappedAt(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
-  if (!failuresRetry && !heldSkipsRelease) {
+export function cappedAt(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false, lagStopsRelease = false } = {}) {
+  if (!failuresRetry && !heldSkipsRelease && !lagStopsRelease) {
     return 0;
   }
-  const { done, retryable } = completedRuns(runs, { limits, failuresRetry, heldSkipsRelease });
+  const { done, retryable } = completedRuns(runs, { limits, failuresRetry, heldSkipsRelease, lagStopsRelease });
   return done.length >= limits["limit-stops-per-head"] && done.length > 0 && done.every(retryable) ? done.length : 0;
 }
 

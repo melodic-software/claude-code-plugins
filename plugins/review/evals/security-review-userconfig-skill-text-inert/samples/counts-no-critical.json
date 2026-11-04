@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.wrap_column: pass, inert, plugins/notes/skills/summary/SKILL.md:6\n\ncritical-findings: 0",
+      "why": "zero CRITICAL findings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "critical-findings: 1",
+      "why": "counts a CRITICAL finding"
+    }
+  ]
+}

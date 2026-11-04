@@ -1,0 +1,175 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send"
+          }
+        }
+      ],
+      "why": "the probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "notify-send --version"
+          }
+        }
+      ],
+      "why": "version flag sends nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n notify-send /plugins/desktop-notification/hooks/desktop-notification.sh"
+          }
+        }
+      ],
+      "why": "search"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /plugins/desktop-notification/hooks/desktop-notification.sh"
+          }
+        }
+      ],
+      "why": "reads the hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n /plugins/desktop-notification/hooks/desktop-notification.sh"
+          }
+        }
+      ],
+      "why": "syntax check only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo notify-send is on PATH"
+          }
+        }
+      ],
+      "why": "echoed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /opt/notify-send/bin"
+          }
+        }
+      ],
+      "why": "a directory of that name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "notify-send \"Test\" \"hello\""
+          }
+        }
+      ],
+      "why": "fires a toast"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "notify-send -- Test hello"
+          }
+        }
+      ],
+      "why": "with --"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/bin/notify-send Test"
+          }
+        }
+      ],
+      "why": "by path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "osascript -e 'display notification \"hi\"'"
+          }
+        }
+      ],
+      "why": "a macOS toast"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '\\033]9;Test\\007'"
+          }
+        }
+      ],
+      "why": "OSC 9 by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '\\e]9;Test\\a'"
+          }
+        }
+      ],
+      "why": "OSC 9, \\e form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{\"notification_type\":\"idle_prompt\"}' | bash /plugins/desktop-notification/hooks/desktop-notification.sh"
+          }
+        }
+      ],
+      "why": "runs the hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/desktop-notification/hooks/exec-bash.mjs /plugins/desktop-notification/hooks/desktop-notification.sh"
+          }
+        }
+      ],
+      "why": "runs the launcher"
+    }
+  ]
+}

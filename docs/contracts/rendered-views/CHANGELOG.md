@@ -3,6 +3,19 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## Form and fallback chain replace rung and default ladder, 2026-11-04
+
+- **Choosing the rung becomes Choosing the form.** Text, diagram, page and video are forms; the
+  section and the genre-rubric entries call each one a form, and an emitter that defers the
+  medium choice leaves the medium to `visualization:visualize`.
+- **Default ladder and its reconciliation becomes Shipped fallback chain and its
+  reconciliation.** An existing publishing emitter starts at the published artifact only by
+  default, and the Artifact disable switches make the local file the first reachable medium.
+- **Loop closure's five payload shapes are no longer called rungs.** The genre rubric's size budget
+  names the medium selection, not a ladder.
+- **The convention page's headings follow.** Its two moved-section stubs carry the new headings
+  and link the new anchors.
+
 ## One canonical chrome with a theme toggle, and the redraw binding, 2026-11-04
 
 - **The chrome moves to `lib/html-chrome.html`.** `scripts/sync-shared-copies.sh` generates each

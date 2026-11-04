@@ -163,8 +163,8 @@ Periodic health check for worktree infrastructure, suitable as a recurring track
 
 Worktrees stay outside every repository's tree. The measured basis, its disputed arms, the
 verification stamp and its unconditional expiry are owned by
-[reference/nesting-invariant.md](reference/nesting-invariant.md); read it before relying on
-or changing the placement rule.
+[reference/nesting-invariant.md](reference/nesting-invariant.md); read it before citing that
+basis or changing the placement rule. A routine `create` follows the rule without reading it.
 
 ## Boundary, the built-in `EnterWorktree` and `ExitWorktree` tools
 
