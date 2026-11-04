@@ -327,6 +327,7 @@ for i in "${!SCOPES[@]}"; do
   # strictPluginOnlyCustomization is true or a per-surface array ("skills",
   # "agents", "hooks", "mcp"). Stringifying the array made every value look like
   # a hook lock.
+  # shellcheck disable=SC2016  # a jq program; $s and $k are jq variables
   while IFS=$'\t' read -r key val; do
     [[ -n "$val" ]] && LEVERS+=("${SCOPE_LABELS[$i]}	$key	$val")
   done < <(jqs -j '. as $s | ["disableAllHooks", "allowManagedHooksOnly", "strictPluginOnlyCustomization"][]
