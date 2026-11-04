@@ -118,7 +118,7 @@ the repository binds in the pointer region of `AGENTS.md` or `CLAUDE.md`, read w
 copy of `resolve-convention-home.sh`; `docs/conventions` when the repository binds none. Layering
 and location follow
 [ADR 0075](../../../../docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
-fix 11, which supersedes ADR 0015: one team layer in the home, one gitignored personal overlay
+fix 11, which supersedes ADR 0015: one team layer in the home, one gitignored personal override
 beside it, deliberately no user-global layer. The `tracker` mapping has the same keys as the
 legacy JSON file, so every adapter reads the same effective JSON.
 
@@ -139,7 +139,7 @@ present and judged like the JSON value (jira rejects an empty set) instead of ta
 default, and `wont_do: []` keeps its key. One difference remains: a key with no value reads
 as absent, as though left out, never as a JSON `null`. A key under `tracker` that the
 schema does not declare, a document the parser rejects (named by file and line), or a rejected
-value (named by file, key and value; the overlay when it set the value) is exit `3`.
+value (named by file, key and value; the personal override when it set the value) is exit `3`.
 
 - **Legacy fallback (migration).** While the migration runs, when `<home>/work-items.yaml` has
   no `tracker` key (or the repository declined a home), the seam still reads the legacy
@@ -176,10 +176,10 @@ value (named by file, key and value; the overlay when it set the value) is exit 
   ancestor/home binding would silently capture every repo beneath it (#2941). Nested
   per-subdirectory bindings are unsupported until requested. Env override
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
-- **Personal overlay**: an optional gitignored overlay beside the team binding,
+- **Personal override**: an optional gitignored file beside the team binding,
   `<home>/work-items.local.yaml` (its `tracker` mapping) beside a YAML binding or
-  the legacy JSON overlay beside the legacy file (`wit_overlay_path` in `lib/binding.sh`),
-  merges **per-key over an allowlist, deny-by-default**. An overlay with no `tracker` key changes nothing. Overlayable keys:
+  the legacy JSON override beside the legacy file (`wit_override_path` in `lib/binding.sh`),
+  merges **per-key over an allowlist, deny-by-default**. A personal override with no `tracker` key changes nothing. Overridable keys:
   `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
   record, so a per-user value is coherent), the auth-identity keys of every credentialed
   adapter, namely `config.jira.auth_email`, `config.jira.auth_env`, `config.linear.auth_env`, and
@@ -188,18 +188,18 @@ value (named by file, key and value; the overlay when it set the value) is exit 
   pointer. Everything else is shared coordination state and team-layer-only: `provider`,
   `config.role_labels`, `config.container_label`, `config.storage_dir`,
   `config.jira.site`/`project_keys`, the JQL-shaping keys, and the won't-do classifiers
-  `config.jira.resolutions` and `config.github.wont_do_labels`. An overlay value for any such key is a
+  `config.jira.resolutions` and `config.github.wont_do_labels`. A personal override value for any such key is a
   configuration error (exit `3`, naming the offending keys), never a merge, including a
   non-allowlisted key holding an empty object (only allowlisted-prefix scaffolding like
   `{"config":{}}` is inert). Allowlisted keys hold scalars: an object or array value at an
   allowlisted key is likewise a configuration error, and an explicitly `null` value merges by
   presence and is judged by normal binding validation, exactly as if the team file carried
   it, never a silent fallback to the team value either way. A personal
-  provider override is structurally foreclosed: leases, labels, and frontier state live
+  `provider` value is structurally foreclosed: leases, labels, and frontier state live
   provider-side, so a personal binding would fracture the team's coordination surface.
   There is deliberately no user-global (`~/.claude/...`) layer for the same reason. The
-  legacy overlay's gitignore line is appended, announced, by `/work-items:setup apply`,
-  because that root-level overlay is outside the marketplace's `.claude/**/*.local.*`
+  legacy personal override's gitignore line is appended, announced, by `/work-items:setup apply`,
+  because that root-level file is outside the marketplace's `.claude/**/*.local.*`
   convention line.
 - Optional `docs` (either layer): a free-form self-describing pointer naming what the file
   is and where its contract lives, so the binding file explains itself to a teammate who
