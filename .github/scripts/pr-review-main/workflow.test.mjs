@@ -1082,7 +1082,7 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
   // The marker gate (ci-workflows#973) with the probing marker (#980); a pin
   // before #973 reads run history for a record step this workflow no longer
   // writes, so it would never skip.
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # \S/m);
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # \S/m);
   // The marker's name carries key-job: review-handoffs, the job that uploads it.
   assert.equal(input(gate, "key-job"), "review-handoffs");
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
