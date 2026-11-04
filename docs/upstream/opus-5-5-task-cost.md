@@ -279,9 +279,9 @@ Decisions on this branch:
   rules table.
 - Q33, the low-severity bundle: the session-flow observer keeps its dated `claude-haiku-4-5`
   default; v2.1.242 is kept (see Conflicts); `docs/upstream/claudedevs-cost-performance.md:157`
-  keeps its dated count of 13; the cosmetic digest wording is left as is. The evals USD anchors in
-  `plugins/evals/skills/plugin-eval/SKILL.md:139-146` were measured on 2026-09-12 and 2026-09-13,
-  before the Opus 5.5 price change, and carry no recheck trigger; this record notes them with the
+  keeps its dated count of 13; the cosmetic digest wording is left as is. The older 0.8 USD evals
+  anchor (`plugins/evals/skills/plugin-eval/reference/records.md#cost-anchors`, the 2026-09-12 and
+  2026-09-13 passes) was measured before the Opus 5.5 price change; this record notes it with the
   trigger "the default model or a list price changes". The listing budget check scans skill
   descriptions only, so nothing here counts against it.
 - Withdrawn and replaced during the interview: Q16 by Q22, Q23 by Q35, Q27 by Q36, Q31 by Q37.
