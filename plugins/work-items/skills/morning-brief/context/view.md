@@ -32,14 +32,13 @@ files to it. When `node` is missing, the builder cannot run either: say so and p
 When the resolver exits non-zero, it named a medium it does not know: print its stderr and run it
 again without `--argument`.
 
-Deliver on the resolved medium. Read `<plugin-root>/lib/view-registry.mjs` and take the entry in
-`MEDIUMS` keyed by the JSON's `medium`:
+Deliver by the JSON line's `page` and `publishes`:
 
-- Its `deliver` returns `location: "terminal"`: the brief only. Build nothing.
-- Any other entry: build the page (below) to an untracked temp file. When the entry's `publishes` is
-  `true`, publish that file with the Artifact tool when it is available, otherwise give the path and
-  say why in one line. When it is `false`, give the path. Publishing does not lower the page's
-  class.
+- `page` false or absent: the brief only. Build nothing.
+- `publishes` true: build the page (below) to an untracked temp file, then publish that file with
+  the Artifact tool when it is available; otherwise give the path and say why in one line.
+  Publishing does not lower the page's class.
+- Otherwise: build the page to an untracked temp file and give the path.
 
 ## Build
 
