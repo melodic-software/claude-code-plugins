@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-naming:generate-file-name-gate"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "generate-file-name-gate", "args": "--out-dir scripts"}}], "why": "unqualified name with arguments"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-naming:audit-file-names"}}], "why": "the audit skill, not the gate emitter"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-naming:setup", "args": "apply"}}], "why": "the setup skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

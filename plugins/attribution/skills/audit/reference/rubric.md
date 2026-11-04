@@ -139,9 +139,10 @@ almost any reference file that carries a link, which is why it was not enough on
 
 Golden-set fixtures are planted copies. Finding them is the harness working, not a defect.
 
-**This carve-out is a config entry, never a rule in a script.** The consuming repo lists the
-fixture tree in `excluded_paths`, so a normal run declines it and says so, while the eval
-harness lifts the config layer and the fixtures report their real findings. An unconditional
+**This carve-out is a config entry, never a rule in a script.** The bundled default of
+`excluded_paths` lists test-fixture trees, so a normal run declines them and says so. The eval
+harness lifts it with any `excluded_paths` value, `[]` included, or by aiming the run at the
+fixture tree or naming its files, and the fixtures report their real findings. An unconditional
 exclusion would blind the harness to its own fixtures and leave the eval author reading prose
 instead of results.
 

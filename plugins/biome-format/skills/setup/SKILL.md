@@ -73,7 +73,8 @@ when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate 
    the hidden dotted variants are intentionally excluded. Report the governing config the
    walk discovers, or INFO that none exists. Absence is the opt-out by design, so the
    plugin is inert (INFO, not FAIL), matching the README's "ships no rules of its own"
-   stance.
+   stance. Do not offer to create a config; say the user can add a `biome.json` or
+   `biome.jsonc` to opt in.
 5. **Hook toggle and options.** Report the effective `biome_format_enabled` value:
    `${user_config.biome_format_enabled}` (unexpanded or empty means default `true`), and the
    effective `biome_format_lint_gitignored` value:

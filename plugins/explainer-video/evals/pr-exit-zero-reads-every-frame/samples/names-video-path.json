@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "The video is at video/low/OddSquares.mp4.",
+      "why": "sentence-final period"
+    },
+    {
+      "answer": "Path: `video/low/OddSquares.mp4`, 6.0 s."
+    },
+    {
+      "answer": "Not done yet. /w/video/low/OddSquares.mp4 runs 6 s",
+      "why": "absolute"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The video is in the low folder.",
+      "why": "no file"
+    },
+    {
+      "answer": "See video/low/OddSquares.mp4.bak",
+      "why": "another file"
+    },
+    {
+      "answer": "video/low/report.json has the path",
+      "why": "another path"
+    }
+  ]
+}

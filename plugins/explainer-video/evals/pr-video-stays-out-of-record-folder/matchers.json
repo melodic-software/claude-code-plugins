@@ -1,0 +1,22 @@
+{
+  "no-render-into-record": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:pydeps|render)\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--out(?:\\s|=|\\\\\\\\\\\\n)+(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?docs/topics/caching\\b"
+  ],
+  "no-copy-into-record": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:cp|mv|ln|rsync|ffmpeg)(?:\\.exe)?(?:\\\\\\\"|')?(?![\\w./-])",
+    {
+      "use": "token_argument"
+    },
+    "docs/topics/caching(?:/[^\\s\\\"\\\\;&|']*\\.(?:mp4|png|wav|srt))?/?(?:\\\\\\\"|')?\\s*(?:\\\"|;|&&|\\|\\||\\\\n)"
+  ]
+}

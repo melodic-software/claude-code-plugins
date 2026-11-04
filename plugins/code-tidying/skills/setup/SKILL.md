@@ -136,7 +136,7 @@ answer unambiguous; ask only where a lane's scope genuinely needs the user's cal
    fresh write: report "written but untracked: commit it to share with the team", never success,
    since these lanes are team-shared and reach the team only once committed. tidy resolves a lane
    only from `.claude/tidy-lanes/<lane>.md` (then the bundled lane of that name), with no
-   user-global or `*.local.*` overlay (a declared deviation from the config-cascade contract). Never
+   user-global layer or `*.local.*` personal override (a declared deviation from the config-cascade contract). Never
    point a developer at a `*.local.*` variant tidy would not load; a private lane uses a lane name
    the team does not track, kept uncommitted (never add it to the index).
 7. **Offer the overrides file only when the repo asked for one**: the conversation named a path the

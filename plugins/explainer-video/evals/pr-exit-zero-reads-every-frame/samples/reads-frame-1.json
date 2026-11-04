@@ -1,0 +1,106 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0000.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0001.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0002.png"
+          }
+        }
+      ],
+      "why": "all three"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0001.png"
+          }
+        }
+      ],
+      "why": "frame 1 read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0000.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0000.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0000.png"
+          }
+        }
+      ],
+      "why": "frame 0 read three times, frame 1 never"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0000.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/frames/f0002.png"
+          }
+        }
+      ],
+      "why": "the other two frames, not frame 1"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/low/report.json"
+          }
+        }
+      ],
+      "why": "the report only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls video/low/frames/f0001.png"
+          }
+        }
+      ],
+      "why": "listed, not read"
+    }
+  ]
+}

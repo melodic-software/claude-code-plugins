@@ -1,5 +1,20 @@
 # Changelog: docs-hygiene plugin
 
+## [2.5.5] - 2026-11-04
+
+### Changed
+
+- The config reference and the `setup` skill now call the config cascade's gitignored `*.local.*`
+  layer the personal override, the marketplace's name for it, and an `audit-noise` test fixture
+  uses the same words (#13192). Behavior is unchanged.
+
+## [2.5.4] - 2026-11-04
+
+### Fixed
+
+- `/docs-hygiene:setup` says `--check` prints only its INFO line when `docs/conventions/docs-hygiene.yaml` is absent, as the script does; it read as if per-key lines followed.
+- The `setup-resolves-and-runs-the-binary` eval scaffold passes `--include=dev`: `claude plugin eval` runs a scaffold under `NODE_ENV=production`, which made npm skip the pinned `markdownlint-cli2` and failed the scaffold (#13279).
+
 ## [2.5.3] - 2026-11-04
 
 ### Changed

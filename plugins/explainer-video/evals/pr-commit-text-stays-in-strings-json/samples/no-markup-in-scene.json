@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.load(open('video/strings.json'))\n        for s in strings:\n            self.play(FadeIn(Text(s)))\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.load(open('video/strings.json'))\n        for s in strings:\n            self.play(FadeIn(MarkupText(s)))\n",
+      "why": "MarkupText"
+    },
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.load(open('video/strings.json'))\n        for s in strings:\n            self.play(FadeIn(MathTypst(s)))\n",
+      "why": "MathTypst"
+    },
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.load(open('video/strings.json'))\n        for s in strings:\n            self.play(FadeIn(Tex(s)))\n",
+      "why": "Tex"
+    },
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.load(open('video/strings.json'))\n        for s in strings:\n            self.play(FadeIn(MathTex(s)))\n",
+      "why": "MathTex"
+    }
+  ]
+}

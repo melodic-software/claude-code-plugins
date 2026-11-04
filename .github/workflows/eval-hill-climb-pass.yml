@@ -16,7 +16,8 @@ name: eval-hill-climb-pass
 #
 # The pass uploads only what eval-browser-dispatch.yml uploads, its result
 # (per-case scores and grader verdicts), with summarize.mjs's summary (its
-# health lines read from the kept traces) and run-validity.py's verdict line,
+# health lines read from the kept traces) and run-validity.py's bash ran and
+# verdict lines,
 # after a credential scan, under a manifest whose SHA-256 is this workflow's
 # output. No trace leaves the runner. Lane hardening follows ADR 0049
 # (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
@@ -273,7 +274,8 @@ jobs:
 
       # The summary (health lines from the kept traces) and the validity
       # verdict, read here because the traces stay on this runner. Only the
-      # verdict line leaves it: run-validity.py's detail lines can quote a trace.
+      # count-only bash ran line (the line just before the verdict, in its exact format) and the verdict line leave it: run-validity.py's
+      # detail lines can quote a trace.
       - name: Read the pass
         id: read
         env:
@@ -290,7 +292,8 @@ jobs:
           cp "$OUT/results.json" "$STAGE/results.json"
           node .base/.github/scripts/plugin-eval/summarize.mjs "$OUT/results.json" --plugin "$PLUGIN" >"$STAGE/summary.md" || true
           validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$OUT/results.json" --runs 3 --scaffolded) || true
-          printf '%s\n' "$validity" | tail -n 1 >"$STAGE/validity.txt"
+          bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)' || true)
+          printf '%s\n' ${bash_ran:+"$bash_ran"} "$(printf '%s\n' "$validity" | tail -n 1)" >"$STAGE/validity.txt"
           cat "$STAGE/validity.txt"
           sums=$(cd "$STAGE" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
           printf '%s\n' "$sums" >"$STAGE/manifest.sha256"

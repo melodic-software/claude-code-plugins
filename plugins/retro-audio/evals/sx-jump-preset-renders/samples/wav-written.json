@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": ["audio/jump.wav"]}
+  ],
+  "fail": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": ["jump.wav"], "why": "outside audio/"},
+    {"answer": ["audio/jump.ogg"], "why": "another format"}
+  ]
+}

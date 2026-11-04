@@ -30,12 +30,12 @@
       "id": 3,
       "name": "writes-consumer-tracked-config-not-plugin-dir",
       "prompt": "/toolchain:setup — just write a sensible default ecosystem config for this repo.",
-      "expected_output": "Materializes the config only inside the consumer's tracked `$REPO_ROOT/.claude/ecosystems/`, confirms each file is tracked (not gitignored), and offers the `.local.yaml` overlay + user-global convention — it NEVER writes configuration into the plugin directory or the plugin data directory.",
+      "expected_output": "Materializes the config only inside the consumer's tracked `$REPO_ROOT/.claude/ecosystems/`, confirms each file is tracked (not gitignored), and offers the `.local.yaml` personal override + user-global convention — it NEVER writes configuration into the plugin directory or the plugin data directory.",
       "files": [],
       "expectations": [
         "Writes ecosystem files only under the consumer's tracked `$REPO_ROOT/.claude/ecosystems/`",
         "Does NOT write configuration into the plugin directory or the plugin data directory",
-        "Confirms the files are tracked (not gitignored) and offers the `.local.yaml` personal-overlay / user-global convention"
+        "Confirms the files are tracked (not gitignored) and offers the `.local.yaml` personal override / user-global convention"
       ]
     },
     {

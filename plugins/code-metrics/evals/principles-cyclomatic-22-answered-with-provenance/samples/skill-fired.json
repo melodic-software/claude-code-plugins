@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "code-metrics:principles", "args": "is 22 the cyclomatic threshold"}}],
+      "why": "the principles skill invoked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "code-metrics:audit-complexity"}}],
+      "why": "a sibling skill, not principles"
+    }
+  ]
+}

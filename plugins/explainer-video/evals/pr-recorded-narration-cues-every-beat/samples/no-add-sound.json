@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "from manim import FadeIn, Scene, Text\nfrom narration import beat\n\n\nclass Search(Scene):\n    def construct(self):\n        beat(self, 0)\n        self.play(FadeIn(Text('A sorted list')))\n        beat(self, 1)\n        self.play(FadeIn(Text('Check the middle')))\n        beat(self, 2, hold=1)\n        self.play(FadeIn(Text('Half is gone')))\n        beat(self, 3, hold=1)\n"
+    },
+    {
+      "answer": "# render.py adds the audio; this scene plays none\nfrom manim import FadeIn, Scene, Text\n\n\nclass Search(Scene):\n    def construct(self):\n        self.play(FadeIn(Text('A sorted list')))\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "from manim import FadeIn, Scene, Text\nfrom narration import beat\n\n\nclass Search(Scene):\n    def construct(self):\n        beat(self, 0)\n        self.play(FadeIn(Text('A sorted list')))\n        beat(self, 1)\n        self.play(FadeIn(Text('Check the middle')))\n        beat(self, 2, hold=1)\n        self.play(FadeIn(Text('Half is gone')))\n        beat(self, 3, hold=1)\n        self.add_sound('video/narration/narration.wav')\n"
+    }
+  ]
+}

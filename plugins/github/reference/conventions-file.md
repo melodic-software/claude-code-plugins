@@ -28,7 +28,7 @@ in order:
 |---|---|---|
 | 1 | user-global | `~/.claude/github/conventions.md` |
 | 2 | team | `${CLAUDE_PROJECT_DIR}/.claude/github/conventions.md` |
-| 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/github/conventions.local.md` |
+| 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/github/conventions.local.md` |
 
 Anchor at the repo root before the repo-relative reads. All layers absent is valid: audits then
 compare against freshly fetched official-docs recommendations and name that provenance instead,

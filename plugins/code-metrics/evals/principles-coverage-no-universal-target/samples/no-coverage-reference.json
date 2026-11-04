@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "No standard sets one, so the plugin ships no coverage reference.",
+      "why": "the hub's statement"
+    },
+    {
+      "answer": "The plugin's coverage reference is deliberately `null`.",
+      "why": "same fact stated through the shipped value"
+    },
+    {
+      "answer": "This is why the plugin ships its coverage reference as `null`.",
+      "why": "same fact, other wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is no universal standard for coverage; most teams use 80% as their reference.",
+      "why": "no standard, but nothing about a shipped coverage reference"
+    },
+    {
+      "answer": "Your coverage reference is 80%, and the plugin's cyclomatic reference of 20 is unrelated.",
+      "why": "names a coverage reference and gives it a value"
+    },
+    {
+      "answer": "There is no universal coverage reference; most teams use 80%.",
+      "why": "general claim worded like the plugin's fact"
+    }
+  ]
+}

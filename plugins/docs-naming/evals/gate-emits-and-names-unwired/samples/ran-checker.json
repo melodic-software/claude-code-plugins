@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-file-names.sh --check"}}], "why": "the documented invocation"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cd /workspace && ./scripts/check-file-names.sh --check; echo \"exit=$?\""}}], "why": "after a cd, run directly"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"scripts/check-file-names.sh\" --check"}}], "why": "quoted path"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-file-names.test.sh"}}], "why": "the suite, not the checker"},
+    {"answer": [{"tool": "Bash", "input": {"command": "chmod +x scripts/check-file-names.sh"}}], "why": "touches the checker without running it"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "scripts/check-file-names.sh"}}], "why": "read, not run"}
+  ]
+}

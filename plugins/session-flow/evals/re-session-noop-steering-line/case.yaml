@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: re-session-noop-steering-line
 description: 'Session-mode steering-file finding: CLAUDE.md says "Read a file before you edit it.", which the model does unaided. /session-flow:retro session routes the no-op line to /harness-config:unhobble or /harness-config:audit-instructions, and, with docs-hygiene not loaded, says the steering-file yardstick was not available. It asks before acting: no Write, no Edit. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [retro, session, steering-file, approval-gate, must-not]
-plugins: ["../..", "../../../harness-config"]
+plugins: ["../..", "harness-config-stub"]
 expected_outcome: 'The report flags the CLAUDE.md line "Read a file before you edit it." as a no-op the model follows without it, routes it to /harness-config:unhobble or /harness-config:audit-instructions, and says the /docs-hygiene:write-for-agents yardstick was not available. Phase 4 lists the recommendations and asks which to execute; the run writes and edits no file.'
 context:
   scaffold_script: scaffold.sh

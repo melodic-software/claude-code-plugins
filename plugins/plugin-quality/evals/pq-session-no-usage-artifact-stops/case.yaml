@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: pq-session-no-usage-artifact-stops
 description: 'The operator asks for the session audit with session-flow loaded, but the session left no usage record to read. The reply says the usage record is missing and stops; it invents no list, dispatches nothing and builds no substitute. A run needs --allow-tools Bash Write.'
 tags: [audit-session, no-loss]
-plugins: ["../..", "../../../session-flow"]
+plugins: ["../..", "session-flow-stub"]
 context:
   scaffold_script: scaffold.sh
 expected_outcome: 'The reply says the session usage could not be read and stops without a list. It invents no skill names, dispatches nothing, and builds no substitute parser.'

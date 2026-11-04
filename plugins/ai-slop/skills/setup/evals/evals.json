@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-is-read-only",
       "prompt": "/ai-slop:setup check",
-      "expected_output": "The current effective configuration is reported — each key with the layer supplying it (user-global, team, local overlay), absent layers named, drift flagged (unknown keys, dead globs, unsupported em-dash threshold) — and no file is written.",
+      "expected_output": "The current effective configuration is reported — each key with the layer supplying it (user-global, team, personal override), absent layers named, drift flagged (unknown keys, dead globs, unsupported em-dash threshold) — and no file is written.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -23,7 +23,7 @@
       "narration": true,
       "expectations": [
         "Shows the proposed team-layer diff and waits for explicit confirmation before writing",
-        "Writes ONLY docs/conventions/ai-slop.yaml, never the user-global or personal overlay layers",
+        "Writes ONLY docs/conventions/ai-slop.yaml, never the user-global layer or personal override",
         "Adds the exemption under em_dash_allowed_paths rather than excluded_paths (the file should still be scanned by other rules)"
       ]
     },

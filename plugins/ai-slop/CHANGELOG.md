@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.9] - 2026-11-04
+
+### Changed
+
+- `setup`, its evals and the `detect.sh` comments and test labels now call the config cascade's
+  gitignored `ai-slop.local.yaml` layer the personal override, the marketplace's name for it
+  (#13192). Behavior is unchanged.
+
 ## [0.16.8] - 2026-11-04
 
 ### Changed

@@ -71,8 +71,8 @@ Files at `.claude/ai-briefing/` form the default profile. Each
 - optional `audience.md` for impact ranking;
 - optional declarative `brand.json` and local assets for presentation branding.
 
-These are team-tracked profile files, not a gitignored `*.local.*` cascade
-overlay. Selecting a named profile is profile selection, not cascade-layer
+These are team-tracked profile files, not a gitignored `*.local.*` personal
+override. Selecting a named profile is profile selection, not cascade-layer
 resolution. Select a profile through the `active_profile` plugin option or a
 per-run `--profile <name>` argument. The per-run argument wins. Claude Code renders the configured
 option into the skill; the skill then explicitly sets `AI_BRIEFING_PROFILE` on each launched

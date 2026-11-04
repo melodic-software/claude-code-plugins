@@ -9,12 +9,14 @@
 # path-expressible and are judged later in the flow, by the rubric step and by
 # the fingerprint module's quote stripping. Nothing here guesses at them.
 #
-# The eval-fixture tree is excluded through the CONFIG layer, never
-# unconditionally here. An unconditional exclusion would decline the fixtures
-# under the eval harness's own config isolation, leaving the eval author reading
-# prose instead of results (the ai-slop #3041 resolution). Under a consuming
-# repo's attribution config every normal run declines the tree and says
-# so; the harness lifts the config layer and the fixtures report real findings.
+# Test-fixture trees are excluded through `excluded_paths`, never
+# unconditionally. Its bundled default lists them (DEFAULT_EXCLUDED), so a repo
+# that sets no value still declines planted copies and says so. The default is
+# matched below the scan target and skips a named file, so a run aimed at a
+# fixture reads it; any layer that sets `excluded_paths`, `[]` included,
+# replaces the default. An unconditional exclusion would leave the eval harness
+# reading prose instead of results; the harness lifts the default either way and
+# the fixtures report real findings.
 #
 # Two roots, resolved separately and deliberately:
 #   CORPUS root — the git toplevel of the target (or the cwd). It decides which
@@ -58,7 +60,8 @@ Usage:
   target          file or directory to scan (default: the whole repository)
   --paths-file F  read candidate paths from F, one per line, instead of a
                   target; entries need not be tracked (the eval harness feeds
-                  its own fixtures this way) but the carve-outs still apply
+                  its own fixtures this way); the built-in and configured
+                  carve-outs still apply, the bundled fixture default does not
   --show-config   print the effective config per layer, then exit
 
 Output: JSON on stdout — {target, root, files, declined, counts}. Diagnostics
@@ -131,8 +134,9 @@ fi
 
 # The last layer that defines `excluded_paths` replaces the list, the
 # config-cascade contract's sanctioned form for a closed list; an explicit empty
-# list clears an earlier layer's exclusions.
-EXCLUDED_GLOBS=()
+# list clears an earlier layer's exclusions, the bundled default included.
+DEFAULT_EXCLUDED=('**/fixtures/**' '**/__fixtures__/**' '**/testdata/**')
+EXCLUDED_GLOBS=("${DEFAULT_EXCLUDED[@]}")
 cfg_list EXCLUDED_GLOBS excluded_paths
 EXCLUDED_FROM="$CFG_SOURCE"
 
@@ -154,6 +158,10 @@ fi
 # --- Candidate enumeration -------------------------------------------------------
 
 CANDIDATES=()
+# Where the bundled default matches from: the target directory, or nowhere for
+# named files (a file target or --paths-file entries).
+DEFAULT_BASE=""
+DEFAULT_OFF=0
 
 rel_to_root() {
   # Repo-relative spelling of a path given relative to the cwd or absolute; every
@@ -203,6 +211,7 @@ if [[ -n "$PATHS_FILE" ]]; then
     echo "list-corpus.sh: cannot read --paths-file: $PATHS_FILE" >&2
     exit 2
   fi
+  DEFAULT_OFF=1
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     CANDIDATES+=("$(rel_to_root "$line")")
@@ -214,6 +223,7 @@ elif [[ -z "$TARGET" ]]; then
 elif [[ -d "$TARGET" ]]; then
   prefix="$(rel_to_root "$TARGET")"
   prefix="${prefix%/}"
+  DEFAULT_BASE="$prefix"
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     if [[ -z "$prefix" || "$line" == "$prefix"/* ]]; then
@@ -221,6 +231,7 @@ elif [[ -d "$TARGET" ]]; then
     fi
   done < <(tracked_markdown)
 elif [[ -f "$TARGET" ]]; then
+  DEFAULT_OFF=1
   CANDIDATES+=("$(rel_to_root "$TARGET")")
 else
   echo "list-corpus.sh: target does not exist: $TARGET" >&2
@@ -290,15 +301,25 @@ for candidate in ${CANDIDATES[@]+"${CANDIDATES[@]}"}; do
     continue
   fi
   matched=""
+  subject="$candidate"
+  reason="excluded_paths (config cascade)"
+  if [[ -z "$EXCLUDED_FROM" ]]; then
+    reason="excluded_paths (bundled default: test-fixture tree)"
+    if [[ "$DEFAULT_OFF" -eq 1 ]]; then
+      subject=""
+    elif [[ -n "$DEFAULT_BASE" ]]; then
+      subject="${candidate#"$DEFAULT_BASE"/}"
+    fi
+  fi
   for g in ${EXCLUDED_GLOBS[@]+"${EXCLUDED_GLOBS[@]}"}; do
-    [[ -n "$g" ]] || continue
-    if glob_match "$candidate" "$g"; then
+    [[ -n "$g" && -n "$subject" ]] || continue
+    if glob_match "$subject" "$g"; then
       matched="$g"
       break
     fi
   done
   if [[ -n "$matched" ]]; then
-    decline "$matched" "excluded_paths (config cascade)"
+    decline "$matched" "$reason"
     continue
   fi
   FILES+=("$candidate")
