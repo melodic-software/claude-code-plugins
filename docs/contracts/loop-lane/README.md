@@ -457,7 +457,8 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
 - **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line, a member's veto
   comment on a lanes App pull request and a person merging by hand use it; ci-status reads no body
   hold text or `pr-unblock/*` stop status. pr-merge's enable-auto-merge job labels a member's veto
-  on its next scheduled run and takes that label off once a later comment by each vetoing member
+  on the next scheduled run that reads the pull request's discussion, at the latest before any
+  run arms it, and takes that label off once a later comment by each vetoing member
   lifts it, never a `do-not-merge` anyone else added. ci-status's merge-holds step still fails a
   lanes App pull request on the veto comment itself, so the veto holds before the label lands and
   if the label is removed. The label is the one hold mechanism enforced

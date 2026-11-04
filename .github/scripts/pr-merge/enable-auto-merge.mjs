@@ -2051,7 +2051,14 @@ export async function main({ env = process.env, github, actions, verify, room, c
           return true;
         }
         if (read.vetoes.length === 0 && carries(pull, VETO_LABEL) && vetoNoted(detail.comments?.nodes, slug)) {
-          if (!vetoLabelOwned(await paginate(github, `${base}/timeline`), env.LANES_BOT_LOGIN)) {
+          let timeline;
+          try {
+            timeline = await paginate(github, `${base}/timeline`);
+          } catch (error) {
+            console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: its timeline did not read: ${describe(error)}`);
+            return false;
+          }
+          if (!vetoLabelOwned(timeline, env.LANES_BOT_LOGIN)) {
             console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: the lanes App did not add it for a member veto`);
             return false;
           }

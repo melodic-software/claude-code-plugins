@@ -4224,7 +4224,8 @@ test("a do-not-merge the lane did not add for a veto never comes off here", asyn
   // A timeline that does not read keeps it.
   const unread = await run([pull(1, { labels: labels("do-not-merge"), discussion })]);
   assert.deepEqual(unread.notes, []);
-  assert.equal(unread.code, 1);
+  assert.equal(unread.code, 0);
+  assert.ok(unread.lines.some((line) => String(line).startsWith("enable-auto-merge: #1 keeps do-not-merge: its timeline did not read")), unread.lines.join("\n"));
 });
 
 test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {

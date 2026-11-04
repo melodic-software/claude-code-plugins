@@ -2913,8 +2913,8 @@ them on every `pull_request` run, contract-only runs included:
   human merges this` with `do-not-merge`, since the App can edit that body line; ci-status's label
   steps fail while it is on, and removing it lifts the hold. ci-status reads no body hold text: a
   person who wants a PR held applies `do-not-merge`. On a lanes App PR, a member's veto comment is
-  label-backed: pr-merge's enable-auto-merge job adds `do-not-merge` on its next scheduled run,
-  with a `<!-- member-veto-label -->` comment just after, and takes the label off once a later
+  label-backed: pr-merge's enable-auto-merge job adds `do-not-merge` on the next scheduled run
+  that reads the pull request's discussion, at the latest before any run arms it, with a `<!-- member-veto-label -->` comment just after, and takes the label off once a later
   comment by each vetoing member lifts the veto, only while its newest `labeled` event is that
   one. A `do-not-merge` the body hold, a session or a person added is never taken off there.
   ci-status's merge-holds step still fails on the veto comment until a later comment by the same
