@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests for setup-apply.mjs: the narrow write of docs/conventions/review.yaml.
 # Each case builds its own repository root in a temp directory; expected values
-# come from the schema's allowed values (run, report; lens, model, codex) and the script's stated
+# come from the schema's allowed values (run, report; lens, model, codex; a whole number of at
+# least 1 for fanout_act_on_cap) and the script's stated
 # exit codes, not from the script's output.
 # test-scope: plugins/review/lib/parse-concern-value.sh plugins/review/lib/resolve-convention-home.sh
 set -uo pipefail
@@ -643,6 +644,20 @@ assert_eq "case 26: fanout_diversity=models exits 1" "1" "$?"
 assert_eq "case 26: the refusal is one line" "1" "$(printf '%s\n' "$out" | grep -c .)"
 assert_contains "case 26: the refusal names the key and value" "$out" "fanout_diversity"
 assert_eq "case 26: a refused value leaves the file untouched" "$before" "$(cat "$(yaml_of "$R26B")")"
+
+# --- Case 27: fanout_act_on_cap takes a whole number of at least 1 -----------
+R27="$(new_root c27)"
+run --root "$R27" fanout_act_on_cap=3 >/dev/null
+assert_eq "case 27: fanout_act_on_cap=3 exits 0" "0" "$?"
+assert_eq "case 27: the file holds fanout_act_on_cap: 3" "1" "$(grep -cx 'fanout_act_on_cap: 3' "$(yaml_of "$R27")")"
+out="$(run --root "$R27" --check)"
+assert_contains "case 27: --check reports fanout_act_on_cap" "$out" "PASS fanout_act_on_cap: 3"
+for bad in 0 1.5 two; do
+  R27B="$(new_root "c27-$bad")"
+  out="$(run --root "$R27B" --yes "fanout_act_on_cap=$bad")"
+  assert_eq "case 27: fanout_act_on_cap=$bad exits 1" "1" "$?"
+  assert_contains "case 27: the refusal of $bad names the key" "$out" "fanout_act_on_cap"
+done
 
 # --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"

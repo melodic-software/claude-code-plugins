@@ -51,6 +51,13 @@
         "codex"
       ]
     },
+    "fanout_act_on_cap": {
+      "type": "number",
+      "title": "Fanout act-on cap",
+      "description": "How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option.",
+      "default": 2,
+      "min": 1
+    },
     "medium": {
       "type": "string",
       "title": "Preferred delivery medium",
