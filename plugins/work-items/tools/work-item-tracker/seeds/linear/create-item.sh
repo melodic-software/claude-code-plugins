@@ -101,6 +101,54 @@ if [[ -n "$BLOCKED_BY" ]]; then
   done
 fi
 
+# Sibling dedupe (CONTRACT.md "Verbs"): a direct child of the parent with the same trimmed
+# title, open or closed within 24 hours, is returned instead of a new issue. The close time
+# is the later of Issue.completedAt and Issue.canceledAt (Linear's schema.graphql); a closed
+# child with neither counts as closed earlier. An open match wins over a closed one. A failed
+# read exits inside wit_linear_gql, so nothing is created on a read that did not complete.
+if [[ -n "$PARENT_UUID" ]]; then
+  CHILD_QUERY='query($id: String!, $first: Int!, $after: String) {
+    issue(id: $id) {
+      children(first: $first, after: $after) {
+        nodes { '"$WIT_LINEAR_ISSUE_FIELDS"' completedAt canceledAt }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }'
+  CHILDREN='[]'
+  CHILD_CURSOR=""
+  while :; do
+    wit_linear_gql "$CHILD_QUERY" \
+      "$(jq -cn --arg id "$PARENT_UUID" --argjson f "$WIT_LINEAR_PAGE_SIZE" --arg a "$CHILD_CURSOR" \
+        '{id: $id, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
+      "listing children of $PARENT"
+    CHILD_PAGE="$(jq -c '.issue.children // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
+    CHILDREN="$(jq -c --argjson page "$CHILD_PAGE" '. + ($page.nodes // [])' <<<"$CHILDREN")" || {
+      printf 'create-item.sh: could not accumulate the children of %s\n' "$PARENT" >&2
+      exit "$EX_INTERNAL"
+    }
+    [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$CHILD_PAGE")" == "true" ]] || break
+    CHILD_CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$CHILD_PAGE")"
+    [[ -n "$CHILD_CURSOR" ]] || break
+  done
+  SIBLING="$(jq -c --arg title "$TITLE" --argjson dt "$WIT_LINEAR_DONE_TYPES" '
+    def trimmed: gsub("^[[:space:]]+|[[:space:]]+$"; "");
+    def is_open: (.state.type // "") as $s | ($dt | index($s)) == null;
+    def closed_at: [.completedAt, .canceledAt] | map(select(. != null)) | max;
+    ($title | trimmed) as $t
+    | [.[] | select(((.title // "") | trimmed) == $t)
+        | select(is_open or (closed_at != null
+            and ((closed_at | sub("\\.[0-9]+"; "") | fromdateiso8601) > now - 86400)))]
+    | (map(select(is_open)) + map(select(is_open | not)))[0] // empty' <<<"$CHILDREN")" || exit "$EX_INTERNAL"
+  if [[ -n "$SIBLING" ]]; then
+    SIBLING_ITEM="$(wit_linear_normalize "$SIBLING")" || exit "$EX_INTERNAL"
+    printf 'create-item.sh: %s already has %s child %s titled "%s"; created nothing\n' \
+      "$PARENT" "$(jq -r '.state' <<<"$SIBLING_ITEM")" "$(jq -r '.id' <<<"$SIBLING_ITEM")" "$TITLE" >&2
+    jq -c --arg p "$PARENT" '. + {parent_id: $p}' <<<"$SIBLING_ITEM"
+    exit 0
+  fi
+fi
+
 # The team's UUID, and the label ids for any requested label names. Linear's
 # IssueCreateInput takes `labelIds`, not names — the same shape trap as Gitea's — so
 # names are resolved here and an unknown one is REFUSED rather than dropped: an item
