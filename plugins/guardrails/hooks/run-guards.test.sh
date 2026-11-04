@@ -388,14 +388,15 @@ bare_guard_rc=0
 (cd "$HOOK_DIR" && bash block-no-verify.sh <<<"$PAYLOAD" >/dev/null) || bare_guard_rc=$?
 assert_exit "bare block-no-verify.sh from hooks/ exits 0" 0 "$bare_guard_rc"
 
-# --- benign Bash lane: no exec and no fork on the dispatched hot path ---------
+# --- benign Bash lane: one shared parse and nothing else ----------------------
 # 0.32.6: every always-on Bash guard used `source "$(dirname …)/hook-utils.sh"`
 # and the dispatcher copied hook::jq_fields through sed. Those were 7 dirname
 # execs plus one sed on a benign `git status --short` (flag-commit-pr-skill-bypass
-# is default-off and exits before source). The one jq that remained went with
-# the library's builtin field parser. PATH shims count execs; function forks
-# are invisible to them, which is the same instrument as spawn-census.sh, so
-# the fork count is pinned separately below through BASHPID in the xtrace.
+# is default-off and exits before source). What remains is the one parse every
+# guard shares (lib/hook-utils.sh hook::_bps_shfmt_to): one shfmt and one jq.
+# PATH shims count execs; function forks are invisible to them, which is the
+# same instrument as spawn-census.sh, so the fork count is pinned separately
+# below through BASHPID in the xtrace.
 SHIM="$TEST_TMPDIR/spawn-shim"
 mkdir -p "$SHIM"
 SPAWN_LOG="$SHIM/spawns.log"
@@ -415,7 +416,7 @@ if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" && -x "$SHIM/jq" ]]; then
     flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
     block-convention-violation.sh block-windows-drive-tmp.sh \
     block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
-  assert_eq "benign Bash dispatcher spends no jq, dirname or sed" "" "$(cat "$SPAWN_LOG")"
+  assert_eq "benign Bash dispatcher spends one jq (the shared parse), no dirname or sed" "jq" "$(cat "$SPAWN_LOG")"
 fi
 DISPATCH_XTRACE=$(PS4='+PID=$BASHPID ' bash -x "$DISPATCH" --lib lib/powershell/ps-command.sh \
   block-no-verify.sh block-dangerous-git.sh \
@@ -424,11 +425,15 @@ DISPATCH_XTRACE=$(PS4='+PID=$BASHPID ' bash -x "$DISPATCH" --lib lib/powershell/
   block-exported-msys-pathconv.sh <<<"$PAYLOAD" 2>&1 >/dev/null) || true
 assert_absent "benign Bash dispatcher never sources ps-command.sh" \
   "$DISPATCH_XTRACE" "ps-command.sh"
-# Every traced command ran under ONE BASHPID: no guard ran in a subshell, and
-# no helper on the path forked for a capture. Every distinct PID in the trace
-# is a process creation on Windows Git Bash.
-assert_eq "benign Bash dispatcher forks no subshell (one BASHPID in the xtrace)" \
-  "1" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
+# Every traced command ran under the dispatcher's own BASHPID or one of the
+# shared parse's four traced subshells: the `$( )`, printf's pipeline element,
+# the `read -t` group and jq's element before it execs (the group carrying fd 3
+# traces nothing, and the group that starts shfmt traces to /dev/null). No guard
+# ran in a subshell. Every distinct PID in the trace is a process creation on
+# Windows Git Bash. The grep is unanchored: concurrent subshells can write their
+# trace lines into the middle of another's.
+assert_eq "benign Bash dispatcher forks only the shared parse (five BASHPIDs in the xtrace)" \
+  "5" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
 # --- PostToolUse verifiers: one path read, one root, one unprimed jq ------------
 # The three verifiers each read the file path and the repository root, and two
 # of them ask for the unprimed `replace_all` filter. Through the dispatcher the

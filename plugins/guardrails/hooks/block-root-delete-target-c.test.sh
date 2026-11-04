@@ -122,12 +122,16 @@ EOF
 rdt_ix_n=0
 for rdt_cmd in \
   $'cat <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF' \
-  $'python3 script.py <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF' \
-  $'cat <<A\nimport shutil; shutil.rmtree("/")\nA\npython3 - <<B\nprint(1)\nB'; do
+  $'python3 script.py <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF'; do
   rdt_ix_n=$((rdt_ix_n + 1))
   expect_both "interpreter: a heredoc no interpreter reads as its program ($rdt_ix_n) allowed" 0 \
     "${RDT_CWD[@]}" --command "$rdt_cmd"
 done
+# When an interpreter reads a here-doc, every body in the command is judged as
+# its program: the body it reads cannot be named for certain by counting
+# openers, so another command's body that would delete a root denies too.
+expect_both "interpreter: beside an interpreter's here-doc, every body is judged as its program" 2 \
+  "${RDT_CWD[@]}" --command $'cat <<A\nimport shutil; shutil.rmtree("/")\nA\npython3 - <<B\nprint(1)\nB'
 
 # A path the code computes cannot be placed, so the call is refused: an
 # argument, an expression, an interpolated string, a list element, a `$` the

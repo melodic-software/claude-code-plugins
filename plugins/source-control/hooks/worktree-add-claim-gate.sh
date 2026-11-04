@@ -98,7 +98,11 @@ collect_add() {
   return 0
 }
 
+# Fail open (header): the add has run, so a command the reader cannot parse
+# exits 0 quietly rather than refusing.
+HOOK_BPS_FAIL_OPEN=1
 hook::bash_parse_segments "$COMMAND" collect_add
+HOOK_BPS_FAIL_OPEN=0
 
 # Nothing we could honestly attribute to an executed `git worktree add`.
 ((${#CLAIM_TARGETS[@]})) || exit 0

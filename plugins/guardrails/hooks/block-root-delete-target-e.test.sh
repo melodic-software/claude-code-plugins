@@ -536,10 +536,12 @@ expect_both $'engine parity 124 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --t
 # old expectation wrong: the escaped quotes are part of the path, a relative name that cannot exist on Windows
 expect_both $'engine parity 125 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'ri -Recurse -Force `"$HOME`"'
 expect_both $'engine parity 126 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'echo $\'it\\\'s\' ; rm -rf ~'
-# old expectation wrong: a parse error: bash runs nothing
-expect_both $'engine parity 127 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'echo \'unterminated ; rm -rf ~'
-# old expectation wrong: a parse error: bash runs nothing
-expect_both $'engine parity 128 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'echo "unterminated && rm -rf /'
+# a parse error: bash runs nothing, and the command reader refuses the call
+# as it refuses any text shfmt cannot parse, which is the engine's verdict too
+expect_both $'engine parity 127 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'echo \'unterminated ; rm -rf ~'
+# a parse error: bash runs nothing, and the command reader refuses the call
+# as it refuses any text shfmt cannot parse, which is the engine's verdict too
+expect_both $'engine parity 128 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'echo "unterminated && rm -rf /'
 # old expectation wrong: a parse error: PowerShell runs nothing
 expect_both $'engine parity 129 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Write-Host \'oops ; Remove-Item -Recurse -Force ~'
 expect_both $'engine parity 130 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf ~'

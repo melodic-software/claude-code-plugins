@@ -32,7 +32,14 @@
       "detect": {
         "any": [
           "jq"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "jq-([0-9.]+)",
+          "min": "1.6"
+        }
       },
       "degrade": "Without jq, the source-control hooks skip their work, except worktree-remove-gate.sh, which refuses, so a worktree Claude Code removes stays on disk.",
       "install": {
@@ -92,6 +99,32 @@
       "degrade": "Without npm, worktree creation still succeeds but skips npm ci for a package-lock.json and warns; run npm ci in the new worktree yourself.",
       "install": {
         "docs": "https://docs.npmjs.com/downloading-and-installing-node-js-and-npm"
+      }
+    },
+    {
+      "id": "shfmt",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:pr-body-linkage-gate.sh",
+        "hook:worktree-add-claim-gate.sh",
+        "hook:worktree-add-containment-gate.sh"
+      ],
+      "detect": {
+        "any": [
+          "shfmt"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "v?([0-9.]+)",
+          "min": "3.14.1"
+        }
+      },
+      "degrade": "With shfmt missing, pr-body-linkage-gate.sh and worktree-add-containment-gate.sh deny the commands they read, and worktree-add-claim-gate.sh, which runs after the command, leaves it unclaimed; a shfmt older than v3.14.1 may read commands differently.",
+      "install": {
+        "docs": "https://github.com/mvdan/sh#shfmt"
       }
     }
   ]

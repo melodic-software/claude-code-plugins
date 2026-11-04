@@ -11,7 +11,14 @@
       "detect": {
         "any": [
           "jq"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "jq-([0-9.]+)",
+          "min": "1.6"
+        }
       },
       "degrade": "Without jq, the destructive-command guard fails closed: it blocks every destructive pattern it can see, with no acknowledgement path, until jq is installed. The branch audit also skips pull-request evidence.",
       "install": {
@@ -61,6 +68,33 @@
         "brew": "node",
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "shfmt",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:destructive-guard.sh"
+      ],
+      "detect": {
+        "any": [
+          "shfmt"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "v?([0-9.]+)",
+          "min": "3.14.1"
+        }
+      },
+      "degrade": "With shfmt missing, the destructive-command guard denies the commands it reads; a shfmt older than v3.14.1 may read commands differently.",
+      "install": {
+        "docs": "https://github.com/mvdan/sh#shfmt",
+        "brew": "shfmt",
+        "winget": "mvdan.shfmt"
       },
       "check": "/harness-ops:prerequisites"
     }
