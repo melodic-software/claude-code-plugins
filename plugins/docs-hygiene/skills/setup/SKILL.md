@@ -50,9 +50,9 @@ Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify no
 3. **Repository settings.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
    project root and report each line it prints under its own INFO, PASS or WARN prefix: INFO when
    `docs/conventions/docs-hygiene.yaml` is absent, with no other line; otherwise a WARN for each
-   problem in the file (a value outside the key's list, a key set twice, an empty or null value, a map or list where one string
-   belongs, a key the schema does not list, or a line that does not parse), quoting the file, key
-   and value; then one line per schema key: `PASS <key>: <value>` or `PASS <key>: (unset)`, or
+   problem in the file (a value outside the key's list, a key set twice, an empty or null value, a
+   map or list where one string belongs, a key the schema does not list, or a line that does not
+   parse), quoting the file, key and value; then one line per schema key: `PASS <key>: <value>` or `PASS <key>: (unset)`, or
    `WARN <key>: dropped ...` when the file's value for that key is invalid or the file does not
    parse. A key the schema does not list gets its own WARN and leaves the other keys' values in
    force, the same way `/docs-hygiene:compress` reads them. An invalid value never stops
