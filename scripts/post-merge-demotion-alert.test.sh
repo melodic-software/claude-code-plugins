@@ -1660,8 +1660,8 @@ JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" D
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
 note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 2 && "$(dispatches)" -eq 2 && "$OUT" == *"::error::could not dispatch intake triage for #$(fix_number 2)"* &&
-  -n "$note_line" ]] && grep -q "The hand-off failed and the next alert run retries it" "$TMP_ROOT/stub/post.$note_line" &&
-  grep -q -- "- #$(fix_number 2) was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line" &&
+  -n "$note_line" ]] && grep -q "The hand-off failed; the next alert run retries it" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -qx -- "- #$(fix_number 2) was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line" &&
   marked "$(fix_number 2)" "issue=$(fix_number 2)" && marked "$record_n" "issue=$(fix_number 2)" &&
   ! grep -q '/labels$' <<<"$LOG"; then
   ok "a failed dispatch fails the job after every fix issue is filed, marks the issue and the record, and adds no label"
@@ -1894,13 +1894,32 @@ if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$fix_n" ]] && grep -qx 'DELETE repos/
 else
   fail "record marker alone: rc=$RC log='$LOG' out='$OUT'"
 fi
-# A record's marker names only an open alert fix or quarantine issue.
+# A record's marker sends only an open alert fix or quarantine issue, and stays
+# until the listing shows one.
 next_run "[$RECORD_ISSUE]"
-if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -q '/lock$' <<<"$LOG" &&
-  grep -qx 'DELETE repos/o/r/issues/comments/5002' <<<"$LOG"; then
-  ok "a record's marker naming an issue no longer open sends nothing and is cleared"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 && "$OUT" == *"#$fix_n is not listed as an open fix or quarantine issue: left its marker"* ]] &&
+  ! grep -q '/lock$\|^DELETE ' <<<"$LOG"; then
+  ok "a record's marker naming an issue not listed open sends nothing and stays"
 else
-  fail "stale record marker: rc=$RC log='$LOG' out='$OUT'"
+  fail "unlisted record marker: rc=$RC log='$LOG' out='$OUT'"
+fi
+next_run "[$RECORD_ISSUE, $(issue "$fix_n" "someone edited this first line")]"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -q '/lock$\|^DELETE ' <<<"$LOG"; then
+  ok "a record's marker naming an open issue of no alert kind sends nothing and stays"
+else
+  fail "unclassified record marker: rc=$RC log='$LOG' out='$OUT'"
+fi
+next_run "[$RECORD_ISSUE, $(issue "$fix_n" "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -q '/lock$\|^DELETE ' <<<"$LOG"; then
+  ok "a record's marker naming a closed fix issue sends nothing and stays"
+else
+  fail "closed record marker: rc=$RC log='$LOG' out='$OUT'"
+fi
+next_run "[$RECORD_ISSUE, $(issue "$fix_n" "<!-- post-merge-fix check=test-bash -->")]"
+if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$fix_n" ]] && grep -qx 'DELETE repos/o/r/issues/comments/5002' <<<"$LOG"; then
+  ok "the run that lists the issue open again delivers it and clears the marker"
+else
+  fail "issue back open: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 # A fix issue that could not be filed: the retry files it, unless one exists.
@@ -1996,11 +2015,28 @@ JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" L
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 note_line="$(grep -n "^POST repos/o/r/issues/$(record_number)/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
 if [[ "$RC" -eq 1 && "$(fixes)" -eq 2 && -n "$note_line" ]] &&
-  grep -q -- "- #$(fix_number 1) could not be locked" "$TMP_ROOT/stub/post.$note_line" &&
-  grep -q -- "- #$(fix_number 2) could not be locked" "$TMP_ROOT/stub/post.$note_line"; then
-  ok "markers that cannot be written still file every fix issue, post the note and exit 1"
+  grep -qx -- "- #$(fix_number 1) could not be locked, so it was not sent to intake triage: no marker could be written, so no run retries it" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -qx -- "- #$(fix_number 2) could not be locked, so it was not sent to intake triage: no marker could be written, so no run retries it" "$TMP_ROOT/stub/post.$note_line"; then
+  ok "markers that cannot be written still file every fix issue, the note says no run retries them, and the job exits 1"
 else
   fail "filing with failed markers: rc=$RC log='$LOG' out='$OUT'"
+fi
+JOBS="$(job 1 test-bash 'Run the bash tests')" FIX_POST_FAIL=1 MARK_FAIL='*' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+note_line="$(grep -n "^POST repos/o/r/issues/$(record_number)/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
+if [[ "$RC" -eq 1 && -n "$note_line" ]] &&
+  grep -qxF -- "- no fix issue could be filed for \`test-bash\`: no marker could be written, so no run retries it" "$TMP_ROOT/stub/post.$note_line"; then
+  ok "a check marker that cannot be written is named on the note too"
+else
+  fail "filing with a failed check marker: rc=$RC log='$LOG' out='$OUT'"
+fi
+# One marker written leaves the work retried, and the note keeps saying so.
+JOBS="$(job 1 test-bash 'Run the bash tests')" LOCK_FAIL=1 MARK_FAIL="repos/o/r/issues/$(record_number)/comments" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+note_line="$(grep -n "^POST repos/o/r/issues/$(record_number)/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
+if [[ "$RC" -eq 1 && -n "$note_line" ]] && marked "$(fix_number 1)" "issue=$(fix_number 1)" && ! marked "$(record_number)" "issue=$(fix_number 1)" &&
+  grep -qx -- "- #$(fix_number 1) could not be locked, so it was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line"; then
+  ok "a marker written on the fix issue alone leaves the note's line unqualified"
+else
+  fail "filing with one marker written: rc=$RC log='$LOG' out='$OUT'"
 fi
 JUDGE=0 JUDGE_QUARANTINE='[77, 78]' DISPATCH_FAIL=1 MARK_FAIL='*' RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 1 && "$(sent_numbers)" == "77 78" ]] && grep -qx 'excused=true' "$TMP_ROOT/stub/output"; then

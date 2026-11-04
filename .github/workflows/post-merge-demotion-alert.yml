@@ -1222,17 +1222,22 @@ jobs:
             note="This check failed on main again at \`$RUN_SHA\`. Merge range: $merges. Run: $run_link"
             fix_work "$check" "$RUN_SHA" "$signal" "$on_record" "$merges" "$run_link" "$fix_marker" "$note"
             if [[ -n "$fix_missed" ]]; then
-              undelivered+=("$fix_missed")
+              # One marker written is enough for the retry to find the work.
+              marked=''
               if [[ -n "$fix_missed_issue" ]]; then
-                mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue" || true
-                mark_undelivered "$record" "issue=$fix_missed_issue" || true
+                mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue" && marked=1
+                mark_undelivered "$record" "issue=$fix_missed_issue" && marked=1
               else
-                mark_undelivered "$record" "check=$check" || true
+                mark_undelivered "$record" "check=$check" && marked=1
               fi
+              if [[ -z "$marked" ]]; then
+                fix_missed+=": no marker could be written, so no run retries it"
+              fi
+              undelivered+=("$fix_missed")
             fi
           done
           if [[ "${#undelivered[@]}" -gt 0 ]]; then
-            note="Fix work not handed to intake on this run. The hand-off failed and the next alert run retries it:"
+            note="Fix work not handed to intake on this run. The hand-off failed; the next alert run retries it unless its line says otherwise:"
             for line in "${undelivered[@]}"; do
               note+=$'\n'"- $line"
             done

@@ -121,7 +121,9 @@ clear_marks() {
 # comments of each fix issue, quarantine issue and record among them that has
 # any, and, when a check marker turns up, one of all its issues. A failed read
 # warns and leaves the marker to the next run. A marker on an issue names that
-# issue; only a record's may name another. A check marker that finds its fix
+# issue; only a record's may name another. A marker whose issue this listing
+# does not show as an open fix or quarantine issue stays, so the issue is sent
+# if it is listed later. A check marker that finds its fix
 # issue open sends it, unless this run already did: the run that filed it may
 # have failed both to send it and to mark it, so a second send is the cost of
 # never losing one. A retry that fails again keeps its marker, or moves it to
@@ -184,8 +186,10 @@ retry_undelivered() {
   for t in "${!marked[@]}"; do
     named="${marked[$t]}"
     if [[ -z "${sendable[$t]:-}" ]]; then
-      echo "#$t is no longer an open fix or quarantine issue: nothing to re-send"
-    elif send_to_intake "$t"; then
+      echo "#$t is not listed as an open fix or quarantine issue: left its marker for a later run"
+      continue
+    fi
+    if send_to_intake "$t"; then
       echo "re-sent #$t to intake triage"
       sent[$t]=1
     else
