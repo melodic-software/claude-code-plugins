@@ -1064,11 +1064,11 @@ jobs:
         with:
           filter: blob:none
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch, and a merge group against the queue's base commit, unless its
-      # diff touches a plugin or marketplace manifest, as a release does. A schedule
-      # or dispatch run gets no base: the whole tree, the net for what a diff
-      # cannot show. scripts/resolve-diff-base.sh holds the rules and logs why
-      # it chose.
+      # branch, and a merge group against the queue's base commit, a release
+      # group included, so a manifest change selects only the suites that
+      # declare they read it (test-scope). A schedule or dispatch run gets no
+      # base: the whole tree, the net for what a diff cannot show.
+      # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
       - name: Resolve the diff base
         id: base
         env:
