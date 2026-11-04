@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.1.2
+standards-contract: 1.1.3
 ---
 
 # Standards Convention
