@@ -11,10 +11,10 @@ own detection rule is a minor bump.
 ## Suite-case eval coverage, contract unchanged at 1.1 - 2026-11-04
 
 One eval per record may now sit in a plugin suite case (`evals/<case>/`) as well as the legacy
-setup `evals.json`: its `prompt.md` body, a `graders/*.md` body, or a block-style probe value in
-`case.yaml` (`prompt`, `criteria`, `expected_outcome`, `pattern`, `input_match`, `match`,
-`path`). A plugin with no `evals.json` fails only on an id neither source names. No field, kind,
-exit code or severity changed.
+setup `evals.json`: its `prompt.md` body, a `graders/*.md` body, or a block-style probe value at
+its schema place in `case.yaml` (`execution.prompt`, top-level `expected_outcome`, a grader's
+`pattern`, `input_match`, `criteria`, `match` or `path`). A plugin with no `evals.json` fails only
+on an id neither source names. No field, kind, exit code or severity changed.
 
 ## Scope wording, contract unchanged at 1.1 - 2026-10-03
 

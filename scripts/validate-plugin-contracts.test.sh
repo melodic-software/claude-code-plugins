@@ -980,6 +980,40 @@ YAML
 r002_uncovered "an id only in a grader name is not covered"
 
 r002_fixture <<'YAML'
+description: |
+  Dropped for now; the old grader was
+  pattern: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line inside a description's block scalar is not covered"
+
+r002_fixture <<'YAML'
+description: "Dropped:
+  prompt: alpha-r002"
+name: probe
+YAML
+r002_uncovered "a probe-key line inside a description's quoted scalar is not covered"
+
+r002_fixture <<'YAML'
+description:
+  prompt: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe key under a description mapping is not covered"
+
+r002_fixture <<'YAML'
+execution:
+  prompt: |
+    Run setup; the leftover is alpha-r002.
+YAML
+r002_covered "an id in execution.prompt covers"
+
+r002_fixture <<'YAML'
+expected_outcome: The run removes alpha-r002 and re-checks.
+YAML
+r002_covered "an id in a top-level expected_outcome covers"
+
+r002_fixture <<'YAML'
 description:
 - alpha-r002 dropped
 - another note

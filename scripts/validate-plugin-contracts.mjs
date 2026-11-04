@@ -746,29 +746,49 @@ function textCoversRetirementId(text, id) {
 }
 
 // The probe text of a case.yaml: only the values of the keys that state what
-// a run is asked or graded on (PROBE_KEYS), written in block style. Selecting
-// what counts, rather than stripping descriptions, means no YAML spelling of a
-// description (quoted, flow, anchored, explicit, commented) can count. It fails
-// closed: a flow-style value, or a plain scalar wrapped past its first line,
-// counts only its first line or nothing.
-const PROBE_KEYS = ["prompt", "criteria", "expected_outcome", "pattern", "input_match", "match", "path"];
+// a run is asked or graded on, at the place the suite schema puts each one
+// (PROBE_KEYS: parent key, or <root>, to probe keys), written in block style.
+// Selecting what counts, rather than stripping descriptions, means no YAML
+// spelling of a description can count: a key under a description, or text
+// inside any other key's block or quoted scalar, is never a probe value. It
+// fails closed: a flow-style value, or a plain scalar wrapped past its first
+// line, counts only its first line or nothing.
+const PROBE_KEYS = {
+  "<root>": ["expected_outcome"],
+  execution: ["prompt"],
+  graders: ["pattern", "input_match", "criteria", "match", "path"],
+};
 function caseYamlProbeText(text) {
-  const keyLine = new RegExp(`^(\\s*(?:-\\s+)?)(?:${PROBE_KEYS.join("|")})\\s*:(?:\\s+(.*))?$`);
   const kept = [];
-  let block = null;
+  const parents = [];
+  let scalar = null;
   for (const line of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
-    if (block !== null) {
-      if (line.trim() === "" || line.search(/\S/) > block) {
-        kept.push(line);
+    if (line.trim() === "" || /^\s*#/.test(line)) {
+      if (scalar?.probe) kept.push(line);
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (scalar) {
+      if (indent > scalar.column) {
+        if (scalar.probe) kept.push(line);
         continue;
       }
-      block = null;
+      scalar = null;
     }
-    const key = keyLine.exec(line);
+    const key = /^(\s*(?:-\s+)?)([A-Za-z_][\w-]*)\s*:(?:\s+(.*))?$/.exec(line);
     if (!key) continue;
-    const value = (key[2] ?? "").replace(/\s#.*$/, "").trim();
-    if (/^[|>]/.test(value)) block = key[1].length;
-    else if (!/^[[{&*!]/.test(value)) kept.push(value);
+    const column = key[1].length;
+    while (parents.length && parents.at(-1).column >= column) parents.pop();
+    const parent = parents.length ? parents.at(-1).key : "<root>";
+    const value = (key[3] ?? "").replace(/\s#.*$/, "").trim();
+    if (value === "") {
+      parents.push({ column, key: key[2] });
+      continue;
+    }
+    const probe = parents.length <= 1 && (PROBE_KEYS[parent] ?? []).includes(key[2]);
+    const block = /^[|>]/.test(value);
+    scalar = { column, probe: probe && block };
+    if (probe && !block && !/^[[{&*!]/.test(value)) kept.push(value);
   }
   return kept.join("\n");
 }
