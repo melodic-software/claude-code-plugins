@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "`{\"go_format_enabled\": \"false\"}`"
+    },
+    {
+      "answer": "{\"go_format_enabled\":\"false\"}",
+      "why": "no space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"go_format_enabled\": false}",
+      "why": "unquoted boolean; every value is a string"
+    },
+    {
+      "answer": "go_format_enabled=false",
+      "why": "the --config form, not the JSON"
+    },
+    {
+      "answer": "{\"go_format_enabled\": \"true\"}",
+      "why": "wrong value"
+    }
+  ]
+}

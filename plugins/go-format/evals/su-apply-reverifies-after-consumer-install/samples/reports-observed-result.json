@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "I re-checked rather than take that as given: `command -v goimports` now resolves to /usr/local/bin/goimports, so goimports passes."
+    },
+    {
+      "answer": "Not yet: a fresh `command -v goimports` still finds nothing here, so goimports stays FAIL. Check that $GOPATH/bin is on PATH.",
+      "why": "the probe disagrees with the report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, you're all set now that you've run it.",
+      "why": "accepts the say-so"
+    },
+    {
+      "answer": "Great, goimports should resolve now.",
+      "why": "near miss: no observed result"
+    }
+  ]
+}
