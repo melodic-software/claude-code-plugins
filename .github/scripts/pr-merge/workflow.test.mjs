@@ -571,7 +571,8 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
 // --idle-tick). A report that does not stand is never reused: the step runs
 // the post-merge check fresh, as post-merge-dispatch does on a refused idle
 // tick, and keeps the fresh report only when the check passed (exit 0 or 5)
-// and settle --idle-tick keeps it too. Anything else removes it, so the arm
+// and settle --idle-tick --fresh keeps it too (the idle rule less the
+// verifying runs the check just read). Anything else removes it, so the arm
 // step is skipped and nothing arms.
 const KEEP_STEP = "Keep the last sweep's report only while nothing it read has moved";
 const FRESH_SHA = "f".repeat(40);
@@ -638,10 +639,12 @@ exit "\${next:-1}"
     attempts: existsSync(attemptsPath) ? readFileSync(attemptsPath, "utf8") : null,
   };
 };
-const SETTLE = (sha) =>
+const SETTLE = (sha, fresh = "") =>
   new RegExp(
-    `^\\.base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence\\.py settle --idle-tick --repo o/r --postmerge-result \\S+/post-merge/post-merge\\.json --code-sha ${sha}$`,
+    `^\\.base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence\\.py settle --idle-tick --repo o/r --postmerge-result \\S+/post-merge/post-merge\\.json --code-sha ${sha}${fresh}$`,
   );
+// The fresh report's settle: the same call with --fresh, and only there.
+const SETTLE_FRESH = (sha) => SETTLE(sha, " --fresh");
 const FRESH_CHECK =
   /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_postmerge\.py --repo o\/r --agent-identity lanes-bot --lane-merges-only$/;
 
@@ -664,7 +667,7 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
 });
 
 // (a) The report that does not stand is replaced, never reused: the fresh
-// check runs, then settle --idle-tick on the fresh report at this checkout's
+// check runs, then settle --idle-tick --fresh on the fresh report at this checkout's
 // commit, and only both passing lets the arm step run on it.
 test("a PR-scoped run whose report does not stand runs the post-merge check fresh and keeps it when both checks pass", () => {
   for (const [why, options] of [
@@ -684,7 +687,9 @@ test("a PR-scoped run whose report does not stand runs the post-merge check fres
     assert.equal(run.shaFile, `${FRESH_SHA}\n`, why);
     const check = run.calls.findIndex((c) => FRESH_CHECK.test(c));
     assert.ok(check >= 0, `${why}: the fresh check ran`);
-    assert.match(run.calls[check + 1] ?? "", SETTLE(FRESH_SHA), `${why}: settle --idle-tick checked the fresh report`);
+    assert.match(run.calls[check + 1] ?? "", SETTLE_FRESH(FRESH_SHA), `${why}: settle --idle-tick --fresh checked the fresh report`);
+    // The last report's settle, when it ran, never skips the runs test.
+    if (check > 0) assert.match(run.calls[0], SETTLE("c{40}"), why);
     assert.equal(run.calls.length, check + 2, why);
   }
 });
@@ -708,7 +713,7 @@ test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report"
     assert.equal(run.kept, false, why);
     assert.equal(run.output, `fresh-started=true\nstands=false\nfresh=${options.fresh}\nfresh-reason=${reason}\n`, why);
     assert.ok(run.calls.some((c) => FRESH_CHECK.test(c)), `${why}: the fresh check ran`);
-    assert.equal(run.calls.some((c) => SETTLE(FRESH_SHA).test(c)), settled, why);
+    assert.equal(run.calls.some((c) => SETTLE_FRESH(FRESH_SHA).test(c)), settled, why);
     assert.match(run.stdout, new RegExp(`::notice::the fresh post-merge check \\(exit ${options.fresh}\\) does not stand for this run`), why);
   }
 });
