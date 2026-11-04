@@ -52,6 +52,8 @@ last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 prev_threads=""
 poll=0
 err=$(mktemp)  # stderr of every later gh call, checked for a rate limit each poll
+trap 'rm -f "$err"' EXIT  # every exit removes it
+trap 'exit 143' INT TERM HUP  # a signal then ends the script through the EXIT trap, in bash and zsh alike
 
 while true; do
   # Terminal state check — exit watch if PR closed/merged. REST, like the
