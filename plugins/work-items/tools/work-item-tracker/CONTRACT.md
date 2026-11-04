@@ -1166,8 +1166,8 @@ throwaway target.
 adapter through the core CLI only: every verb, valid + invalid input, exit-code +
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
 capability-gated skips (declared-unsupported verbs asserted to exit `6`), and the list
-contract: `list-items` rows carry `created_at` as a UTC timestamp or `null`, and `--label` with a
-label no item carries returns no items. Bindings live
+contract: `list-items` rows carry `created_at` as a UTC timestamp or `null` and `milestone` as a
+name or `null`, and `--label` with a label no item carries returns no items. Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
 and teardown.
 
