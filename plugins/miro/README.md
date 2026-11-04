@@ -90,10 +90,11 @@ tool call with the configure instruction, which is why the recipe below disables
 and launches a different server process instead.
 
 1. Enable the plugin.
-2. Locate this plugin's cached server entry point. Claude Code copies an installed plugin into a
-   version-keyed cache directory,
-   `~/.claude/plugins/cache/<marketplace>/miro/<resolved-version>/server/src/launch.ts`. The
-   exact path changes on every `miro` update, so re-check it after one.
+2. Locate this plugin's cached server entry point, `server/src/launch.ts` inside the installed
+   `miro` plugin's cache directory, and locate it again after every `miro` update. For where
+   that directory is, see
+   [Plugin loading reference: Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)
+   (as of 2026-11-03; recheck when that section changes the cache path layout).
 3. Add a **user-scope** stdio MCP server whose command wraps that path with `vault-exec`. A
    directly configured server does not receive `CLAUDE_PLUGIN_DATA`, so pass it with `-e`; the
    plugin's data directory is `~/.claude/plugins/data/miro-<marketplace>`:
@@ -149,8 +150,11 @@ on Node ≥ 24. Cross-platform, no per-OS path divergence at the stdio boundary.
 definitions are thin wrappers over the [`@mirohq/miro-api`](https://www.npmjs.com/package/@mirohq/miro-api)
 client; the request/response and error-shaping logic lives in `server/src/`.
 
-The TypeScript in `server/src/` is what runs: Node strips the types at load, so there is no
-build step and no committed build output. The repo follows the
+The TypeScript in `server/src/` is what runs: there is no build step and no committed build
+output. For how Node runs a `.ts` file, see
+[Node.js: Type stripping](https://nodejs.org/api/typescript.html#type-stripping) (as of
+2026-11-03; recheck when that section changes which TypeScript syntax runs without a flag). The
+repo follows the
 [on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/on-demand-dependencies/README.md):
 no third-party code is committed. `server/src/launch.ts` installs the runtime dependencies on
 first launch and then starts `index.ts`:

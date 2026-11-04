@@ -21,10 +21,10 @@ It ships no rules of its own and no binary. It runs the `actionlint` already on 
 - **A partly staged file is linted as staged.** The check reads the index, so the lint matches
   what the commit records.
 - **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
-  actionlint's embedded-bash ShellCheck and `shell: python` pyflakes integrations are turned off.
-  Each spawns a subprocess per `run:` block. ShellCheck deadlocks on large blocks under the
-  Windows subprocess IPC path in actionlint 1.7.x. Native workflow diagnostics are unaffected;
-  run the full integrations in CI.
+  actionlint's embedded-bash ShellCheck and `shell: python` pyflakes integrations are turned off
+  at commit time; run the full integrations in CI. For how the integration runs, see
+  [actionlint checks: ShellCheck integration for `run:`](https://github.com/rhysd/actionlint/blob/main/docs/checks.md#shellcheck-integration-for-run)
+  (as of 2026-11-03; recheck when that section changes how ShellCheck is invoked per `run:` block).
 - **Opt-in end-of-turn check.** With `actionlint_end_of_turn` on, a Stop row runs the same check
   over the uncommitted workflow changes (untracked files included) when a turn ends and hands
   findings back to Claude once per turn. Nothing is rewritten. Off by default.
@@ -85,8 +85,10 @@ Then verify prerequisites with `/actionlint:setup check` and register the pre-co
 
 ## Configuration
 
-actionlint auto-discovers its own `.github/actionlint.yaml` config from your
-repository when present. Two `userConfig` options tune the hooks themselves:
+For actionlint's own configuration file, see
+[actionlint configuration: Configuration file](https://github.com/rhysd/actionlint/blob/main/docs/config.md#configuration-file)
+(as of 2026-11-03; recheck when that section changes where the file is read from). Two
+`userConfig` options tune the hooks themselves:
 
 - **`actionlint_enabled`** (boolean, default `true`). Kill switch for the plugin's Claude Code
   hooks (the end-of-turn row and the SessionStart probe). It does not govern the git pre-commit
