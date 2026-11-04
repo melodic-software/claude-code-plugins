@@ -33,6 +33,7 @@ rdt_bounded_to() {
     IFS= read -r -t "$__bt_limit" -u "$__bt_fd" _ ||
       (($? <= 128)) || {
       kill -KILL "$__bt_pid" 2>/dev/null
+      wait "$__bt_pid" 2>/dev/null
       exit 124
     }
     wait "$__bt_pid" || exit "$(($? == 127 ? 124 : $?))"

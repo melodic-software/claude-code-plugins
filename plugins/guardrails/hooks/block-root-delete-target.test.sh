@@ -1337,14 +1337,15 @@ assert_contains 'the glob-cap refusal names the entry cap' "$GUARD_ERR" "more th
 # sleeps past the time left. SECONDS=44 in the guard's environment (bash imports
 # it) puts the hook 44 s into its 50 s, so the case takes about 6 s. A 70 s git
 # stall had carried the guard past the 60 s hook timeout, which fails open, so
-# the git toplevel lookup is bounded the same way. block-root-delete-target-resolve.test.sh
+# the git toplevel lookup is bounded the same way. The `~` keeps the realpath
+# case's parent off the in-shell resolver on Windows. block-root-delete-target-resolve.test.sh
 # also proves each stalled process is killed.
 for rdt_t in realpath git; do
   mkdir -p "$TEST_TMPDIR/bin-slow-$rdt_t"
   printf '#!/usr/bin/env bash\nexec sleep 60\n' >"$TEST_TMPDIR/bin-slow-$rdt_t/$rdt_t"
   chmod +x "$TEST_TMPDIR/bin-slow-$rdt_t/$rdt_t"
 done
-guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-slow-realpath:$PATH" SECONDS=44
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./x~1/build' -- "PATH=$TEST_TMPDIR/bin-slow-realpath:$PATH" SECONDS=44
 assert_exit 'a resolver that runs out of time refuses' 2 "$GUARD_RC"
 assert_contains 'the timeout refusal names the time bound' "$GUARD_ERR" "ran out of time"
 guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-slow-git:$PATH" SECONDS=44
@@ -1414,8 +1415,10 @@ expect_both 'cd glob: an absolute delete after it is still judged' 0 "${RDT_CWD[
 
 # An unexpected error inside the judgment refuses rather than exiting 1, which
 # the abort boundary would pass. The exported function stands in for any such
-# error: it shadows a builtin the judgment calls and reads an unset variable.
-expect_both 'an error inside the judgment refuses' 2 "${RDT_CWD[@]}" --command 'rm -rf build' \
+# error: it shadows a builtin the realpath batch calls and reads an unset
+# variable. The `~` keeps the operand off the in-shell cygpath stand-in on
+# Windows, so a batch reaches mapfile on every host.
+expect_both 'an error inside the judgment refuses' 2 "${RDT_CWD[@]}" --command 'rm -rf build~1' \
   -- 'BASH_FUNC_mapfile%%=() { : "$RDT_NO_SUCH_VARIABLE"; }'
 
 # A host with no `realpath -m` (BSD, macOS) takes the lexical fallback.

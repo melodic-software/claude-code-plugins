@@ -127,7 +127,9 @@ mkdir -p "$REPO"
 git -C "$REPO" init -q
 REPO_TOP=$(git -C "$REPO" rev-parse --show-toplevel)
 REPO_TOP="${REPO_TOP//$'\r'/}"
-PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n --arg d "$REPO_TOP" '{tool_name:"Bash",tool_input:{command:"rm -rf ./build"},cwd:$d}')
+# The `~` keeps the operand off the in-shell resolver on Windows, so realpath
+# runs on every host.
+PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n --arg d "$REPO_TOP" '{tool_name:"Bash",tool_input:{command:"rm -rf ./x~1/build"},cwd:$d}')
 
 # judge <path prefix>: the guard's status and output for PAYLOAD, in rc and out,
 # starting 40 s into the hook's 50 s, so 10 s are left.
