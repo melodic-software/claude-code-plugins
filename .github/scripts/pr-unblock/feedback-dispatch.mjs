@@ -138,10 +138,12 @@
 // head answered "no earlier FAIL" may be read again inside that window.
 //
 // Before every other sweep, the tick sends again a round the token broker
-// refused as workflow-modified, once per refused run (sweepRefused): a round
-// in flight when a lane workflow file changes on main is refused its push or
-// reply token, a re-run keeps the old file, and the head's check runs would
-// otherwise hold it.
+// refused as workflow-modified, or the gate stopped head-lag, once per stopped
+// run (sweepRefused): a round in flight when a lane workflow file changes on
+// main is refused its push or reply token, and a re-run keeps the old file; a
+// round whose gate could not match the PR's head to its branch ref within its
+// wait (an API lag after an outage) did no work. Either way the head's check
+// runs would otherwise hold it.
 //
 // A run of this file an outage lost, or whose dispatch job failed, dispatched
 // nothing the lanes trust when re-run: check-trusted-trigger's dispatcher
@@ -261,6 +263,12 @@ const startOf = (run) => Date.parse(run.started_at ?? "");
 // and so is a kill-switch stop, which posted no reply.
 const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands", LANE_STOP, KILL_SWITCH_STOP]);
 const releases = (run) => run?.status === "completed" && run.conclusion === "neutral" && RELEASES.has(run.output?.title);
+// The gate's head-lag stop (check-trusted-trigger.mjs fetchPull), which
+// report-check-run posts as a superseded-sha skip (gate-skip-reasons.json) on
+// the head the select job read. Every other superseded-sha check lands on a
+// head the PR has left (a cancel, apply-patch's moved tip), so one on the
+// PR's current head is a lag stop that did no work there.
+const headLagStop = (run) => run.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: superseded-sha";
 // A pass-only round's reply check (publish-feedback.mjs PASS_ONLY_SKIP)
 // answers no thread, so it neither releases a head nor ends a release.
 const roundReplies = (runs) => runs.filter((run) => run.output?.title !== "Skipped: pass-only");
@@ -846,7 +854,7 @@ export const SWEEP_TICK_CAP = 5;
 export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
 
 // The sweep, in pass order: each open PR whose newest round the token broker
-// refused as workflow-modified (sweepRefused); each open lanes App PR into
+// refused as workflow-modified or the gate stopped head-lag (sweepRefused); each open lanes App PR into
 // main with a fix request newer than its head's last round (sweepFixRequest); each whose
 // head's newest reply check took a releasing skip, under SWEEP_HEAD_CAP such
 // checks (sweepOne); then sweepStale, sweepUnsent and sweepIdleOwner. Each PR
@@ -865,7 +873,7 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
   const taken = new Set();
   const started = clock();
   const passes = [
-    [sweepRefused, listed, "sweep: no round the broker refused as workflow-modified to send again"],
+    [sweepRefused, listed, "sweep: no round the broker refused as workflow-modified or the gate stopped head-lag to send again"],
     [sweepFixRequest, pulls, "sweep: no head with a fix request newer than its last round"],
     [sweepOne, pulls, "sweep: no head whose last round left it for another round to dispatch"],
     [sweepStale, pulls, "sweep: no head with a failing address-feedback stop and nothing left to fix"],
@@ -1199,8 +1207,11 @@ async function dispatchAtHead({ api, pull, repository, appSenderId, log, setting
 // SWEEP_HEAD_CAP address-feedback check runs, which bounds a chain of
 // refusals. Check runs started before the refused run ended stop counting
 // (requestSince), but a limit stop keeps its reset hold. A refusal for any
-// other reason is left alone. The result names the refused run (refireOf),
-// which the dispatched-run record keeps.
+// other reason is left alone. A run the gate stopped head-lag counts the same
+// way, whatever its conclusion, when its own address-feedback check on the
+// PR's current head is that stop (headLagStop): a head that moved since was
+// gated by its own run, so the stop was right there. The result names the
+// stopped run (refireOf), which the dispatched-run record keeps.
 async function sweepRefused(context) {
   const { api, pull, log, settings, rest } = context;
   const head = pull.head.sha;
@@ -1208,23 +1219,30 @@ async function sweepRefused(context) {
   const [last] = (await api.listWorkflowRuns(settings.workflow))
     .filter((run) => run.display_title === runTitle(settings.activity, pull.number))
     .sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
-  if (last?.status !== "completed" || last.conclusion !== "failure" || !RUN_ID.test(String(last.id)) || !(Date.parse(last.updated_at ?? "") >= since)) {
+  if (last?.status !== "completed" || !RUN_ID.test(String(last.id)) || !(Date.parse(last.updated_at ?? "") >= since)) {
     return null;
   }
   const rounds = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
-  const posted = (checks) => checks.some((check) => postingRunId(check) === String(last.id));
-  if (!posted(rounds) && !posted(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId }))) {
-    return null;
-  }
-  const why = await tokenRefusal({ jobs: await api.listRunJobs(last.id), readAnnotations: api.listAnnotations, activity: settings.activity });
-  if (why?.kind !== "workflow-modified") {
-    return null;
+  const own = (checks) => checks.filter((check) => postingRunId(check) === String(last.id));
+  let stop = own(rounds).some(headLagStop) ? "stopped head-lag" : "";
+  if (!stop) {
+    if (last.conclusion !== "failure") {
+      return null;
+    }
+    if (own(rounds).length === 0 && own(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).length === 0) {
+      return null;
+    }
+    const why = await tokenRefusal({ jobs: await api.listRunJobs(last.id), readAnnotations: api.listAnnotations, activity: settings.activity });
+    if (why?.kind !== "workflow-modified") {
+      return null;
+    }
+    stop = `refused as workflow-modified (${why.path})`;
   }
   if (rounds.length >= SWEEP_HEAD_CAP) {
-    log(`skip: #${pull.number}: run ${last.id} was refused as workflow-modified (${why.path}), and head ${head} has ${rounds.length} rounds, the sweep's cap`);
+    log(`skip: #${pull.number}: run ${last.id} was ${stop}, and head ${head} has ${rounds.length} rounds, the sweep's cap`);
     return null;
   }
-  log(`refire: #${pull.number}: run ${last.id} was refused as workflow-modified (${why.path}) at head ${head}; sending ${settings.activity} again on main`);
+  log(`refire: #${pull.number}: run ${last.id} was ${stop} at head ${head}; sending ${settings.activity} again on main`);
   const dispatched = await dispatchAtHead(context, { requestSince: Date.parse(last.updated_at) });
   return dispatched === null ? null : { ...dispatched, refireOf: String(last.id) };
 }
@@ -1730,7 +1748,7 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
     // Each send's outputs are written as it is sent, so a later send's
     // failure still leaves the earlier ones recorded: the first as run-id,
     // the nth as run-id-<n>. A round sent again after a workflow-modified
-    // refusal also names the refused run, as refire-of-<n>.
+    // refusal or a head-lag stop also names the stopped run, as refire-of-<n>.
     let sends = 0;
     const write = (swept) => {
       sends += 1;

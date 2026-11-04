@@ -2481,6 +2481,74 @@ test("a round refused for another reason, outside the window, on another head or
   }
 });
 
+// A round whose gate could not match the PR's head to its branch ref within
+// its wait (check-trusted-trigger.mjs head-lag): the run ends green, and its
+// address-feedback and publish-feedback checks are superseded-sha skips on the
+// head the select job read (run 41826593020 on #13194).
+const LAGGED_RUN = 710;
+const laggedRun = (overrides = {}) => refusedRun({ id: LAGGED_RUN, conclusion: "success", ...overrides });
+const laggedChecks = (run = LAGGED_RUN) =>
+  ["address-feedback", "publish-feedback"].map((name) => ({
+    ...roundRun(name, "neutral", "Skipped: superseded-sha", "2026-10-17T13:05:00Z"),
+    external_id: `pr-unblock:${name}:${run}:1`,
+  }));
+const laggedApi = ({ runs = [laggedRun()], checksAt = { [HEAD]: laggedChecks() } } = {}) => {
+  const api = refusedApi({ runs, checksAt });
+  api.listRunJobs = async () => assert.fail("a head-lag stop is read from its check, not its jobs");
+  return api;
+};
+
+test("a tick sends a round the gate stopped head-lag at the PR's current head again once, and the record names the stopped run", async (t) => {
+  const api = laggedApi();
+  const { output, lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, `run-id=38779200001\nupstream-run-id=13\nrefire-of=${LAGGED_RUN}\n`);
+  assert.ok(lines.some((line) => line.startsWith(`refire: #42: run ${LAGGED_RUN} was stopped head-lag at head ${HEAD}`)), lines.join("\n"));
+});
+
+test("a head-lag stop is not sent again once a newer run exists, the refire's included", async (t) => {
+  const later = { id: 711, created_at: "2026-10-17T13:45:00Z", updated_at: "2026-10-17T13:50:00Z" };
+  const passed = { ...roundRun("address-feedback", "success", "Passed", "2026-10-17T13:46:00Z"), external_id: "pr-unblock:address-feedback:711:1" };
+  for (const [label, run, checks] of [
+    ["a newer run is still going", laggedRun({ ...later, status: "in_progress", conclusion: null }), laggedChecks()],
+    ["a newer run passed", laggedRun(later), [...laggedChecks(), passed]],
+    ["a newer run failed for another reason", laggedRun({ ...later, conclusion: "failure" }), [...laggedChecks(), { ...passed, conclusion: "failure", output: { title: "Failed", summary: "" } }]],
+  ]) {
+    const api = laggedApi({ runs: [run, laggedRun()], checksAt: { [HEAD]: checks } });
+    api.listRunJobs = async () => [];
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("a head-lag stop on a head the PR has left, outside the window or at the cap is not sent again", async (t) => {
+  for (const [label, options] of [
+    ["the head moved since", { checksAt: { [SECOND_HEAD]: laggedChecks() } }],
+    ["stopped hours ago", { runs: [laggedRun({ updated_at: "2026-10-17T11:00:00Z" })] }],
+    ["the head is at the cap", { checksAt: { [HEAD]: [...laggedChecks(), answeredRound, answeredRound] } }],
+    ["another run's stop", { checksAt: { [HEAD]: laggedChecks(699) } }],
+  ]) {
+    const api = laggedApi(options);
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("the head-lag refire is sent once: the round it starts is the PR's newest run", async (t) => {
+  const api = laggedApi();
+  await sweepMain(t, api, TICK, NOW);
+  assert.equal(api.calls.dispatch.length, 1);
+  const refire = laggedRun({ id: 38779200001, status: "queued", conclusion: null, created_at: "2026-10-17T14:00:01Z", updated_at: "2026-10-17T14:00:01Z" });
+  const next = laggedApi({ runs: [refire, laggedRun()] });
+  const { output } = await sweepMain(t, next, TICK, NOW + 30 * 60_000);
+  assert.deepEqual(next.calls.dispatch, []);
+  assert.equal(output, "");
+});
+
 // A verdict the kill switch deferred: the reconciler re-ran post-verify-notes
 // (attempt 2, github-actions[bot]), which posted the notes or found the stale
 // ones and uploaded pr-feedback-deferred-<head>-<verdict>, since the gate
