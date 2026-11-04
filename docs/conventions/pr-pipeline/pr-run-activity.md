@@ -2314,7 +2314,10 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
-  event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
+  event is a listed human's or the lanes App's, or when the trusted list that judges it cannot be
+  read, and never for anyone else's. When the issue's events cannot be read, a run that would open
+  a PR opens none, posts nothing and ends green with a notice: the branch stays unreported, and
+  the next run work-unblock's sweep starts opens the PR from it.
   A PR with that line also gets the `do-not-merge` label right after it opens, or when the run
   reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
   and the issue retried (`hold-label-failed`).
@@ -2387,7 +2390,12 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   sweep restarts the issue and the next run resumes its branch, while the retry markers since a
   listed human last added `agent-ready`, whatever stop wrote them, are fewer than
   `limits.stop-retries` or the stop's row's `retries`; past that, the stop takes the
-  `retry-spent` row's route. `wait` (`blocked-by-pr`) keeps `agent-ready` with
+  `retry-spent` row's route. The exception is a stop whose row sets `fault: true` when at least one
+  retry was counted, every counted retry was such a stop, and the run made no branch of its own.
+  It holds: it ends green with a notice, keeps `agent-ready` and posts no marker, and the
+  work-unblock sweep re-fires it on the stranded backoff (`limits.stranded-backoff-hours`), at most
+  24 hours between re-fires. A fault hold has no hard count, only that backoff, and a re-fire can
+  spend a model run each time. `wait` (`blocked-by-pr`) keeps `agent-ready` with
   `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep restarts the
   issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
   apart from its retries; a pull request that is not open, or none named, retries instead.
