@@ -81,6 +81,8 @@ check "plugin-options-docs block keeps a sensitive option off the command line" 
   '[[ $block == *"Never put this plugin'"'"'s \`sensitive\` option(s) (\`tok\`) on a command line"* ]]'
 check "plugin-options-docs points a mixed plugin at the install fallback" \
   '[[ $block == *"see [Plugin install]"* ]]'
+check "plugin-options-docs block keeps its local decisions and pointers" \
+  '[[ $block == *"Do **not** uninstall the plugin to reconfigure it"* && $block == *"#what-an-uninstall-deletes-and-keeps"* && $block == *"#plugin-configure"* && $block == *"#pluginconfigs"* && $block == *"**By hand:**"*"**user** settings"* ]]'
 
 opts_sens="$tmp/opts-sens"
 mkdir -p "$opts_sens/plugins/p/.claude-plugin"
