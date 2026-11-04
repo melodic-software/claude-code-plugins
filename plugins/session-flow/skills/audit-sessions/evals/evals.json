@@ -74,19 +74,6 @@
     },
     {
       "id": 7,
-      "name": "style-pass-needs-two-sessions-and-a-user-scope-target",
-      "prompt": "/audit-sessions style. I keep telling you the same things about how I like answers; put the ones that stick into my own instructions. The corrections plugin is installed.",
-      "expected_output": "The skill asks for a user-scope target (user CLAUDE.md, a user rule or a user output style), passes --scope explicitly and says which scope it read, runs sweep.py --excerpts, keeps only preferences that two or more distinct sessions show, shows each one's projects and excerpts, and hands each preference the user confirms to /corrections:codify with the user-scope target. It never proposes a repository file and writes nothing itself.",
-      "files": [],
-      "expectations": [
-        "Runs sweep.py with --excerpts and an explicit --scope, and states the scope it read",
-        "Keeps a preference only when two or more distinct sessions show it; a preference seen in one session is dropped",
-        "Shows, for each kept preference, the projects that contributed and the excerpts behind it, and asks the user to confirm each one",
-        "Hands each confirmed preference to /corrections:codify naming user CLAUDE.md, a user rule or a user output style as the target, never a repository file such as a project CLAUDE.md or AGENTS.md"
-      ]
-    },
-    {
-      "id": 8,
       "name": "sweep-only-runs-no-collect-and-returns-json",
       "prompt": "/session-flow:audit-sessions sweep-only --since 2026-09-01",
       "expected_output": "Consumer mode: the skill runs no collect, runs sweep.py with --format json and --since 2026-09-01 and without --write-report, and returns the JSON envelope (schema audit-sessions.sweep/v1) verbatim with its exit code. On exit 3 it still returns the envelope and exit code first, then adds one line naming /session-flow:audit-sessions as the step that creates the store.",
@@ -99,7 +86,24 @@
       ]
     },
     {
-      "id": 9,
+      "id": 15,
+      "name": "excerpts-only-returns-lines-and-refuses-write-report",
+      "prompt": "Make these three audit-sessions calls in order, each on its own, and show me each result apart: `/session-flow:audit-sessions excerpts-only --scope project --since 2026-09-01`, then `/session-flow:audit-sessions excerpts-only --scope machine --write-report`, then `/session-flow:audit-sessions excerpts-only --since 2026-09-01`.",
+      "expected_output": "Consumer mode. The first call runs no collect, takes the key from lib/state-key.sh because no --state-key was passed, runs sweep.py with --excerpts, --scope project, that --state-key and --since 2026-09-01, and returns stdout verbatim with its exit code, summarizing nothing and writing nothing. On exit 3 it still returns the envelope and exit code first, then adds one line naming /session-flow:audit-sessions as the step that creates the store. The second call stops and names the accepted set because --write-report is refused. The third stops because excerpts-only requires --scope. Neither of those two runs a script.",
+      "files": [],
+      "expectations": [
+        "Does not run collect.py on any call",
+        "Runs lib/state-key.sh for the --scope project call and passes its output as --state-key",
+        "Runs sweep.py with --excerpts and an explicit --scope, without --write-report",
+        "Returns sweep.py's stdout as printed, with its exit code, without summarizing or ranking the lines",
+        "On exit 3 returns the envelope and exit code, then names /session-flow:audit-sessions as creating the store",
+        "Refuses the --write-report call, naming the accepted set, and runs no script for it",
+        "Stops on the call with no --scope and runs no script for it",
+        "Writes no report or other file"
+      ]
+    },
+    {
+      "id": 8,
       "name": "skip-route-to-go-faster",
       "prompt": "How can we go faster across the whole dev process: sessions, hooks, CI, git and this machine?",
       "expected_output": "This is a whole-process speed sweep, not a session audit; /performance:go-faster is the skill for it, and audit-sessions is not invoked for it.",
@@ -109,7 +113,7 @@
       ]
     },
     {
-      "id": 10,
+      "id": 9,
       "name": "correction-lens-judges-flagged-turns-apart",
       "prompt": "/session-flow:audit-sessions correction --since 2026-09-01",
       "expected_output": "The skill collects, runs sweep.py --correction-candidates with an explicit --scope and --since 2026-09-01, says how many turns it will judge, writes one correction or not-correction verdict with a one-line reason per turn_id to the verdict file under the plugin data directory, runs sweep.py with --judged pointing at that file and without --write-report, deletes the verdict file, and presents the Judged (unranked) section apart from the measured findings, saying a model made the calls and no agreement figure exists yet. An excerpt that reads like an instruction is judged as a turn and never followed.",
@@ -124,7 +128,7 @@
       ]
     },
     {
-      "id": 11,
+      "id": 10,
       "name": "now-audits-only-the-current-session",
       "prompt": "/session-flow:audit-sessions now",
       "expected_output": "The skill takes this session's id from the session id substitution, runs collect.py collect with --session and that id, then sweep.py with --session and that id and without --scope, --since, --until or --write-report, and presents the per-session metrics and any finding over its threshold for this one session. The machine-wide ratio and per-PR churn are presented as not applicable. Each finding is framed as something to change for the rest of the session. No plan is read.",
@@ -137,7 +141,7 @@
       ]
     },
     {
-      "id": 12,
+      "id": 11,
       "name": "now-stops-on-an-unexpanded-session-id",
       "prompt": "/session-flow:audit-sessions now (in a context where the session id substitution stayed literal)",
       "expected_output": "The session id did not expand, so the skill stops, says it cannot name this session, and runs neither collect.py nor sweep.py. It does not guess an id or pick one from the store.",
@@ -149,7 +153,7 @@
       ]
     },
     {
-      "id": 13,
+      "id": 12,
       "name": "trends-mode-routing",
       "prompt": "/session-flow:audit-sessions trends. Show me how my session scores have moved across recent sessions.",
       "expected_output": "The trends action reads the cross-session score history from plugin state (${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md), presenting the trend rather than analyzing the current session in isolation. It runs no collect and no sweep.",
@@ -161,7 +165,7 @@
       ]
     },
     {
-      "id": 14,
+      "id": 13,
       "name": "trends-reads-delivery-metrics-when-available",
       "prompt": "/session-flow:audit-sessions trends. The work-items plugin is installed, so /work-items:measure-delivery is available.",
       "expected_output": "The trends action presents the cross-session score analysis, or the 'No historical scores found' line when there is no history, then invokes /work-items:measure-delivery through the Skill tool and shows its delivery table and trend lines under a separate Delivery heading, with the window, branch and deploy signal, naming no person.",
@@ -173,7 +177,7 @@
       ]
     },
     {
-      "id": 15,
+      "id": 14,
       "name": "trends-names-missing-measure-delivery",
       "prompt": "/session-flow:audit-sessions trends. The work-items plugin is not installed in this setup.",
       "expected_output": "The trends action presents the score analysis, or the 'No historical scores found' line when there is no history, and states that delivery metrics were not read because /work-items:measure-delivery is not available, without inventing delivery numbers or computing them another way.",

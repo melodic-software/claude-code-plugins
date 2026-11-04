@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Scope read: machine, every project on this machine.\n\nKept: ISO dates (2 of 2 sessions).",
+      "why": "scope named"
+    },
+    {
+      "answer": "I read all projects on this machine (--scope machine).",
+      "why": "scope named another way"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Kept: ISO dates (2 of 2 sessions). No emoji (2 of 2 sessions).",
+      "why": "the excerpts appear but the scope is not said"
+    },
+    {
+      "answer": "Scope read: this repository only.",
+      "why": "the wrong scope"
+    }
+  ]
+}

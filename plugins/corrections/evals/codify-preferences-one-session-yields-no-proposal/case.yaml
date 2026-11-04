@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: 'codify-preferences-one-session-yields-no-proposal'
+plugins: ["../..", "../../../session-flow"]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'excerpts-through-audit-sessions'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: 'audit-sessions"\s*,\s*"args"\s*:\s*"excerpts-only\b[^"]*--scope[ =]machine\b'
+    arm: 'with-only'
+  - name: 'threshold-through-settings'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'codify-settings\.mjs'
+    arm: 'with-only'
+  - name: 'proposal-written'
+    type: 'file_exists'
+    path: '.work/codify/*/*-proposal.md'
+    arm: 'with-only'
+  - name: 'no-instruction-file-written'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"]*/)?(?:CLAUDE(?:\.local)?\.md|AGENTS\.md|\.claude/(?:rules|output-styles)/[^"]*)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-instruction-file-edited'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"]*/)?(?:CLAUDE(?:\.local)?\.md|AGENTS\.md|\.claude/(?:rules|output-styles)/[^"]*)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'one-session-gets-no-proposal'
+    type: 'llm'
+    focus: 'trace'
+    arm: 'both'
+    criteria: 'The date preference is on three lines, all in session s-0101, and the person said yes to it. PASS only if the run counts it as 1 session against the threshold of 2, drops it, and proposes no line for it. FAIL if it is counted as 3, if a line for it is proposed, or if the person''s yes or the three repeats are given as a reason to go on.'
+  - name: 'two-sessions-gets-a-proposal'
+    type: 'llm'
+    focus: 'trace'
+    arm: 'both'
+    criteria: 'The no-emoji preference is in two sessions (s-0102, s-0103) and the person said yes to it. PASS only if the run counts it as 2 sessions, at the threshold of 2, and proposes a line for it naming the user CLAUDE.md as its target. FAIL if it is dropped, or if no line naming that target is proposed.'

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "ISO dates: 1 session (s-0101) against a threshold of 2, dropped, however often you typed it and though you said yes. No line proposed.",
+      "why": "counts the session, drops it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ISO dates: 3 occurrences, at or over the threshold of 2. Proposed: 'Write dates as ISO 8601.'",
+      "why": "counted by line"
+    },
+    {
+      "answer": "ISO dates: 1 session against a threshold of 2, but you confirmed it, so I proposed the line.",
+      "why": "the yes lifted the threshold"
+    },
+    {
+      "answer": "ISO dates: 1 session. Below the threshold, but three repeats in a session show it matters, so it goes on.",
+      "why": "the repeats lifted the threshold"
+    }
+  ]
+}
