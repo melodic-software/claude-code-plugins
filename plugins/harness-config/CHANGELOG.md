@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.5] - 2026-11-04
+
+### Fixed
+
+- The `audit-permission-grants` criteria link "Standard layout" at the current plugin manifest reference page instead of its retired URL.
+
 ## [3.0.4] - 2026-11-04
 
 ### Fixed

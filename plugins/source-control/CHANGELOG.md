@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.3] - 2026-11-04
+
+### Fixed
+
+- `/source-control:worktree` cleanup links "Uninstall a plugin the project enables" at the current plugin install page instead of its retired URL.
+
 ## [7.1.2] - 2026-11-04
 
 ### Changed
