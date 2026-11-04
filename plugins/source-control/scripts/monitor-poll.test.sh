@@ -87,8 +87,11 @@ runs_json() {
 }
 
 # run_poll <fixture-dir> — runs the poll script against the stub; stdout only.
+# Its temp files land in POLL_TMP, which every exit must leave empty.
+POLL_TMP="$TEST_TMPDIR/poll-tmp"
+mkdir -p "$POLL_TMP"
 run_poll() {
-  FX="$1" PATH="$BIN:$PATH" timeout 60 bash "$POLL" 2>/dev/null
+  FX="$1" TMPDIR="$POLL_TMP" PATH="$BIN:$PATH" timeout 60 bash "$POLL" 2>/dev/null
 }
 
 # --- failed FIRST read: the second poll is the baseline, the third emits once.
@@ -151,5 +154,40 @@ out4="$(run_poll "$FX4")"
 rc4=$?
 assert_eq "rate limit: exit status" "2" "$rc4"
 assert_contains "rate limit: RATE-LIMITED line" "$out4" "RATE-LIMITED"
+
+# --- a stopped watch leaves its temp file behind no more than a finished one.
+# TaskStop sends TERM to the watch and its children; the real sleep (no stub
+# directory on PATH) holds the watch inside its loop until then. The harness
+# can run an inline Monitor command under zsh, whose EXIT trap does not run on
+# a signal by itself, so zsh is checked too where it is installed.
+FX5="$TEST_TMPDIR/fx5"
+mkdir -p "$FX5" "$TEST_TMPDIR/bin-nosleep"
+runs_json a >"$FX5/checks.1"
+echo 9 >"$FX5/merged_at"
+cp "$BIN/gh" "$BIN/source-control-review-threads" "$TEST_TMPDIR/bin-nosleep/"
+{ echo 'INTERVAL=30'; grep -v -e '^INTERVAL=' "$POLL"; } |
+  sed -e "s#$BIN/source-control-review-threads#$TEST_TMPDIR/bin-nosleep/source-control-review-threads#" >"$TEST_TMPDIR/poll-slow.sh"
+for sh5 in bash zsh; do
+  command -v "$sh5" >/dev/null 2>&1 || continue
+  rm -f "$FX5/poll"
+  # zsh -f reads no user startup file, which could put the real gh first on PATH.
+  sh5_args=()
+  [[ "$sh5" == zsh ]] && sh5_args=(-f)
+  FX="$FX5" TMPDIR="$POLL_TMP" PATH="$TEST_TMPDIR/bin-nosleep:$PATH" "$sh5" "${sh5_args[@]}" "$TEST_TMPDIR/poll-slow.sh" >/dev/null 2>&1 &
+  pid5=$!
+  for _ in $(seq 100); do
+    [[ "$(cat "$FX5/poll" 2>/dev/null)" == 1 ]] && break
+    sleep 0.1
+  done
+  sleep 1 # the rest of poll 1 runs, then its sleep starts
+  assert_eq "stopped $sh5 watch: its temp file exists while it runs" "1" "$(find "$POLL_TMP" -mindepth 1 | wc -l | tr -d ' ')"
+  kill -TERM "$pid5" 2>/dev/null
+  pkill -TERM -P "$pid5" 2>/dev/null
+  wait "$pid5" 2>/dev/null
+  assert_eq "stopped $sh5 watch: its temp file is removed" "" "$(find "$POLL_TMP" -mindepth 1)"
+done
+
+# Every run above ended (merged, rate-limited, stopped); none may leave a file.
+assert_eq "poll script leaves no temp file behind" "" "$(find "$POLL_TMP" -mindepth 1)"
 
 [[ $FAILED -eq 0 ]] || exit 1
