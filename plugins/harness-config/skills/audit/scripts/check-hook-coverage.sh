@@ -322,15 +322,15 @@ done
 
 LEVERS=()
 for i in "${!SCOPES[@]}"; do
-  for key in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
-    # Compact JSON, not tostring: true stays a boolean and an array stays an
-    # array. strictPluginOnlyCustomization is true or a per-surface array
-    # ("skills", "agents", "hooks", "mcp"). Stringifying the array made every
-    # value look like a hook lock.
-    # shellcheck disable=SC2016  # $k is a jq --arg binding, not a shell variable
-    val="$(jqs -c --arg k "$key" 'if has($k) then .[$k] else empty end' "${SCOPES[$i]}")"
+  # One jq per scope. Compact JSON, not tostring: true stays a boolean and an
+  # array stays an array, and tojson leaves no raw tab or line break to split on.
+  # strictPluginOnlyCustomization is true or a per-surface array ("skills",
+  # "agents", "hooks", "mcp"). Stringifying the array made every value look like
+  # a hook lock.
+  while IFS=$'\t' read -r key val; do
     [[ -n "$val" ]] && LEVERS+=("${SCOPE_LABELS[$i]}	$key	$val")
-  done
+  done < <(jqs -j '. as $s | ["disableAllHooks", "allowManagedHooksOnly", "strictPluginOnlyCustomization"][]
+    | select(. as $k | $s | has($k)) | . + "\t" + ($s[.] | tojson) + "\n"' "${SCOPES[$i]}")
 done
 
 # --- Mod-plane keys ----------------------------------------------------------
