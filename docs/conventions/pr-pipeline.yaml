@@ -1494,8 +1494,6 @@ merge:
         class: gate
       - glob: ".github/scripts/pr-merge/verify-answers.mjs"
         class: gate
-      - glob: ".github/scripts/pr-merge/listing-carry.mjs"
-        class: gate
       - glob: ".github/actions/report-check-run/posting-run.mjs"
         class: gate
       - glob: "scripts/sync-hold-floor.py"

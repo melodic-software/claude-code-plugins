@@ -808,8 +808,8 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
 // answers in that job's RUNNER_TEMP; the readers' tests count what it saves.
 test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
   for (const [id, scripts] of [
-    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read", "listing-carry.mjs"]],
-    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read", "verify-answers.mjs", "listing-carry.mjs"]],
+    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "carry-run-cache.mjs read", "lane-records.mjs read"]],
+    ["enable-auto-merge", ["head-ref-map.mjs read", "carry-run-cache.mjs read", "lane-records.mjs read", "verify-answers.mjs"]],
     ["post-merge-dispatch", ["lane-records.mjs read", "last-report.mjs"]],
   ]) {
     for (const script of scripts) {
@@ -817,6 +817,15 @@ test("the merge and enable-auto-merge jobs' kept-file readers share their reads"
       assert.equal(step?.[1], "${{ runner.temp }}/pr-merge-reads.json", `${id}: ${script}`);
     }
   }
+});
+
+// The verdict reader reads the FAIL index by exact name, so no run saves an
+// artifact listing for the next: none is uploaded, looked for or named.
+test("no job keeps, fetches or names a carried artifact listing", () => {
+  const text = read("pr-merge.yml");
+  assert.doesNotMatch(text, /pr-merge-verify-listing/);
+  assert.doesNotMatch(text, /listing-carry/);
+  assert.doesNotMatch(text, /BABYSIT_VERIFY_LISTING_CARRY/);
 });
 
 test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
@@ -1511,7 +1520,7 @@ test("a dispatch that failed skips the record", () => {
 test("every credential scan has a timeout of at most 2 minutes, and the upload it guards needs its clean output", () => {
   const bestEffort = {
     "post-merge-dispatch": ["scan-upload", "scan-upload-5"],
-    merge: ["scan-upload-2", "scan-upload-3", "scan-upload-4", "scan-upload-5", "scan-upload-6", "scan-upload-7"],
+    merge: ["scan-upload-2", "scan-upload-3", "scan-upload-4", "scan-upload-5", "scan-upload-6"],
     "enable-auto-merge": ["scan-upload", "scan-upload-2"],
     "dispatch-full-run": [],
   };
