@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.11] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [3.0.10] - 2026-11-04
 
 ### Fixed
