@@ -33,6 +33,13 @@
       "default": "plain",
       "options": ["plain", "peer"]
     },
+    "medium": {
+      "type": "string",
+      "title": "Preferred delivery medium",
+      "description": "Where illustrate's page and teach's topic lessons go. auto (default): each skill's shipped default; terminal: no page, teach writes lesson.md; file: a local file; artifact or hosted: illustrate publishes an Artifact, teach offers one. A team rendered-views file never publishes.",
+      "default": "auto",
+      "options": ["auto", "terminal", "file", "artifact", "hosted"]
+    },
     "quiz_policy": {
       "type": "string",
       "title": "Quiz offer policy",

@@ -121,13 +121,14 @@
     {
       "id": 11,
       "name": "no-medium-and-no-layer-delivers-the-local-file",
-      "prompt": "/education:illustrate how a guitar amplifier shapes tone (no medium argument, and no rendered-views layer sets medium, in a session that can publish artifacts)",
-      "expected_output": "Builds the record and the page, then resolves the medium to the shipped ladder, which is file and then terminal. It reports the local path of the page and of the record, and does not publish an artifact or watch one, even though this session can publish.",
+      "prompt": "/education:illustrate how a guitar amplifier shapes tone (no medium named in the request, this plugin's medium option is unset, and no rendered-views convention file exists, in an interactive session that can publish artifacts)",
+      "expected_output": "Builds the record and the page, then runs the shared view-settings.mjs resolver (resolve --lane education:illustrate) and prints its report line, which names the plugin default as the fact that decided the medium. It reports the local path of the page and of the record, and does not publish an artifact, even though this session can publish.",
       "files": [],
       "expectations": [
+        "Resolves the medium with the shared view-settings.mjs resolver (resolve --lane education:illustrate), passing the plugin's medium option, rather than reading rendered-views files itself",
+        "Prints the resolver's report line, which names the plugin default as what decided the medium",
         "Reports the local file path of the page and the path of the record",
-        "Does not publish an artifact, although the session can publish one",
-        "Names the shipped ladder as the fact that decided the medium"
+        "Does not publish an artifact, although the session can publish one"
       ]
     },
     {
@@ -152,6 +153,19 @@
         "The diagram that weighs REST against GraphQL has kind compare, with one column per option",
         "The columns cover the same points, so a reader can read across them",
         "Does not draw the two options as a hub"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "team-file-cannot-publish-the-page",
+      "prompt": "/education:illustrate how a bloom filter answers a membership query (Interactive session with the Artifact tool available. The repository's tracked team file, rendered-views.yaml in its convention home, says `medium: artifact`; there is no personal rendered-views.local.yaml beside it, this plugin's medium option is unset, and the request names no medium.)",
+      "expected_output": "Grounds the concept from a primary source and builds the record and the page. It runs the shared view-settings.mjs resolver (resolve --lane education:illustrate) and prints its report line and its notice that a team file never publishes. The page stays local: it gives the page's path and the record's path and does not publish an artifact.",
+      "files": [],
+      "expectations": [
+        "Runs the shared view-settings.mjs resolver (resolve --lane education:illustrate) and prints its report line and its notice that the team file never publishes",
+        "Gives the local path of the page and the path of the record",
+        "Does not publish an artifact on the team file's value",
+        "Does not read the team rendered-views.yaml itself to decide the medium"
       ]
     }
   ]

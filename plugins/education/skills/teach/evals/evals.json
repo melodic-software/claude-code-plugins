@@ -177,15 +177,28 @@
     {
       "id": 15,
       "name": "topic-lesson-terminal-medium-writes-markdown",
-      "prompt": "/education:teach explain borrow-checker (Fixture: a topic-mode workspace for rust-ownership exists; the learner is at a desktop with a browser and the Artifact tool is present; ~/.claude/rendered-views.md contains only 'medium: terminal'; the repo has no rendered-views layer; no --medium argument was given.)",
-      "expected_output": "Resolves medium before the format decision, reads medium: terminal from the user-global layer, and writes the concept's lesson as lesson.md rather than lesson.html even though the host can render HTML. Makes no offer to publish the lesson as an artifact, and names ~/.claude/rendered-views.md as the source of the medium.",
+      "prompt": "/education:teach explain borrow-checker (Fixture: a topic-mode workspace for rust-ownership exists; the learner is in an interactive session at a desktop with a browser and the Artifact tool is present; the repository's tracked team file, rendered-views.yaml in its convention home, says only 'medium: terminal'; there is no personal rendered-views.local.yaml; this plugin's medium option is unset; no --medium argument was given.)",
+      "expected_output": "Before the format decision, runs the shared view-settings.mjs resolver (resolve --lane education:teach), which resolves the team file's terminal value, and prints its report line naming team as what decided the medium. Writes the concept's lesson as lesson.md rather than lesson.html even though the host can render HTML, and makes no offer to publish the lesson as an artifact.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves medium from the rendered-views layers before deciding the lesson format",
+        "Resolves the medium with the shared view-settings.mjs resolver (resolve --lane education:teach) before deciding the lesson format, rather than reading rendered-views files itself",
+        "Prints the resolver's report line, which names team as what decided the medium",
         "Writes lesson.md, not lesson.html",
-        "Does not offer to publish the lesson as an artifact",
-        "Names ~/.claude/rendered-views.md as the source of the medium"
+        "Does not offer to publish the lesson as an artifact"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "topic-lesson-no-setting-keeps-the-shipped-default",
+      "prompt": "/education:teach explain lifetimes (Fixture: a topic-mode workspace for rust-ownership exists; the learner is in an interactive session at a desktop with a browser and the Artifact tool is present; no rendered-views convention file exists; this plugin's medium option is unset; no --medium argument was given.)",
+      "expected_output": "Runs the shared view-settings.mjs resolver (resolve --lane education:teach) before the format decision and prints its report line. No setting decides, so the shipped default applies: the host can render HTML, so the lesson is lesson.html, and the session offers to publish it as a private artifact without publishing it unasked.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the shared view-settings.mjs resolver (resolve --lane education:teach) and prints its report line",
+        "Writes lesson.html, since the host can render HTML",
+        "Offers to publish the lesson as a private artifact and does not publish it unasked"
       ]
     }
   ]

@@ -11,9 +11,11 @@ Confirm how `/education:quiz-me` offers comprehension checks, where generated qu
 stored, where `/education:teach` roots its learning workspaces, and where `/education:explain`
 starts. The plugin has two configuration surfaces:
 
-- **Native `userConfig`**: `quiz_policy`, `report_library_dir`, `workspace_root` and
-  `explain_starting_rung`. Claude Code prompts for them when the plugin is enabled and owns where
-  they are stored. This skill reads their rendered values and never writes them.
+- **Native `userConfig`**: `quiz_policy`, `report_library_dir`, `workspace_root`,
+  `explain_starting_rung` and `medium`. Claude Code prompts for them when the plugin is enabled and
+  owns where they are stored. This skill reads their rendered values and never writes them. The
+  shared medium resolver weighs `medium` against the repository's rendered-views files when
+  `/education:illustrate` or `/education:teach` runs, so `check` does not report it.
 - **One tracked consumer file**: `docs/conventions/education.yaml`, the repository layer for
   `explain_starting_rung` (keys, values and layers:
   [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md);

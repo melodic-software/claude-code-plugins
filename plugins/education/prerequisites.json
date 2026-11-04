@@ -1,0 +1,19 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": ["plugin"],
+      "detect": { "any": ["node"] },
+      "degrade": "Without node, the prerequisites checker cannot run. /education:illustrate builds no page and cannot run the medium resolver: it writes the record by hand, says the resolver did not run, and delivers the record. /education:teach cannot run the medium resolver and takes the shipped default, and writes a codebase lesson as lesson.md because the lesson builder cannot run.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}
