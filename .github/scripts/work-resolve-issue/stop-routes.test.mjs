@@ -249,6 +249,13 @@ test("an ending reason that names a token or credential only in a technical sens
     "host-only: the subscription token is stored in plaintext",
     "host-only: a pull-requests: write token, now in the public log",
     "host-only: the token's permissions appear in the output with its value",
+    "host-only: the write token the lane uses is in the public run log",
+    "host-only: the subscription token; it is in the public run log",
+    "host-only: (a write token) sits in the public issue body",
+    "host-only: a write token, so anyone can read it in the public log",
+    "host-only: the model token cannot expire and sits in the issue body",
+    "host-only: the subscription token to use is in the issue body",
+    "host-only: the write token cannot read it, and it is in the public log",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
   }

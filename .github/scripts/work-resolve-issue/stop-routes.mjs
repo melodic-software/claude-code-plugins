@@ -181,11 +181,14 @@ const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|pu
 // name a credential, so it releases wherever it stands. A phrase that names a
 // real credential by its kind or scope (a subscription, model, read or write
 // token, "whose token has no `statuses: read`", "the token's permissions", "has
-// no credentials") releases only when the reason ends after it or a capability
-// follows it (CRED_END), so "a write token was sent to ..." and "the token has
-// no expiry and sits in ..." hold. Like a count, each releases nothing in a
-// reason that also says what was done with a secret (TOKEN_HANDLING).
-const CRED_END = String.raw`(?=\s*(?:\.?\s*$|[;)])|\s*,\s*(?:and\s+)?(?:cannot|so)\b|\s+(?:to\s+(?:run|invoke|call|use|reach|spend)|the\s+lane|this\s+lane|cannot|do(?:es)?\s+not\s+(?:cover|include|allow|grant))\b)`;
+// no credentials") releases only when the reason ends after it, or after one
+// clause saying what it cannot do (", cannot read it", "do not cover the
+// workflow write"), so text after it can never be left unread: "a write token
+// was sent to ...", "the write token the lane uses is in the public run log"
+// and "the subscription token; it is in ..." hold. Like a count, each releases
+// nothing in a reason that also says what was done with a secret
+// (TOKEN_HANDLING).
+const CRED_END = String.raw`(?=(?:\s*,?\s*(?:and\s+)?(?:cannot|can\s+not|do(?:es)?\s+not)\s+(?:read|write|cover|include|allow|grant|reach|run|call|use)(?:\s+(?:it|them|the\s+[\w-]+(?:\s+[\w-]+)?))?)?\s*\.?\s*$)`;
 const SCOPE = String.raw`(?:\x60[^\x60\n]{1,40}\x60|[\w-]+:\s*(?:read|write)|(?:[\w-]+\s+)?(?:permissions?|scopes?))`;
 const TOKEN_SENSE = new RegExp(
   String.raw`\b(?:input|output|cache)\s+tokens?\b|\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b` +
