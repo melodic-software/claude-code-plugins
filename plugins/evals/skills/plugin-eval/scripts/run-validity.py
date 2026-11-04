@@ -98,8 +98,8 @@ one line per check, detail lines indented under it:
                       a search whose every term names only a suite.plugins
                       plugin, which that arm lacks by design: one find whose
                       only tests are -name, -iname, -path or -ipath (plus
-                      -type, -maxdepth, -mindepth, -a and -print, no -o or
-                      !), or one grep, egrep or fgrep with plain flags, either
+                      their negations, -type, -maxdepth, -mindepth, -a and
+                      -print, no -o), or one grep, egrep or fgrep with plain flags, either
                       piped only into head or tail with no file, a Grep
                       pattern, or a Glob whose
                       every segment but * and ** names it; a term matches
@@ -378,7 +378,9 @@ ECHO = "echo"
 SEARCH_COMMANDS = ("find", "grep", "egrep", "fgrep")
 FIND_NAME_TESTS = ("-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename")
 FIND_VALUE_TESTS = ("-type", "-maxdepth", "-mindepth")
-# No -o or negation: either widens the match past the plugin's name.
+FIND_NEGATIONS = ("!", "-not")
+# No -o: it widens the match past the plugin's name. A negation (FIND_NEGATIONS)
+# is accepted only before a name or path test, where it narrows the search.
 FIND_CONNECTIVES = ("-a", "-and", "-print", "-xdev")
 GREP_SEARCH_FLAGS = "rRIilLnsHhwFEcoqx"
 SEARCH_TERM_ENDS = "*.^$/"
@@ -2061,15 +2063,19 @@ def search_words(command):
 
 def find_terms(words):
     """The name and path patterns of a find command whose every word is a start
-    path, a name or path test, -type, -maxdepth or -mindepth with a bare value,
-    or a connective; else None."""
+    path, a name or path test, a negated one, which only narrows the search and
+    adds no term, -type, -maxdepth or -mindepth with a bare value, or a
+    connective; else None."""
     rest = iter(words[1:])
     terms, started = [], False
     for word in rest:
         if not started and not word.startswith("-") and word != "!":
             continue
         started = True
-        if word in FIND_NAME_TESTS:
+        if word in FIND_NEGATIONS:
+            if next(rest, None) not in FIND_NAME_TESTS or next(rest, None) is None:
+                return None
+        elif word in FIND_NAME_TESTS:
             terms.append(next(rest, None))
         elif word in FIND_VALUE_TESTS:
             if not BARE_WORD.match(next(rest, "") or ""):

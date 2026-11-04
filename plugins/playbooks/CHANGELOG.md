@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.3] - 2026-11-04
+
+### Changed
+
+- `skill-authoring`: the skill criteria state the grant rule for injected commands (a narrow `allowed-tools` grant covering each subcommand on the line, in the rule form of the tool that runs it, or a move to a body instruction), and the `shell:` guidance says to grant a `shell: powershell` injection with a `PowerShell(...)` rule, not a `Bash(...)` rule.
+
+### Fixed
+
+- `/playbooks:skill-authoring` and `/playbooks:update` link the current plugin manifest reference and plugin install pages instead of their retired URLs.
+
 ## [0.28.2] - 2026-11-04
 
 ### Changed

@@ -54,8 +54,12 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   [invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-context/README.md)
   says it pays, and give a forked skill `background: false` unless a skill-specific confirmation
   chooses async.
-- Grant an exact command through `allowed-tools` with a matching Bash rule, never a broad
-  interpreter wildcard.
+- Grant an exact command through `allowed-tools` with a rule in the form of the tool that runs it,
+  never a broad interpreter wildcard.
+- Give every injected line a narrow `allowed-tools` grant covering each subcommand on it, fallback
+  and output cap included, in the rule form of the tool that runs it. Move a line no narrow rule
+  covers to a body instruction.
+  [Grant every injected command](precompute-context.md#grant-every-injected-command) has the rest.
 - `metadata` holds only the keys [Metadata](#metadata) allows.
 
 ## Descriptions

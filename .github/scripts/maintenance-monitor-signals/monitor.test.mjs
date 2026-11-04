@@ -5,10 +5,11 @@
 // the same issue instead of filing a second. Every rewrite takes agent-ready
 // off.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { SIGNALS, planIssues, readMarker } from "./issues.mjs";
-import { errorLines, readJobsCarry, writePlan } from "./monitor.mjs";
+import { errorLines, readHoldRule, readJobsCarry, writePlan } from "./monitor.mjs";
 import { JOBS_ARTIFACT, jobsCarryFile } from "./collect.mjs";
 import { detect } from "./signals.mjs";
 
@@ -270,6 +271,8 @@ const carryActions = (runs) => {
   return { actions, calls };
 };
 const ENTRY = { id: 50, attempt: 1, updated_at: "2026-10-19T15:20:00Z", jobs: [] };
+const HOLD = { lane: "work-unblock", runId: 60, url: "https://github.com/o/r/actions/runs/60", item: null, reason: "closed-issue listing failed", at: "2026-10-19T15:10:00Z" };
+const HELD = { runs: [HOLD], from: "2026-10-18T09:00:00Z", through: "2026-10-19T15:20:00Z" };
 
 test("the job reads carry is read from the newest trusted run, past a pull_request run and this run", async () => {
   const { actions, calls } = carryActions([
@@ -278,20 +281,21 @@ test("the job reads carry is read from the newest trusted run, past a pull_reque
     { id: 901, path: LANE, event: "workflow_dispatch", head_branch: "main" },
   ]);
   const downloaded = [];
-  const map = await readJobsCarry({
+  const { jobs, held } = await readJobsCarry({
     env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "903" },
     repo: "o/r",
     actions,
-    download: (id) => (downloaded.push(id), jobsCarryFile("o/r", [ENTRY])),
+    download: (id) => (downloaded.push(id), jobsCarryFile("o/r", [ENTRY], HELD)),
   });
   assert.deepEqual(downloaded, [901]);
-  assert.deepEqual([...map.keys()], ["50:1"]);
+  assert.deepEqual([...jobs.keys()], ["50:1"]);
+  assert.deepEqual(held, HELD);
   assert.ok(!calls.some((p) => /runs\/90[23]\/artifacts/.test(p)));
 });
 
 test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries nothing", async (t) => {
   const { actions, calls } = carryActions([{ id: 901, path: LANE, event: "schedule", head_branch: "main" }]);
-  assert.equal((await readJobsCarry({ env: {}, repo: "o/r", actions })).size, 0);
+  assert.deepEqual(await readJobsCarry({ env: {}, repo: "o/r", actions }), { jobs: new Map(), held: null });
   assert.deepEqual(calls, []);
   t.mock.method(console, "log", () => {});
   for (const download of [
@@ -300,6 +304,34 @@ test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries 
     },
     () => jobsCarryFile("other/repo", [ENTRY]),
   ]) {
-    assert.equal((await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download })).size, 0);
+    assert.deepEqual(await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download }), { jobs: new Map(), held: null });
   }
+  // A file from before the carry held runs carries none over no span; a bad held run drops only the held runs.
+  const old = JSON.stringify({ version: 1, repository: "o/r", runs: [ENTRY] });
+  assert.deepEqual((await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download: () => old })).held, { runs: [], from: null, through: null });
+  const bad = await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download: () => jobsCarryFile("o/r", [ENTRY], { ...HELD, runs: [{ ...HOLD, lane: "other" }] }) });
+  assert.deepEqual([[...bad.jobs.keys()], bad.held], [["50:1"], null]);
+});
+
+test("the hold rule is read from pr-pipeline.yaml with its defaults, and a bad one is an error", () => {
+  const rule = (text) => readHoldRule({ path: "p.yaml", run: () => text });
+  assert.deepEqual(rule("{}"), { threshold: 4, windowHours: 24 });
+  assert.deepEqual(rule('{"threshold": 2, "window-hours": 6}'), { threshold: 2, windowHours: 6 });
+  for (const text of ['{"threshold": 1}', '{"window-hours": 0}', "not json"]) assert.match(rule(text).message, /monitor\.lane-holds rule was not read/);
+  const failing = readHoldRule({
+    run: () => {
+      throw new Error("yq: not found");
+    },
+  });
+  assert.match(failing.message, /yq: not found/);
+});
+
+test("the checkout's pr-pipeline.yaml sets a hold rule the schema and holdRule take", () => {
+  const text = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
+  const leaf = /^monitor:\n {2}lane-holds:\n {4}threshold: (\d+)\n(?: {4}#.*\n)* {4}window-hours: (\d+)$/m.exec(text);
+  assert.ok(leaf, "pr-pipeline.yaml has a monitor.lane-holds leaf");
+  assert.ok(Number(leaf[1]) >= 2);
+  const schema = JSON.parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url), "utf8"));
+  const props = schema.properties.monitor.properties["lane-holds"].properties;
+  assert.deepEqual([props.threshold.default, props["window-hours"].default], [4, 24]);
 });
