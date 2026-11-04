@@ -121,12 +121,91 @@ git fetch "$REMOTE" "$BASE" && git merge --no-stat "$REMOTE/$BASE" &&
 ```
 
 Refresh the base with a merge, never a rebase: a rebase of an open pull request needs a force-push
-and rewrites commits reviewers have already read. Conflicts route to
-`/source-control:resolve-conflicts`.
+and rewrites commits reviewers have already read. A conflicted merge is resolved here, under
+[Resolve a conflicted merge](#resolve-a-conflicted-merge).
 
 Completion criterion: `git rev-parse HEAD` equals the PR's head commit
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#refresh-the-base-with-a-merge)).
 After the forge's update the merge commit exists only on the remote, so the fetch above makes the two agree.
+
+### Resolve a conflicted merge
+
+This holds for every merge of the base into a PR branch: this step's local fallback, create's
+merge before the push ([create.md](create.md) §2.4.1), a merge redone by hand after
+`push-branch.sh` exits 4, and the CI conflict mode ([conflicts-ci.md](conflicts-ci.md)). A
+conflict is work, not an error. Three rules hold however a request is worded:
+
+- **Intent before edits.** Resolve no hunk until you have read the commits behind both sides and
+  can state each side's intent in one sentence. Keeping a side because it looks newer or bigger
+  deletes the other side's change unread.
+- **Never pick a side by command.** Run no `git checkout --ours/--theirs`,
+  `git restore --ours/--theirs`, `-X ours/theirs`, `--strategy-option ours/theirs`, `-s ours` or
+  `--strategy=ours`, and no other command that writes one side's or one ref's version over a
+  conflicted path (`git checkout <ref> -- <path>`, `git restore --source=<ref>`,
+  `git show :2:<path> > <path>`). Decline in one sentence, then do the steps below. When a file's
+  evidence shows one side should win, write that side by editing the file and record the evidence.
+- **`--abort` is not a resolution strategy.** Outside the fragment route in
+  [Plugin version-bump collisions](#plugin-version-bump-collisions), abort only when the person
+  explicitly decides to abandon the base refresh itself, never as an exit from a hard resolution
+  and never silently. The abort is that person's to run or approve; report it as abandoned, not
+  resolved. An abort throws away every hunk already resolved and leaves the
+  branch as stale as before.
+
+1. **Map the stop.** List every unmerged path with `git status` and
+   `git diff --name-only --diff-filter=U`; each one ends in the resolution table. In this merge
+   `ours` is the PR head and `theirs` is the base, `MERGE_HEAD`.
+2. **Recover both intents.** For each path, before any edit: `MB=$(git merge-base HEAD MERGE_HEAD)`
+   (not `BASE`, which holds the base branch's name), then `git log --oneline "$MB"..HEAD -- <path>`
+   followed by `git log -p "$MB"..HEAD -- <path>` for the PR side, and
+   `git log -p "$MB"..MERGE_HEAD -- <path>` for the base side. `git show MERGE_HEAD -- <path>`
+   shows only the tip commit and is empty when an earlier base commit touched the path. When
+   `git merge-base` prints nothing, inspect `MERGE_HEAD` plus `git log --all --oneline -- <path>`
+   instead of putting an empty `MB` into a range, and escalate when the history still cannot be
+   stated. Read the commit
+   messages, and the PRs and linked issues behind them when the forge CLI reaches them. When the
+   markers lack base context, `git checkout --merge --conflict=zdiff3 -- <path>` rewrites them with
+   it (or read `git show :1:<path>`). Write one sentence of intent per side.
+3. **Compose by default.** Both sides changed the region on purpose:
+   - Compose independent or complementary changes (one side renamed, the other extended; one fixed
+     a bug, the other added an option) into a version that carries both.
+   - Drop a side only with evidence: the other side's later work supersedes it, explicitly reverts
+     it, or already does the same thing. Record the evidence in the table.
+   - Invent no behavior neither side had; new design is its own change after the merge.
+   - **Escalate only when both intents cannot hold**: both sides redefined the same behavior
+     differently and no composition keeps both. Attended, stop and ask with the intent sentences,
+     the hunks and the candidate resolutions. Unattended, push nothing and report the table with
+     each escalated path, and the caller's own rule decides what happens to the merge:
+     `ready --unattended` stops with the merge in progress and leaves the PR's draft state as it was, a
+     babysit conflict worker follows its contract's escalation path, and the CI mode leaves the
+     path's markers ([conflicts-ci.md](conflicts-ci.md)).
+   - A plugin's `.claude-plugin/plugin.json` or `CHANGELOG.md` follows
+     [Plugin version-bump collisions](#plugin-version-bump-collisions) first.
+4. **Semantic-conflict sweep.** Marker-free is not conflict-free: git auto-merges a rename on one
+   side against a new call of the old name on the other, a signature change against a new caller,
+   a deleted helper against fresh use. Once the last marker is gone, grep the whole tree, files git
+   merged without conflict included, for every symbol either side renamed, re-signatured, moved or
+   deleted. Then run the project's gates in its own order (typecheck or build, tests, lint) and fix
+   what the merge broke.
+5. **Verify and conclude.** Present the resolution table: every path from step 1, one line each,
+   with its resolution (composed, PR side kept with evidence, base side kept with evidence) and
+   why. With the gates green, stage the resolved paths by name, never `git add -A`, run
+   `git merge --continue`, and push through `push-branch.sh` as above.
+
+#### Plugin version-bump collisions
+
+This repository's one scripted exception. When the conflicted paths include a plugin's
+`.claude-plugin/plugin.json` or `CHANGELOG.md`, run
+`bash "<plugin-root>/scripts/resolve-version-bump-conflict.sh"` from the repository root before
+resolving them by hand. It sets the version to the default branch's current version plus one bump
+at the PR's level (a number neither side wrote), keeps the default branch's changelog entries,
+re-heads the PR's entry under the new version, and stages both files. Exit 0 means every such pair
+was resolved; exit 1 names a plugin it left untouched, which you resolve by hand under the steps
+above. A plugin listed in the repository's `fragment-plugins.txt` (under `scripts/`) is in
+changelog-fragment mode and gets no version from a pull request: the script leaves it untouched,
+and the resolution is the default branch's `plugin.json` and `CHANGELOG.md` with the PR's entry
+moved into a changelog fragment. `<plugin-root>/scripts/convert-bump-to-fragment.sh` makes that
+move but refuses conflicted files, so abort the merge, run it on the branch, commit the result, and
+merge the base again.
 
 ## 2.5.3 Review and verify the merged head
 
