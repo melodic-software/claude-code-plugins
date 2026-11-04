@@ -79,7 +79,7 @@ or as a daily routine. Four properties matter before you rely on it:
   `--track`, and a complete lane sample is never reported as the lane being bug-free.
 - **Cost follows the scope, never the precision.** Hunters and gates take their models from the
   multi-agent role map (the skill's sizing table names the roles); hunters pass no effort and gates
-  pass the map's verifier effort, and the
+  always pass one, the map's verifier effort or the session's level when higher, and the
   [skill's sizing section](skills/scan/SKILL.md#sizing-model-by-stage-breadth-by-scope-effort-as-the-ceiling)
   owns what level each then runs at. A gate never runs on a weaker model than the hunters it checks,
   or below the session's effort; the scope's

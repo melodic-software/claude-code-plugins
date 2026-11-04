@@ -4,6 +4,8 @@ bump: patch
 
 ### Fixed
 
-- `/bugs:scan`: a stage that passes no `effort` runs at the session level only on the main
-  conversation's model. The run metadata labels a stage on another model `unset` rather than
-  `session`, and a gate on another model passes the session's level to stay at or above it.
+- `/bugs:scan`: a gate always passes an effort, its role's or the session's level when that is
+  higher, so it holds the session's effort wherever the harness places it. Hunters still pass none,
+  and the skill claims no level for them: `CLAUDE_CODE_SUBAGENT_MODEL` or a mod's `agent.spawn` can
+  place a spawn on another model, where the session level does not apply. The run metadata labels
+  a stage that passed none `unset`.
