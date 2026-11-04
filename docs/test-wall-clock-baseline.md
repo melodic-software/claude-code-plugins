@@ -46,7 +46,10 @@ load on the same machine stayed under 3 throughout.
 - **Full corpus.** Not finished in 60 minutes. A `--jobs 1` run of the
   `fd862a49b848` tree under a 3600 s `PLUGIN_TEST_DEADLINE` stopped after
   3716 s with 18 of 829 suites done (3647 suite-seconds) and 811 never
-  started. The runner starts the 12 serial suites first, then the rest
+  started. The 829 is the count `origin/main`'s runner at `284b5303ae65`
+  discovered in that tree under `--root`, against the 820 the CI run's own
+  runner discovered there (Shell suites below), whose suites the table
+  lists; each of the 18 suites this run reached has a row. The runner starts the 12 serial suites first, then the rest
   longest first by `scripts/suite-seconds.txt`, so the 18 include the
   heaviest; the three slowest took 7 to 15 times their Linux CI time
   (`audit-engine.test.sh` 1660 s against 135). Nine of the 18 exited nonzero
