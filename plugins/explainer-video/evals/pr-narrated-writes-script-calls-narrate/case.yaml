@@ -6,12 +6,6 @@ graders:
     pattern: '\S[^\n]*\r?\n[ \t]*\r?\n[ \t]*\S'
     target: { source: file, path: video/narration/script.txt }
     arm: both
-  - name: runs-narrate
-    type: tool_used
-    tool: Skill
-    input_match: '"skill":"(?:speech:)?narrate"'
-    min: 1
-    arm: with-only
   - name: narrate-before-render
     type: tool_order
     before: { tool: Skill, input_match: '"skill":"(?:speech:)?narrate"' }
