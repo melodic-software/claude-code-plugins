@@ -45,7 +45,7 @@
       "id": 4,
       "name": "brief-persisted-not-plan",
       "prompt": "/planning:interview lock a brief for adding a CSV export endpoint to the reports service.",
-      "expected_output": "After restating the problem in one line and getting one confirmation, the skill writes the Brief section (TLDR / Problem / Goal / Work size / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan — it produces the WHAT contract, not an implementation approach.",
+      "expected_output": "After restating the problem in one line and getting one confirmation, the skill writes the Brief section (TLDR / Problem / Goal / Work size / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan — it produces the Brief (the WHAT), not an implementation approach.",
       "files": [],
       "expectations": [
         "Output restates the problem in one line and asks one confirmation question before writing the Brief",
@@ -171,21 +171,21 @@
       "id": 13,
       "name": "unattended-run-emits-named-blockers-not-assumptions",
       "prompt": "/planning:interview lock the brief for the notification-batching change. This is running unattended from our nightly workflow — there is no human on this session to answer anything.",
-      "expected_output": "The caller declared the run unattended (the skill does not attempt to detect it). Codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded as auto-resolved. A decision genuinely the user's — real tradeoffs, no codebase answer — is NOT captured as an assumption: it becomes a `blocked` register row, a Brief `### Deferred questions` entry tagged `arbiter: USER-RESERVED`, and a named blocker in the output. The problem confirmation takes the same path: `### Problem` opens `- Status: unconfirmed`, and the confirmation is a `blocked` register row tagged `arbiter: USER-RESERVED` and named as a blocker, while the Brief still locks. The run stops on its blockers and reports the contract as unconfirmed rather than idling for an answer or treating silence as confirmation.",
+      "expected_output": "The caller declared the run unattended (the skill does not attempt to detect it). Codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded as auto-resolved. A decision genuinely the user's — real tradeoffs, no codebase answer — is NOT captured as an assumption: it becomes a `blocked` register row, a Brief `### Deferred questions` entry tagged `arbiter: USER-RESERVED`, and a named blocker in the output. The problem confirmation takes the same path: `### Problem` opens `- Status: unconfirmed`, and the confirmation is a `blocked` register row tagged `arbiter: USER-RESERVED` and named as a blocker, while the Brief still locks. The run stops on its blockers and reports the Brief as unconfirmed rather than idling for an answer or treating silence as confirmation.",
       "files": [],
       "expectations": [
         "The unattended condition comes from the caller's declaration, not from the skill claiming to detect a non-interactive environment",
         "A genuine user design decision is recorded as a named blocker (register `blocked` + a Brief deferred question leading with its Q<N> id and tagged arbiter USER-RESERVED), never as a silently captured assumption",
         "Codebase-resolvable or unambiguous-conventional decisions still resolve, recorded as auto-resolved",
         "`### Problem` opens `- Status: unconfirmed`, and the problem confirmation is a `blocked` register row tagged arbiter USER-RESERVED and named as a blocker; the Brief still locks",
-        "The run terminates on its blockers instead of waiting indefinitely, and reports the contract as unconfirmed rather than reading absence of objection as confirmation"
+        "The run terminates on its blockers instead of waiting indefinitely, and reports the Brief as unconfirmed rather than reading absence of objection as confirmation"
       ]
     },
     {
       "id": 14,
       "name": "register-gate-halts-before-the-contract-locks",
       "prompt": "/planning:interview — we've covered enough, write the brief for the audit-log retention work.",
-      "expected_output": "The skill runs scripts/check-open-questions.sh twice, citing the exit code each time. At Step 3, before the contract is persisted, it passes --ledger and --procedure but no --brief — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --procedure --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id, and that the Brief carries all nine template headings, Problem and Work size among them. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
+      "expected_output": "The skill runs scripts/check-open-questions.sh twice, citing the exit code each time. At Step 3, before the Brief is persisted, it passes --ledger and --procedure but no --brief — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --procedure --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id, and that the Brief carries all nine template headings, Problem and Work size among them. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the Brief over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
       "files": [],
       "expectations": [
         "The Step 3 run passes --ledger and --procedure; --brief is NOT named before Step 4 has written PLAN.md",
@@ -323,7 +323,7 @@
       "id": 23,
       "name": "inherited-constraint-asked-not-assumed",
       "prompt": "/planning:interview me Build the v2 exports endpoint. Start from the exports topic's Brief, which we locked last month as a starting point; it says \"no new runtime dependencies\". This topic's research output recommends adding a streaming CSV library.",
-      "expected_output": "The prior Brief's constraint is recorded in the constraint ledger as `inherited`, not `confirmed`. Because the contract relies on it, it is asked as a register row at ask-time; the user's answer flips it to `confirmed` or drops it. The research recommendation is a candidate, never a recommendation, until re-derived against the constraint ledger, and it conflicts with the inherited row, so the skill surfaces the conflict rather than recommending the library. Every recommendation names, in words, the constraints it was checked against.",
+      "expected_output": "The prior Brief's constraint is recorded in the constraint ledger as `inherited`, not `confirmed`. Because the new Brief relies on it, it is asked as a register row at ask-time; the user's answer flips it to `confirmed` or drops it. The research recommendation is a candidate, never a recommendation, until re-derived against the constraint ledger, and it conflicts with the inherited row, so the skill surfaces the conflict rather than recommending the library. Every recommendation names, in words, the constraints it was checked against.",
       "files": [],
       "expectations": [
         "The prior Brief's \"no new runtime dependencies\" is recorded as an `inherited` constraint row, not `confirmed`",
@@ -337,13 +337,13 @@
       "id": 24,
       "name": "memory-slice-not-offered-as-durable-home",
       "prompt": "/planning:interview Add retry budgets to the webhook sender. Before we start: I want a durable trail of what we decide here that survives after this branch merges. Can we keep it in .work/webhook-retry-budgets/?",
-      "expected_output": "Says plainly that the memory slice is not a durable home: it self-ignores, never reaches git, and is lost with the checkout. Names a destination for what should persist: the pull request body or the linked issue for the Brief, an ADR for decisions that pass the admission test, a tracker item for follow-ups. The Brief still lands in the memory slice as the working contract until it is published there.",
+      "expected_output": "Says plainly that the memory slice is not a durable home: it self-ignores, never reaches git, and is lost with the checkout. Names a destination for what should persist: the pull request body or the linked issue for the Brief, an ADR for decisions that pass the admission test, a tracker item for follow-ups. The Brief still lands in the memory slice as the branch's working copy until it is published there.",
       "files": [],
       "expectations": [
         "Does NOT recommend the .work/ memory slice as the place to keep the decisions after merge",
         "States that the memory slice never reaches git and is lost with the checkout",
         "Points to a destination for durable content (PR body, linked issue, ADR, or tracker item), noting that /planning:plan's close-out does the publishing",
-        "Still writes the Brief into the memory slice as the working contract for the branch"
+        "Still writes the Brief into the memory slice as the working copy for the branch"
       ]
     },
     {
