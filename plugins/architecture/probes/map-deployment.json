@@ -6,7 +6,9 @@
   "competitors": [
     "architecture:map-containers",
     "architecture:map-landscape",
-    "architecture:map-context"
+    "architecture:map-context",
+    "visualization:visualize",
+    "discovery:explore"
   ],
   "queries": [
     {
@@ -116,6 +118,60 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Show the modules inside the web app."
+    },
+    {
+      "id": "pos-contested-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Compare staging and prod from our Bicep files: which services land on which hosts in each, and where do they diverge?"
+    },
+    {
+      "id": "pos-contested-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Going only by the Terraform in this repo, which AKS node pool hosts the orders API in prod? Don't query Azure."
+    },
+    {
+      "id": "pos-contested-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Draw prod's infrastructure from the checked-in Helm charts and Bicep: clusters, app services, and which workloads are placed on each."
+    },
+    {
+      "id": "pos-contested-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Dev uses docker-compose and prod uses Kubernetes manifests, and they look nothing alike. Give me a diagram of how each environment is hosted and call out the gaps."
+    },
+    {
+      "id": "pos-contested-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We already know what runs in this system. Now show me, per environment, what hosts each of those services according to the infra code."
+    },
+    {
+      "id": "pos-contested-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I don't need who talks to our system. I want a C4 view of the infra nodes our services are placed on in prod, from the manifests in the repo."
+    },
+    {
+      "id": "neg-contested-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What deployables does this system have, and which databases and brokers does each one bind to?"
+    },
+    {
+      "id": "neg-contested-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What external systems does this system talk to, going by its connection strings and base URLs, and who uses it?"
+    },
+    {
+      "id": "neg-contested-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Turn the rollout plan we just discussed into a quick diagram."
     }
   ]
 }
