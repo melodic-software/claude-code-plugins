@@ -204,7 +204,6 @@ ALLOWLIST = [
         RUNG_LINE,
     ),
     *eval_rows("rung", RUNG_LINE),
-    phrase("rung", r"\brungs?[- ][0-9]", "Rung 2 opens the page."),
     phrase(
         "rung", r"\bfetch-route rungs?\b", "Read the page by the fetch-route rungs."
     ),
@@ -213,6 +212,29 @@ ALLOWLIST = [
         "docs/contracts/upstream-drift/**",
         "docs/contracts/upstream-drift/README.md",
         RUNG_LINE,
+    ),
+    *(
+        path("rung", file, file, RUNG_LINE)
+        for file in (
+            "plugins/attribution/prerequisites.json",
+            "plugins/attribution/skills/audit/reference/source-fetch.md",
+            "plugins/instruction-placement/skills/migrate/reference/sources.md",
+            "plugins/plugin-quality/README.md",
+            "plugins/plugin-quality/agents/auditor.md",
+            "plugins/plugin-quality/prerequisites.json",
+            "plugins/knowledge/reference/ingest-deferred-decisions.md",
+        )
+    ),
+    path(
+        "rung",
+        "plugins/knowledge/skills/map-corpus/**",
+        "plugins/knowledge/skills/map-corpus/SKILL.md",
+        RUNG_LINE,
+    ),
+    phrase(
+        "rung",
+        r"\brung [0-9]+ instruction\b",
+        "The rung 5 instruction on the page says to type next.",
     ),
     phrase("rung", r"\brung-up\b", "The rung-up's page stops."),
     phrase("rung", r"\bASR[- ]rung\b", "The ASR rung needs the media file."),
@@ -787,6 +809,12 @@ class EachSense(unittest.TestCase):
                 code, out, err = run_gate({path: line})
                 self.assertEqual(code, 0, out + err)
                 self.assertEqual(out, "")
+
+    def test_a_numbered_view_form_rung_is_reported(self):
+        line = "Rung 2 renders the page; rung 1 renders a diagram."
+        code, out, err = run_gate({"docs/guide.md": line})
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(out, f"docs/guide.md:1: rung: {line}\n")
 
     def test_a_line_outside_the_sense_context_is_not_reported(self):
         code, out, _ = run_gate({"docs/guide.md": "Each rung up costs more tokens."})
