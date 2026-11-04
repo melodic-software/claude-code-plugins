@@ -8,6 +8,12 @@ field, removing a field, changing a kind's detection semantics, an exit code's m
 severity map is a major bump; adding an optional field, a `status` value, or a new `kind` with its
 own detection rule is a minor bump.
 
+## Suite-case eval coverage, contract unchanged at 1.1 - 2026-11-04
+
+One eval per record may now sit in a plugin suite case (`evals/<case>/`) as well as the legacy
+setup `evals.json`; a `description` never counts. A plugin with no `evals.json` fails only on an id
+neither source names. No field, kind, exit code or severity changed.
+
 ## Scope wording, contract unchanged at 1.1 - 2026-10-03
 
 The Scope section no longer names the twin drift between context-guard's and rate-limit-guard's

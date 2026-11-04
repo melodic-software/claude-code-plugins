@@ -22,7 +22,7 @@
 # aggregate exit code. The one exit-code assertion is the closing real-corpus
 # case.
 #
-# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/reference/artifact-protocol.md
+# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/evals/*/case.yaml plugins/*/evals/*/prompt.md plugins/*/reference/artifact-protocol.md
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
 
@@ -407,7 +407,6 @@ R_HELPER_DRIFT='must remain byte-identical to plugins/harness-config/lib/check-r
 R_CANONICAL_MISSING='it is the canonical helper every plugin shipping retirements.yaml syncs'
 R_SETUP_NO_REF='must reference check-retirements.sh when the plugin ships retirements.yaml'
 R_REF_NO_MANIFEST='but the plugin ships no retirements.yaml'
-R_EVALS_MISSING='every retirement record needs an eval covering it'
 R_EVAL_UNCOVERED='no eval covers retirement record "'
 R_APPEND_ONLY='records are append-only; demote with `status: report-only` instead'
 R_FIELD_CHANGED='changed since HEAD; records are append-only'
@@ -774,7 +773,7 @@ else
   ok "harness-config carries the helper and references it without a manifest"
 fi
 
-# --- R6. Evals: one id uncovered; evals.json missing. -----------------------
+# --- R6. Evals: one id uncovered; evals.json missing; suite-case coverage. --
 conforming_retirements_fixture
 write_evals alpha alpha-r001
 out="$(run_fixture)"
@@ -796,10 +795,89 @@ fi
 conforming_retirements_fixture
 rm -rf "$TMP/plugins/alpha/skills/setup/evals"
 out="$(run_fixture)"
-if has_fail_line "$R_EVALS_MISSING" && grep -q 'alpha-r001, alpha-r002' <<<"$out"; then
-  ok "a missing evals.json fails naming every record id"
+if has_fail_line "${R_EVAL_UNCOVERED}alpha-r001\" \\(looked in plugins/alpha/skills/setup/evals/evals.json and plugins/alpha/evals/<case>/\\)" &&
+  has_fail_line "${R_EVAL_UNCOVERED}alpha-r002"; then
+  ok "with no evals.json and no suite case, every record id fails naming both places looked"
 else
-  fail "a missing evals.json should fail naming the ids: $out"
+  fail "ids covered nowhere should fail by id, naming both places: $out"
+fi
+
+# write_suite_case <plugin> <case> -- case.yaml arrives on stdin; prompt.md is
+# the optional third argument.
+write_suite_case() {
+  mkdir -p "$TMP/plugins/$1/evals/$2"
+  cat >"$TMP/plugins/$1/evals/$2/case.yaml"
+  if [[ -n "${3:-}" ]]; then printf '%s\n' "$3" >"$TMP/plugins/$1/evals/$2/prompt.md"; fi
+}
+
+# Suite-only coverage: no evals.json; one id in a prompt.md body, the other in
+# a grader pattern.
+conforming_retirements_fixture
+rm -rf "$TMP/plugins/alpha/skills/setup/evals"
+write_suite_case alpha setup-check-retired-cache \
+  "$(printf -- '---\ndescription: "fixture"\n---\n\nRun /alpha:setup check; alpha-r001 is planted.')" <<'YAML'
+schema_version: "1.1"
+name: setup-check-retired-cache
+graders:
+  - name: 'names-migrated-file'
+    type: 'regex'
+    pattern: 'alpha-r002[^\n]*migrat'
+    target: 'last_message'
+YAML
+out="$(run_fixture)"
+if [[ -z "$(retirement_failure_lines)" ]]; then
+  ok "suite cases cover every record with no evals.json present"
+else
+  fail "a prompt.md body and a grader pattern should cover the ids: $out"
+fi
+
+# An id named only in descriptions (case.yaml, a grader's, prompt.md
+# frontmatter) is not covered: authors list dropped expectations there.
+conforming_retirements_fixture
+rm -rf "$TMP/plugins/alpha/skills/setup/evals"
+write_suite_case alpha setup-check-retired-cache \
+  "$(printf -- '---\ndescription: "alpha-r002 dropped too"\n---\n\nRun /alpha:setup check; alpha-r001 is planted.')" <<'YAML'
+schema_version: "1.1"
+description: >
+  Detects the planted cache. Dropped:
+  alpha-r002, which needs a migrate fixture.
+name: setup-check-retired-cache
+graders:
+  - name: 'reports-clean'
+    description: 'alpha-r002 dropped'
+    type: 'regex'
+    pattern: 'clean'
+YAML
+out="$(run_fixture)"
+if has_fail_line "${R_EVAL_UNCOVERED}alpha-r002" && ! grep -q "${R_EVAL_UNCOVERED}alpha-r001" <<<"$out"; then
+  ok "an id named only in a suite case's descriptions is not covered"
+else
+  fail "a description-only id should fail, and the prompt.md id should not: $out"
+fi
+
+# Legacy and suite sources combine: one id per source.
+conforming_retirements_fixture
+write_evals alpha alpha-r001
+write_suite_case alpha setup-migrate-config 'Run /alpha:setup apply; alpha-r002 is planted.' <<'YAML'
+schema_version: "1.1"
+name: setup-migrate-config
+YAML
+out="$(run_fixture)"
+if [[ -z "$(retirement_failure_lines)" ]]; then
+  ok "an evals.json case and a suite case together cover the manifest"
+else
+  fail "coverage split across evals.json and a suite case should pass: $out"
+fi
+
+# Invalid evals.json still fails, and its cases cover nothing.
+conforming_retirements_fixture
+printf '{not json\n' >"$TMP/plugins/alpha/skills/setup/evals/evals.json"
+out="$(run_fixture)"
+if has_fail_line 'is not valid JSON; retirement eval coverage cannot be checked' &&
+  has_fail_line "${R_EVAL_UNCOVERED}alpha-r001"; then
+  ok "an invalid evals.json fails and covers nothing"
+else
+  fail "an invalid evals.json should fail and leave its ids uncovered: $out"
 fi
 
 # --- R7. Append-only against a git base. ------------------------------------
