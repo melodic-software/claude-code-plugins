@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": "{\"summary\": \"docs/config.md documents `timeout`: docs/config.md line 3.\\n`retries`: not documented.\"}", "why": "checks the met item"}
+  ],
+  "fail": [
+    {"answer": "{\"summary\": \"One item is unmet.\"}", "why": "no per-item check"}
+  ]
+}

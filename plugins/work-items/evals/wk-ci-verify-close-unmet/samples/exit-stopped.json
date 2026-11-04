@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": "{\"exit\": \"stopped\", \"reason\": \"verify-unmet: retries\"}", "why": "stopped"}
+  ],
+  "fail": [
+    {"answer": "{\"exit\": \"done\", \"reason\": \"\"}", "why": "claims the work is done"}
+  ]
+}

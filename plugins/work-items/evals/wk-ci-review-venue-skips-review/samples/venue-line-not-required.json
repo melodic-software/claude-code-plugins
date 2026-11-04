@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "{\"not_done\": [{\"what\": \"review: code-review ci healthy: newest pull request run succeeded 2 days ago\", \"required\": false}]}", "why": "what first"},
+    {"answer": "{\"not_done\": [{\"required\": false, \"what\": \"code-review ci healthy\"}]}", "why": "required first"}
+  ],
+  "fail": [
+    {"answer": "{\"not_done\": [{\"what\": \"code-review ci healthy\", \"required\": true}]}", "why": "would stop the run"},
+    {"answer": "{\"not_done\": [{\"what\": \"the local review was skipped\", \"required\": false}]}", "why": "does not carry the venue line"}
+  ]
+}
