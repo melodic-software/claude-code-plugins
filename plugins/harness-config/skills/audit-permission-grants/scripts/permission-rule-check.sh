@@ -696,8 +696,11 @@ scan_settings_allow "$ROOT/.claude/settings.json" ".claude/settings.json permiss
 scan_settings_allow "$ROOT/.claude/settings.local.json" ".claude/settings.local.json permissions.allow" "local"
 
 # User-global scope. A project-only scan cannot see it, and a broad rule here
-# reaches every project, so it is scanned for the rules auto mode drops. Prompt
-# approvals land elsewhere: the local file, scanned above. CLAUDE_CONFIG_DIR relocates the
+# reaches every project, so it is scanned for the rules auto mode drops. For where
+# a prompt approval is saved, see
+# https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
+# (as of 2026-11-04; recheck when that section changes where approvals are saved).
+# CLAUDE_CONFIG_DIR relocates the
 # whole ~/.claude tree when set (official .claude-directory doc), so it wins over
 # $HOME; with neither resolvable there is no user scope to scan. The label is the
 # resolved absolute path — reporting "~/.claude/settings.json" would name the

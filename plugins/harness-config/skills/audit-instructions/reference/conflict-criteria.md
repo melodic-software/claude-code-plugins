@@ -162,7 +162,7 @@ preload limit from those sections when it runs. This table copies none of them, 
 moved without an edit here.
 
 - **Pointer**: when deciding whether a surface is resident, fetch the section its row names live.
-- **As of**: 2026-10-11
+- **As of**: 2026-11-04
 - **Recheck trigger**: a row's section is renamed or removed, or it adds or drops a condition on
   when that surface loads.
 

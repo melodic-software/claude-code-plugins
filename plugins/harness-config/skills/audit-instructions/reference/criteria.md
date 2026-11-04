@@ -1213,7 +1213,7 @@ since each prescribes a request the model refuses.
   table](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#supported-models);
   for the harness no-ops, see
   [model configuration: extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
-  As of: 2026-10-01. Recheck trigger: a model gains or loses a 400 for `"disabled"` in either
+  As of: 2026-11-04. Recheck trigger: a model gains or loses a 400 for `"disabled"` in either
   table, or the harness no-op list changes.
 - **Third arm, API requests only: `between_tools` at a level or with a change it refuses.** Flag
   instruction text that prescribes, or a code sample it tells the reader to send, a request to
