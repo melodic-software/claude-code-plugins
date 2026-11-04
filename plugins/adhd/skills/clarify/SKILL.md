@@ -24,8 +24,8 @@ so the fidelity rules are hard.
 3. **Restructure faithfully**: chunk, define jargon, surface decisions, under the fidelity rules.
    **Done when** every decision from the target appears in the restructured view and every
    omission is named.
-4. **Choose the medium** per [Rendering](#rendering): resolve `medium`, then the rung.
-   **Done when** the output is on the rung the resolved `medium` and content size name, it prints
+4. **Choose the medium** per [Rendering](#rendering): resolve `medium`, then the form.
+   **Done when** the output is in the form the resolved `medium` and content size name, it prints
    the resolver's report line (or the one line saying why the resolver did not run), and you claim no artifact that was not produced.
 
 ## Empty argument
@@ -80,7 +80,7 @@ recommendation the source re-stated as old → new → why keeps all three parts
 
 ### Resolve `medium` first
 
-Before choosing a rung, run the shared medium resolver. Add `--argument` only when the reader
+Before choosing a form, run the shared medium resolver. Add `--argument` only when the reader
 passed `--medium`, with the value they gave:
 
 ```bash
@@ -94,9 +94,9 @@ publishes on a team file's say-so: leave every settings file to it. A usage erro
 (exit 2) means the argument named no medium: say so in one line and run it again without
 `--argument`.
 
-- **The JSON's `medium` is set**: render on that rung of the table below. The resolver has already
+- **The JSON's `medium` is set**: render in that form from the table below. The resolver has already
   stepped it down to one this session can reach, and a medium that keeps the view on the machine
-  never publishes, even with the Artifact tool present. When that rung's surface is still absent
+  never publishes, even with the Artifact tool present. When that form's surface is still absent
   (no Artifact tool, no writable temp location), step down the table and say why in one line.
 - **The JSON's `medium` is `null`**: no setting decided, so the table below decides by content
   size and the surfaces present.

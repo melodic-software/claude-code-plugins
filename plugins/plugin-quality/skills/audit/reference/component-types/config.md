@@ -1,6 +1,6 @@
 # Auditing plugin config / settings / userConfig
 
-Covers a plugin's configuration surfaces: `userConfig` keys, settings files,
+Covers a plugin's configuration: `userConfig` keys, settings files,
 convention/config files the plugin reads.
 
 ## Read first

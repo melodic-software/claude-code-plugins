@@ -43,7 +43,7 @@
       "id": 4,
       "name": "markdown-format-writes-the-record-only",
       "prompt": "/education:illustrate how a write-ahead log works markdown",
-      "expected_output": "Grounds the concept from a primary source, then runs the builder with --out-dir and --format markdown, so only the markdown record is written. It delivers the record (its path, or its text on the terminal rung) and does not build or publish a page.",
+      "expected_output": "Grounds the concept from a primary source, then runs the builder with --out-dir and --format markdown, so only the markdown record is written. It delivers the record (its path, or its text on the terminal medium) and does not build or publish a page.",
       "files": [],
       "expectations": [
         "Runs the builder with --out-dir and --format markdown",

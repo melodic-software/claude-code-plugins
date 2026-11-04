@@ -70,7 +70,7 @@ reset_fixture() {
 }
 
 # write_registry [surface ...] -- the Implementers table the validator reads as
-# the set of plugins owning a tracked consumer config surface. Called with no
+# the set of plugins owning tracked consumer config. Called with no
 # arguments it still carries one unrelated row, so an empty table is only ever
 # asserted deliberately.
 write_registry() {
@@ -138,7 +138,7 @@ carve_out_body() {
 ## Purpose
 
 Check-only per the uniform setup contract's userConfig-only carve-out: this plugin's entire
-configuration surface is native `userConfig`, so `check` (the default and only action) verifies
+configuration is native `userConfig`, so `check` (the default and only action) verifies
 and reports, and reconfiguration routes through Claude Code's native flow.
 BODY
 }
@@ -186,7 +186,7 @@ for spelling in false no maybe '"true"'; do
 done
 
 # --- 2. #3137's own failure class: the same skill, but the plugin owns a
-#        tracked consumer config surface the registry records. ---------------
+#        tracked consumer config the registry records. ---------------
 reset_fixture
 write_registry alpha
 make_plugin alpha alpha_api_key

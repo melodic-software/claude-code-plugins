@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.0.7] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [7.0.6] - 2026-11-04
 
 ### Changed

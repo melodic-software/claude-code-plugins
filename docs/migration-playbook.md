@@ -301,7 +301,7 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
    discovery happens once and never silently. For a dedicated-file surface (seam 2) persist into
    tracked project config; for a convention-doc surface persist the pointer line (and, on request,
    a stub doc at the home). For a personal scalar (seam 1), direct the user to Claude Code's native
-   plugin configuration surface instead.
+   plugin configuration instead.
 3. Cannot infer → ask the user, and offer to persist the answer.
 4. Otherwise → a safe generic default.
 
@@ -625,7 +625,7 @@ model above already prescribe:
   degrade gracefully to prose when it is absent.
 
 This is deliberately **not** ports / adapters: there is no runtime interface to invert in a prompt medium, so
-a declared config surface, not an abstraction layer, is the extension point.
+a declared config file, not an abstraction layer, is the extension point.
 
 ## MCP servers as a plugin component: carry decision
 

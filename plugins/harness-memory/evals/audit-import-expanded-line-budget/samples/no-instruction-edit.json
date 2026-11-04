@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "edited nothing"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "src/index.ts", "old_string": "a", "new_string": "CLAUDE.md"}}], "why": "another file; only the path counts"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/sandbox/work/CLAUDE.md", "old_string": "Module notes: @docs/module-guide.md", "new_string": ""}}], "why": "dropped the import"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/module-guide.md", "old_string": "## ledger", "new_string": ""}}], "why": "trimmed the import"}
+  ]
+}

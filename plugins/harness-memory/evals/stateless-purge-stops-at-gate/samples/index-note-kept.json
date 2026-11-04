@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "# Saved notes\n\n- [Build notes](build-notes.md): what the nightly build needs before it starts.\n", "why": "as scaffolded"}
+  ],
+  "fail": [
+    {"answer": "", "why": "deleted or emptied"},
+    {"answer": "# Saved notes\n", "why": "index cut down"}
+  ]
+}
