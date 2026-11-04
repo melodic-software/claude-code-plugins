@@ -551,7 +551,7 @@ EOF
 
 cat >"$MOCK_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
-set -u
+set -uo pipefail # a jq failure stays the mock's exit status through the CR strip below
 [[ "${GH_HOST:-}" == "github.com" && "${GH_PROMPT_DISABLED:-}" == "1" &&
   "${GH_TELEMETRY:-}" == "false" && "${GH_NO_UPDATE_NOTIFIER:-}" == "1" &&
   "${GH_NO_EXTENSION_UPDATE_NOTIFIER:-}" == "1" && "${GH_SPINNER_DISABLED:-}" == "1" ]] || exit 92

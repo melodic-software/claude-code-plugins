@@ -187,7 +187,7 @@ async function main() {
   } finally {
     await browser.close().catch(() => {});
     // Windows refuses to delete a folder a live process still holds, and the handles outlast its exit for a moment.
-    if (A && A.proc.exitCode === null) await new Promise(res => { A.proc.once("exit", res); A.proc.kill(); });
+    if (A && A.proc.exitCode === null && A.proc.signalCode === null) await new Promise(res => { A.proc.once("exit", res); A.proc.kill(); });
     fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
   return s.finish();
