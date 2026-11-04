@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "Install [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) yourself."
+    },
+    {
+      "answer": "See https://learn.microsoft.com/powershell/scripting/install/installing-powershell.",
+      "why": "sentence-final period"
+    },
+    {
+      "answer": "https://learn.microsoft.com/en-us/powershell/scripting/install/install-ubuntu",
+      "why": "a platform page with a locale"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install PowerShell through your package manager.",
+      "why": "near miss: no page"
+    },
+    {
+      "answer": "See installing-powershell.md in the repo.",
+      "why": "a different file"
+    },
+    {
+      "answer": "https://learn.microsoft.com/powershell/scripting/overview",
+      "why": "a page outside install"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

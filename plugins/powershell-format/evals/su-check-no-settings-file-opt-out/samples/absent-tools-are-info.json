@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Neither would be a FAIL: a missing pwsh or module is INFO."
+    },
+    {
+      "answer": "Both are present here, and if either went missing check would report INFO, not FAIL.",
+      "why": "reports the host too"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, a missing pwsh is a FAIL.",
+      "why": "grades pwsh FAIL"
+    },
+    {
+      "answer": "pwsh and the module are both present here.",
+      "why": "near miss: does not grade a missing one"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 ---
 topic: windows-performance
 section: perf
-abstract: Example Vendor's performance-mode page states the mode trades protection for speed (M1, HIGH (single source)).
+abstract: 'M1 (HIGH (single source)): "Example Vendor''s performance-mode page states the mode gives faster performance with less protection"'
 claims:
   - claim: "Example Vendor's performance-mode page states the mode gives faster performance with less protection"
     id: M1
@@ -42,8 +42,8 @@ produced_by: phase-2
 
 ## Summary
 
-See M1 (HIGH (single source)).
+M1 (HIGH (single source)): "Example Vendor's performance-mode page states the mode gives faster performance with less protection"
 
 ## Gaps
 
-- CI-02 (MEDIUM): the queue formula has one secondary source.
+- CI-02 (MEDIUM): "Queue time is started_at minus created_at" has one secondary source.

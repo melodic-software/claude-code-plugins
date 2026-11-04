@@ -395,7 +395,8 @@ const forbidden = {
   "innerHTML": /innerHTML/, "outerHTML": /outerHTML/, "insertAdjacentHTML": /insertAdjacentHTML/,
   "document.write": /document\.write/, "eval": /\beval\s*\(/, "new Function": /new\s+Function/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "setTimeout": /setTimeout/, "setInterval": /setInterval/, "location": /location/,
-  "setAttribute": /setAttribute|setAttributeNS/, "style": /\.style\b|cssText/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  // The theme toggle's two fixed names are the only attributes the runtime sets; neither takes data.
+  "setAttribute": /setAttributeNS|setAttribute\((?!"(?:data-theme|aria-pressed)", )/, "style": /\.style\b|cssText/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "src": /\.src\b/, "srcdoc": /srcdoc/, "on* property": /\.on[a-z]+\s*=/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "storage": /localStorage|sessionStorage|indexedDB|document\.cookie/,
   "network beyond fetch and EventSource": /XMLHttpRequest|WebSocket|sendBeacon|import\s*\(/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern

@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [18.0.0] - 2026-11-04
+
+Major: the escalation contract changes (§2).
+
+- **A failed intake hand-off retries instead of stopping for the owner (§2).** A fix or quarantine
+  issue the post-merge demotion alert could not hand to intake triage no longer takes
+  `needs-human`: it gets a marker comment each later alert run retries. A red-main record keeps the
+  label only when a failing check was over the cap or outside the name charset, which no retry can
+  file (#13022).
+
 ## [17.0.0] - 2026-11-03
 
 Major: the escalation contract changes (§2).

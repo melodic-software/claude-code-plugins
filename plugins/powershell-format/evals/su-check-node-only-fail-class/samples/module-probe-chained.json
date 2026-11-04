@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The module probe is chained behind the pwsh probe, so on a machine without pwsh it simply doesn't run and never errors."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It reports the module as absent.",
+      "why": "near miss: says nothing about the chain"
+    },
+    {
+      "answer": "It errors because pwsh isn't there.",
+      "why": "the failure the chain prevents"
+    }
+  ]
+}

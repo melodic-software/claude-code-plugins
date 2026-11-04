@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node && node --version"
+          }
+        }
+      ],
+      "why": "the step 2 probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"bash: $BASH_VERSION\"; command -v node; node --version"
+          }
+        }
+      ],
+      "why": "chained after another probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version"
+          }
+        }
+      ],
+      "why": "version alone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"command -v node\" hooks/check.sh"
+          }
+        }
+      ],
+      "why": "a search for the words, not a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/powershell-format/lib/git-hooks/install.mjs\" verify"
+          }
+        }
+      ],
+      "why": "running node is not probing it"
+    }
+  ]
+}
