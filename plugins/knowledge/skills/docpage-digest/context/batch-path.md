@@ -47,9 +47,10 @@ The launch steps for the `knowledge:docpage-digest-batch` workflow that [`../SKI
    nothing, so fix the arguments and run it again. Run it once per workflow run: it requires the
    `unverified: awaiting-check` close left, so a second run over the same slice ends
    `unverified: status-not-awaiting`. For a page that is not `claimed` it writes the status the
-   result already carries. A page with a null `slice` claimed no slice: leave the disk alone. A page
-   whose check never ran keeps `unverified: awaiting-check` on disk with Phase 4 unticked, which
-   every later step reads as unverified.
+   result already carries. A page with a null `slice` claimed no slice: leave the disk alone, so a
+   status an earlier run wrote there stays, and it says nothing about this run. A page whose close
+   recorded `unverified: awaiting-check` and whose check never ran keeps that line with Phase 4
+   unticked, which every later step reads as unverified.
 8. **Route what did not verify.** The script derives each slug from the launched URL and does not
    follow a redirect. `unverified: redirect-refused` is a page whose setup reported another
    canonical URL, `failed: slug-mismatch` one whose setup reported another slug,
@@ -61,4 +62,5 @@ The launch steps for the `knowledge:docpage-digest-batch` workflow that [`../SKI
    check ended `unverified: verifier-<arm>-fail`, `verifier-<arm>-high` or `gate-<gate>-fail`,
    through the single-page path, which keeps them. Re-run another `unverified` page once its cause
    clears; a rerun redoes Phases 3 to 5, since the batch path has no resume. Then run the Phase 5
-   interview once over the handoffs whose first line reads `Verification status: verified`.
+   interview once over the handoffs of this run's pages the check printed `verified` for, never any
+   other handoff on disk.
