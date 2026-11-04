@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Set up user-experience
 
-The plugin's one consumer-project surface is the team file `<home>/user-experience.yaml`, where
+The plugin's one consumer-project config is the team file `<home>/user-experience.yaml`, where
 `<home>` is the repository's convention home (default `docs/conventions`). Every key has a
 built-in default, so no file is a valid state. Keys and their rules:
 `${CLAUDE_PLUGIN_ROOT}/reference/team.schema.json`. Its external prerequisites, `node` and the

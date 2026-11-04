@@ -8,7 +8,7 @@ resolves. The coverage prompt asked at the same moment is [`coverage-prompt.md`]
 
 Resolve `acceptance_criteria_format` per "Resolving `acceptance_criteria_format`" below. Under `free-text`, the default and every
 degrade, emit criteria exactly as today: `- AC<n>: <testable criterion>`, untagged, byte-comparable
-in shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
+in shape to a run with no convention file at all. Under `ears`, every emitted criterion carries a
 bracketed pattern prefix after its id on that same plain-bullet form, `- AC<n>: [<pattern>] <criterion>`:
 
 | Tag | Pattern |

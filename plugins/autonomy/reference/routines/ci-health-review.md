@@ -38,7 +38,7 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 1. **Advisory portion.** Agent judgment producing a report plus work items, no
    repository mutation → `C1`, with the `L2` unattended floor.
 2. **Direct-change portion (optional).** A change to CI workflow/config touches a
-   structural/config surface, so the structural-blast-radius axis derives `C4`, meaning
+   structural/config file, so the structural-blast-radius axis derives `C4`, meaning
    blocking deterministic and AI review, and auto-merge only after the `C3-auto-merge`
    promotion, regardless of how small the edit looks.
 3. **Composition rule.** Where one derivation matches multiple rules, it composes to the

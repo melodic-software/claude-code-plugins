@@ -2,7 +2,7 @@
 
 ## Contents
 
-- [The config surface](#the-config-surface)
+- [The config files](#the-config-files)
 - [YAML keys (`docs/conventions/source-control.yaml`)](#yaml-keys-docsconventionssource-controlyaml)
 - [Review-bot triage rubric (`docs/conventions/source-control.md`)](#review-bot-triage-rubric-docsconventionssource-controlmd)
 - [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
@@ -24,7 +24,7 @@ repository-policy keys resolve per target repository under their own section.
 Implements the tracked-rich-config extensibility contract in
 [`docs/migration-playbook.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/migration-playbook.md).
 
-## The config surface
+## The config files
 
 **Team-layer home of the convention keys.** The seven commit and PR convention keys below
 (`subject_pattern`, `type_list`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`,

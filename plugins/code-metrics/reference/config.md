@@ -1,4 +1,4 @@
-# The code-metrics configuration surface
+# The code-metrics configuration
 
 Every tunable value in this plugin resolves through one consumer surface. This document is its
 contract: the layers, the merge form, the YAML subset, and every key with its default and

@@ -196,7 +196,7 @@ fallback), then:
    variant below ignores this setting. Pointers:
    <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-18;
    recheck trigger: that section changes what `worktree.bgIsolation` does or its accepted values.
-   Settings precedence (tier order): <https://code.claude.com/docs/en/settings#settings-precedence>;
+   Settings precedence (scope order): <https://code.claude.com/docs/en/settings#settings-precedence>;
    as of 2026-10-18; recheck trigger: that section changes the tier order. Managed file locations:
    <https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy>; as of
    2026-10-18; recheck trigger: that section changes where the managed file or drop-in directory
