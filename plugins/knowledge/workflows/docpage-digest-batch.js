@@ -1,7 +1,7 @@
 export const meta = {
   name: 'docpage-digest-batch',
   description: 'Digest several documentation pages: per page, set up the slice, run one digest agent per section, pin, run both verifier arms as separate agents, correct and re-verify, and write the interview handoff',
-  whenToUse: 'Run by /knowledge:docpage-digest (Batch path) and /knowledge:map-corpus, which resolve args: pages (required), workRoot (required), skillDir (required), date (required), verifierB, roles, maxConcurrent. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /knowledge:map-corpus or /knowledge:docpage-digest.',
+  whenToUse: 'Run by /knowledge:docpage-digest (Batch path) and /knowledge:map-corpus, which resolve args: pages (required), workRoot (required), skillDir (required), date (required), roles, maxConcurrent. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /knowledge:map-corpus or /knowledge:docpage-digest.',
   phases: [
     { title: 'Setup', detail: 'one agent per page: work root, checklist, fetch, SOURCES.md' },
     { title: 'Digest', detail: 'one agent per digest unit' },
@@ -26,6 +26,8 @@ const PAGE_CAP = 20
 const PASSES = 4
 // The verdict order context/dual-verification.md "Verdict set and the rule that sets it" defines.
 const SEVERITY = ['PASS', 'PASS-WITH-FINDINGS', 'FAIL', 'BLOCKED']
+// The finding severities the same file's verdict rule names.
+const FINDING_SEVERITY = ['high', 'medium', 'low']
 
 // A page URL reaches agents that hold Bash, which single-quote it (SKILL.md "Slug guard"), so
 // after the host it carries no quote, backslash, `$`, backtick, whitespace, bash metacharacter
@@ -102,10 +104,8 @@ if (deferred.length) log('pages: ' + deferred.length + ' past the cap of ' + PAG
 // Design choice: a default of 4 leaves session subagent slots for sibling work (SKILL.md
 // Phase 3), and 16 bounds a caller's override.
 const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent) ? Math.min(16, Math.max(1, input.maxConcurrent)) : 4
-// The cross-vendor agents this workflow knows how to brief; any other name runs B degraded.
-const VERIFIER_B_AGENTS = ['codex:codex-rescue']
-const VERIFIER_B = VERIFIER_B_AGENTS.includes(input.verifierB) ? input.verifierB : null
-if (input.verifierB && !VERIFIER_B) log('verifierB is not an allowlisted agent (' + VERIFIER_B_AGENTS.join(', ') + '): rejected, verifier B runs degraded, same-vendor')
+// context/batch-path.md "Verifier B": this path has no cross-vendor arm.
+const B_REASON = 'the batch path has no cross-vendor arm: codex:codex-rescue returns raw stdout, which cannot carry a structured verdict'
 
 // Role variants as /multi-agent:route emits them. Every stage here runs once
 // per page or per unit, so all of them read the fan-out variant; the fallback
@@ -129,7 +129,7 @@ if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stage
 
 // Every stage runs as knowledge:digest-worker, which holds file and shell
 // tools and no Agent tool; it inherits the model and pins no effort, so the
-// role map governs it. A named cross-vendor verifier B keeps its own pins.
+// role map governs it.
 const WORKER = 'knowledge:digest-worker'
 function opts(variant, model) {
   const m = model || variant.model
@@ -149,18 +149,24 @@ async function slot(fn) {
   }
 }
 
-// One retry for a thrown dispatch or a null result (the death ladder's retry
-// window); an error naming a cap or budget is rethrown without a retry.
+// One retry for a thrown dispatch, a null result (the death ladder's retry window) or, when a
+// `valid` check is given, a reply that fails it; an error naming a cap or budget is rethrown
+// without a retry. A reply still failing `valid` after the retry comes back as OFF_SCHEMA.
 const nulls = []
 const ran = []
-async function agentRetry(prompt, o) {
+const OFF_SCHEMA = Object.freeze({ offSchema: true })
+async function agentRetry(prompt, o, valid) {
   ran.push(o.label)
   for (let attempt = 1; ; attempt++) {
     try {
       const r = await slot(() => agent(prompt, o))
-      if (r != null) return r
-      if (attempt >= 2) { nulls.push(o.label); return null }
-      log(o.label + ': no result, retrying once')
+      if (r != null && (!valid || valid(r))) return r
+      if (attempt >= 2) {
+        if (r != null) return OFF_SCHEMA
+        nulls.push(o.label)
+        return null
+      }
+      log(o.label + ': ' + (r == null ? 'no result' : 'an off-schema reply') + ', retrying once')
     } catch (e) {
       const msg = String((e && e.message) || e)
       if (/cap reached|budget/i.test(msg)) throw e
@@ -200,8 +206,8 @@ const SLUG = /^[a-z0-9-]{1,40}$/
 // model ID is recorded mapped and unenforced, per the profile's known gap.
 const PASSABLE = ['opus', 'sonnet', 'haiku']
 // The setup agent read the untrusted page, so its mapping reaches a prompt or the run record only
-// as a family alias or a model-ID-shaped name.
-const MODEL_NAME = /^(opus|sonnet|haiku|claude-[a-z0-9.-]{1,60})$/
+// as a family alias or a claude-<family>-<version>[-<YYYYMMDD>] model ID.
+const MODEL_NAME = /^(opus|sonnet|haiku|claude-(opus|sonnet|haiku|fable)-[0-9]+(-[0-9]+)*(-[0-9]{8})?)$/
 
 const SETUP_SCHEMA = {
   type: 'object',
@@ -213,7 +219,6 @@ const SETUP_SCHEMA = {
     profile: { type: 'string' },
     mappedModel: { type: 'string', description: 'the digest-agent model the profile maps this page to, or "none"' },
     phase3Done: { type: 'boolean' },
-    phase4Done: { type: 'boolean' },
     units: {
       type: 'array',
       items: {
@@ -223,7 +228,7 @@ const SETUP_SCHEMA = {
       },
     },
   },
-  required: ['status', 'slug', 'units', 'phase3Done', 'phase4Done'],
+  required: ['status', 'slug', 'units', 'phase3Done'],
 }
 const DIGEST_SCHEMA = {
   type: 'object',
@@ -270,7 +275,7 @@ const VERDICT_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          severity: { type: 'string', enum: ['high', 'medium', 'low'] },
+          severity: { type: 'string', enum: FINDING_SEVERITY },
           unit: { type: 'string' },
           what: { type: 'string' },
         },
@@ -299,7 +304,12 @@ const CLOSE_SCHEMA = {
   required: ['checklist', 'handoff'],
 }
 
-const worstOf = vs => vs.reduce((w, v) => (SEVERITY.indexOf(v) > SEVERITY.indexOf(w) ? v : w), 'PASS')
+// The runtime is not relied on to enforce the schema's enums or required fields, so a verifier
+// reply counts only when it passes this check; an unknown verdict ranks worst, never as PASS.
+const isVerdict = v => !!v &&typeof v === 'object' && !Array.isArray(v) && SEVERITY.includes(v.verdict) &&
+  Array.isArray(v.findings) && v.findings.every(f => !!f && typeof f === 'object' && FINDING_SEVERITY.includes(f.severity))
+const rank = v => (SEVERITY.includes(v) ? SEVERITY.indexOf(v) : SEVERITY.length)
+const worstOf = vs => vs.reduce((w, v) => (rank(v) > rank(w) ? v : w), 'PASS')
 
 // ---- one page, setup through the end of Phase 4 ----
 async function setup(url, i) {
@@ -308,8 +318,8 @@ async function setup(url, i) {
     'Stage: setup.' + OWNS + ' For the page below, follow ' + skill('Work root') + ' with the resolved root ' +
     'already given here (do not re-resolve it), then the slug guard and collision check, ' +
     skill('Emit checklist') + ', ' + skill('Phase 1. Fetch') + ' and ' + skill('Phase 2. Inventory') +
-    '. On a resume, continue from the first unticked phase and report which of Phases 3 and 4 the checklist ' +
-    'already ticks. Return the slug, the canonical URL, the profile used, the digest-agent model the profile ' +
+    '. On a resume, continue from the first unticked phase and report whether the checklist already ticks ' +
+    'Phase 3; Phase 4 is verified again by this run whatever the checklist says. Return the slug, the canonical URL, the profile used, the digest-agent model the profile ' +
     'maps this page to ("none" when no mapping applies), and one entry per SOURCES.md digest-map row: its ' +
     'digests/NN-slug.md file and START-END lines. A collision refusal returns status refused; anything that ' +
     'stops the run returns status failed with the reason.' +
@@ -336,7 +346,8 @@ async function digestAndVerify(prev) {
   out.slug = s.slug
   out.slice = WORK_ROOT + '/.work/' + s.slug
   if (s.status !== 'ready') return { ...out, closable: true, reason: s.reason || 'setup failed' }
-  if (s.phase4Done) return { ...out, closable: true, status: 'verified', reason: 'Phase 4 already ticked on the checklist', resumed: true }
+  // A page is verified only from verdicts this run's verifier agents return: a prior Phase 4 tick
+  // the setup agent reports is never read.
 
   const units = (Array.isArray(s.units) ? s.units : []).filter(u => u && typeof u.file === 'string')
   const bad = units.filter(u => !UNIT_FILE.test(u.file))
@@ -397,53 +408,42 @@ async function digestAndVerify(prev) {
     if (!gates.length) failedGates.push({ gate: 'standing gates', pass: false, unit: 'SOURCES.md', summary: 'no gate result returned' })
 
     const verdictFile = name => 'verification/verifier-' + name + '-r' + pass + '-' + DATE + '.md'
-    const arm = (name, brief, readOnly) =>
+    const arm = (name, brief) =>
       'Stage: verifier-' + name + '.' + OWNS + ' Act as Verifier ' + name.toUpperCase() + ' in ' + DUAL +
       ' for the slice below, pass ' + pass + ', over the pinned set: run its three checks, the fence and snippet ' +
       'checks it names, and pin-manifest.py --check. Use its verdict set and rule exactly. The live-doc checks ' +
       'are yours to replay whatever the other arm can reach.' + brief +
-      (readOnly
-        ? ' Write no file: return written false and ' + verdictFile(name) + ' as the verdict file, with the full header'
-        : ' Write your verdict to ' + verdictFile(name) + ' under the slice (never overwrite an existing file: add a suffix), with a header') +
+      ' Write your verdict to ' + verdictFile(name) + ' under the slice (never overwrite an existing file: add a suffix), with a header' +
       ' recording your effective effort and where it came from, and the hashes you audited. Return the verdict, ' +
       'the file, and each finding with its severity and its digests/NN-slug.md file.' +
       fence('slice', slice) + (applied ? fence('prior-round-new-findings', applied.flatMap(a => a.newFindings || [])) : '')
     const effortA = ' Your effort is requested as ' + R.verifier.effort + ' through the workflow\'s per-call effort; record it that way.'
-    const degradedB = reason =>
-      ' You are the degraded verifier B: the cross-vendor arm is unavailable (' + reason + '), so you are a ' +
+    const degradedB =
+      ' You are the degraded verifier B: the cross-vendor arm is unavailable (' + B_REASON + '), so you are a ' +
       'second same-vendor verifier briefed as an adversarial refuter. Record that degradation and its reason in ' +
       'your verdict header, as ' + DUAL + ' "Degraded-verifier fallback" requires.' + effortA
-    const runA = () => agentRetry(arm('a', effortA), { label: tag + ':verifier-a', phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier) })
-    const runB = async () => {
-      if (VERIFIER_B) {
-        const b = await agentRetry(
-          arm('b', ' You are the cross-vendor verifier B: forward this whole brief to that vendor with high reasoning ' +
-            'effort, over the slice\'s local files, as a read-only review with no edits: do not pass --write, and the ' +
-            'run changes no file. Run it in the foreground with --wait and --fresh, never --background, so the run ' +
-            'returns its verdict to you before you return; a queued job is not a verdict. Its header writes the effort as "requested high, unconfirmed" unless the run itself ' +
-            'reports it, and names every live-doc check it could not replay.', true),
-          { label: tag + ':verifier-b', phase: 'Verify', schema: VERDICT_SCHEMA, agentType: VERIFIER_B },
-        )
-        if (b) return { b, mode: 'cross-vendor', agentType: VERIFIER_B }
-        return { b: await agentRetry(arm('b', degradedB(VERIFIER_B + ' returned nothing after one retry')), { label: tag + ':verifier-b-degraded', phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier) }), mode: 'same-vendor-degraded', reason: VERIFIER_B + ' returned nothing after one retry' }
+    const verify = (name, brief, label) => () => agentRetry(arm(name, brief), { label: tag + ':' + label, phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier) }, isVerdict)
+    const [a, b] = await parallel([verify('a', effortA, 'verifier-a'), verify('b', degradedB, 'verifier-b-degraded')])
+    out.verifierB = { mode: 'same-vendor-degraded', agentType: WORKER, reason: B_REASON }
+    const shown = v => (isVerdict(v) ? v.verdict : v === OFF_SCHEMA ? 'off-schema' : null)
+    const verdicts = [a, b].filter(isVerdict)
+    out.passes.push({ pass, gates: gates.map(g => ({ gate: g.gate, pass: !!g.pass })), a: shown(a), b: shown(b), verdictFiles: verdicts.map(v => ({ file: v.verdictFile, written: !!v.written })) })
+    // A verdict its arm did not write is kept from every pass for close.
+    for (const v of verdicts) {
+      if (!v.written) out.unwritten.push({ pass, file: v.verdictFile, verdict: v.verdict, header: v.header || '', findings: v.findings })
+    }
+    const bad = [['A', a], ['B', b]].find(([, v]) => !isVerdict(v))
+    if (bad) {
+      return {
+        ...out,
+        closable: true,
+        reason: bad[1] === OFF_SCHEMA
+          ? 'verifier ' + bad[0] + ' returned an off-schema reply, pass ' + pass
+          : 'death ladder degraded marker: verifier ' + bad[0] + ' returned no verdict after one retry, pass ' + pass,
       }
-      const reason = 'no cross-vendor verifier agent was passed to the workflow'
-      return { b: await agentRetry(arm('b', degradedB(reason)), { label: tag + ':verifier-b-degraded', phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier) }), mode: 'same-vendor-degraded', reason }
-    }
-    const [a, bRun] = await parallel([runA, runB])
-    const b = bRun && bRun.b
-    out.verifierB = bRun ? { mode: bRun.mode, agentType: bRun.agentType || WORKER, reason: bRun.reason || null } : null
-    const record = { pass, gates: gates.map(g => ({ gate: g.gate, pass: !!g.pass })), a: a ? a.verdict : null, b: b ? b.verdict : null, verdictFiles: [a, b].filter(Boolean).map(v => ({ file: v.verdictFile, written: !!v.written })) }
-    out.passes.push(record)
-    // A verdict its arm did not write (a read-only verifier B) is kept from every pass for close.
-    for (const v of [a, b]) {
-      if (v && !v.written) out.unwritten.push({ pass, file: v.verdictFile, verdict: v.verdict, header: v.header || '', findings: v.findings })
-    }
-    if (!a || !b) {
-      return { ...out, closable: true, reason: 'death ladder degraded marker: verifier ' + (!a ? 'A' : 'B') + ' returned no verdict after one retry, pass ' + pass }
     }
     const worst = worstOf([a.verdict, b.verdict])
-    const highs = [a, b].flatMap(v => (Array.isArray(v.findings) ? v.findings : []).filter(f => f && f.severity === 'high'))
+    const highs = [a, b].flatMap(v => v.findings.filter(f => f.severity === 'high'))
     if (!failedGates.length && (worst === 'PASS' || worst === 'PASS-WITH-FINDINGS') && !highs.length) {
       return { ...out, closable: true, status: 'verified', reason: 'both arms ' + a.verdict + ' / ' + b.verdict + ', gates pass, pass ' + pass }
     }
@@ -465,14 +465,16 @@ async function digestAndVerify(prev) {
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key).push(w.what)
     }
-    const deferredFindings = [a, b].flatMap(v => (Array.isArray(v.findings) ? v.findings : []).filter(f => f && f.severity !== 'high'))
+    const deferredFindings = [a, b].flatMap(v => v.findings.filter(f => f.severity !== 'high'))
     const keys = [...groups.keys()]
+    // The unit key comes from a verifier that read the page, so it reaches the prompt only fenced.
     const fixes = await parallel(keys.map(key => () => agentRetry(
-      'Stage: correct.' + OWNS + ' Apply correction round ' + pass + ' for ' + key + ' as ' + DUAL + ' says: fix ' +
-      'only the findings below in that file, sweep each fixed class twice, and write your one unit file ' +
-      'verification/corrections-' + (key === 'SOURCES.md' ? 'sources' : key.slice(8, -3)) + '-r' + pass + '-' + DATE + '.md ' +
-      'with its "New findings" section. Medium and low findings are deferred to the handoff, not fixed here.' +
-      fence('slice', slice) + fence('findings', groups.get(key)),
+      'Stage: correct.' + OWNS + ' Apply correction round ' + pass + ' for the unit file below as ' + DUAL + ' says: fix ' +
+      'only the findings below in that file, sweep each fixed class twice, and write your one corrections file, ' +
+      'named below, with its "New findings" section. Medium and low findings are deferred to the handoff, not fixed here.' +
+      fence('slice', slice) + fence('unit', key) +
+      fence('corrections-file', 'verification/corrections-' + (key === 'SOURCES.md' ? 'sources' : key.slice(8, -3)) + '-r' + pass + '-' + DATE + '.md') +
+      fence('findings', groups.get(key)),
       { label: tag + ':correct:' + (key === 'SOURCES.md' ? 'sources' : key.slice(8, -3)), phase: 'Correct', schema: CORRECT_SCHEMA, ...opts(R.worker) },
     )))
     const missing = keys.filter((_, n) => !fixes[n] || !fixes[n].applied)
@@ -495,7 +497,8 @@ async function close(r) {
     'handoff as ' + skill('Phase 5. Interview handoff') + ' says, replaying its commands, but do not invoke ' +
     '/planning:interview: the launching session runs it once over every page. On the checklist, fill the ' +
     '"Verification status" line with the status below verbatim, fill both verifier effort lines from the ' +
-    'verdict headers, and tick Phase 4 only when the status is verified; otherwise write the degraded marker ' +
+    'verdict headers, and tick Phase 4 only when the status is verified; otherwise clear any Phase 4 tick an ' +
+    'earlier run left, and write the degraded marker ' +
     'and the reason as ' + LADDER + ' "Subagent-death / usage-limit ladder" says. A verdict the run record ' +
     'shows as not written by its arm is written now to its file from the run record, append-only. The handoff ' +
     'opens with the same "Verification status" line; when the checklist already ticks Phase 5, only set that ' +
@@ -532,5 +535,5 @@ return {
   rejected,
   nulls,
   ran,
-  roles: { setup: R.worker, digest: R.worker, pin: R.worker, verifierA: R.verifier, verifierB: VERIFIER_B ? { agentType: VERIFIER_B } : R.verifier, correct: R.worker, close: R.worker },
+  roles: { setup: R.worker, digest: R.worker, pin: R.worker, verifierA: R.verifier, verifierB: R.verifier, correct: R.worker, close: R.worker },
 }

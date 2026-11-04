@@ -20,7 +20,7 @@ person's or company's published web corpus into concept-organized, author-attrib
 
 | Workflow | Launched by | What it does |
 |---|---|---|
-| `/knowledge:docpage-digest-batch` (`workflows/docpage-digest-batch.js`) | `/knowledge:docpage-digest` Batch path, `/knowledge:map-corpus` | Digests several pages, each into its own slice: per page one setup agent (Phases 1-2), one digest agent per unit, a pin-and-gates agent, verifier A and verifier B as separate agents, up to three correction rounds with re-verification, and a close agent that records `Verification status` and writes the handoff. `args`: `pages`, `workRoot`, `skillDir` and `date` (all required; without them nothing runs), `verifierB` (a cross-vendor agent such as `codex:codex-rescue`; without it B runs degraded, same-vendor), `roles`, `maxConcurrent` (default 4). Every stage runs as `knowledge:digest-worker`, which has file and shell tools and cannot spawn agents. |
+| `/knowledge:docpage-digest-batch` (`workflows/docpage-digest-batch.js`) | `/knowledge:docpage-digest` Batch path, `/knowledge:map-corpus` | Digests several pages, each into its own slice: per page one setup agent (Phases 1-2), one digest agent per unit, a pin-and-gates agent, verifier A and a same-vendor verifier B as separate agents, up to three correction rounds with re-verification, and a close agent that records `Verification status` and writes the handoff. `args`: `pages`, `workRoot`, `skillDir` and `date` (all required; without them nothing runs), `roles`, `maxConcurrent` (default 4). Every stage runs as `knowledge:digest-worker`, which has file and shell tools and cannot spawn agents. |
 
 ## What distill produces
 
