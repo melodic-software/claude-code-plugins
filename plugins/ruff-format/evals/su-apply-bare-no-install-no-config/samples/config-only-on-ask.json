@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "It writes no Ruff config by itself; a minimal one is created only if you explicitly ask, since the plugin imposes no rules of its own. Until a config exists the plugin stays inert."}
+  ],
+  "fail": [
+    {"answer": "Apply will create a default ruff.toml with the plugin's recommended rules.", "why": "writes a config with plugin rules"},
+    {"answer": "It doesn't write a config.", "why": "near miss: no explicit-ask route and no reason"}
+  ]
+}

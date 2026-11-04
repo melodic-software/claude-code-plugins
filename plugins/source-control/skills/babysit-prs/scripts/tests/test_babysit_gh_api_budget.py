@@ -155,10 +155,13 @@ class ApiBudgetTests(unittest.TestCase):
         )
         self.assertFalse(pathlib.Path(self.dir, "api-budget", "lanes-app").exists())
 
-    def test_without_a_token_name_or_for_a_non_api_call_nothing_is_read(self) -> None:
+    def test_without_a_token_name_or_for_a_non_api_call_no_reading_is_written(
+        self,
+    ) -> None:
         # Every `api` call but a paginated one still runs with -i, for the
         # guard, and a `--paginate --slurp` read goes page by page with -i
-        # (`_run_pages`); only a named token writes a reading.
+        # (`_run_pages`); only a named token writes a reading. A non-api call
+        # writes `request` lines only for the trace its stderr carries, none here.
         self.run_gh(
             "{}", ["api", "x"], env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": ""}
         )
@@ -192,6 +195,86 @@ class ApiBudgetTests(unittest.TestCase):
             env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "lanes-app"},
         )
         self.assertEqual(self.calls[-1], ["gh", "api", "rate_limit"])
+        self.assertFalse(pathlib.Path(self.dir, "api-budget").exists())
+
+    def test_a_call_without_a_header_block_counts_each_api_request_it_traces(
+        self,
+    ) -> None:
+        # api-budget.bash's api_budget_traced: GH_DEBUG=1 head lines become
+        # `request <route>` lines, a redirect to a download host is not one,
+        # and stderr comes back without what the debug level added.
+        trace = (
+            "* Request at 2026-11-04 04:00:00\n"
+            "* Request to https://api.github.com/repos/o/r/actions/runs/7/artifacts?per_page=100\n"
+            "* Request took 80ms\n"
+            "* Request at 2026-11-04 04:00:01\n"
+            "* Request to https://api.github.com/repos/o/r/actions/artifacts/9/zip\n"
+            "* Request took 90ms\n"
+            "* Request at 2026-11-04 04:00:02\n"
+            "* Request to https://productionresultssa1.blob.core.windows.net/x\n"
+            "* Request took 30ms\n"
+            "[git remote -v]\n"
+            "error connecting to api.github.com\n"
+            "lookup api.github.com: no such host\n"
+            "real error\n"
+        )
+        seen: list[dict[str, Any]] = []
+
+        def fake(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            seen.append({"argv": argv, "env": kwargs.get("env_overrides")})
+            return subprocess.CompletedProcess(argv, 1, "", trace)
+
+        env = {"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "github-token"}
+        with (
+            mock.patch.dict(os.environ, env, clear=False),
+            mock.patch.object(gh, "run_command", fake),
+        ):
+            proc = gh._run_gh(
+                ["run", "download", "7", "-n", "a"], timeout_seconds=None, check=False
+            )
+            binary = gh._run_gh(
+                ["api", "repos/o/r/actions/artifacts/9/zip"],
+                timeout_seconds=None,
+                check=False,
+                binary=True,
+            )
+        self.assertEqual(seen[0]["env"], {"GH_DEBUG": "1"})
+        self.assertEqual(
+            seen[1]["argv"], ["gh", "api", "repos/o/r/actions/artifacts/9/zip"]
+        )
+        self.assertEqual(
+            proc.stderr, "error connecting to api.github.com\nreal error\n"
+        )
+        self.assertEqual(binary.stderr, proc.stderr)
+        self.assertEqual(
+            self.readings("github-token"),
+            (
+                "request repos/{repo}/actions/runs/{n}/artifacts\n"
+                "request repos/{repo}/actions/artifacts/{n}/{x}\n"
+            )
+            * 2,
+        )
+
+    def test_without_a_token_name_a_header_less_call_runs_untraced(self) -> None:
+        seen: list[Any] = []
+
+        def fake(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            seen.append(kwargs.get("env_overrides"))
+            return subprocess.CompletedProcess(
+                argv, 0, "", "* Request to https://api.github.com/x\n"
+            )
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": ""},
+                clear=False,
+            ),
+            mock.patch.object(gh, "run_command", fake),
+        ):
+            proc = gh._run_gh(["pr", "view", "1"], timeout_seconds=None, check=False)
+        self.assertEqual(seen, [None])
+        self.assertEqual(proc.stderr, "* Request to https://api.github.com/x\n")
         self.assertFalse(pathlib.Path(self.dir, "api-budget").exists())
 
     def test_each_page_of_a_paged_read_is_a_reading_under_its_route(self) -> None:

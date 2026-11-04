@@ -29,6 +29,8 @@
 // reaches a shell. The file's evidence block (buildEvidence) is the one
 // exception: it records the capture and the author's evidence-loop count, and
 // a capture that is missing, blocked or malformed never fails the verdict.
+// The capture is run-e2e's e2e-summary.json from pr-verify-capture.yml's
+// artifact (fromE2eSummary), or a summary in this file's own capture keys.
 
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -95,12 +97,29 @@ const unreadable = () => ({
   features: [],
 });
 
+// run-e2e's e2e-summary.json (its Step 5), which pr-verify-capture.yml
+// uploads and the judge jobs download: `capture` {status, reason, count} and
+// the touched feature ids in `affected`, read into this file's capture keys.
+// Anything else passes through unchanged, for the schema check to judge.
+export function fromE2eSummary(summary) {
+  if (!isObject(summary) || !isObject(summary.capture)) {
+    return summary;
+  }
+  return {
+    capture: summary.capture.status,
+    capture_count: summary.capture.count,
+    features: summary.affected,
+    reason: summary.capture.reason,
+  };
+}
+
 // The capture summary as recorded: undefined (no summary) is no-app, and
 // anything outside the schema, credential-shaped text included, is blocked.
-function captureEvidence(summary) {
-  if (summary === undefined) {
+function captureEvidence(raw) {
+  if (raw === undefined) {
     return noApp();
   }
+  const summary = fromE2eSummary(raw);
   if (
     !isObject(summary) ||
     Object.keys(summary).sort().join() !== CAPTURE_KEYS ||
@@ -123,10 +142,12 @@ function captureEvidence(summary) {
 }
 
 // The author's own count from the trusted PR body's `Evidence loop: k/3`
-// line, read as data: null when the body is withheld or holds no such line.
+// line, or the `Evidence loop: 3/3 cap reached, last NEEDS WORK` line
+// /verification:confirm writes at its cap (its context/outcome.md), read as
+// data: null when the body is withheld or holds no such line.
 export function localLoop(body) {
-  const match = typeof body === "string" ? /^Evidence loop: ([0-3])\/3[ \t\r]*$/m.exec(body) : null;
-  return match ? Number(match[1]) : null;
+  const match = typeof body === "string" ? /^Evidence loop: (?:([0-3])\/3|(3)\/3 cap reached, last NEEDS WORK)[ \t\r]*$/m.exec(body) : null;
+  return match ? Number(match[1] ?? match[2]) : null;
 }
 
 export function buildEvidence({ capture, prBody } = {}) {

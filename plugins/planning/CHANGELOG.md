@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.1] - 2026-11-04
+
+### Changed
+
+- Shared `reference/rendered-view.md` synced where this plugin carries it ([#12732](https://github.com/melodic-software/claude-code-plugins/issues/12732)): it now lists debugging as a resolver lane beside planning; no other change to this plugin.
+
 ## [2.2.0] - 2026-11-04
 
 ### Added
