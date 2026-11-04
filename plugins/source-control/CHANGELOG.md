@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.0] - 2026-11-04
+
+### Added
+
+- `/source-control:pull-request conflicts --ci --unattended`: an unattended conflict mode for the pr-unblock lane, which still calls `/source-control:resolve-conflicts ci` until its config switches over. It reads the runner's `conflicts.json`, resolves each conflicted path in place, runs no command, never edits a path under `.github/workflows/`, and leaves a path it cannot resolve with its markers, which hands the run to a person.
+
+- A `review_venue` setting (`auto`, `local`, `ci`, `both`; default `auto`) in `docs/conventions/source-control.yaml` and as a `userConfig` option, the repository value winning. `auto` keeps the per-lane CI health read; `local` runs every local review step; `ci` skips the local review steps and leaves the review to the CI lanes; `both` runs the local steps and still counts the CI lanes. The new `read-review-venue.sh` resolves it, reading the repository value at the pull request's base branch and honoring it only when that base is the default branch. An unknown value falls back to `auto` with a notice.
+
+### Changed
+
+- The babysit-prs carry check (`babysit_merge_policy.CARRY_REFUSES`) also refuses to carry an approval past a push touching `plugins/evals/skills/plugin-eval/scripts/`, which the `eval-hill-climb.yml` gate workflows load (#12035).
+
+- `/source-control:pull-request`'s base-merge step (`ready`, §2.5.2) now holds the conflict discipline: map the stop, recover both sides' intent, compose by default, sweep for semantic conflicts, and verify. It escalates only when the two intents cannot both hold. The plugin version-bump collision rule moved there too, and `create`, `push-branch.sh`'s exit-4 message, `/source-control:babysit-loop` and `/source-control:babysit-prs` now point to it instead of `/source-control:resolve-conflicts`.
+
 ## [7.0.6] - 2026-11-04
 
 ### Fixed
