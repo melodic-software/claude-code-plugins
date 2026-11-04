@@ -197,7 +197,7 @@ resources get digests); the parent's invariant governs each downstream run untou
 ## Phase 5. Queue and handoff
 
 1. `queue.json`: the approved queue. Every `in-corpus` resource in map order with its canonical
-   URL, snapshot hash, verdict tallies, and `verification` (step 3).
+   URL, snapshot hash, verdict tallies, and `verification` (steps 3-4).
 2. `mapper-handoff.md`: per-classification tallies, every `uncertain` verdict with evidence, the
    `companion` and `referenced-external` lists, and any all-`not-relevant` resource (a candidate
    to drop from the queue. Flag, never silently drop).
@@ -206,7 +206,9 @@ resources get digests); the parent's invariant governs each downstream run untou
    `knowledge:docpage-digest-batch` workflow over the queue instead, as `/knowledge:docpage-digest`
    describes under Batch path. Each queue entry carries `verification`, `not-run` until a
    digest reports, then the page's checklist `Verification status` value.
-4. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
+4. Once the runs return, write each queue entry's `verification`: from the workflow result's page
+   entry, or from the slice checklist's `Verification status` line after a Skill-tool run.
+5. Hand `mapper-handoff.md` to `/planning:interview`, invoked via the Skill tool, when installed;
    otherwise present and stop.
 
 Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase, work root).

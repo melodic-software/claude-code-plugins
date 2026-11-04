@@ -19,7 +19,6 @@ if (typeof input === 'string') {
 if (!input || typeof input !== 'object' || Array.isArray(input)) input = {}
 
 const PAGE_CAP = 20
-const UNIT_CAP = 40
 const PASSES = 4
 const SEVERITY = ['PASS', 'PASS-WITH-FINDINGS', 'FAIL', 'BLOCKED']
 
@@ -27,7 +26,7 @@ const SEVERITY = ['PASS', 'PASS-WITH-FINDINGS', 'FAIL', 'BLOCKED']
 // Fails closed on userinfo, backslashes, percent escapes, IPv6 literals and
 // numeric hosts in any form but four decimal octets.
 function isPublicUrl(u) {
-  const m = typeof u === 'string' && /^https?:\/\/([A-Za-z0-9.-]+)(:\d{1,5})?([\/?#][^\s\\%]*)?$/.exec(u)
+  const m = typeof u === 'string' && /^https?:\/\/([A-Za-z0-9.-]+)(:\d{1,5})?([\/?#][^\s\\]*)?$/.exec(u)
   if (!m) return false
   const host = m[1].toLowerCase().replace(/\.$/, '')
   const labels = host.split('.')
@@ -38,6 +37,7 @@ function isPublicUrl(u) {
     if (numeric(labels[labels.length - 1])) return false
     if (/(^|\.)(nip\.io|sslip\.io|xip\.io|traefik\.me|localtest\.me|lvh\.me|vcap\.me|1u\.ms|rbndr\.us)$/.test(host)) return false
     if (/(^|[.-])\d{1,3}[.-]\d{1,3}[.-]\d{1,3}[.-]\d{1,3}([.-]|$)/.test(host)) return false
+    if (labels.slice(0, -1).some(l => /^(0x)?[0-9a-f]{8}$/.test(l) && /\d/.test(l))) return false
     return true
   }
   if (labels.length !== 4 || !labels.every(l => /^(0|[1-9]\d{0,2})$/.test(l) && Number(l) <= 255)) return false
@@ -162,7 +162,9 @@ const LADDER = SKILL_DIR + '/context/pipeline-hardening.md'
 
 const UNIT_FILE = /^digests\/\d{2}-[a-z0-9-]{1,40}\.md$/
 const SLUG = /^[a-z0-9-]{1,40}$/
-const MODEL_ID = /^(opus|sonnet|haiku|fable|claude-[a-z0-9.-]{1,60})$/
+// A profile mapping is passed only as a non-frontier family alias; a pinned
+// model ID is recorded mapped and unenforced, per the profile's known gap.
+const PASSABLE = ['opus', 'sonnet', 'haiku']
 
 const SETUP_SCHEMA = {
   type: 'object',
@@ -294,13 +296,10 @@ async function digestAndVerify(prev) {
   const units = (Array.isArray(s.units) ? s.units : []).filter(u => u && typeof u.file === 'string')
   const bad = units.filter(u => !UNIT_FILE.test(u.file))
   if (!units.length || bad.length) return { ...out, closable: true, reason: !units.length ? 'setup returned no digest units' : bad.length + ' digest unit file names fail the slug guard' }
-  if (units.length > UNIT_CAP) return { ...out, closable: true, reason: units.length + ' digest units, past the cap of ' + UNIT_CAP + ' per page' }
   out.units = units.map(u => u.file)
 
-  // Model matching: an alias or ID the profile maps is passed when it is not
-  // a frontier alias; anything else runs on the worker role and is recorded.
-  const mapped = typeof s.mappedModel === 'string' && s.mappedModel !== 'none' ? s.mappedModel.trim() : null
-  const usable = mapped && MODEL_ID.test(mapped) && !FRONTIER.includes(mapped) ? mapped : null
+  const mapped = typeof s.mappedModel === 'string' && s.mappedModel.trim() && s.mappedModel.trim() !== 'none' ? s.mappedModel.trim() : null
+  const usable = mapped && PASSABLE.includes(mapped) ? mapped : null
   out.modelMatch = { mapped: mapped || 'none', passed: usable || (R.worker.model === 'inherit' ? 'inherit' : R.worker.model), enforced: !mapped || !!usable }
   const slice = out.slice
 

@@ -99,13 +99,29 @@ test('two pages of three units: one digest agent per unit, both arms per page, b
   assert.deepEqual(result.pages.map(p => p.handoff), ['interview-handoff.md', 'interview-handoff.md'])
 })
 
-test('pin runs only after every digest agent of its page has returned', async () => {
-  const { calls } = await run({ ...BASE, pages: pagesOf(1) })
-  const l = labels(calls)
-  const pin = l.indexOf('p1:r1:pin')
+test('a page of 45 units runs a digest agent for every unit and still runs both arms', async () => {
+  const units = Array.from({ length: 45 }, (_, i) => ({ file: 'digests/' + String(i).padStart(2, '0') + '-s.md', lines: i + '-' + i }))
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply: (p, o, d) => (o.label.endsWith(':setup') ? { ...d(p, o), units } : d(p, o)) })
+  assert.equal(labels(calls).filter(x => x.includes(':digest:')).length, 45)
+  assert.equal(result.pages[0].verification, 'verified')
+})
+
+test('pin starts only after every digest agent of its page has returned', async () => {
+  const events = []
+  const reply = async (p, o, d) => {
+    events.push('start ' + o.label)
+    if (o.label.includes(':digest:')) await new Promise(r => setTimeout(r, o.label.endsWith('02-limits') ? 15 : 1))
+    events.push('end ' + o.label)
+    return d(p, o)
+  }
+  await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  const pin = events.indexOf('start p1:r1:pin')
   assert.ok(pin > 0)
-  for (const u of ['00-introduction', '01-setup', '02-limits']) assert.ok(l.indexOf('p1:digest:' + u) < pin, u)
-  assert.ok(l.indexOf('p1:r1:verifier-a') > pin)
+  for (const u of ['00-introduction', '01-setup', '02-limits']) {
+    const end = events.indexOf('end p1:digest:' + u)
+    assert.ok(end >= 0 && end < pin, u)
+  }
+  assert.ok(events.indexOf('start p1:r1:verifier-a') > events.indexOf('end p1:r1:pin'))
 })
 
 test('no stage prompt asks the agent to spawn, and every stage runs as the narrow worker', async () => {
@@ -201,6 +217,16 @@ test('a profile mapping to a frontier model is recorded unenforced, not passed',
   const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
   assert.equal(calls.find(c => c.opts.label === 'p1:digest:01-setup').opts.model, 'opus')
   assert.deepEqual(result.pages[0].modelMatch, { mapped: 'fable', passed: 'opus', enforced: false })
+})
+
+test('a pinned model ID is recorded unenforced, not passed; a non-frontier alias is passed', async () => {
+  const id = await run({ ...BASE, pages: pagesOf(1) }, { reply: (p, o, d) => (o.label.endsWith(':setup') ? { ...d(p, o), mappedModel: 'claude-fable-5-1' } : d(p, o)) })
+  assert.equal(id.calls.find(c => c.opts.label === 'p1:digest:01-setup').opts.model, 'opus')
+  assert.deepEqual(id.result.pages[0].modelMatch, { mapped: 'claude-fable-5-1', passed: 'opus', enforced: false })
+  const alias = await run({ ...BASE, pages: pagesOf(1) }, { reply: (p, o, d) => (o.label.endsWith(':setup') ? { ...d(p, o), mappedModel: 'sonnet' } : d(p, o)) })
+  const digest = alias.calls.find(c => c.opts.label === 'p1:digest:01-setup')
+  assert.equal(digest.opts.model, 'sonnet')
+  assert.match(digest.prompt, /This brief assumes model sonnet; if you are not sonnet/)
 })
 
 test('a verifier effort below medium stops Phase 4 for the page', async () => {
