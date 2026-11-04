@@ -104,7 +104,9 @@ class NextGraphTest(unittest.TestCase):
         # optional interview stage, are both legal.
         self.fx.skill("p:prd", "prd", "/p:design")
         self.fx.skill(
-            "p:interview", "interview", "- Locked: /p:design.\n- Product intent: /p:prd."
+            "p:interview",
+            "interview",
+            "- Locked: /p:design.\n- Product intent: /p:prd.",
         )
         self.fx.roster(
             "p:interview | entry: start",
@@ -285,7 +287,9 @@ class NextGraphTest(unittest.TestCase):
 
     def test_self_edge_does_not_count_as_inbound(self) -> None:
         self.fx.skill(
-            "p:wayfind", "interview", "- Charted: /p:wayfind work.\n- Closed: /p:design."
+            "p:wayfind",
+            "interview",
+            "- Charted: /p:wayfind work.\n- Closed: /p:design.",
         )
         self.fx.roster(
             "p:interview | entry: start",
