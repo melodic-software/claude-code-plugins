@@ -1,0 +1,154 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v goimports",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports -h",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the help line the skill asks for"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports -h 2>&1 | head -n 1",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the help line, first line only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports --help",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "help, long form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"goimports\" git-hooks/goimports-format.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the tool as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n git-hooks/goimports-format.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the helper's name, not the tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports -d main.go",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the formatter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports -w main.go",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "rewrites"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v goimports && goimports -l .",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat main.go | goimports",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "in a pipeline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/local/bin/goimports -l .",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "by path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find . -name '*.go' -exec goimports -l {} +",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "through -exec"
+    }
+  ]
+}

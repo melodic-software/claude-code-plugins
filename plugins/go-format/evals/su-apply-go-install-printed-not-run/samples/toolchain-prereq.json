@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "You need a Go toolchain first: https://go.dev/dl/."
+    },
+    {
+      "answer": "That command requires Go to be installed.",
+      "why": "a paraphrase, no link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the command and you are done.",
+      "why": "near miss: no prerequisite"
+    },
+    {
+      "answer": "You need node and jq first.",
+      "why": "other prerequisites"
+    }
+  ]
+}

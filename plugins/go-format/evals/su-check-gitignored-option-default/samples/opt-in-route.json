@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Set `go_format_lint_gitignored` to `true` through `/plugin configure go-format@<marketplace>`, or headless with `claude plugin configure go-format@<marketplace> --values-stdin`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set it to true.",
+      "why": "near miss: no option name, no route"
+    },
+    {
+      "answer": "Remove `.work/` from `.gitignore`.",
+      "why": "not the option"
+    }
+  ]
+}

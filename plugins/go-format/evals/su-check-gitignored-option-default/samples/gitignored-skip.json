@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": ".work/scratch.go is gitignored, and by default the hook skips files the repository gitignores, so it was left alone."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook is broken; it should have formatted the file.",
+      "why": "wrong"
+    },
+    {
+      "answer": "goimports may not have been on PATH.",
+      "why": "near miss: a different cause"
+    }
+  ]
+}

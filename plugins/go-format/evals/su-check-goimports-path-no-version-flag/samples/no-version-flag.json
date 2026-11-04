@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports -h",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the help line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"goimports --version\" SKILL.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "go version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the toolchain's version"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "invents the flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "goimports -version 2>&1 | head -1",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "single dash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v goimports && goimports --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ]
+}

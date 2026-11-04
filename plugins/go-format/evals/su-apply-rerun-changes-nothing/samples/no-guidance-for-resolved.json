@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "goimports resolves. Already configured: no change made."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "goimports resolves. To keep it current, run `go install golang.org/x/tools/cmd/goimports@latest`.",
+      "why": "guidance for a resolved tool"
+    },
+    {
+      "answer": "goimports resolves; the Go toolchain is at https://go.dev/dl/.",
+      "why": "near miss: an install link for what resolves"
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat go.mod",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reads it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -q .work/scratch.go",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "asks git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n work .gitignore 2>/dev/null",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a discarded stderr"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,5p .gitignore",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sed without -i"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '[*.go]\\n' >> .editorconfig",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "appends a section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"!.work/\" > .gitignore",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "overwrites the ignore file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'run:\\n' | tee .golangci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/.work//' .gitignore",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "edits in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'tool golang.org/x/tools/cmd/goimports' >> go.mod",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "records a go.mod tool line"
+    }
+  ]
+}

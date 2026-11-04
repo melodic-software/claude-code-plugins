@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "apply does not install it: there is no `apply install-goimports` write path. It prints the command for you to run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "apply installs goimports for you.",
+      "why": "wrong"
+    },
+    {
+      "answer": "Here is the command: `go install golang.org/x/tools/cmd/goimports@latest`.",
+      "why": "near miss: does not say apply will not run it"
+    }
+  ]
+}
