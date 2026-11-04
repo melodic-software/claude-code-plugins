@@ -725,7 +725,10 @@ class RunValidityTest(unittest.TestCase):
         denied = self.tools_trace("denied.jsonl", ["Skill", "Bash"], [
             (True, "Permission to use Bash has been denied by your permission settings."),
         ])
-        proc, tail = self.bash_count([no_sandbox, ran, ran], [denied, ran, ran])
+        quoted = self.tools_trace("quoted.jsonl", ["Skill", "Bash"], [
+            (False, "grep found: Sandbox is required but failed to initialize"),
+        ])
+        proc, tail = self.bash_count([no_sandbox, quoted, ran], [denied, ran, ran])
         self.assertEqual(tail[0], "bash ran: with 2 of 3, without 2 of 3", proc.stdout)
 
     def test_runs_offered_no_bash_are_n_a(self):

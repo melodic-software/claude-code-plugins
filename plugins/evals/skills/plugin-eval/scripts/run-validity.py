@@ -160,8 +160,8 @@ FAIL, or a check that could not run (UNCHECKED), makes the run INVALID; a WARN
 does not. The line before it counts the runs that ran Bash, decides nothing,
 and names no case, command or trace text, so it may be published:
 `bash ran: with <a> of <b>, without <c> of <d>[, unknown <n>]`. A run ran Bash
-when a Bash call got a tool_result that is neither a permission denial nor the
-sandbox failing to start. A run with no readable trace is counted in its arm's
+when a Bash call got a tool_result that is neither a permission denial nor a
+failed result reporting the sandbox failing to start. A run with no readable trace is counted in its arm's
 total and as unknown. A run whose init tools list leaves Bash out, with no Bash
 call, is left out of its arm; an arm of only such runs is `<arm> n/a`, and a
 suite of them `bash ran: n/a`. A case's allowed_tools cannot grant Bash, so the
@@ -780,8 +780,11 @@ def is_denial(block):
 
 
 def sandbox_failed(block):
-    """True when a tool_result reports the shell sandbox failing to start."""
-    return SANDBOX_FAILURE_TEXT in json.dumps(block.get(CONTENT))
+    """True when a failed tool_result reports the shell sandbox failing to start;
+    a call that succeeded and printed the text only quoted it."""
+    return block.get(RESULT_ERROR) is True and SANDBOX_FAILURE_TEXT in json.dumps(
+        block.get(CONTENT)
+    )
 
 
 def init_tools(run):
