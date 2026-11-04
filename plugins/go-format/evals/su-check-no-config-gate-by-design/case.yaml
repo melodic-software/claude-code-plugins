@@ -52,7 +52,7 @@ graders:
   - name: 'no-config-shell-write'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>{1,2}\s*|\btee\s+(?:-a\s+)?|\bsed\s+-i\S*\s+(?:[^"\\]|\\.)*?)(?:\\\"|'''')?(?:[^\s\"\\;&|<>'''']*/)?(?:\.(?:editorconfig|gitignore|golangci[\w.-]*|goimports[\w.-]*)|go\.mod)(?![\w.-])'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>{1,2}\s*|\btee\s+(?:-a\s+)?|\bsed\s+-i\S*\s+(?:[^"\\]|\\.)*?)(?:\\\"|'')?(?:[^\s\"\\;&|<>'']*/)?(?:\.(?:editorconfig|gitignore|golangci[\w.-]*|goimports[\w.-]*)|go\.mod)(?![\w.-])'
     min: 0
     max: 0
     arm: 'both'

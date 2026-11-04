@@ -113,6 +113,42 @@
         }
       ],
       "why": "records a go.mod tool line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo x >> '.gitignore'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a redirect to a single-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'run:\\n' | tee '.golangci.yml'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tee to a single-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'tool x' > './go.mod'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a redirect to a single-quoted path"
     }
   ]
 }
