@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "{\"steps\": [{\"activity\": \"review\", \"result\": \"skipped\"}, {\"activity\": \"verify\", \"result\": \"skipped\"}]}", "why": "activity first"},
+    {"answer": "{\"steps\": [{\"result\": \"skipped\", \"activity\": \"review\"}]}", "why": "result first"}
+  ],
+  "fail": [
+    {"answer": "{\"steps\": [{\"activity\": \"review\", \"result\": \"pass\"}, {\"activity\": \"checks\", \"result\": \"skipped\"}]}", "why": "claims a review ran"},
+    {"answer": "{\"exit\": \"done\", \"summary\": \"Fixed the name.\"}", "why": "no steps"}
+  ]
+}

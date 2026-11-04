@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "{\"exit\": \"stopped\", \"reason\": \"already-done: commit 1a2b3c4 fixed docs/setup.md on the default branch.\"}", "why": "code then short SHA"},
+    {"answer": "{\"reason\":\"already-done: the fix landed in 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b.\"}", "why": "full SHA"},
+    {"answer": "{\"reason\": \"already-done: docs/setup.md reads \\\"pip install widget\\\" since 1a2b3c4.\"}", "why": "an escaped quote before the SHA"}
+  ],
+  "fail": [
+    {"answer": "{\"exit\": \"stopped\", \"reason\": \"already-done: the fix landed earlier.\"}", "why": "no SHA, so the lane cannot confirm it"},
+    {"answer": "{\"exit\": \"stopped\", \"reason\": \"The work was done in 1a2b3c4.\"}", "why": "no code, so the lane cannot route it"},
+    {"answer": "{\"exit\": \"stopped\", \"reason\": \"already-done: someone defaced the page.\"}", "why": "a hex-letter word is no SHA"}
+  ]
+}

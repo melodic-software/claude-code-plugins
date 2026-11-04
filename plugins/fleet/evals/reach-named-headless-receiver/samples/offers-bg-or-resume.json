@@ -15,6 +15,10 @@
     {
       "answer": "for durable work, use -p --resume <uuid>",
       "why": "--resume"
+    },
+    {
+      "answer": "If it must stay up, use --bg instead.",
+      "why": "--bg named in prose"
     }
   ],
   "fail": [
