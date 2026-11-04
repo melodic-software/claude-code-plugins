@@ -1,6 +1,6 @@
 ---
 description: "A long single post with no continuation evidence. SKILL.md Step 2: 'Escalate on evidence, never on length' and 'Without such evidence, do not escalate.' The eval sandbox blocks the network, so the xtomd Markdown is scaffolded at notes/x-2091847365019283746-p4.md: a complete post of about 1,200 characters with no thread request, no mid-thought ending and no 1/ markers. A Thread Reader App page for the same id is saved beside it at notes/threadreader-2091847365019283746.html, so opening it is the escalation: no-thread-reader-read fails a run that reads it, and the WebFetch and Bash must-nots fail one that fetches Thread Reader App anyway. reports-post passes a reply carrying the test-tile board or the silicon carbide shelves, which appear only in the post. Slash-invoked, so no Skill grader. Needs --scaffold --allow-tools Bash WebFetch."
-tags: ['read']
+tags: ['read', 'no-network']
 allowed_tools: [Read, Glob, Grep, Skill, Bash, WebFetch]
 expected_outcome: 'Returns the long single post from step 1 alone, including the test-tile board and the silicon carbide shelves. No continuation evidence exists, so length by itself is not a reason to escalate: the saved Thread Reader App page is never opened and Thread Reader App is never fetched.'
 ---
