@@ -9,7 +9,7 @@ graders:
     input_match: '"skill"\s*:\s*"mutation-testing:audit"'
   - name: 'asks-test-command'
     type: 'regex'
-    pattern: '\btest[- ]command\b[^\n?]{0,160}\?|\b(?:which|what)\b[^\n?]{0,80}\b(?:command|runner)\b[^\n?]{0,80}\?|\b(?:confirm|tell me|give me|provide|supply|share|send)\b[^\n]{0,80}\bcommand\b|\bneed (?:a|the|your) test[- ]command\b|\bneed you to (?:confirm|give|tell)\b|\b(?:won.t|will not|doesn.t allow|not allowed to|never|can.t)\s+guess\w*\b[^\n]{0,30}\btest[- ]command\b'
+    pattern: '\btest[- ]command\b[^\n?]{0,160}\?|\b(?:which|what)\b[^\n?]{0,80}\b(?:command|runner)\b[^\n?]{0,80}\?|\b(?:confirm|tell me|give me|provide|supply|share|send)\b[^\n]{0,80}\bcommand\b|\bneed (?:a|the|your) test[- ]command\b|\bneed you to (?:confirm|give|tell)\b|\b(?:won.t|will not|doesn.t allow|not allowed to|never|can.t)\s+guess\w*\b[^\n]{0,30}\btest[- ]command\b|\bshould I use\b[^\n?]{0,160}\bcommand\b'
     flags: 'i'
     target: 'last_message'
   - name: 'no-score'
