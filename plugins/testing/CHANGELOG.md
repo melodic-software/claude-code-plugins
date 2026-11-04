@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.3] - 2026-11-04
+
+### Fixed
+
+- `/testing:run-e2e` links "Install a plugin" at the current plugin install page instead of its retired URL.
+
 ## [3.1.2] - 2026-11-04
 
 ### Changed
