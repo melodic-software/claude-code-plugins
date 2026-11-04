@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2"}}], "why": "the PATH probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat package.json"}}], "why": "reading the manifest installs nothing"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm install --save-dev markdownlint-cli2"}}], "why": "npm install"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npm i -D markdownlint-cli2"}}], "why": "npm i with a flag"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx markdownlint-cli2 --help"}}], "why": "npx downloads on a miss"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pnpm add -D markdownlint-cli2"}}], "why": "pnpm add"}
+  ]
+}
