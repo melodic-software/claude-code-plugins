@@ -226,9 +226,7 @@ test("a refusal other than the caller limit keeps the waits for later reads", as
 // Both dispatchers' FAIL-cap reads take the run cache and head-ref map
 // pr-merge carried, fetched on the job's first FAIL-cap read, not by a step
 // every run pays for, and share one saved listing across every pull request
-// of the job. They fetch no carried listing: the reader reads the FAIL index
-// by exact name, so no gate saves one, and looking for it cost 11 calls a job
-// (listing-carry's api-calls notice, dispatch job 126277059871 on 2026-11-03).
+// of the job.
 const READER = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
 const readerEnv = (name) => {
   const match = new RegExp(`^${name} = "([A-Z_]+)"$`, "m").exec(READER);
@@ -258,7 +256,7 @@ for (const [workflow, dispatchName] of [
   ["pr-feedback-dispatch.yml", "Dispatch address-feedback"],
   ["pr-unblock-dispatch.yml", "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"],
 ]) {
-  test(`${workflow}: the carry is fetched on the first FAIL-cap read only, names no carried listing, and every read shares one saved listing`, async () => {
+  test(`${workflow}: the carry is fetched on the first FAIL-cap read only and every read shares one saved listing`, async () => {
     const steps = dispatchSteps(workflow);
     assert.deepEqual(
       steps.filter((s) => s.block.includes(".base/.github/scripts/pr-merge/")).map((s) => s.name),
@@ -269,11 +267,9 @@ for (const [workflow, dispatchName] of [
     assert.ok(dispatch, dispatchName);
 
     const LISTING = readerEnv("LISTING_ENV");
-    const CARRY = readerEnv("LISTING_CARRY_ENV");
     const env = stepEnv(dispatch.block);
     assert.ok(env.VERIFY_EVIDENCE_SCRIPT, "the dispatch builds its FAIL-cap reader");
     assert.equal(env.GITHUB_TOKEN, "${{ github.token }}", "the carry is fetched with the job's token");
-    assert.equal(env[CARRY], undefined, "no gate saves a listing to carry");
     const order = [];
     const read = verifyCapReader(env, {
       spawn: (command, args, options) => {
@@ -335,22 +331,11 @@ test("the carry starts the reader's run cache from pr-merge's file, shares its G
   assert.equal(readFileSync(output, "utf8"), "");
 });
 
-test("the carry never fetches pr-merge's artifact listing, and a job that names only the head-ref map fetches only the map", () => {
-  assert.deepEqual(carrySteps({ RUNNER_TEMP: "/t", BABYSIT_VERIFY_LISTING_CARRY: "/t/verify-listing-carry.json" }), []);
+test("a job that names only the head-ref map fetches only the map", () => {
   assert.deepEqual(
     carrySteps({ RUNNER_TEMP: "/t", BABYSIT_VERIFY_HEAD_REFS: "/t/head-refs-in.json" }).map(({ script, args }) => [script, ...args]),
     [["head-ref-map.mjs", "read"]],
   );
-});
-
-test("a job that names only the listing carry fetches no carry", async () => {
-  let fetched = 0;
-  const read = verifyCapReader(
-    { GITHUB_REPOSITORY: REPO, BABYSIT_VERIFY_LISTING_CARRY: "/runner/temp/verify-listing-carry.json" },
-    { spawn: () => answer({ refusal: null }), carry: () => (fetched += 1), log: () => {} },
-  );
-  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
-  assert.equal(fetched, 0);
 });
 
 test("a carry that fails is fetched once, warns, and the reads go on without it", async () => {
