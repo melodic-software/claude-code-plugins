@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.6] - 2026-11-04
+
+### Changed
+
+- The `map-components`, `map-containers`, `map-context`, `map-dependencies` and `map-landscape` descriptions are shorter, each under the 419-character warn line (347 to 403 characters, from 432 to 467). Each keeps its distinct opening phrase and drops trigger phrases that repeat the skill name or that phrase.
+
 ## [1.4.5] - 2026-11-04
 
 ### Changed

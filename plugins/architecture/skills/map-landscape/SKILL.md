@@ -236,14 +236,14 @@ hand-written; the shared medium resolver decides the destination, with this plug
 
 ## Gotchas
 
-- **The two dialects are not symmetric, and mermaid is the loose one.** Mermaid has no landscape diagram type, so the mermaid output
-  is a `C4Context` diagram used without a focal system.
-  - **Pointer**: for the landscape view each dialect offers, see
-    [Structurizr DSL: systemLandscape view](https://docs.structurizr.com/dsl/language#systemlandscape-view)
-    and [Mermaid: C4 Diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams).
+- **The two dialects are not symmetric, and mermaid is the loose one.** The mermaid output is a
+  `C4Context` diagram used without a focal system. The mermaid default, this output shape and
+  their recheck trigger live in the authoring-formats convention's
+  [record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key).
+  - **Pointer**: for the landscape view Structurizr offers, see
+    [Structurizr DSL: systemLandscape view](https://docs.structurizr.com/dsl/language#systemlandscape-view).
   - **As of**: 2026-11-03
-  - **Recheck trigger**: either section changes its landscape view, or mermaid documents a
-    dedicated landscape diagram type.
+  - **Recheck trigger**: that section changes its landscape view.
 - **A referenced repository is not a checked-out one, and the portfolio says so.** Under the default
   scope only the subject repository has probed facts. Everything else is a node with edges and an
   `unknown` row. That is the honest answer without `--remote`, not a gap to fill by guessing.

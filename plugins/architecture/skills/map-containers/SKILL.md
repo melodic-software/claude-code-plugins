@@ -299,10 +299,9 @@ hand-written; the shared medium resolver decides the destination, with this plug
   mermaid. Unset, `containers.md` carries the tables and no diagram,
   and the report says no view was emitted. The key is documented in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
-  - **Pointer**: for what mermaid's C4 support covers, see
-    [Mermaid: C4 Diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that page changes the status of C4 support or adds a diagram type.
+  Mermaid stays out, and `render-containers.sh` has no mermaid C4 path. The decision, its pointer
+  and its recheck trigger live in the convention's
+  [record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key).
 - **A reformatted record reads as empty unless the reader refuses it.** `render-containers.sh`
   exits 1 on any other shape and writes nothing.
 - **Configuration is untrusted text.** The assignment scanner matches it. It does not source it,

@@ -3,6 +3,26 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.0.0] - 2026-11-04
+
+### Changed
+
+- `/work-items:morning-brief` resolves where its status page goes through the shared medium resolver (`lib/view-settings.mjs`, lane `work-items:morning-brief`) and prints the resolver's report line naming the medium and what decided it ([#12701](https://github.com/melodic-software/claude-code-plugins/issues/12701)).
+
+  The settings are a medium named in the request, the plugin's `medium` option, the team file `docs/conventions/rendered-views.yaml` and the personal override `docs/conventions/rendered-views.local.yaml`. A team file can keep the page local but never publishes it.
+
+- The `medium` plugin option now also sets where `/work-items:morning-brief`'s status page goes, as well as the triage board page (default `auto`, a local file).
+
+### Removed
+
+- `/work-items:morning-brief` no longer publishes on a value from `~/.claude/rendered-views.md`, `.claude/rendered-views.md` or `.claude/rendered-views.local.md`
+
+  These files are retired. A `terminal` or `file` value in one still keeps the page local when no other setting keeps it local, even over a publishing `medium` option; an `artifact` or `hosted` value is ignored. Each gives one notice naming its value and where to set it instead.
+
+### Fixed
+
+- `create-item --parent` in the GitHub and local-markdown adapters no longer files a second child with a title the parent already has ([#12918](https://github.com/melodic-software/claude-code-plugins/issues/12918)): when a child with the same trimmed title is open, or was closed within 24 hours, it creates nothing, exits `0` and prints that child, so a retried or repeated publish files each child once.
+
 ## [10.0.0] - 2026-11-04
 
 ### Added
