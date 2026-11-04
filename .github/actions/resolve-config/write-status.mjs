@@ -39,11 +39,14 @@ export async function writeStatus({ github, repository, number, labels, config, 
       return { outcome: "unchanged", state, option };
     }
     const fieldId = config["field-id"];
+    // Safe to send twice: the POST sets the field to one option, so a second
+    // copy after a 5xx that GitHub did apply sets the same value.
     const written = await github(
       "POST",
       `/repos/${repository}/issues/${number}/issue-field-values`,
       { issue_field_values: [{ field_id: fieldId, value: state }] },
       FIELD_API,
+      { resendOnce: true },
     );
     const row = (Array.isArray(written) ? written : []).find((value) => value?.issue_field_id === fieldId);
     if (row?.single_select_option?.id !== option) {

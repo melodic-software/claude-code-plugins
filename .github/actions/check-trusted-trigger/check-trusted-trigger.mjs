@@ -146,6 +146,15 @@ export const detailSuffix = (error) => (typeof error?.detail === "string" && err
 // retry line names an error's name and cause code only: undici puts a
 // whole header value, the token included, in some messages. createGitHub and
 // budgetedFetch both use it, with resendLimited.
+//
+// A write whose caller marks it [RESEND_ONCE] (createGitHub's resendOnce) is
+// one that leaves the same state when GitHub applies it twice; the caller
+// says why at the call. It is sent again once, WRITE_RETRY_DELAY_MS later,
+// when GitHub answers it 5xx or it fails on the network; it is still never
+// timed out, and a 403, 429 or any other 4xx is returned at once, so a rate
+// limit is never sent again.
+export const RESEND_ONCE = Symbol("resend a write once");
+const WRITE_RETRY_DELAY_MS = 3000;
 const SERVER_RETRY_DELAYS_MS = [2000, 4000];
 const ATTEMPT_TIMEOUT_MS = 20_000;
 // A GraphQL query: a POST to /graphql whose document starts with `query` or
@@ -244,6 +253,13 @@ export function retryServerErrors(
       spent += failed && !limited ? now() - started : 0;
       const delay = SERVER_RETRY_DELAYS_MS[attempt];
       const wait = delay === undefined || limited ? 0 : Math.round(random() * delay);
+      if (failed && !idempotent && init[RESEND_ONCE] === true && attempt === 0) {
+        await response?.body?.cancel().catch(() => {});
+        const what = error !== undefined ? `failed (${errorLabel(error)})` : `answered ${response.status}`;
+        log(`::warning::${method} ${url} ${what}; sending it again in ${WRITE_RETRY_DELAY_MS} ms (it is safe to send twice; retry 1 of 1)`);
+        await sleep(WRITE_RETRY_DELAY_MS);
+        continue;
+      }
       if (!failed || !idempotent || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
         if (error !== undefined) {
           throw error;
@@ -272,7 +288,9 @@ export function retryServerErrors(
 // judge, instead of raising on any. A read answered 5xx is sent again
 // (retryServerErrors), and so is a read a rate limit refused once the latch
 // waits out its reset. A call while the rate guard's latch holds its pool past
-// the wait budget throws RateLimitStop without a request.
+// the wait budget throws RateLimitStop without a request. A write the caller
+// passes `resendOnce: true` for is sent again once on a 5xx or a network
+// failure (RESEND_ONCE); pass it only for a write that is safe to send twice.
 export function createGitHub({
   token,
   apiUrl = "https://api.github.com",
@@ -287,8 +305,9 @@ export function createGitHub({
   latch,
 }) {
   const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch, resendLimited: true });
-  return async function github(method, apiPath, body, headers = {}, { signal } = {}) {
+  return async function github(method, apiPath, body, headers = {}, { signal, resendOnce = false } = {}) {
     const response = await send(`${apiUrl}${apiPath}`, {
+      [RESEND_ONCE]: resendOnce,
       method,
       headers: {
         Accept: "application/vnd.github+json",

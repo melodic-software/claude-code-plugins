@@ -18,8 +18,8 @@ const FIELD = 48484079;
 // A fake client recording calls, answering a POST with `option` held.
 function fake(answer = (body) => [{ issue_field_id: FIELD, single_select_option: { id: 84879220, name: body.issue_field_values[0].value } }]) {
   const calls = [];
-  const github = async (method, path, body, headers) => {
-    calls.push({ method, path, body, headers });
+  const github = async (method, path, body, headers, options) => {
+    calls.push({ method, path, body, headers, options });
     if (answer instanceof Error) {
       throw answer;
     }
@@ -44,6 +44,9 @@ test("a label set POSTs its collapsed state's option name to the Work status fie
       path: "/repos/o/r/issues/7/issue-field-values",
       body: { issue_field_values: [{ field_id: FIELD, value: "agent-ready" }] },
       headers: { "X-GitHub-Api-Version": "2026-03-10" },
+      // Setting the field to one option is safe to send twice, so a 5xx on it
+      // is resent once (run 41814435576 lost it to one 502).
+      options: { resendOnce: true },
     },
   ]);
   assert.deepEqual(result.lines, []);

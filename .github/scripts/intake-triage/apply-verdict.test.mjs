@@ -846,8 +846,8 @@ describe("checkActors", () => {
 // A fake GitHub: the issue, its comments and field values, recording every call.
 function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events = [], blockers = {} } = {}) {
   const calls = [];
-  const github = async (method, path, body) => {
-    calls.push({ method, path, body });
+  const github = async (method, path, body, headers, options) => {
+    calls.push({ method, path, body, ...(options ? { options } : {}) });
     if (method === "GET" && path.startsWith("/repos/o/r/issues/7/dependencies/blocked_by")) {
       return [];
     }
@@ -1173,6 +1173,9 @@ describe("run", () => {
       post.body.issue_field_values.map(({ field_id }) => field_id),
       [48625720, 48625721],
     );
+    // Setting a field to an option leaves the same state when sent twice, so
+    // a 5xx on it is resent once (run 41814429466 failed on one 500).
+    assert.deepEqual(post.options, { resendOnce: true });
   });
 
   test("a field-values answer that is not a list stops the run before any write", async () => {
