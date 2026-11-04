@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [
+        "demo.ps1"
+      ],
+      "why": "the scaffold's file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "demo.ps1",
+        "PSScriptAnalyzerSettings.psd1"
+      ],
+      "why": "created at the root"
+    },
+    {
+      "answer": [
+        "src/PSScriptAnalyzerSettings.psd1"
+      ],
+      "why": "created nested"
+    }
+  ]
+}

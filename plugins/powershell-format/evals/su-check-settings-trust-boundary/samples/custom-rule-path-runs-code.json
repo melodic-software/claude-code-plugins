@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Treat it as executed-adjacent: a CustomRulePath it declares would load and run repository-supplied rule modules during analysis."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It's only a data file of rule names, so there's nothing to worry about.",
+      "why": "calls it inert"
+    },
+    {
+      "answer": "It declares CustomRulePath.",
+      "why": "near miss: does not say what that does"
+    }
+  ]
+}

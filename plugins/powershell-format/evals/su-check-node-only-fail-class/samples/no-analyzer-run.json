@@ -1,0 +1,109 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { \"present\" } else { \"absent\" }'"
+          }
+        }
+      ],
+      "why": "the module probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'Invoke-Formatter' plugin/git-hooks/powershell-check.ps1"
+          }
+        }
+      ],
+      "why": "the cmdlet as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -Command \"Get-Command Invoke-ScriptAnalyzer\""
+          }
+        }
+      ],
+      "why": "a read naming the cmdlet"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -NonInteractive -Command 'Invoke-ScriptAnalyzer -Path demo.ps1'"
+          }
+        }
+      ],
+      "why": "runs the linter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -c \"Invoke-Formatter -ScriptDefinition (Get-Content demo.ps1 -Raw)\""
+          }
+        }
+      ],
+      "why": "runs the formatter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -Command 'Get-Content demo.ps1 -Raw | Invoke-Formatter'"
+          }
+        }
+      ],
+      "why": "formatter in a pipeline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v pwsh && pwsh -Command \"Invoke-ScriptAnalyzer -Path .\""
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -Command 'Import-Module PSScriptAnalyzer; Invoke-ScriptAnalyzer -Path .'"
+          }
+        }
+      ],
+      "why": "after ;"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -Command '$out = Invoke-Formatter -ScriptDefinition $s'"
+          }
+        }
+      ],
+      "why": "assigned"
+    }
+  ]
+}

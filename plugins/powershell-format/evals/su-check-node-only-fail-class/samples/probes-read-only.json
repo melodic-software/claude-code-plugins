@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. `Get-Module -ListAvailable` only inspects; it doesn't format, lint or mutate anything."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The probes might touch your files.",
+      "why": "claims a write"
+    },
+    {
+      "answer": "I ran pwsh with -NoProfile.",
+      "why": "near miss: no statement about changes"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+schema_version: "1.1"
+name: su-check-node-only-fail-class
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'verify-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?node(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\'']|\\\\)*install\.mjs(?:\\\"|'')?(?:\s|\\\\\\n)+verify\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'module-probe-readonly'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?pwsh(?:\.exe)?(?:\\\"|'')?(?=(?:\s+-\w+)*?\s+-NoProfile\b)(?=(?:\s+-\w+)*?\s+-NonInteractive\b)(?:\s+-\w+)*?\s+-(?:Command|c)\s+(?:[^"\\]|\\.)*?Get-Module\s+-ListAvailable\b'
+    min: 1
+  - name: 'status-table'
+    type: 'regex'
+    pattern: '^[ \t]*\|?[ \t]*:?-+:?[ \t]*\|(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b(?:Bash|bash)\b[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b(?:Node|node)(?:\.js)?(?![\w-])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b(?:pwsh|PowerShell)\b[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?PSScriptAnalyzer(?!Settings)[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?(?:PSScriptAnalyzerSettings|\b(?:Settings|settings) file)[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?(?:powershell_format_enabled|\b(?:Toggles?|toggles?)\b)[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?(?:\b(?:Pre-commit|pre-commit|Git hook|git hook)|git-hooks?\b|install\.mjs)[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'node-only-fail-class'
+    type: 'llm'
+    criteria: 'The reply says node is the only FAIL-class prerequisite, because every hook handler launches through node (hooks/exec-bash.mjs), so without it the hooks never start. A pre-commit entry row graded FAIL is not a prerequisite and does not change this.'
+    focus: 'last_message'
+  - name: 'fnm-shim-ephemeral'
+    type: 'llm'
+    criteria: 'The reply says a Windows node path whose directory holds a process id (fnm_multishells) is ephemeral, so check reports FAIL when it is the only hit, and reports the persisted Machine and User PATH resolution separately.'
+    focus: 'last_message'
+  - name: 'pwsh-info-no-fallback'
+    type: 'llm'
+    criteria: 'The reply says a missing pwsh is INFO, not FAIL, and that the plugin probes pwsh only, with no fallback to legacy powershell.exe.'
+    focus: 'last_message'
+  - name: 'module-probe-chained'
+    type: 'llm'
+    criteria: 'The reply says the PSScriptAnalyzer module probe runs only when pwsh resolved, chained behind the pwsh probe, so it does not error on a machine without pwsh.'
+    focus: 'last_message'
+  - name: 'probes-read-only'
+    type: 'llm'
+    criteria: 'The reply says the PowerShell probes are read-only: Get-Module -ListAvailable inspects and does not format, lint or change anything.'
+    focus: 'last_message'
+  - name: 'no-jq'
+    type: 'llm'
+    criteria: 'The reply says this plugin does not need jq. Reporting whether jq happens to be on this machine still passes.'
+    focus: 'last_message'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\.exe)?(?:\\"|'')?(?:(?:\s|\\t|\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\b)(?:(?!\\t|\\\\\\n)[^\s"&;|])+)*?(?:\s|\\t|\\\\\\n)+)?(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\.\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\b|pacman(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+-S\w*|(?:mise|asdf|rtx|aqua)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+up\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:npx|uvx)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\b)|Install-(?:Module|PSResource)\b|(?:pwsh|powershell)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?:(?:[^"\\]|\\.)*?(?:[{(;|=&]|\\n|(?<![\w-])-[Cc]\w*(?:\s|\\t|\\\\\\n)))?(?:\s|(?:\\"|''))*(?:[\w.]+\\\\)?Install-(?:Module|PSResource)\b|curl(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;|\'']|\\(?!["n])[\s\S]))*?(?:\s|\\t|\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\b|--remote-name(?:-all)?\b)(?!=?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|[02-9]>>?(?:\s|\\t|\\\\\\n)*[^\s"\\;&|>]+|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|\|(?!\|)|\\(?!["n])[\s\S]|[^"\\&;|''>])*?(?<![02-9&])&?>{1,2}(?!>|&[\d-])(?!&?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;\'']|\\(?!["n])[\s\S]))*?(?<!\|)\|(?!\|)(?:\s|\\t|\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\b)[^\s|]|wget(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?!(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:--spider\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\s|\\t|\\\\\\n)*)(?:\\"|'')?(?:-|/dev/null|NUL)(?=\\"|''|[\s"|;&>]|\\[nt])))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:\\"|'')?https?://|(?:bash|dash|zsh|sh|source|\.)(?:\s+-\S+)*\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\"|'')?\$\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-analyzer-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:\$\w+\s*=\s*)?Invoke-(?:Formatter|ScriptAnalyzer)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

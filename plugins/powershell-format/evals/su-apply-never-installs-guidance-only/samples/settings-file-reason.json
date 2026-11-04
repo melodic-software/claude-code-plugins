@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. The settings file is the executed-adjacent trust boundary, so the choice and the edit belong to you."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, it writes a default one.",
+      "why": "claims the write"
+    },
+    {
+      "answer": "No, it doesn't write one.",
+      "why": "near miss: no reason"
+    }
+  ]
+}
