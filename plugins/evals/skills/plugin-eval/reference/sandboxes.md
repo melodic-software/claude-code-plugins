@@ -110,6 +110,27 @@ A `TMPDIR` outside the system temp directory avoids that too.
   paths or `TMPDIR`, sandbox-runtime renames its bridge sockets, or a `<dir>` of 24 characters or
   fewer fails with the bridge-socket error.
 
+## Auto memory
+
+A case whose prompt invites saving state (a pause, a handoff) runs with auto memory off. Otherwise the
+no-plugin arm can write its notes to auto memory, the run denies that write, and the validity gate
+counts the denial, since it never sets aside a write in the config directory
+([reading-results.md](reading-results.md)). Such a case names `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`
+in its description, and [SKILL.md, Run](../SKILL.md#run) step 3 adds it to the CLI's `env` prefix,
+so it applies to every case of that run. Set it in the shell that launches the run, never in the
+case's own `env` field, whose accepted keys the docs row below defines.
+
+- **Pointer:** the `env` row of
+  <https://code.claude.com/docs/en/plugin-evals#prompt-md-fields> for what a run inherits from the
+  shell and what a case's `env` accepts, and
+  <https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory> for the variable. Probe:
+  `ho-wip-commit-on-pause` in [#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296):
+  its no-plugin runs were denied an auto-memory write in all three runs with auto memory on, and
+  in none with it off.
+- **As of:** 2026-11-04.
+- **Recheck when:** either section changes, or a release note gives `plugin eval` runs their own
+  auto-memory setting.
+
 ## Docker link swap
 
 When the user says yes to the swap, wrap the run step's CLI command, unchanged:
