@@ -30,14 +30,13 @@ convention files, steps down the fallback chain to a medium this session can rea
 on a team file's say-so. Take the medium from its output alone, never from those files. When `node`
 is missing, the builder cannot run either: say so in one line and keep the table.
 
-Deliver by the JSON's `medium`, whose entry in `MEDIUMS` of `<plugin-root>/lib/view-registry.mjs`
-says whether it publishes:
+Deliver by the JSON line's `page` and `publishes`:
 
-- `terminal`: the table only. Build nothing.
-- A medium that publishes: build the page, then publish that file with the Artifact tool when it is
+- `page` false or absent: the table only. Build nothing.
+- `publishes` true: build the page, then publish that file with the Artifact tool when it is
   available; otherwise give the reader its path and say why in one line. Publishing does not lower the
   page's class.
-- Any other medium: build the page to an untracked temp file and give the reader its path.
+- Otherwise: build the page to an untracked temp file and give the reader its path.
 
 ## Build
 
