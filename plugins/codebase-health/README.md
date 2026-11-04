@@ -46,10 +46,12 @@ every doc/config/source file.
 
 In an interactive session with the `visualization` plugin installed, the audit ends its report with
 an offer to render it through `/visualization:visualize`, and never builds a page itself.
-`--medium <value>`, or the `medium` key of `.claude/rendered-views.md`, governs the offer:
-`terminal` drops it, and `file` keeps the view local. An `artifact` or `hosted` value from the
-repository's tracked `.claude/rendered-views.md` also keeps the view local, since a checked-out
-branch can write that file.
+The shared medium resolver (`lib/view-settings.mjs`, lane `codebase-health:audit`) decides the
+offer from `--medium <value>` and the `rendered-views` settings under `docs/conventions/`. The audit
+prints the resolver's report line, `view: <medium> (<what decided it>)`, and any notice. A
+`terminal` result drops the offer. The tracked team file, `docs/conventions/rendered-views.yaml`,
+never publishes the view. The retired `~/.claude/rendered-views.md` and `.claude/rendered-views*.md`
+files are never read for a value; the resolver reports them in a notice instead.
 
 ## Configurable audit dimensions
 

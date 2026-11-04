@@ -323,24 +323,25 @@ resolves to `terminal`, make no offer and print no unavailable line. Otherwise, 
 handoff. Without that plugin, say in one line that the optional view is unavailable, and never
 hand-build an HTML file, chart or extra markdown file instead.
 
-Resolve `medium` first. A `--medium` argument naming `auto`, `terminal`, `file`, `artifact` or
-`hosted` decides. Otherwise read whichever layers exist, in order: `~/.claude/rendered-views.md`,
-`<root>/.claude/rendered-views.md`, `<root>/.claude/rendered-views.local.md`. `<root>` is
-`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`; outside a work tree read only
-the user-global layer. The last layer that sets `medium` wins. Count the overlay only when
-`git ls-files` does not list it and `git check-ignore` matches it; otherwise report it and ignore
-it. This plugin has no `medium` option.
+Resolve `medium` first with the shared medium resolver. This plugin has no `medium` option, so
+`--option` is empty; add `--argument` only when the run has a `--medium` value:
 
-| `medium` | Offer |
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane codebase-health:audit --option "" [--argument <the --medium value>]
+```
+
+It prints one JSON line, then the report line naming the medium and what decided it, then any
+notice; print the report line and the notices after the report as they stand. Leave the
+rendered-views convention files to the resolver: it weighs the argument and each scope, and never
+publishes on a team file's say-so. On exit 2 with `--argument`, report the `--medium` value and
+run it again without `--argument`. On exit 2 without it, or when `node` is missing, report that in
+one line and take the `null` row.
+
+| The JSON's `medium` | Offer |
 |---|---|
-| `terminal`, from any source | None: the report is the whole deliverable. |
-| `file` | Offered; when taken, passes `file` to `visualization:visualize`, so nothing is published. |
-| Any other value from `--medium` | Offered; when taken, passes that value to `visualization:visualize`. |
-| `artifact` or `hosted` from the team layer (`<root>/.claude/rendered-views.md`) | Offered; when taken, passes `file` to `visualization:visualize` and says a team layer cannot publish. |
-| Any other layer value, or none | Offered; `visualization:visualize` picks the rung from the same layers. |
-
-A value outside the five is reported and takes the last row. Name the source of `medium` after the
-report: the argument, the layer's path, or "shipped default".
+| `terminal` | None: the report is the whole deliverable. |
+| `null` (no setting decided) | Offered; when taken, `visualization:visualize` picks the medium itself. |
+| Any other value | Offered; when taken, passes that value to `visualization:visualize`. |
 
 ### Fix gate
 

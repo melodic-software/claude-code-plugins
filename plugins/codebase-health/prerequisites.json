@@ -1,0 +1,21 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": ["skill:audit"],
+      "detect": {
+        "any": ["node"]
+      },
+      "degrade": "Without node, /codebase-health:audit cannot run the shared medium resolver: it says so in one line and offers the optional rendered view with no medium decided, so visualization:visualize picks one. The audit report itself is unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}
