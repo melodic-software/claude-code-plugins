@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Preferred: `claude plugin configure markdown-format@<marketplace> --values-stdin < values.json`.\n\nOn a release without it: `claude plugin install markdown-format@<marketplace> -s user --config markdown_format_enabled=false`."
+    },
+    {
+      "answer": "`claude plugin configure markdown-format@m --values-stdin`, else `claude plugin install -s user markdown-format@m --config markdown_format_enabled=false`.",
+      "why": "a flag between the verb and the target"
+    },
+    {
+      "answer": "`claude plugin configure markdown-format@m --values-stdin`, else:\n\nclaude plugin install markdown-format@m -s user \\\n  --config markdown_format_enabled=false",
+      "why": "a continuation line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`claude plugin install markdown-format@<marketplace> -s user --config markdown_format_enabled=false`, or `claude plugin configure markdown-format@<marketplace> --values-stdin`.",
+      "why": "fallback named first"
+    },
+    {
+      "answer": "`claude plugin configure markdown-format@<marketplace> --values-stdin`, then `claude plugin install markdown-format@<marketplace> --config markdown_format_enabled=true`.",
+      "why": "wrong value"
+    },
+    {
+      "answer": "`claude plugin configure markdown-format@<marketplace> --values-stdin`",
+      "why": "no fallback"
+    }
+  ]
+}

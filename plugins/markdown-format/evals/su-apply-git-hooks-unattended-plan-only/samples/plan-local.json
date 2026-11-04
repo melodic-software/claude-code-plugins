@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan --scope local"
+          }
+        }
+      ],
+      "why": "quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs plan --manager lefthook --scope local"
+          }
+        }
+      ],
+      "why": "a flag before --scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs plan --scope shared"
+          }
+        }
+      ],
+      "why": "shared"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs verify"
+          }
+        }
+      ],
+      "why": "another verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'install.mjs plan --scope local' skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "the command as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs plan --scope shared; echo --scope local"
+          }
+        }
+      ],
+      "why": "local only in another command"
+    }
+  ]
+}

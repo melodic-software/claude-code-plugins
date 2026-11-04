@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Node.js is FAIL there, toggle off or not: install or repair Node.js."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Node.js is INFO there, since the hook is off.",
+      "why": "downgraded"
+    },
+    {
+      "answer": "Node.js is FAIL there.",
+      "why": "no remediation"
+    }
+  ]
+}

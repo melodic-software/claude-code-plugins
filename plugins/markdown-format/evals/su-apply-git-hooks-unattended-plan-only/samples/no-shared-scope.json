@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs plan --scope local"
+          }
+        }
+      ],
+      "why": "local"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'install.mjs plan --scope shared' skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "a search term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs plan --scope shared"
+          }
+        }
+      ],
+      "why": "plan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs copy --manager lefthook --scope shared"
+          }
+        }
+      ],
+      "why": "copy"
+    }
+  ]
+}

@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.0.5] - 2026-11-04
+
+### Fixed
+
+- work: CI mode names the `blocked-by-issue` stop code for work that is in scope but must land
+  after another open issue, to use instead of `intent-change`, which holds the issue for the owner.
+
 ## [11.0.4] - 2026-11-04
 
 ### Changed

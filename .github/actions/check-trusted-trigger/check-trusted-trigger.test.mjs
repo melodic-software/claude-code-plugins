@@ -1971,6 +1971,52 @@ test("createGitHub sends a 404, a 403 and a POST answered 500 once", async () =>
   assert.deepEqual(gh.slept, []);
 });
 
+// Runs 41814429466 and 41814435576: issue-field-values and blocked-by POSTs
+// answered 500 and 502 in a GitHub incident. A write marked resendOnce is sent
+// again once, 3 s later, on a 5xx or a dropped socket, and never on a 4xx.
+const FIELDS_PATH = "/repos/o/r/issues/7/issue-field-values";
+test("createGitHub sends a resendOnce write answered 500 again once and returns the next answer", async () => {
+  const gh = flaky([{ status: 500 }, { status: 200, body: '[{"issue_field_id":1}]' }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  assert.deepEqual(await github("POST", FIELDS_PATH, {}, {}, { resendOnce: true }), [{ issue_field_id: 1 }]);
+  assert.deepEqual(gh.sent, [`POST ${FIELDS_PATH}`, `POST ${FIELDS_PATH}`]);
+  assert.deepEqual(gh.slept, [3000]);
+});
+
+test("createGitHub sends a resendOnce write that lost its socket again once", async () => {
+  const reset = Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+  const gh = flaky([reset, { status: 200, body: "[]" }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  assert.deepEqual(await github("POST", FIELDS_PATH, {}, {}, { resendOnce: true }), []);
+  assert.equal(gh.sent.length, 2);
+});
+
+test("createGitHub raises a resendOnce write's second 5xx and sends no third", async () => {
+  const gh = flaky([{ status: 500 }, { status: 502 }, { status: 200, body: "[]" }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  await assert.rejects(github("POST", FIELDS_PATH, {}, {}, { resendOnce: true }), (error) => error instanceof GitHubError && error.status === 502);
+  assert.equal(gh.sent.length, 2);
+  assert.deepEqual(gh.slept, [3000]);
+});
+
+test("createGitHub never resends a resendOnce write answered 429 or 403", async () => {
+  const limited = { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "9999999999", "retry-after": "60" };
+  for (const answer of [{ status: 429, headers: limited }, { status: 403, body: '{"message":"secondary rate limit"}' }]) {
+    const gh = flaky([answer, { status: 200, body: "[]" }]);
+    const github = createGitHub({ ...gh.options, random: () => 0, latch: { guard: (f) => f, waitOut: async () => {}, waits: () => false } });
+    await assert.rejects(github("POST", FIELDS_PATH, {}, {}, { resendOnce: true }), (error) => error.status === answer.status);
+    assert.equal(gh.sent.length, 1, String(answer.status));
+  }
+});
+
+test("createGitHub sends a write not marked resendOnce once on a 500", async () => {
+  const gh = flaky([{ status: 500 }, { status: 200, body: "[]" }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  await assert.rejects(github("POST", FIELDS_PATH, {}), (error) => error.status === 500);
+  assert.equal(gh.sent.length, 1);
+  assert.deepEqual(gh.slept, []);
+});
+
 const ISSUE_QUERY = 'query($n: Int!) { repository(owner: "o", name: "r") { issue(number: $n) { title } } }';
 const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
 

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "No: the gates follow the symlinks and require the target to stay inside the repository's node_modules tree, so the hook rejects it and check must not pass it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: it is executable and sits at node_modules/.bin/markdownlint-cli2, so it resolves and passes.",
+      "why": "accepts the escaping shim"
+    }
+  ]
+}

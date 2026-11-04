@@ -113,14 +113,14 @@ test("the sweep state round-trips and is read only from the bot's comment", () =
     reached: new Map(),
   });
   assert.deepEqual(readState([]), { commentId: null, runs: [], filed: null, reached: new Map() });
-  // Each run read records whether it reached intake; an unmarked id is unread.
-  const marked = renderState({ runs: [11, 22, 33], filed: null, runUrl: "u", reached: new Map([[11, true], [22, false]]) });
-  assert.ok(marked.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,33 filed= -->\n"));
+  // Each run read records its mark; an unmarked id is unread.
+  const marked = renderState({ runs: [11, 22, 33, 44], filed: null, runUrl: "u", reached: new Map([[11, "+"], [22, "-"], [44, "~"]]) });
+  assert.ok(marked.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,33,44~ filed= -->\n"));
   assert.deepEqual(readState([{ id: 7, user: BOT, body: marked }]), {
     commentId: 7,
-    runs: [11, 22, 33],
+    runs: [11, 22, 33, 44],
     filed: null,
-    reached: new Map([[11, true], [22, false]]),
+    reached: new Map([[11, "+"], [22, "-"], [44, "~"]]),
   });
   assert.equal(readState([{ id: 4, user: BOT, body: renderState({ runs: [11, 22], filed: FILING }) }]).filed, FILING);
   assert.equal(readState([{ id: 6, user: BOT, body: renderState({ runs: [11, 22], filed: HANDED, repoUrl: "u" }) }]).filed, HANDED);
@@ -162,7 +162,7 @@ test("the hand-off comment names every dispatched run and asks a maintainer to t
 
 // A fake GitHub holding issues, comments and runs, recording every write.
 // `jobs` maps a run id to its job list; a run with none fails the jobs read.
-function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, failPatch = () => false, filedIssues = [], handedIssues = [], graphqlError = false }) {
+function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, annotations = {}, failPatch = () => false, filedIssues = [], handedIssues = [], graphqlError = false }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
@@ -210,6 +210,11 @@ function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, failPatch = (
     if (method === "GET" && (m = /^\/repos\/o\/r\/actions\/runs\/(\d+)\/jobs\?per_page=100$/.exec(path))) {
       if (!(m[1] in jobs)) throw new Error(`GET ${path}: HTTP 502`);
       return { total_count: jobs[m[1]].length, jobs: jobs[m[1]] };
+    }
+    // A check run with no annotations listed fails the read.
+    if (method === "GET" && (m = /^\/repos\/o\/r\/check-runs\/(\d+)\/annotations\?per_page=100$/.exec(path))) {
+      if (!(m[1] in annotations)) throw new Error(`GET ${path}: HTTP 502`);
+      return annotations[m[1]];
     }
     writes.push({ method, path, body });
     // API version 2022-11-28 returns the run id only when return_run_details
@@ -398,7 +403,7 @@ test("recorded runs are not read again: 20 issues at 5 killed runs fit one 120-c
   const issues = Array.from({ length: 20 }, (_, i) => issue(i + 1));
   const ids = (n) => [1, 2, 3, 4, 5].map((k) => n * 10 + k);
   // As the sweep wrote it when it dispatched the fifth run: four read, one not.
-  const recorded = (n) => new Map(ids(n).slice(0, 4).map((id) => [id, false]));
+  const recorded = (n) => new Map(ids(n).slice(0, 4).map((id) => [id, "-"]));
   const gh = fakeGitHub({
     issues,
     comments: Object.fromEntries(
@@ -424,7 +429,7 @@ test("recorded runs are not read again: 20 issues at 5 killed runs fit one 120-c
   // The capped issues record their fifth run, so the next pass reads no jobs.
   const capped = gh.writes.filter((w) => w.method === "PATCH" && Number(/comments\/(\d+)$/.exec(w.path)[1]) > 5);
   assert.equal(capped.length, 15);
-  for (const w of capped) assert.deepEqual([...readState([{ id: 1, user: BOT, body: w.body.body }]).reached.values()], [false, false, false, false, false]);
+  for (const w of capped) assert.deepEqual([...readState([{ id: 1, user: BOT, body: w.body.body }]).reached.values()], ["-", "-", "-", "-", "-"]);
   const next = fakeGitHub({
     issues: issues.slice(5),
     comments: Object.fromEntries(capped.map((w) => [Number(/comments\/(\d+)$/.exec(w.path)[1]), [{ id: 1, user: BOT, body: w.body.body }]])),
@@ -486,6 +491,104 @@ test("a failing jobs read counts the run, as before: two runs hand the issue off
   const result = await sweep(gh);
   assert.deepEqual(result.handed, [1]);
   assert.deepEqual(result.dispatched, []);
+});
+
+// Runs that reached a verdict and stopped for a reason a later run clears do
+// not count: apply-verdict failed on a 500 (run 41814429466), it wrote the
+// labels but missed edges and the status field on a 5xx (run 41814435576), or
+// the reusable deferred an otherwise clean triage on a permission denial and
+// apply-verdict skipped (run 41807993284). Annotations as the check-runs API
+// returned them for those runs.
+const cr = (id) => `https://api.github.com/repos/o/r/check-runs/${id}`;
+const withUrl = (name, conclusion, id) => ({ ...job(name, conclusion), check_run_url: cr(id) });
+const reachedWith = (...rest) => [job("kill-switch", "success"), job("intake-triage / claude-intake-triage", "success"), ...rest];
+const note = (annotation_level, message) => ({ annotation_level, message });
+const FAILED_500 = reachedWith(withUrl("apply-verdict", "failure", 220));
+const MISSED_502 = reachedWith(withUrl("apply-verdict", "success", 220));
+const DEFERRED = reachedWith(withUrl("intake-triage / claude-intake-triage-apply", "success", 221), job("apply-verdict", "skipped"));
+const NOTES = {
+  500: [note("notice", "api-calls lanes-app=6"), note("failure", "Process completed with exit code 1."), note("failure", "POST /repos/o/r/issues/1/issue-field-values failed with status 500")],
+  502: [
+    note("warning", "blocked-by edges not written: #2 not written (GitHub answered 500); the verdict's labels are written without status: ready"),
+    note("warning", "#1's Work status field not written: POST /repos/o/r/issues/1/issue-field-values failed with status 502; its labels stand"),
+  ],
+  deferred: [note("notice", "api-calls github-token=3"), note("warning", "1 permission denial(s) on an otherwise clean triage: nothing applied, so a later triage run retries the issue.")],
+};
+const transientRuns = (jobs22, annotations) =>
+  fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "failure" } },
+    jobs: { 11: RAN, 22: jobs22 },
+    annotations,
+  });
+
+for (const [shape, jobs22, annotations] of [
+  ["apply-verdict failed on a 500", FAILED_500, { 220: NOTES[500] }],
+  ["apply-verdict missed its writes on a 5xx", MISSED_502, { 220: NOTES[502] }],
+  ["the triage deferred on a permission denial", DEFERRED, { 221: NOTES.deferred }],
+]) {
+  test(`a run where ${shape} does not count: the sweep dispatches again and marks it transient`, async () => {
+    const gh = transientRuns(jobs22, annotations);
+    const result = await sweep(gh);
+    assert.deepEqual([result.dispatched, result.handed], [[1], []]);
+    assert.ok(gh.writes[1].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->"));
+  });
+}
+
+test("a run whose apply failed for a reason a retry does not clear counts", async () => {
+  for (const message of ["POST /repos/o/r/issues/1/labels failed with status 403", "admission failed: the rules file does not parse"]) {
+    const gh = transientRuns(FAILED_500, { 220: [note("failure", "Process completed with exit code 1."), note("failure", message)] });
+    const result = await sweep(gh);
+    assert.deepEqual(result.handed, [1], message);
+  }
+  // A 5xx beside a failure of another kind counts too.
+  const mixed = transientRuns(FAILED_500, { 220: [note("failure", "POST /x failed with status 500"), note("failure", "the reasons comment was not written: 403")] });
+  assert.deepEqual((await sweep(mixed)).handed, [1]);
+  // One edge annotation that joins a 500 and a 403 (apply-verdict's
+  // missedAnnotation) counts: not every failure it reports is transient.
+  const joined = transientRuns(MISSED_502, {
+    220: [note("warning", "blocked-by edges not written: #2 not written (GitHub answered 500), #3 not written (GitHub answered 403); the verdict's labels are written without status: ready")],
+  });
+  assert.deepEqual((await sweep(joined)).handed, [1]);
+  // So does an apply-verdict that skipped with no deferral, or failed with no annotation.
+  assert.deepEqual((await sweep(transientRuns(DEFERRED, { 221: [] }))).handed, [1]);
+  assert.deepEqual((await sweep(transientRuns(FAILED_500, { 220: [] }))).handed, [1]);
+});
+
+test("a run whose outcome cannot be read counts: a failing annotations read, or no check run to read", async () => {
+  const unread = transientRuns(FAILED_500, {});
+  assert.deepEqual((await sweep(unread)).handed, [1]);
+  const noUrl = transientRuns(reachedWith(job("apply-verdict", "failure")), { 220: NOTES[500] });
+  assert.deepEqual((await sweep(noUrl)).handed, [1]);
+});
+
+test("the first 24 transient runs do not count and the 25th does", async () => {
+  const marked = (transient) => {
+    const ids = Array.from({ length: transient + 1 }, (_, k) => 100 + k);
+    const runs = `${ids.slice(0, -1).map((id) => `${id}~`).join(",")},${ids.at(-1)}+`;
+    return fakeGitHub({
+      issues: [issue(1)],
+      comments: { 1: [{ id: 5, user: BOT, body: `<!-- claude-lane triage-sweep runs=${runs} filed= -->\nstate` }] },
+      runs: Object.fromEntries(ids.map((id) => [id, { status: "completed", conclusion: "failure" }])),
+    });
+  };
+  // 24 transient runs and one that counts: one attempt, so it dispatches.
+  assert.deepEqual((await sweep(marked(24))).dispatched, [1]);
+  // A 25th transient run counts: two attempts hand it off, without reading
+  // the transient runs' conclusions.
+  const gh = marked(25);
+  const reads = [];
+  const result = await runSweep({
+    call: (method, path, body) => (method === "GET" && reads.push(path), gh.call(method, path, body)),
+    repo: "o/r",
+    serverUrl: "https://github.com",
+    now: NOW,
+    authorIds: authors,
+    appId: String(APP),
+  });
+  assert.deepEqual(result.handed, [1]);
+  assert.deepEqual(reads.filter((p) => /\/actions\/runs\/\d+$/.test(p)), ["/repos/o/r/actions/runs/125"]);
 });
 
 test("an older unmarked handed-off state is left as it is: no run or jobs read, no write", async () => {

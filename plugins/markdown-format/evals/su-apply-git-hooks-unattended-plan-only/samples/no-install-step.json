@@ -1,0 +1,131 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs plan --scope local"
+          }
+        }
+      ],
+      "why": "the plan step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'install.mjs copy' skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "the verb as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v lefthook"
+          }
+        }
+      ],
+      "why": "a presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "lefthook version"
+          }
+        }
+      ],
+      "why": "a version read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat lefthook.yml"
+          }
+        }
+      ],
+      "why": "reads the config"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs copy --scope local"
+          }
+        }
+      ],
+      "why": "copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs decline --entry markdown-check"
+          }
+        }
+      ],
+      "why": "decline writes git config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/markdown-format/lib/git-hooks/install.mjs config-hook --include-if x"
+          }
+        }
+      ],
+      "why": "config-hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "lefthook install"
+          }
+        }
+      ],
+      "why": "wires the hooks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status && lefthook install"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/local/bin/lefthook install"
+          }
+        }
+      ],
+      "why": "by a path"
+    }
+  ]
+}
