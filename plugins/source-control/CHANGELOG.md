@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.6.1] - 2026-11-04
+
+### Changed
+
+- `babysit_verify_evidence.py` documents that no workflow names `BABYSIT_VERIFY_LISTING_CARRY`
+  now that index mode saves no listing to carry; the reader still takes one when named. The
+  floor-path pins drop the removed `listing-carry.mjs` row.
+
+### Fixed
+
+- `pull-request` `ci --ci` (fix-ci) now states that every context-file `path` and every edited file is relative to the pull request's checkout, never this skill's own directory, so an agent no longer aims a fix at the loaded plugin copy when the same relative path exists in both.
+
 ## [6.6.0] - 2026-11-04
 
 ### Changed
