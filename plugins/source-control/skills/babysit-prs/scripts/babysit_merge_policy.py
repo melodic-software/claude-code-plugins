@@ -7089,7 +7089,7 @@ def _moved(
     `config-moved`), no demotion record was filed or changed since
     (`_demotion_changed`, else `demotion-changed`), and `runs_unchanged`:
     none of its unverified merges' verifying runs reached a conclusion since
-    (else `runs-moved`). With `reread_demotion`, a tripped demotion probe
+    that the check did not already read (else `runs-moved`). With `reread_demotion`, a tripped demotion probe
     counts only when `read_demotion`, read after the runs, differs from the
     shared demotion in any field, as `settle_shared` keeps a
     `demotion-changed` answer. Raises `PolicyReadError`."""

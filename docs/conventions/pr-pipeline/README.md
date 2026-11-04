@@ -1932,7 +1932,7 @@ kept when the demotion records alone read as they were; one past the two-minute 
 lane merge is still unverified is kept, here and by the gate for each candidate up to the
 answer's 30-minute age (`postMergeShared: kept:unverified-stale`), while main's head, its
 config commit, the demotion records and the full and canary runs of every merge it judged are as
-they were (no run reached a conclusion since, no merge is past the six-hour dispatch deadline, and no
+they were (no run reached a conclusion since that the check had not already read finished, no merge is past the six-hour dispatch deadline, and no
 quarantine that excused a failing suite has expired), and otherwise checked again as the gate does,
 with the lane records the last run kept, holding only when that check cannot be read): while the gate holds its lane off (a demotion record,
 `merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
