@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.4] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
+### Fixed
+
+- The `check` line for a missing node no longer prints a literal `<plugin root>` in the registration probe command. It now says to run `bash scripts/check-hook-registration.sh` from the plugin root, the directory passed to `prerequisites.mjs check`, so the command runs as written.
+
 ## [7.1.3] - 2026-11-04
 
 ### Fixed

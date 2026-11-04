@@ -97,12 +97,31 @@ load_registry() {
 
 # render <canonical>: the generated copy's bytes, on stdout. A shell, Python or
 # JavaScript copy takes a two-line comment header after any shebang; a Markdown
-# copy takes the same header as an HTML comment after any frontmatter block.
+# copy takes the same header as an HTML comment after any frontmatter block; an
+# HTML copy takes it as an HTML comment after a leading doctype line, which a
+# browser needs first to stay out of quirks mode.
 render() {
   local src="$1" prefix first="" close=""
   case "$src" in
   *.mjs | *.cjs | *.js | *.ts) prefix='//' ;;
   *.sh | *.bash | *.py | *.ps1 | *.psm1 | *.awk) prefix='#' ;;
+  *.html)
+    IFS= read -r first <"$src" || true
+    shopt -s nocasematch
+    if [[ "$first" == '<!doctype '* ]]; then
+      printf '%s\n' "$first"
+      close=1
+    fi
+    shopt -u nocasematch
+    printf '<!-- GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
+    printf 'edit the canonical source, then rerun the script. -->\n'
+    if [[ -n "$close" ]]; then
+      tail -n +2 "$src"
+    else
+      cat "$src"
+    fi
+    return 0
+    ;;
   *.md)
     IFS= read -r first <"$src" || true
     if [[ "$first" == '---' ]]; then

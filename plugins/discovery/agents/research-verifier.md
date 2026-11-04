@@ -116,10 +116,11 @@ restatement of an accepted claim that drops its label, its attribution or a reco
 that states a page's content as product behavior, fails row 12 for that claim; name the file and
 line. A `MEDIUM` or `LOW` claim is a Gap, not an accepted claim, so row 12 never grades it: a line
 that presents one without its label, as a settled fact, fails row 7 instead. The parent's
-restatement check has already passed: every pointer carries its label and no index pointer
-carries a sweep word. It matches ID tokens, not meaning, so what it cannot see is yours: a pointer
-that cites the wrong claim for what its line says, or a decision that leans on a claim past a
-recorded qualifier. The rule is in
+restatement check has already passed: every pointer carries its label, no index pointer
+carries a sweep word, and every sidecar line that names a claim quotes its `claim:` text byte for
+byte. It matches ID tokens and quotes, not meaning, so what it cannot see is yours: the words a
+sidecar line adds outside its quote, a pointer that cites the wrong claim for what its line says,
+or a decision that leans on a claim past a recorded qualifier. The rule is in
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md),
 "Restatements cite; they do not restate". At a slice root the parent ran that check with
 `--sub-slice` over every sub-slice, so it covered the root's pointers to sub-slice claims as well,

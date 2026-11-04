@@ -48,6 +48,7 @@ if [[ -n "${HTML_ASSETS_MANIFEST:-}" ]]; then
 else
   assets=(
     plugins/adhd/reference/html-chrome.html
+    plugins/planning/reference/html-chrome.html
     plugins/playbooks/reference/repo-sweep-plan-page.html
     plugins/visualization/reference/html-chrome.html
     plugins/visualization/reference/html-loop-closure.html

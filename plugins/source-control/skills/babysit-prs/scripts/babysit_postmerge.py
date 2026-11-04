@@ -4381,14 +4381,21 @@ VERIFYING_WORKFLOWS = frozenset(
 
 
 def _verifying_runs_unchanged(
-    repo: str, branch: str, *, created: datetime, since: datetime
+    repo: str,
+    branch: str,
+    *,
+    created: datetime,
+    since: datetime,
+    running: bool = False,
 ) -> bool:
     """Whether no full or canary run on `branch` created at or after
     `created` completed, or was re-run, at or after `since`, from one listing
     per verifying workflow: every workflow's runs on a busy branch fill more
     than one page in an hour or two. A run started since and still running
-    changes nothing yet. A listing that is not whole raises
-    `PostMergeReadError`."""
+    changes nothing yet, unless `running`: then any run created, started
+    again or updated since counts, whatever its status, since a fresh check
+    reads a red run re-run since as pending. A listing that is not whole
+    raises `PostMergeReadError`."""
     owner, name = _split_repo(repo)
     floor = quote(
         f">={created.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
@@ -4409,7 +4416,7 @@ def _verifying_runs_unchanged(
             raise PostMergeReadError(f"{workflow} runs: the listing is not whole")
         if any(
             run.get("path") in VERIFYING_WORKFLOWS
-            and run.get("status") == "completed"
+            and (running or run.get("status") == "completed")
             and _time(run.get("updated_at")) >= since
             for run in map(json_object, runs)
         ):
@@ -4600,9 +4607,11 @@ def idle_runs_refusal(
     branch: str,
     *,
     confirm_wait_minutes: int,
+    running: bool = False,
 ) -> str | None:
     """`idle_refusal`'s verifying runs, in two one-page listings
-    (`_verifying_runs_unchanged`), for a report `idle_report_refusal` passed."""
+    (`_verifying_runs_unchanged`, with `running`), for a report
+    `idle_report_refusal` passed."""
     report = shared.gate.report
     try:
         created = shared.computed_at - (
@@ -4614,7 +4623,9 @@ def idle_runs_refusal(
         if report["outstandingSince"] is not None:
             created = min(created, _time(report["outstandingSince"]))
         since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
-        if not _verifying_runs_unchanged(repo, branch, created=created, since=since):
+        if not _verifying_runs_unchanged(
+            repo, branch, created=created, since=since, running=running
+        ):
             return "runs-changed"
     except (PostMergeReadError, ValueError, KeyError) as exc:
         return f"unreadable: {exc}"
@@ -4635,6 +4646,91 @@ def idle_marks_refusal(repo: str, shared: policy.SharedPostMerge) -> str | None:
     except (PostMergeReadError, ValueError, KeyError, TypeError) as exc:
         return f"unreadable: {exc}"
     return None
+
+
+# `idle_report_refusal`'s refusals a check reading the same inputs gives
+# again: what the report found, not its age, a deadline or a failed read. A
+# hold comes only with an unreadable report, and `reruns` can lapse with
+# nothing moved once its red run leaves the `_lane_reruns` lookback.
+CONTENT_REFUSALS = frozenset(
+    {"needs-dispatch", "unattributed", "quarantines", "excused"}
+)
+
+
+def content_refusal(
+    shared: policy.SharedPostMerge, *, now: datetime | None = None
+) -> str | None:
+    """Why a readable report refuses on what it found (`failing` for exit 1,
+    else one of `CONTENT_REFUSALS`), or None: it passes the idle tick, its
+    refusal is age or time (`stale-soon`, `dispatch-deadline`), or it lacks
+    what `refusal_moved` reads again (pins, `outstandingSince`, a
+    `_lane_reruns` read that did not fail), or it asks for a re-run. Reads
+    nothing."""
+    report = shared.gate.report
+    if (
+        report.get("readable") is not True
+        or json_array(report.get("reruns"))
+        or not is_json_object(report.get("pins"))
+        or "outstandingSince" not in report
+        or any(
+            str(w).startswith("lane-rerun-unreadable")
+            for w in json_array(report.get("warnings"))
+        )
+    ):
+        return None
+    if report.get("ok") is not True:
+        return "failing"
+    refusal = idle_report_refusal(shared, now=now)
+    return refusal if refusal in CONTENT_REFUSALS else None
+
+
+def refusal_moved(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    identity: str,
+    confirm_wait_minutes: int,
+    now: datetime | None = None,
+) -> str | None:
+    """What a report refusing on its content (`content_refusal`) was read
+    from that has moved since, or None when a check run now would read the
+    same and refuse it too: no older than `SHARED_MAX_AGE` (else `stale`),
+    bound to `identity` and the lane, the default branch head, its config
+    commit and the demotion unchanged (`policy._moved`, a tripped demotion
+    probe read again), no verifying run created, re-run or updated since
+    (`idle_runs_refusal` with `running`), and the quarantine issues and pins
+    as they were (`idle_marks_refusal`). A failed read is moved. Past
+    `computedAt` the check's time rules only refuse more: a pending merge
+    past `DISPATCH_DEADLINE` or an expired excuse fails."""
+    age = (now or datetime.now(UTC)) - shared.computed_at
+    if not timedelta(0) <= age <= policy.SHARED_MAX_AGE:
+        return "stale"
+    if _login_key(shared.identity) != _login_key(identity):
+        return "identity-differs"
+    if not shared.lane_merges_only:
+        return "lane-differs"
+    try:
+        moved = policy._moved(
+            repo,
+            branch,
+            identity,
+            shared,
+            lambda answer, default: (
+                idle_runs_refusal(
+                    repo,
+                    answer,
+                    default,
+                    confirm_wait_minutes=confirm_wait_minutes,
+                    running=True,
+                )
+                is None
+            ),
+            reread_demotion=True,
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        return f"unreadable: {exc}"
+    return moved or idle_marks_refusal(repo, shared)
 
 
 def read_shared(path: str) -> policy.SharedPostMerge | None:

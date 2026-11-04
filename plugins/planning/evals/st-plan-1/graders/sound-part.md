@@ -1,7 +1,20 @@
 ---
-type: regex
-pattern: '^(?:(?=[^\n]*\b(?:but|however|only\s+if|unless|although|though)\b)|(?![^\n]*(?:\bNo plan gaps found\b|\b(?:is|are|looks?|seems?)\s+(?:perfectly\s+|entirely\s+|fully\s+|also\s+)?(?:fine|ok|okay|good|sound|correct|right|accurate|safe)\b|\bno\s+(?:\w+\s+)?(?:issue|problem|concern|finding|gap|defect|risk)s?\b|\bnot\s+a\s+(?:\w+\s+)?(?:issue|problem|concern|defect|gap|risk)\b|\bnothing\s+to\s+(?:flag|fix|report)\b)))(?![^\n]*(?:\bflush_outbox`?(?:\s+(?:line|job|entry|task))?\s+(?:already\s+)?(?:delivers?|sends?|drains?|flushes|handles?|empties|picks\s+up|runs\s+every)\b|\b(?:delivered|sent|drained|flushed|handled|picked\s+up)\s+by\s+(?:the\s+)?(?:[\w-]+\s+){0,2}`?flush_outbox\b|\bcron`?\s+(?:already\s+)?runs\s+(?:the\s+)?`?flush_outbox\b|\b(?:is|are)\s+(?:the\s+)?(?:fine|correct|right|sound)\b|\btwice\b|\b(?:runs?|ran|re-?runs?|retried|retries|retry|charg\w*|fin(?:e|es|ed)|accru\w*)\s+(?:\w+\s+){0,3}again\b|\bduplicate\w*|\bmore\s+than\s+once\b))(?=[^\n]*(?:\b(?:notice_)?outbox\b|\bqueue_notice\b|\bnotices?\b))[^\n]*(?:\bnever\s+(?:\w+\s+){0,2}(?:sen[dt]\w*|deliver\w*|flush\w*|email\w*)|\b(?:not|never|cannot|(?:is|are|was|were|do|does|did|has|have|had|ca|could|wo|would|should|must)n.?t)\s+(?:\w+\s+){0,2}(?:sen[dt]\w*|deliver\w*|flush\w*|drain\w*)\b|\bnothing\s+(?:\w+\s+){0,2}(?:sends?|delivers?|flush\w*|drains?)\b|\bno\s+(?:\w+\s+){0,2}(?:sender|delivery|worker)\b|\b(?:should|must|needs?\s+to)\s+(?:\w+\s+){0,2}(?:send|call|open|use)\s+(?:\w+\s+){0,2}(?:smtp|email|directly)\b)'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft plan for overdue fines and notices in a Python library lending system.
+One part of the draft is sound: Phase 3 queues each overdue notice in `notice_outbox` through
+`queue_notice`, and the cron file already runs `flush_outbox` every ten minutes, which delivers the
+queued rows. This grader checks only that the reply leaves that part alone. The case's other
+graders score the defects it finds.
+
+PASS if no finding says the notices are never sent or delivered, or asks Phase 3 to send them
+another way. A reply passes when it approves the outbox, reports other defects (the finance CSV,
+renewals, duplicate fines on a retried run, or notices sent twice), or flags nothing. Judge a
+finding by what its text says, not by its severity or action column.
+
+FAIL if any finding says nothing sends, delivers or drains the `notice_outbox` rows, that the
+outbox has no sender or worker, that members get no notice email, or that Phase 3 should send the
+notice directly (over SMTP, or without `queue_notice`). A finding that names `flush_outbox` and
+still asks for a direct send fails.

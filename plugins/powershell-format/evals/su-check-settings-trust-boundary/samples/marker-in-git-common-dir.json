@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The marker lives under the repository's git common directory."
+    },
+    {
+      "answer": "It's a marker under .git, in powershell-format/trust-approvals.",
+      "why": "plain clone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It's recorded in your user settings.",
+      "why": "wrong place"
+    },
+    {
+      "answer": "It's recorded in powershell-format/trust-approvals.",
+      "why": "near miss: does not say under what"
+    }
+  ]
+}

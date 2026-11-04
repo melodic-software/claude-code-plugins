@@ -158,6 +158,44 @@ for (const [kind, fixture] of Object.entries(fixtures)) {
   }
 }
 
+// Every view carries the canonical chrome (the plugin's synced reference/html-chrome.html):
+// its theme toggle, its comment box and its rv-chrome rules, compared line by line with
+// leading whitespace dropped, and no other theme control.
+{
+  const chrome = readFileSync(`${dir}/../reference/html-chrome.html`, "utf8");
+  const blocks = {
+    toggle: /<div class="rv-theme"[^\n]*?<\/div>/,
+    comment: /<section class="rv-comment".*?<\/section>/s,
+    rules: /\/\* rv-chrome:begin \*\/.*?\/\* rv-chrome:end \*\//s,
+  };
+  const flat = (text) => (text ?? "").replace(/^[ \t]+/gm, "");
+  const views = { ...Object.fromEntries(Object.entries(fixtures).map(([k, f]) => [k, f.template])), design: "../skills/design/templates/design-view.html" };
+  for (const [name, re] of Object.entries(blocks)) {
+    check(`chrome: the reference carries the ${name}`, re.test(chrome));
+  }
+  for (const [kind, template] of Object.entries(views)) {
+    const html = readFileSync(`${dir}/${template}`, "utf8");
+    for (const [name, re] of Object.entries(blocks)) {
+      check(`${kind}: the template carries the chrome's ${name} verbatim`, flat(re.exec(html)?.[0]) === flat(re.exec(chrome)?.[0]));
+    }
+    check(`${kind}: the toggle opens on system`, /data-rv-theme="system" aria-pressed="true"/.test(html));
+    check(`${kind}: no other theme control`, !/data-accent|data-palette|accent picker|palette picker/i.test(html));
+    // The toggle only sets or clears data-theme on the root, so the view's own color
+    // tokens must follow it, or Light and Dark change aria-pressed and not the page.
+    const tokens = (block) => block !== undefined && /--bg:/.test(block) && /--fg:/.test(block);
+    const base = /(?:^|\n)[ \t\n\r\f]*:root[ \t\n\r\f]*\{([^}]*)\}/.exec(html)?.[1];
+    const pinned = /:root\[data-theme=dark\][ \t\n\r\f]*\{([^}]*)\}/.exec(html)?.[1];
+    const guarded = /@media \(prefers-color-scheme: dark\)[ \t\n\r\f]*\{[ \t\n\r\f]*:root:not\(\[data-theme=light\]\)[ \t\n\r\f]*\{([^}]*)\}/.exec(html)?.[1];
+    check(`${kind}: the base tokens define --bg and --fg in a light scheme`, tokens(base) && /color-scheme:[ \t\n\r\f]*light/.test(base));
+    check(`${kind}: data-theme=dark pins the dark tokens`, tokens(pinned) && /color-scheme:[ \t\n\r\f]*dark/.test(pinned));
+    check(`${kind}: the system dark tokens yield to data-theme=light`, tokens(guarded) && /color-scheme:[ \t\n\r\f]*dark/.test(guarded));
+    check(`${kind}: every prefers-color-scheme dark block is guarded`, (html.match(/prefers-color-scheme:[ \t\n\r\f]*dark\)[ \t\n\r\f]*\{/g) ?? []).length === (html.match(/prefers-color-scheme:[ \t\n\r\f]*dark\)[ \t\n\r\f]*\{[ \t\n\r\f]*:root:not\(\[data-theme=light\]\)/g) ?? []).length);
+  }
+  const plan = readFileSync(`${dir}/${fixtures.plan.template}`, "utf8");
+  const shows = keysOf(plan, "data-rv-shows");
+  check("plan: every verdict option names an example block", shows.length === 3 && shows.every((key) => keysOf(plan, "data-rv-example").includes(key)));
+}
+
 for (const kind of Object.keys(fixtures)) {
   const html = readFileSync(`${dir}/${fixtures[kind].template}`, "utf8");
   check(`${kind}: the template carries the send control and the session replies`, ["data-rv-send=", "data-rv-session=", "data-rv-replies="].every((marker) => html.includes(marker)));

@@ -1,7 +1,22 @@
 ---
-type: regex
-pattern: '^(?![^\n]*\bNo plan gaps found)(?!(?![^\n]*\b(?:draft|plan|proposal|Phase\s*\d+|section|brief|author|it)(?:''s)?\s+(?:\w+\s+)?(?:says|said|assumes|assumed|claims|claimed|states|asserts|argues)\b[^\n]*\b(?:but|however|yet)\b)[^\n]*\b(?:is|are|was|were|looks?|seems?|remains?)\s+(?!not\b|never\b)(?:(?:perfectly|entirely|totally|already|also|still|actually)\s+)?(?:fine|ok|okay|good|correct|accurate|sound|acceptable|safe|justified|reasonable)\b(?![^\n]*\b(?:but|however|yet|although|though)\b[^\n]*(?:\bretr(?:y|ies|ying|ied)\b|\breplay\w*|\bre-?send\w*|\bre-?sent\b|\bat[- ]least[- ]once\b|\bON\s+CONFLICT\b|\binsertSample\b)))(?![^\n]*\b(?:no|not\s+an?|n''t\s+an?)\s+(?:(?!(?:minor|small|trivial|cosmetic|theoretical|hypothetical)\b)\w+\s+){0,2}(?:issue|problem|concern|risk|defect|gap|finding|blocker)s?\b)(?![^\n]*\b(?:nothing\s+wrong|no\s+need\s+to|need\s+not|can\s+be\s+ignored|no\s+action\s+needed|no\s+changes?\s+needed)\b)(?![^\n]*(?:\b(?:no|not|without|never|(?<!not )(?<!n''t )(?<!never )(?:prevents?|avoids?|rejects?|stops?))|n''t)\s+(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,2}(?:\bduplicat\w*|double[- ]count\w*|overwrit\w*))(?=[^\n]*(?:\bretr(?:y|ies|ying|ied)\b|\breplay\w*|\bre-?send\w*|\bre-?sent\b|\bat[- ]least[- ]once\b|\bON\s+CONFLICT\b|\binsertSample\b))(?:[^\n]*(?:\bduplicat\w*|\bdouble[- ]count\w*|\bnot\s+idempotent\b|\bnon-?idempotent\b)|(?![^\n]*(?:\b(?:oldest|older|earlier|ring|capacity|uint16|watchDatabase|maxBadCheck|systemd)\b|\bwrap\w*|\b65,?53[56]\b|\blog\.Fatalf?\b|\bRestart=always\b|\bfailed\s+(?:health\s+)?checks?\b|\bexit\w*|\bin[- ]memory\b))(?:[^\n]*\boverwrit\w*|[^\n]*(?:\bretr(?:y|ies|ying|ied)\b|\breplay\w*|\bre-?send\w*|\bre-?sent\b|\bat[- ]least[- ]once\b|\bON\s+CONFLICT\b|\binsertSample\b)[^\n.;:!?|]*\b(?:unsafe|wrong)\b|[^\n]*\b(?:unsafe|wrong)\b[^\n.;:!?|]*(?:\bretr(?:y|ies|ying|ied)\b|\breplay\w*|\bre-?send\w*|\bre-?sent\b|\bat[- ]least[- ]once\b|\bON\s+CONFLICT\b|\binsertSample\b)))'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft plan for a river gauge ingest service that decides whether to keep its
+database write client, Tidewrite, through database outages. One part of the draft is sound: a
+retried batch writes no duplicate rows, because of the table's primary key and `ON CONFLICT DO
+NOTHING`. This grader checks only that the reply leaves that part alone. The case's other graders
+score the defects it finds.
+
+PASS if no finding says a retried batch can duplicate or overwrite stored rows. A reply passes
+when it approves the retry, reports other defects (Streamsink's disk spool never weighed,
+`WithBuffer(500000)` capped at 65,535 by a uint16, or `watchDatabase` exiting and wiping the
+in-memory queue), or flags nothing. A finding that the in-memory buffer fills while retries fail
+and overwrites its oldest queued samples is the buffer-size defect, not a duplicate write, and
+passes even when it says retries or wrong.
+
+FAIL if any finding says a retried or replayed flush writes duplicate rows, double-counts, or
+overwrites rows already stored in the table; that `insertSample` is not idempotent or unsafe to
+retry; that `ON CONFLICT DO NOTHING` is wrong or does not prevent duplicates; or that the draft is
+wrong to call a retried batch harmless, whatever reason it gives.

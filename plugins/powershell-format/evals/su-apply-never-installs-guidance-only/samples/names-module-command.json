@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Run `Install-Module PSScriptAnalyzer` yourself."
+    },
+    {
+      "answer": "The command is Install-Module PSScriptAnalyzer.",
+      "why": "sentence-final period"
+    },
+    {
+      "answer": "Install-Module -Name PSScriptAnalyzer -Scope CurrentUser",
+      "why": "named parameter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install the PSScriptAnalyzer module yourself.",
+      "why": "near miss: no command"
+    },
+    {
+      "answer": "Install-Module Pester",
+      "why": "another module"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

@@ -1,7 +1,20 @@
 ---
-type: regex
-pattern: '^(?!(?![^\n]*\b(?:draft|plan|proposal|Phase\s*\d+|section|brief|author|it)(?:''s)?\s+(?:\w+\s+)?(?:says|said|assumes|assumed|claims|claimed|states|asserts|argues)\b[^\n]*\b(?:but|however|yet)\b)[^\n]*(?:\bno\s+need\s+to\b|\bdon''t\s+see\s+(?:a|any)\b|\b(?:is|are|looks?|seems?)\s+(?:(?!not\b)\w+\s+)?(?:fine|ok|okay|correct|sound|safe|good|right)\b)(?![^\n]*\b(?:but|however|yet|although|though)\b[^\n]*\bSQLite\b))(?![^\n]*(?:(?:\bnot\b|n''t\b|\bnever\b)\s+(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,2}(?:wrong|unsuit|inadequate|insufficient|unsafe)|\b(?:cannot|can''t|could\s*n''t|could\s+not|won''t|will\s+not|should\s+not|shouldn''t|need\s+not|needn''t|no\s+need\s+to)\s+(?:\w+\s+)?(?:use|replac\w*|switch|migrat\w*)|\b(?:no|none|nothing)\b\s*(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,3}?(?:wrong|unsuit\w*|inadequate|insufficient|unsafe)))(?![^\n]*(?:\breschedul\w*|\b(?:leaves?\s+out|omits?|lacks?|missing|ignores?|excludes?|without)\b[^\n]*\b(?:start|appointment|new)\s+time\b|\b(?:start|appointment|new)\s+time\b[^\n]*\b(?:missing|omitted|left\s+out|not\s+in)\b|\bnever\s+(?:gets?|receives?)\b|\b(?:fails?|violat\w*|breaks?)\s+AC2\b|\bAC2\b[^\n]*\b(?:fails?|violat\w*|breaks?|unmet)\b|\b(?:three|3|several|multiple)\s+(?:requests|attempts|tries)\b|\b(?:send_sms|gateway)\b[^\n]*\b(?:retr\w*|loops?)\b|\bcrash\w*|\bkill\w*|\bpower\s+loss\b|\b(?:not|non-?|isn''t)\s*atomic\b|\bbetween\W+(?:the\s+)?(?:send\w*|provider)\b|\bafter\s+(?:the\s+)?send\w*\b[^\n]*\bbefore\s+(?:the\s+)?(?:insert|commit)\w*|\btwice\b))[^\n]*(?:\bSQLite\b[^\n]*\b(?:wrong|unsuit\w*|inadequate|insufficient|unsafe|risky|won''t\s+scale|does(?:n''t|\s+not)\s+scale|too\s+(?:weak|small|limited|fragile)|(?:poor|bad)\s+(?:choice|fit))\b|\breplac\w*\s+(?:the\s+)?SQLite\b|\binstead\s+of\s+SQLite\b|\b(?:switch|migrat\w*|mov\w*)\s+(?:off|away\s+from)\s+SQLite\b|\bSQLite\b[^\n]*\b(?:(?:switch|migrat\w*|mov\w*)\s+to|use)\s+(?:a\s+)?(?:Postgres\w*|MySQL|server|managed)\b)'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft proposal for a send ledger in a clinic appointment reminder job. One
+part of the draft is sound: it keeps the ledger in SQLite, because the job runs on one host as a
+oneshot service and AC3 allows no server process. This grader checks only that the reply leaves
+that choice alone. The case's other graders score the defects it finds.
+
+PASS if no finding says SQLite is the wrong store or should be replaced. A reply passes when it
+approves SQLite, reports other defects (the ledger key leaving out the appointment time, `send_sms`
+making up to three requests, or the send happening before the insert), or flags nothing. Those
+other findings pass even when they name the SQLite table, row, key or insert, or call the key or
+the write order wrong.
+
+FAIL if any finding calls SQLite the wrong, a poor or an unsafe store for the ledger, for any
+reason (scale, concurrent runs, locking, durability, speed), or asks to replace it with Postgres,
+a server database or a managed database. A finding that first approves SQLite and then attacks it
+fails.

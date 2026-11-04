@@ -245,9 +245,10 @@ person adds `do-not-merge`, since re-adding a label already on records no event)
 (the round handled nothing) or `finding-stands` (it left a finding standing at that head), and
 the round cap still bounds the retries; a limit stop keeps its
 reset hold and counts toward `limit-stops-per-head`; since such a head may see no later review,
-each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep that decides one
-such head per tick as for its newest completed review run, under three such skips at that
-head), and no `pr-unblock.yml` run titled
+each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep that decides each
+such head as for its newest completed review run, under three such skips at that head, and
+sends up to five rounds a tick (`SWEEP_TICK_CAP`) once every decision is made, each PR at most
+once), and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
@@ -345,7 +346,7 @@ serves an adopted owner PR, posting its replies as the lanes App:
 - When: as fix-ci adopts one, no body line starts `Hold:`, and both the PR's last update and its head
   commit's committer date are at least `adoption.idle-hours` old (`ownerSkip`), so the lane never
   pushes onto a branch a session is still working on. A review usually finishes while the session
-  is active, so that dispatch skips; each scheduled tick's sweep then sends one idle owner PR whose
+  is active, so that dispatch skips; each scheduled tick's sweep then sends each idle owner PR, within its cap, whose
   reviewed head has no `pr-unblock / address-feedback` check run (`sweepIdleOwner`), deciding it
   as for its newest completed review run. It decides such a head only within
   `IDLE_OWNER_WINDOW_HOURS` of the PR turning idle, so a head with nothing for the lane is not
@@ -402,7 +403,7 @@ thread, and one a trusted person answered after the lane escalated it, is
 worked even when its review is on an earlier head than the one the reviewed-head markers name.
 On a lanes App PR, the next half-hourly tick picks up a fix request on an unresolved thread the
 reviewer bot opened: each scheduled `pr-unblock-dispatch.yml` run's completion starts
-`pr-feedback-dispatch.yml`, whose sweep sends one such head per tick, ahead of the heads it retries.
+`pr-feedback-dispatch.yml`, whose sweep decides each such head ahead of the heads it retries, within its cap of five a tick.
 The request must be newer than the head's newest `pr-unblock / address-feedback` check run; check
 runs that started before it stop counting for that dispatch, except a limit stop, which keeps its
 reset hold. Each request is sent once, a head with three rounds or releasing skips is not sent, and
@@ -1154,9 +1155,11 @@ the rules that only tighten in
   or post-merge-failure, that either filer opened, that was never edited, and that a later green
   full run on main cleared by the merge gate's own rule (`_recovered_at`: attempt 1, a schedule or
   a github-actions[bot] dispatch, created after the record, at a commit ahead of its SHA and on
-  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
-  `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
-  outside the charset, or not filed; a fix issue reopened on a
+  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix issue not delivered to intake triage gets
+  a hidden marker comment on it and on its record, a quarantine issue one on the issue, and a check
+  whose fix issue could not be filed or reopened one on the record; each alert run retries what a marker names until it succeeds, with
+  the failing run staying red, and adds no label. A record gets `needs-human` when a failing check got
+  no fix issue because it was over the cap or outside the charset; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
   It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
@@ -1965,8 +1968,10 @@ reads the pull request once and, for a lanes App one that is not already armed a
 `do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
 and skips the merge job, `post-merge-dispatch` and every other sweep job. That report stands only
-while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
-post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
+while `settle --idle-tick` keeps it. When it refuses on what it found and nothing it read has
+moved, no verifying run created or re-run since included (`refusal-stands`), the wake refuses with
+it and arms nothing, since a fresh check would refuse too. Otherwise the wake never reuses it
+but runs the post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
 or 5) and `settle --idle-tick` keeps the fresh report too, since the wake starts no full run or
 re-run. Its `api-calls` totals, which report the room came from (`report=last`, `fresh` or `none`) and
 the outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms

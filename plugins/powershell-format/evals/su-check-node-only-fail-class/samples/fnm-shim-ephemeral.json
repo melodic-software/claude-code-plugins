@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "That path is ephemeral because its directory holds a process id, so I'd report FAIL when it's the only hit and report the persisted Machine and User PATH resolution separately."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It resolves, so node is a PASS.",
+      "why": "accepts the shim"
+    },
+    {
+      "answer": "That path is ephemeral, so it's a FAIL.",
+      "why": "near miss: no persisted PATH report"
+    }
+  ]
+}

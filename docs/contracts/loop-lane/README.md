@@ -316,9 +316,10 @@ set and the pr-pipeline "Demotion issue" rule
 red-main record carries no label and clears once main is green at a later commit; a canary,
 revert or read-back record, which a green main does not clear, keeps `needs-human` only until it
 lifts on its own lane-verifiable condition, when the alert's `close-cleared` job closes it and
-removes the label; and a fix or quarantine issue intake triage did not receive gets `needs-human`,
-as does a red-main record whose failing check got no fix issue, because no lane retries that
-delivery. This convention adds no second escalation channel; the telemetry comment (§4)
+removes the label; a fix or quarantine issue intake triage did not receive gets a marker comment
+each later alert run retries, with no label; and a red-main record gets `needs-human` when a failing
+check got no fix issue because it was over the cap or outside the name charset, which no retry can
+file. This convention adds no second escalation channel; the telemetry comment (§4)
 is the report surface, never the sole path when human action is required. The escalation record
 write and the out-of-band notification seam below are notification depth on the one filed
 escalation, the fan-out posture the runner design

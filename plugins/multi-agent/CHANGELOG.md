@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-04
+
+### Fixed
+
+- The `check` line for a missing node no longer prints a literal `<plugin root>` in the registration probe command. It now says to run `bash scripts/check-hook-registration.sh` from the plugin root, the directory passed to `prerequisites.mjs check`, so the command runs as written.
+
 ## [2.0.1] - 2026-11-04
 
 ### Fixed
