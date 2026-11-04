@@ -48,7 +48,7 @@
     {
       "use": "table_verdict_cell",
       "with": {
-        "row": "(?:Regist|regist)"
+        "row": "(?:Registration|registration|Registered|registered)"
       }
     },
     {

@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: su-apply-never-installs-guidance-only
+name: su-apply-missing-tools-guidance-only
 context:
   scaffold_script: scaffold.sh
 graders:
