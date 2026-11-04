@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.0] - 2026-11-04
+
+### Changed
+
+- The 1:1 interview page now carries the canonical chrome, `reference/html-chrome.html` ([#12654](https://github.com/melodic-software/claude-code-plugins/issues/12654)). A System, Light and Dark toggle in the header is the page's only theme choice: it opens on System and stores nothing. The chrome's comment box is now the Notes panel's composer, and Send note still delivers its text as a note. `surface/test_page_chrome.py` compares the toggle, the comment box and the chrome rules with `reference/html-chrome.html`.
+
+### Removed
+
+- The interview page no longer applies the `theme` setting or the color tokens from `themeTokens` and the data dir's `theme.json`, and its Settings tab has no Theme row. The server still accepts and resolves all three, so existing files load without errors.
+
 ## [2.3.3] - 2026-11-04
 
 ### Fixed
