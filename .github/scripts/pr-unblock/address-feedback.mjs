@@ -1062,10 +1062,12 @@ export async function select({
   readFailNotes = async () => {
     throw new Error("no reader of the FAILs' verdict artifacts");
   },
+  // The REST pull request when the caller already read it (pullFromFile).
+  pull: given,
   log = () => {},
 }) {
   // Serial reads: element 6.
-  const pull = await api.getPull(pr);
+  const pull = given ?? (await api.getPull(pr));
   const files = await api.listPullFiles(pr);
   const issueComments = await api.listIssueComments(pr);
   const reviews = await api.listReviews(pr);
@@ -1739,6 +1741,23 @@ export function earlierFailHeadsFrom(env) {
   return heads;
 }
 
+// The pull request the select job's "Read the PR head" step read (PULL_FILE,
+// its whole GET /pulls/{n} answer), or undefined unless it names this PR at
+// HEAD_SHA. A second GET seconds later adds nothing: the hold checks (the
+// body's `Hold:` line, the human-gated label) then read the snapshot HEAD_SHA
+// came from. Undefined makes select read the PR itself.
+export function pullFromFile(path, pr, headSha) {
+  if (!path) {
+    return undefined;
+  }
+  try {
+    const pull = JSON.parse(readFileSync(path, "utf8"));
+    return pull?.number === pr && pull.head?.sha === headSha ? pull : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {
   const command = argv[0];
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID"]);
@@ -1779,6 +1798,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
         const { earlierFailNotes } = await import("./earlier-fail-notes.mjs");
         return earlierFailNotes({ actions: { read: client.readPath, download: client.downloadArtifact }, repository: env.GITHUB_REPOSITORY, pr, heads, files });
       },
+      pull: pullFromFile(env.PULL_FILE, pr, env.HEAD_SHA),
       log,
     });
   };
