@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.wrap_column: flag, reaches the hook script\n\nseverity: SUGGESTION",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.wrap_column: pass, inert, plugins/notes/skills/summary/SKILL.md:6",
+      "why": "an inert pass on a key a hook script reads"
+    },
+    {
+      "answer": "manifest userConfig.wrap_column: pass, advisory, sets the wrap column",
+      "why": "an advisory pass on a key a hook script reads"
+    }
+  ]
+}

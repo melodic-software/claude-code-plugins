@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.wrap_column: flag, hooks/wrap-check.sh reads it through CLAUDE_PLUGIN_OPTION_WRAP_COLUMN\n\nseverity: SUGGESTION",
+      "why": "flags the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.wrap_column: pass, inert, plugins/notes/skills/summary/SKILL.md:6\n\ncritical-findings: 0",
+      "why": "treats a key a hook script reads as inert"
+    }
+  ]
+}

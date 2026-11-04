@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.max_files: flag, default 0 removes the file cap\n\nseverity: IMPORTANT",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.max_files: pass, inert, plugins/notes/skills/summary/SKILL.md:5",
+      "why": "an inert pass on a guard"
+    }
+  ]
+}
