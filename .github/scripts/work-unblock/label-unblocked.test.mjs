@@ -402,6 +402,76 @@ test("the last blocker closing leaves an umbrella with an open sub-issue unlabel
   assert.deepEqual(writes(drained.calls), [labeled(20)]);
 });
 
+// The close path strips the closed issue's own queue labels (agent-ready,
+// status: ready, admission-deferred), read fresh from the API, so a
+// hand-closed issue leaves the queue. Number 10 blocks nothing here.
+const closedSelf = (labels, extra = {}) => world({ blocking: [], issues: { 10: { ...issue(10, { state: "closed", labels }), ...extra } } });
+const unlabeled = (name) => `DELETE /repos/${REPO}/issues/10/labels/${encodeURIComponent(name)}`;
+
+test("a closed issue loses the queue labels it carries, agent-ready last, and keeps its other labels", async () => {
+  const { github, calls } = closedSelf(["priority: high", "agent-ready", "status: ready", "work-class: scoped"]);
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [unlabeled("status: ready"), unlabeled("agent-ready")]);
+  const deferred = closedSelf(["admission-deferred", "status: ready"]);
+  assert.equal(await main({ env: envFor(), github: deferred.github }), 0);
+  assert.deepEqual(writes(deferred.calls), [unlabeled("status: ready"), unlabeled("admission-deferred")]);
+});
+
+test("a closed issue with no queue label gets no write", async () => {
+  const { github, calls } = closedSelf(["priority: high", "bug"]);
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), []);
+  assert.ok(calls.includes(`GET /repos/${REPO}/issues/10`));
+});
+
+test("a queue label already gone (404) counts as removed, and the rest still come off", async () => {
+  const { github: inner, calls } = closedSelf(["agent-ready", "status: ready"]);
+  const github = async (method, path, body) => {
+    if (method === "DELETE" && path.endsWith("/issues/10/labels/status%3A%20ready")) {
+      calls.push(`${method} ${path}`);
+      throw Object.assign(new Error("DELETE failed with status 404"), { status: 404 });
+    }
+    return inner(method, path, body);
+  };
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [unlabeled("status: ready"), unlabeled("agent-ready")]);
+});
+
+test("a failed queue-label removal fails the run and leaves agent-ready for the next close or person", async (t) => {
+  const { github: inner, calls } = closedSelf(["agent-ready", "status: ready"]);
+  const github = async (method, path, body) => {
+    if (method === "DELETE" && path.endsWith("/issues/10/labels/status%3A%20ready")) {
+      calls.push(`${method} ${path}`);
+      throw Object.assign(new Error("DELETE failed with status 502"), { status: 502 });
+    }
+    return inner(method, path, body);
+  };
+  const log = t.mock.method(console, "log", () => {});
+  assert.equal(await main({ env: envFor(), github }), 1);
+  log.mock.restore();
+  assert.deepEqual(writes(calls), [unlabeled("status: ready")]);
+});
+
+test("an issue open again when the run reads it keeps its queue labels", async () => {
+  const { github, calls } = world({ blocking: [], issues: { 10: issue(10, { labels: ["agent-ready", "status: ready"] }) } });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a post-merge fix issue keeps agent-ready across its close, for its reopen on a repeat failure", async () => {
+  const alert = { login: "github-actions[bot]", type: "Bot" };
+  const body = "<!-- post-merge-fix check=pr-require-checks / test -->\nFix main.";
+  const fix = closedSelf(["agent-ready", "status: ready"], { user: alert, body });
+  assert.equal(await main({ env: envFor(), github: fix.github }), 0);
+  assert.deepEqual(writes(fix.calls), []);
+  // The same body from another author, or another body from the alert, is stripped.
+  for (const extra of [{ user: OWNER, body }, { user: alert, body: "Fix main." }]) {
+    const other = closedSelf(["agent-ready"], extra);
+    assert.equal(await main({ env: envFor(), github: other.github }), 0);
+    assert.deepEqual(writes(other.calls), [unlabeled("agent-ready")], JSON.stringify(extra));
+  }
+});
+
 test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human, untrusted-provenance or attended stays unlabeled", async () => {
   for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", "attended"]) {
     const { github, calls } = oneDependent({ labels: [hold] });
@@ -685,6 +755,24 @@ function sweptDependent({ sibling = "closed" } = {}) {
     comments: { 20: [note()] },
   });
 }
+
+// A merge the App ran closes an issue with no close run, so the sweep strips
+// the queue labels from each issue in its window a listed human or a merge closed.
+test("the sweep strips the queue labels from a merge-closed issue, agent-ready last, and writes nothing for one without them", async () => {
+  const mergeClosed = (labels) => ({ ...closedAt(10, "2026-10-16T11:30:00Z"), labels: labels.map((name) => ({ name })) });
+  const labeled = world({ closedList: [mergeClosed(["agent-ready", "status: ready", "priority: low"])], blocking: [] });
+  assert.equal(await sweep({ github: labeled.github }), 0);
+  assert.deepEqual(writes(labeled.calls), [`DELETE /repos/${REPO}/issues/10/labels/status%3A%20ready`, `DELETE /repos/${REPO}/issues/10/labels/agent-ready`]);
+  // The strip reuses the close check's read: one GET of the issue in all.
+  assert.equal(labeled.calls.filter((call) => call === `GET /repos/${REPO}/issues/10`).length, 1, labeled.calls.join("\n"));
+  const bare = world({ closedList: [mergeClosed(["priority: low"])], blocking: [] });
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), []);
+  // A close by neither a listed human nor a merge is left alone.
+  const outsider = world({ closedList: [{ ...mergeClosed(["agent-ready"]), graphCloser: null }], blocking: [] });
+  assert.equal(await sweep({ github: outsider.github }), 0);
+  assert.deepEqual(writes(outsider.calls), []);
+});
 
 test("the sweep labels an issue whose last blocker a bot closed", async () => {
   const { github, calls } = sweptDependent();
@@ -2186,6 +2274,52 @@ const staleRunJob = (stop) => ({
 });
 const STOPPED_STALE = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), { name: "report-outcome", conclusion: "skipped", steps: [] }];
 
+// A blocker added while the run waited for its slot: broker-check's in-slot
+// re-check stops it green at `Stop on an open blocker`, after the lease, with
+// no model turn and no marker. The sweep routes it as admit's blocker gate:
+// it waits while a blocker is open and re-fires once none is, past any bound.
+const recheckStopped = (stop, leg = "resolve-issue") => [
+  ADMITTED,
+  pickSlot,
+  {
+    ...BROKER_ALLOWED,
+    name: `${leg} / broker-check`,
+    steps: [
+      ...BROKER_ALLOWED.steps,
+      { name: "Claim the issue with a lane lease", conclusion: "success" },
+      { name: "Re-check the issue's blockers in the slot", conclusion: "success" },
+      { name: "Stop on an open blocker", conclusion: stop },
+    ],
+  },
+  { name: `${leg} / run`, conclusion: "success", steps: [{ name: "Decide whether the activity runs", conclusion: "success" }] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+test("a run the in-slot re-check stopped waits, with no write, while a blocker is open", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: recheckStopped("success"), conclusion: "success", blockedBy: { 30: [issue(31)] } });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a run the in-slot re-check stopped is re-fired once no blocker is open, past the per-version bound, with no needs-human, as admit's gate is", async () => {
+  for (const pumps of [{}, earlierPumps(3)]) {
+    const closed = { blockedBy: { 30: [issue(31, { state: "closed" })] }, ...pumps };
+    const rechecked = stalledRun({ jobs: recheckStopped("success"), conclusion: "success", ...closed });
+    assert.equal(await sweep({ github: rechecked.github, actions: rechecked.actions }), 0);
+    const admitted = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", ...closed });
+    assert.equal(await sweep({ github: admitted.github, actions: admitted.actions }), 0);
+    assert.deepEqual(writes(rechecked.calls), writes(admitted.calls));
+    assert.deepEqual(writes(rechecked.calls), refired(30));
+    assert.ok(!writes(rechecked.calls).some((call) => call.includes("needs-human")));
+  }
+});
+
+test("an in-slot re-check that let the run on is no blocker stop", async () => {
+  const pumped = stalledRun({ jobs: recheckStopped("skipped"), conclusion: "success", blockedBy: { 30: [issue(31, { state: "closed" })] }, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  assert.deepEqual(writes(pumped.calls), []);
+});
+
 test("a run that stopped green on stale workflow files is re-fired, once per version of the lane workflow files", async () => {
   const fresh = stalledRun({ jobs: STOPPED_STALE, conclusion: "success" });
   assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
@@ -2865,6 +2999,8 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   const checkSteps = steps(read["broker-check"]);
   assert.ok(checkSteps.indexOf("Claim the issue with a lane lease") > checkSteps.indexOf("Ask the broker whether the lane may run"));
   assert.match(read["broker-check"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
+  // The in-slot blocker stop runs after the lease, so a green check with it is no check stop.
+  assert.ok(checkSteps.indexOf("Stop on an open blocker") > checkSteps.indexOf("Claim the issue with a lane lease"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {
@@ -2953,7 +3089,8 @@ const crossRef = (pull, repo = REPO) => ({
     },
   },
 });
-function lanePr({ pulls = [lanePull()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], runs = [] } = {}) {
+// The issue carries `status: ready`, as admission left it.
+function lanePr({ pulls = [lanePull()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = ["status: ready"], runs = [] } = {}) {
   const fake = world({
     openReady: [ready(30, labels)],
     comments: { 30: comments },
@@ -3104,7 +3241,7 @@ const humanLabeled = (at = "2026-10-16T10:20:05Z", actor = LANES_BOT, event = "l
 });
 const refsHeld = (extra = {}) =>
   lanePr({
-    labels: ["needs-human"],
+    labels: ["needs-human", "status: ready"],
     comments: [note(), holdNote()],
     events: [added(LABELED_AT, OWNER), humanLabeled()],
     ...extra,
@@ -3236,6 +3373,18 @@ test("a hand-off whose label write failed is finished by the next sweep with the
   });
   assert.equal(await sweep({ github: next.github }), 0);
   assert.deepEqual(writes(next.calls), triaged(30, 7493).slice(1));
+});
+
+// The hand-off and the close path share one queue-label list: each removes
+// only the queue labels the issue carries, agent-ready last.
+test("a hand-off removes only the queue labels the issue carries, admission-deferred included, agent-ready last", async () => {
+  const bare = lanePr({ pulls: [CLOSED_PR()], labels: [] });
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), [triaged(30, 7493, refsClosedComment(7493))[0], `DELETE /repos/${REPO}/issues/30/labels/agent-ready`]);
+  const deferred = lanePr({ pulls: [CLOSED_PR()], labels: ["status: ready", "admission-deferred"] });
+  assert.equal(await sweep({ github: deferred.github }), 0);
+  const [comment, status, agentReady] = triaged(30, 7493, refsClosedComment(7493));
+  assert.deepEqual(writes(deferred.calls), [comment, status, `DELETE /repos/${REPO}/issues/30/labels/admission-deferred`, agentReady]);
 });
 
 // Runs from before the run name carried ` #<issue>` cannot be matched to an
@@ -4467,6 +4616,36 @@ test("the last sub-issue closing by a listed human or a merge closes its split p
   const comment = JSON.parse(writes(calls)[0].slice(writes(calls)[0].indexOf(" {") + 1)).body;
   assert.match(comment, /^<!-- work-unblock split parent closed -->\n/);
   assert.match(comment, /#31, #32/);
+});
+
+// The App's close starts no close run, so the split parent's queue labels
+// come off before it: only those present, agent-ready last.
+test("closing a split parent removes the queue labels it carries before the close, agent-ready last", async () => {
+  const { github, calls } = splitWorld({ parent: issue(30, { labels: ["agent-ready", "status: ready", "priority: high"] }) });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), [
+    closeParentWrites[0],
+    `DELETE /repos/${REPO}/issues/30/labels/status%3A%20ready`,
+    `DELETE /repos/${REPO}/issues/30/labels/agent-ready`,
+    closeParentWrites[1],
+  ]);
+});
+
+// A failed removal stops the close, so the parent stays open with agent-ready
+// for the next sweep.
+test("a failed queue-label removal leaves the split parent open", async (t) => {
+  const { github: inner, calls } = splitWorld({ parent: issue(30, { labels: ["agent-ready", "status: ready"] }) });
+  const github = async (method, path, body) => {
+    if (method === "DELETE" && path.endsWith("/issues/30/labels/status%3A%20ready")) {
+      calls.push(`${method} ${path}`);
+      throw Object.assign(new Error("DELETE failed with status 502"), { status: 502 });
+    }
+    return inner(method, path, body);
+  };
+  const log = t.mock.method(console, "log", () => {});
+  assert.equal(await sweep({ github }), 1);
+  log.mock.restore();
+  assert.deepEqual(writtenPaths(calls), [closeParentWrites[0], `DELETE /repos/${REPO}/issues/30/labels/status%3A%20ready`]);
 });
 
 test("a split parent stays open while a sub-issue is open, or closed by someone else, or with no split record from the App", async () => {

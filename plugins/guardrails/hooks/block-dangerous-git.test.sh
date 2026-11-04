@@ -28,7 +28,7 @@ GUARD_UNDER_TEST="$HOOK"
 # An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
 # refusal into an ask (refuse.sh). Every case below asserts the deny unless it
 # sets the flag itself.
-unset CLAUDE_CODE_SESSION_ATTENDED
+unset CLAUDE_CODE_SESSION_ATTENDED GUARDRAILS_SESSION_UNWATCHED
 
 # A lease expectation is judged against the hash width of the repository the
 # push would run in, so every case that carries one needs a KNOWN working
@@ -2838,6 +2838,29 @@ expect "attended, dispatched: git reset --hard asks too" 0 --via dispatched \
   --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended, dispatched: the merged decision is ask" ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+# Attended but unwatched: the ask would wait on a prompt nobody answers, so the
+# guard denies and names the command for a person to run later (refuse.sh).
+expect "unwatched: git reset --hard denies instead of asking" 2 \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- \
+  CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=1
+assert_eq "unwatched: no ask document" "" "$GUARD_OUT"
+assert_contains "unwatched: the reason names the form" "$GUARD_ERR" "git reset --hard discards uncommitted work."
+assert_contains "unwatched: the reason says to leave it for later" "$GUARD_ERR" "Leave it for a person to run later"
+assert_contains "unwatched: the reason names the command" "$GUARD_ERR" $'report this command:\ngit reset --hard'
+expect "unwatched, dispatched: git reset --hard denies" 2 --via dispatched \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- \
+  CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=1
+for _unw in 0 "" true " 1"; do
+  expect "unwatched=[$_unw]: an attended git reset --hard still asks" 0 \
+    --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- \
+    CLAUDE_CODE_SESSION_ATTENDED=1 "GUARDRAILS_SESSION_UNWATCHED=$_unw"
+  assert_eq "unwatched=[$_unw]: the decision is ask" ask \
+    "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+done
+expect "unwatched, not attended: git reset --hard denies without the note" 2 \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- \
+  CLAUDE_CODE_SESSION_ATTENDED=0 GUARDRAILS_SESSION_UNWATCHED=1
+assert_absent "unwatched, not attended: no run-later note" "$GUARD_ERR" "Nobody is watching"
 
 # --- Guards stay on in auto mode -----------------------------------------------
 AUTO_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n --arg d "$REPO_SHA1" \

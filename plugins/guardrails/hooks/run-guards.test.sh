@@ -30,6 +30,7 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # guard's refusal into an ask (refuse.sh). Pin it to 0 so every case below
 # gets the result CI gets; the attended cases set it themselves.
 export CLAUDE_CODE_SESSION_ATTENDED=0
+unset GUARDRAILS_SESSION_UNWATCHED
 jq_crlf_free
 
 export CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.."

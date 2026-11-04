@@ -45,9 +45,12 @@ original text. For big or decision-dense content it renders an HTML decision
 table (item, recommendation, alternative, and what you're deciding, with rows
 numbered so a terminal answer maps back), honoring the Artifact tool contract and
 degrading to a local HTML file, then structured terminal markdown, where the
-Artifact surface is unavailable. A `medium: terminal` or `medium: file` in any
-`rendered-views` layer keeps the table off claude.ai; a team-layer `medium: artifact`
-does not publish on its own.
+Artifact surface is unavailable. The shared medium resolver, which every view lane
+uses, decides where the table goes from a `--medium` argument, the plugin's `medium`
+option, the repository's `docs/conventions/rendered-views.yaml` team file, and its
+untracked `.local.yaml` personal override. A team file can keep the table local but
+never publishes it. The skill prints the resolver's report line, which names the
+medium and what decided it.
 
 ## Triggering: on-demand, session-standing once invoked
 
@@ -89,12 +92,13 @@ deliberate non-goal for this version, recorded here so it is not re-litigated:
   [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
   live (as of 2026-10-11; recheck when that section adds frontmatter or
   invocation to where a value substitutes).
-- **The only mechanism that delivers it is a hook.** Deterministic
-  every-session arming needs a `SessionStart` (or `UserPromptSubmit`) hook that
-  injects the rules as additional context. That is a code-execution trust
-  surface, adopted only on demonstrated need, and the session-standing
-  behavior above already covers the common case (invoke once, shaped for the
-  rest of the session).
+- **A hook is the mechanism it would take.** When re-deriving which hook event
+  can arm the rules at every session start, fetch
+  [SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live
+  (as of 2026-11-03; recheck when that section changes how a hook adds context).
+  A hook is a code-execution trust surface, adopted only on demonstrated need,
+  and the session-standing behavior above already covers the common case
+  (invoke once, shaped for the rest of the session).
 - **Trigger to build it.** Demonstrated demand for zero-invocation auto-arm.
   When that lands, the hook ships **off by default** (opt-in), so enabling the
   plugin never silently rewrites every response.
@@ -123,7 +127,7 @@ between the plugins to enforce this. It is a usage guideline.)
 
 ## Configuration
 
-One optional setting and no setup skill or external tools. Enable the plugin
+Two optional settings and no setup skill or external tools. Enable the plugin
 and invoke `/adhd:shape` or `/adhd:clarify`.
 
 **`time_units`** (default off). Off, `/adhd:shape` sizes work relatively and
@@ -132,6 +136,11 @@ time units. A time budget you state is kept in your words either way. Set it
 per user with the `userConfig` option, or for a repository with a `time_units`
 key in `docs/conventions/adhd.yaml` (schema: `schemas/adhd.schema.json`), which
 wins over the option.
+
+**`medium`** (default `auto`). Where `/adhd:clarify` sends its decision table.
+The shared medium resolver reads it alongside the `rendered-views` convention
+files; see `/adhd:clarify` above. Picking a value from a list needs Claude Code
+v2.1.271 or later.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -144,6 +153,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `time_units` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TIME_UNITS` | When on, /adhd:shape may state an estimate of work in minutes, hours, days or weeks; when off it gives a relative size (Small, Medium, Large) instead. A time budget you state is kept in your words either way. Default: off. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where /adhd:clarify sends its decision table. auto (default): an Artifact when the tool is present, else a local file, else the terminal, by content size; terminal: no page; file: a local file, never published; artifact or hosted: a private Artifact. A table of 1-2 decisions stays in the terminal. |
 
 ### How to set these
 

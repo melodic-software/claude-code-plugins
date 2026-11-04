@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- `loans.renew` does not update `due_at`; it inserts into `loan_renewals`, so the assumption is false.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Renewed loans get fined: the query reads `due_at`, but the renewal lives in `loan_renewals.extended_to`.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The Phase 1 query is correct only if a renewal moves `due_at`, and `renew()` doesn't update `due_at`.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The assumption that a renewal moves `due_at` is wrong: `renew()` leaves `due_at` unchanged | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Phase 1 query must use `effective_due_date` instead of `due_at`, because renewals sit in another table | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `renew()` does not leave a trace in `due_at`: it records the extension in `loan_renewals`, so renewed loans get fined.\n",
+      "why": "does not leave a trace"
+    },
+    {
+      "answer": "- The plan says renewal does update `due_at`, but `renew()` records the new date in `loan_renewals`.\n",
+      "why": "quotes the claim, then attacks it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- The renewal assumption is fine: `due_at` covers it.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- `renew()` does update `due_at`, so the query stands.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `config/fines.toml` has no rate for staff members.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- `renew()` does not leave `due_at` unchanged; it moves it forward.\n",
+      "why": "dismissal"
+    }
+  ]
+}

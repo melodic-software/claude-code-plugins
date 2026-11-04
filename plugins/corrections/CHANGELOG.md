@@ -3,6 +3,53 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-11-04
+
+### Changed
+
+- Shared `config-cascade.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): it exports the scan that finds a `yaml config` block in a team Markdown file, returning the block's body; resolution is unchanged and there is no other change to this plugin.
+
+## [0.11.2] - 2026-11-03
+
+### Changed
+
+- `codify-person-note-appends-row-from-file` scores `runs-buffer-append` and `appends-from-file-and-reports` in the with-plugin arm only, because the no-plugin baseline cannot call the plugin's bundled `buffer.sh`.
+
+## [0.11.1] - 2026-11-03
+
+### Changed
+
+- The eval suite moved from `skills/*/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`, with deterministic graders where an expectation is mechanical ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
+## [0.11.0] - 2026-11-03
+
+### Changed
+
+- The `local-file` findings buffer moves to `findings-buffer/findings.jsonl` under the git common directory, so every worktree of a clone reads and writes one file; `read.sh` still returns rows from the old per-worktree `.work/buffer/findings.jsonl` (#12907).
+
+## [0.10.0] - 2026-11-03
+
+### Added
+
+- `/corrections:codify note --applied` records a change already made: the row carries `"kind": "applied"`, its `signal` names the situation the change targets and the action it should prevent, and `source_id` is the change's `#PR` or commit when given (#12884).
+
+### Changed
+
+- `/corrections:codify group` leaves applied rows out of its by-mistake groups and counts and lists them apart (#12884).
+
+## [0.9.5] - 2026-11-03
+
+### Changed
+
+- `/corrections:codify note` now says why to note a correction rather than only acknowledge it
+  (an acknowledged correction is lost when the session ends), that a note `group` never routes to
+  codify changes nothing, and that an agent writing the same instruction or correction a second
+  time appends a note.
+- `/corrections:codify` section 3 now ties scope to one-off or pattern: a one-off below the
+  threshold stays a `note` row, a recurring mistake that meets the guardrail criterion gets a
+  checking rung, a mistake that holds for every repository becomes a team standard, and a run past
+  the count ends in a proposed check, a placed rule or a filed work item.
+
 ## [0.9.4] - 2026-11-03
 
 ### Changed

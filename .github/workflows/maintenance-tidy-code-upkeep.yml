@@ -10,7 +10,9 @@ name: maintenance-tidy-code-upkeep
 #   gate (no model, no secret) reads the settings, the open tidy pull requests
 #     and the sweep records, and picks at most upkeep_max_open minus open areas
 #     (.github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs); it enforces
-#     a cadence or backstop cron cannot.
+#     a cadence or backstop cron cannot. It fails, and nothing runs, when
+#     upkeep_spec_issue is not set: every pull request's body opens with
+#     `Refs: #<upkeep_spec_issue>`, the spec pr-verify judges it against.
 #   model runs `/code-tidying:tidy <glob> in-place=commit` per area on a local
 #     chore/tidy-adhoc-<slug>-<date> branch, on the automations role's
 #     subscription token, with a read-only GITHUB_TOKEN and nothing else. What
@@ -93,6 +95,7 @@ jobs:
       proceed: ${{ steps.gate.outputs.proceed }}
       areas: ${{ steps.gate.outputs.areas }}
       date: ${{ steps.gate.outputs.date }}
+      spec-issue: ${{ steps.gate.outputs.spec-issue }}
       base-sha: ${{ github.sha }}
     env:
       API_BUDGET_TOKEN: github-token
@@ -455,6 +458,7 @@ jobs:
           AREAS: ${{ needs.gate.outputs.areas }}
           DATE: ${{ needs.gate.outputs.date }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          SPEC_ISSUE: ${{ needs.gate.outputs.spec-issue }}
           REPO_DIR: ${{ github.workspace }}/.base
         run: node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs scan
 
@@ -750,6 +754,7 @@ jobs:
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           HEADS: ${{ needs.push-branches.outputs.heads }}
+          SPEC_ISSUE: ${{ needs.gate.outputs.spec-issue }}
           REPO_DIR: ${{ github.workspace }}/.base
         run: node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs publish
 

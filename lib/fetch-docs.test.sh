@@ -863,6 +863,63 @@ assert_eq "html: python3 was probed and never ran; python ran" "$(printf '%s\n' 
 GEN_CONV="$TEST_TMPDIR/absent.py" gen_run "$src" go-p3 "$PYOK" $G1 "$PAGE_URL" 2>/dev/null
 assert_eq "html: a missing converter is unread converter-missing" "unread converter-missing" "$(gpage go-p3 '"\(.state) \(.reason)"')"
 
+# X's logged-out shell: a 200 text/html body with Log in and Sign up links and no
+# article text. The pass-through converter keeps the links the stand-in strips.
+X_URL='https://x.com/someone/status/2117512471930167377'
+X_FILE='x-com/someone/status/2117512471930167377.md'
+X_LOGIN='redirect_after_login=%2Fsomeone%2Fstatus%2F2117512471930167377'
+PASSTHRU="$TEST_TMPDIR/passthru.sh"
+cat >"$PASSTHRU" <<'EOF'
+#!/usr/bin/env bash
+cat "$1"
+EOF
+x_shell() {
+  printf '%s\n' '# Someone on X: "A post about agents" / X' '' "[Log in](https://x.com/i/flow/login?$X_LOGIN)" \
+    "[Sign up](https://x.com/i/flow/signup?$X_LOGIN)" '' "Don't miss what's happening" \
+    'People on X are the first to know.' '' '## Post' '' '[Someone](https://x.com/someone)' '' '[@someone](https://x.com/someone)' \
+    '' '[Article](https://x.com/someone/article/2117512471930167377)' '' '12.3K' '' 'Views' '' \
+    '## New to X?' '' 'Sign up now to get your own personalized timeline!'
+}
+src="$TEST_TMPDIR/gs-xwall"
+mkdir -p "$src"
+x_shell >"$src/2117512471930167377"
+printf '%s' 'text/html; charset=utf-8' >"$src/2117512471930167377.ctype"
+C="$TEST_TMPDIR/gc-xwall"
+GEN_CONV="$PASSTHRU" gen_run "$src" go-w1 "$PYOK" $G1 --cache --cache-dir "$C" "$X_URL"
+assert_eq "login-wall: X's converted logged-out shell is unread login-wall" "unread login-wall 200" \
+  "$(gpage go-w1 '"\(.state) \(.reason) \(.status)"')"
+assert_no_file "login-wall: the shell leaves no page file" "$TEST_TMPDIR/go-w1/$X_FILE"
+assert_eq "login-wall: the shell is never cached" 0 "$(entry_dirs "$C" 2>/dev/null)"
+{
+  x_shell
+  printf 'article text line %s of the post body.\n' {1..60}
+} >"$src/2117512471930167377"
+GEN_CONV="$PASSTHRU" gen_run "$src" go-w2 "$PYOK" $G1 "$X_URL"
+assert_eq "login-wall: a full X article page with the same links is read" "read html-converted" \
+  "$(gpage go-w2 '"\(.state) \(.format)"')"
+assert_eq "login-wall: the article text is in the page file" 1 \
+  "$(grep -c 'article text line 60 of' "$TEST_TMPDIR/go-w2/$X_FILE")"
+x_shell >"$src/page"
+printf '%s' 'text/html' >"$src/page.ctype"
+GEN_CONV="$PASSTHRU" gen_run "$src" go-w3 "$PYOK" $G1 "$PAGE_URL"
+assert_eq "login-wall: a non-X page with the same login links reads as before" "read html-converted" \
+  "$(gpage go-w3 '"\(.state) \(.format)"')"
+x_shell >"$TEST_TMPDIR/x-shell.md"
+C="$TEST_TMPDIR/gc-xstored"
+DOCS_CACHE_NOW=$G1 bash "$SCRIPT_DIR/docs-cache.sh" --cache-dir "$C" put "$X_URL" html-converted "$TEST_TMPDIR/x-shell.md" text/html >/dev/null
+GEN_CONV="$PASSTHRU" gen_run "$src" go-w4 "$PYOK" $G1 --cache --cache-dir "$C" --max-age 86400 "$X_URL"
+assert_eq "login-wall: a shell stored in the cache is served as unread login-wall" "unread login-wall cache null false" \
+  "$(gpage go-w4 '"\(.state) \(.reason) \(.source) \(.cache_key) \(.stale)"')"
+assert_no_file "login-wall: the cached shell leaves no page file" "$TEST_TMPDIR/go-w4/$X_FILE"
+fx="$TEST_TMPDIR/fx-xwall"
+mkdir -p "$fx/x-com/someone/status"
+x_shell >"$fx/$X_FILE"
+FETCH_DOCS_FIXTURE_DIR="$fx" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
+  bash "$SCRIPT" --profile generic --out "$TEST_TMPDIR/go-w5" "$X_URL"
+assert_eq "login-wall: a fixture-served shell is unread login-wall" "unread login-wall fixture" \
+  "$(gpage go-w5 '"\(.state) \(.reason) \(.source)"')"
+assert_no_file "login-wall: the fixture shell leaves no page file" "$TEST_TMPDIR/go-w5/$X_FILE"
+
 # Targets the generic profile refuses.
 gen_run "$src" go-x "$PYOK" $G1 skills 'http://docs.test/a' >/dev/null
 assert_eq "generic: a slug or a non-https URL is unread invalid-url" "invalid-url invalid-url" \
@@ -1067,6 +1124,14 @@ cache_run $((T1 + 40)) out27e --max-age 0 skills
 cache_run $((T1 + 50)) out27f --max-age 86400 skills
 assert_eq "case 27: a retitled key is still served fresh from the cache" "read cache true" \
   "$(page "$TEST_TMPDIR/out27f/manifest.json" skills '"\(.state) \(.source) \(.quarantined)"')"
+
+# Case 28: the reading procedure that makes --out with mktemp also has the reader remove it,
+# so a docs lookup leaves no tmp.* directory behind.
+procedure="$SCRIPT_DIR/docs-lookup-procedure.md"
+# shellcheck disable=SC2016 # the patterns are literal procedure text
+assert_eq "case 28: the procedure makes --out with mktemp" 1 "$(grep -c '^out="$(mktemp -d)"$' "$procedure")"
+# shellcheck disable=SC2016 # the pattern is literal procedure text
+assert_eq "case 28: the procedure removes --out by its literal path" 1 "$(grep -c '`rm -rf <out>`' "$procedure")"
 
 echo
 if [[ $FAILED -eq 0 ]]; then

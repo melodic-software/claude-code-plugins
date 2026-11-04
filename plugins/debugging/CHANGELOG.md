@@ -3,6 +3,18 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.4] - 2026-11-04
+
+### Fixed
+
+- Shared `view-settings.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): a `terminal` or `file` value in a retired `rendered-views.md` file keeps the view local when no scope sets one, instead of falling to a publishing default; no other change to this plugin.
+
+## [0.17.3] - 2026-11-03
+
+### Changed
+
+- The rendered-view reference is now a synced copy of the one shared rendered-view procedure, and the shared medium resolver modules (`view-settings.mjs` and the modules it loads) ship under `lib/` ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no skill changes how it resolves the medium yet.
+
 ## [0.17.2] - 2026-11-02
 
 ### Changed

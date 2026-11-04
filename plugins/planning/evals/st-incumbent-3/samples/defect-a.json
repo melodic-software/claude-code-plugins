@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- The only reason Why gives for keeping Tidewrite is that the team has run it for three years.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The decision rests on experience with Tidewrite, not on AC1 | Compare against the criteria |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Streamsink's disk spool in docs/vendor is never weighed, though it speaks directly to AC1.\n",
+      "why": "alternative unweighed"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | Keep decision is status quo: no comparison with Streamsink | Weigh it |\n",
+      "why": "status quo"
+    },
+    {
+      "answer": "- Why argues from familiarity with Tidewrite and does not evaluate any option against AC1.\n",
+      "why": "familiarity"
+    },
+    {
+      "answer": "- The draft says Streamsink was considered, but the Why rests only on the team's familiarity with Tidewrite.\n",
+      "why": "quotes the claim, then attacks it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Keeping Tidewrite is not only about familiarity; the decision is sound.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- Streamsink was weighed in the Why section.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- Tidewrite's runbook needs an entry for the new metric.\n",
+      "why": "named, no nature"
+    },
+    {
+      "answer": "- Phase 3's metric has no alert threshold.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- Consider writing up what the team knows.\n",
+      "why": "generic"
+    }
+  ]
+}

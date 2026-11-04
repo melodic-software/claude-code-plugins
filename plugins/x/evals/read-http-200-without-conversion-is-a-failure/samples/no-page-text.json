@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "That file is not the post. The 200 came back with an HTML bot-challenge page (\"One moment, please\") and no Markdown, so the fetch failed.",
+      "why": "prose diagnosis that names the page title"
+    },
+    {
+      "answer": "The footer reads \"Ray ID: 9e4b7c2qhalvern31 · Edge shield by Quillmarsh\". It's a challenge page, so there's no post text.",
+      "why": "a measured with-plugin diagnosis that quotes the visible footer"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| curl exit | 0 |\n| HTTP | 200 |\n| Body | HTML challenge page, no converted content |",
+      "why": "table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<!DOCTYPE html>\n<html lang=\"en-US\">\n<script>window._chl_opt={cvId:'3',cZone:'xtomd.com',cType:'managed',cNounce:'glenmarrow-58213'};</script>\n...",
+      "why": "presents the raw HTML as the post"
+    },
+    {
+      "answer": "Here is the post as saved: cNounce GLENMARROW-58213, cType managed.",
+      "why": "treats the page body as post content, uppercase token"
+    }
+  ]
+}

@@ -3,6 +3,42 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Added
+
+- `/code-metrics:audit` is a router skill with three actions: `size` (lines per file),
+  `complexity` (per-function cyclomatic, cognitive and Halstead complexity) and `type-debt`
+  (typed-code percentage). Each action runs the same entry script as before, so the options,
+  report and exit codes are unchanged.
+
+### Removed
+
+- The `audit-size`, `audit-complexity` and `audit-type-debt` skills are gone. Run
+  `/code-metrics:audit size`, `/code-metrics:audit complexity` or `/code-metrics:audit type-debt`
+  instead. The report `skill` field and the `dispatch.sh` id keep their old values, so reports
+  taken before and after still compare.
+
+## [0.9.0] - 2026-11-03
+
+### Added
+
+- report coverage, mutation and security-scanner suppressions
+
+  suppression-scan.py now lists directives that switch off the evidence a
+  quality bar relies on, beside the lint and type suppressions it already
+  reports: istanbul and c8 ignore comments and coverage.py's no-cover
+  pragma, Stryker's disable comment, and Bandit nosec, nosemgrep and
+  gitleaks allow. Each spelling comes from the tool's own docs, listed in
+  the skill's upstream syntax record. The scanner stays report-only.
+
+  The canonical scanner is lib/suppression-scan.py; both generated copies
+  (code-metrics and toolchain ratchet) are regenerated. The findings
+  relay gives directives that cannot name a rule a reason-only remedy.
+  The addyosmani-agent-skills record moves the suppressions row to take.
+
+  Refs: #12829
+
 ## [0.8.3] - 2026-11-03
 
 ### Changed

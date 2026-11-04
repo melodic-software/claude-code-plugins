@@ -673,7 +673,28 @@ const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL, park
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
-const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
+// The queue labels: admission's, which stripQueueLabels removes from a closed
+// issue and from one its lane PR handed back to triage.
+export const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
+// Agent-ready last: work-unblock's sweep lists open agent-ready issues, so a
+// failed write leaves the issue for it. A caller that closes the issue itself
+// strips first, so the issue is still open when a write fails.
+const QUEUE_LABELS = [...ADMISSION_LABELS.filter((name) => name !== "agent-ready"), "agent-ready"];
+
+// Removes the queue labels `had` holds from the issue at `base`, and returns
+// their names. A 404 is a label already gone, so it counts as removed.
+export async function stripQueueLabels(github, base, had) {
+  const present = new Set(had.map((name) => String(typeof name === "string" ? name : name?.name).toLowerCase()));
+  const removed = QUEUE_LABELS.filter((name) => present.has(name));
+  for (const name of removed) {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
+      if (error?.status !== 404) {
+        throw error;
+      }
+    });
+  }
+  return removed;
+}
 const ROUTE_REMOVES = { intake: ADMISSION_LABELS, park: ADMISSION_LABELS };
 const ROUTE_TEXT = {
   "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
@@ -1886,7 +1907,7 @@ function api({ fetch: rawFetch, apiUrl, token, sleep }) {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${path} answered ${response.status}`);
+      throw Object.assign(new Error(`${method} ${path} answered ${response.status}`), { status: response.status });
     }
     return response.status === 204 ? null : response.json();
   };
@@ -2127,7 +2148,7 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // carry over: intake triage re-judged it before admitting the issue again. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
-// removes agent-ready, then closes the issue as completed.
+// removes the queue labels, then closes the issue as completed.
 async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "" }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
@@ -2197,10 +2218,19 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     const base = `${repo}/issues/${plan.issueNumber}`;
     await sayWhy(github, repo.slice("/repos/".length), base, (await read()).comments, refusalText(plan.admission), bot);
   }
-  await applyHandBack(github, repo, plan);
+  // A close leaves its labels to stripQueueLabels below, which throws on a
+  // failed removal where applyHandBack only logs it.
+  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan);
   if (plan.action === "close") {
-    await github("PATCH", `${repo}/issues/${plan.issueNumber}`, { state: "closed", state_reason: "completed" }, { safeToResend: true });
-    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop})`);
+    const base = `${repo}/issues/${plan.issueNumber}`;
+    // The App's close starts no work-unblock close run, so the queue labels
+    // come off here, before the close: a failed removal leaves the issue open.
+    // A label DELETE is idempotent (a 404 counts as removed), so it is resent
+    // after a 5xx; only a removal that keeps failing leaves the issue open.
+    const resend = (method, path) => github(method, path, undefined, { safeToResend: true });
+    const removed = await stripQueueLabels(resend, base, (await github("GET", base))?.labels ?? []);
+    await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
+    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s)`);
   }
 }
 

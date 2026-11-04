@@ -1205,12 +1205,12 @@ assert_eq "a launch records the session in its own tmp directory" "present" \
   "$([[ -f "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor/sess-5.launched" ]] &&
     printf 'present' || printf 'absent')"
 case "${OSTYPE:-}" in
-msys* | cygwin* | win32) ;;
-*)
-  own_mode="$(ls -ld "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor")"
-  assert_eq "the launch creates its tmp marker directory with mode 700" "drwx------" \
-    "${own_mode:0:10}"
-  ;;
+  msys* | cygwin* | win32) ;;
+  *)
+    own_mode="$(ls -ld "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor")"
+    assert_eq "the launch creates its tmp marker directory with mode 700" "drwx------" \
+      "${own_mode:0:10}"
+    ;;
 esac
 MARKER_PAYLOAD='{"session_id":"sess-5","hook_event_name":"Stop"}'
 tmp_launch "$PLANTED_CASE/own-tmp" --skip-unless-marker
@@ -1247,8 +1247,10 @@ assert_eq "the launcher skips the Stop row before bash with the script's own mar
 # (#9853) is the entry's one handler, whose behavior resume-notice.test.mjs runs.
 assert_eq "one SessionStart entry with one handler" "[1]" \
   "$(jq -c '[.hooks.SessionStart[] | .hooks | length]' "$HOOKS_JSON")"
-assert_eq "the SessionStart handler is the exec-form resume notice" "true" \
-  "$(jq '.hooks.SessionStart[0].hooks[0] | .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs", "--marker-root", "${CLAUDE_PLUGIN_DATA}"]' "$HOOKS_JSON" | tr -d '\r')"
+# The node-or-skip polyglot (scripts/node-notice-rows.test.sh pins its shape), so the row exits 0
+# when node is missing.
+assert_eq "the SessionStart handler is the node-or-skip resume notice" "true" \
+  "$(jq '.hooks.SessionStart[0].hooks[0] | (has("args") | not) and (.command | startswith("sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs\" \"--marker-root\" \"${CLAUDE_PLUGIN_DATA}\"; "))' "$HOOKS_JSON" | tr -d '\r')"
 assert_eq "the clean expansion records the session the resume notice reads" "true" \
   "$(jq '[.hooks.UserPromptExpansion[].hooks[].args | .[1:6] == ["${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "--marker-root", "${CLAUDE_PLUGIN_DATA}", "--launch-marker", "clean-invoked"]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 assert_eq "a model load of clean records the same marker, with no target to launch" "true" \

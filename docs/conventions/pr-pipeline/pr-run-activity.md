@@ -126,7 +126,9 @@ person. In issue mode the [issue-fields job](#the-issue-fields-job), which ends 
 `scan-issue-run-started`, so the caller's report job still runs on a failed or skipped scan; it
 downloads the `resolve-issue` markers, and a run that left no readable outcome is stopped with a
 fixed sentence naming the refusal (the patch cap for `patch`) instead of a missing outcome file:
-`scan-refused-patch` and `scan-refused-fault` retry under `limits.stop-retries`, and
+`scan-refused-patch` goes to intake, whose admission parks the issue for a split at any Size,
+as `split-required` does for Size Large, `scan-refused-fault`
+retries under `limits.stop-retries`, and
 `scan-refused-output` holds for a person ahead of any funding, limit or turn-cap record. A
 failed download there names no refusal.
 
@@ -645,7 +647,10 @@ root-level script path fails red rather than copying the whole base tree. Its en
 
 Exit 0 is success, non-zero is failure, and a reason file whose value is not a skip reason is a
 failure. A script that gets `GH_TOKEN` must not execute code from the PR head. The head checkout
-persists no credentials, so a `read` script cannot push. The write file also exports its
+persists no credentials, so a `read` script cannot push. A leaf that sets `checkout: base`
+(resolve-config's `checkout` output) skips the head checkout and its SHA assert: the job keeps only
+the trusted base checkout at `.base`, credentials not persisted, and gets `TRUSTED_ACTORS` as a
+`review-replies` script does. The write file also exports its
 `escalation-reason` input as `ESCALATION_REASON` (empty unless a caller passes one), which the
 `report-escalation` leaf reads, and `TRACKER_CONFIG`, the base's `.work-item-tracker.json` copied
 to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256

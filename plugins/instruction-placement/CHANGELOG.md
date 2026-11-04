@@ -3,6 +3,22 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-11-03
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- **migrate skill**, its shim-droppable reference and the realign apply recipes: the passages that restated Claude Code or Windows documentation now point at the live upstream section with an as-of date and a recheck trigger. The removed passages covered filename case matching, when `InstructionsLoaded` fires, what `/init` writes, the Project instructions values, default and scopes, the import parser and hop limit, the sessions that cannot read `AGENTS.md`, and per-mode load orders. Every condition, operator question and keep-the-shim verdict is unchanged (#12693).
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

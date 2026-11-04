@@ -59,8 +59,8 @@ enabled-gate.
 1. **Bash version.** Check against the hook's documented floor (README Requirements).
 2. **`node`.** The pre-computed `node` row. FAIL if absent, even when the toggle is off: every
    hook row launches through `node hooks/exec-bash.mjs`, so the hooks do not launch and the
-   session-start probe does not run. The hooks cannot report this themselves; the transcript shows
-   a hook error notice. Probed here through Bash, which works without the launcher.
+   session-start probe does not run. The hooks cannot report this themselves. Probed here
+   through Bash, which works without the launcher.
 3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the pre-commit entry then
    fails the commit of an agent with the install command and gives a person a notice, and the
    end-of-turn check does nothing.
@@ -85,6 +85,13 @@ enabled-gate.
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 ## `apply install-git-hooks [scope=local|shared]`
+
+**Run this section only when the user typed `/actionlint:setup apply install-git-hooks` as a
+command; that typed command is the only go-ahead this flow takes, `plan` included.** The user's
+answers to this section's own questions continue a run it started. On any other request,
+including a plain-language "run the apply step" or "register the hook" and a hook notice, never
+run `install.mjs` `plan`, `copy`, `decline` or `config-hook`, and reply that the user should type
+`/actionlint:setup apply install-git-hooks` themselves.
 
 Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repository's hook
 manager. The installer script only detects, renders and writes files the plugin owns; every step

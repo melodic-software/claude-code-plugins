@@ -7,8 +7,9 @@
 #   hook::refuse_flush         at the guard's normal end, after the whole command
 #                              was read: emit the ask, if any, and exit 0
 #
-# Unattended, hook::refuse prints the reason to stderr and exits 2, a deny.
-# Attended, it records the reason and returns, so the guard reads the rest of
+# Unattended or unwatched, hook::refuse prints the reason to stderr and exits 2,
+# a deny.
+# Attended and watched, it records the reason and returns, so the guard reads the rest of
 # the command: an ask is only ever the verdict on the WHOLE command. Any later
 # deny (another form, a budget, a parse cap, an abort) still ends the guard
 # with exit 2, and from the first recorded ask the guard's abort posture is
@@ -24,14 +25,28 @@
 # As of: 2026-10-15. Recheck trigger: that section renames `permissionDecision`
 # or its `ask` value, or a launch shape without a person starts reading 1.
 #
+# "Unwatched" means GUARDRAILS_SESSION_UNWATCHED is exactly `1`: an interactive
+# session left running with nobody at it reads ATTENDED=1 all the same, and an
+# ask there waits for a prompt nobody answers. The hooks reference documents no
+# field or variable that says whether a person is watching, so the session
+# declares it: whoever starts it sets the variable in its environment or in a
+# settings file's `env`. Unwatched, hook::refuse denies as it does unattended,
+# and the reason also names the command for a person to run later
+# (HOOK_REFUSE_COMMAND, which the guard sets to the command it read). The
+# variable can only turn an ask into a deny, so whoever sets it gains nothing.
+#
 # Under run-guards.sh the ask document is merged with the other guards' output
 # (deny over ask), and any guard's exit 2 still denies the call. Each guard
 # sources this file, which resets the record for that guard.
 
 HOOK_REFUSE_PENDING=()
 
+hook::refuse_unwatched() {
+  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 && "${GUARDRAILS_SESSION_UNWATCHED-}" == 1 ]]
+}
+
 hook::refuse_asks() {
-  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 ]]
+  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 ]] && ! hook::refuse_unwatched
 }
 
 hook::refuse() {
@@ -46,6 +61,12 @@ hook::refuse() {
     return 0
   fi
   printf '%s\n' "$1" >&2
+  if hook::refuse_unwatched; then
+    printf '%s\n' \
+      'Nobody is watching this session (GUARDRAILS_SESSION_UNWATCHED=1), so this was refused instead of asked.' \
+      'Do not retry it another way. Leave it for a person to run later, and report this command:' \
+      "${HOOK_REFUSE_COMMAND-}" >&2
+  fi
   exit 2
 }
 

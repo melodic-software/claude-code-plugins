@@ -18,7 +18,7 @@ under it.
 | 4. Factual tone | Universal | Promotional language adds length and no information for anyone |
 
 Properties 2 and 4 are the universal set. When the `docs-hygiene` plugin is
-installed, `docs-hygiene:write-for-agents` points at those two properties and
+enabled, `docs-hygiene:write-for-agents` points at those two properties and
 at nothing else, so agent-facing prose gets the brevity rules without acquiring
 headings, bullets and bolded keywords it has no use for.
 

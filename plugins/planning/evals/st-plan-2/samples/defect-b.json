@@ -1,0 +1,86 @@
+{
+  "pass": [
+    {
+      "answer": "- `Server.transfer` calls `SaveBins` before `AppendJournal`; a crash between them leaves `bins.json` ahead of the journal and `store.Open` errors.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Wrong order: `adjust` appends to the journal first. With the plan's order, a kill after `SaveBins` means `stockd` refuses to start.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Transfer is not atomic: a stop between `SaveBins` and `AppendJournal` bricks the next boot | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `SaveBins` is safe alone, but a crash before `AppendJournal` blocks the next start.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `Server.transfer` isn't atomic.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Phase 1 should be journal-first; `AppendJournal` must run before `SaveBins` | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `Server.transfer` has no crash safety: it calls `SaveBins` before `AppendJournal`.\n",
+      "why": "no crash safety"
+    },
+    {
+      "answer": "- There is no crash recovery for `Server.transfer`: `SaveBins` runs before `AppendJournal`, the reverse of `adjust`.\n",
+      "why": "no crash recovery"
+    },
+    {
+      "answer": "- The plan claims a crash is handled, but `SaveBins` runs before `AppendJournal`, so `store.Open` refuses to start.\n",
+      "why": "quotes the claim, then attacks it"
+    },
+    {
+      "answer": "- `Server.transfer` has no crash safety: it calls `SaveBins` before `AppendJournal`, the reverse of `adjust`.\n",
+      "why": "no crash safety is the defect, not a dismissal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `SaveBins` then `AppendJournal` is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- A crash is handled: `SaveBins` leaves bins.json whole.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `AppendJournal` should batch fsync calls for speed.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Consider crash handling.\n",
+      "why": "generic, no target"
+    },
+    {
+      "answer": "- There is no crash window: `SaveBins` writes `bins.json` through a temp file and rename.\n",
+      "why": "dismissal"
+    },
+    {
+      "answer": "- A crash is handled: `SaveBins` leaves bins.json whole, but the Phase 3 check never overdraws.\n",
+      "why": "dismissal, then a finding about something else"
+    },
+    {
+      "answer": "- `SaveBins` before `AppendJournal` has no crash risk.\n",
+      "why": "dismissal"
+    },
+    {
+      "answer": "- A crash is handled: `SaveBins` leaves bins.json whole, though the Phase 3 check could log more.\n",
+      "why": "dismissal, then an unrelated though clause"
+    }
+  ]
+}

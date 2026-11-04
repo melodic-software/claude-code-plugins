@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: A git stash runs before any checkout or branch creation
 ---
 
-PR 482 is merged. Reuse this worktree for the next task, but `git status --porcelain` shows tracked edits and an untracked file.
+PR 482 is merged. With the source-control:pull-request skill, reuse this worktree for the next task, but `git status --porcelain` shows tracked edits and an untracked file.

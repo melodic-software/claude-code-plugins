@@ -3,6 +3,44 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.1.5] - 2026-11-04
+
+### Fixed
+
+- Shared `view-settings.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): a `terminal` or `file` value in a retired `rendered-views.md` file keeps the view local when no scope sets one, instead of falling to a publishing default; no other change to this plugin.
+
+## [9.1.4] - 2026-11-03
+
+### Fixed
+
+- Closing an item through `/work-items:triage` or `/work-items:track done` first moves each open item it blocks onto the item that now carries the work (for a duplicate, the surviving item), then drops the old edge, so a close no longer frees work still waiting on a prerequisite; a won't-fix close keeps its edges and names its dependents for re-triage.
+
+## [9.1.3] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+## [9.1.2] - 2026-11-03
+
+### Fixed
+
+- The lane telemetry body gate's leak scan (`scanLeak` in the shared `lib/publish-gate.mjs` copy) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and refuses a body with a GitHub token or Anthropic key inside one (#8295).
+
+## [9.1.1] - 2026-11-03
+
+### Changed
+
+- The permission preflight reference, the tracker seam reference, `/work-items:attend-queue`,
+  `/work-items:setup`, the work-loop telemetry upsert reference and the GitHub adapter README no
+  longer restate upstream behavior: permission rule matching, when git sets `core.worktree`, the
+  `jq` install on Windows, `gh` flag spellings, `--limit` defaults, `--reason` values, `gh api`
+  field and placeholder handling, the sub-issue `--json` projection, GitHub search qualifiers, REST
+  pagination and assignee responses, closing keywords and linkage, `includeClosedPrs`,
+  cloud-session API refusals and issue form labels. Each keeps its own rule and links the upstream
+  section with an as-of date and a recheck trigger. The adapter README's "Edit labels / assignees"
+  recipe now shows the `--remove-assignee "@me"` call attend-queue and triage use.
+
 ## [9.1.0] - 2026-11-03
 
 ### Added

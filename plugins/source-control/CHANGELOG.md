@@ -3,6 +3,77 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.5.3] - 2026-11-04
+
+### Fixed
+
+- Shared `view-settings.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): a `terminal` or `file` value in a retired `rendered-views.md` file keeps the view local when no scope sets one, instead of falling to a publishing default; no other change to this plugin.
+
+## [6.5.2] - 2026-11-03
+
+### Changed
+
+- The `babysit-prs` engine's unittest suite runs as four shell suites instead of one, so each
+  stays under CI's 120 s per-suite budget: `engine-b.test.sh` runs
+  `tests/test_babysit_merge_policy.py`, `engine-c.test.sh` the `tests/test_babysit_postmerge*.py`
+  modules, `engine-d.test.sh` every other `tests/test_babysit_*.py`, and `engine.test.sh` the
+  remaining modules beside its ruff pass and wrapper checks. The new `engine-run.sh` assigns each
+  module to exactly one part and fails when a part's wrapper is missing. No test was added or removed.
+
+## [6.5.1] - 2026-11-03
+
+### Fixed
+
+- The merge gate (`babysit_merge.py`) no longer counts pr-merge's own failing `pr-merge/unarmed` status against a pull request. That status left `mergeStateStatus` at `UNSTABLE` and failed the failing-checks rule, so a PR stayed refused after the cause that left it unarmed (a failed review, an outage, a rate limit) had cleared. The gate now reads `UNSTABLE` as ready when that status is the only failing check, so the next scheduled gate run takes the PR. Any other failing check, or a check run that only shares the status's name, still holds.
+
+## [6.5.0] - 2026-11-03
+
+### Added
+
+- `babysit_lift.py`: `canary-block` and `revert-block` print the lift block a canary or revert demotion record carries (per path, a 12-hex SHA-256 prefix and count for each line the merge deleted), and `close` closes each open canary, revert or read-back record that has lifted by the merge gate's own rule, removing its human-gated label.
+
+### Changed
+
+- The merge gate lifts a canary, revert or read-back demotion record on its own evidence (`babysit_merge_policy.py` `_lift`), as it already clears a red-main record once main is green. A record lifts when its own condition holds on main again (the content its lift block names is in main's tree again, beyond the copies the file still held at the record's own SHA; a read-back record's pull request reads back after all), or when a pull request that references it merges into main after it was filed, at a merge commit on main's history, the reference made no later than the merge by a person with write access or the agent identity, with that condition holding there (a canary record whose block says nothing was deleted needs a passing canary push run at that commit; a read-back record needs that pull request to read back; a revert record needs nothing more). A record a non-human edited, a failed read, or more than 100 references lifts nothing, and a canary record with no lift block still clears only on a person's close. The read-back and canary record bodies say how they lift.
+
+## [6.4.1] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+## [6.4.0] - 2026-11-03
+
+### Changed
+
+- babysit-prs: the Dependabot fix rule (`package_json_refusal`) admits a lanes App fix commit that
+  renames one `allowScripts` key `@anthropic-ai/claude-code@<old>` to
+  `@anthropic-ai/claude-code@<v>`, value kept, where `<v>` is the exact version the manifest
+  pins in the commit before the fix (Dependabot's) and still pins after it. A downgrade or any
+  other manifest move, a name-only or wildcard key, another package's pin, an added or dropped
+  key, or a range in the manifest still refuses, as in the pr-unblock lane's
+  `dependency-classify.mjs`.
+
+## [6.3.1] - 2026-11-03
+
+### Fixed
+
+- The lane telemetry body gate's leak scan (`scanLeak` in the shared `lib/publish-gate.mjs` copy) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and refuses a body with a GitHub token or Anthropic key inside one (#8295).
+
+## [6.3.0] - 2026-11-03
+
+### Changed
+
+- **The babysit loop admits a pull request at each rung by that rung's promotion, not by work class.** The rung partition no longer reads the close-linked item's `work-class:` label: once the effective rung's promotion cells are promoted (`C2-auto-merge` at `c2-mechanical`, every promotable cell at `c3-autonomous` and `full-autonomy`), an item with no class or any class but untrusted provenance is eligible. The untrusted-provenance hold, the fork and trust tests, and the other withholdings stay (#12748).
+- **The unattended merge pin names its rung.** The pin comment the merge gate posts before it enqueues is now `<!-- babysit-merge-pin sha=<sha> rung=C2|C3 -->`, and the post-merge read-back accepts both that and the older shape. The pr-merge lane's native-arm pin names the lane room's rung the same way.
+- **Promotion evidence is credited by rung.** `publish-promotion-evidence.mjs` credits each autonomous merge to the cells of the rung its lane pin names and reads no work-class label. A merge with no rung (no unedited pin at its head, an older pin, another bot's merge; a native auto-merge is credited by the pin the pr-merge lane posted) earns no credit, is listed in `noRungAutonomous` (formerly `unclassedAutonomous`), and its contrary events count against every cell. `C3-ai-review-blocking` takes its positive evidence from rung-C3 merges only; a human-confirmed missed-blocking finding on a rung-C3 merge or a human merge still counts against it.
+
+### Fixed
+
+- The merge gate's review evidence binds an AI review run's second attempt when the first failed with `failure-class=timeout` and the lane posted nothing on the head, the same unposted proof `no-outcome` uses. The gate still never starts that re-run itself.
+
+- The `comments --ci` review-thread tool (`feedback-thread.sh`) takes the notes of an earlier pr-verify FAIL as work items: `notes` lists them, and `record` takes `VALID` or `already-addressed` (with evidence) for a `VNOTE_` id, with each note's path in the fix's scope. The pr-unblock lane uses this when the merge gate refuses a head `verify:earlier-fail` and the FAIL's threads are already resolved.
+
 ## [6.2.1] - 2026-11-03
 
 ### Changed

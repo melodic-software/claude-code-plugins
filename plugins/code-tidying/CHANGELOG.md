@@ -3,6 +3,21 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1] - 2026-11-03
+
+### Fixed
+
+- `open-pr-count.sh` counts its `gh pr list` call in this repository's CI job api-budget notice,
+  through the shared gh wrapper; elsewhere it calls gh as before.
+
+## [0.39.0] - 2026-11-03
+
+### Added
+
+- `upkeep_spec_issue`, a team setting with no default: the issue holding the upkeep sweep's
+  contract, which each upkeep batch pull request links with `Refs: #<n>` so a verifier has a spec to
+  judge it against. `upkeep-setting.sh upkeep_spec_issue` reads it, empty when unset or invalid.
+
 ## [0.38.2] - 2026-11-03
 
 ### Changed

@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "- The insert follows the send: a run killed between `send_sms` and the commit leaves no row, so the next start texts the patient again and breaks AC1.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Operations | Crash after send and before the insert means a duplicate SMS on re-run | Write an intent row first |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The send and the ledger insert are not atomic, so a stopped run sends a second text.\n",
+      "why": "not atomic is the finding"
+    },
+    {
+      "answer": "| 2 | HIGH | Failure | Power loss in the gap between provider accept and ledger row re-sends the reminder | Record the attempt first |\n",
+      "why": "table row with re-send"
+    },
+    {
+      "answer": "- The ledger does not prevent a duplicate text: a crash after `send_sms` and before the insert re-sends on the next run.\n",
+      "why": "does not prevent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "If the job crashes between the send and the insert a duplicate is possible, but that is fine and no concern here.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "A crash between send and insert does not duplicate anything because of the ledger row.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- The ledger should have error handling for a crash.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The staff list command prints no column headers.\n",
+      "why": "a finding about something else"
+    }
+  ]
+}

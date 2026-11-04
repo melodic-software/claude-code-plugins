@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply flags nothing"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean report"
+    },
+    {
+      "answer": "- The five-second poll is right: pgbouncer's transaction mode leaves no session for LISTEN/NOTIFY.\n",
+      "why": "approving mention"
+    },
+    {
+      "answer": "- There is no need to replace polling with LISTEN/NOTIFY.\n",
+      "why": "dismissed attack"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Operations | A worker killed after the claim leaves the job stuck; the poll loop selects only queued rows, the wrong filter | Add a lease |\n",
+      "why": "a different defect that mentions the poll"
+    },
+    {
+      "answer": "- The poll should use a lease so a job left running is picked up again.\n",
+      "why": "the stranded job defect, phrased around the poll"
+    },
+    {
+      "answer": "- `stop_grace_period: 5s` in deploy/compose.yml is too slow for a large PDF.\n",
+      "why": "a 5s value that is not the poll"
+    },
+    {
+      "answer": "- Polling is not wasteful here: the pooler cannot use LISTEN/NOTIFY.\n",
+      "why": "approval"
+    },
+    {
+      "answer": "The draft says polling every five seconds is fine; it isn't, polling is wasteful.\n",
+      "why": "known limit: a quoted claim rebutted without a contrast word followed by a target term is not credited; a real attack left unflagged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Polling every five seconds is wasteful; use LISTEN/NOTIFY.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | MEDIUM | Design | The worker should use LISTEN/NOTIFY instead of polling | Add a listener |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Replace the poll loop with a notification channel.\n",
+      "why": "replace"
+    },
+    {
+      "answer": "| 3 | LOW | Design | A 5-second poll is a poor choice for a job queue | Use LISTEN |\n",
+      "why": "poor choice"
+    },
+    {
+      "answer": "- Polling is the wrong design for this worker.\n",
+      "why": "wrong"
+    },
+    {
+      "answer": "- Polling for queued jobs every five seconds is wasteful; use LISTEN/NOTIFY.\n",
+      "why": "attack using the draft's word queued"
+    },
+    {
+      "answer": "- Polling to claim a job every five seconds is wasteful; the workers should use LISTEN/NOTIFY.\n",
+      "why": "attack using the draft's word claim"
+    },
+    {
+      "answer": "- The draft doesn't use LISTEN/NOTIFY, so polling every five seconds wastes queries.\n",
+      "why": "doesn't use opens the attack"
+    },
+    {
+      "answer": "- Sleeping five seconds between empty queries is wasteful; use LISTEN/NOTIFY.\n",
+      "why": "five seconds, plural"
+    }
+  ]
+}

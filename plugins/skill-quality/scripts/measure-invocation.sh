@@ -12,15 +12,17 @@
 # environment error (no jq, missing file).
 #
 # Usage:
-#   bash measure-invocation.sh validate [--copy-span N] <probes-dir>
+#   bash measure-invocation.sh validate [--copy-span N] [--verbose] <probes-dir>
 #   bash measure-invocation.sh score [--method listing-overlap] <probes-dir>
 #   bash measure-invocation.sh compare <baseline.json> <treatment.json>
 #   bash measure-invocation.sh emit-plugin-eval [--runs N] <probes-dir> <out-dir>
 #   bash measure-invocation.sh --help
 #
 # validate WARNs when a should-trigger probe shares N or more consecutive
-# words (default 4) with the target listing, and on each competitor whose id
-# does not start with the file's plugin and a colon. emit-plugin-eval writes N runs
+# words (default 4) with the target listing, and once per probe file naming
+# every competitor whose id does not start with the file's plugin and a colon
+# (--verbose: one WARN per competitor, plus each skill's listing and query
+# split; the warning count is the same either way). emit-plugin-eval writes N runs
 # per case (default 3, the CLI's own default). compare adds a 95% paired
 # normal-approximation interval on each trigger-rate delta, from per-probe
 # outcomes matched by id, and an INFO line that says "within noise" when the
@@ -172,12 +174,24 @@ copied_span() {
 }
 
 cmd_validate() {
-  local span=4
-  if [[ "${1:-}" == "--copy-span" ]]; then
-    positive_int --copy-span "${2:-}"
-    span="$2"
-    shift 2
-  fi
+  local span=4 verbose=0
+  while [[ "${1:-}" == --* ]]; do
+    case "$1" in
+      --copy-span)
+        positive_int --copy-span "${2:-}"
+        span="$2"
+        shift 2
+        ;;
+      --verbose)
+        verbose=1
+        shift
+        ;;
+      *)
+        printf 'Error: unknown validate option %s (--copy-span N, --verbose)\n' "$1" >&2
+        exit 2
+        ;;
+    esac
+  done
   local dir="${1:-}"
   if [[ -z "$dir" || ! -d "$dir" ]]; then
     printf 'Error: validate needs a probes directory\n' >&2
@@ -185,7 +199,7 @@ cmd_validate() {
   fi
   local root
   root="$(repo_root)"
-  local f nfiles=0 unresolved=0
+  local f nfiles=0 unresolved=0 cross=0 cross_files=0
   local -a files
   mapfile -t files < <(probe_files "$dir")
   if [[ ${#files[@]} -eq 0 ]]; then
@@ -204,11 +218,22 @@ cmd_validate() {
       err "$f: missing skill"
     fi
     local plugin competitor
+    local -a foreign=()
     plugin="$(jq -r '.plugin // empty' "$f")"
     if [[ -n "$plugin" ]]; then
-      while IFS= read -r competitor; do
+      mapfile -t foreign < <(jq -r --arg p "$plugin:" '.competitors[]? | select((type == "string" and startswith($p)) | not) | tostring' "$f")
+    fi
+    if ((verbose)); then
+      for competitor in ${foreign[@]+"${foreign[@]}"}; do
         warn "$f ($skill): competitor '$competitor' is not from plugin '$plugin'; a rewrite in that plugin moves this probe's listing-overlap score (fine for a live emit-plugin-eval set, which loads it as a rival)"
-      done < <(jq -r --arg p "$plugin:" '.competitors[]? | select((type == "string" and startswith($p)) | not) | tostring' "$f")
+      done
+    elif ((${#foreign[@]} > 0)); then
+      # One line per file; warns still counts each competitor.
+      printf "WARN: %s (%s): %s competitor(s) not from plugin '%s': %s\n" "$f" "$skill" "${#foreign[@]}" "$plugin" \
+        "$(printf "'%s', " "${foreign[@]}" | sed 's/, $//')" >&2
+      warns=$((warns + ${#foreign[@]}))
+      cross=$((cross + ${#foreign[@]}))
+      cross_files=$((cross_files + 1))
     fi
     if ! jq -e '.queries | type == "array" and length > 0' "$f" >/dev/null; then
       err "$f: queries must be a non-empty array"
@@ -261,7 +286,7 @@ cmd_validate() {
     rel="$(jq -r '.skill_dir // empty' "$f")"
     if [[ -n "$rel" ]]; then
       if md="$(resolve_skill_md "$root" "$rel")"; then
-        note "$skill: listing $md"
+        ((verbose)) && note "$skill: listing $md"
         local listing qid request copied
         listing="$(load_listing "$md")"
         while IFS=$'\t' read -r qid request; do
@@ -277,9 +302,12 @@ cmd_validate() {
     else
       warn "$f ($skill): no skill_dir; score cannot load a listing"
     fi
-    note "$skill: $n queries (pos=$pos neg=$neg train=$train validation=$val)"
+    ((verbose)) && note "$skill: $n queries (pos=$pos neg=$neg train=$train validation=$val)"
   done
   note "validated $nfiles probe file(s)"
+  if ((cross > 0)); then
+    note "$cross competitor(s) in $cross_files probe file(s) are not from the file's plugin; a rewrite in that plugin moves the probe's listing-overlap score (fine for a live emit-plugin-eval set, which loads it as a rival); --verbose prints one WARN per competitor and each skill's listing and query split"
+  fi
   if ((unresolved > 0)); then
     note "$unresolved of $nfiles probe file(s) have a skill_dir that does not resolve under $root; score cannot load those listings (see reference/invocation-probes.md, Outside the marketplace checkout)"
   fi

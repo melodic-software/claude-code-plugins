@@ -1,5 +1,48 @@
 # Changelog: discovery plugin
 
+## [1.3.5] - 2026-11-04
+
+### Fixed
+
+- Shared `view-settings.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): a `terminal` or `file` value in a retired `rendered-views.md` file keeps the view local when no scope sets one, instead of falling to a publishing default; no other change to this plugin.
+
+## [1.3.4] - 2026-11-03
+
+### Changed
+
+- The shared medium resolver modules (`view-settings.mjs` and the modules it loads) ship under `lib/` ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no skill changes how it resolves the medium yet.
+
+## [1.3.3] - 2026-11-03
+
+### Changed
+
+- The rendered-view reference is now a synced copy of the one shared rendered-view procedure ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no skill changes how it resolves the medium yet.
+
+- `/discovery:blindspot` also triggers on "blind spot pass", the name Anthropic's field guide to Claude Fable gives this practice.
+
+## [1.3.2] - 2026-11-03
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
+## [1.3.1] - 2026-11-03
+
+### Changed
+
+- move the research skill's practitioner test out of its hub
+
+  The /discovery:research SKILL.md body drops from 45,165 to 43,646
+  bytes (frontmatter stripped). The proof-of-shipped-work test and the
+  untrusted-profile paragraph move verbatim to
+  skills/research/reference/practitioner-test.md, which the hub points at
+  before a person is weighed as a recognized author. Two eval cases cover
+  the moved text.
+
 ## [1.3.0] - 2026-11-03
 
 ### Added

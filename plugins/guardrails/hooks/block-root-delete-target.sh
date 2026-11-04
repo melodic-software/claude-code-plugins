@@ -940,6 +940,7 @@ if [[ "$TOOL_NAME" == "PowerShell" && ("$INPUT" == *'\r'* || "$INPUT" == *'\u000
     COMMAND="${HOOK_JQ_FIELDS[0]}"
   fi
 fi
+HOOK_REFUSE_COMMAND="$COMMAND"
 
 # Nothing to inspect.
 [[ -n "$COMMAND" ]] || exit 0

@@ -3,6 +3,22 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.4] - 2026-11-03
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
+## [2.1.3] - 2026-11-03
+
+### Changed
+
+- The `audit` and `stateless` skills no longer restate upstream facts: the `claude-md-management` plugin's skill and command, the auto-memory store path and relocation, what `/memory` edits, the scopes that set `autoMemoryDirectory`, and the meaning of each `CLAUDE_CODE_DISABLE_AUTO_MEMORY` value ([#12696](https://github.com/melodic-software/claude-code-plugins/issues/12696)). Each decision stays, and each now points at the upstream section with an as-of date and a recheck trigger.
+
 ## [2.1.2] - 2026-11-02
 
 ### Changed

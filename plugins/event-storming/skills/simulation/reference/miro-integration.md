@@ -13,9 +13,11 @@ default output, and the board capability is opt-in, so enabling `event-storming`
 Miro MCP server.
 
 > **Why the bundled server and not Miro's hosted one.** The live-board path targets the first-party
-> bundled server so that board teardown is expressible (the hosted server exposes no board-delete
-> tool) and so board and workshop content never leaves for a third-party remote MCP. The decision
-> record lives in the marketplace repo's MCP decision table in `docs/migration-playbook.md`.
+> bundled server so that board teardown is possible and board and workshop content never leaves for
+> a third-party remote MCP. The decision record lives in the marketplace repo's MCP decision table in
+> `docs/migration-playbook.md`. For the tools Miro's hosted server exposes, fetch
+> [MCP Tools and Capabilities](https://developers.miro.com/docs/mcp-intro#-mcp-tools-and-capabilities)
+> live (as of 2026-11-03; recheck when that list adds a board-delete tool).
 
 ### Tool namespace
 
@@ -51,7 +53,13 @@ marketplace first, then enabled** (enabling alone does not install it).
 2. **Install the plugin.** It installs **disabled** (`defaultEnabled: false` by design).
 3. **Enable it and supply a token** through `/plugin` when Claude Code asks for the Miro API token.
    Never write the token into `settings.json` by hand. Get a token from
-   https://miro.com/app/settings/user-profile/apps with `boards:read` + `boards:write` scopes.
+   https://miro.com/app/settings/user-profile/apps. Grant only the scopes that cover the board,
+   item, connector and tag endpoints the bundled server's tools call, and nothing broader: any
+   extra scope only widens what a leaked token exposes. Take the scope names from the OAuth guide
+   that [Authorization Info](https://developers.miro.com/docs/rest-api-reference-guide#authorization-info)
+   links (as of 2026-11-03; recheck when that section moves or stops linking the authorization
+   guide, or when the bundled server's tools call an endpoint outside board, item, connector and
+   tag).
    - **Pointer**: when a user asks how the token is collected or stored, fetch
      [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
      (the `sensitive` option) live.
@@ -65,28 +73,15 @@ marketplace first, then enabled** (enabling alone does not install it).
 
 ## EventStorming Color Mapping
 
-### Miro's 16 Sticky Note Colors
+### Valid sticky note colors
 
-| Miro Color Name | Visual | Hex (approx) |
-|----------------|--------|-------------|
-| `gray` | Gray | #F5F6F8 |
-| `light_yellow` | Light Yellow | #FFF9B1 |
-| `yellow` | Yellow | #F5D128 |
-| `orange` | Orange | #FF9D48 |
-| `light_green` | Light Green | #D5F692 |
-| `green` | Green | #93D275 |
-| `dark_green` | Dark Green | #67C6C0 |
-| `cyan` | Cyan | #23BFE7 |
-| `light_pink` | Light Pink | #EA94BB |
-| `pink` | Pink | #F16C7F |
-| `violet` | Violet | #BE88C7 |
-| `red` | Red | #FF3838 |
-| `light_blue` | Light Blue | #A6CCF5 |
-| `blue` | Blue | #2D9BF0 |
-| `dark_blue` | Dark Blue | #414BB2 |
-| `black` | Black | #1A1A2E |
+The colors the sticky tools accept are the `miro` plugin's `STICKY_NOTE_COLORS` list in
+`plugins/miro/server/src/tools/sticky-notes.ts` in the marketplace repository; the mapping below
+gives each of them one EventStorming role. Correlate that list with Miro's own
+[`StickyNoteStyle.fill_color`](https://miroapp.github.io/api-clients/python/miro_api/models/sticky_note_style.html#StickyNoteStyle.fill_color)
+(as of 2026-11-03; recheck when that field's allowed values change).
 
-### EventStorming → Miro Color + Shape Mapping (Complete, All 16 Colors Assigned)
+### EventStorming → Miro Color + Shape Mapping (Every Color Assigned)
 
 | EventStorming Element | Book Color | Miro Color | Miro Shape | Match | Content Convention |
 |----------------------|------------|------------|------------|-------|-------------------|
@@ -107,14 +102,16 @@ marketplace first, then enabled** (enabling alone does not install it).
 | **Phase Name (Not-an-Event)** | Orange rotated 45° | `cyan` | `square` | Workaround | `[PHASE] Name` |
 | **Reserved / Custom** | Pick an unused color | `black` | `square` | N/A | Domain-specific extension |
 
-*\*Partial = color matches but size cannot be controlled via MCP (API supports `geometry.width` but MCP tool doesn't expose it). Shape (`rectangle` vs `square`) is the workaround for size differentiation.*
+*\*Partial = color matches but size cannot be controlled via MCP, because the bundled server's sticky tools take no size. Shape (`rectangle` vs `square`) is the workaround for size differentiation.*
 
 **Shape strategy:** Use `rectangle` for "large" building blocks (Read Model, External System) and markers (Pivotal Event, Temporal Milestone). Use `square` for everything else. This provides the visual size signal that distinguishes actors (small square) from read models (large rectangle) even though both can't be resized via MCP.
 
 **Limitations:**
 
 - No sticky note rotation, so you can't rotate 45° for phase names. Use `cyan` color + `[PHASE]` prefix instead
-- No size control via MCP, so all stickies default to ~199px. REST API supports `geometry.width` but MCP tool doesn't expose it
+- No size control via MCP, so every sticky takes Miro's default size. For the REST API's size
+  fields, fetch [Create sticky note item](https://developers.miro.com/reference/create-sticky-note-item-1)
+  live (as of 2026-11-03; recheck when that page changes the sticky note's geometry fields)
 - No magenta color, so `red` is closest for Hot Spots
 
 ---
@@ -133,7 +130,9 @@ Create a Miro board with this layout:
 
 ### Positioning Strategy (Tested Values)
 
-Miro uses x,y coordinates with (0,0) at canvas center. Sticky notes are ~199px wide by default.
+For the board's coordinate origin and a sticky note's default size, fetch
+[Create sticky note item](https://developers.miro.com/reference/create-sticky-note-item-1) live
+(as of 2026-11-03; recheck when that page changes the board origin or the default sticky size).
 
 **Horizontal spacing: 400px between items on the main flow.** This gives ~200px of clear space between stickies. 200px is too tight (stickies touch, text overlaps). For Problems/Opportunities zones with longer text, use 300px minimum.
 
@@ -234,10 +233,11 @@ Next Event       x=1600    row: Domain Events
 - Design-Level legend (8+ types): `500w x 1800h`
 - Legend stickies inside: stack vertically with 200px spacing, starting at the frame's top y + 100px offset
 - **Visual check required:** After placing legend stickies, verify via screenshot that all stickies are visible within the frame bounds. Frame overflow = stickies hidden behind the white frame background
-- **Place legend stickies at absolute coordinates, not with `parent_id`.** Setting `parent_id`
-  switches x and y from board-center-relative to frame-top-left-relative, so any coordinate computed
-  against the y-coordinate tables above lands in the wrong place. Keeping the legend stickies
-  parentless also means they survive deletion of the legend frame
+- **Place legend stickies at absolute coordinates, not with `parent_id`**, so each lands at the
+  coordinate computed against the y-coordinate tables above. Keeping the legend stickies parentless
+  also means they survive deletion of the legend frame. For how a parent changes an item's
+  position, fetch [Create sticky note item](https://developers.miro.com/reference/create-sticky-note-item-1)
+  live (as of 2026-11-03; recheck when that page changes how `parent` affects position)
 
 **Spacing summary:**
 
@@ -287,7 +287,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 - **Bulk limit**: max 20 items per bulk operation
 - **Rate limits**: Miro API has rate limits; space out bulk operations
 - **No real-time collaboration**: MCP operations are request/response, not live collaborative editing
-- **Color approximation**: Miro's 16 colors don't perfectly match physical sticky note colors, but are close enough
+- **Color approximation**: Miro's sticky colors don't perfectly match physical sticky note colors, but are close enough
 
 ## Gotchas
 
@@ -295,7 +295,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 - **Frame z-order**: frames created AFTER stickies render ON TOP, hiding them behind the white frame background. **Only use frames that are created BEFORE their content items and never need resizing.** The legend frame (created once, content placed inside) works well. Timeline frames that grow with each round should be SKIPPED entirely. Rely on coordinate-based organization instead. If you delete and recreate a frame, it covers all existing stickies
 - **Practical recommendation**: use frames ONLY for the legend (static, created once). For the evolving timeline and content areas, skip frames and let the y-coordinate layering organize the board visually. This avoids all z-order issues
 - **Deleting frames with children**: if stickies were created with `parent_id` pointing to a frame, deleting the frame deletes all children. Stickies created WITHOUT `parent_id` survive frame deletion but may be hidden under newly created frames
-- **Board sharing via API**: use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. The sharing policy must be nested under `policy.sharingPolicy` in the Miro REST API (POST uses `policy` wrapper, PATCH accepts root-level `sharingPolicy`)
+- **Board sharing via API**: use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. For the REST sharing payload behind both, fetch [Boards](https://developers.miro.com/docs/rest-api-reference-guide#boards) live (as of 2026-11-03; recheck when that section changes the Create Board or Update Board sharing fields)
 
 ---
 

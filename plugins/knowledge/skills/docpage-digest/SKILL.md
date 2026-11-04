@@ -46,11 +46,16 @@ root, and different resources never share one:
 2. Slugify to lowercase alphanumerics and hyphens only. Strip `/`, `\`, and `..`, and collapse
    hyphen runs.
 3. Append `-<hash8>`: the first 8 lowercase hex characters of the canonical URL's SHA-256
-   (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`, the fallback
-   covers stock macOS, where `sha256sum` is absent). Truncate the host+path prefix, never the hash,
+   (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`, so a host
+   without `sha256sum` still computes it). Truncate the host+path prefix, never the hash,
    so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
    part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
    also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
+
+- **Pointer**: <https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html#sha2-utilities_003a-Print-or-check-SHA_002d2-digests>
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes which command prints a SHA-256 digest, or its output
+  format.
 
 Never build a path from raw URL text (a crafted URL could steer a filename toward path
 traversal), and confirm the resolved work root is still inside `<resolved-root>/.work/` before

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Not proved by these checks\n| 1 | AC2 strips punctuation | none | no test exercises punctuation |",
+      "why": "names the section"
+    },
+    {
+      "answer": "**Not Proved By These Checks**: AC1 (rank 4 only), AC2 (no check)",
+      "why": "bold label, different capitalization"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "All tests pass. Verdict: CONFIRMED.",
+      "why": "no section"
+    },
+    {
+      "answer": "### Evidence\n| 1 | AC1 | test_slugify | 4 | self-authored | none named |",
+      "why": "evidence table only, no not-proved section"
+    }
+  ]
+}

@@ -841,6 +841,33 @@ SCHEDULE_RUNS = green_runs("schedule")
 DISPATCH_RUNS = green_runs("workflow_dispatch")
 
 
+def lift_answer(
+    references: list[dict[str, Any]] = (),
+    pull: dict[str, Any] | None = None,
+    comments: list[dict[str, Any]] = (),
+    reference: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """`PolicyRecordLift`'s data: the pull requests that cross-reference the
+    record, its comments and, for a read-back record, the pull request it
+    names."""
+    issue = {
+        "timelineItems": {
+            "pageInfo": {"hasNextPage": False},
+            # Each reference made by the identity before its merge
+            # (`merged_pull`'s 2026-10-13T09:00:00Z), unless `reference`
+            # says otherwise.
+            "nodes": [
+                {"actor": bot("agent-lanes"), "referencedAt": "2026-10-13T08:00:00Z"}
+                | (reference or {})
+                | {"source": p}
+                for p in references
+            ],
+        },
+        "comments": {"pageInfo": {"hasNextPage": False}, "nodes": list(comments)},
+    }
+    return {"repository": {"issue": issue} | ({"pullRequest": pull} if pull else {})}
+
+
 def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     """One demotion record, #9, filed by the identity, with `issue` overrides."""
     record = {
@@ -882,6 +909,9 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     # Before the single read's name, which the batch query's name extends.
     gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
+    # No pull request references the record, so a revert or read-back record
+    # has no lift evidence.
+    gh.graphql["PolicyRecordLift"] = lift_answer()
     # No green full run since: an open red-main record keeps holding. Every
     # later span up to now lists none either.
     for listing in later_spans():
@@ -1204,8 +1234,8 @@ def green_run(**fields: Any) -> dict[str, Any]:
 
 class AutoClearOnGreen(unittest.TestCase):
     """An open `schedule` or `dispatch` record clears once a newer attempt-1
-    green full run on main sits at a later commit; any other record stays
-    human-close."""
+    green full run on main sits at a later commit; a green full run clears
+    no other record."""
 
     def fake(self, body: str = DEMOTION_BODY, runs: Any = None, **issue: Any) -> GhFake:
         issue = {"state": "OPEN", "timelineItems": {"nodes": []}} | issue
@@ -1318,7 +1348,7 @@ class AutoClearOnGreen(unittest.TestCase):
                 result = read_demotion()
                 self.assertEqual((result.active, result.reason), (True, "#9 open"))
 
-    def test_other_records_stay_human_close_and_read_no_runs(self) -> None:
+    def test_other_records_never_clear_on_green_and_read_no_runs(self) -> None:
         for name, body in (
             ("canary", DEMOTION_BODY.replace("dispatch", "canary")),
             ("read-back", DEMOTION_BODY.replace("dispatch", "read-back")),
@@ -1479,7 +1509,7 @@ class AutoClearOnGreen(unittest.TestCase):
 class RevertRecord(unittest.TestCase):
     """A `revert` record, which post-merge-demotion-alert.yml files when a
     push to main reverts a pull request the lanes App enqueued, holds the
-    rung off until a person closes it directly."""
+    rung off until a person closes it directly or it lifts (`RecordLift`)."""
 
     def test_open_holds_the_rung_off(self) -> None:
         demotion_fake(
@@ -1511,6 +1541,380 @@ class RevertRecord(unittest.TestCase):
                     timelineItems={"nodes": [close | {"createdAt": PR_CREATED}]},
                 )
                 self.assertTrue(read_demotion().active)
+
+
+READ_BACK_BODY = (
+    "<!-- babysit-merge-demotion sha=" + "b" * 40 + " signal=read-back -->\n\n"
+    "The post-merge check found a `read-back` failure after an unattended merge.\n\n"
+    "- Pull request: https://github.com/owner/repo/pull/5\n"
+    "- Merge commit: `" + "b" * 40 + "`"
+)
+CANARY_BODY = DEMOTION_BODY.replace("dispatch", "canary")
+# A canary record whose merge deleted two lines of f.py.
+CANARY_BLOCK_BODY = (
+    CANARY_BODY + "\n\n" + policy.lift_block([("f.py", b"gone one"), ("f.py", b"gone two")])
+)
+FIX_MERGE = "e" * 40
+PULL_HEAD = "f" * 40
+
+
+def pin(sha: str = PULL_HEAD, **fields: Any) -> dict[str, Any]:
+    """The agent identity's unedited pin comment, posted before the merge."""
+    return {
+        "author": bot("agent-lanes"),
+        "body": f"<!-- babysit-merge-pin sha={sha} -->\nThe unattended merge path enqueued it.",
+        "createdAt": "2026-10-13T08:00:00Z",
+        "lastEditedAt": None,
+    } | fields
+
+
+def merged_pull(number: int = 7, comments: list[dict[str, Any]] = (), **fields: Any) -> dict[str, Any]:
+    """A pull request of this repository merged into main at `FIX_MERGE` after
+    the record (created 2026-10-12T10:00:00Z)."""
+    return {
+        "__typename": "PullRequest",
+        "number": number,
+        "merged": True,
+        "mergedAt": "2026-10-13T09:00:00Z",
+        "baseRefName": "main",
+        "headRefOid": PULL_HEAD,
+        "mergeCommit": {"oid": FIX_MERGE},
+        "repository": {"nameWithOwner": REPO},
+        "comments": {"pageInfo": {"hasNextPage": False}, "nodes": list(comments)},
+    } | fields
+
+
+class RecordLift(unittest.TestCase):
+    """A revert or read-back record lifts on its own evidence (#11022's
+    decision of 2026-11-02): (1) a read-back record's pull request reads back
+    after all (the identity's unedited pin, posted no later than the merge,
+    names the head that merged); (2) a pull request that references the
+    record merges into main after it, and for a read-back record that pull
+    request's own read-back holds. A canary or revert record also lifts once
+    the content its lift block names is back on main, and a canary record on
+    a referencing merge holding that content (or, when nothing was deleted, a
+    green canary run there). Until then it holds."""
+
+    def fake(self, body: str, lift: dict[str, Any], tip: str = FIX_MERGE) -> GhFake:
+        gh = demotion_fake(self, body=body, state="OPEN", timelineItems={"nodes": []})
+        gh.graphql["PolicyRecordLift"] = lift
+        gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": tip}}
+        # f.py at the record's SHA, the state just after the deletion: absent
+        # unless a test says otherwise, so it held none of the deleted lines.
+        gh.rest[f"repos/{REPO}/contents/f.py?ref={'b' * 40}"] = 404
+        return gh
+
+    def lifted(self, result: Any, at: str) -> None:
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(result.cleared_at, policy.datetime.fromisoformat(at))
+
+    def test_a_merged_referencing_pull_request_lifts_a_revert_record(self) -> None:
+        self.fake(REVERT_BODY, lift_answer([merged_pull()]))
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_revert_record_holds_without_a_qualifying_merge(self) -> None:
+        for name, pull in (
+            ("not merged", merged_pull(merged=False, mergedAt=None, mergeCommit=None)),
+            ("merged before the record", merged_pull(mergedAt="2026-10-12T09:00:00Z")),
+            ("into another branch", merged_pull(baseRefName="release")),
+            ("in another repository", merged_pull(repository={"nameWithOwner": "fork/repo"})),
+            ("an issue, not a pull request", {"__typename": "Issue", "number": 7}),
+        ):
+            with self.subTest(name):
+                self.fake(REVERT_BODY, lift_answer([pull]))
+                self.assertEqual(read_demotion().reason, "#9 open")
+        with self.subTest("no reference"):
+            self.fake(REVERT_BODY, lift_answer())
+            self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_merge_commit_off_mains_history_holds(self) -> None:
+        for status in ("behind", "diverged"):
+            with self.subTest(status):
+                gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
+                gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": status}
+                self.assertEqual(read_demotion().reason, "#9 open")
+        gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
+        gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": "ahead"}
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_only_a_trusted_reference_made_before_the_merge_lifts(self) -> None:
+        # Anyone can mention the record in a comment on a merged pull request,
+        # which makes a reference too; that must not lift any record.
+        green = {
+            "conclusion": "success", "event": "push", "head_sha": FIX_MERGE,
+            "head_branch": "main", "head_repository": {"full_name": REPO},
+        }
+        canary_runs = (
+            f"repos/{REPO}/actions/workflows/post-merge-detect-silent-revert.yml/runs"
+            f"?head_sha={FIX_MERGE}&event=push&status=success&per_page=100"
+        )
+        empty_canary = CANARY_BODY + "\n" + policy.lift_block([])
+        for body in (REVERT_BODY, empty_canary):
+            for name, reference, lifts in (
+                ("the identity, before the merge", {}, True),
+                ("a person with write access", {"actor": user(OPERATOR)}, True),
+                ("a person who can only read", {"actor": user("reader")}, False),
+                ("an outside account", {"actor": user("stranger")}, False),
+                ("another bot", {"actor": bot("renovate")}, False),
+                ("no actor", {"actor": None}, False),
+                ("the identity, after the merge", {"referencedAt": "2026-10-13T10:00:00Z"}, False),
+            ):
+                with self.subTest(body=body.split(" -->")[0], reference=name):
+                    gh = self.fake(body, lift_answer([merged_pull()], reference=reference))
+                    gh.rest[canary_runs] = {"workflow_runs": [green]}
+                    self.assertEqual(not read_demotion().active, lifts)
+
+    def test_the_earliest_qualifying_merge_is_the_clear(self) -> None:
+        later = merged_pull(8, mergedAt="2026-10-14T09:00:00Z")
+        self.fake(REVERT_BODY, lift_answer([later, merged_pull()]))
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_revert_record_closed_by_the_referencing_pull_request_lifts(self) -> None:
+        gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]))
+        record = gh.graphql["PolicyDemotionRecords"]["repository"]["i9"]
+        record |= {
+            "state": "CLOSED",
+            "timelineItems": {
+                "nodes": [
+                    {
+                        "createdAt": "2026-10-13T09:00:00Z",
+                        "actor": bot("agent-lanes"),
+                        "closer": {"__typename": "PullRequest"},
+                    }
+                ]
+            },
+        }
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_read_back_record_lifts_when_its_pull_request_reads_back(self) -> None:
+        own = merged_pull(5, [pin()], mergeCommit={"oid": "b" * 40})
+        self.fake(READ_BACK_BODY, lift_answer(pull=own))
+        self.lifted(read_demotion(), "2026-10-12T10:00:00Z")
+
+    def test_a_read_back_record_holds_while_its_pull_request_does_not_read_back(self) -> None:
+        for name, comments, fields in (
+            ("no pin", [], {}),
+            ("an edited pin", [pin(lastEditedAt="2026-10-13T08:30:00Z")], {}),
+            ("a pin posted after the merge", [pin(createdAt="2026-10-13T10:00:00Z")], {}),
+            ("a pin naming another head", [pin("9" * 40)], {}),
+            ("a newer pin naming another head", [pin(), pin("9" * 40)], {}),
+            ("someone else's pin", [pin(author=user(OPERATOR))], {}),
+            ("a User owning the App's bare slug", [pin(author=user("agent-lanes"))], {}),
+            ("another merge commit", [pin()], {"mergeCommit": {"oid": "9" * 40}}),
+            ("more comments than read", [pin()], {"comments": {"pageInfo": {"hasNextPage": True}, "nodes": [pin()]}}),
+        ):
+            with self.subTest(name):
+                own = merged_pull(5, comments, mergeCommit={"oid": "b" * 40}) | fields
+                self.fake(READ_BACK_BODY, lift_answer(pull=own))
+                self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_read_back_record_lifts_on_a_referencing_merge_that_reads_back(self) -> None:
+        own = merged_pull(5, [], mergeCommit={"oid": "b" * 40})
+        self.fake(READ_BACK_BODY, lift_answer([merged_pull(comments=[pin()])], pull=own))
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_read_back_record_holds_on_a_referencing_merge_without_a_read_back(self) -> None:
+        own = merged_pull(5, [], mergeCommit={"oid": "b" * 40})
+        self.fake(READ_BACK_BODY, lift_answer([merged_pull(comments=[pin("9" * 40)])], pull=own))
+        self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_record_a_non_human_edited_never_lifts(self) -> None:
+        edits = {
+            "totalCount": 2,
+            "nodes": [
+                {
+                    "editedAt": "2026-10-12T10:30:00Z",
+                    "deletedAt": None,
+                    "editor": bot("renovate"),
+                    "diff": REVERT_BODY,
+                },
+                {
+                    "editedAt": "2026-10-12T10:00:00Z",
+                    "deletedAt": None,
+                    "editor": bot("agent-lanes"),
+                    "diff": REVERT_BODY,
+                },
+            ],
+        }
+        gh = demotion_fake(
+            self,
+            body=REVERT_BODY,
+            state="OPEN",
+            timelineItems={"nodes": []},
+            lastEditedAt="2026-10-12T10:30:00Z",
+            userContentEdits=edits,
+        )
+        gh.graphql["PolicyRecordLift"] = lift_answer([merged_pull()])
+        self.assertEqual(read_demotion().reason, "#9 open")
+        self.assertFalse([c for c in gh.calls if any("PolicyRecordLift" in a for a in c)])
+
+    def test_a_canary_record_without_a_lift_block_never_lifts(self) -> None:
+        # The one exception: no block records what was deleted, so neither
+        # condition can be checked and only a person's close clears it.
+        gh = self.fake(CANARY_BODY, lift_answer([merged_pull()]))
+        self.assertEqual(read_demotion().reason, "#9 open")
+        self.assertFalse([c for c in gh.calls if c[:2] != ["api", "graphql"]])
+
+    def content(self, gh: GhFake, ref: str, text: Any) -> None:
+        """`f.py` at `ref`, read raw: its text, or an HTTP status."""
+        gh.rest[f"repos/{REPO}/contents/f.py?ref={ref}"] = (
+            text if isinstance(text, int) else RawText(text)
+        )
+
+    def test_a_canary_record_lifts_once_its_content_is_back_on_main(self) -> None:
+        for name, text, lifts in (
+            ("every deleted line back", "keep\ngone one\ngone two\n", True),
+            ("back with a line moved", "gone two\nother\ngone one\n", True),
+            ("one line still missing", "keep\ngone one\n", False),
+            ("the file absent", 404, False),
+        ):
+            with self.subTest(name):
+                gh = self.fake(CANARY_BLOCK_BODY, lift_answer())
+                self.content(gh, FIX_MERGE, text)
+                if lifts:
+                    self.lifted(read_demotion(), "2026-10-12T10:00:00Z")
+                else:
+                    self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_line_deleted_twice_must_be_back_twice(self) -> None:
+        body = CANARY_BODY + "\n" + policy.lift_block([("f.py", b"x"), ("f.py", b"x")])
+        for text, lifts in (("x\n", False), ("x\ny\nx\n", True)):
+            with self.subTest(text):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, FIX_MERGE, text)
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_canary_record_lifts_on_a_referencing_merge_with_its_content(self) -> None:
+        # main's tip lost the content again; the merge commit held it.
+        gh = self.fake(CANARY_BLOCK_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
+        self.content(gh, MAIN_TIP, "keep\n")
+        self.content(gh, FIX_MERGE, "gone one\ngone two\n")
+        gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": "ahead"}
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+        self.content(gh, FIX_MERGE, "keep\n")
+        self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_filers_comment_carries_the_block_of_a_record_filed_without(self) -> None:
+        block = policy.lift_block([("f.py", b"gone one")])
+        for name, author, edited, lifts in (
+            ("the alert's", bot("github-actions"), None, True),
+            ("the identity's", bot("agent-lanes"), None, True),
+            ("an edited one", bot("github-actions"), "2026-10-13T00:00:00Z", False),
+            ("a person's", user(OPERATOR), None, False),
+        ):
+            with self.subTest(name):
+                comment = {"author": author, "body": block, "lastEditedAt": edited}
+                gh = self.fake(CANARY_BODY, lift_answer(comments=[comment]))
+                self.content(gh, FIX_MERGE, "gone one\n")
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_canary_record_that_deleted_nothing_lifts_on_a_green_canary(self) -> None:
+        body = CANARY_BODY + "\n" + policy.lift_block([])
+        runs = f"repos/{REPO}/actions/workflows/post-merge-detect-silent-revert.yml/runs"
+        listing = f"{runs}?head_sha={FIX_MERGE}&event=push&status=success&per_page=100"
+        green = {
+            "conclusion": "success", "event": "push", "head_sha": FIX_MERGE,
+            "head_branch": "main", "head_repository": {"full_name": REPO},
+        }
+        for name, answer, lifts in (
+            ("a green canary at the merge", {"workflow_runs": [green]}, True),
+            ("none", {"workflow_runs": []}, False),
+            ("a failed one", {"workflow_runs": [green | {"conclusion": "failure"}]}, False),
+            ("unreadable", 502, False),
+        ):
+            with self.subTest(name):
+                gh = self.fake(body, lift_answer([merged_pull()]))
+                gh.rest[listing] = answer
+                self.assertEqual(not read_demotion().active, lifts)
+        with self.subTest("no referencing merge"):
+            self.fake(body, lift_answer())
+            self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_lane_closed_record_stays_lifted_at_the_commit_it_was_found_at(self) -> None:
+        # The lane closed it with the commit it found the content at; main's
+        # tip has since lost a line, which must not re-demote a closed record.
+        closed = {
+            "state": "CLOSED",
+            "timelineItems": {
+                "nodes": [
+                    {
+                        "createdAt": "2026-10-14T00:00:00Z",
+                        "actor": bot("github-actions"),
+                        "closer": None,
+                    }
+                ]
+            },
+        }
+        evidence = policy.lift_evidence(FIX_MERGE) + "\nThis record lifted."
+        for name, comments, lifts in (
+            ("the lane's evidence comment", [{"author": bot("github-actions"), "body": evidence, "lastEditedAt": None}], True),
+            ("no evidence comment", [], False),
+            ("a person's evidence comment", [{"author": user(OPERATOR), "body": evidence, "lastEditedAt": None}], False),
+            ("an edited one", [{"author": bot("github-actions"), "body": evidence, "lastEditedAt": "2026-10-15T00:00:00Z"}], False),
+        ):
+            with self.subTest(name):
+                gh = self.fake(CANARY_BLOCK_BODY, lift_answer(comments=comments), tip=MAIN_TIP)
+                gh.graphql["PolicyDemotionRecords"]["repository"]["i9"] |= closed
+                self.content(gh, MAIN_TIP, "keep\ngone one\n")
+                self.content(gh, FIX_MERGE, "gone one\ngone two\n")
+                gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": "ahead"}
+                gh.rest[f"repos/{REPO}/compare/{'b' * 40}...{FIX_MERGE}"] = {"status": "ahead"}
+                result = read_demotion()
+                if lifts:
+                    self.lifted(result, "2026-10-12T10:00:00Z")
+                else:
+                    self.assertEqual(result.reason, "#9 closed-by-non-human")
+
+    def test_a_copy_the_deletion_left_behind_is_not_a_restore(self) -> None:
+        # A reverted pull request that moved a line within f.py: the revert's
+        # diff records it deleted and the same revert adds it back elsewhere,
+        # so at the record's own SHA (the state just after the deletion) it is
+        # already there. Only copies beyond those count as restored.
+        body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"moved")])
+        for name, at_record, at_tip, lifts in (
+            ("only the copy the revert left", "moved\n", "moved\n", False),
+            ("one copy beyond it", "moved\n", "moved\nx\nmoved\n", True),
+            ("absent at the record, back at the tip", 404, "moved\n", True),
+        ):
+            with self.subTest(name):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, "b" * 40, at_record)
+                self.content(gh, FIX_MERGE, at_tip)
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_final_newline_is_no_restored_blank_line(self) -> None:
+        # A deleted blank line is back only when the file holds a blank line,
+        # not because its text ends with a newline.
+        body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"")])
+        for name, at_tip, lifts in (
+            ("only a final newline", "a\n", False),
+            ("a blank line between lines", "a\n\nb\n", True),
+        ):
+            with self.subTest(name):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, "b" * 40, 404)
+                self.content(gh, FIX_MERGE, at_tip)
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_revert_record_lifts_once_the_reverted_lines_are_back(self) -> None:
+        body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"gone one")])
+        for text, lifts in (("gone one\n", True), ("other\n", False)):
+            with self.subTest(text):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, FIX_MERGE, text)
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_failed_or_truncated_read_holds(self) -> None:
+        truncated = lift_answer([merged_pull()])
+        truncated["repository"]["issue"]["timelineItems"]["pageInfo"]["hasNextPage"] = True
+        for name, lift in (("failed", 502), ("past 100 references", truncated)):
+            with self.subTest(name):
+                self.fake(REVERT_BODY, lift)
+                self.assertEqual(read_demotion().reason, "#9 open")
+        with self.subTest("main's tip"):
+            gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]))
+            gh.rest[f"repos/{REPO}/git/ref/heads/main"] = 502
+            self.assertEqual(read_demotion().reason, "#9 open")
 
 
 class RecordsFake:
@@ -9258,6 +9662,7 @@ class DependabotEligibility(unittest.TestCase):
         paths: list[str],
         *,
         after: dict[str, str] | None = None,
+        before_text: dict[str, str] | None = None,
         modes: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """The lanes App's fix commit at the head on Dependabot's commit: its
@@ -9284,7 +9689,7 @@ class DependabotEligibility(unittest.TestCase):
         for path in paths:
             name = path.rsplit("/", 1)[-1]
             for ref, side in ((self.PARENT, before), (self.HEAD, bumped)):
-                text = (after or {}).get(path) if ref == self.HEAD else None
+                text = ((after if ref == self.HEAD else before_text) or {}).get(path)
                 gh.rest[f"repos/{REPO}/contents/{path}?ref={ref}"] = RawText(
                     text if text is not None else side.get(name, "")
                 )
@@ -9391,6 +9796,35 @@ class DependabotEligibility(unittest.TestCase):
             "dependabot-fix-content:fix-content:package-lock.json:"
             "lock-resolved:node_modules/x",
         )
+
+    def test_a_lanes_app_install_script_pin_move_is_eligible_and_no_other_pin(
+        self,
+    ) -> None:
+        cli = "@anthropic-ai/claude-code"
+
+        def manifest(pin: str) -> str:
+            return json.dumps(
+                {
+                    "devDependencies": {cli: "2.1.317"},
+                    "allowScripts": {f"{cli}@{pin}": True},
+                }
+            )
+
+        def reason(pin: str) -> str | None:
+            return self.lane_fix_reason(
+                ["package.json"],
+                before_text={"package.json": manifest("2.1.316")},
+                after={"package.json": manifest(pin)},
+            )
+
+        self.assertIsNone(reason("2.1.317"))
+        for pin in ("2.1.318", "*"):
+            with self.subTest(pin=pin):
+                self.assertEqual(
+                    reason(pin),
+                    "dependabot-fix-content:fix-content:package.json:"
+                    "package-json-key:allowScripts",
+                )
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
         # Unreadable is not "touches nothing": the .github/ boundary must hold.

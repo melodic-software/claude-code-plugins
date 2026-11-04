@@ -139,7 +139,7 @@ curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \
   -H "Content-Type: application/json" \
   -H "Accept: text/markdown" \
   -d '{"url":"<REBUILT-URL>"}' \
-  -o '<plugin-data-dir>/x-<id>-<nonce>.md' \
+  -o '<spool-dir>/x-<id>-<nonce>.md' \
   -w '%{http_code}'
 ```
 
@@ -158,9 +158,11 @@ and stop; reasoning in [`context/failure-modes.md`](context/failure-modes.md).
 Drop the `Accept` header for JSON: `{markdown, url, author}`. For raw fields (`text`, `rawText`,
 `media`, `quoteTweet`, `isNoteTweet`, engagement counts) POST the same body to `/api/fetch`.
 
-**Plugin data directory:** `${CLAUDE_PLUGIN_DATA}`. This file is the only surface where that
-expands, so carry the resolved path (forward slashes) and substitute it wherever
-[`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`.
+**Spool directory:** before the first request, run `mktemp -d` as its own command (it honors
+`$TMPDIR`); in Git Bash run `cygpath -m "$(mktemp -d)"`, so the path is in Windows form for
+both the shell sites and `Read`. Carry the path it prints (forward slashes) as a literal and substitute it wherever this
+skill says `<spool-dir>`; never spool into the working directory. If `mktemp -d` fails, report it
+and stop. One directory serves the whole invocation.
 
 **Escape the path for the shell, and only for the shell.** Two kinds of site take this path, and they
 want opposite things:
@@ -183,7 +185,8 @@ an ordinary `/status/` link, so the URL never says whether the reply is one sent
 megabytes, and the output mode cannot be chosen from the input. Without `-o` the whole body lands in
 the tool result before anything can bound it. So: always redirect, then `Read` the file in successive
 bounded slices, and delete it only after the last read. Delete **on every exit path**, including the
-status branches that stop before reading. Nonce, quoting, and unconditional delete are all required,
+status branches that stop before reading: `rm -f` each spool file, then `rmdir` the spool directory
+before the invocation ends. Nonce, quoting, and unconditional delete are all required,
 and the filename is fixed by that template: never derive any part of it from the response body.
 
 **Read to the end or to 256 KB, whichever comes first.** Slices bound each tool result, not their sum.

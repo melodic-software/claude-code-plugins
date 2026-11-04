@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": "- `FileJobStore` is not in the release we run: `requirements.txt` pins tickwheel 2.8.1 and the changelog adds it in 3.0.0.\n",
+      "why": "bullet naming both files"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | Phase 1's job store needs Tickwheel 3.0; we pin 2.8.1 | Add the upgrade as a phase |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Why claims the image includes FileJobStore, but the pin is 2.8.1, which predates it.\n",
+      "why": "predates"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | `FileJobStore` only from 3.0.0, so requirements.txt must change before Phase 1 | Add an upgrade step |\n",
+      "why": "only from"
+    },
+    {
+      "answer": "- The draft says the job store is correct for our release, but 2.8.1 lacks it.\n",
+      "why": "quotes, then contradicts"
+    },
+    {
+      "answer": "- Without a version bump, the pinned 2.8.1 in `requirements.txt` lacks `FileJobStore`; it arrives in 3.0.\n",
+      "why": "without a bump opens the attack"
+    },
+    {
+      "answer": "- This is not a minor issue: the pinned 2.8.1 in `requirements.txt` lacks `FileJobStore`.\n",
+      "why": "emphatic not-a-minor-issue"
+    },
+    {
+      "answer": "- The draft says there is no need to upgrade, but `FileJobStore` is absent from the pinned 2.8.1.\n",
+      "why": "quotes no-need-to, then attacks it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- FileJobStore is available in the pinned 2.8.1, so no upgrade is required.\n",
+      "why": "dismissed: no upgrade"
+    },
+    {
+      "answer": "- The job store claim is correct: tickwheel 2.8.1 includes it.\n",
+      "why": "named and cleared"
+    },
+    {
+      "answer": "- FileJobStore has a good fit with AC2.\n",
+      "why": "no version or nature"
+    },
+    {
+      "answer": "- Phase 3 has no test for a refused gateway request.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- Pin the httpx version in requirements.txt; it needs a floor.\n",
+      "why": "requirements.txt without the store"
+    },
+    {
+      "answer": "- `FileJobStore` works with the pinned 2.8.1 without an upgrade.\n",
+      "why": "dismissal"
+    },
+    {
+      "answer": "The plan says FileJobStore works with the pinned 2.8.1 without an upgrade.\n",
+      "why": "quotes the plan with no rebuttal"
+    }
+  ]
+}

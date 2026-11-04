@@ -398,8 +398,17 @@ The deck lane (`/visualization:present`) is the second exception: a deck exists 
 Artifact made from the account's Slides type, so it publishes behind the same gate (see
 Artifact types), and anything the gate keeps local stays the markdown outline.
 
+The planning views are the third exception: the brainstorm, design and plan views
+(`/planning:brainstorm`, `/planning:design`, `/planning:plan`) ship `medium: artifact` as the
+planning lane's default. Each page is built only by the shared builder from a checked-in template
+(`plugins/planning/scripts/build-view.mjs`), and it publishes behind the same gate as the digest:
+the default publishes only a public repository's record with nothing credential-shaped in it, and
+any other record falls back to `file` with the reader told how to publish it anyway. The planning
+plugin's PRD and interview views are not part of this exception and stay local files.
+
 Rendered views are untracked by default; publishing anywhere else is optional and
-configured, never the default, except for the digest's and the deck's `artifact` default. A
+configured, never the default, except for the digest's, the deck's and the planning views'
+`artifact` default. A
 shared page host is one such configured place: `medium: hosted`, honored only by the digest lane
 (see The `hosted` medium).
 
@@ -571,10 +580,9 @@ residence are how this convention prices them.
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`. Second chrome
 adopter, citing its own byte-identical copy: `adhd:clarify`.
 
-Emitters that resolve `medium` from the cascade, keeping their shipped default only when no layer
-sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page local; `artifact`, or
-`hosted` read as `artifact`, publishes only from the argument, the user-global layer, or an
-untracked, gitignored overlay. Its output names the layer that decided, or "shipped default".
+Emitters that resolve `medium` through the shared resolver (see The `rendered-views` settings),
+keeping their shipped default only when no scope sets it: `adhd:clarify`. Its output prints the
+resolver's report line and notices.
 
 Emitters that resolve `medium` from the argument, then the cascade, and publish nothing themselves.
 None has a `medium` option, so no
@@ -620,7 +628,9 @@ Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `e
 (`plugins/education/skills/illustrate/scripts/build-explainer.mjs`), which has left the grandfathered
 set and defaults to a local `file`, then `terminal`, publishing an artifact only when an argument or
 a layer asks for one; `planning:plan` and
-`planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data
+`planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data,
+and `planning:design`, offering a view of PLAN.md's `## Design` section, each kind an entry in the
+builder's view-kind registry rendered through `render(laneId, kind, record)`
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
 `architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template
@@ -835,10 +845,15 @@ lane. A skill runs its `resolve` command and never reads the files itself.
 - **Team file from a git ref.** A lane that must not let a checked-out branch configure it
   (`/review:explain-change`) reads the team file from a named commit (`--team-ref`), never the
   working tree. A ref that names no commit reads no team file and says so.
-- **Retired files.** `~/.claude/rendered-views.md`, `.claude/rendered-views.md` and
-  `.claude/rendered-views.local.md` are no longer read. Each gives one notice per lane plugin per
-  project, naming its value and where to set it instead: the plugin's `medium` option, the team
-  file, or the personal override. A notice repeats only when the file changes. The shown-once
+- **Retired files.** `~/.claude/rendered-views.md`, `.claude/rendered-views.md`,
+  `.claude/rendered-views.local.md` and a fenced config block in
+  `docs/conventions/rendered-views.md` never give a publishing value. A retired file's `terminal`
+  or `file` value keeps the view local only when no scope sets one, naming that file; when several
+  retired files set one, `.claude/rendered-views.local.md`, then `.claude/rendered-views.md`, then
+  the fenced block, then `~/.claude/rendered-views.md` names the one used. Each gives one notice
+  per lane plugin per project, naming its value and where to set it instead: the team file or the
+  personal override, and for the user file the personal override, else the plugin's `medium`
+  option. A notice repeats only when the file changes. The shown-once
   state lives in each plugin's data directory, keyed by project identity
   ([plugin-data report keying](../plugin-data-report-keying/README.md), rule 1), and is written
   atomically.

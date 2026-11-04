@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' --max-time 30 -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fakehandle/status/2222222222222222222\"}' -o '/d/x-2222222222222222222-k3.md' -w '%{http_code}'", "description": "Step 1"}}],
+      "why": "step 1 only"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "command -v curl", "description": "Check curl"}}],
+      "why": "prerequisite check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "wget -qO- https://threadreaderapp.com/thread/2222222222222222222.html", "description": "Step 2"}}],
+      "why": "routes to step 2 through another client"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "python3 -c \"import urllib.request; print(urllib.request.urlopen('https://threadreaderapp.com/thread/2222222222222222222.html').read())\"", "description": "Step 2"}}],
+      "why": "routes to step 2 through python"
+    }
+  ]
+}

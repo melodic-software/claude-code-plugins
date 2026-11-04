@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": "- The hourly NDJSON layout is wrong for AC2: a station-day read opens every segment.\n",
+      "why": "defect-a finding, not an attack on the format"
+    },
+    {
+      "answer": "- The draft assumes UTC, but stations aren't on UTC, so gzip NDJSON segments get the wrong timestamps.\n",
+      "why": "defect-b finding, not an attack on the format"
+    },
+    {
+      "answer": "",
+      "why": "empty reply flags nothing"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean report"
+    },
+    {
+      "answer": "- NDJSON with gzip is right here: AC4 needs a standard-library reader.\n",
+      "why": "approving mention"
+    },
+    {
+      "answer": "- There is no need to replace NDJSON with Parquet.\n",
+      "why": "dismissed attack"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Requirement | The hourly NDJSON layout is wrong for AC2: 24 files per station-day | Partition by station |\n",
+      "why": "a different defect that names the format"
+    },
+    {
+      "answer": "- The gzip segments should be per station rather than per hour.\n",
+      "why": "the layout defect, phrased with the compression"
+    },
+    {
+      "answer": "- Hourly segments make `plot_station.py` open 24 files for one station's day; gzip NDJSON makes that wrong for AC2.\n",
+      "why": "other finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- NDJSON is the wrong format for an archive; use Parquet.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | MEDIUM | Design | Replace gzip NDJSON with a columnar store | Use Parquet |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The archive should use Parquet instead of NDJSON.\n",
+      "why": "should use"
+    },
+    {
+      "answer": "| 3 | LOW | Design | NDJSON is a poor choice for long-term storage | Pick a binary format |\n",
+      "why": "poor choice"
+    },
+    {
+      "answer": "- JSON lines are too large for five years of readings; switch to Parquet.\n",
+      "why": "too large"
+    },
+    {
+      "answer": "- gzip NDJSON segments are a poor choice for a five-year archive; use Parquet.\n",
+      "why": "attack using the draft's word segments"
+    },
+    {
+      "answer": "- Storing 24 hours of readings as gzip NDJSON is inefficient; Parquet would be a quarter of the size.\n",
+      "why": "attack using 24"
+    },
+    {
+      "answer": "- The draft says gzip NDJSON is fine, but it is the wrong format; use Parquet.\n",
+      "why": "quotes the approval, then attacks it"
+    }
+  ]
+}

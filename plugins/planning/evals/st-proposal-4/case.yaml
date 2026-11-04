@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-proposal-4
+description: Review of a draft proposal for a compressed segment format in a weather station archive.
+expected_outcome: "The review reports that hourly all-station segments make tools/plot_station.py open up to 24 files for one station's day, against AC2; that config/stations.toml lists stations with local clocks and src/ingest.rs stores ts as received, against the draft's assumption that every ts is UTC, so readings land in the wrong hour's segment; and that an eight-minute compaction under a five-minute cron entry with no lock lets two runs overlap and rewrite manifest.json over each other. It does not say NDJSON is the wrong format, since AC4 requires a standard-library reader."
+context:
+  scaffold_script: scaffold.sh

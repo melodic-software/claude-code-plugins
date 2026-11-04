@@ -2,9 +2,13 @@
 
 Claude Code skills that ground an implementation in [Dometrain](https://dometrain.com)'s video
 courses: when to consult the course content, the tool workflow, timestamped citations, and quota
-etiquette. The skills call a Dometrain MCP server, which this plugin does not ship. Dometrain's
-hosted server (`https://mcp.dometrain.com/mcp`) is closed-source and requires an active
-[Dometrain Pro](https://dometrain.com/dometrain-pro/) subscription.
+etiquette. The skills call a Dometrain MCP server, which this plugin does not ship.
+
+- **Pointer**: for the server's endpoint, who can use it and how to get a key, fetch
+  [1. Get an API key](https://github.com/Dometrain/mcp#1-get-an-api-key) in Dometrain's repository
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section moves, or changes the endpoint or who can get a key.
 
 ## Install
 
@@ -16,8 +20,8 @@ hosted server (`https://mcp.dometrain.com/mcp`) is closed-source and requires an
 ## Getting the MCP server
 
 Register a user-scope HTTP server named `dometrain`. The skills find its tools by the `dometrain`
-server segment and tool name. To read the key from `DOMETRAIN_API_KEY`, the variable Dometrain's own
-plugin reads:
+server segment and tool name. The command reads the key from the `DOMETRAIN_API_KEY` environment
+variable:
 
 ```shell
 claude mcp add-json dometrain \
@@ -25,18 +29,19 @@ claude mcp add-json dometrain \
   --scope user
 ```
 
-Claude Code expands the variable from its own environment at connect time, so a variable set after
-it started needs a new session. To resolve the key from a secret store instead, give the server a
-`headersHelper` script that prints the `Authorization` header as JSON.
+After setting the variable, start a new session. To resolve the key from a secret store instead,
+give the server a `headersHelper` script that prints the `Authorization` header as JSON.
 
-- **Pointer**: for the `headersHelper` contract, fetch
+- **Pointer**: for the variable name Dometrain's setup exports, fetch
+  [2. Install](https://github.com/Dometrain/mcp#2-install) live; for the `headersHelper` contract, fetch
   [Use dynamic headers for custom authentication](https://code.claude.com/docs/en/mcp#use-dynamic-headers-for-custom-authentication)
   live; for the `headers` expansion, fetch
   [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
   live.
-- **As of**: 2026-11-02
-- **Recheck trigger**: either section moves or is renamed, or changes how `headers` variables
-  expand or how `headersHelper` runs.
+- **As of**: 2026-11-03
+- **Recheck trigger**: any of those sections moves or is renamed, Dometrain's install section
+  renames its variable, or the MCP page changes how or when `headers` variables expand or how
+  `headersHelper` runs.
 
 A same-named `dometrain` server defined at another scope can win over this user-scope one, so the
 skills may reach a different definition than the one registered above.
@@ -59,36 +64,27 @@ exposes the key and never calls a Dometrain tool during setup. See
 
 ## Dometrain's own official plugin, and why this one exists too
 
-Dometrain ships its own official Claude Code plugin and marketplace at
-[github.com/Dometrain/mcp](https://github.com/Dometrain/mcp) (MIT licensed), installable in one
-step on a CLI that supports `--marketplace` on `install`:
+Dometrain ships its own Claude Code plugin at
+[github.com/Dometrain/mcp](https://github.com/Dometrain/mcp), an alternative to this one. This
+plugin ships skills only and uses the user-scope server above.
 
-```shell
-claude plugin install dometrain --marketplace dometrain/mcp
-```
+- **Pointer**: for that plugin's install steps, fetch
+  [Claude Code](https://github.com/Dometrain/mcp#claude-code) live; for what it bundles and how it
+  authenticates, fetch [2. Install](https://github.com/Dometrain/mcp#2-install) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: either section moves, or changes how Dometrain's plugin installs or
+  authenticates.
 
-On an older CLI, add the marketplace first:
+**Do not enable both `dometrain` plugins simultaneously.** Pick one. Whether the two collide turns
+on their manifest names and on how Claude Code namespaces a plugin by name, and neither is this
+plugin's to promise.
 
-```shell
-claude plugin marketplace add dometrain/mcp
-claude plugin install dometrain@dometrain
-```
-
-- **Pointer**: when checking whether your CLI takes the one-step form, fetch
-  [Plugin commands reference: plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
-  live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the `--marketplace` row of `plugin install` changes.
-
-That plugin bundles the server and authenticates through the `DOMETRAIN_API_KEY` shell variable.
-This plugin ships skills only and uses the user-scope server above.
-
-**Do not enable both `dometrain` plugins simultaneously.** Both share the identical plugin name
-(`"dometrain"`) in their respective `plugin.json` manifests. Install identity is
-marketplace-scoped (`dometrain@<marketplace>` and `dometrain@dometrain` are distinct,
-coexistable install identities), but skill and MCP-tool namespacing is driven by `plugin.json`
-`name` alone, and Claude Code's behavior for two enabled plugins sharing an
-identical name is undocumented. Pick one.
+- **Pointer**: for how a plugin's `name` namespaces its components, fetch
+  [`name`](https://code.claude.com/docs/en/plugins/manifest-reference#name) live, and compare the
+  `name` in each plugin's `.claude-plugin/plugin.json`.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes how `name` namespaces components, or either plugin
+  renames itself.
 
 ## Grounding skill
 

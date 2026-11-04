@@ -1319,6 +1319,7 @@ def _lock(entries: dict[str, Any]) -> str:
 
 
 _INTEGRITY = "sha512-" + "A" * 86 + "=="
+_CLI = "@anthropic-ai/claude-code"
 
 
 def _reg(package: str, version: str, **extra: Any) -> dict[str, Any]:
@@ -1596,6 +1597,73 @@ FIX_VECTORS: list[tuple[str, str, str, str | None]] = [
         None,
     ),
     ("setup.py", "", "", "content-unchecked"),
+    # The install-script pin: moved to the version the manifest pins, and no
+    # other way (claude-code-plugins#12807).
+    (
+        "package.json",
+        _pkg(
+            {_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True, "e@1.0.0": True}
+        ),
+        _pkg(
+            {_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.317": True, "e@1.0.0": True}
+        ),
+        None,
+    ),
+    (
+        "package.json",
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.318": True}),
+        "package-json-key:allowScripts",
+    ),
+    (
+        "package.json",
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "2.1.317"}, allowScripts={_CLI: True}),
+        "package-json-key:allowScripts",
+    ),
+    (
+        "package.json",
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@*": True}),
+        "package-json-key:allowScripts",
+    ),
+    (
+        "package.json",
+        _pkg({_CLI: "^2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "^2.1.317"}, allowScripts={f"{_CLI}@2.1.317": True}),
+        "package-json-key:allowScripts",
+    ),
+    (
+        "package.json",
+        _pkg({"x": "1.0.1"}, allowScripts={"x@1.0.0": True}),
+        _pkg({"x": "1.0.1"}, allowScripts={"x@1.0.1": True}),
+        "package-json-key:allowScripts",
+    ),
+    # A fix that moves the manifest and the pin together, to a downgrade or
+    # past Dependabot's version: the pin follows only the version Dependabot set.
+    (
+        "package.json",
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "2.1.300"}, allowScripts={f"{_CLI}@2.1.300": True}),
+        "package-json-key:allowScripts",
+    ),
+    (
+        "package.json",
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "2.1.318"}, allowScripts={f"{_CLI}@2.1.318": True}),
+        "package-json-key:allowScripts",
+    ),
+    (
+        "package.json",
+        _pkg(
+            {_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True, "e@1.0.0": True}
+        ),
+        _pkg(
+            {_CLI: "2.1.317"},
+            allowScripts={f"{_CLI}@2.1.317": True, "e@1.0.0": True, "f@1.0.0": True},
+        ),
+        "package-json-key:allowScripts",
+    ),
 ]
 
 

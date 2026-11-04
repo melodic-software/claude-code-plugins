@@ -3,6 +3,18 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4] - 2026-11-04
+
+### Fixed
+
+- Shared `view-settings.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): a `terminal` or `file` value in a retired `rendered-views.md` file keeps the view local when no scope sets one, instead of falling to a publishing default; no other change to this plugin.
+
+## [0.9.3] - 2026-11-03
+
+### Changed
+
+- Shared medium resolver modules (`view-settings.mjs` and the modules it loads) synced into `lib/` ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no other change to this plugin.
+
 ## [0.9.2] - 2026-11-03
 
 ### Changed

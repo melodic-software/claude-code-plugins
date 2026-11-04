@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- `Vaultline.seal` uses a random nonce, so filling `email_bidx` with it means a lookup never matches and AC2 fails.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | Vaultline has no blind index; equal plaintexts differ, so `SupportLookup.by_email` finds nothing | Keep a keyed hash |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- AC2 is unmet: `find_by` on a seal output cannot work with non-deterministic encryption.\n",
+      "why": "non-deterministic"
+    },
+    {
+      "answer": "| 2 | CRITICAL | Plan | `support_lookup.rb` breaks: `find_by` on Vaultline output returns no customer | Add a hash column |\n",
+      "why": "breaks"
+    },
+    {
+      "answer": "- The draft treats the email lookup as fine, but Vaultline lacks a deterministic mode.\n",
+      "why": "quotes then contradicts"
+    },
+    {
+      "answer": "- The swap does not drop `email_bidx`, but Vaultline's random output means the blind index no longer matches for AC2.\n",
+      "why": "does not drop the column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Vaultline's seal will not break the email lookup, because the column stays indexed.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- `email_bidx` is fine under Vaultline.\n",
+      "why": "dismissed, no nature"
+    },
+    {
+      "answer": "- AC2 should mention a response time for the email search.\n",
+      "why": "named, no nature"
+    },
+    {
+      "answer": "- Phase 3's rotation task has no schedule owner named.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- Vaultline lacks a named owner on our team.\n",
+      "why": "nature without the lookup"
+    }
+  ]
+}

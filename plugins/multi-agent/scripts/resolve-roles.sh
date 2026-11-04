@@ -5,10 +5,7 @@
 #   bundled      reference/defaults.yaml
 #   user-global  <home>/.claude/multi-agent.yaml
 #   team         <home>/multi-agent.yaml (<home> is the convention home the
-#                repository binds, else docs/conventions); only when it is absent,
-#                the ```yaml config block of <root>/docs/conventions/multi-agent.md,
-#                else <root>/.claude/multi-agent.yaml, for one release (the
-#                first that exists wins, with a note naming each one ignored)
+#                repository binds, else docs/conventions)
 #   overlay      <root>/.claude/multi-agent.local.yaml
 # Team and overlay apply only when lib/config-root.sh classifies <root> as
 # `repo`; a team or overlay path that is the user-global file is read once.
@@ -88,12 +85,8 @@ json_str() {
   printf '"%s"' "$s"
 }
 
-parse() { # parse <file> [block]
-  if [[ "${2:-}" == block ]]; then
-    awk -v BLOCK=1 -f "$PARSER" "$1"
-  else
-    awk -f "$PARSER" "$1"
-  fi
+parse() { # parse <file>
+  awk -f "$PARSER" "$1"
 }
 
 MODE=resolve
@@ -226,7 +219,7 @@ apply_layer() {
   fi
   layer_state "$label" "$path" read
   while IFS=$'\t' read -r key value; do
-    [[ -n "$key" && "$key" != schema && "$key" != block ]] || continue
+    [[ -n "$key" && "$key" != schema ]] || continue
     role=""
     case "$key" in
     frontier) field=frontier ;;
@@ -274,10 +267,10 @@ apply_layer() {
   done <<<"$records"
 }
 
-# read_layer <label> <path> [block]
+# read_layer <label> <path>
 read_layer() {
   local label="$1" path="$2" records where msg
-  if ! records="$(parse "$path" "${3:-}")"; then
+  if ! records="$(parse "$path")"; then
     where="$(awk -F '\t' '$1=="error"{print $2}' <<<"$records")"
     msg="$(awk -F '\t' '$1=="error"{print $3}' <<<"$records")"
     NOTES+=("$label layer skipped: $path:$where: $msg")
@@ -307,32 +300,15 @@ if [[ -f "$SCRIPT_DIR/../lib/resolve-convention-home.sh" ]]; then
   home_out="$(bash "$SCRIPT_DIR/../lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" && CONVENTION_HOME="$home_out"
 fi
 TEAM_CONCERN="$ROOT/$CONVENTION_HOME/multi-agent.yaml"
-TEAM_DOCS="$ROOT/docs/conventions/multi-agent.md"
-TEAM_YAML="$ROOT/.claude/multi-agent.yaml"
 OVERLAY="$ROOT/.claude/multi-agent.local.yaml"
 if [[ "$ROOT_CLASS" != repo ]]; then
   layer_state team "$TEAM_CONCERN" "not-applicable ($ROOT_CLASS root)"
   layer_state overlay "$OVERLAY" "not-applicable ($ROOT_CLASS root)"
 else
-  docs_block=0
-  if [[ -f "$TEAM_DOCS" ]]; then
-    # A docs file whose only fence is an example inside an outer fence holds
-    # no block; a parse error after the block opened still makes it the team layer.
-    docs_records="$(parse "$TEAM_DOCS" block)"
-    [[ "$docs_records" == block$'\t'* ]] && docs_block=1
-  fi
   if [[ -f "$TEAM_CONCERN" ]]; then
-    # The legacy locations are read only when this file is absent.
-    ((docs_block)) && NOTES+=("team: $TEAM_CONCERN and the config block of $TEAM_DOCS both exist; using the YAML file, ignoring the block")
-    [[ -f "$TEAM_YAML" ]] && NOTES+=("team: $TEAM_CONCERN and $TEAM_YAML both exist; using the YAML file, ignoring the .claude file")
     read_layer team "$TEAM_CONCERN"
-  elif ((docs_block)); then
-    [[ -f "$TEAM_YAML" ]] && NOTES+=("team: $TEAM_DOCS and $TEAM_YAML both exist; using the docs block, ignoring the .claude file")
-    read_layer team "$TEAM_DOCS" block
-  elif [[ -f "$TEAM_YAML" ]] && ! config_root_paths_same "$TEAM_YAML" "$USER_LAYER"; then
-    read_layer team "$TEAM_YAML"
   else
-    layer_state team "$TEAM_YAML" absent
+    layer_state team "$TEAM_CONCERN" absent
   fi
   if [[ -f "$OVERLAY" ]] && ! config_root_paths_same "$OVERLAY" "$USER_LAYER"; then
     read_layer overlay "$OVERLAY"

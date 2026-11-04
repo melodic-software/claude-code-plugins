@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "- The plan assumes `StartsAt` is not local time, but `AppointmentImporter` stores clinic wall-clock time.\n",
+      "why": "quotes the plan's not-local claim, then rebuts it"
+    },
+    {
+      "answer": "- `StartsAt` is not UTC: `AppointmentImporter` stores the clinic's local time from the export.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The window looks right only if `StartsAt` is UTC, which it isn't; the importer stores local time.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `ParseExact` leaves `DateTimeKind.Unspecified` with no conversion, so the UTC window is hours off.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | `Appointment.StartsAt` holds wall-clock time, contradicting the load-bearing assumption | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The importer never converts `StartsAt` to UTC, and `Clinic:TimeZone` is America/Denver | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `ParseExact` does not convert local time to UTC, so `StartsAt` is hours off.\n",
+      "why": "does not convert"
+    },
+    {
+      "answer": "- `AppointmentImporter` doesn't convert the local time before it sets `StartsAt`.\n",
+      "why": "doesn't convert"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `StartsAt` is correct for the window.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- `StartsAt` is not local; the window holds.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `AppointmentImporter` deletes the file before saving succeeds elsewhere.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- `StartsAt` is not local time; the importer already stores UTC.\n",
+      "why": "dismissal"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Reports the 502 and its documented meaning — the post is private, deleted, or auth-required — without retrying in a loop and without reconstructing the post from memory.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

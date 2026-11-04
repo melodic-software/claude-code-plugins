@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "- PLAN.md Recommendation: the SIGHUP handler is out of scope; the Brief excludes applying a change to a running process.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Scope | The hot reload behind `atomic.Pointer` does work Out-of-scope lists | Cut it |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Rollout step 1 and 4 add a reload the Out-of-scope list rules out, since a restart is acceptable.\n",
+      "why": "reload wording"
+    },
+    {
+      "answer": "| 2 | HIGH | Requirement | SIGHUP re-reads both files: scope creep against the Brief | Remove the handler |\n",
+      "why": "scope creep in a table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "The SIGHUP handler is a sensible addition and is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "The SIGHUP reload is not out of scope.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- The SIGHUP handler should have better error handling.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The site guide should list every setting a lead can change.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Nothing in the Out-of-scope list excludes the SIGHUP reload.\n",
+      "why": "nothing negation"
+    }
+  ]
+}

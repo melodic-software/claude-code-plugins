@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "export function importUsers(raw: string) {\n  // Step 1: parse input\n  const records = raw.split(\"\\n\");\n  // NOT thread-safe; callers serialize imports\n  records.sort();\n  for (const record of records) {\n    db.users.insert({ id: record[0], name: record[1] });\n  }\n}\n",
+      "why": "narrating comment deleted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "export function importUsers(raw: string) {\n  // Step 1: parse input\n  const records = raw.split(\"\\n\");\n  // NOT thread-safe; callers serialize imports\n  records.sort();\n  // loop over the records\n  for (const record of records) {\n    db.users.insert({ id: record[0], name: record[1] });\n  }\n}\n",
+      "why": "narrating comment kept, as when no parser proves the deletion"
+    }
+  ]
+}

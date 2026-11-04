@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: codify-group-skips-applied-rows
+description: 'group leaves a kind applied row out of the by-mistake counts: a buffer with one applied row and one mistake row of the same wording counts the mistake once, and lists the applied row apart with its location.'
+tags: [codify, group, applied]
+plugins: ["../.."]
+expected_outcome: 'The skill reads the buffer through group-findings.mjs, groups the rows by mistake, counts the mistake group as one occurrence (source session:2026-11-02T10:00:00Z only), and lists the applied row (obs_id a1, source #42, location CLAUDE.md) separately as a change already made. It writes nothing.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify group'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: applied-row-not-counted
+    type: llm
+    focus: last_message
+    criteria: "The buffer holds two rows with the same lesson text: obs_id a1 (kind applied, source #42, location CLAUDE.md) and obs_id m1 (an observed mistake, source session:2026-11-02T10:00:00Z). PASS if the reply's by-mistake grouping counts that mistake as 1 occurrence with only m1 as its member, and lists a1 apart as an applied change, naming CLAUDE.md as its location. FAIL if a1 is counted in the mistake group, the count is 2, or a1's location is not shown."
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

@@ -3,6 +3,42 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.3.2] - 2026-11-04
+
+### Fixed
+
+- The `SessionStart` row no longer fails on every new session when `node` is not on `PATH`: it runs through `lib/node-or-skip.sh` and exits 0 silently, and harness-ops' node notice tells the user.
+
+## [8.3.1] - 2026-11-04
+
+### Fixed
+
+- Shared `view-settings.mjs` synced where this plugin carries it ([#12646](https://github.com/melodic-software/claude-code-plugins/issues/12646)): a `terminal` or `file` value in a retired `rendered-views.md` file keeps the view local when no scope sets one, instead of falling to a publishing default; no other change to this plugin.
+
+## [8.3.0] - 2026-11-03
+
+### Changed
+
+- `/harness-ops:plugins sync` reuses a `fleet-state.sh` report when nothing it read has changed since that read (each path it read keeps its mtime, ctime and size, or stays absent; a run's first read is never stored), instead of running the script again before each step. `fleet-state.sh` now lists the paths it read when `FLEET_STATE_READ_LIST` names a file. Each read and each reuse is recorded in the run journal. On this host's 92-plugin fleet with a stub CLI on Linux, a first pass went from 5 reads to 2, and an `--only-install` re-entry went from 3 reads to 2 with one install and to 0 with none ([#12539](https://github.com/melodic-software/claude-code-plugins/issues/12539)).
+
+## [8.2.2] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+## [8.2.1] - 2026-11-03
+
+### Fixed
+
+- The lane telemetry body gate's leak scan (`scanLeak` in the shared `lib/publish-gate.mjs` copy) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and refuses a body with a GitHub token or Anthropic key inside one (#8295).
+
+## [8.2.0] - 2026-11-03
+
+### Added
+
+- **The parser reader bounds a computed key it cannot list.** Under `--reader=parser`, in a module with an import or export or a program whose first statement is `"use strict"`, a computed read whose key can spell neither `require` nor `constructor` no longer counts as a load the parser cannot name or a read that reaches `Function`. A computed write there counts only for the trusted names its key can spell, unless it can spell `__proto__`. A `+` makes a number or a string that starts with its left side and ends with its right side, so `e[n+1]` spells neither. A template starts and ends with its own text. A parameter holds what each call passes when it is never written and its function is bound to one name, never exported, only ever called directly, and out of reach of `arguments` and block hoisting. Code that may run sloppy, including the code a `Function` call folds to, is bounded only by known values, since `f.caller` can call a function with any argument. A computed read or destructured key that may spell `eval`, `Function`, a vm runner, `__defineGetter__` or `__defineSetter__` counts wherever it stands, inert or not, and a literal destructured `eval` or `Function` key now counts as its member read does. An unknown key (a `for in` key, or any key in sloppy code) may spell all of them, so a discarded or tested `o[k]` such as `for(k in o)if(o[k])`, which used to be exempt, is now a `function-constructor` hit, and the next host run's count of those hits can rise for that reason. When the parser refuses a callback held in a parameter whose function is used other than by a call, the reason now reads `the parameter's function is used other than by a call`, so it no longer matches the refusal for a returning function.
+
 ## [8.1.5] - 2026-11-03
 
 ### Changed

@@ -29,6 +29,9 @@ export const mediumOf = (id) => (typeof id === "string" && Object.hasOwn(MEDIUMS
 /** The one fallback chain: a view that cannot be served on a medium steps down this list. */
 export const FALLBACK_CHAIN = Object.freeze(["artifact", "file", "terminal"]);
 
+/** The chain's last step builds no page: the record stands on its own. */
+export const NO_PAGE = FALLBACK_CHAIN.at(-1);
+
 /** A scope may say `auto`, which is no preference: it resolves exactly as unset. */
 export const NO_PREFERENCE = "auto";
 
@@ -47,7 +50,20 @@ export const LANES = Object.freeze(
       lane("review:explain-change", ["digest"], true, "artifact"),
       lane("visualization:present", ["deck"], false, "artifact"),
       lane("visualization:visualize", [], false, null),
-      lane("planning", ["plan", "brainstorm"], false, "file"),
+      lane("planning", ["plan", "brainstorm", "design"], false, "artifact"),
+      lane("architecture", ["landscape", "containers", "components", "dependencies", "data", "events", "flow", "context", "deployment"], false, "file"),
+      lane("discovery:blindspot", ["blindspot"], false, "file"),
+      lane("debugging:debug", ["post-mortem"], false, "file"),
+      lane("education:illustrate", [], false, "file"),
+      lane("work-items:morning-brief", ["morning-brief"], false, "file"),
+      lane("work-items:triage", ["board"], false, "file"),
+      lane("adhd:clarify", [], false, null),
+      lane("codebase-health:audit", [], false, null),
+      lane("overengineering:audit", [], false, null),
+      lane("education:teach", [], false, null),
+      lane("prototype:explore-directions", [], false, null),
+      lane("prototype:pressure-test", [], false, null),
+      lane("ai-briefing:generate", [], false, null),
     ].map((l) => [l.laneId, l]),
   ),
 );

@@ -33,6 +33,11 @@
 # origin and path, or the page is unread. With --cache the page's title (its
 # first heading, else the HTML <title>) is stored, and an entry whose title
 # differs from the one it replaces quarantines the cache key (docs-cache.sh).
+# A 2xx with an accepted type is still no proof of content: X serves a
+# logged-out shell for a status page. An x.com or twitter.com page whose body
+# links to redirect_after_login and holds fewer than 200 words outside its
+# links is unread login-wall and is never stored, whether it was fetched or
+# served from the cache or the fixture directory; /x:read reads X posts.
 #
 # curl runs with -q, so no ~/.curlrc option reaches a request. With
 # --public-only, for a caller whose URLs come from untrusted text, every
@@ -138,7 +143,9 @@ Usage:
   --public-only      connect only to a global address the host was checked to resolve to
   <slug|url>         a page slug (settings-reference) or an origin URL the index lists
                      (its raw suffix optional, a #fragment ignored);
-                     for --profile generic, any https URL (its slug is host/path)
+                     for --profile generic, any https URL (its slug is host/path); X's
+                     logged-out shell for an x.com or twitter.com page is unread login-wall,
+                     not a read page
 
 Exit: 0 manifest written; 2 fatal (including an unknown profile).
 EOF
@@ -732,9 +739,10 @@ convert() {
   return 1
 }
 
-# get_generic <url> <dest> <fixture file>: a generic read, markdown preferred,
-# converted HTML otherwise. Sets the G_ fields like get_doc.
-get_generic() {
+# generic_read <url> <dest> <fixture file>: a generic read, markdown preferred,
+# converted HTML otherwise. Sets the G_ fields like get_doc and stores nothing:
+# get_generic checks the page, then stores what was fetched.
+generic_read() {
   local url="$1" dest="$2" html="$WORK/page.html" html_status="" html_ctype="" html_val="" html_date="" sfx=""
   reset_g
   rm -f "$dest" "$dest.part" "$html"
@@ -743,7 +751,6 @@ get_generic() {
   serve_fresh "$dest" && return 0
   if [[ $FIXTURE_SET -eq 1 ]]; then
     fixture_read "$dest" "$3" markdown
-    [[ "$G_STATE" != read ]] || store "$url" "$dest"
     return 0
   fi
   G_SOURCE=fetch
@@ -815,7 +822,31 @@ get_generic() {
     return 0
   fi
   G_REASON=""
-  store "$url" "$dest"
+}
+
+# login_wall <url> <file>: the file is X's logged-out shell, an x.com or
+# twitter.com page that links to redirect_after_login (its Log in and Sign up
+# links) and holds fewer than 200 words outside its links.
+login_wall() {
+  local LC_ALL=C words
+  url_parts "$1" && [[ "$U_ORIGIN" =~ ^https://((www|mobile)\.)?(x|twitter)\.com(:443)?$ ]] || return 1
+  grep -qF redirect_after_login "$2" || return 1
+  words="$(awk '{ gsub(/\[[^]]*\]\([^)]*\)/, ""); n += NF } END { print n + 0 }' "$2")"
+  [[ $words -lt 200 ]]
+}
+
+# get_generic <url> <dest> <fixture file>: generic_read, then a login shell is
+# unread login-wall whatever served it, and a page fetched or read from the
+# fixture directory is stored.
+get_generic() {
+  generic_read "$@"
+  [[ "$G_STATE" == read ]] || return 0
+  if login_wall "$1" "$2"; then
+    rm -f "$2"
+    G_STATE=unread G_REASON=login-wall G_STALE="" G_KEY="" G_VALIDATED="" G_AGE=""
+    return 0
+  fi
+  [[ "$G_SOURCE" == cache ]] || store "$1" "$2"
 }
 
 # emit <slug> <url> <mode> <file>: print one manifest record from the G_ result.

@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
+import { fakeGhDownload } from "./gh-download.fixture.mjs";
 import { forgetMainTip } from "./head-ref-map.mjs";
 import { main } from "./last-report.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
@@ -78,4 +79,32 @@ test("no earlier report, or one that fails to download, leaves none, even one pl
   const broken = await readLast({ runs: [wf(7, "schedule")], held: [7], downloadFails: true, planted: true });
   assert.equal(broken.report, undefined);
   assert.match(broken.lines.join("\n"), /^::warning title=last post-merge report::download 502; the post-merge check runs$/m);
+});
+
+// The routes are api-budget.bash's templating of the two API URLs gh logs.
+test("the report's gh run download counts each API request it sends under API_BUDGET_TOKEN", async () => {
+  forgetMainTip();
+  const run = mkdtempSync(join(dir, "counted-"));
+  const out = join(run, "report");
+  const bin = fakeGhDownload(run, "post-merge.json", "report of 6");
+  const actions = async (method, url) => {
+    if (/\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=1$/.test(url)) return { workflow_runs: [wf(6, "schedule")] };
+    const onMain = mainCall(url, {});
+    if (onMain !== undefined) return onMain;
+    assert.match(url, /\/actions\/runs\/6\/artifacts\?per_page=100$/);
+    return { total_count: 1, artifacts: [{ name: "pr-merge-post-merge-report", expired: false }] };
+  };
+  const env = { GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "999", LAST_REPORT_DIR: out, ACTIONS_TOKEN: "t", PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({ env, actions });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(readFileSync(join(out, "post-merge.json"), "utf8"), "report of 6");
+  assert.equal(
+    readFileSync(join(run, "api-budget", "github-token"), "utf8"),
+    "request repos/{repo}/actions/runs/{n}/artifacts\nrequest repos/{repo}/actions/artifacts/{n}/{x}\n",
+  );
 });

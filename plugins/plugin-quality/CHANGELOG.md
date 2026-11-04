@@ -5,6 +5,22 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.11] - 2026-11-03
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
+## [0.18.10] - 2026-11-03
+
+### Fixed
+
+- The context gate's copy of `scripts/context-zone.sh` now follows a lowered auto-compact window. When context-guard's snapshot carries `bands.auto_compact_window`, the resolver scales its percentage edges by that window over `context_window_size`, so the gate reads the same zone context-guard publishes (#12854).
+
 ## [0.18.9] - 2026-11-03
 
 ### Changed

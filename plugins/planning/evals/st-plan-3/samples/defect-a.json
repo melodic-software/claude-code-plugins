@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- Phase 4 serves no acceptance criterion; `Maintainability` is not a criterion. Cut it.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Phase 4 is good cleanup, but it serves no criterion.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The money module is scope creep: `src/money.ts` does not trace to AC1, AC2 or AC3.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Phase 4 is untraced; drop it or raise it as an open question | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Phase 4 (money.ts refactor) maps to no criterion in the Brief | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The plan says Phase 4 should not be cut, but the Money module serves no acceptance criterion.\n",
+      "why": "quotes the claim, then attacks it"
+    },
+    {
+      "answer": "- The plan does not flag that Phase 4's Money module serves no acceptance criterion.\n",
+      "why": "does not flag, said of the plan"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Phase 4 is fine as planned.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- Phase 4 should not be cut; it is small.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- Phase 3's endpoint has no pagination.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- I don't see a reason to drop Phase 4.\n",
+      "why": "negated with n't"
+    }
+  ]
+}

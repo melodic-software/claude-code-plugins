@@ -36,8 +36,8 @@ summary, never skipped silently.
 
 ## Size-crossing brief
 
-Before dispatch, when `/code-metrics:audit-size` is among the available skills, run it over the
-changed files with `--base <base>`, the review diff base, and read the `file_lines` row (config
+Before dispatch, when `/code-metrics:audit` is among the available skills, run
+`/code-metrics:audit size` over the changed files with `--base <base>`, the review diff base, and read the `file_lines` row (config
 key `size.file_lines`) of its References table. When that row's layer is
 `bundled default`, the `code-reviewer` brief lists no size crossing. When the layer is any other
 (`user-global`, `team`, `local`), the consumer set the value: for each measured file, count its

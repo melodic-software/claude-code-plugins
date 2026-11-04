@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- Phase 3 writing to `notice_outbox` is correct: `flush_outbox` delivers every ten minutes.\n",
+      "why": "approves the outbox"
+    },
+    {
+      "answer": "- AC3 has no phase, so add one that builds the finance CSV.\n- `renew()` leaves `due_at` unchanged; use `effective_due_date`.\n- A `run-job` retry doubles fines; add a unique key on loan and date.\n- Overdue notices are not sent twice on a rerun because `last_overdue_notice_on` is set.\n",
+      "why": "a strong full report"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The notices interval is checked by the Phase 3 sanity check | Fix before building |\n",
+      "why": "table row, no complaint"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Notices are never sent: the job only writes `notice_outbox`.\n",
+      "why": "says delivery is absent"
+    },
+    {
+      "answer": "- Nothing delivers the rows in `notice_outbox`.\n",
+      "why": "nothing delivers"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The outbox has no sender, so members get no email | Fix before building |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Phase 3 should send via SMTP directly rather than `queue_notice`.\n",
+      "why": "wants a direct send"
+    },
+    {
+      "answer": "- The overdue notice is not sent by any phase.\n",
+      "why": "not sent"
+    },
+    {
+      "answer": "- `flush_outbox` only runs every ten minutes, so Phase 3 should send the notice directly over SMTP.\n",
+      "why": "attack naming the draft's flush_outbox"
+    }
+  ]
+}

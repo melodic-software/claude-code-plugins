@@ -1,0 +1,5 @@
+{
+  "name": "playground",
+  "description": "Eval-only stand-in for playground@claude-plugins-official with a playground skill, so the playgrounds plugin loads and its upstream skill reads as present.",
+  "version": "0.0.0"
+}

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: 'read-http-200-without-conversion-is-a-failure'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'no-page-text'
+    type: 'regex'
+    pattern: 'glenmarrow'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'says-no-post'
+    type: 'regex'
+    pattern: '(?<!\bnot )(?<!\bnot a )(?<!n[’'']t )(?<!n[’'']t a )\b(?:failed|fails?|failures?|unsuccessful)\b|(?<!\bno )(?<!\bnot a )(?<!\bnot an )\b(?:bot[- ]?(?:check|challenge|detection|protection)|(?:anti-bot|browser|security|captcha|javascript) (?:check|challenge|interstitial|page)|challenge (?:page|body|screen|interstitial)|interstitial|captcha)\b|\bno (?:converted |markdown |actual |post )?(?:content|markdown|conversion|post text)\b|\b(?:is|was|contains|holds)(?: not|n[’'']t) (?:the|a|any) (?:post|conversion|converted)\b|\bnot (?:converted|a conversion)\b'
+    flags: 'i'
+    target: 'last_message'

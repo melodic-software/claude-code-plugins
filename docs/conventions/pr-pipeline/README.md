@@ -91,7 +91,11 @@ at `status: needs-decision`, removing that label the same way. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
-claim, so a second answer dispatches nothing. When a blocker of an issue admission parked at
+claim, so a second answer dispatches nothing. A blocker stops blocking once it is a pull request
+merged in this repository, or an issue closed, for any reason, by a listed human or, in this
+repository only, a merge (owner decision Q95, `blockerDone` in `.github/scripts/intake-triage/admit.mjs`):
+the lanes follow that rule, not the work-items tracker's `blocked_by_count`, which still counts a
+won't-do close. When a blocker of an issue admission parked at
 `status: confirmed` closes after it parked, `work-unblock` removes that label with the lanes App's
 token instead of admitting the issue, and that removal starts this workflow, which adds
 `needs-triage` and dispatches on the same author rule. It acts only when the newest removal is the
@@ -359,15 +363,23 @@ serves an adopted owner PR, posting its replies as the lanes App:
   on an owner PR such a thread starts no round, and the select job skips it with no stop instead of
   escalating `feedback-untaken-threads`.
 - Resolve: GitHub lets only a PR's author or a writer resolve its threads, so `publish-feedback`
-  posts each answer and leaves the thread open, logging it, instead of resolving it. A VALID fix
-  makes its thread outdated, and the owner's babysit worker tier resolves an outdated thread a lane
-  login answered (`--own-pr-lane-logins`, from `babysit_lane_logins`). A thread the adjudicator
-  closed for the lane whose lines did not move stays open for the person.
+  (`publish-artifact`, no writer) posts each answer and leaves the thread open, logging it. The
+  `resolve-feedback-threads` job after it, a script with no model and `checkout: base` (no PR head
+  checkout), holds `mutate-branch` (`contents: write`, which makes it a writer) and resolves, on a
+  PR a person on the trusted-actors list opened, each thread whose comments are all a review bot's
+  or the lanes App's, whose finding no reviewer comment rates CRITICAL and an adjudicator could
+  judge (`adjudicable`: no person-decided security finding), and that is answered (the lane's
+  VALID reply or a `finding-answered` adjudication is its last comment) or outdated with no lane
+  reply that left it open (`resolve-threads.mjs`). It reads the threads from GitHub, never from
+  another job, judges each again on its re-read comments just before resolving, and escalates
+  nothing. It runs after an acted round and after the reply script's own stops (an escalation,
+  `finding-stands`, `no-model-turn`), never after a kill-switch or gate skip. A CRITICAL finding
+  and any thread a person wrote or joined stay open for the person.
 - No pass-only round goes to an owner PR: a person-opened PR gets no fail-note threads
   (`verify-notes.mjs`).
 
-The push is the power fix-ci already holds on an adopted PR, under the same idle rule; the lane
-gains no new grant.
+The push is the power fix-ci already holds on an adopted PR, under the same idle rule; the one
+grant the lane gains is `resolve-feedback-threads`' `mutate-branch`, used only to resolve.
 
 The reviewer bot is `claude[bot]`, a review bot listed in [`review-threads`](#review-threads), or
 `github-actions[bot]` on a comment whose last non-blank line is a review lane's
@@ -451,6 +463,16 @@ verdict; and `apply-dependency-verdict` (a script, `publish-artifact`) acts on t
 never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+When the head's `package.json` approves the `@anthropic-ai/claude-code` install script
+(`allowScripts`) for a version other than the one its `package-lock.json` installs,
+`review-dependency-select` writes the patch that moves that one pin to the lockfile's version,
+when it is also the exact version the manifest pins, instead of a model turn
+([`install-script-pin.mjs`](../../../.github/scripts/pr-unblock/install-script-pin.mjs)), and
+`apply-dependency-pin` pushes it with `apply-dependency-patch`'s grant under the
+`install-script-pin` row, which checks the pin against the manifest's version as Dependabot set
+it, not the lockfile; it posts no round marker, and the new head is reviewed as any other.
+`check-catalog` fails `ci-status` while the pin and the lockfile disagree, so a Dependabot bump
+of the CLI sorts `review` and reaches this step.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -854,7 +876,8 @@ label back.
 [`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json) is the registry
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
-`review-threads`, `dependency-review`, `merge-base`), `docs` for a push job that passes
+`review-threads`, `dependency-review`, `merge-base`), `install-script-pin` for the pin patch
+`review-dependency-select` writes with no model, `docs` for a push job that passes
 `patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
 one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
@@ -870,7 +893,7 @@ each row to these keys:
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
-| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`) or `pr-mode-revert` (`review-threads`: a file whose mode changes between `100644` and `100755` takes the mode its path has at the merge base of the PR head and its base, read through the GitHub API, so the lane can only revert a mode the pull request introduced). |
+| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`), `install-script-pin` (`install-script-pin`: the root `package.json` alone, under `dependency-version-change`, with one `allowScripts` install-script pin moved to the exact version the manifest pins, unchanged from the commit before the patch, and nothing else, `installScriptPinRefusal`) or `pr-mode-revert` (`review-threads`: a file whose mode changes between `100644` and `100755` takes the mode its path has at the merge base of the PR head and its base, read through the GitHub API, so the lane can only revert a mode the pull request introduced). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `thread-trailer` | Optional; `true` (`review-threads`, a `kept-threads` row only) adds after the trailer a `Lane-Thread: <thread id>` line for each kept thread a `VALID` reply in the model job's scanned replies names, the binding `publish-feedback.mjs` requires before it credits the commit to a thread; with no replies read, nothing is committed. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
@@ -1107,7 +1130,7 @@ the rules that only tighten in
   `.claude/source-control.md`, the value in `docs/conventions/source-control.yaml`, `off` when it
   sets none; while the legacy file exists, the lower of the two files, a legacy file without the key
   means `off` and a YAML without it leaves the legacy value; either file the wrapper cannot read or
-  trust means `off`), the cap variable, and `off` while any demotion issue is open.
+  trust means `off`), the cap variable, and `off` while any demotion issue holds.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
   aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
@@ -1123,7 +1146,8 @@ the rules that only tighten in
   a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
   `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
-  `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
+  `needs-human`, since a green main clears neither; each keeps the label until it lifts (below).
+  `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
   that label keeps admission off it. On each completed scheduled full run on main, the
   alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
@@ -1142,8 +1166,42 @@ the rules that only tighten in
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
   clear time, read a week at a time from the record, oldest first, up to about a year and stopping
   at the first week that clears it, so newer runs never move it and a record cleared long ago reads
-  one week. Canary,
-  revert and read-back records stay human-close. A push to main files a `revert` record when one
+  one week. A canary, revert or read-back record that no non-human edited lifts, open or not, on
+  its own evidence (`babysit_merge_policy.py` `_lift`), in either of two ways. (1) Its own
+  condition holds on main again: for a canary or revert record, every line its lift block counts is
+  in that path's file at main's tip, as often as it was deleted, over and above the copies the file
+  held at the record's own SHA, so a moved or common line the deletion left behind is no restore
+  and a final newline is no blank line (once the lane closed it, at the
+  commit its close comment's `<!-- lift-evidence sha=<S> -->` line names, so a later edit on main
+  does not re-demote a closed record); for a read-back record, the pull
+  request it names reads back after all (the agent identity's newest pin comment among its first
+  100 comments is unedited, was posted no later than the merge and names the head that merged).
+  The record's creation is the clear time. (2) A pull request that references the record merges
+  into `main` of this repository after it was filed, at a merge commit on main's history; the
+  reference was made no later than the merge by a person with write access or the agent identity
+  (anyone can mention the record in a comment on a pull request, merged or not, which also makes a
+  reference); and the
+  record's own condition holds at that merge commit: a canary record's counted lines are in the tree
+  there, or, when its block says the merge deleted nothing (the canary failed on its self-test,
+  replay or restoration step), a canary push run passed there; the pull request reads back, for a
+  read-back record, which can happen only when a pin exists for that merge (while the record holds
+  the rung is off and the wrapper pins nothing); a revert record needs nothing more, since the
+  referencing merge confirms the revert. The earliest such merge is the clear time. A failed read,
+  more than 100 references or more than 100 comments lifts nothing. The lift block is one line,
+  `<!-- lift-content v1 {"paths": {...}} -->`, holding per path the first 12 hex digits of each
+  deleted line's SHA-256 and how often it was deleted (`babysit_lift.py`). The alert writes it into
+  a revert record from the lines its revert commits deleted, and into a canary record from the
+  lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its
+  `DELETED_SINK`); for a canary record `babysit_postmerge.py --remediate` filed first, the alert
+  posts the block as a comment, which counts when github-actions[bot] or the agent identity wrote
+  it and nobody edited it. The one exception is a canary record with no block, because the pushed
+  commits are not in main's checkout or were not all read (more than 20 since the previous canary
+  push run's head, or that head unreadable or off the push's history), the scan could not run, or the block passed 40,000
+  characters: no lane can tell what was deleted, so only a person's close clears it. On each completed scheduled full run on main, `close-cleared` runs
+  `babysit_lift.py close` from main's checkout, which comments on, removes the human-gated label
+  from and closes as completed each open canary, revert or read-back record either filer opened
+  that has lifted by that same rule; post-merge-failure canary records lift and close the same
+  way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
@@ -2159,7 +2217,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
   directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
   `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
-  existing dependency entry's plain, bounded semver range (no `*` or lower bound alone); in a
+  existing dependency entry's plain, bounded semver range (no `*` or lower bound alone), and one
+  `allowScripts` key `@anthropic-ai/claude-code@<old>` renamed to `@anthropic-ai/claude-code@<v>`
+  with its value kept, where `<v>` is the exact version the manifest pins in the commit before the fix and after it, never a manifest move with it, a name-only or
+  wildcard key, or any other package's pin (`INSTALL_SCRIPT_PINS`); in a
   lock the same package keys as the Dependabot commit's lock, each entry's `resolved` exactly
   `https://registry.npmjs.org/<name>/-/<unscoped name>-<version>.tgz` for its own name (or
   alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
@@ -2927,7 +2988,10 @@ lanes finished, is left to read the reviews itself; an earlier one in progress i
 seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
 nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
-fails while the queued PR carries `pr-verify-failed`, which a pass at a new commit removes. A
+fails while the queued PR carries `pr-verify-failed`, which a `pr-verify` pass removes, at a new
+commit or at the same head: once a trusted person edits the body, and only trusted people have
+edited it since the FAIL, that head is judged again (`resolve-pr.mjs` reason `body-edited`), so a
+FAIL on the body or the issues it links needs only the body fixed, no new commit. A
 `pull_request` run does not read that label: a red ci-status there stops `pr-verify` from judging
 the next head, so the pass that removes it would never come.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.

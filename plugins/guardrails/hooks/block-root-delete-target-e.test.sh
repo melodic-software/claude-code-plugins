@@ -333,6 +333,22 @@ expect "attended, dispatched: an outside-tree delete asks (decided in the judgme
   "${RDT_CWD[@]}" --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended, dispatched: outside-tree decision is ask" ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+# Attended but unwatched: the ask would wait on a prompt nobody answers, so the
+# guard denies and names the command for a person to run later (refuse.sh).
+expect_both "unwatched: an outside-tree delete denies instead of asking" 2 "${RDT_CWD[@]}" \
+  --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=1
+expect "unwatched: an outside-tree delete denies, alone" 2 "${RDT_CWD[@]}" \
+  --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=1
+assert_eq "unwatched: no ask document" "" "$GUARD_OUT"
+assert_contains "unwatched: the reason names the target" "$GUARD_ERR" "recursive delete of '/etc/x'"
+assert_contains "unwatched: the reason says to leave it for later" "$GUARD_ERR" "Leave it for a person to run later"
+assert_contains "unwatched: the reason names the command" "$GUARD_ERR" $'report this command:\nrm -rf /etc/x'
+expect_both "unwatched: rm -rf / denies instead of asking" 2 \
+  --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=1
+expect "unwatched=0: an attended outside-tree delete still asks" 0 "${RDT_CWD[@]}" \
+  --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=0
+assert_eq "unwatched=0: the decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
 # --- 5d. Guards stay on in auto mode -------------------------------------------
 expect_both "auto mode: rm -rf / still blocks" 2 \

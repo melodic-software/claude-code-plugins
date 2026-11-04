@@ -4,6 +4,22 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.0] - 2026-11-03
+
+### Added
+
+- `/playbooks:boris` gains local section L1, "Steps of AI Adoption" (`reference/adoption.md`), from Boris Cherny's 2026-07-17 X thread: bottlenecks and guardrails per adoption step, default-on code and security review, and measuring return rather than usage. It is numbered outside the upstream sequence so the next upstream sync cannot collide with it.
+
+## [0.27.10] - 2026-11-03
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
 ## [0.27.9] - 2026-11-03
 
 ### Changed

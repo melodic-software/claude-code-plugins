@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- AC2 fails: with hourly segments holding all stations, `plot_station.py` must open 24 files for one station's day.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Requirement | plot_station needs up to 24 segments per day under the HH.ndjson layout, against AC2 | Partition by station-day |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The hourly segment layout violates AC2, since one station's day now spans many files.\n",
+      "why": "violates"
+    },
+    {
+      "answer": "| 2 | HIGH | Requirement | AC2 is unmet: a station-day read touches every segment of that day | Change the layout |\n",
+      "why": "unmet"
+    },
+    {
+      "answer": "- `tools/plot_station.py` does not read one file per day: with hourly segments it opens 24 for one station.\n",
+      "why": "does not read one file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "Hourly segments mean plot_station reads 24 files, which is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "Hourly segments do not break AC2.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- plot_station should have better error handling around segments.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The backfill step does not say what happens to station-day files.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- plot_station.py fails on a missing manifest once hourly segments ship.\n",
+      "why": "a different failure in the same tool"
+    },
+    {
+      "answer": "- `plot_station.py` does not open more than one segment per station-day.\n",
+      "why": "negated attack"
+    }
+  ]
+}

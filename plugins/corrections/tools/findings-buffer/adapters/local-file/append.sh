@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # local-file findings buffer: append.sh < rows.jsonl
-# Stores each row in .work/buffer/findings.jsonl under the repository root.
+# Stores each row in findings-buffer/findings.jsonl under the git common directory,
+# which every worktree of a clone shares.
 # Exit: 0 every row durable, 1 storage failure, 2 usage, 3 not in a repository or jq missing.
 set -uo pipefail
 
@@ -14,12 +15,12 @@ command -v jq >/dev/null 2>&1 || {
   exit 3
 }
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+COMMON="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" && [[ -d "$COMMON" ]] || {
   echo "append.sh: not inside a git repository" >&2
   exit 3
 }
 
-DIR="$ROOT/.work/buffer"
+DIR="$COMMON/findings-buffer"
 FILE="$DIR/findings.jsonl"
 LOCKDIR="$DIR/.lockdir"
 HELD=0
@@ -43,25 +44,23 @@ fi
 
 [[ -s "$TMP" ]] || exit 0
 
-# refuse_links: the buffer stays a plain directory inside the repository, so a
-# symlink can never redirect rows (or the lock file) elsewhere.
+# refuse_links: the buffer stays a plain directory inside the git common directory,
+# so a symlink can never redirect rows (or the lock file) elsewhere. Git tracks
+# nothing there, so the rows never reach a commit.
 refuse_links() {
   local p
-  for p in "$ROOT/.work" "$DIR" "$DIR/.gitignore" "$DIR/.lock" "$LOCKDIR" "$FILE"; do
+  for p in "$DIR" "$DIR/.lock" "$LOCKDIR" "$FILE"; do
     if [[ -L "$p" ]]; then
-      echo "append.sh: $p is a symlink; the buffer must be a plain directory in the repository" >&2
+      echo "append.sh: $p is a symlink; the buffer must be a plain directory in the git common directory" >&2
       return 1
     fi
   done
 }
 refuse_links || exit 2
 mkdir -p "$DIR" || exit 1
-# Rows never leave the machine: keep the buffer out of git, keyed on the file so an
-# interrupted or concurrent first append still ends with it in place.
-[[ -f "$DIR/.gitignore" ]] || printf '*\n' >"$DIR/.gitignore" || exit 1
-REAL_DIR="$(cd "$DIR" && pwd -P)" && REAL_ROOT="$(cd "$ROOT" && pwd -P)" || exit 1
-if [[ "$REAL_DIR" != "$REAL_ROOT/.work/buffer" ]]; then
-  echo "append.sh: $DIR resolves outside the repository" >&2
+REAL_DIR="$(cd "$DIR" && pwd -P)" && REAL_COMMON="$(cd "$COMMON" && pwd -P)" || exit 1
+if [[ "$REAL_DIR" != "$REAL_COMMON/findings-buffer" ]]; then
+  echo "append.sh: $DIR resolves outside the git common directory" >&2
   exit 2
 fi
 

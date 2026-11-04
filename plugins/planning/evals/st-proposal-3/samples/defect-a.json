@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- Alternatives: BullMQ is rejected for needing Redis, yet Rollout step 2 adds a Redis container, so the reason contradicts the plan.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Consistency | The draft adds Redis for the render counters while dismissing BullMQ over Redis | Reopen BullMQ or keep counters in Postgres |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The Redis container in Rollout step 2 is the same stateful service used as the reason to reject BullMQ.\n",
+      "why": "rollout plus rejected"
+    },
+    {
+      "answer": "| 2 | HIGH | Consistency | The BullMQ rejection is undercut: the team runs Redis anyway | Revisit it |\n",
+      "why": "undercut, anyway"
+    },
+    {
+      "answer": "- The draft doesn't notice it contradicts itself: BullMQ is rejected for needing Redis, and the Rollout adds a Redis container.\n",
+      "why": "doesn't notice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "Rejecting BullMQ looks good; the Redis in step 2 is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "The Redis container does not contradict the BullMQ rejection.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- The Redis container needs a backup policy and monitoring.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- AC3 does not say who is on call for a failed job.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Rollout step 2's Redis container needs a backup plan while the queue is live.\n",
+      "why": "names the container with no contradiction against the rejection"
+    }
+  ]
+}

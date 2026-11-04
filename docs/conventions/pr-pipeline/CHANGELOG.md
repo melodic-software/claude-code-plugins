@@ -1,5 +1,127 @@
 # Changelog for the PR pipeline convention
 
+## [8.48.1] - 2026-11-04
+
+### Changed
+
+- The artifact-retention check counts ci-workflows' `scan-upload` action pinned to a full commit
+  SHA as a leak scan, as it does the local one; a tag, a branch or a short SHA does not count.
+  The key-credit probing marker's row in `.github/artifact-retention.json` now says
+  `scan: upload`, and the check verifies the scan before that upload.
+
+## [8.48.0] - 2026-11-03
+
+### Changed
+
+- A work-resolve-issue run whose patch the scan job refused for its size (`scan-refused-patch`)
+  now goes to intake for a split, with one re-entry, instead of retrying: a fresh run re-spent a
+  model run on work too large for one patch. Admission parks such an issue for intake's split at
+  any Size, a listed human's included, until a listed human adds `agent-ready` again, since
+  re-triage rates Size from the issue text alone and would admit it at Small or Medium again.
+
+- `post-merge-demotion-alert.yml` writes a lift block into each canary and revert record it files: the lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its new opt-in `DELETED_SINK`), or the lines the revert commits deleted. A canary record `babysit_postmerge.py --remediate` filed first gets the block as a comment. The record bodies say they lift once that content is back on main or a referencing pull request merges with it.
+- The `close-cleared` job checks out main and runs `babysit_lift.py close`, which comments on, unlabels and closes each lifted canary, revert or read-back record; it now also holds `pull-requests: read`. The pr-pipeline README states the lift rule and its one exception, a canary record with no lift block.
+
+- pr-verify and pr-review-main pin ci-workflows check-key-credit at `09cf6f2`, which adds the
+  probing marker: once a credit stop is past its window but still kept, the first gate names
+  itself the probe and later gates skip the key while its marker is fresh, so one run tries the
+  key after the window ends instead of every run that reads before the next credit stop lands.
+  Each gate job writes, scans and uploads `key-credit-probing-<workflow>-<key-job>` right after
+  the gate step, kept one day, with the runner's token and no added job permission.
+  pr-review-main's gate job checks nothing out, so it scans with ci-workflows' `scan-upload`.
+  The gate makes a second artifact-list call in recovery. pr-verify's other ci-workflows actions
+  move to the same pin, which brings in run-claude-cli's limit-stop handoff for a token leg that
+  timed out under a rejected rate limit.
+
+### Fixed
+
+- The shared rate guard (`rate-guard.mjs`) waits out a rate-limit reset that fits its 60 s budget
+  (`SERVER_RETRY_BUDGET_MS`, resets summed per latch) and sends the call, instead of refusing it.
+  `createGitHub` (`check-trusted-trigger.mjs`) sends a read a rate limit refused once more after
+  the reset, inside its 3 attempts, and that refusal no longer fails the step; a write is never
+  resent. A reset past the budget is still refused.
+- A step that holds (`API_BUDGET_HOLD=1`) gets a rate limit as a `::notice::` instead of an
+  `::error::`: the Node guard leaves the exit to the caller instead of failing the step, and the
+  `api-budget.bash` gh wrapper prints a notice. The call is still refused or returns 1, so a gate
+  that does not hold, such as `ci-status` or the trusted-trigger check, still fails closed. No
+  workflow sets the variable yet. A stop the job's stop file cannot take still fails the step.
+
+## [8.47.0] - 2026-11-03
+
+### Added
+
+- pr-unblock's `resolve-feedback-threads` activity resolves review threads on a pull request a
+  person on the trusted-actors list opened, where `publish-feedback`'s `publish-artifact` token is
+  no writer and leaves its answers open. It resolves a thread whose comments are all a review
+  bot's or the lanes App's, whose finding no reviewer comment rates CRITICAL and an adjudicator
+  could judge, and that the lane answered (its VALID reply or a `finding-answered` adjudication is
+  the last comment) or GitHub reports outdated with no lane reply that left it open. A CRITICAL
+  finding, a person-decided security finding and any thread a person wrote or joined stay open.
+  It runs in its own job after `publish-feedback`: a script with no model, granted
+  `mutate-branch` (`contents: write`), reading the threads from GitHub itself
+  (`resolve-threads.mjs`, now on the hold floor as an enforcement path), and judging each thread
+  again on its re-read comments, edits included, before resolving it. It also runs after
+  `publish-feedback`'s own stops (an escalation, `finding-stands`, `no-model-turn`), never after
+  a kill-switch or gate skip. `publish-feedback`'s job and grant do not change.
+- A script leaf's `checkout: base` has the write runner skip the PR head checkout and its SHA
+  assert, so the job holding the lane token holds only the trusted base checkout, credentials not
+  persisted. resolve-config outputs `checkout` (`head` by default) for every script activity.
+
+### Fixed
+
+- Each code-tidying upkeep pull request's body opens with `Refs: #<upkeep_spec_issue>`, the standing
+  spec issue named in `docs/conventions/code-tidying.yaml`, in place of `No related issue`, so
+  pr-verify judges the pull request against that spec instead of failing it for having none. The
+  batch adds the line itself and refuses a body that links another issue. With the setting missing
+  or invalid the gate fails before the model runs and the batch opens no pull request.
+
+## [8.46.0] - 2026-11-03
+
+### Added
+
+- review-dependency moves the `@anthropic-ai/claude-code` install-script approval (`allowScripts`
+  in `package.json`) to the version `package-lock.json` installs, inside the Dependabot pull
+  request, with no model turn: `review-dependency-select` writes the one-line patch
+  (`install-script-pin.mjs`), and the new `apply-dependency-pin` job pushes it with
+  `apply-dependency-patch`'s existing grant under the new `install-script-pin` patch row. The
+  select step writes the lockfile's version only when it equals the exact version the manifest
+  pins. The row checks the manifest, not the lockfile: it admits the root `package.json` alone
+  with that one pin renamed to the exact version the manifest pins, unchanged from Dependabot's
+  commit. A downgrade, a name-only or wildcard key, another package's pin or any other change is
+  refused, and a refused push stops as `dependency-pin-invalid`, `dependency-pin-not-applied` or
+  `dependency-pin-protected-path` for the session queue. The pin round posts no round marker; the new head is reviewed as any other, and the
+  select step writes the from and to versions to its step summary.
+- `check-catalog` fails `ci-status` while the pin and the lockfile disagree, so a Dependabot bump
+  of the CLI sorts `review` and reaches the pin step.
+- The fix rule (`fixRefusal`) admits that pin move in a lanes App fix commit, so the pr-merge
+  lane can merge the reviewed pull request. The pin must name the exact version the manifest pins
+  both before and after the fix, so a fix cannot move the manifest and the pin together.
+
+## [8.45.1] - 2026-11-03
+
+### Fixed
+
+- The hourly triage sweep counts a dispatched intake run as an attempt only when its `intake-triage`
+  job ran, read from the run's jobs. A run the lanes kill switch or another gate skipped, or that was
+  cancelled before intake, no longer uses up an attempt and hands the issue to `needs-triage`; the
+  sweep dispatches it again, and 6 dispatches hand it off whatever reached intake. A jobs read that
+  fails counts the run, as before.
+
+- A lanes App pull request the merge gate refuses `verify:earlier-fail` no longer dead-ends once
+  its pr-verify fail-note threads are resolved. The dispatcher sends an address-feedback model
+  round naming the FAILed heads (`verify-earlier-fail-heads`, from the reader's `earlierFails`)
+  even with no unresolved thread. `address-feedback-select`, now with `actions: read`, reads
+  those FAILs' notes from their verdict artifacts as the model's work items, and stops
+  `feedback-verdict-unreadable` when it cannot. A push fixing a named note ends as any fix
+  round; no push with every note already addressed stops `feedback-already-addressed` with
+  `needs-session`.
+- The dispatcher reads for an earlier FAIL on a PR with no unresolved thread only when a fail note
+  from another head is on it, at most three times per pass. A read that fails or times out is
+  not taken as "no earlier FAIL": the unsent sweep sends that head again on a later pass while its
+  newest review run completed within the last two hours. Nothing records an answer.
+- `earlier-fail-notes.mjs` joins the hold floor as an enforcement path, since the merge gate's
+  code loads it.
+
 ## [8.45.0] - 2026-11-03
 
 ### Added
