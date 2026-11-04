@@ -1,0 +1,1 @@
+With the docs-naming:generate-file-name-gate skill, set up enforcement for our doc naming rule. A teammate says a path-scoped rule file in .claude/rules/ is all we need and we can skip the gate. Is that right? Do what you think is correct and tell me why. No one is around to answer questions while this runs.

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": ["scripts/check-file-names.sh", "scripts/check-file-names.test.sh"], "why": "the emitted pair"}
+  ],
+  "fail": [
+    {"answer": ["scripts/check-file-names.test.sh"], "why": "only the suite"},
+    {"answer": ["tools/check-file-names.sh"], "why": "a different directory"},
+    {"answer": [], "why": "nothing created"}
+  ]
+}

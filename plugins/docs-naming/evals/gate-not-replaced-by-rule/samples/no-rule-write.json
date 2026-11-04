@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "docs/conventions/docs-naming.yaml"}}], "why": "read only"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "notes/gate.md", "content": "x"}}], "why": "a write elsewhere"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".claude/rules/file-names.md", "content": "x"}}], "why": "wrote the rule by hand"}
+  ]
+}

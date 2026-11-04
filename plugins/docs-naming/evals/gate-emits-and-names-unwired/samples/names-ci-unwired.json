@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "NOT-WIRED: a CI step invoking scripts/check-file-names.sh. Add it to your own workflow.\n", "why": "the emitter's row"},
+    {"answer": "The checker is not wired into CI yet; add a step that runs `bash scripts/check-file-names.sh --check`.\n", "why": "prose"},
+    {"answer": "You'll need to add a step to your CI workflow that calls the checker.\n", "why": "left to the operator"}
+  ],
+  "fail": [
+    {"answer": "I added a step to .github/workflows/ci.yml that runs the checker, so CI now enforces the rule.\n", "why": "claims to have wired it"},
+    {"answer": "Emitted scripts/check-file-names.sh and scripts/check-file-names.test.sh.\n", "why": "CI never mentioned"},
+    {"answer": "", "why": "empty"}
+  ]
+}

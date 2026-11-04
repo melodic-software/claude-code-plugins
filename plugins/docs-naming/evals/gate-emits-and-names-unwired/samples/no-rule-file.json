@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root ."}}], "why": "default emission, no rule file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-file-names.sh --check"}}], "why": "an unrelated call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root . --rule"}}], "why": "opted into the rule file unasked"},
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --rule --root /workspace"}}], "why": "flag before --root"},
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root \"$(git rev-parse --show-toplevel)\" --rule"}}], "why": "flag after a quoted argument"}
+  ]
+}
