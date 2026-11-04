@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: su-check-reports-floor-and-kill-switch
+description: 'The read-only check action probes the machine and reports a PASS/FAIL/INFO table: the Python floor parsed from hygiene.py, and the kill switch read through the bundled probe with its source. It installs, edits and writes nothing. The setup skill sets disable-model-invocation, so the prompt is its slash command, which loads the skill without a Skill tool call; the kill-switch probe call stands in as the plugin-presence indicator. Needs --allow-tools Bash Edit Write.'
+tags: [setup, check, read-only]
+expected_outcome: 'The reply is a PASS/FAIL/INFO table that names the Python floor 3.11 parsed from MIN_PYTHON in hygiene.py, reports the kill switch effective value with its source (default or configured) from kill_switch_probe.py, and has one remediation line per FAIL. No tool installs anything, and no file is edited or written.'
+execution:
+  prompt: /disk-hygiene:setup check
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: ran-kill-switch-probe
+    type: tool_used
+    tool: Bash
+    input_match: 'kill_switch_probe\.py'
+    arm: with-only
+  - name: status-table
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:PASS|FAIL)\b)(?=[\s\S]*\bINFO\b)'
+    target: last_message
+    arm: both
+  - name: names-python-floor
+    type: regex
+    pattern: '(?:floor|MIN_PYTHON|>=|≥|minimum|requires?|needs?|at least)[^\n]{0,40}\b3\.11\b(?!\.\d)|\b3\.11\b(?!\.\d)(?:\+|[^\n]{0,20}(?:floor|MIN_PYTHON|minimum|or (?:later|newer|above)))'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: kill-switch-with-source
+    type: regex
+    pattern: '(?:kill[ -]?switch|disk_hygiene_enabled)[\s\S]{0,400}\b(?:default|configured)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?(?:\s|\\\\\\n)+)*(?:install|reinstall|add|upgrade|i)\b|pacman\s+-S|go(?:\s|\\\\\\n)+install\b|uv(?:\s|\\\\\\n)+(?:tool|pip)(?:\s|\\\\\\n)+install\b|(?:mise|asdf|rtx|aqua)(?:\s|\\\\\\n)+(?:install|use|upgrade|up|plugin\s+add)\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:curl|wget)\b(?:[^\"\\]|\\.)*?\|\s*(?:sudo(?:\s+-\S+)*\s+)?(?:bash|dash|zsh|sh)\b|(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\\"|'')?\$\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

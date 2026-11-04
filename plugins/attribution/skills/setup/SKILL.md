@@ -1,5 +1,5 @@
 ---
-description: "Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the convention home and its gitignored local overlay. Run after installing the plugin, or to exclude a path from the audit, change the stamp expiry window, quiet an audit that flags too much, or turn on the trigger-less stamp check."
+description: "Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the convention home and its gitignored personal override. Run after installing the plugin, or to exclude a path from the audit, change the stamp expiry window, quiet an audit that flags too much, or turn on the trigger-less stamp check."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -17,12 +17,12 @@ invocation:
   both mean `<home>` is `docs/conventions`, where the detectors read; ask nothing. Exit 2 or 3:
   report its stderr line. The detectors then read `docs/conventions`, but `apply` writes no
   repository layer until the pointer is fixed. Exit 5: the root is not a repository, so there is
-  no team layer or overlay.
+  no team layer or personal override.
 - Layers in effect, `"${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh" --show-config`.
   Its `Config layers` list names every layer file the detectors read. A `.claude/` JSON file in
   that list is a layer still on its fallback. The list does not decide absence: a YAML layer that
   does not parse is left out of it, named on stderr, and shadows its JSON fallback, which is left
-  out too. A team layer or overlay is absent only when `test -f "<root>/<home>/attribution.yaml"`
+  out too. A team layer or personal override is absent only when `test -f "<root>/<home>/attribution.yaml"`
   (or `attribution.local.yaml`) fails. A YAML layer that exists but is not listed is unparsable:
   report it, and never overwrite it or carry its JSON fallback over it without the operator's choice.
 
@@ -47,7 +47,7 @@ deliberate human choice.
 | Argument | Action |
 |---|---|
 | *(empty)* or `check` | **Read-only.** Report the effective config, which layer supplies each value, and what a proposed change would alter. Writes nothing |
-| `apply` | Write the agreed keys to `<home>/attribution.yaml`, the team layer, or to `<home>/attribution.local.yaml` when the user asks for the local overlay |
+| `apply` | Write the agreed keys to `<home>/attribution.yaml`, the team layer, or to `<home>/attribution.local.yaml` when the user asks for the personal override |
 
 `check` is the default and never writes. `apply` writes only after the user has seen a `check`
 report naming every key it will change and the layer it will change it in. On a first run in a
@@ -93,16 +93,16 @@ an earlier one:
 |---|---|---|---|
 | 1 | user-global | `~/.claude/attribution.json` | the operator, across every repo |
 | 2 | team | `<repo>/<home>/attribution.yaml` | the repository, tracked |
-| 3 | local overlay | `<repo>/<home>/attribution.local.yaml` | one operator in one repo, gitignored |
+| 3 | personal override | `<repo>/<home>/attribution.local.yaml` | one operator in one repo, gitignored |
 
-`apply` writes only the team layer and the local overlay, never the user-global file. Before it
-writes the overlay, `git check-ignore -q "<root>/<home>/attribution.local.yaml"` must exit 0; when
+`apply` writes only the team layer and the personal override, never the user-global file. Before it
+writes the personal override, `git check-ignore -q "<root>/<home>/attribution.local.yaml"` must exit 0; when
 it does not, say the file would be tracked and get the operator's choice before writing.
 
 All three absent is a valid state: the bundled defaults apply. Merge is **per-key override**.
 A later layer replaces a value key by key, and a key absent from a later layer keeps the earlier
 value. Never write a layer that restates the whole config to change one key; that turns every
-key the overlay does not mention into an accidental decision.
+key the personal override does not mention into an accidental decision.
 
 To report the effective values and their supplying layer, run the detectors' own
 `--show-config`, which is the authority rather than reading the files by hand:

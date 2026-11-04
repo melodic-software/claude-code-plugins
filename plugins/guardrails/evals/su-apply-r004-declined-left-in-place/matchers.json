@@ -1,0 +1,32 @@
+{
+  "retirements-ran": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--manifest(?:\\s|\\\\\\\\\\\\n)+(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|]*retirements\\.yaml\\b"
+  ],
+  "no-clean": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--clean\\b"
+  ],
+  "no-hand-delete": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:rm|rmdir|unlink)(?:\\.exe)?(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "guardrails-content-lib"
+  ]
+}

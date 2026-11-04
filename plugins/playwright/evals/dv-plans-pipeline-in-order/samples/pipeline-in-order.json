@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "```bash\nnode \"${CLAUDE_SKILL_DIR}/scripts/record.mjs\" replay.mjs work/capture\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"${CLAUDE_SKILL_DIR}/scripts/build_edl.py\" work/capture script.json work/edl.json --style produced\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"${CLAUDE_SKILL_DIR}/scripts/produce.py\" work/edl.json work/demo.mp4\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"${CLAUDE_SKILL_DIR}/scripts/quality_control.py\" work/edl.json work/demo.mp4 work/quality-control\n```", "why": "the skill's four commands in order"},
+    {"answer": "First explore the flow unrecorded, then:\n\n```bash\nnode scripts/record.mjs replay.mjs capture\npython3 scripts/pydeps.py run -- scripts/build_edl.py capture script.json edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py edl.json demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py edl.json demo.mp4 qc\n```", "why": "relative paths, same order"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "```bash\nnpx playwright test --video=on\nffmpeg -i test-results/video.webm -c:v libx264 demo.mp4\ngh pr comment 42 --body 'demo attached'\n```", "why": "a raw recording with no edit plan or quality control"},
+    {"answer": "```bash\nnode scripts/record.mjs replay.mjs capture\npython3 scripts/pydeps.py run -- scripts/produce.py edl.json demo.mp4\n```", "why": "renders with no edit plan and never checks the frames"},
+    {"answer": "```bash\npython3 scripts/pydeps.py run -- scripts/quality_control.py edl.json demo.mp4 qc\nnode scripts/record.mjs replay.mjs capture\npython3 scripts/pydeps.py run -- scripts/build_edl.py capture script.json edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py edl.json demo.mp4\n```", "why": "checks the video before it is recorded"}
+  ]
+}

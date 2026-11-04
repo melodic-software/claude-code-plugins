@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl --status"}}], "why": "status only"},
+    {"answer": [], "why": "no call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl init"}}], "why": "init"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx firecrawl-cli login"}}], "why": "login via npx"}
+  ]
+}

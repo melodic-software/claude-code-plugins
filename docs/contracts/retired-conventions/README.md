@@ -228,16 +228,21 @@ the prerequisite, and the setup's overall result cannot be PASS.
 
 ## One eval per record
 
-A plugin's setup `evals/evals.json` carries **one eval case per record id** in its manifest,
-covering the detect-hit path (a fixture repo with the leftover present yields the row) and the clean
-path (`--clean <id>` removes exactly that artifact and a re-run is clean; for `migrate`, that
-`--clean` without `--i-migrated` refuses). The validator (`scripts/validate-plugin-contracts.mjs`)
-reads only that `skills/setup/evals/evals.json` file and fails a plugin whose manifest has a record
-with no matching eval there; a plugin suite case does not satisfy it yet, so these cases stay in
-that file even though new eval cases elsewhere use the suite format (`case.yaml`, checked with
-`/evals:validate`). The eval is what turns "we retired X" from a claim into a probe a reviewer
-can run; it costs minutes at authoring time and is the coverage the prose-only alternative could
-never offer.
+A plugin carries **one eval case per record id** in its manifest, covering the detect-hit path (a
+fixture repo with the leftover present yields the row) and the clean path (`--clean <id>` removes
+exactly that artifact and a re-run is clean; for `migrate`, that `--clean` without `--i-migrated`
+refuses). The validator (`scripts/validate-plugin-contracts.mjs`) fails a plugin whose manifest has
+a record no case names. A case names an id in either source: a plugin suite case
+(`evals/<case>/`: the `prompt.md` body, a `graders/*.md` body, or a block-style probe value in
+`case.yaml` where the suite schema puts it: `execution.prompt`, a top-level `expected_outcome`, or a
+grader's `pattern`, `input_match`, `criteria`, `match` or `path`; checked with `/evals:validate`),
+or a legacy setup `skills/setup/evals/evals.json` case (its name, prompt, expected_output, or
+expectations). Nothing else in a suite case counts: not a `description` (where authors list
+dropped expectations) or anything nested in one, a grader name, frontmatter, a comment, a
+flow-style value, the directory name, or `evals/results/` and `evals/mocks/`. New
+cases use the suite format. The eval is what
+turns "we retired X" from a claim into a probe a reviewer can run; it costs minutes at authoring
+time and is the coverage the prose-only alternative could never offer.
 
 ## The runtime fleet sweep
 

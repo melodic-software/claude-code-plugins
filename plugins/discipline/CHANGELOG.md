@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.24.10] - 2026-11-04
+
+### Changed
+
+- The plugin now calls the config cascade's personal layer the personal override (the overlay name is retired); the `sweep-all` batch options are now the batch override, and the eval cases `check-reports-overlay-and-routes-reconfig-natively` and `userconfig-overlay-changes-resolved-set` are now `check-reports-override-and-routes-reconfig-natively` and `userconfig-override-changes-resolved-set` (#13191).
+
 ## [0.24.9] - 2026-11-04
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, local overlay, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `docs/conventions/code-metrics.yaml` team layer per key, carrying every declared key of a retired `.claude/code-metrics.yaml`, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
+description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, personal override, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `docs/conventions/code-metrics.yaml` team layer per key, carrying every declared key of a retired `.claude/code-metrics.yaml`, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -12,7 +12,7 @@ shell: bash
 Every reference the plugin prints, every lane's collector order, the scope exclusions, and the
 coverage artifact paths resolve through one consumer surface, layered as user-global
 (`~/.claude/code-metrics.yaml`), team (`docs/conventions/code-metrics.yaml`, tracked; schema
-`${CLAUDE_PLUGIN_ROOT}/schemas/code-metrics.schema.json`), and local overlay
+`${CLAUDE_PLUGIN_ROOT}/schemas/code-metrics.schema.json`), and personal override
 (`.claude/code-metrics.local.yaml`, gitignored) with per-key override. The team file of earlier
 releases, `.claude/code-metrics.yaml`, is retired and never read; `apply` moves its keys. All three layers absent is
 a valid state: every key has a bundled default. This skill is the check-centric setup for that
@@ -47,7 +47,7 @@ Rows, each PASS, FAIL, WARN, or INFO:
 3. **layer team tracked**: `git check-ignore -v` on the team file reports no match (a match is
    FAIL with the rule: an ignored team layer never reaches the team) and `git ls-files
    --error-unmatch` sees it (untracked is WARN: written but uncommitted).
-4. **layer local ignored**: the overlay is gitignored, else WARN with the recommended consumer
+4. **layer local ignored**: the personal override is gitignored, else WARN with the recommended consumer
    line `.claude/**/*.local.*`. Recommend the line; never edit the consumer's `.gitignore`.
 5. **ecosystem `<lane>.yaml`**: each consumer ecosystem file parses; its `globs` and `enabled`
    override lane detection.

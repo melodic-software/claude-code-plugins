@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\""
+          }
+        }
+      ],
+      "why": "quoted paths"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/guardrails/lib/check-retirements.sh --root /w --manifest /p/guardrails/retirements.yaml"
+          }
+        }
+      ],
+      "why": "a flag before --manifest"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/guardrails/lib/check-retirements.sh --help"
+          }
+        }
+      ],
+      "why": "help only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'check-retirements.sh --manifest' SKILL.md"
+          }
+        }
+      ],
+      "why": "a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/guardrails/lib/check-retirements.sh --manifest /p/other.yaml"
+          }
+        }
+      ],
+      "why": "another manifest"
+    }
+  ]
+}

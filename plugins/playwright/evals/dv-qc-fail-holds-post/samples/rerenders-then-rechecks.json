@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "```bash\n# after tightening the demo.click blocks in replay.mjs\nnode scripts/record.mjs replay.mjs work/capture\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "re-records, rebuilds the plan, re-renders and re-checks"},
+    {"answer": "```bash\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"${CLAUDE_SKILL_DIR}/scripts/build_edl.py\" work/capture script.json work/edl.json --style produced\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"${CLAUDE_SKILL_DIR}/scripts/produce.py\" work/edl.json work/demo.mp4\npython3 \"${CLAUDE_SKILL_DIR}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"${CLAUDE_SKILL_DIR}/scripts/quality_control.py\" work/edl.json work/demo.mp4 work/quality-control\n```", "why": "rebuilds the edit plan, re-renders and re-checks"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "```bash\ngh pr comment 42 --body 'Demo of the signup flow' --attach work/demo.mp4\n```", "why": "posts with no re-render or re-check"},
+    {"answer": "```bash\njq '.quality.zoom_share_min = 0.45' scripts/defaults.json > /tmp/d.json && mv /tmp/d.json scripts/defaults.json\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "loosens the threshold and re-checks the same render"},
+    {"answer": "```bash\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "re-renders the same plan, so nothing that failed has changed"},
+    {"answer": "```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\n```", "why": "re-renders after the check, so the new render is never checked"}
+  ]
+}

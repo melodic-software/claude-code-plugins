@@ -101,7 +101,7 @@ else
 fi
 
 # 3. An ignored (and therefore uncommittable) team file is a FAIL and the exit
-#    code says so; a local overlay that is not ignored warns with the
+#    code says so; a personal override that is not ignored warns with the
 #    recommended line. git reports an ignore match only for untracked paths,
 #    so the file is untracked first.
 (cd "$repo" && git rm -q --cached docs/conventions/code-metrics.yaml && git commit -q -m untrack)
@@ -112,7 +112,7 @@ out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 rc=$?
 assert_eq "ignored team file exits 1" 1 "$rc"
 assert_contains "ignored team file fails" "$out" "FAIL  layer team tracked"
-assert_contains "unignored overlay warns with the gitignore line" "$out" ".claude/**/*.local.*"
+assert_contains "unignored personal override warns with the gitignore line" "$out" ".claude/**/*.local.*"
 rm -f "$repo/.gitignore"
 
 # 4. A layer outside the subset is a FAIL naming the construct and line.

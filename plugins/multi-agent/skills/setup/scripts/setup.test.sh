@@ -52,7 +52,7 @@ run() { # run <case> <action> <args...>
 
 fixture dry
 out="$(run dry apply --layer local roles.worker.effort=high)"
-assert_contains "dry run names the overlay path" "$out" "would write: $T/dry/repo/.claude/multi-agent.local.yaml"
+assert_contains "dry run names the personal override path" "$out" "would write: $T/dry/repo/.claude/multi-agent.local.yaml"
 assert_contains "dry run shows the new key in a diff" "$out" '+    effort: high'
 state=absent
 [[ -e "$T/dry/repo/.claude/multi-agent.local.yaml" ]] && state=present
@@ -65,9 +65,9 @@ assert_contains "write reads the stored value back" "$out" '  fanout.frontier_gu
 assert_eq "written file is the rendered subset" "$(cat "$T/local/repo/.claude/multi-agent.local.yaml")" \
   $'schema: 1\nfanout:\n  frontier_guard: false\nroles:\n  worker:\n    effort: high'
 out="$(run local check session=fable)"
-assert_contains "check shows the overlay as the source" "$out" '"source":{"model":"bundled","effort":"overlay"}'
+assert_contains "check shows the personal override as the source" "$out" '"source":{"model":"bundled","effort":"personal-override"}'
 assert_contains "check shows the guard off: fan-out inherits under fable" "$out" '"fanout":{"model":"inherit","omit_model":true,"effort":"high","guarded":false}'
-assert_contains "check warns when the overlay is not ignored" "$out" 'WARN overlay'
+assert_contains "check warns when the personal override is not ignored" "$out" 'WARN personal-override'
 out="$(run local apply --layer local --write roles.worker.effort=high)"
 assert_eq "rerun with the same value is unchanged" "unchanged: $T/local/repo/.claude/multi-agent.local.yaml" "$out"
 run local apply --layer local --write fanout.frontier_guard= >/dev/null

@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-11-04
+
+### Changed
+
+- The plugin now calls the config cascade's personal layer the personal override (the overlay name is retired); the layer id in `resolve-roles.sh` output and the `setup check` row changed from `overlay` to `personal-override` (#13191).
+
 ## [2.0.3] - 2026-11-04
 
 ### Changed

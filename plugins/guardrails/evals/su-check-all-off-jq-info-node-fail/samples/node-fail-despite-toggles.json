@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "node stays FAIL even with everything off: no guard row can start without it."
+    },
+    {
+      "answer": "Node.js: FAIL in every toggle state."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node is INFO while every guard is off.",
+      "why": "downgrades node"
+    },
+    {
+      "answer": "node is WARN.",
+      "why": "near miss: wrong verdict"
+    },
+    {
+      "answer": "node would be reported.",
+      "why": "near miss: no verdict"
+    }
+  ]
+}

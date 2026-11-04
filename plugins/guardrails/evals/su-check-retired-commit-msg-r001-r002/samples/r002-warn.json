@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| guardrails-r002 | WARN | delete via /guardrails:setup apply |"
+    },
+    {
+      "answer": "guardrails-r002 (resolver copy): WARN; apply cleans it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "guardrails-r002: FAIL; run apply.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "guardrails-r002: WARN.",
+      "why": "near miss: no remediation"
+    }
+  ]
+}

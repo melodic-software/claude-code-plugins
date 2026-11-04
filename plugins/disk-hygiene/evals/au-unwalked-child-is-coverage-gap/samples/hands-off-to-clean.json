@@ -1,0 +1,1 @@
+{"pass": [{"answer": "Removal is a separate /disk-hygiene:clean run."}], "fail": [{"answer": "You can delete the hinted files yourself."}]}

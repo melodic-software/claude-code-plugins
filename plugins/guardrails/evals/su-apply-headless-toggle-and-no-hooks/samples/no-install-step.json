@@ -1,0 +1,98 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs plan --scope local"
+          }
+        }
+      ],
+      "why": "the plan step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs verify"
+          }
+        }
+      ],
+      "why": "verify"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'install.mjs copy' SKILL.md"
+          }
+        }
+      ],
+      "why": "the verb as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v lefthook"
+          }
+        }
+      ],
+      "why": "a presence probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs copy --scope local"
+          }
+        }
+      ],
+      "why": "copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs decline --entry pre-commit-content"
+          }
+        }
+      ],
+      "why": "decline writes git config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/guardrails/lib/git-hooks/install.mjs config-hook --include-if x"
+          }
+        }
+      ],
+      "why": "config-hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status && lefthook install"
+          }
+        }
+      ],
+      "why": "lefthook install after &&"
+    }
+  ]
+}

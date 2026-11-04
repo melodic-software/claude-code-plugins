@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Your earlier hook goes back: mv .git/hooks/pre-commit.pre-guardrails .git/hooks/pre-commit."
+    },
+    {
+      "answer": "pre-commit.pre-guardrails is restored as your pre-commit hook."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your earlier hook is deleted with the old one.",
+      "why": "drops it"
+    },
+    {
+      "answer": "Your earlier hook stays where it is.",
+      "why": "near miss: not restored"
+    },
+    {
+      "answer": "Copy it to .git/hooks/pre-commit.bak.",
+      "why": "near miss: wrong target"
+    }
+  ]
+}

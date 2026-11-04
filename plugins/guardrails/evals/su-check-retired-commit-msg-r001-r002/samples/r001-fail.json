@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| guardrails-r001 | FAIL | migrate: run /guardrails:setup apply |"
+    },
+    {
+      "answer": "guardrails-r001 (old commit-msg hook): FAIL; fix with apply."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "guardrails-r001: WARN; run apply.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "guardrails-r001: FAIL.",
+      "why": "near miss: no remediation"
+    },
+    {
+      "answer": "guardrails-r001: FAIL; delete the file by hand.",
+      "why": "near miss: wrong remediation"
+    }
+  ]
+}

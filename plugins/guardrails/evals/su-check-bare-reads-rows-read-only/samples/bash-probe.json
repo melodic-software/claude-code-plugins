@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/bin/bash --version"
+          }
+        }
+      ],
+      "why": "by path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'echo $BASH_VERSION'"
+          }
+        }
+      ],
+      "why": "the variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v bash && bash --version | head -1"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /p/guardrails/hooks/exec-bash.mjs"
+          }
+        }
+      ],
+      "why": "reads the resolver only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v bash"
+          }
+        }
+      ],
+      "why": "presence only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo bash"
+          }
+        }
+      ],
+      "why": "a word"
+    }
+  ]
+}

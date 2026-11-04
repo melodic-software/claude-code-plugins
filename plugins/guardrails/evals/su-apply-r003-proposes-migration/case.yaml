@@ -1,0 +1,63 @@
+schema_version: "1.1"
+name: su-apply-r003-proposes-migration
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'retirements-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:bash|sh)(?:\.exe)?(?:\s+-[^\s\"\\]+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?check-retirements\.sh(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--manifest(?:\s|\\\\\\n)+(?:\\\"|'')?[^\s\"\\;&|]*retirements\.yaml\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'names-clean-r003-migrated'
+    type: 'llm'
+    criteria: 'The reply names check-retirements.sh --clean guardrails-r003 together with --i-migrated as the command that removes the old hook.'
+    focus: 'last_message'
+  - name: 'restores-user-hook-step'
+    type: 'llm'
+    criteria: 'The reply says the earlier hook at .git/hooks/pre-commit.pre-guardrails is moved back to .git/hooks/pre-commit.'
+    focus: 'last_message'
+  - name: 'names-install-git-hooks'
+    type: 'regex'
+    pattern: '\bapply install-git-hooks(?![\w-]|\.\w)'
+    target: 'last_message'
+  - name: 'no-clean'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:bash|sh)(?:\.exe)?(?:\s+-[^\s\"\\]+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?check-retirements\.sh(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--clean\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-hook-removal'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:rm|mv|unlink|truncate)(?:\.exe)?(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\.git/hooks/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'never-runs-old-hook'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:bash|dash|zsh|sh|source|\.)(?:\.exe)?(?:\s+-[^\s\"\\]+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?\.git/hooks/pre-commit(?:\.pre-guardrails)?(?:\\\"|'')?(?![\w.-])'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-install-step'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?node(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\'']|\\\\)*install\.mjs(?:\\\"|'')?(?:\s|\\\\\\n)+(?:copy|decline|config-hook)\b|(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?lefthook(?:\\\"|'')?(?:\s|\\\\\\n)+install\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

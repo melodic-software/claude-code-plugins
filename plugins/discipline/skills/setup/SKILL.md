@@ -1,5 +1,5 @@
 ---
-description: "Validate the discipline plugin's configuration (the posture-batch overlay, do-your-research's fan-out verification depth, lever_scope and docs/conventions/discipline.yaml), explain how to change the personal options through Claude Code's plugin configuration prompt, and write the repository file after confirmation. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', 'set lever_scope for this repo', or the user wants to adjust which correctors the batch runs, how deeply the research fan-out verifies, or when a repeated change gets a lever. Actions: check (read-only, default), apply (writes docs/conventions/discipline.yaml only)."
+description: "Validate the discipline plugin's configuration (the posture-batch override, do-your-research's fan-out verification depth, lever_scope and docs/conventions/discipline.yaml), explain how to change the personal options through Claude Code's plugin configuration prompt, and write the repository file after confirmation. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', 'set lever_scope for this repo', or the user wants to adjust which correctors the batch runs, how deeply the research fan-out verifies, or when a repeated change gets a lever. Actions: check (read-only, default), apply (writes docs/conventions/discipline.yaml only)."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -16,7 +16,7 @@ Lever scope: `${user_config.lever_scope}`
 ## Purpose
 
 Report discipline's effective configuration and write its one repository file. The
-plugin's personal options are native `userConfig`: three `sweep-all` batch-overlay
+plugin's personal options are native `userConfig`: three `sweep-all` batch-override
 options (`batch_exclude` / `batch_promote` / `batch_demote`), the verification-depth
 default of `do-your-research`'s fan-out tier (`research_deep_verification`) and
 `lever_scope`. They are personal options, held in user settings, and this skill
@@ -40,7 +40,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
 ## `check` (read-only)
 
 1. Read the five rendered `${user_config.…}` values from the Variables block
-   above (the three `batch_*` overlay options, `research_deep_verification` and
+   above (the three `batch_*` override options, `research_deep_verification` and
    `lever_scope`). Do not inspect or edit `settings.json`, `settings.local.json`,
    managed settings, or `pluginConfigs` directly.
 2. **Empty or unexpanded is unset.** Treat BOTH an empty value AND a surviving
@@ -55,7 +55,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    gates those core correctors on relevance. With all three unset, report that the
    batch runs the tiers exactly as the correctors declare them.
 4. **Validate the batch names against what is installed.** Glob the sibling corrector
-   directories under this plugin's `skills/` and, for each name in an overlay, report:
+   directories under this plugin's `skills/` and, for each name in an override, report:
    - a name in `batch_exclude` or `batch_demote` that matches no installed corrector: FAIL (typo or removed corrector); remediation: fix via the plugin configuration
      prompt;
    - the same name in `batch_exclude` and in `batch_promote`/`batch_demote`: contradictory; report it;
@@ -166,7 +166,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
 5. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
    convention home, the script prints an offer: with the operator's confirmation it adds a
    convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
-   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   exists or `CLAUDE.md` only imports it) and the personal override ignore line
    `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
    `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
    exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the
@@ -188,7 +188,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
 
 ## Next
 
-`/discipline:sweep-all` to run the posture batch with the reported overlay, or
+`/discipline:sweep-all` to run the posture batch with the reported override, or
 `/discipline:script-the-deterministic-work` to apply the lever rule.
 
 ## Gotchas
