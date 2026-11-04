@@ -1693,7 +1693,26 @@ test("a ref update answered 422 on a branch the re-read shows moved is supersede
   const lines = [];
   const api = refusedWrite(fix, [fix.head, "e".repeat(40)]);
   assert.deepEqual(await ciPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "superseded" });
-  assert.deepEqual(lines, [`the PR branch moved from ${fix.head} to ${"e".repeat(40)}; the patch is superseded`]);
+  assert.deepEqual(lines, [`the PR branch moved from ${fix.head} to ${"e".repeat(40)}; the patch is superseded (PATCH git/refs/heads/feat/x returned 422: {"message":"Update is not a fast forward"})`]);
+});
+
+test("a 422 on a moved branch keeps GitHub's refusal on the superseded line, whatever it says", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const lines = [];
+  const api = refusedWrite(fix, [fix.head, "e".repeat(40)], 422, "Repository rule violations found");
+  assert.deepEqual(await ciPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "superseded" });
+  assert.match(lines[0], /superseded \(.*returned 422: \{"message":"Repository rule violations found"\}\)$/);
+});
+
+test("a re-read with no usable SHA is a failed re-read: the 422 stays red, and a ready check stays red", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  for (const tip of [undefined, "", "not-a-sha"]) {
+    await assert.rejects(ciPush(fix, refusedWrite(fix, [fix.head, tip])), { message: 'PATCH git/refs/heads/feat/x returned 422: {"message":"Update is not a fast forward"}' }, String(tip));
+    const early = fakeApi(fix.repo, fix.head);
+    early.readBranch = async () => tip;
+    await assert.rejects(ciPush(fix, early), /feat\/x reads no commit/, String(tip));
+    assert.deepEqual(writes(early), [], String(tip));
+  }
 });
 
 test("a ref update answered 422 on a branch that did not move fails with GitHub's message", async (t) => {

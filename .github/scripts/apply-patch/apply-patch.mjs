@@ -367,11 +367,15 @@ export const TARGETS = {
     },
     async ready(api, ref, head) {
       const tip = await api.readBranch(ref);
+      if (!SHA.test(String(tip))) {
+        throw new Error(`${ref} reads no commit`);
+      }
       return tip === head ? "" : movedFrom(head, tip);
     },
     // force: false refuses anything but a fast-forward from the gated head. A
-    // 422 is superseded only when a re-read shows another commit on the branch;
-    // any other refusal, or a re-read that fails, keeps GitHub's answer.
+    // 422 is superseded only when a re-read shows another commit on the branch,
+    // and the line keeps GitHub's answer, which may be more than the race; any
+    // other refusal, or a re-read that fails or names no commit, throws it.
     async write(api, ref, commit, head) {
       try {
         await api.updateRef(`heads/${ref}`, commit, false);
@@ -381,10 +385,10 @@ export const TARGETS = {
           throw error;
         }
         const tip = await api.readBranch(ref).catch(() => head);
-        if (tip === head || tip === commit) {
+        if (!SHA.test(String(tip)) || tip === head || tip === commit) {
           throw error;
         }
-        return movedFrom(head, tip);
+        return `${movedFrom(head, tip)} (${error.message})`;
       }
     },
   },
