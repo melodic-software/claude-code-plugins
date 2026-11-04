@@ -129,7 +129,7 @@
       "id": "pos-contested-02",
       "split": "validation",
       "expect_trigger": true,
-      "request": "Going only by the Terraform in this repo, which AKS node pool hosts the orders API in prod? Don't query Azure."
+      "request": "Going only by the Terraform in this repo, which Kubernetes node pool hosts the orders API in prod? Don't query Azure."
     },
     {
       "id": "pos-contested-03",
