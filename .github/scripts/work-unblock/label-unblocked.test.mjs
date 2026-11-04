@@ -814,21 +814,28 @@ test("an event other than an issue close, the schedule or a work-resolve-issue r
 });
 
 // The window starts 15 minutes before the last successful scheduled run of
-// work-unblock.yml whose label-unblocked job ran its sweep step, at most 3
-// hours back; anything else, or any failed read, gives the 3 hours.
+// work-unblock.yml whose label-unblocked job ran its sweep step and logged that
+// it read the closed-issue listing, at most 3 hours back; anything else, or any
+// failed read, gives the 3 hours.
 const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
 const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
+const SWEEP_JOB_ID = 9001;
+const SWEEP_LOG_PATH = `/repos/${REPO}/actions/jobs/${SWEEP_JOB_ID}/logs`;
+// A raw job log's line: the runner's stamp, one space, the line as printed.
+const LOG_STAMP = "2026-11-04T06:49:16.3392052Z ";
+const LISTED_LOG = `${LOG_STAMP}label-unblocked: read the closed-issue listing\n`;
 const sweptJobs = (conclusion = "success", extraSteps = []) => ({
   jobs: [
     { name: "save-wip-state", conclusion: "success", steps: [{ name: "Save the WIP cap's last known state", conclusion: "success" }] },
     {
+      id: SWEEP_JOB_ID,
       name: "label-unblocked",
       conclusion: "success",
       steps: [{ name: "Check the kill switch", conclusion: "success" }, ...extraSteps, { name: "Label the unblocked issues", conclusion }],
     },
   ],
 });
-async function windowOf(answer, extra = {}, jobs = sweptJobs()) {
+async function windowOf(answer, extra = {}, jobs = sweptJobs(), log = LISTED_LOG) {
   const { github, calls } = sweptDependent();
   const actionCalls = [];
   const actions = async (method, path) => {
@@ -845,6 +852,12 @@ async function windowOf(answer, extra = {}, jobs = sweptJobs()) {
       }
       return jobs;
     }
+    if (path === SWEEP_LOG_PATH) {
+      if (log instanceof Error) {
+        throw log;
+      }
+      return log;
+    }
     return { workflow_runs: [], jobs: [] };
   };
   assert.equal(await sweep({ github, actions }, extra), 0);
@@ -853,11 +866,187 @@ async function windowOf(answer, extra = {}, jobs = sweptJobs()) {
   return { minutes: (NOW - since) / 60_000, actionCalls };
 }
 
-test("the sweep reads back to 15 minutes before the last sweep that ran its labeling step", async () => {
+test("the sweep reads back to 15 minutes before the last sweep that ran its labeling step and read its listing", async () => {
   const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(60) }] });
   assert.equal(minutes, 75);
-  const windowCalls = actionCalls.filter((call) => call.includes("/work-unblock.yml/") || call.includes("/actions/runs/5/"));
-  assert.deepEqual(windowCalls, [`GET ${SWEEP_RUNS}`, `GET /repos/${REPO}/actions/runs/5/jobs?filter=latest&per_page=100`]);
+  const windowCalls = actionCalls.filter((call) => call.includes("/work-unblock.yml/") || call.includes("/actions/runs/5/") || call.includes("/actions/jobs/"));
+  assert.deepEqual(windowCalls, [`GET ${SWEEP_RUNS}`, `GET /repos/${REPO}/actions/runs/5/jobs?filter=latest&per_page=100`, `GET ${SWEEP_LOG_PATH}`]);
+});
+
+// A hold ends green with its labeling step a success, so only the log tells a
+// sweep that read its closes from one that held.
+test("a last sweep whose log does not show the closed listing read falls back to 3 hours", async () => {
+  const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
+  const held = `${LOG_STAMP}##[notice]the closed-issue listing failed\n`;
+  const inside = `${LOG_STAMP}said label-unblocked: read the closed-issue listing\n`;
+  const unstamped = "label-unblocked: read the closed-issue listing\n";
+  for (const log of [held, inside, unstamped, "", new Error("GET failed with status 410")]) {
+    assert.equal((await windowOf(runs, {}, sweptJobs(), log)).minutes, 180, String(log));
+  }
+});
+
+test("a last sweep whose job has no usable id falls back to 3 hours without asking for a log", async () => {
+  const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
+  const steps = [{ name: "Label the unblocked issues", conclusion: "success" }];
+  for (const id of [undefined, "../9001"]) {
+    const { minutes, actionCalls } = await windowOf(runs, {}, { jobs: [{ id, name: "label-unblocked", conclusion: "success", steps }] });
+    assert.equal(minutes, 180);
+    assert.deepEqual(actionCalls.filter((call) => call.includes("/actions/jobs/")), []);
+  }
+});
+
+test("a sweep with an Actions client but no log reader reads the full 3 hours", async () => {
+  const { github, calls } = sweptDependent();
+  const actions = async (method, path) => (path.includes("/work-unblock.yml/") ? { workflow_runs: [{ id: 5, run_started_at: ago(60) }] } : sweptJobs());
+  assert.equal(await sweep({ github, actions, jobLog: null }), 0);
+  assert.ok(calls.some((call) => call.includes(`since=${encodeURIComponent(SINCE)}`)));
+});
+
+test("a last sweep's log past the 1 MiB read cap is left unread and gives the full 3 hours", async () => {
+  // Real reader: one byte over the cap, the listed line inside it.
+  const readerOf = (filler) => {
+    const fetchImpl = async () => new Response(LISTED_LOG + "x".repeat(filler - LISTED_LOG.length), { status: 200 });
+    return createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: budgetLatch("github-token") });
+  };
+  const since = async (jobLog) => {
+    const { github, calls } = sweptDependent();
+    assert.equal(await sweep({ github, actions: lastSweepActions, jobLog }), 0);
+    return Date.parse(decodeURIComponent(/since=([^&]+)/.exec(calls.find((call) => call.includes("issues?state=closed&since=")))[1]));
+  };
+  assert.equal(await since(readerOf(1_048_576)), NOW - 75 * 60_000);
+  assert.equal(await since(readerOf(1_048_577)), NOW - 180 * 60_000);
+});
+
+// What one sweep printed, as its raw job log shows it: the runner turns a
+// notice command into `##[notice]`.
+const rawLog = (lines) => `${lines.map((line) => LOG_STAMP + line.replace(/^::notice[^:]*::/, "##[notice]")).join("\n")}\n`;
+const HOUR = 3_600_000;
+// The next hourly sweep after one that started at `started` and printed
+// `lines`, finding what the `world` it is given holds; its exit code, and how
+// many minutes back the listing it sent reads.
+async function sweepAfter(lines, { github, calls }, started = NOW) {
+  const now = started + HOUR;
+  const actions = async (method, path) => {
+    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) {
+      return { workflow_runs: [{ id: 6, run_started_at: new Date(started).toISOString() }] };
+    }
+    if (path.startsWith(`/repos/${REPO}/actions/runs/6/jobs`)) {
+      return sweptJobs();
+    }
+    if (path === SWEEP_LOG_PATH) {
+      return rawLog(lines);
+    }
+    return { workflow_runs: [], jobs: [] };
+  };
+  const code = await sweep({ github, actions, now });
+  const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+  return { code, minutes: (now - Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]))) / 60_000 };
+}
+const printedBy = async (t, run) => {
+  const log = t.mock.method(console, "log", () => {});
+  const code = await run();
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  log.mock.restore();
+  return { code, lines };
+};
+const CLOSED_LISTING = `/repos/${REPO}/issues?state=closed`;
+const LAST_SWEEP = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
+const lastSweepActions = async (method, path) => {
+  if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) {
+    return LAST_SWEEP;
+  }
+  if (path.startsWith(`/repos/${REPO}/actions/runs/5/jobs`)) {
+    return sweptJobs();
+  }
+  return path === SWEEP_LOG_PATH ? LISTED_LOG : { workflow_runs: [], jobs: [] };
+};
+
+test("a failed closed listing holds green: a notice, no error, no write and no later read", async (t) => {
+  const { github, calls } = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], failOn: CLOSED_LISTING });
+  const { code, lines } = await printedBy(t, () => sweep({ github }));
+  assert.equal(code, 0);
+  assert.deepEqual(writes(calls), []);
+  assert.deepEqual(calls.filter((call) => !call.startsWith(`GET ${CLOSED_LISTING}`)), []);
+  assert.equal(lines.filter((line) => line.startsWith("::notice") && line.includes("closed-issue listing")).length, 1);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error")), []);
+});
+
+test("a closed listing that answers no list, or past its page cap, holds like a failed one", async (t) => {
+  const answers = [{ message: "not a list" }, Array.from({ length: 100 }, () => closedAt(10, "2026-10-16T11:30:00Z"))];
+  for (const answer of answers) {
+    const { github: base, calls } = world({});
+    const github = async (method, path, body) => (path.startsWith(CLOSED_LISTING) ? answer : base(method, path, body));
+    const { code, lines } = await printedBy(t, () => sweep({ github }));
+    assert.equal(code, 0);
+    assert.deepEqual(writes(calls), []);
+    assert.equal(lines.filter((line) => line.startsWith("::notice") && line.includes("closed-issue listing")).length, 1);
+  }
+});
+
+// The close at 11:30 is after the last good sweep's 10:45 start of window and
+// before 11:45, 15 minutes before the held sweep at 12:00. A next sweep that
+// started from the held one would never read it.
+test("a held sweep does not advance the window: the next sweep reads the close it missed and labels what it freed", async (t) => {
+  const held = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], failOn: CLOSED_LISTING });
+  const { code, lines } = await printedBy(t, () => sweep({ github: held.github, actions: lastSweepActions }));
+  assert.equal(code, 0);
+  const next = sweptDependent();
+  const after = await sweepAfter(lines, next);
+  assert.equal(after.code, 0);
+  assert.equal(after.minutes, 180);
+  assert.deepEqual(writes(next.calls), [labeled(20)]);
+});
+
+test("a sweep that read its listing does advance the window: the next one reads back to 15 minutes before it", async (t) => {
+  const { github } = sweptDependent();
+  const { code, lines } = await printedBy(t, () => sweep({ github, actions: lastSweepActions }));
+  assert.equal(code, 0);
+  const next = sweptDependent();
+  const after = await sweepAfter(lines, next);
+  assert.equal(after.minutes, 75);
+  // The close at 11:30 is before 11:45, so this sweep does not read it.
+  assert.deepEqual(writes(next.calls), []);
+});
+
+// Held at 12:00 and 13:00: the sweep at 14:00 still reads back 3 hours, to
+// 11:00, which covers the close at 11:30 neither held sweep read.
+test("sweeps held in a row keep the window back, up to the 3-hour limit", async (t) => {
+  const first = await printedBy(t, () => sweep({ github: world({ failOn: CLOSED_LISTING }).github, actions: lastSweepActions }));
+  const heldAgain = world({ failOn: CLOSED_LISTING });
+  const second = await printedBy(t, () => sweepAfter(first.lines, heldAgain));
+  assert.equal(second.code.code, 0);
+  assert.equal(second.code.minutes, 180);
+  const next = sweptDependent();
+  const after = await sweepAfter(second.lines, next, NOW + HOUR);
+  assert.equal(after.minutes, 180);
+  assert.deepEqual(writes(next.calls), [labeled(20)]);
+});
+
+// These listings are read whole on every sweep, so a failure loses nothing:
+// the closes were read, and the window advances.
+test("a failed listing of the deferred, open or agent-ready issues holds with a notice while the rest of the sweep runs", async (t) => {
+  const listings = [
+    [`/repos/${REPO}/issues?state=open&labels=admission-deferred`, "admission-deferred"],
+    [`/repos/${REPO}/issues?state=open&sort=updated`, "open"],
+    [`/repos/${REPO}/issues?state=open&labels=agent-ready`, "agent-ready"],
+  ];
+  for (const [failOn, what] of listings) {
+    const { github, calls } = world({
+      closedList: [closedAt(10, "2026-10-16T11:30:00Z")],
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed" }), issue(11, { state: "closed" })] },
+      comments: { 20: [note()] },
+      failOn,
+    });
+    const { code, lines } = await printedBy(t, () => sweep({ github, actions: lastSweepActions }));
+    assert.equal(code, 0, what);
+    assert.deepEqual(writes(calls), [labeled(20)], what);
+    assert.equal(lines.filter((line) => line.startsWith("::notice") && line.includes(`${what} listing`)).length, 1, what);
+    assert.deepEqual(lines.filter((line) => line.startsWith("::error")), [], what);
+    const next = sweptDependent();
+    assert.equal((await sweepAfter(lines, next)).minutes, 75, what);
+  }
 });
 
 test("a last sweep older than the 3-hour window is capped at 3 hours without reading its jobs", async () => {
@@ -1660,12 +1849,6 @@ test("a failed re-add after the removal is retried once, then reported", async (
     }
     log.mock.restore();
   }
-});
-
-test("a failed listing of closed issues writes nothing and fails the run", async () => {
-  const { github, calls } = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], failOn: `/repos/${REPO}/issues?` });
-  assert.equal(await sweep({ github }), 1);
-  assert.deepEqual(writes(calls), []);
 });
 
 // Re-fires after a failed run: a run that crashed before its report leaves no

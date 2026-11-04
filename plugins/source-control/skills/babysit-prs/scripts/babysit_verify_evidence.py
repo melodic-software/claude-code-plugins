@@ -164,8 +164,7 @@ Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
 it could turn the FAIL away, so it is read again), with one exception: the
 artifact listing. A listing begun at most `LISTING_CARRY_MAX_AGE` ago (this
-Reader's own, the run's saved one, or one a trusted earlier run saved that
-`LISTING_CARRY_ENV` names, which no workflow sets; index mode saves a listing
+Reader's own or the run's saved one; index mode saves a listing
 only past `INDEX_NAMES_CAP`) is a base: `Reader._incremental` reads only the newest pages,
 newest id first, down past the base's highest id until an artifact created
 `LISTING_OVERLAP` before the base was read, and keeps the base's entries below
@@ -304,7 +303,6 @@ DRAFT_STEP = "Note a draft"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
-LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 # `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
@@ -436,8 +434,7 @@ LISTING_MAX_AGE = run_cache.MAX_AGE
 LISTING_OVERLAP = timedelta(hours=2)
 # The oldest base an incremental listing starts from. Scheduled pr-merge runs
 # come four times an hour (pr-merge.yml `cron`), and rotation.mjs asks at most
-# 10 trusted runs (`MAX_RUNS`), about 2.5 hours of them, for the carried
-# listing. At the most uploads seen in an hour on 2026-10-27 (255), a base this
+# 10 trusted runs (`MAX_RUNS`), about 2.5 hours of them. At the most uploads seen in an hour on 2026-10-27 (255), a base this
 # old and the overlap page at most about 1,300 artifacts, 13 pages, against 69
 # for the whole listing that day (judgment on that data).
 LISTING_CARRY_MAX_AGE = timedelta(hours=3)
@@ -549,6 +546,8 @@ def _overcount_refusal(outcome: str) -> str:
     if outcome.startswith(DEADLINE_UNREADABLE):
         return f"{DEADLINE_UNREADABLE}: {refusal} ({outcome})"
     return refusal
+
+
 # The whole listings `Reader._complete_listing` reads before it refuses. Of
 # three whole listings read on 2026-10-27, two skipped live artifacts at page
 # boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
@@ -810,7 +809,9 @@ def split_child_body(
         (int(tag[1]), tag[2]) if tag and int(float(tag[1])) == int(tag[1]) else None
     )
     scoped = rows[-1].startswith(SCOPE_PREFIX)
-    header = f"{split_child_header(number, int(part[1]), int(part[2]), source, scoped)}\n"
+    header = (
+        f"{split_child_header(number, int(part[1]), int(part[2]), source, scoped)}\n"
+    )
     if not body.startswith(header):
         return None
     refinement: list[str] = []
@@ -1287,12 +1288,6 @@ class Reader:
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
-    # A listing an earlier trusted run saved (`LISTING_CARRY_ENV`), as a base
-    # for `_incremental`. No workflow names one: in index mode no gate saves
-    # a listing to carry.
-    carry_path: str | None = field(
-        default_factory=lambda: os.environ.get(LISTING_CARRY_ENV) or None
-    )
     # The head-ref map (`HEAD_REFS_ENV`), when pr-merge.yml names one.
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
@@ -1391,10 +1386,12 @@ class Reader:
     # FAIL index by exact name instead of the whole listing. `LEGACY_FAILS_ENV`
     # names another file, or none when empty.
     legacy_path: str | None = field(
-        default_factory=lambda: os.environ.get(
-            LEGACY_FAILS_ENV, str(Path(__file__).with_name(LEGACY_FAILS_FILE))
+        default_factory=lambda: (
+            os.environ.get(
+                LEGACY_FAILS_ENV, str(Path(__file__).with_name(LEGACY_FAILS_FILE))
+            )
+            or None
         )
-        or None
     )
     _legacy_entries: list[dict[str, Any]] | None = None
     _legacy_loaded: bool = False
@@ -1404,9 +1401,7 @@ class Reader:
     _live_issues: dict[int, dict[Any, Any]] = field(default_factory=dict)
     # A targeted listing read for the answer key, taken by the next judgment
     # of the same pull request and head (`_verdict_artifacts`).
-    _handoff: dict[tuple[int, str], list[dict[str, Any]]] = field(
-        default_factory=dict
-    )
+    _handoff: dict[tuple[int, str], list[dict[str, Any]]] = field(default_factory=dict)
     # The exact-name and run-artifact reads this Reader made.
     index_reads: int = 0
 
@@ -1530,14 +1525,13 @@ class Reader:
 
     def _incremental_base(self) -> tuple[datetime, list[dict[str, Any]]] | None:
         """The newest whole listing begun at most `LISTING_CARRY_MAX_AGE` ago
-        whose every entry `_listed_entry` takes: this Reader's own, the run's
-        saved one, or the one a trusted run carried (`carry_path`)."""
+        whose every entry `_listed_entry` takes: this Reader's own or the
+        run's saved one."""
         bases = [
             base
             for base in (
                 self._base,
                 self._load_saved(self.listing_path, LISTING_CARRY_MAX_AGE),
-                self._load_saved(self.carry_path, LISTING_CARRY_MAX_AGE),
             )
             if base is not None
             and _recent(base[0], LISTING_CARRY_MAX_AGE)
@@ -2739,7 +2733,9 @@ class Reader:
                 or entry.get("origin") is not True
                 or not isinstance(entry.get("name"), str)
                 or not _is_id(run_id, run_id)
-                or not (entry.get("head_ref") is None or isinstance(entry["head_ref"], str))
+                or not (
+                    entry.get("head_ref") is None or isinstance(entry["head_ref"], str)
+                )
             ):
                 return None
         for entry in entries:
@@ -2791,7 +2787,9 @@ class Reader:
                 if len(items) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
                     break
                 if page >= LISTING_TOP_UP_PAGES:
-                    raise _Unreadable(f"the artifacts named {name} run past {page} pages")
+                    raise _Unreadable(
+                        f"the artifacts named {name} run past {page} pages"
+                    )
                 page += 1
             if totals == {len(found)}:
                 return [a for a in found.values() if a["expired"] is False]
@@ -2818,7 +2816,8 @@ class Reader:
                 or answer[0].get("total_count") != len(items)
                 or not all(map(_listed_entry, items))
                 or any(
-                    json_object(a.get("workflow_run")).get("id") != run_id for a in items
+                    json_object(a.get("workflow_run")).get("id") != run_id
+                    for a in items
                 )
             ):
                 raise _Unreadable(f"the artifacts of run {run_id} could not be read")
@@ -2833,11 +2832,15 @@ class Reader:
             )
             self.index_reads += 1
             if record.get("status") != "completed":
-                raise _Unreadable(f"run {run_id} holds a FAIL index and is still running")
+                raise _Unreadable(
+                    f"run {run_id} holds a FAIL index and is still running"
+                )
             items = read()
         return items
 
-    def _index_hits(self, names: Iterable[str], deadline: float) -> list[dict[str, Any]]:
+    def _index_hits(
+        self, names: Iterable[str], deadline: float
+    ) -> list[dict[str, Any]]:
         """The artifacts, but the index ones, of every run that uploaded an
         artifact named one of `names`. An index from any run only points: each
         FAIL it leads to is judged by its own run, as in the listing."""
@@ -2848,7 +2851,9 @@ class Reader:
                 if _is_id(run_id, run_id):
                     runs.add(run_id)
         if len(runs) > INDEX_RUNS_CAP:
-            raise _Unreadable(f"the FAIL index names {len(runs)} runs, over {INDEX_RUNS_CAP}")
+            raise _Unreadable(
+                f"the FAIL index names {len(runs)} runs, over {INDEX_RUNS_CAP}"
+            )
         return [
             a
             for run_id in sorted(runs)
@@ -2924,7 +2929,11 @@ class Reader:
             listing = self._targeted(
                 number, head, head_ref, self._commits(number, head) | {head}
             )
-        except (_Unreadable, merge_policy.PolicyReadError, postmerge.PostMergeReadError) as exc:
+        except (
+            _Unreadable,
+            merge_policy.PolicyReadError,
+            postmerge.PostMergeReadError,
+        ) as exc:
             raise RuntimeError(str(exc)) from exc
         self._handoff[(number, head)] = listing
         return listing
@@ -2940,7 +2949,8 @@ class Reader:
             found.update(
                 (a["id"], a)
                 for a in self._index_hits(
-                    [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"], deadline
+                    [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"],
+                    deadline,
                 )
             )
             failed = {
@@ -3505,7 +3515,9 @@ class Reader:
                     raise _Unreadable(f"#{other} state: {exc}") from exc
                 user = json_object(pull.get("user"))
                 self._counted[other] = self._counts(
-                    "MERGED" if pull.get("merged_at") else str(pull.get("state")).upper(),
+                    "MERGED"
+                    if pull.get("merged_at")
+                    else str(pull.get("state")).upper(),
                     {
                         "__typename": user.get("type"),
                         "login": _bot_login(str(user.get("login") or "")),
@@ -3983,7 +3995,11 @@ class Reader:
             app_id = self._lane_app_id()
         except Exception:  # noqa: BLE001 -- any failure keeps the hold
             return False
-        return app_id is not None and user.get("id") == app_id and user.get("type") == "Bot"
+        return (
+            app_id is not None
+            and user.get("id") == app_id
+            and user.get("type") == "Bot"
+        )
 
 
 def lane_risk_refusal(
@@ -4782,8 +4798,8 @@ def _settle_reason(
         base_sha=config.base_sha,
         identity=config.agent_identity,
         code_unchanged=True,
-        runs_unchanged=lambda answer, branch: (
-            postmerge.pending_runs_unchanged(repo, answer, branch)
+        runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
+            repo, answer, branch
         ),
         outcome=outcome,
     )
@@ -5032,11 +5048,11 @@ def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
     attempt-less record spends nothing."""
     named = set()
     for c in comments:
-        if str(
-            json_object(c.get("user")).get("login") or ""
-        ).lower() == identity.lower() and (
-            pr := _started_attempt(c.get("body"))
-        ) is not None:
+        if (
+            str(json_object(c.get("user")).get("login") or "").lower()
+            == identity.lower()
+            and (pr := _started_attempt(c.get("body"))) is not None
+        ):
             named.add(pr)
     return len(named - {number})
 
@@ -5185,9 +5201,7 @@ def capped_close(
     # toggles only when no lanes App removal followed the record, and puts
     # agent-ready back only when the newest removal is that one
     # (`_lane_removals`).
-    plan: list[
-        tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]
-    ] = []
+    plan: list[tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]] = []
     for issue in issues:
         comments = postmerge._paginated(
             f"repos/{repo}/issues/{issue}/comments?per_page=100", f"#{issue} comments"
@@ -5473,14 +5487,21 @@ class _Pacer:
         if self.limited:
             raise self._stop(f"rate limited: {self.limited}")
         try:
-            core = json_object(json_object(json.loads(proc.stdout)).get("resources")).get("core")
-            remaining, reset = json_object(core)["remaining"], json_object(core)["reset"]
+            core = json_object(
+                json_object(json.loads(proc.stdout)).get("resources")
+            ).get("core")
+            remaining, reset = (
+                json_object(core)["remaining"],
+                json_object(core)["reset"],
+            )
         except (ValueError, KeyError, TypeError) as exc:
             raise self._stop(f"the rate limit could not be read: {exc}") from exc
         if type(remaining) is not int or type(reset) is not int:
             raise self._stop("the rate limit could not be read")
         if remaining < self.min_remaining:
-            raise self._stop(f"core remaining {remaining} is under {self.min_remaining}")
+            raise self._stop(
+                f"core remaining {remaining} is under {self.min_remaining}"
+            )
         if self.window_reset is not None:
             self.report()
         kept = 0
@@ -5537,7 +5558,9 @@ def _kept_run(run: dict[str, Any]) -> dict[str, Any]:
     """The fields of a run record the build keeps: its status and origin."""
     return {
         **{k: run.get(k) for k in RUN_FIELDS_KEPT},
-        "repository": {"full_name": json_object(run.get("repository")).get("full_name")},
+        "repository": {
+            "full_name": json_object(run.get("repository")).get("full_name")
+        },
         "head_repository": {
             "full_name": json_object(run.get("head_repository")).get("full_name")
         },
@@ -5551,9 +5574,13 @@ def cutover_of(reader: Reader, merge_sha: str) -> datetime:
     if merge_policy.SHA_RE.fullmatch(merge_sha) is None:
         raise _Unreadable("--merge-sha must be a full commit SHA")
     commit = json_object(
-        reader._actions(["api", f"repos/{reader.repo}/commits/{merge_sha}"], "merge commit")
+        reader._actions(
+            ["api", f"repos/{reader.repo}/commits/{merge_sha}"], "merge commit"
+        )
     )
-    date = _when(json_object(json_object(commit.get("commit")).get("committer")).get("date"))
+    date = _when(
+        json_object(json_object(commit.get("commit")).get("committer")).get("date")
+    )
     if date is None:
         raise _Unreadable(f"commit {merge_sha} has no committer date")
     if not reader._contains(merge_sha):
@@ -5610,7 +5637,9 @@ class _PerRunBuild:
             "runs": {},
         }
         try:
-            saved = json_object(json.loads(self.checkpoint_path.read_text(encoding="utf-8")))
+            saved = json_object(
+                json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
+            )
         except FileNotFoundError:
             self.state = fresh
             return
@@ -5620,7 +5649,9 @@ class _PerRunBuild:
             saved.get(k) != fresh[k]
             for k in ("version", "repo", "since", "cutover", "lookback")
         ):
-            raise _Unreadable("the checkpoint is for another repository, range or cutover")
+            raise _Unreadable(
+                "the checkpoint is for another repository, range or cutover"
+            )
         self.state = saved
 
     def save(self) -> None:
@@ -5634,7 +5665,9 @@ class _PerRunBuild:
         """Every verifier run created in [start, end), or [start, end] for
         the `last` window, so the cutover's own second is read: each page
         holds the same `total_count`, and the ids, each once, equal it."""
-        created = f"{_stamp(start)}..{_stamp(end if last else end - timedelta(seconds=1))}"
+        created = (
+            f"{_stamp(start)}..{_stamp(end if last else end - timedelta(seconds=1))}"
+        )
         found: dict[int, dict[str, Any]] = {}
         totals: set[Any] = set()
         page = 1
@@ -5656,7 +5689,9 @@ class _PerRunBuild:
                 middle = split_created_window(start, end, RUN_WINDOW_MINIMUM)
                 if middle is None:
                     raise _Unreadable(f"{count} verifier runs created {created}")
-                return self._window(start, middle) + self._window(middle, end, last=last)
+                return self._window(start, middle) + self._window(
+                    middle, end, last=last
+                )
             totals.add(count)
             for run in map(json_object, runs):
                 if not _is_id(run.get("id"), run.get("id")):
@@ -5665,7 +5700,10 @@ class _PerRunBuild:
             # Read on while the page is full, never stopping at the count a
             # page claims, which can be low; the totals check below fails a
             # count the runs do not equal.
-            if len(runs) < LISTING_PAGE_SIZE or page >= RUN_SEARCH_CAP // LISTING_PAGE_SIZE:
+            if (
+                len(runs) < LISTING_PAGE_SIZE
+                or page >= RUN_SEARCH_CAP // LISTING_PAGE_SIZE
+            ):
                 break
             page += 1
         if totals != {len(found)}:
@@ -5676,7 +5714,9 @@ class _PerRunBuild:
         # again once the run has completed.
         for record in found.values():
             if record.get("status") != "completed":
-                raise _Unreadable(f"verifier run {record['id']} is {record.get('status')}")
+                raise _Unreadable(
+                    f"verifier run {record['id']} is {record.get('status')}"
+                )
         return list(found.values())
 
     def _run(self, record: dict[str, Any]) -> dict[str, Any]:
@@ -5705,7 +5745,9 @@ class _PerRunBuild:
             or count != len(items)
             or count >= LISTING_PAGE_SIZE
             or not all(map(_listed_entry, items))
-            or any(json_object(a.get("workflow_run")).get("id") != run_id for a in items)
+            or any(
+                json_object(a.get("workflow_run")).get("id") != run_id for a in items
+            )
         ):
             raise _Unreadable(f"the artifacts of run {run_id} do not hold their count")
         names = [str(a.get("name") or "") for a in items]
@@ -5724,19 +5766,22 @@ class _PerRunBuild:
             raise _Unreadable(f"the origin of run {run_id}: {exc}") from exc
         if not origin:
             return {"why": "foreign", "entries": []}
-        return {"why": "kept", "entries": [
-            {
-                "id": a["id"],
-                "name": a["name"],
-                "created_at": a.get("created_at"),
-                "expires_at": a.get("expires_at"),
-                "expired": False,
-                "workflow_run": {"id": run_id},
-                "origin": True,
-                "head_ref": self.reader._head_ref(run_id, a["name"], a["id"], ""),
-            }
-            for a in fails
-        ]}
+        return {
+            "why": "kept",
+            "entries": [
+                {
+                    "id": a["id"],
+                    "name": a["name"],
+                    "created_at": a.get("created_at"),
+                    "expires_at": a.get("expires_at"),
+                    "expired": False,
+                    "workflow_run": {"id": run_id},
+                    "origin": True,
+                    "head_ref": self.reader._head_ref(run_id, a["name"], a["id"], ""),
+                }
+                for a in fails
+            ],
+        }
 
     def _listing_fails(self) -> list[dict[str, Any]]:
         """Every unexpired FAIL-shaped artifact one whole listing shows, by
@@ -5954,7 +5999,10 @@ def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
     since = _when(args.since)
     asked = _when(args.cutover) if args.cutover else None
     if since is None or (args.cutover and asked is None):
-        print("legacy-fails: --since and --cutover must be times with a zone", file=sys.stderr)
+        print(
+            "legacy-fails: --since and --cutover must be times with a zone",
+            file=sys.stderr,
+        )
         return 2
     pacer = _Pacer(
         postmerge.gh_capture,
@@ -5985,7 +6033,10 @@ def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
             )
     except _BuildStopped as exc:
         pacer.report()
-        print(f"legacy-fails: stopped, resume from {args.checkpoint}: {exc}", file=sys.stderr)
+        print(
+            f"legacy-fails: stopped, resume from {args.checkpoint}: {exc}",
+            file=sys.stderr,
+        )
         return 3
     except _Unreadable as exc:
         pacer.report()
