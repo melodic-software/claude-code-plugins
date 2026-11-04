@@ -1,5 +1,12 @@
 # Changelog: evals
 
+## [0.15.11] - 2026-11-04
+
+### Changed
+
+- plugin-eval: the cloud route cites the page section that holds the host description and the one
+  that holds the package list.
+
 ## [0.15.10] - 2026-11-04
 
 ### Changed
