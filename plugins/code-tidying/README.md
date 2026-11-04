@@ -94,7 +94,7 @@ precedence over bundled lanes of the same name. Copy the closest scaffold from
 the plugin's `skills/tidy/templates/` (dependency-root, host-wiring, apps,
 polyglot-services patterns) and fill in your scope globs, watch-for patterns,
 exclusions, and verification commands. This surface does not resolve user-global
-or `*.local.*` overlay layers. The bundled lane is the portable baseline, and
+layers or `*.local.*` personal overrides. The bundled lane is the portable baseline, and
 personal variation is limited to lane names the team does not track: an uncommitted
 `.claude/tidy-lanes/<lane>.md` never added to the index (see `setup` and the
 [config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md)).
@@ -155,7 +155,7 @@ personal variation is limited to lane names the team does not track: an uncommit
 Six `userConfig` options. Five tune `remove-comments`, and none of them
 loosens a gate: they set what a run removes, never what it may apply without a
 proof. They also read from the team file `<home>/code-tidying.yaml` (schema:
-`schemas/code-tidying.schema.json`) and its personal overlay
+`schemas/code-tidying.schema.json`) and its personal override
 `<home>/code-tidying.local.yaml`, `<home>` being the bound convention home, else
 `docs/conventions`; these win over `userConfig` in that order. The sixth, `hard_exclusions`, is `userConfig` only: it is the
 personal-posture channel of the exclusion override above, and loosening is its

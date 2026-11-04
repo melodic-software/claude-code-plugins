@@ -32,7 +32,7 @@ to or refines earlier layers per value, never wholesale replacement:
 3. **Repo-local binding.** Tracked config in the consuming repository (the concrete location
    is a tool-specific detail the setup capability documents). Per value, this layer overrides
    the org binding.
-4. **Local overlay.** The consumer's untracked personal refinement of the repo-local layer.
+4. **Personal override.** The consumer's untracked personal refinement of the repo-local layer.
 
 A value no layer answers falls to the **setup interview**, which asks and persists the answer
 into the repo-local layer so the next resolution is deterministic.

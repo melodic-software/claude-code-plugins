@@ -194,7 +194,7 @@
     },
     {
       "id": "no_config_fallback",
-      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml, no .local.md overlay and no mutation-testing userConfig value. The test command is `python -m pytest {tests}`.",
+      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml, no .local.md personal override and no mutation-testing userConfig value. The test command is `python -m pytest {tests}`.",
       "expected_output": "Does not refuse and does not send the user to /mutation-testing:setup apply. Resolves every config layer, finds none, and falls back: `tool: manual`, the diff target resolved with `git symbolic-ref --short refs/remotes/origin/HEAD` rather than a hardcoded main or master, `mutate` set to the changed source files minus test code, and the effort-derived mutant cap since no `max-mutants` is set. States `python -m pytest {tests}` as the test command to the user before the baseline run, with `{tests}` filled by test paths rather than left empty. The scope report's Config line reads `no config: fallback defaults` and lists each default, the resolved diff target included.",
       "files": [],
       "narration": true
@@ -207,7 +207,7 @@
     },
     {
       "id": "user_config_only",
-      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml and no .local.md overlay. The userConfig values render as operators: narrow and max_mutants: 5. The test command is `python -m pytest {tests}`.",
+      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml and no .local.md personal override. The userConfig values render as operators: narrow and max_mutants: 5. The test command is `python -m pytest {tests}`.",
       "expected_output": "Does not refuse and does not send the user to /mutation-testing:setup apply. Reads the user layer from the plugin's userConfig values, not from a ~/.claude/mutation-testing.md file, and uses them: at most 5 mutants and the narrow operator set. The scope report's Config line names `userConfig` as the source of `max-mutants: 5` and `operators: narrow`, and marks the keys no layer sets as fallback defaults: `tool: manual` and the diff target resolved from origin/HEAD. States `python -m pytest {tests}` as the test command before the baseline run; it does not read a test command from userConfig.",
       "files": [],
       "narration": true
