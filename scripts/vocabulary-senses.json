@@ -5,7 +5,7 @@
       "retired": "rung for the view form or medium choice",
       "replacement": "form, or medium / fallback chain step",
       "rules": [
-        {"match": "\\brungs?\\b", "near": "\\b(text|diagrams?|pages?|videos?|medium|media|views?)\\b"}
+        {"match": "\\brungs?\\b", "near": "\\b(diagrams?|pages?|videos?|medium|media|views?)\\b"}
       ],
       "allow": [
         {"phrase": "\\bautonomy (ladder|rungs?)\\b", "reason": "the autonomy ladder's rungs stay (D8)"},
@@ -25,7 +25,34 @@
         {"path": "plugins/session-flow/skills/find-handoff/**", "reason": "find-handoff's rung-N reference files name its recovery ladder's steps"},
         {"phrase": "\\b(explanation rungs?|rungs? of explanation)\\b", "reason": "the education explanation rung is a layer of explanation, not a view form"},
         {"phrase": "\\bcandidate ladder\\b", "reason": "recommend-skills' candidate ladder ranks skill candidates, not view forms"},
-        {"path": "plugins/session-flow/skills/recommend-skills/**", "reason": "recommend-skills' candidate ladder ranks skill candidates, not view forms"}
+        {"path": "plugins/session-flow/skills/recommend-skills/**", "reason": "recommend-skills' candidate ladder ranks skill candidates, not view forms"},
+        {"path": "**/evals/**/samples/**", "reason": "recorded model output; an edit changes what the eval measures"},
+        {"path": "**/evals/**/graders/**", "reason": "grader patterns matched against recorded samples; an edit changes what the eval measures"},
+        {"phrase": "^\\s*(?:-\\s*)?pattern:\\s*['\"]", "reason": "a case.yaml grader pattern matched against recorded samples; an edit changes what the eval measures"},
+        {"path": "plugins/testing/skills/audit/evals/judge-calibration/**", "reason": "testing's judge-calibration fixtures are verbatim copies of other plugins' code"},
+        {"phrase": "\\bfetch-route rungs?\\b", "reason": "the upstream-drift fetch route's rungs are read methods, not view forms"},
+        {"path": "docs/contracts/upstream-drift/**", "reason": "the upstream-drift fetch route's rungs are read methods, not view forms"},
+        {"path": "plugins/attribution/prerequisites.json", "reason": "the upstream-drift fetch route's numbered rungs are read methods, not view forms"},
+        {"path": "plugins/attribution/skills/audit/reference/source-fetch.md", "reason": "the upstream-drift fetch route's numbered rungs are read methods, not view forms"},
+        {"path": "plugins/instruction-placement/skills/migrate/reference/sources.md", "reason": "the upstream-drift fetch route's numbered rungs are read methods, not view forms"},
+        {"path": "plugins/plugin-quality/README.md", "reason": "the upstream-drift fetch route's numbered rungs are read methods, not view forms"},
+        {"path": "plugins/plugin-quality/agents/auditor.md", "reason": "the upstream-drift fetch route's numbered rungs are read methods, not view forms"},
+        {"path": "plugins/plugin-quality/prerequisites.json", "reason": "the upstream-drift fetch route's numbered rungs are read methods, not view forms"},
+        {"path": "plugins/knowledge/skills/map-corpus/**", "reason": "map-corpus's discovery rungs (llms.txt, sitemap, in-page links) order discovery sources, not view forms"},
+        {"path": "plugins/knowledge/reference/ingest-deferred-decisions.md", "reason": "map-corpus's discovery rungs (llms.txt, sitemap, in-page links) order discovery sources, not view forms"},
+        {"phrase": "\\brung [0-9]+ instruction\\b", "reason": "a step of the interview page's status ladder, not a view form"},
+        {"phrase": "\\brung-up\\b", "reason": "the fix-ci lane's rung-up is an autonomy-ladder step, not a view form"},
+        {"phrase": "\\bASR[- ]rung\\b", "reason": "video-digest's transcript ladder (captions, translation, ASR) orders transcript sources, not view forms"},
+        {"path": "plugins/knowledge/skills/video-digest/**", "reason": "video-digest's transcript ladder (captions, translation, ASR) orders transcript sources, not view forms"},
+        {"phrase": "\\bcode-rung\\b|\\bneighboring rungs\\b", "reason": "the C4 model's zoom levels (context, container, component, code), not view forms"},
+        {"path": "plugins/discovery/skills/research/**", "reason": "research's artifact ladder and fetch-route rungs order sources, not view forms"},
+        {"phrase": "\\brung rather than a hope\\b", "reason": "the resume-first recovery step, not a view form"},
+        {"phrase": "\\bpartitioning the rungs\\b", "reason": "the merge lane's autonomy rungs, not view forms"},
+        {"path": "plugins/songwriting/skills/suno/**", "reason": "suno's confidence ladder (LOW to HIGH) rates sources, not view forms"},
+        {"path": "plugins/source-control/skills/babysit-*/**", "reason": "the autonomy ladder's merge rungs (C1 to C4) stay (D8)"},
+        {"phrase": "\\bsame-machine rung\\b", "reason": "a step of the cross-session messaging channel order, not a view form"},
+        {"phrase": "\\bsimplifier\\b.*\\brungs?\\b", "reason": "batch-simplify's simplifier-agent fallback order, not a view form"},
+        {"phrase": "\\bproject-convention-files rung\\b", "reason": "a step of the instruction-precedence order, not a view form"}
       ]
     },
     {
@@ -69,9 +96,14 @@
         {"path": "plugins/gaming/**", "reason": "visual overlays in gaming"},
         {"path": "plugins/songwriting/skills/**", "reason": "songwriting's research text uses overlay in its musical sense"},
         {"phrase": "\\bagentic[- ]overlays?\\b", "reason": "developer-experience's agentic overlay harness is not the config cascade's personal layer"},
-        {"path": "plugins/testing/skills/audit/evals/judge-calibration/**", "reason": "testing's judge-calibration fixtures are verbatim copies of other plugins' code"},
         {"phrase": "\\b(css|ui|video|image|visual|modal)[- ]overlays?\\b", "reason": "a visual overlay, not the config cascade's personal layer"},
-        {"phrase": "\\badr/[0-9]{4}-[a-z0-9-]*overlay[a-z0-9-]*\\.md\\b", "reason": "a link to an ADR file, whose name is history like the docs/adr/ files this checker excludes"}
+        {"phrase": "\\badr/[0-9]{4}-[a-z0-9-]*overlay[a-z0-9-]*\\.md\\b", "reason": "a link to an ADR file, whose name is history like the docs/adr/ files this checker excludes"},
+        {"path": "**/evals/**/samples/**", "reason": "recorded model output; an edit changes what the eval measures"},
+        {"path": "**/evals/**/graders/**", "reason": "grader patterns matched against recorded samples; an edit changes what the eval measures"},
+        {"phrase": "^\\s*(?:-\\s*)?pattern:\\s*['\"]", "reason": "a case.yaml grader pattern matched against recorded samples; an edit changes what the eval measures"},
+        {"path": "plugins/testing/skills/audit/evals/judge-calibration/**", "reason": "testing's judge-calibration fixtures are verbatim copies of other plugins' code"},
+        {"path": "plugins/disk-hygiene/skills/clean/**", "reason": "disk-hygiene's policy overlay is that plugin's own mechanism, not the config cascade's personal layer"},
+        {"path": "plugins/songwriting/context/**", "reason": "songwriting's research text uses overlay in its musical sense"}
       ]
     },
     {
@@ -90,7 +122,32 @@
         {"path": "docs/conventions/enforcement-ladder/**", "reason": "enforcement-ladder tiers are the enforcement ladder's own"},
         {"path": "**/enforcement-ladder.md", "reason": "enforcement-ladder tiers are the enforcement ladder's own"},
         {"phrase": "\\bmemory[- ]tiers?\\b", "reason": "the memory tier is where a skill writes its working files"},
-        {"phrase": "\\b(model|strong|frontier|capability|cheap|fast)[- ]tiers?\\b", "reason": "model tiers rank models by capability"}
+        {"phrase": "\\b(model|strong|frontier|capability|cheap|fast)(:`)?[- ]tiers?\\b|\\bmodel:<tier>", "reason": "model tiers rank models by capability"},
+        {"path": "**/evals/**/samples/**", "reason": "recorded model output; an edit changes what the eval measures"},
+        {"path": "**/evals/**/graders/**", "reason": "grader patterns matched against recorded samples; an edit changes what the eval measures"},
+        {"phrase": "^\\s*(?:-\\s*)?pattern:\\s*['\"]", "reason": "a case.yaml grader pattern matched against recorded samples; an edit changes what the eval measures"},
+        {"path": "plugins/testing/skills/audit/evals/judge-calibration/**", "reason": "testing's judge-calibration fixtures are verbatim copies of other plugins' code"},
+        {"phrase": "\\btiers?[- ](?:[0-9]|(?-i:[A-D])\\b)", "reason": "a numbered or lettered tier of a classification (evidence, path, requirement or citation tiers), not a config scope"},
+        {"phrase": "\\bconsumer[- ]precedence\\b", "reason": "detector-findings' severity tiers and their consumer-precedence rule"},
+        {"path": "docs/contracts/detector-findings/**", "reason": "detector-findings' severity tiers rank findings, not config scopes"},
+        {"path": "plugins/review/context/severity.md", "reason": "review's severity tiers rank findings, not config scopes"},
+        {"phrase": "\\beffort-tiers\\b", "reason": "plugin-philosophy's effort tiers are effort levels, not config scopes"},
+        {"phrase": "\\benterprise-tier keys\\b", "reason": "an API customer's plan tier, not a config scope"},
+        {"phrase": "\\bmanaged[- ]tier\\b", "reason": "Claude Code's managed-settings docs name the managed tier (upstream's word)"},
+        {"phrase": "\\bmods?\\b.*\\btiers?\\b|\\btiers?\\b.*\\bmods?\\b", "reason": "a mod's tier is Claude Code's own mod field (user, project, local, managed)"},
+        {"path": "plugins/harness-ops/skills/audit-mod-posture/**", "reason": "a mod's tier is Claude Code's own mod field (user, project, local, managed)"},
+        {"phrase": "\\bautonomy[- ]tiers?\\b", "reason": "the babysit autonomy tiers (safe, worker, autopilot) are autonomy presets, not config scopes"},
+        {"phrase": "\\bbabysit-prs tier\\b", "reason": "the babysit autonomy tiers (safe, worker, autopilot) are autonomy presets, not config scopes"},
+        {"path": "plugins/source-control/skills/babysit-*/**", "reason": "the babysit autonomy tiers (safe, worker, autopilot) are autonomy presets, not config scopes"},
+        {"path": "plugins/discipline/**", "reason": "discipline's corrector tiers decide which correctors a posture batch runs, not config scopes"},
+        {"phrase": "^\\s*local\\s+(\\w+(=\\S*)?\\s+)*tier\\b", "reason": "a shell local declaration of a variable named tier"},
+        {"path": "plugins/docs-naming/**", "reason": "docs-naming's file-name tiers (file_names.tiers) classify files, not config scopes"},
+        {"phrase": "`tiers`", "reason": "docs-naming's file_names.tiers key classifies files, not config scopes"},
+        {"path": "plugins/repo-hygiene/skills/clean/**", "reason": "repo-hygiene's action tiers (scan, caches, build, git, all) are cleanup actions, not config scopes"},
+        {"phrase": "\\btrust tiers?\\b", "reason": "source-trust tiers rank sources, not config scopes"},
+        {"path": "plugins/performance/skills/target/SKILL.md", "reason": "performance target's evidence tiers rank candidates, not config scopes"},
+        {"phrase": "\\bone tier: Minor\\b", "reason": "plan's deviation tiers (Minor, Moderate, Major) rank deviations, not config scopes"},
+        {"path": "plugins/work-items/reference/pipeline-shape.md", "reason": "the pipeline's review-depth tiers (shallow, standard, deep), not config scopes"}
       ]
     },
     {
@@ -99,7 +156,7 @@
       "replacement": "name the file or setting",
       "rules": [
         {"match": "\\b(config|configuration|settings|convention)[- ]surfaces?\\b"},
-        {"match": "\\bsurfaces?\\b", "near": "\\b(config|configuration|settings) files?\\b|\\bsettings\\.json\\b|\\.ya?ml\\b|\\.local\\.md\\b"}
+        {"match": "(?<![-.$\"{<\\w])surfaces?\\b(?![-:=\"}/>])(?!\\s+(the|a|an|as|its|it|them|each|every|any|one|this|that|both|only)\\b)", "near": "\\b(config|configuration|settings) files?\\b|\\bsettings\\.json\\b|\\.ya?ml\\b|\\.local\\.md\\b"}
       ],
       "allow": [
         {"phrase": "\\binterview surfaces?\\b", "reason": "the interview surface is where an interview runs (terminal, page, shared session)"},
@@ -107,7 +164,24 @@
         {"path": "plugins/planning/surface/**", "reason": "the interview surface's implementation"},
         {"phrase": "\\bplanning/surface\\b", "reason": "the interview surface's implementation"},
         {"phrase": "\\b(skills?|commands?)\\b.*\\bsurfaces?\\b|\\bsurfaces?\\b.*\\b(skills?|commands?)\\b", "reason": "a plugin's skills and commands are its surfaces"},
-        {"phrase": "\\bemitting surfaces?\\b", "reason": "an emitting surface is a skill that publishes a view"}
+        {"phrase": "\\bemitting surfaces?\\b", "reason": "an emitting surface is a skill that publishes a view"},
+        {"path": "**/evals/**/samples/**", "reason": "recorded model output; an edit changes what the eval measures"},
+        {"path": "**/evals/**/graders/**", "reason": "grader patterns matched against recorded samples; an edit changes what the eval measures"},
+        {"phrase": "^\\s*(?:-\\s*)?pattern:\\s*['\"]", "reason": "a case.yaml grader pattern matched against recorded samples; an edit changes what the eval measures"},
+        {"path": "plugins/testing/skills/audit/evals/judge-calibration/**", "reason": "testing's judge-calibration fixtures are verbatim copies of other plugins' code"},
+        {"phrase": "\\bsettings surfaces?\\b.*\\b(ladder|fetched docs?|UI-only)\\b|\\b(ladder|UI-only)\\b.*\\bsettings surfaces?\\b", "reason": "a GitHub settings page the method ladder resolves, not a config file"},
+        {"phrase": "\\b(memory-layer|instruction) surfaces?\\b", "reason": "instruction surfaces (CLAUDE.md, rules, AGENTS.md) are where instructions load, not config files"},
+        {"phrase": "\\bshop surface is http\\b", "reason": "the shop app's served URL, not a config file"},
+        {"phrase": "\\brunnable surfaces?\\b", "reason": "a runnable surface is a UI, API or CLI a live run can drive, not a config file"},
+        {"phrase": "\\b(trust|attack|telemetry|launch|escape) surfaces?\\b|\\bPATH surfaces\\b", "reason": "an attack, telemetry or launch surface, not a config file"},
+        {"path": "docs/contracts/standards/**", "reason": "the standards contract's surfaces are standard ids (csharp, paved-path), not config files"},
+        {"path": "**/standards-contract.md", "reason": "the standards contract's surfaces are standard ids (csharp, paved-path), not config files"},
+        {"phrase": "\\bsurface,?\\s+(or|and|checker or)\\s+(supplying\\s+)?settings files?\\b", "reason": "a promotion-evidence enforcement surface (a hook or checker the lane must not write), named beside the settings files"},
+        {"phrase": "##\\s*Surfaces\\b|\\bthe surfaces `lens` runs\\b", "reason": "review fanout's leaf surfaces are the reviewers it runs, not config files"},
+        {"path": "plugins/harness-config/skills/audit-permission-state/**", "reason": "the permission-state reader's surface column (a code field) names each settings source it reads"},
+        {"path": "plugins/harness-config/schemas/harness-config.schema.json", "reason": "the harness-config audit's finding-site surface key is a schema field"},
+        {"path": "plugins/harness-config/skills/audit/scripts/**", "reason": "the harness-config audit's finding-site surface key is a schema field its tests assert on"},
+        {"phrase": "\\bsettings surfaces a non-zero exit\\b", "reason": "surfaces is a verb here: bad settings make the launcher exit non-zero"}
       ]
     },
     {
@@ -120,9 +194,18 @@
       "allow": [
         {"phrase": "\\bdocs/contracts\\b|\\bcontracts/[\\w-]+|\\bversioned contracts?\\b", "reason": "a versioned contract under docs/contracts"},
         {"phrase": "\\binterface contracts?\\b", "reason": "an interface contract at design"},
-        {"phrase": "\\b(pr|api|feed|payload|behavioral|presentation|execution|detection)[- ]contracts?\\b", "reason": "a named contract that is not the Brief: a PR, API, feed or payload contract, the agent brief's behavioral contract, plan's presentation contract, the interview's execution contract or the handoff detection contract"},
+        {"phrase": "\\b(pr|api|feed|payload|behavioral|presentation|execution|detection|return|framing|findings)[- ]contracts?\\b", "reason": "a named contract that is not the Brief: a PR, API, feed or payload contract, the agent brief's behavioral contract, plan's presentation contract, the interview's execution contract, the handoff detection contract, an agent's return contract, a spawn brief's framing contract or a review's findings contract"},
         {"phrase": "\\bname[- ]by[- ]contract\\b", "reason": "the agent brief's name-by-contract rule"},
-        {"phrase": "\\bcontract case\\b", "reason": "an eval's Contract case label names a behavior case, not the Brief"}
+        {"phrase": "\\bcontract case\\b", "reason": "an eval's Contract case label names a behavior case, not the Brief"},
+        {"path": "**/evals/**/samples/**", "reason": "recorded model output; an edit changes what the eval measures"},
+        {"path": "**/evals/**/graders/**", "reason": "grader patterns matched against recorded samples; an edit changes what the eval measures"},
+        {"phrase": "^\\s*(?:-\\s*)?pattern:\\s*['\"]", "reason": "a case.yaml grader pattern matched against recorded samples; an edit changes what the eval measures"},
+        {"path": "plugins/testing/skills/audit/evals/judge-calibration/**", "reason": "testing's judge-calibration fixtures are verbatim copies of other plugins' code"},
+        {"path": "plugins/implementation/agents/*.md", "reason": "the implementation worker's dispatch brief binds it as its contract; that brief is not the planning chain's Brief"},
+        {"phrase": "\\|\\s*contract\\s*\\|\\s*name\\s*\\||\\(\"contract\",", "reason": "coupling's contract value-site class is a code identifier, not the Brief"},
+        {"phrase": "\\bparent-contract\\b", "reason": "a link to discovery's parent-contract reference, not the Brief"},
+        {"phrase": "\\bmodule layout, contracts\\b", "reason": "the design section's interface contracts, not the Brief"},
+        {"phrase": "\\bworker specs as contracts\\b", "reason": "a worker spec written as a contract, not the Brief"}
       ]
     }
   ]

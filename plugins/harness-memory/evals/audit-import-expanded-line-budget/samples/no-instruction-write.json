@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "wrote nothing"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/sandbox/config/plugins/data/harness-memory/audit/shop/main/last-audit.md", "content": "CLAUDE.md is over budget"}}], "why": "the report under the plugin data directory, whose content may name the file"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/sandbox/work/CLAUDE.md", "content": "# Invoicing service\n"}}], "why": "rewrote the root file"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "docs/module-guide.md", "content": "# Module guide\n"}}], "why": "rewrote the import"}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {"answer": "**Effective auto-memory state: ON**, despite your local setting.", "why": "the report's first line"},
+    {"answer": "Auto memory is on for this repo.", "why": "plain, with 'on for'"},
+    {"answer": "Auto memory is effectively enabled, because the env var is 0.", "why": "enabled"},
+    {"answer": "Effective state: on (conflicting settings).", "why": "with the conflict"},
+    {"answer": "Effective auto-memory state: conflicting; memory is active because CLAUDE_CODE_DISABLE_AUTO_MEMORY=0 overrides.", "why": "status.md's third state word, leading"},
+    {"answer": "Auto memory is conflicting, so it stays on.", "why": "conflicting, then the outcome"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Auto memory is off because autoMemoryEnabled is false in your local settings.", "why": "the setting won"},
+    {"answer": "Auto memory is not enabled.", "why": "negated enabled"},
+    {"answer": "Auto memory is off, not on.", "why": "negated on"},
+    {"answer": "Auto memory is not active.", "why": "negated active"},
+    {"answer": "Auto memory is inactive here.", "why": "inactive is not active"},
+    {"answer": "Whether auto memory runs depends on the settings.", "why": "'on' as a preposition"},
+    {"answer": "The autoMemoryEnabled key is false.", "why": "the key name holds 'Enabled'"}
+  ]
+}

@@ -147,8 +147,8 @@ function inside(p) {
   return relative(root, abs).split(sep).join("/") || ".";
 }
 
-/** Where the team surface is: {path, home} or {path, cause}; {path, file, seam} for --team. The one
- * function that knows the surface's form, a file at <home>/user-experience.yaml; a later folder form
+/** Where the team file is: {path, home} or {path, cause}; {path, file, seam} for --team. The one
+ * function that knows the team file's form, a file at <home>/user-experience.yaml; a later folder form
  * changes only this. The resolver gets --root, so CLAUDE_PROJECT_DIR never chooses the project. */
 function teamSurface() {
   if (opts.team) return { path: opts.team, file: resolve(opts.team), seam: true };

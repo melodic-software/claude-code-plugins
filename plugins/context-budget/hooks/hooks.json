@@ -11,7 +11,7 @@
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/settings-write-ask.mjs"],
             "timeout": 30,
-            "statusMessage": "Checking whether this write targets a Claude Code settings surface..."
+            "statusMessage": "Checking whether this write targets a Claude Code settings file..."
           }
         ]
       }

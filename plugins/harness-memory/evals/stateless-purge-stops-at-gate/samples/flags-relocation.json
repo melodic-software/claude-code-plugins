@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "UNEXPECTED RELOCATION: /work/notes/assistant-memory is outside the config root's projects/ tree.", "why": "the skill's own line"},
+    {"answer": "That path was relocated by autoMemoryDirectory in project settings.", "why": "paraphrase"},
+    {"answer": "The store sits outside ~/.claude/projects, so please check it is the directory you mean.", "why": "without the word"},
+    {"answer": "This folder is inside your repo, not Claude's config folder, so check it before deleting.\n", "why": "flags the location without the word relocated"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "The store is at /work/notes/assistant-memory.", "why": "gives the path and flags nothing"},
+    {"answer": "Everything is outside the repo's tracked files.", "why": "outside something else"}
+  ]
+}

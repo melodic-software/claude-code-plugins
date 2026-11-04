@@ -65,8 +65,8 @@ Everything else resolves in order:
 
 1. **Invocation arguments**, the tier keyword (babysit-prs vocabulary) and any per-dimension or
    loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge human-only`).
-2. **The layered config seam**, the `babysit_loop_*` keys on the source-control config
-   surface (user-global → team-tracked → personal override, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml` only. Key table, defaults, and layering semantics:
+2. **The layered config seam**, the `babysit_loop_*` keys in the source-control config
+   cascade (user-global → team-tracked → personal override, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml` only. Key table, defaults, and layering semantics:
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
 3. **Tier defaults**, the resolved tier's own dimension values (`safe` when nothing resolves a tier).
 

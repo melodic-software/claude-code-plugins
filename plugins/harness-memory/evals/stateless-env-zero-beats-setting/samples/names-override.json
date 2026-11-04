@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "CLAUDE_CODE_DISABLE_AUTO_MEMORY=0 in project settings is authoritative, so autoMemoryEnabled: false in local settings has no say.", "why": "authoritative"},
+    {"answer": "The two disagree: autoMemoryEnabled is false, but CLAUDE_CODE_DISABLE_AUTO_MEMORY is 0.", "why": "disagreement"},
+    {"answer": "`CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` whenever it is set.", "why": "overrides"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "autoMemoryEnabled is false in local settings, which outranks project settings.", "why": "never mentions the env var"},
+    {"answer": "CLAUDE_CODE_DISABLE_AUTO_MEMORY is set to 0.", "why": "names one lever and no relation"},
+    {"answer": "CLAUDE_CODE_DISABLE_AUTO_MEMORY is 0 and autoMemoryEnabled is false.", "why": "lists both without saying which decides"}
+  ]
+}

@@ -8,7 +8,7 @@ disable-model-invocation: true
 ## Purpose
 
 Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
-and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+and repeatable" in the marketplace repository): this plugin's configuration contains no
 writable artifact, so `check` resolves and verifies the skills root and prints the reconfiguration
 guidance below, and no `apply` is offered because there is nothing it could conformingly write.
 `skills_root` is a personal `userConfig` scalar owned by Claude Code's native configuration

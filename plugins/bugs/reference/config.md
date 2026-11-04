@@ -73,10 +73,10 @@ lanes:
 filing_posture: manual-only
 ```
 
-### Consumer `## Gotchas` (cascade tier, #3547)
+### Consumer `## Gotchas` (cascade scope, #3547)
 
 A `## Gotchas` section in `docs/conventions/bugs.md`, `~/.claude/bugs.md` or
-`.claude/bugs.local.md` (outside any YAML fence) is the **local tier** for repo-specific lines the
+`.claude/bugs.local.md` (outside any YAML fence) is the **local scope** for repo-specific lines the
 model should see when `/bugs:scan` or `/bugs:write` loads. Layers concatenate in cascade order after
 the bundled gotchas. Each line records a failure the model actually hit in this repository, the
 same failure-driven rule the bundled gotchas follow. Generalizable lines belong in the shipped
