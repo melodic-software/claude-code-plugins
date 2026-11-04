@@ -520,3 +520,95 @@ test('a unit key from a verifier finding reaches the correction prompt only insi
   const outside = p => p.replace(/<data name="[^"]*">\n[\s\S]*?\n<\/data>/g, '')
   for (const c of calls) assert.ok(!outside(c.prompt).includes('ignore-previous'), c.opts.label)
 })
+
+// The brief: an agent's boolean counts only as the literal true, so the string "false" is failure.
+test('a pin returning pinned: "false" is not pinned: no verifier runs and the page is unverified', async () => {
+  const reply = (p, o, d) => (o.label.endsWith(':pin') ? { ...d(p, o), pinned: 'false' } : d(p, o))
+  const { result, calls, logs } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.ok(!labels(calls).some(x => x.includes(':verifier-')))
+  assert.equal(result.pages[0].verification, 'unverified: pin returned a pinned flag that is not the boolean true')
+  assert.ok(logs.some(m => m === 'p1:r1:pin: pinned is a string, not a boolean: counted as false'))
+})
+
+test('a gate returning pass: "false" is a failed gate: it is corrected and recorded as failed', async () => {
+  let first = true
+  const reply = (p, o, d) => {
+    if (o.label === 'p1:r1:pin' && first) { first = false; return { pinned: true, gates: [{ gate: 'check-sources-parity.py', pass: 'false', summary: 'gap at 41' }] } }
+    return d(p, o)
+  }
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.ok(labels(calls).includes('p1:r1:correct:sources'))
+  assert.deepEqual(result.pages[0].passes[0].gates, [{ gate: 'check-sources-parity.py', pass: false }])
+  assert.equal(result.pages[0].passes.length, 2)
+})
+
+test('a null gate entry is a failed gate, not a thrown page', async () => {
+  let first = true
+  const reply = (p, o, d) => {
+    if (o.label === 'p1:r1:pin' && first) { first = false; return { pinned: true, gates: [null] } }
+    return d(p, o)
+  }
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.ok(labels(calls).includes('p1:r1:correct:sources'))
+  assert.deepEqual(result.pages[0].passes[0].gates, [{ gate: 'gate entry 1', pass: false }])
+})
+
+test('a correction returning applied: "false" is not applied: no re-pin, and the page is unverified', async () => {
+  const reply = (p, o, d) => {
+    if (o.label === 'p1:r1:verifier-a') return { verdict: 'FAIL', verdictFile: 'v', written: true, findings: [{ severity: 'high', unit: 'digests/01-setup.md', what: 'x' }] }
+    if (o.label.includes(':correct:')) return { file: 'verification/c.md', applied: 'false', newFindings: [] }
+    return d(p, o)
+  }
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.ok(labels(calls).includes('p1:r1:correct:01-setup'))
+  assert.ok(!labels(calls).includes('p1:r2:pin'))
+  assert.equal(result.pages[0].verification, 'unverified: correction round 1 did not report applied as the boolean true for digests/01-setup.md')
+})
+
+test('a setup returning phase3Done: "false" still runs every digest agent', async () => {
+  const reply = (p, o, d) => (o.label.endsWith(':setup') ? { ...d(p, o), phase3Done: 'false' } : d(p, o))
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.equal(labels(calls).filter(x => x.includes(':digest:')).length, 3)
+  assert.equal(result.pages[0].verification, 'verified')
+})
+
+test('a digest agent returning written: "false" is a dead unit and stops the page before any pin', async () => {
+  const reply = (p, o, d) => (o.label === 'p1:digest:01-setup' ? { file: 'x', written: 'false' } : d(p, o))
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.ok(!labels(calls).some(x => x.endsWith(':pin')))
+  assert.deepEqual(result.pages[0].deadUnits, ['digests/01-setup.md'])
+})
+
+test('a verdict returning written: "false" is kept as unwritten for close', async () => {
+  const reply = (p, o, d) => (o.label === 'p1:r1:verifier-a' ? { verdict: 'PASS', verdictFile: 'verification/a.md', written: 'false', findings: [] } : d(p, o))
+  const { result } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.deepEqual(result.pages[0].unwritten, [{ pass: 1, file: 'verification/a.md', verdict: 'PASS', header: '', findings: [] }])
+  assert.deepEqual(result.pages[0].passes[0].verdictFiles, [{ file: 'verification/a.md', written: false }, { file: 'verification/v.md', written: true }])
+})
+
+test('a setup status outside ready, refused and failed stops the page with its reason', async () => {
+  const reply = (p, o, d) => (o.label.endsWith(':setup') ? { ...d(p, o), status: 'Ready' } : d(p, o))
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.deepEqual(labels(calls), ['p1:setup'])
+  assert.equal(result.pages[0].verification, 'unverified: setup returned a status outside ready, refused and failed')
+})
+
+// The brief: a correction key is accepted only when it names a unit this page's setup returned.
+// 09-unknown.md passes UNIT_FILE's pattern but is not among UNITS; the other key fails the pattern.
+for (const unit of ['digests/09-unknown.md', '../../etc/passwd']) {
+  test(`a FAIL finding naming the unknown unit ${unit} starts no correction agent and is logged`, async () => {
+    const reply = (p, o, d) => (o.label.endsWith(':verifier-a') ? { verdict: 'FAIL', verdictFile: 'v', written: true, findings: [{ severity: 'high', unit, what: 'x' }] } : d(p, o))
+    const { result, calls, logs } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+    assert.ok(!labels(calls).some(x => x.includes(':correct:')))
+    assert.ok(logs.some(m => m === 'p1: pass 1 correction key ' + JSON.stringify(unit) + ' names no unit this page\'s setup returned: dropped'))
+    assert.equal(result.pages[0].verification, 'failed: a FAIL verdict named no high finding to correct (dropped 1 naming an unknown unit), pass 1: goes to the operator')
+  })
+}
+
+test('a PASS verdict whose high finding names an unknown unit is never verified and starts no correction agent', async () => {
+  const reply = (p, o, d) => (o.label.endsWith(':verifier-a') ? { verdict: 'PASS', verdictFile: 'v', written: true, findings: [{ severity: 'high', unit: 'digests/09-unknown.md', what: 'x' }] } : d(p, o))
+  const { result, calls } = await run({ ...BASE, pages: pagesOf(1) }, { reply })
+  assert.ok(!labels(calls).some(x => x.includes(':correct:')))
+  assert.equal(result.pages[0].status, 'failed')
+  assert.equal(result.pages[0].passes.length, 4)
+})

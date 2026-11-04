@@ -308,6 +308,13 @@ const CLOSE_SCHEMA = {
 // reply counts only when it passes this check; an unknown verdict ranks worst, never as PASS.
 const isVerdict = v => !!v && typeof v === 'object' && !Array.isArray(v) && SEVERITY.includes(v.verdict) &&
   Array.isArray(v.findings) && v.findings.every(f => !!f && typeof f === 'object' && FINDING_SEVERITY.includes(f.severity))
+// Every agent here read the page, so a flag it returns counts only as a literal true: any other
+// value is failure, and one that is not a boolean is logged by its type, never its value.
+function flag(v, field, label) {
+  if (v === true) return true
+  if (v !== false) log(label + ': ' + field + ' is ' + (v === undefined ? 'missing' : 'a ' + typeof v + ', not a boolean') + ': counted as false')
+  return false
+}
 const rank = v => (SEVERITY.includes(v) ? SEVERITY.indexOf(v) : SEVERITY.length)
 const worstOf = vs => vs.reduce((w, v) => (rank(v) > rank(w) ? v : w), 'PASS')
 
@@ -342,6 +349,7 @@ async function digestAndVerify(prev) {
     log(label + ': canonical URL refused (redirect target ' + redirect + '): page stopped')
     return { ...out, reason: 'refused: redirect target ' + redirect }
   }
+  if (!SETUP_SCHEMA.properties.status.enum.includes(s.status)) return { ...out, reason: 'setup returned a status outside ready, refused and failed' }
   if (s.status === 'refused') return { ...out, reason: 'refused: ' + (s.reason || 'collision check refused') }
   if (!SLUG.test(s.slug || '')) return { ...out, reason: 'setup returned no usable slug' }
   out.slug = s.slug
@@ -364,7 +372,7 @@ async function digestAndVerify(prev) {
   if (dropped) out.modelMatch.dropped = 'the mapping failed the model-name pattern'
   const slice = out.slice
 
-  if (!s.phase3Done) {
+  if (!flag(s.phase3Done, 'phase3Done', label)) {
     const framing = mapped
       ? ' This brief assumes model ' + mapped + '; if you are not ' + mapped + ', note the mismatch in notes and continue.'
       : ''
@@ -375,7 +383,7 @@ async function digestAndVerify(prev) {
       fence('slice', slice) + fence('unit', { file: u.file, heading: u.heading || '', lines: u.lines }),
       { label: label + ':digest:' + u.file.slice(8, -3), phase: 'Digest', schema: DIGEST_SCHEMA, ...opts(R.worker, usable) },
     )))
-    out.deadUnits = units.filter((_, k) => !digests[k] || !digests[k].written).map(u => u.file)
+    out.deadUnits = units.filter((u, k) => !digests[k] || !flag(digests[k].written, 'written', label + ':digest:' + u.file.slice(8, -3))).map(u => u.file)
     out.digestModels = units.map((u, k) => ({ file: u.file, mapped: mapped || 'none', reported: (digests[k] && digests[k].model) || 'unreported' }))
     if (out.deadUnits.length) {
       return { ...out, closable: true, reason: 'death ladder degraded marker: ' + out.deadUnits.length + ' digest units got no result after one retry (' + out.deadUnits.join(', ') + ')' }
@@ -400,12 +408,23 @@ async function digestAndVerify(prev) {
       fence('models', out.digestModels || []) + (applied ? fence('corrections', applied) : ''),
       { label: tag + ':pin', phase: 'Pin', schema: PIN_SCHEMA, ...opts(R.worker) },
     )
-    if (!pin || !pin.pinned) {
+    if (!pin || !flag(pin.pinned, 'pinned', tag + ':pin')) {
       out.passes.push({ pass, pin: false })
-      return { ...out, closable: true, reason: pin ? 'pin refused: ' + (pin.reason || 'unstated') : 'the pin agent returned nothing after one retry' }
+      return {
+        ...out,
+        closable: true,
+        reason: !pin ? 'the pin agent returned nothing after one retry'
+          : pin.pinned === false ? 'pin refused: ' + (pin.reason || 'unstated')
+            : 'pin returned a pinned flag that is not the boolean true',
+      }
     }
-    const gates = Array.isArray(pin.gates) ? pin.gates : []
-    const failedGates = gates.filter(g => g && !g.pass)
+    // A gate entry that is not an object, or whose pass is not the boolean true, is a failed gate.
+    const gates = (Array.isArray(pin.gates) ? pin.gates : []).map((g, n) => {
+      if (!g || typeof g !== 'object' || Array.isArray(g)) return { gate: 'gate entry ' + (n + 1), pass: false, unit: 'SOURCES.md', summary: 'the gate entry is not an object' }
+      return flag(g.pass, 'gates[' + n + '].pass', tag + ':pin') || g.pass === false ? g
+        : { ...g, pass: false, summary: 'the gate result is not a boolean: ' + g.summary }
+    })
+    const failedGates = gates.filter(g => g.pass !== true)
     if (!gates.length) failedGates.push({ gate: 'standing gates', pass: false, unit: 'SOURCES.md', summary: 'no gate result returned' })
 
     const verdictFile = name => 'verification/verifier-' + name + '-r' + pass + '-' + DATE + '.md'
@@ -428,10 +447,12 @@ async function digestAndVerify(prev) {
     out.verifierB = { mode: 'same-vendor-degraded', agentType: WORKER, reason: B_REASON }
     const shown = v => (isVerdict(v) ? v.verdict : v === OFF_SCHEMA ? 'off-schema' : null)
     const verdicts = [a, b].filter(isVerdict)
-    out.passes.push({ pass, gates: gates.map(g => ({ gate: g.gate, pass: !!g.pass })), a: shown(a), b: shown(b), verdictFiles: verdicts.map(v => ({ file: v.verdictFile, written: !!v.written })) })
-    // A verdict its arm did not write is kept from every pass for close.
-    for (const v of verdicts) {
-      if (!v.written) out.unwritten.push({ pass, file: v.verdictFile, verdict: v.verdict, header: v.header || '', findings: v.findings })
+    const wrote = [[a, 'verifier-a'], [b, 'verifier-b-degraded']].filter(([v]) => isVerdict(v)).map(([v, arm]) => flag(v.written, 'written', tag + ':' + arm))
+    out.passes.push({ pass, gates: gates.map(g => ({ gate: g.gate, pass: g.pass === true })), a: shown(a), b: shown(b), verdictFiles: verdicts.map((v, n) => ({ file: v.verdictFile, written: wrote[n] })) })
+    // A verdict its arm did not write, or did not report as written with the boolean true, is kept
+    // from every pass for close to write.
+    for (const [n, v] of verdicts.entries()) {
+      if (!wrote[n]) out.unwritten.push({ pass, file: v.verdictFile, verdict: v.verdict, header: v.header || '', findings: v.findings })
     }
     const bad = [['A', a], ['B', b]].find(([, v]) => !isVerdict(v))
     if (bad) {
@@ -451,21 +472,32 @@ async function digestAndVerify(prev) {
     if (pass === PASSES) {
       return { ...out, closable: true, status: 'failed', reason: 'open high finding or failed gate after ' + (PASSES - 1) + ' correction rounds: goes to the operator' }
     }
-    // BLOCKED with nothing to correct is a re-pin and re-run, not a correction.
     const work = [
       ...highs.map(f => ({ unit: f.unit, what: f.what })),
       ...failedGates.map(g => ({ unit: g.unit, what: g.gate + ': ' + g.summary })),
     ]
-    if (!work.length && worst === 'FAIL') {
-      return { ...out, closable: true, status: 'failed', reason: 'a FAIL verdict named no high finding to correct, pass ' + pass + ': goes to the operator' }
-    }
-    if (!work.length) { applied = null; continue }
+    // A correction key is a unit this page's setup returned, or SOURCES.md when the finding names
+    // none; any other key a verifier or gate names is dropped and logged, and starts no agent.
     const groups = new Map()
+    let droppedKeys = 0
     for (const w of work) {
-      const key = UNIT_FILE.test(w.unit || '') ? w.unit : 'SOURCES.md'
+      const key = w.unit === undefined || w.unit === null || w.unit === '' || w.unit === 'SOURCES.md' ? 'SOURCES.md'
+        : out.units.includes(w.unit) ? w.unit : null
+      if (!key) {
+        droppedKeys++
+        log(label + ': pass ' + pass + ' correction key ' + JSON.stringify(String(w.unit)).slice(0, 80) + ' names no unit this page\'s setup returned: dropped')
+        continue
+      }
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key).push(w.what)
     }
+    const dropNote = droppedKeys ? ' (dropped ' + droppedKeys + ' naming an unknown unit)' : ''
+    if (!groups.size && worst === 'FAIL') {
+      return { ...out, closable: true, status: 'failed', reason: 'a FAIL verdict named no high finding to correct' + dropNote + ', pass ' + pass + ': goes to the operator' }
+    }
+    // Nothing to correct (BLOCKED, or every high finding dropped): re-pin and re-verify; a finding
+    // that stays open reaches the operator as failed once the pass cap is reached.
+    if (!groups.size) { applied = null; continue }
     const deferredFindings = [a, b].flatMap(v => v.findings.filter(f => f.severity !== 'high'))
     const keys = [...groups.keys()]
     // The unit key comes from a verifier that read the page, so it reaches the prompt only fenced.
@@ -478,11 +510,15 @@ async function digestAndVerify(prev) {
       fence('findings', groups.get(key)),
       { label: tag + ':correct:' + (key === 'SOURCES.md' ? 'sources' : key.slice(8, -3)), phase: 'Correct', schema: CORRECT_SCHEMA, ...opts(R.worker) },
     )))
-    const missing = keys.filter((_, n) => !fixes[n] || !fixes[n].applied)
+    const missing = keys.filter((_, n) => !fixes[n])
     if (missing.length) {
       return { ...out, closable: true, reason: 'death ladder degraded marker: correction round ' + pass + ' got no result for ' + missing.join(', ') }
     }
-    applied = keys.map((k, n) => ({ unit: k, file: fixes[n].file, newFindings: fixes[n].newFindings || [], deferred: deferredFindings.filter(f => (f.unit || 'SOURCES.md') === k).map(f => f.severity + ': ' + f.what) }))
+    const unapplied = keys.filter((k, n) => !flag(fixes[n].applied, 'applied', tag + ':correct:' + (k === 'SOURCES.md' ? 'sources' : k.slice(8, -3))))
+    if (unapplied.length) {
+      return { ...out, closable: true, reason: 'correction round ' + pass + ' did not report applied as the boolean true for ' + unapplied.join(', ') }
+    }
+    applied = keys.map((k, n) => ({ unit: k, file: fixes[n].file, newFindings: Array.isArray(fixes[n].newFindings) ? fixes[n].newFindings : [], deferred: deferredFindings.filter(f => (f.unit || 'SOURCES.md') === k).map(f => f.severity + ': ' + f.what) }))
   }
   return out
 }
@@ -512,7 +548,7 @@ async function close(r) {
   // unwritten verdicts, so the launching skill writes both from this result; outcome keeps what
   // Phase 4 reached.
   if (!c) return { ...result, outcome: status, verification: 'unverified: close stage returned nothing', handoff: null, closed: false }
-  return { ...result, verification: status, handoff: c.handoff || null, closed: true }
+  return { ...result, verification: status, handoff: typeof c.handoff === 'string' && c.handoff ? c.handoff : null, closed: true }
 }
 
 phase('Setup')
