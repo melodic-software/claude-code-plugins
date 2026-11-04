@@ -34,6 +34,29 @@ below once, from the repository root, and writes its row. `--base` defaults to
 second on Linux. A gate that fails on the tree still gets its time and exit
 code.
 
+## Windows host
+
+The Windows Git Bash numbers come from one host on 2026-11-04: Windows 11
+build 10.0.26300.9711, MSYS `3.6.10`, GNU bash 5.3.15, Git for Windows
+2.56.0.windows.4, 24 logical processors, on a native `C:` clone of `origin/main`
+at `284b5303ae65`. Fifty `bash -c true` launches took 1.859 s, 37.2 ms each,
+so the host does not carry the #3715 process-creation condition. The WSL 1-minute
+load on the same machine stayed under 3 throughout.
+
+- **Full corpus.** Not finished in 60 minutes. A `--jobs 1` run of the
+  `fd862a49b848` tree under a 3600 s `PLUGIN_TEST_DEADLINE` stopped after
+  3716 s with 18 of 829 suites done (3647 suite-seconds) and 811 never
+  started. The runner starts the 12 serial suites first, then the rest
+  longest first by `scripts/suite-seconds.txt`, so the 18 include the
+  heaviest; the three slowest took 7 to 15 times their Linux CI time
+  (`audit-engine.test.sh` 1660 s against 135). Nine of the 18 exited nonzero
+  on this host; all passed on Linux CI at the same commit.
+- **`scripts/affected-tests.sh --run` on a 50-file diff.** 130.8 s on a
+  checkout of `62ee899e8f` (#12555, 47 files) with `--base 62ee899e8f~1`,
+  over the 2-minute target. It selected 11 suites and ran the 5 shell
+  suites, all passing, then exited 3 for the 6 Python and Node suites it
+  selected but does not run.
+
 ## Gate scripts
 
 With the default `--base origin/main` on an unchanged checkout, three gates see
@@ -41,16 +64,18 @@ an empty diff and time nothing, so the columns use a one-commit skill diff: a
 checkout of `52a529d9cf` (#11995, a `skill-quality` skill change with its
 changelog fragment) timed with `--base 52a529d9cf~1`. The Linux column is the
 median of three runs on a WSL2 Linux host on 2026-11-02, not the CI runner;
-every gate exited 0. The Windows column is empty until a Git Bash host times
-the same commit and base.
+every gate exited 0. The Windows column is the median of three runs of the
+same commit and base on the Windows host below, on 2026-11-04; every gate
+exited 0 and none took over 60 s. The first run's `check-purged-em-dashes.sh`
+took 31.174 s against 17.069 and 17.376 s after it, a cold file cache.
 
 | Gate | Invocation | Linux (s) | Windows Git Bash (s) |
 | --- | --- | --- | --- |
-| `scripts/check-purged-em-dashes.sh` | `--check` | 1.762 | |
-| `scripts/check-changed-skills.sh` | `<base>` | 1.178 | |
-| `scripts/check-changelog-parity.sh` | `--check-bump <base>` | 0.039 | |
-| `plugins/skill-quality/scripts/check-skill.sh` | `check`, skills root `plugins/skill-quality/skills`, base ref `<base>`, markdownlint skipped | 0.627 | |
-| `plugins/planning/scripts/check-open-questions.sh` | `--ledger <two answered rows>` | 0.012 | |
+| `scripts/check-purged-em-dashes.sh` | `--check` | 1.762 | 17.376 |
+| `scripts/check-changed-skills.sh` | `<base>` | 1.178 | 17.414 |
+| `scripts/check-changelog-parity.sh` | `--check-bump <base>` | 0.039 | 0.525 |
+| `plugins/skill-quality/scripts/check-skill.sh` | `check`, skills root `plugins/skill-quality/skills`, base ref `<base>`, markdownlint skipped | 0.627 | 15.631 |
+| `plugins/planning/scripts/check-open-questions.sh` | `--ledger <two answered rows>` | 0.012 | 0.214 |
 
 ## Shell suites
 
@@ -59,8 +84,10 @@ The Linux CI column is read from the `TIME:` lines of whole-tree run
 (`pr-require-checks`, `workflow_dispatch` on main at `fd862a49b848`,
 2026-10-31, all seven `test-bash` legs green), one row per suite the runner
 discovered: 820 suites, 6254 suite-seconds in total across the seven legs at
-`--jobs 3`. The Windows column takes a Git Bash run of the same tree's corpus,
-and is empty until one is made.
+`--jobs 3`. The Windows column takes a Git Bash run of the same tree's corpus
+on the Windows host above, `origin/main`'s runner with `--root` at a checkout
+of `fd862a49b848`; a cell with an exit code is a suite that failed there. It
+holds the 18 suites the 60-minute run reached; a blank cell was not reached.
 
 | Suite | Linux CI (s) | Windows Git Bash (s) |
 | --- | --- | --- |
@@ -191,7 +218,7 @@ and is empty until one is made.
 | `plugins/code-tidying/skills/tidy/scripts/open-pr-count.test.sh` | 0 | |
 | `plugins/context-budget/hooks/settings-write-ask.test.sh` | 2 | |
 | `plugins/context-budget/skills/audit/scripts/levers.test.sh` | 0 | |
-| `plugins/context-budget/skills/audit/scripts/measure.test.sh` | 8 | |
+| `plugins/context-budget/skills/audit/scripts/measure.test.sh` | 8 | 17 (exit 1) |
 | `plugins/context-guard/hooks/post-compact-mark.test.sh` | 0 | |
 | `plugins/context-guard/scripts/cache-line.test.sh` | 1 | |
 | `plugins/context-guard/scripts/context-zone.test.sh` | 3 | |
@@ -205,7 +232,7 @@ and is empty until one is made.
 | `plugins/coupling/skills/reduce/scripts/derivable-list.test.sh` | 2 | |
 | `plugins/coupling/skills/reduce/scripts/value-sites.test.sh` | 9 | |
 | `plugins/debugging/scripts/build-view.test.sh` | 2 | |
-| `plugins/desktop-notification/hooks/desktop-notification.test.sh` | 1 | |
+| `plugins/desktop-notification/hooks/desktop-notification.test.sh` | 1 | 10 |
 | `plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh` | 2 | |
 | `plugins/discipline/skills/setup/scripts/setup-apply.test.sh` | 7 | |
 | `plugins/discovery/agents/tool-honesty.test.sh` | 0 | |
@@ -283,11 +310,11 @@ and is empty until one is made.
 | `plugins/guardrails/hooks/block-convention-violation.test.sh` | 9 | |
 | `plugins/guardrails/hooks/block-credential-read.test.sh` | 5 | |
 | `plugins/guardrails/hooks/block-cross-domain.test.sh` | 22 | |
-| `plugins/guardrails/hooks/block-dangerous-git.test.sh` | 22 | |
+| `plugins/guardrails/hooks/block-dangerous-git.test.sh` | 22 | 126 (exit 1) |
 | `plugins/guardrails/hooks/block-exported-msys-pathconv.test.sh` | 1 | |
 | `plugins/guardrails/hooks/block-fix-request-post.test.sh` | 6 | |
 | `plugins/guardrails/hooks/block-no-verify.test.sh` | 16 | |
-| `plugins/guardrails/hooks/block-noncanonical-commit.test.sh` | 11 | |
+| `plugins/guardrails/hooks/block-noncanonical-commit.test.sh` | 11 | 61 (exit 1) |
 | `plugins/guardrails/hooks/block-root-delete-target.test.sh` | 200 | |
 | `plugins/guardrails/hooks/block-unresolved-pr-merge.test.sh` | 23 | |
 | `plugins/guardrails/hooks/block-windows-drive-tmp.test.sh` | 10 | |
@@ -303,7 +330,7 @@ and is empty until one is made.
 | `plugins/guardrails/hooks/require-jq-posture.test.sh` | 0 | |
 | `plugins/guardrails/hooks/run-guards.test.sh` | 62 | |
 | `plugins/guardrails/hooks/secret-pattern-detection.test.sh` | 47 | |
-| `plugins/guardrails/hooks/skill-reference-verify.test.sh` | 5 | |
+| `plugins/guardrails/hooks/skill-reference-verify.test.sh` | 5 | 81 |
 | `plugins/guardrails/hooks/stale-path-verify.test.sh` | 7 | |
 | `plugins/guardrails/hooks/workflow-resilience-check.test.sh` | 0 | |
 | `plugins/guardrails/skills/setup/scripts/identity-domains.test.sh` | 1 | |
@@ -333,7 +360,7 @@ and is empty until one is made.
 | `plugins/harness-config/skills/audit-permission-state/scripts/permission-merge.test.sh` | 1 | |
 | `plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh` | 1 | |
 | `plugins/harness-config/skills/audit-permission-state/scripts/permission-state.test.sh` | 5 | |
-| `plugins/harness-config/skills/audit/scripts/audit-engine.test.sh` | 135 | |
+| `plugins/harness-config/skills/audit/scripts/audit-engine.test.sh` | 135 | 1660 |
 | `plugins/harness-config/skills/audit/scripts/check-doc-citations.test.sh` | 3 | |
 | `plugins/harness-config/skills/audit/scripts/check-effort-pins.test.sh` | 6 | |
 | `plugins/harness-config/skills/audit/scripts/check-hook-coverage.test.sh` | 3 | |
@@ -434,7 +461,7 @@ and is empty until one is made.
 | `plugins/machine-health/tests/checkup-view.test.sh` | 1 | |
 | `plugins/markdown-format/git-hooks/markdown-check.test.sh` | 8 | |
 | `plugins/markdown-format/hooks/markdown-format-end-of-turn.test.sh` | 1 | |
-| `plugins/markdown-format/hooks/markdown-format.test.sh` | 7 | |
+| `plugins/markdown-format/hooks/markdown-format.test.sh` | 7 | 51 (exit 1) |
 | `plugins/mcp-tools/skills/audit-posture/scripts/inventory.test.sh` | 10 | |
 | `plugins/mcp-tools/skills/audit/scripts/discover.test.sh` | 0 | |
 | `plugins/multi-agent/hooks/drift-checker-fetch-gate.test.sh` | 0 | |
@@ -447,7 +474,7 @@ and is empty until one is made.
 | `plugins/mutation-testing/scripts/dotnet-test-selection.test.sh` | 15 | |
 | `plugins/mutation-testing/scripts/estimate-run.test.sh` | 0 | |
 | `plugins/mutation-testing/scripts/suppression-lint.test.sh` | 1 | |
-| `plugins/performance/scripts/ab.test.sh` | 4 | |
+| `plugins/performance/scripts/ab.test.sh` | 4 | 26 |
 | `plugins/performance/scripts/differential.test.sh` | 1 | |
 | `plugins/performance/scripts/discriminate.test.sh` | 1 | |
 | `plugins/performance/scripts/findings.test.sh` | 22 | |
@@ -470,13 +497,13 @@ and is empty until one is made.
 | `plugins/planning/shared/tests/align.test.sh` | 365 | |
 | `plugins/planning/shared/tests/tracer-live.test.sh` | 0 | |
 | `plugins/planning/shared/tests/tracer.test.sh` | 10 | |
-| `plugins/planning/shared/tests/ui-a.test.sh` | 195 | |
-| `plugins/planning/shared/tests/ui-b.test.sh` | 163 | |
-| `plugins/planning/shared/tests/ui-c.test.sh` | 171 | |
+| `plugins/planning/shared/tests/ui-a.test.sh` | 195 | 7 (exit 1) |
+| `plugins/planning/shared/tests/ui-b.test.sh` | 163 | 5 (exit 1) |
+| `plugins/planning/shared/tests/ui-c.test.sh` | 171 | 9 (exit 1) |
 | `plugins/planning/shared/tests/ui-require-browser.test.sh` | 0 | |
 | `plugins/planning/skills/setup/scripts/setup-apply.test.sh` | 5 | |
 | `plugins/planning/surface/surface-journey.test.sh` | 142 | |
-| `plugins/planning/surface/surface-page.test.sh` | 93 | |
+| `plugins/planning/surface/surface-page.test.sh` | 93 | 93 (exit 1) |
 | `plugins/planning/surface/surface-ui-c-ledger.test.sh` | 15 | |
 | `plugins/planning/surface/surface-ui-c-listen.test.sh` | 71 | |
 | `plugins/planning/surface/surface-ui-c.test.sh` | 52 | |
@@ -498,7 +525,7 @@ and is empty until one is made.
 | `plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh` | 1 | |
 | `plugins/playbooks/skills/skill-authoring/scripts/update.test.sh` | 0 | |
 | `plugins/playwright/hooks/install-python-deps.test.sh` | 2 | |
-| `plugins/playwright/skills/demo-video/scripts/demo-video.test.sh` | 266 | |
+| `plugins/playwright/skills/demo-video/scripts/demo-video.test.sh` | 266 | 0 |
 | `plugins/playwright/skills/playwright/scripts/update.test.sh` | 1 | |
 | `plugins/plugin-quality/scripts/citation-contract-drift.test.sh` | 0 | |
 | `plugins/plugin-quality/scripts/context-zone.test.sh` | 3 | |
@@ -518,7 +545,7 @@ and is empty until one is made.
 | `plugins/repo-fleet-hygiene/scripts/allowed-tools-pairing.test.sh` | 0 | |
 | `plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh` | 0 | |
 | `plugins/repo-fleet-hygiene/skills/apply/scripts/apply-plan.test.sh` | 6 | |
-| `plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh` | 34 | |
+| `plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh` | 34 | 511 (exit 1) |
 | `plugins/repo-fleet-hygiene/skills/setup/scripts/setup-config.test.sh` | 0 | |
 | `plugins/repo-fleet-hygiene/skills/sync/scripts/sync-fleet.test.sh` | 3 | |
 | `plugins/repo-hygiene/scripts/allowed-tools-pairing.test.sh` | 0 | |
@@ -565,12 +592,12 @@ and is empty until one is made.
 | `plugins/session-flow/skills/running-retro/scripts/observer.test.sh` | 11 | |
 | `plugins/session-flow/skills/setup/scripts/setup-apply.test.sh` | 6 | |
 | `plugins/skill-quality/scripts/check-evals-quality.test.sh` | 1 | |
-| `plugins/skill-quality/scripts/check-listing-budget.test.sh` | 1 | |
+| `plugins/skill-quality/scripts/check-listing-budget.test.sh` | 1 | 28 |
 | `plugins/skill-quality/scripts/check-skill.test.sh` | 57 | |
 | `plugins/skill-quality/scripts/measure-invocation.test.sh` | 6 | |
 | `plugins/songwriting/context/pat-pattison/scripts/datamuse.test.sh` | 1 | |
 | `plugins/source-control/evals/gh-forge.test.sh` | 1 | |
-| `plugins/source-control/hooks/pr-body-linkage-gate.test.sh` | 13 | |
+| `plugins/source-control/hooks/pr-body-linkage-gate.test.sh` | 13 | 60 |
 | `plugins/source-control/hooks/pr-linkage-mcp-gate.test.sh` | 1 | |
 | `plugins/source-control/hooks/pr-linkage-spawn-budget.test.sh` | 2 | |
 | `plugins/source-control/hooks/worktree-add-claim-gate.test.sh` | 1 | |
@@ -633,14 +660,14 @@ and is empty until one is made.
 | `plugins/testing/scripts/gen-hook-filters.test.sh` | 1 | |
 | `plugins/testing/scripts/resolve-config.test.sh` | 7 | |
 | `plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh` | 8 | |
-| `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` | 128 | |
+| `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` | 128 | 891 |
 | `plugins/testing/skills/audit/scripts/judge-check.test.sh` | 0 | |
 | `plugins/testing/skills/check-visual-parity/scripts/visual-compare.test.sh` | 4 | |
 | `plugins/testing/skills/setup/scripts/setup.test.sh` | 2 | |
 | `plugins/testing/tests/fix-until-green.test.sh` | 0 | |
 | `plugins/typos-format/git-hooks/typos-check.test.sh` | 0 | |
 | `plugins/typos-format/hooks/typos-format-end-of-turn.test.sh` | 0 | |
-| `plugins/typos-format/hooks/typos-format.test.sh` | 2 | |
+| `plugins/typos-format/hooks/typos-format.test.sh` | 2 | 11 |
 | `plugins/user-experience/tests/detect.test.sh` | 11 | |
 | `plugins/user-experience/tests/routing.test.sh` | 0 | |
 | `plugins/user-experience/tests/team-policy.test.sh` | 1 | |
