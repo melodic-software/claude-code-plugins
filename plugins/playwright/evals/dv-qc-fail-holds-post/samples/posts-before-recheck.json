@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "I won't post it yet: zoom-share failed, and a quality-control FAIL blocks posting whatever the video looks like.\n\n```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "fixes and re-checks, no post"},
+    {"answer": "Fix the plan first:\n\n```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n# only after every check passes and the independent review is done:\ngh pr comment 42 --body 'Demo of the signup flow' --attach work/demo.mp4\n```", "why": "the post comes only after the re-render and re-check"}
+  ],
+  "fail": [
+    {"answer": "```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\ngh pr comment 42 --body 'Demo' --attach work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "posts the old, failing render after the plan rebuild but before the re-render and re-check"},
+    {"answer": "```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\ngh pr edit 42 --attach work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "posts through gh pr edit before the re-check"}
+  ]
+}
