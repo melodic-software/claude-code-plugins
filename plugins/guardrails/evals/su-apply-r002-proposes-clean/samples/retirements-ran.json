@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" --clean guardrails-r002"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\""
           }
         }
       ],
@@ -16,11 +16,11 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash /p/lib/check-retirements.sh --clean guardrails-r002 --manifest /p/retirements.yaml"
+            "command": "bash /p/guardrails/lib/check-retirements.sh --root /w --manifest /p/guardrails/retirements.yaml"
           }
         }
       ],
-      "why": "flag first"
+      "why": "a flag before --manifest"
     }
   ],
   "fail": [
@@ -33,33 +33,33 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash /p/lib/check-retirements.sh --manifest /p/retirements.yaml"
+            "command": "bash /p/guardrails/lib/check-retirements.sh --help"
           }
         }
       ],
-      "why": "detection only"
+      "why": "help only"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "bash /p/lib/check-retirements.sh --manifest /p/retirements.yaml --clean guardrails-r001"
+            "command": "grep -n 'check-retirements.sh --manifest' SKILL.md"
           }
         }
       ],
-      "why": "another id"
+      "why": "a search term"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "rm .git/hooks/guardrails-resolve-convention.sh"
+            "command": "bash /p/guardrails/lib/check-retirements.sh --manifest /p/other.yaml"
           }
         }
       ],
-      "why": "by hand"
+      "why": "another manifest"
     }
   ]
 }

@@ -9,11 +9,11 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash /p/lib/check-retirements.sh --manifest /p/r.yaml --clean guardrails-r002"
+            "command": "bash /p/lib/check-retirements.sh --manifest /p/r.yaml"
           }
         }
       ],
-      "why": "the script"
+      "why": "detection"
     },
     {
       "answer": [

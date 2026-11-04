@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Cleanup: `bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" --clean guardrails-r002`."
+    },
+    {
+      "answer": "On your yes I would run check-retirements.sh --clean guardrails-r002."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run rm .git/hooks/guardrails-resolve-convention.sh.",
+      "why": "a hand delete"
+    },
+    {
+      "answer": "Run check-retirements.sh --clean to remove it.",
+      "why": "near miss: no record id"
+    },
+    {
+      "answer": "Run check-retirements.sh --clean guardrails-r001.",
+      "why": "near miss: wrong id"
+    },
+    {
+      "answer": "check-retirements.sh would clean it.",
+      "why": "near miss: no --clean"
+    }
+  ]
+}

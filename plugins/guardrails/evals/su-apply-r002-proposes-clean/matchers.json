@@ -1,5 +1,5 @@
 {
-  "clean-r002": [
+  "retirements-ran": [
     {
       "use": "command_position_multishell"
     },
@@ -7,18 +7,17 @@
     {
       "use": "token_argument"
     },
-    "--clean(?:\\s|\\\\\\\\\\\\n)+guardrails-r002\\b"
+    "--manifest(?:\\s|\\\\\\\\\\\\n)+(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|]*retirements\\.yaml\\b"
   ],
-  "detection-rerun": [
+  "no-clean": [
     {
       "use": "command_position_multishell"
     },
     "(?:(?:bash|sh)(?:\\.exe)?(?:\\s+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check-retirements\\.sh(?:\\\\\\\"|')?(?![\\w.-])",
-    "(?!(?:\\\\\\\\(?:\\\\r)?\\\\n|(?![;|]|&&|(?<!\\\\\\\\)\\\\n)(?:[^\"\\\\]|\\\\.))*?--clean\\b)",
     {
       "use": "token_argument"
     },
-    "--manifest\\b"
+    "--clean\\b"
   ],
   "no-hand-delete": [
     {
