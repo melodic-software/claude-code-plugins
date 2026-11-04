@@ -182,10 +182,22 @@ function declaresUserConfig(plugin) {
   );
 }
 
+// True when the frontmatter's disable-model-invocation reads as a true boolean in
+// any spelling check-skill.sh accepts (true, yes, on, 1, any letter case, with an
+// optional trailing comment). A quoted value is a YAML string, never true.
+// Pointer: https://code.claude.com/docs/en/skills#frontmatter-reference, as of
+// 2026-11-04; recheck when that section changes its accepted spellings.
+function disablesModelInvocation(frontmatter) {
+  const raw = frontmatter.match(/^disable-model-invocation:(.*)$/m)?.[1];
+  if (raw === undefined) return false;
+  const value = raw.replace(/\s+#.*$/, "").trim().toLowerCase();
+  return ["true", "yes", "on", "1"].includes(value);
+}
+
 for (const path of setupSkills) {
   const content = read(path);
   const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
-  if (!/^disable-model-invocation:\s*true\s*$/m.test(frontmatter)) {
+  if (!disablesModelInvocation(frontmatter)) {
     fail(path, "setup skills must set disable-model-invocation: true");
   }
   // Uniform contract shape (plugin-philosophy "Setup is explicit and repeatable"):
@@ -1036,7 +1048,7 @@ for (const path of pluginFiles) {
       continue;
     }
     const targetFrontmatter = read(target).match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (targetFrontmatter && /^disable-model-invocation:[ \t]*true[ \t]*$/m.test(targetFrontmatter[1])) {
+    if (targetFrontmatter && disablesModelInvocation(targetFrontmatter[1])) {
       fail(
         path,
         `\`skills:\` entry ${entry} targets a \`disable-model-invocation: true\` skill, which cannot be preloaded`,

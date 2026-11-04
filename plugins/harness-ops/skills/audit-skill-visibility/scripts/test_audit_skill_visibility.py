@@ -2510,6 +2510,19 @@ class FrontmatterParseTest(unittest.TestCase):
         text = '---\ndescription: "d"\ndisable-model-invocation: false\n---\n'
         self.assertFalse(engine.parse_frontmatter(text)["disable_model_invocation"])
 
+    def test_invocation_key_reads_every_documented_boolean_spelling(self):
+        """Spellings from skills#frontmatter-reference, in any letter case."""
+        expected = {
+            "yes": True, "YES": True, "on": True, "On": True, "1": True,
+            "no": False, "OFF": False, "off": False, "0": False,
+        }  # fmt: skip
+        for spelling, want in expected.items():
+            with self.subTest(spelling=spelling):
+                text = f'---\ndescription: "d"\ndisable-model-invocation: {spelling}\n---\n'
+                self.assertIs(
+                    engine.parse_frontmatter(text)["disable_model_invocation"], want
+                )
+
     def test_reads_description_and_when_to_use(self):
         text = '---\ndescription: "hello"\nwhen_to_use: "later"\n---\n'
         parsed = engine.parse_frontmatter(text)

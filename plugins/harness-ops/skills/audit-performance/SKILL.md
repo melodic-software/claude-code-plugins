@@ -249,8 +249,8 @@ spawns. Read `fan_out` in this order:
    [settings: when edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect)
    and [plugin loading: check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached)
    (as of 2026-11-03; recheck when either section changes when plugin enablement is applied). Reporting the disk state as the running state is how a
-   confident and wrong diagnosis gets written. The advisory says restart is required; that
-   restart is the operator's, not this skill's.
+   confident and wrong diagnosis gets written. The advisory names `/reload-plugins` or a restart;
+   either one is the operator's, not this skill's.
 5. **`fan_out.concurrency_ceilings`**. Spawn depth multiplies against the per-session concurrency
    limit, and every subagent carries the same statusline and hook fan-out as its parent, so two
    individually modest settings can license a very large population. Report effective values
@@ -338,9 +338,13 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
   record and its fields are observed harness behavior, not documented, so treat the shape as
   unstable; basis: 41 such records in one session supplied every per-hook duration an audit
   produced, and [hooks](https://code.claude.com/docs/en/hooks.md) contains neither
-  `stop_hook_summary` nor `durationMs`; verified 2026-09-27; recheck when the hooks page
-  documents a per-hook timing record, or when a filtered transcript returns no
+  `stop_hook_summary` nor `durationMs`; verified 2026-11-04. Recheck when the hooks page
+  documents per-hook timing in transcript records, or when a filtered transcript returns no
   `stop_hook_summary` record in a session whose Stop hooks ran.
+  We time hooks from the transcript because it covers a session that already ran, with nothing
+  turned on beforehand. Pointer: for what the debug route records, see
+  [hooks: debug hooks](https://code.claude.com/docs/en/hooks#debug-hooks). As of 2026-11-04.
+  Recheck trigger: that section changes what it records or where.
   For other events' hooks, filter to the timing fields:
   `jq -c 'select(.type == "attachment") | .attachment | select(.type == "hook_success" or .type == "hook_non_blocking_error") | {hookEvent, hookName, command, durationMs}' <session>.jsonl`.
   `/harness-ops:observability hooks <session>.jsonl` reads both shapes and owns the record of

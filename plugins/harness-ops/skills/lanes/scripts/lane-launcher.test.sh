@@ -555,7 +555,9 @@ assert_contains "at 2.1.259 the flag follows auto" "$out" "claude --bg -n work -
 NOCLAUDE_BIN="$TMP/bin-noclaude"
 mkdir -p "$NOCLAUDE_BIN"
 cp "$STUB_BIN/git" "$NOCLAUDE_BIN/git"
-NOCLAUDE_PATH="$NOCLAUDE_BIN:$(dirname "$(command -v jq)"):/usr/bin:/bin"
+printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$REAL_JQ" >"$NOCLAUDE_BIN/jq"
+chmod +x "$NOCLAUDE_BIN/jq"
+NOCLAUDE_PATH="$NOCLAUDE_BIN:/usr/bin:/bin"
 assert_eq "no-claude PATH really carries no claude" "" "$(PATH="$NOCLAUDE_PATH" bash -c 'command -v claude' || true)"
 out="$(
   export PATH="$NOCLAUDE_PATH"

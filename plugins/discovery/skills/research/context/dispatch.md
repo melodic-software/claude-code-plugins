@@ -330,7 +330,7 @@ run's marked one is still sitting there. Hence the ladder's first move on a disc
 ## The restatement and eligibility checks
 
 Two scripts check, at write time, the format and calibration rules a verifier would otherwise
-fail by hand: label, sweep-word and sidecar-quote drift in restatements (row 12), single-source
+fail by hand: label, sweep-word, sidecar-quote and abstract-mirror drift in restatements (row 12), single-source
 flag eligibility (row 4), and the tier mix behind `HIGH` (row 7). Each runs on the directory of
 the index, as one plain command:
 

@@ -134,8 +134,8 @@ else {
   if (!blob.includes("CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS")) {
     problems.push("include-git-instructions does not name CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS");
   }
-  if (!/unverified-undocumented/i.test(blob)) {
-    problems.push("include-git-instructions does not mark the env form unverified-undocumented");
+  if (!(git.citations ?? []).some((c) => c.includes("docs/en/env-vars"))) {
+    problems.push("include-git-instructions does not cite the env-vars row for its env form");
   }
   if (!String(git.emittedConfig || "").includes("includeGitInstructions")) {
     problems.push("include-git-instructions dropped the settings key as emitted config");

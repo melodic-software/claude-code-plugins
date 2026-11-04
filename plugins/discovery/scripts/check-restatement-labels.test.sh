@@ -77,12 +77,25 @@ claim() {
 }
 
 # mkslice <name> <claims text> <index body> [sidecar body]; prints the slice dir.
+# The sidecar abstract quotes the first claim that has an id, as
+# <id> (<confidence>): "<claim>", and the index mirrors it after the body as
+# "- s: <abstract>", so a slice passes the abstract rules unless a case
+# overrides them. With no id'd claim the abstract is "a" and is not mirrored.
 mkslice() {
-  local d="$WORK/$1"
+  local d="$WORK/$1" first abstract="a" mirror=""
   mkdir -p "$d"
-  printf -- '---\nabstract: a\n---\n# Index\n\n%s\n' "$3" >"$d/RESEARCH.md"
-  printf -- '---\ntopic: t\nsection: s\nabstract: a\nclaims:\n%s\nproduced_by: p\n---\n# Body\n\n%s\n' \
-    "$2" "${4:-}" >"$d/RESEARCH-s.md"
+  first="$(printf '%s\n' "$2" | awk '
+    /^  - claim: "/ { text = substr($0, 13); sub(/"$/, "", text); id = "" }
+    /^    id: / { id = substr($0, 9) }
+    /^    confidence: / && id != "" && !done { print id " (" substr($0, 17) "): \"" text "\""; done = 1 }')"
+  if [[ -n "$first" ]]; then
+    abstract="'${first//\'/\'\'}'"
+    mirror="
+- s: $first"
+  fi
+  printf -- '---\nabstract: a\n---\n# Index\n\n%s\n%s\n' "$3" "$mirror" >"$d/RESEARCH.md"
+  printf -- '---\ntopic: t\nsection: s\nabstract: %s\nclaims:\n%s\nproduced_by: p\n---\n# Body\n\n%s\n' \
+    "$abstract" "$2" "${4:-}" >"$d/RESEARCH-s.md"
   printf '%s' "$d"
 }
 
@@ -110,7 +123,12 @@ for want in 'RESEARCH-perf.md:4: M1' 'RESEARCH-perf.md:45: M1' 'RESEARCH-perf.md
     fail "unlabeled fixture should report $want unquoted: $(cat "$WORK/stderr")"
   fi
 done
-expect_out "unlabeled fixture summary line" 'status=fail violations=9 ids=3 labeled=2 mentions=7 quoted=0'
+if [[ "$(cat "$WORK/stderr")" == *'RESEARCH-perf.md:4: abstract quotes none of its claims'* ]]; then
+  pass "unlabeled fixture reports its unquoted abstract"
+else
+  fail "unlabeled fixture should report its unquoted abstract: $(cat "$WORK/stderr")"
+fi
+expect_out "unlabeled fixture summary line" 'status=fail violations=10 ids=3 labeled=2 mentions=7 quoted=0'
 if [[ "$(cat "$WORK/stderr")" != *K9* && "$(cat "$WORK/stderr")" != *'RESEARCH.md:39:'* ]]; then
   pass "a plain HIGH claim and the fetch log are not reported"
 else
@@ -185,7 +203,7 @@ See M1.')"
 
 run 1 "a sweep word beside a cited ID fails" --err 'RESEARCH.md:6: M1 cited beside the sweep word "every"' \
   "$(mkslice sweep "$FLAGGED" 'M1 (HIGH (single source)) holds for every version.')"
-expect_out "sweep summary line" 'status=fail violations=1 ids=1 labeled=1 mentions=1 quoted=0'
+expect_out "sweep summary line" 'status=fail violations=1 ids=1 labeled=1 mentions=3 quoted=2'
 run 0 "an ID pointer with its label passes" \
   "$(mkslice pointer "$FLAGGED" 'Settled: M1 (HIGH (single source)).')"
 run 1 "a plain HIGH claim's line is checked for sweep words too" --err 'K9 cited beside the sweep word "All"' \
@@ -193,7 +211,7 @@ run 1 "a plain HIGH claim's line is checked for sweep words too" --err 'K9 cited
 run 1 "one line citing two IDs is one violation" --err 'CI-02, K9 cited beside the sweep word "only"' \
   "$(mkslice sweep-two "$MEDIUM
 $PLAIN" 'K9 and CI-02 (MEDIUM) are the only answers.')"
-expect_out "two IDs on one sweep line count once" 'status=fail violations=1 ids=2 labeled=1 mentions=1 quoted=0'
+expect_out "two IDs on one sweep line count once" 'status=fail violations=1 ids=2 labeled=1 mentions=3 quoted=2'
 run 0 "a word that only contains a sweep word passes" \
   "$(mkslice overall "$PLAIN" 'Overall, K9 is settled; nonetheless it is small.')"
 run 0 "a sweep word with no cited ID passes" \
@@ -210,7 +228,7 @@ run 0 "a sidecar body line may carry a sweep word" \
 SD2="$(claim SD2 HIGH 'Prefer one phase per concern unless the phase mixes independent concerns')"
 run 0 "a sidecar line quoting its claim verbatim passes" \
   "$(mkslice quote-ok "$FLAGGED" 'Index.' 'M1 (HIGH (single source)): "c" holds.')"
-expect_out "a verbatim quote is counted" 'status=pass ids=1 labeled=1 mentions=1 quoted=1'
+expect_out "a verbatim quote is counted" 'status=pass ids=1 labeled=1 mentions=3 quoted=3'
 run 1 "a labeled sidecar pointer without a quote fails" \
   --err 'RESEARCH-s.md:15: M1 cited without its claim quoted verbatim' \
   "$(mkslice quote-none "$FLAGGED" 'Index.' 'Decision: M1 (HIGH (single source)) holds.')"
@@ -223,7 +241,7 @@ run 1 "a quote that turns prefer into a rule fails" --err 'SD2 quote does not ma
   "$(mkslice quote-rule "$SD2" 'Index.' '- SD2: "Use one phase per concern unless the phase mixes independent concerns"')"
 run 1 "a quote that adds only fails" --err 'SD2 quote does not match its claim' \
   "$(mkslice quote-only "$SD2" 'Index.' '- SD2: "Prefer only one phase per concern unless the phase mixes independent concerns"')"
-expect_out "a mismatched quote is one violation" 'status=fail violations=1 ids=1 labeled=0 mentions=0 quoted=0'
+expect_out "a mismatched quote is one violation" 'status=fail violations=1 ids=1 labeled=0 mentions=0 quoted=2'
 run 1 "a quote with a different label form does not open a quote" \
   --err 'M1 cited without its claim quoted verbatim' \
   "$(mkslice quote-label-form "$FLAGGED" 'Index.' '(M1, HIGH (single source)): "c"')"
@@ -242,7 +260,50 @@ quoted_abstract="$(mkslice quote-abstract "$(claim M1 MEDIUM "it's c")" 'Index.'
 printf -- "---\ntopic: t\nsection: s\nabstract: 'M1 (MEDIUM): \"it''s c\"'\nclaims:\n%s\nproduced_by: p\n---\n" \
   "$(claim M1 MEDIUM "it's c")" >"$quoted_abstract/RESEARCH-s.md"
 run 0 "a quoted YAML abstract is read as its unquoted value" "$quoted_abstract"
-expect_out "the abstract's quote is counted" 'status=pass ids=1 labeled=1 mentions=1 quoted=1'
+expect_out "the abstract's quote is counted" 'status=pass ids=1 labeled=1 mentions=2 quoted=2'
+
+# --- abstracts --------------------------------------------------------------
+# A sidecar that declares an id'd claim quotes one of its claims in its
+# abstract, and the index mirrors that abstract as "- <section>: <abstract>"
+# byte for byte. An abstract that names no ID escapes every rule above, so a
+# seed abstract that drops its claim's exception would reach the index unseen.
+
+# abstracts <name> <sidecar abstract, as YAML> <index mirror line>: an SD2 slice
+# whose sidecar abstract and index mirror line are the given ones.
+abstracts() {
+  local d
+  d="$(mkslice "$1" "$SD2" 'Index.')"
+  printf -- '---\ntopic: t\nsection: s\nabstract: %s\nclaims:\n%s\nproduced_by: p\n---\n# Body\n' \
+    "$2" "$SD2" >"$d/RESEARCH-s.md"
+  printf -- '---\nabstract: a\n---\n# Index\n\n%s\n' "$3" >"$d/RESEARCH.md"
+  printf '%s' "$d"
+}
+
+run 0 "an abstract quoting its claim verbatim, mirrored unchanged, passes" "$(mkslice abstract-ok "$SD2" 'Index.')"
+expect_out "the abstract and its mirror are both counted" 'status=pass ids=1 labeled=0 mentions=0 quoted=2'
+run 1 "an abstract that names no claim ID fails" --err 'RESEARCH-s.md:4: abstract quotes none of its claims' \
+  "$(abstracts abstract-no-id 'Decompose seeds one slice per phase today' \
+    '- s: Decompose seeds one slice per phase today')"
+expect_out "an ID-less abstract is one violation" 'status=fail violations=1 ids=1 labeled=0 mentions=0 quoted=0'
+run 1 "an abstract quoting its claim with the exception dropped fails" \
+  --err 'RESEARCH-s.md:4: SD2 quote does not match its claim' \
+  "$(abstracts abstract-dropped "'SD2: \"Prefer one phase per concern\"'" \
+    '- s: SD2: "Prefer one phase per concern"')"
+run 1 "an index copy that differs from the sidecar abstract fails" \
+  --err "RESEARCH.md:6: abstract line differs from RESEARCH-s.md's abstract" \
+  "$(abstracts abstract-drift "'SD2: \"Prefer one phase per concern unless the phase mixes independent concerns\"'" \
+    '- s: Decompose seeds one slice per phase today')"
+expect_out "a drifted index copy is one violation" 'status=fail violations=1 ids=1 labeled=0 mentions=0 quoted=1'
+run 1 "an abstract the index never mirrors fails" \
+  --err 'RESEARCH.md: no "- s: " abstract line for RESEARCH-s.md' \
+  "$(abstracts abstract-unmirrored "'SD2: \"Prefer one phase per concern unless the phase mixes independent concerns\"'" \
+    'Settled: SD2.')"
+run 0 "another bullet with the abstract's prefix does not fail an exact copy" \
+  "$(abstracts abstract-prefix "'SD2: \"Prefer one phase per concern unless the phase mixes independent concerns\"'" \
+    '- s: SD2: "Prefer one phase per concern unless the phase mixes independent concerns"
+- s: open question, see Gaps.')"
+run 0 "a sidecar whose claims carry no id needs no abstract quote" \
+  "$(mkslice abstract-no-ids "$(claim - MEDIUM)" 'Index.')"
 
 # --- ungradeable ------------------------------------------------------------
 

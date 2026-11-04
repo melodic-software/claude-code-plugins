@@ -3319,7 +3319,7 @@ fi
 make_skill dmi-bad-value '---
 name: dmi-bad-value
 description: "State a bad mode. Use when: '"'"'stating a bad mode'"'"'."
-disable-model-invocation: yes
+disable-model-invocation: maybe
 ---
 
 ## Purpose
@@ -3332,11 +3332,42 @@ None known.
 '
 out="$(run dmi-bad-value 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q "disable-model-invocation is 'yes'" <<<"$out"; then
+if [[ $rc -eq 1 ]] && grep -q "disable-model-invocation is 'maybe'" <<<"$out"; then
   pass "non-boolean disable-model-invocation fails"
 else
   fail "non-boolean value should fail (rc=$rc): $out"
 fi
+
+# 24d-spellings. Boolean frontmatter accepts `yes`, `no`, `on`, `off`, `1` and
+#      `0` in any letter case beside `true` and `false`
+#      (https://code.claude.com/docs/en/skills#frontmatter-reference).
+assert_dmi_spelling() {
+  local spelling="$1" expected="$2" name
+  name="dmi-spelling-$(tr '[:upper:]' '[:lower:]' <<<"$spelling")"
+  make_skill "$name" "---
+name: $name
+description: \"State the mode. Use when: 'stating the mode'.\"
+disable-model-invocation: $spelling
+---
+
+## Purpose
+
+A skill that spells its invocation mode another way.
+
+## Gotchas
+
+None known.
+"
+  out="$(run "$name" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 0 ]] && grep -q "invocation mode: $expected" <<<"$out"; then
+    pass "disable-model-invocation: $spelling reads as $expected"
+  else
+    fail "disable-model-invocation: $spelling should read as $expected (rc=$rc): $out"
+  fi
+}
+for spelling in yes YES on 1; do assert_dmi_spelling "$spelling" user-invoked; done
+for spelling in no OFF 0; do assert_dmi_spelling "$spelling" model-invoked; done
 
 # 24d-quoted. A QUOTED boolean is a YAML string, not the boolean the key takes —
 #      stripping the quotes before validating would let malformed invocation
@@ -3382,7 +3413,7 @@ None known.
 '
 out="$(run dmi-split-value 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'expected the boolean true or false' <<<"$out"; then
+if [[ $rc -eq 1 ]] && grep -q 'expected a boolean: true, yes, on or 1, or false, no, off or 0' <<<"$out"; then
   pass "internal whitespace is not collapsed into a passing boolean"
 else
   fail "internally-spaced value should fail (rc=$rc): $out"

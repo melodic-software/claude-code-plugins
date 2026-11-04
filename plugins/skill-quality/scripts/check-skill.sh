@@ -2354,24 +2354,32 @@ INVOCATION_RUBRIC='docs/contracts/invocation-mode/README.md'
 # leading/trailing whitespace is trimmed — deleting whitespace wholesale would
 # splice a scalar broken by an internal space back into a passing boolean. A
 # trailing `# comment` is already removed by skill_frontmatter::field, so an
-# author may annotate the exception class inline.
+# author may annotate the exception class inline. Pointer: for the spellings a
+# boolean field accepts, fetch
+# https://code.claude.com/docs/en/skills#frontmatter-reference live. As of:
+# 2026-11-04. Recheck trigger: that section changing its accepted spellings.
 DMI_RAW="$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")"
 DMI_TRIMMED="${DMI_RAW#"${DMI_RAW%%[![:space:]]*}"}"
 DMI_TRIMMED="${DMI_TRIMMED%"${DMI_TRIMMED##*[![:space:]]}"}"
 DMI_VAL="$(printf '%s' "$DMI_TRIMMED" | tr '[:upper:]' '[:lower:]')"
+case "$DMI_VAL" in
+  true | yes | on | 1) DMI_BOOL=true ;;
+  false | no | off | 0) DMI_BOOL=false ;;
+  *) DMI_BOOL= ;;
+esac
 if [[ -z "$DMI_VAL" ]]; then
   if [[ "$SKILL_REL" == plugins/*/skills/* ]]; then
     err "frontmatter has no explicit disable-model-invocation key — every skill in this marketplace states its invocation mode (the absent-key default is false; write it out so the choice is auditable). Rubric: $INVOCATION_RUBRIC"
   else
     warn "frontmatter has no explicit disable-model-invocation key — the absent-key default is false, so behavior is unchanged; writing it out makes the choice auditable (marketplace-fleet convention: $INVOCATION_RUBRIC)"
   fi
-elif [[ "$DMI_VAL" != "true" && "$DMI_VAL" != "false" ]]; then
+elif [[ -z "$DMI_BOOL" ]]; then
   if [[ "$DMI_TRIMMED" == \"*\" || "$DMI_TRIMMED" == \'*\' ]]; then
-    err "disable-model-invocation is the quoted string $DMI_TRIMMED — YAML reads that as a string, not a boolean; write it unquoted as true or false"
+    err "disable-model-invocation is the quoted string $DMI_TRIMMED — YAML reads that as a string, not a boolean; write it unquoted as true, yes, on or 1, or false, no, off or 0, in any letter case"
   else
-    err "disable-model-invocation is '$DMI_TRIMMED' — expected the boolean true or false"
+    err "disable-model-invocation is '$DMI_TRIMMED' — expected a boolean: true, yes, on or 1, or false, no, off or 0, in any letter case"
   fi
-elif [[ "$DMI_VAL" == "true" ]]; then
+elif [[ "$DMI_BOOL" == "true" ]]; then
   if [[ "$SKILL_NAME" == "setup" ]]; then
     note "invocation mode: user-invoked only — exception class (ii), setup contract"
   else

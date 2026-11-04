@@ -58,7 +58,7 @@ run() {
   shift 2
   payload_file="$(mktemp "$TEST_TMPDIR/payload.XXXXXX")"
   printf '%s' "$body" >"$payload_file"
-  env -u HOOK_TELEMETRY_SINK -u CLAUDE_EFFORT CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
+  env -u HOOK_TELEMETRY_SINK -u CLAUDE_EFFORT -u TRACEPARENT CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
 }
 
 # --- default OFF: nothing is read or written --------------------------------

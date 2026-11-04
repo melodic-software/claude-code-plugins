@@ -320,6 +320,12 @@ def _fold_lines(lines: list[str], separator: str) -> str:
     return text
 
 
+# The true spellings of a boolean frontmatter field. Pointer: for what a boolean
+# field accepts, fetch https://code.claude.com/docs/en/skills#frontmatter-reference
+# live. As of: 2026-11-04. Recheck trigger: that section changing its spellings.
+FRONTMATTER_TRUE = frozenset({"true", "yes", "on", "1"})
+
+
 def _yaml_scalar(value: str, continuation: list[str]) -> str:
     """One scalar value as YAML loads it, for the forms skill files use.
 
@@ -399,7 +405,7 @@ def parse_frontmatter(text: str) -> dict:
         "disable_model_invocation": str(
             out.get("disable-model-invocation", out.get("disable_model_invocation", ""))
         ).lower()
-        == "true",
+        in FRONTMATTER_TRUE,
         "user_invocable": out.get("user-invocable", out.get("user_invocable", "")),
     }
 
@@ -1197,10 +1203,11 @@ class ListingConfig:
     `floor(window * bytes_per_token * fraction)`, minimum 1.
 
     Four-part record for the documented defaults (0.01 fraction, 1536 per-entry
-    cap, 3-char joiner): basis https://code.claude.com/docs/en/settings
-    (skillListingBudgetFraction, skillListingMaxDescChars) and
-    https://code.claude.com/docs/en/skills#frontmatter-reference; verified
-    2026-09-11. Recheck trigger: either page moving a default re-derives the
+    cap, 3-char joiner): basis
+    https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction,
+    https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars
+    and https://code.claude.com/docs/en/skills#frontmatter-reference; verified
+    2026-11-04. Recheck trigger: any of these moving a default re-derives the
     matching field here; each fleet audit re-runs this record.
 
     Four-part record for the two per-model inputs: `bytes_per_token` is 4 or 3
@@ -1353,11 +1360,16 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
 
     The same walk as `merge_listing_settings`, over the same layer shape, for
     one more key: the object mapping `plugin-name@marketplace-name` to a
-    Boolean. The product merges it per key, user < project < local < flag <
-    policy, last defined scope wins. Precedence basis: the settings reference,
-    https://code.claude.com/docs/en/settings, verified 2026-09-11 at Claude
-    Code 2.1.263; recheck trigger: that page changing the `enabledPlugins`
-    shape or its stated precedence. A key absent from every scope means NOT
+    Boolean. The product merges it per key across the sources that section
+    lists, highest precedence wins; this walk reads user < project < local <
+    flag < policy and leaves out the lowest source, a `--add-dir` directory's
+    settings, which only a running session sees and where only `true` acts.
+    Basis:
+    https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-is-enabled
+    for the merge and its precedence,
+    https://code.claude.com/docs/en/settings-reference#enabledplugins for the
+    shape, verified 2026-11-04; recheck trigger: either section changing the
+    shape or the stated precedence. A key absent from every scope means NOT
     enabled; `enablement_for` carries that record.
 
     Returns `plugins` (per key, the winning `value` and the `evidence` path

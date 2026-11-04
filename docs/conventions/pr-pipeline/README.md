@@ -2573,7 +2573,9 @@ request whose closing issue the owner wrote is judged against that issue as its 
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
 parent's task-list lines or those of intake's refinement on it (below), so a lane pull request
-never supplies its own spec.
+never supplies its own spec. A listed human's comment on such an issue reaches the verifier, but it
+never makes the issue trusted, and neither does a listed human's edit of its body. To give work a Bot
+filed a spec, a listed human opens an issue that restates it, and the pull request links that one.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:

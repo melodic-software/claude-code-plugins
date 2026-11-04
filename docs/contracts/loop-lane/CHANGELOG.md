@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.1.0] - 2026-11-04
+
+Minor: additive guidance.
+
+- **`host-run` covers builder work, one item at a time.** The label marks work an agent run or a
+  builder session on a host takes, a change to a path the issue lane cannot push included
+  (#13261). Builder items are worked one at a time: interview, plan, implement (owner decision
+  Q-host-run, 2026-11-04).
+
 ## [19.0.0] - 2026-11-04
 
 Major: a loop-layer invariant changes (§4).
