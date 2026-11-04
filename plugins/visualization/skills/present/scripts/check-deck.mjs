@@ -187,7 +187,7 @@ function workTree(dir) {
  * @param {{root: string, visibility: string, cls: string, layers?: {argument?: string|null, option?: string|null, home?: string, project?: string|null, dataDir?: string|null}}} input
  */
 export function checkDeck({ root, visibility, cls, layers = {} }) {
-  const local = (exit, reason, refused) => ({ exit, result: { medium: "file", publishes: false, class: cls, reason, ...(refused && { refused }) } });
+  const local = (exit, reason, refused) => ({ exit, result: { medium: "file", class: cls, reason, ...(refused && { refused }) } });
   const resolved = resolve(root);
   if (lstatSync(resolved).isSymbolicLink() || realpathSync(resolved) !== resolved) {
     return local(2, `the deck root ${resolved} is or passes through a symlink; pass its real path`);
