@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "The checker exits 1: `docs/Release_Notes.md` is an offender, its basename is not lower-kebab. Plan the rename with /docs-naming:audit-file-names.\n", "why": "offender named with the rule"},
+    {"answer": "| Path | Finding |\n|---|---|\n| docs/Release_Notes.md | basename is not lower-kebab |\n", "why": "table row"},
+    {"answer": "One existing violation to rename first: docs/Release_Notes.md.\n", "why": "violation before the path"}
+  ],
+  "fail": [
+    {"answer": "Emitted scripts/check-file-names.sh and its suite. The suite passed.\n", "why": "the checker verdict is missing"},
+    {"answer": "The docs tree has getting-started.md, api-reference.md and Release_Notes.md.\n", "why": "a listing, not a finding"},
+    {"answer": "", "why": "empty"}
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40).next_to(first, DOWN)\n        self.play(FadeIn(first, second))\n",
+      "why": "one label moved"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40).to_edge(UP)\n        second = Text('Step two', font_size=40)\n        self.play(FadeIn(first, second))\n",
+      "why": "the other label moved"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40)\n        self.play(FadeIn(VGroup(first, second).arrange(DOWN)))\n",
+      "why": "grouped"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40)\n        self.play(FadeIn(first))\n        self.play(FadeOut(first))\n        self.play(FadeIn(second))\n",
+      "why": "one leaves first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40)\n        self.play(FadeIn(first, second))\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40)\n        first.allow_overlap = True\n        second.allow_overlap = True\n        self.play(FadeIn(first, second))\n",
+      "why": "hidden, not moved"
+    }
+  ]
+}

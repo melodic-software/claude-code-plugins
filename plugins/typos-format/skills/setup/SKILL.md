@@ -79,7 +79,8 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
    (SHA `extend-ignore-re`); `extend-*` keys merge rather than replace. Report whether a
    `typos.toml`, `_typos.toml`, `.typos.toml`, a `Cargo.toml` with
    `[workspace.metadata.typos]`/`[package.metadata.typos]`, or a `pyproject.toml` with
-   `[tool.typos]` governs the repo, as INFO.
+   `[tool.typos]` governs the repo, as INFO. Do not offer to create a config; say the user can
+   add one to tune the rules.
 4. **Options.** Report the effective `typos_format_enabled` value
    (`${user_config.typos_format_enabled}`; unexpanded or empty means `true`) and
    `typos_format_end_of_turn` (`${user_config.typos_format_end_of_turn}`; unexpanded or empty means

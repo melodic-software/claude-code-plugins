@@ -3,6 +3,14 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-11-04
+
+### Changed
+
+- The `codify` skill, the findings-buffer contract, both schemas and the settings scripts'
+  comments and test labels now call the config cascade's gitignored `*.local.yaml` layer the
+  personal override, the marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [0.12.1] - 2026-11-04
 
 ### Changed

@@ -129,7 +129,7 @@ Framing to apply when interpreting findings; the exact mechanism behind each res
 ## Drift comparison against declared conventions
 
 Follow [`../conventions-file.md`](../conventions-file.md): read the layered conventions (user,
-team, local overlay) in order and extract the security-relevant declarations before comparing
+team, personal override) in order and extract the security-relevant declarations before comparing
 anything. Typical declarations in this bundle: "2FA required for all members," "SSO enforced," "no
 classic PATs" / "fine-grained tokens only," an app allow-list or install-request policy, an
 OAuth-restriction expectation, and a baseline set of enabled security features.

@@ -6,10 +6,10 @@ Basis labels: `OBSERVED` / `SOURCE` / `BINARY` / `STAFF` / `COMMUNITY` /
 
 ## Definition
 
-> A mod is a Claude Code plugin whose behavior lives in a hooks module: one
-> `register(on, options)` entry that hooks the engine's events as functions
-> `($, e, next)`. These four ship inside Claude Code; this folder is their
-> source, published as it is built into the binary.
+In the README's definition, a mod is an ordinary plugin that keeps its behavior
+in a hooks module: a single `register(on, options)` function that attaches a
+`($, e, next)` function to each engine event it handles. The folder holds the
+source of the four mods compiled into the Claude Code binary.
 
 `SOURCE` · HIGH · `mods/README.md:L3-6`; see `repo-primary/RESEARCH-mod-definition.md`.
 
@@ -18,8 +18,8 @@ A mod is **not a new artifact kind**. It is an ordinary plugin
 component is the hooks module. Everything a plugin manifest can carry still
 applies. `SOURCE` · HIGH · `repo-primary/RESEARCH-mod-definition.md`
 
-Staff say the same in one sentence: *"A mod is just a plugin that uses function
-hooks, nothing is changing there."* `STAFF` · HIGH · issue #91870 body, dated
+Staff said the same in one line: a mod is a plugin built on function hooks, and
+plugins themselves do not change. `STAFF` · HIGH · issue #91870 body, dated
 Sep 9, 2026; see `x-threads/RESEARCH-staff-statements.md`.
 
 Product naming: "Claude Mods" is the product name; "function hook" remains the
@@ -28,17 +28,17 @@ documented implementation primitive. `STAFF` · HIGH ·
 
 ## The three signatures
 
-```ts
-export type Register = (on: On, options: PluginOptions) => unknown;   // :L7252
-export type PluginOptions = Readonly<Record<string, string | number | boolean | readonly string[]>>;  // :L6137
-export type On = {
-  <P extends Pattern>(pattern: P, hook: NoInfer<HookFor<P>>): Registration<HookFor<P>>;
-  <P extends Pattern, const M extends Matcher<Args<MatchedNames<P>>>>(pattern: P, matcher: M, hook: NoInfer<MatchedHook<P, M>>): Registration<MatchedHook<P, M>>;
-};  // :L5398
-```
+- `Register` (`:L7252`) takes `on: On` and `options: PluginOptions`, and its return type is
+  `unknown`.
+- `PluginOptions` (`:L6137`) is a read-only record from string keys to a string, number, boolean
+  or read-only string array.
+- `On` (`:L5398`) has two call forms: pattern and hook, or pattern, matcher and hook. The pattern
+  is a `Pattern`, the matcher a `Matcher` over the `Args` of that pattern's `MatchedNames`, and
+  the hook type follows from them (`HookFor` or `MatchedHook`, behind `NoInfer`). Each form returns
+  a `Registration` of that hook type.
 
-The hook body is `($: EngineInterface, e: Frozen<Args<N>>, next: GlobNext<P>) =>
-EventResult<N> | Promise<EventResult<N>>` (`:L4132`). `e` is **frozen**: a hook
+The hook body takes `$` (`EngineInterface`), `e` (`Frozen<Args<N>>`) and `next` (`GlobNext<P>`),
+and returns `EventResult<N>` or a promise of it (`:L4132`). `e` is **frozen**: a hook
 rewrites by passing a copy to `next`, never by mutating `e`.
 `SOURCE` · HIGH · `repo-primary/RESEARCH-mod-definition.md`
 
@@ -48,39 +48,39 @@ all can depend on an option**, and `agents-md` does exactly this.
 
 ## The fold / chain model
 
-- `next(e)` runs the hooks beneath, then core. `SOURCE` · HIGH
+- `next(e)` passes the call to the lower hooks and last to core. `SOURCE` · HIGH
 - Returning **without** calling `next` takes the call. `{ deny: reason }`
   refuses; `{ result }` / `{ value }` answers. `SOURCE` `OBSERVED` · HIGH ·
   `architecture-pdf/DENY-AND-ERROR-SEMANTICS.md`
 - `next.to(e, tier)` skips past intervening tiers.
-- A plugin's own registrations nest in order, first outermost; a repeat throws.
+- One plugin's registrations nest as made, the earliest outside; a duplicate throws.
   `SOURCE` · HIGH · `On` JSDoc `:L5390`
 - `next` carries read-only metadata: `next.event`, `next.origin` (`.tier`,
-  `.kind`), `next.trace`, `next.budget` (a live `HookBudget`, read fresh on each
-  access). `next.origin` is also the recursion guard: a plugin's own `$` call
+  `.kind`), `next.trace`, `next.budget` (a live `HookBudget`, current whenever it
+  is read). `next.origin` is also the recursion guard: a plugin's own `$` call
   does not re-enter its own hook for that event. `SOURCE` · HIGH ·
   `repo-primary/RESEARCH-chain-and-tiers.md`
 - `engine.create` is the noun fold: `{ ...await next(e), myNoun }` adds a noun to
   `$` without replacing anything beneath. `SOURCE` · HIGH ·
   `mods/telemetry/README.md`
 - `tool.list` may call `next` twice (once via `next.to`, once normally) and merge
-  the results, the pattern for "what would this look like without the tier above
-  me". `SOURCE` · HIGH · `mods/sec-default/hooks/register.ts`
+  the results, the way to compare a result with and without the tiers above the
+  caller. `SOURCE` · HIGH · `mods/sec-default/hooks/register.ts`
 
-Staff's own framing: *"the plugin registered first 'owns' all subsequent hooks on
-a given event instance. There is no capability for a plugin 'further down the
-chain' to inhibit a plugin above it; it's an 'onion model'."* `STAFF` · HIGH,
+Staff called it an onion: for one event instance the earliest-registered plugin
+wraps every later hook, and no plugin lower in the chain can stop one above it.
+`STAFF` · HIGH,
 issue #91870 comment 5530555431, 2026-09-03T18:50:55Z.
 
 ## No ambients
 
-> A hooks module runs in an environment of its own: no DOM, no Node. … is an ES
-> module whatever its suffix: there is no `require`.
+The declarations give a hooks module a sandboxed runtime without DOM or Node
+APIs; every file is treated as ES module code regardless of extension, so `require` is absent.
 
 `SOURCE` · HIGH · `.d.ts:L14-23`. Also: **no timers** (time goes through
 `$.clock`); no global `fetch` (HTTP is `$.http.fetch`); no `fs`/`process` (those
-are `$.fs` and `$.process`). Globals are `h`, `Fragment`, the JSX namespace, and
-the environment's web APIs (`URL`, `TextEncoder`, `AbortController`,
+are `$.fs` and `$.process`). Globals are `h`, `Fragment`, JSX names, plus the
+web APIs the runtime provides (`URL`, `TextEncoder`, `AbortController`,
 `crypto.subtle`, `console`). `SOURCE` · HIGH ·
 `repo-primary/RESEARCH-mod-definition.md`
 
@@ -88,34 +88,32 @@ This is why every `$` call is interceptable: there is no way around it.
 
 ## The five tiers
 
-```ts
-const TIERS: readonly ["prepend", "user", "append", "builtin", "core"];
-```
+`TIERS` lists five tiers in order: `prepend`, `user`, `append`, `builtin`, `core`.
 
-`SOURCE` · HIGH · `.d.ts:L9547`. JSDoc, verbatim: *"The chain's five tiers,
-outermost first: earlier is outer is more authority, and same-event hooks nest in
-this order and no other way."* `core` is a tier and the base of the fold
+`SOURCE` · HIGH · `.d.ts:L9547`. Its JSDoc lists the tiers from outside in: an
+outer tier holds more authority, and hooks on one event always nest in exactly
+that sequence. `core` is a tier and the base of the fold
 (`.d.ts:9530`, `:9547`); a plugin can seat only in the four `PluginTier` values
 `prepend | user | append | builtin` (`Exclude<Tier, 'core'>`), which is why the
 CLI's invalid-tier error and a 2026-09-19 maintainer comment both list four.
 
 | Tier | Who | Note |
 |---|---|---|
-| `prepend` | managed plugins an administrator lists first | highest authority |
+| `prepend` | plugins named first in managed settings | highest authority |
 | `user` | everything a person installs | **above `builtin`** |
-| `append` | managed plugins an administrator lists last | |
-| `builtin` | the plugins bundled in the binary (the four mods) | |
+| `append` | plugins named last in managed settings | |
+| `builtin` | plugins compiled into Claude Code (the four mods) | |
 | `core` | the engine's innermost link | lowest |
 
 Two properties a plugin author must carry:
 
 1. **`user` sits above `builtin`.** A plugin you install wraps `diff` and
    `agents-md`, not the other way round. `SOURCE` · HIGH
-2. **`builtin` is not privileged for outbound calls.** *"a built-in's `$` calls
-   still raise everywhere"*: a built-in calling `$.fs.read` still passes through
+2. **`builtin` is not privileged for outbound calls.** A built-in's own `$` calls
+   fire through the whole chain: a built-in calling `$.fs.read` still passes through
    every user-tier `fs.read` hook above it. `SOURCE` · HIGH
 
-`repo-primary/RESEARCH-chain-and-tiers.md` carries both quotes in full.
+`repo-primary/RESEARCH-chain-and-tiers.md` carries the source lines for both.
 
 ## Seating
 
@@ -126,16 +124,16 @@ entire prepend tier, e.g. `["acme-guard@acme-tools", "sec-default@builtin"]`.
 `SOURCE` · HIGH · `mods/sec-default/README.md:L47-55`.
 
 `prependPlugins` and `appendPlugins` are real managed-settings keys implemented
-in 2.1.278 (12 and 10 occurrences respectively, with live UX strings such as
-*"seated by managed prependPlugins at position "*, *"not seated: managed
-prependPlugins does not list it"*). `BINARY` · HIGH ·
+in 2.1.278 (12 and 10 occurrences respectively, with live UX strings that report
+the seat a managed `prependPlugins` list gives a plugin, and that a plugin the
+list omits stays unseated). `BINARY` · HIGH ·
 `surfaces-desktop/VERIFICATION.md` finding B. Neither key appears in the
 CHANGELOG or in any docs page. `OBSERVED` · HIGH
 
-Staff: *"mods cannot dictate their own registration order, full-stop."*
+Staff ruled out, with no exception, any way for a mod to set its place in the order.
 `STAFF` · HIGH · #91870 comment 5738020815, 2026-09-19T00:53:54Z.
 
-## What a third-party mod may and may not do
+## What a third-party mod can and cannot do
 
 A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
 
@@ -157,11 +155,11 @@ A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
 
 - Use `next.to`. It is typed to `append | builtin | core` only
   (`TargetTier = Exclude<Tier, 'prepend' | 'user'>`, `.d.ts:L9446`) **and takes
-  effect only when managed settings seat the plugin**: *"loading it with `--plugin-dir` seats a
-  plugin that can only pass."* `SOURCE` · HIGH ·
-  `mods/sec-default/README.md:L52-55`. The binary's own string agrees:
-  *"next.to is available to managed plugins (prependPlugins / appendPlugins)
-  only"*. `BINARY` · HIGH
+  effect only when managed settings seat the plugin**: under `--plugin-dir` it
+  loads, but its `next.to` calls can do nothing except pass. `SOURCE` · HIGH ·
+  `mods/sec-default/README.md:L52-55`. A message in the binary agrees: `next.to`
+  works only for plugins seated by `prependPlugins` or `appendPlugins`.
+  `BINARY` · HIGH
 - Choose its own tier or registration order. `STAFF` · HIGH
 - Reach what `sec-default` guards on a managed machine: the organization's
   classic hooks, the instructions it adds to the prompt, its managed settings and
@@ -171,16 +169,16 @@ A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
   (`grep -c "'ui.ask'"` → 0 over the whole 12,990-line file). The consequence
   "therefore not interceptable" is `INFERRED` · the absence itself is `SOURCE` ·
   HIGH · `repo-primary/RESEARCH-event-catalog.md`
-- Hook a component its surface has not marked as hookable. Staff: *"our internal
-  'permission request component' is simply not something you can hook into,
-  because the surface does not declare it as being hookable."* `STAFF` · HIGH
+- Hook a component its surface has not marked as hookable. Staff gave the
+  internal permission-request component as the example: its surface never
+  marks it hookable, so no plugin can hook it. `STAFF` · HIGH
 - Spell `on`, `$` or `$.env` other than literally: the host statically scans the
   source and **a module that does not spell them literally does not load**.
   `SOURCE` `BINARY` · HIGH · see `research-api-surface.md`.
 
 ## The four shipped mods
 
-| Mod | What it does | Seated |
+| Mod | Its job | Seat |
 |---|---|---|
 | `sec-default` | Guards what an organization configures (its classic hooks, the instructions it adds to the prompt, managed settings and limits on which tools may run) from plugins a person adds; it sets no rules itself. | The outermost seat wherever settings are managed or the account is a Team/Enterprise one; a managed `prependPlugins` list overrides that |
 | `diff` | `/diff`: a side pane, next to the conversation, listing what the session has changed and not yet committed. | Built in |

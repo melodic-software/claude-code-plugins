@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": ".github/workflows/ci.yml"}}], "why": "read only"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/getting-started.md", "old_string": "a", "new_string": "b"}}], "why": "an edit elsewhere"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".github/workflows/ci.yml", "old_string": "      - run: make test", "new_string": "      - run: make test\n      - run: bash scripts/check-file-names.sh --check"}}], "why": "wired the gate into CI"}
+  ]
+}

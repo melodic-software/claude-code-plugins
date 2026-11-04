@@ -35,7 +35,7 @@ somebody else's tracked data, and the constituents cannot be recovered from the 
 | A registered byte-identical cluster copy | **Refused**, naming the canonical source. The copy is excluded from the scan set, so an entry against it is stale by construction |
 
 **The record and its layers.** Resolved across three config-cascade layers: user-global, team
-(tracked), and a gitignored local overlay. The team layer is the `suppressions` mapping of
+(tracked), and a gitignored personal override. The team layer is the `suppressions` mapping of
 `<home>/harness-config.yaml`, `<home>` being the convention home the target binds in the pointer
 region of its `AGENTS.md` or `CLAUDE.md` (the plugin's `lib/resolve-convention-home.sh` prints it),
 else `docs/conventions`; its shape is the plugin's `schemas/harness-config.schema.json`, with the

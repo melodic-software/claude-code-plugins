@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-file-names.test.sh"}}], "why": "the documented invocation"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-file-names.sh --check; bash scripts/check-file-names.test.sh"}}], "why": "after the checker in one call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"scripts/check-file-names.test.sh\""}}], "why": "quoted path"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-file-names.sh --check"}}], "why": "the checker only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls scripts/check-file-names.test.sh"}}], "why": "listed, not run"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

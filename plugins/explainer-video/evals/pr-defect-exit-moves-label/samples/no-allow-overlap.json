@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40).next_to(first, DOWN)\n        self.play(FadeIn(first, second))\n"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40).to_edge(UP)\n        second = Text('Step two', font_size=40)\n        self.play(FadeIn(first, second))\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40)\n        first.allow_overlap = True\n        second.allow_overlap = True\n        self.play(FadeIn(first, second))\n",
+      "why": "on each label"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Steps(Scene):\n    def construct(self):\n        first = Text('Step one', font_size=40)\n        second = Text('Step two', font_size=40).next_to(first, DOWN)\n        group.allow_overlap = True\n        self.play(FadeIn(first, second))\n",
+      "why": "on a group"
+    }
+  ]
+}

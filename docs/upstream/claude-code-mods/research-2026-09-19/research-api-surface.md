@@ -13,11 +13,9 @@ and found **0 invented and 0 missed** names, matching in declaration order
 
 ## How the name space is assembled
 
-```ts
-export type EventOf = CoreEventOf & NounEventOf;              // :L3885
-type CoreEventOf = EngineEventOf & ClassicEventOf & OpEventOf; // :L3017
-export type EventName = keyof EventOf;                         // :L3875
-```
+`EventOf` is the intersection of `CoreEventOf` and `NounEventOf` (`:L3885`). `CoreEventOf` is
+in turn the intersection of `EngineEventOf`, `ClassicEventOf` and `OpEventOf` (`:L3017`).
+`EventName` is the set of keys of `EventOf` (`:L3875`).
 
 `SOURCE` · HIGH.
 
@@ -29,7 +27,7 @@ export type EventName = keyof EventOf;                         // :L3875
 | `OpEventOf`: one per `$` method | **54** | `.d.ts:L5460` | `SOURCE` HIGH |
 | **Statically named before any plugin noun** | **92** | 38 + 54 | `SOURCE` HIGH |
 | `ClassicEventOf`: `classic.<HookEvent>` | **33** | derived from the 33-member `HookInput` union, `.d.ts:L4240` | `SOURCE` HIGH |
-| `NounEventOf` | **0 until a plugin declares a noun** | `.d.ts:L5359` | `SOURCE` HIGH |
+| `NounEventOf` | **0 while no plugin noun is declared** | `.d.ts:L5359` | `SOURCE` HIGH |
 | `$` nouns on `CoreEngineInterface` | **19** | `.d.ts:L2016` | `SOURCE` HIGH |
 | Noun members (depth-2) | **69** | scripted walk | `SOURCE` HIGH |
 | Invalidatable events (`$.ui.invalidate`) | **7** | `.d.ts:L4618` | `SOURCE` HIGH |
@@ -56,16 +54,14 @@ exception beyond `plugin.name` and `plugin.root`, which are data.
 
 ## Pattern selection
 
-```ts
-export type Pattern = EventName | Glob | Negation;   // :L5995
-```
+`Pattern` accepts an `EventName`, a `Glob` or a `Negation` (`:L5995`).
 
 One event (`tool.call`), a namespace (`classic.*`, `ui.*`), everything (`*`), or
 everything-but (`!tool.*`). `Namespace<N>` recurses on dots, so multi-level
 namespaces are selectable. `SOURCE` · HIGH · `.d.ts:L8317`, `:L5101`.
 
-Staff: a single hook on `*` sees every event *"including every plugin's own calls
-on `$`, so an audit log is one function."* `STAFF` · HIGH.
+Staff: a `*` hook receives all events, plugins' own `$` calls included, which
+makes an audit log a single function. `STAFF` · HIGH.
 
 ## Matcher forms
 
@@ -95,9 +91,8 @@ row 9.7.)
 Elements are **not globals**: `const { Box, Text } = await $.ui.resolve(e)`.
 `SOURCE` · HIGH · `.d.ts:L21-23`.
 
-```ts
-export type RenderSurface = 'terminal' | 'desktop' | 'mobile' | 'vscode';  // :L8233
-```
+`RenderSurface` takes one of four literals: `'terminal'`, `'desktop'`, `'mobile'` or `'vscode'`
+(`:L8233`).
 
 | Element | terminal | desktop | vscode | mobile |
 |---|---|---|---|---|
@@ -108,10 +103,10 @@ export type RenderSurface = 'terminal' | 'desktop' | 'mobile' | 'vscode';  // :L
 | `Raster`, `Image` | yes | **no** | **no** | **no** |
 
 `SOURCE` · HIGH · `surfaces-desktop/RESEARCH-mods-surfaces.md`. Both absences
-carry an explicit *"not a limit of the device; the table grows when the protocol
-does"* note. A mod built on `Client` reaches terminal and Desktop only today.
+carry a note that the gap belongs to the protocol, not the device, and closes as
+the protocol grows. A mod built on `Client` reaches terminal and Desktop only today.
 
-A session may draw on **several surfaces at once**; clients attach
+One session can draw on **several surfaces simultaneously**; clients attach
 (`session.attach`) and detach mid-session, so a render hook must read `e.surface`
 per ask and must not branch once at `session.start`. `$.session.surface()` is
 deprecated in favor of `surfaces()`. `SOURCE` · HIGH.
@@ -124,17 +119,17 @@ Interaction events, and what `next(e)` resolves to: `SOURCE` · HIGH ·
 | `Button` | `ui.press` | `{ element }`, after the element's own `onPress` in its plugin's environment |
 | `Input` | `ui.input` | `{ element, value }`; `next({ ...e, value })` rewrites the typing |
 | `Select` | `ui.select` | `{ element, value }` |
-| `Client` | `ui.message` | `{}`; only this plugin's hooks see it; one per instance per frame |
+| `Client` | `ui.message` | `{}`; visible to this plugin's hooks alone; at most one per instance in each frame |
 | `Pane` / `AbovePrompt` | `ui.scroll` | `{}` after moving to `e.offset`; no `next` leaves it undrawn |
 | focus ring | `ui.focus` | none |
 
 `TextProps` (`.d.ts:L9509-9527`): `hover, color, backgroundColor, dimColor, bold,
 italic, underline, strikethrough, inverse, wrap`, with
 `wrap?: 'wrap' | 'end' | 'middle' | 'truncate' | 'truncate-start' |
-'truncate-middle' | 'truncate-end'`. Hover is handled surface-side: *"No hook
-runs and nothing crosses to the plugin."* A link whose scheme is not `https:`,
-`http:` or `file:` draws as text (`.d.ts:L4759`). A tree that does not validate
-draws the engine's own; only `--plugin-dir` is told why. `SOURCE` · HIGH.
+'truncate-middle' | 'truncate-end'`. The surface handles hover itself, with no
+hook call and no data sent to the plugin. Links with any scheme besides `https:`,
+`http:` or `file:` render as plain text (`.d.ts:L4759`). An invalid tree is
+replaced by the engine's default rendering; only `--plugin-dir` reports the reason. `SOURCE` · HIGH.
 
 `$.ui.mount` (test kit) hands back a `Mounted` drawing with **thirteen** members:
 `drawn, find, findAll, press, input, select, key, pointer, post, advance, resize,
@@ -152,18 +147,18 @@ argument, typed `PluginOptions`. `SOURCE` · HIGH ·
 Six rules, each load-bearing: `SOURCE` · HIGH ·
 `mods/agents-md/README.md:L47-74`, `repo-primary/RESEARCH-mod-definition.md`
 
-1. **Scope.** Options are read from user settings (`~/.claude/settings.json`),
-   `--settings`, or managed settings: *"a project's `.claude/settings.json` is
-   **not** read for plugin options."* **Per-repository configuration is not
+1. **Scope.** Options come from user settings (`~/.claude/settings.json`),
+   `--settings`, or the managed layer; `.claude/settings.json` in a project is
+   **never** consulted for plugin options. **Per-repository configuration is not
    expressible through this mechanism.**
 2. **Key is `<name>@<provenance>`**: `agents-md@builtin` bundled,
    `<name>@<marketplace>` installed, `"<name>"` (or `<name>@inline`) under
    `--plugin-dir`.
-3. Changing it reloads the module; the next context the engine builds carries the
-   new mode.
-4. An out-of-enum value degrades to the default and is told once in the
-   transcript; it does not fail.
-5. `/plugin` can turn a built-in off, the supported off-switch for a built-in mod.
+3. A change makes the module load again, and the engine's following context carries
+   the new mode.
+4. An out-of-enum value degrades to the default with a single transcript notice; it
+   does not fail.
+5. `/plugin` can turn a built-in off, and is the supported way to disable one.
 6. **The host fills the default before `register` sees it**, so a plugin cannot
    tell "unset" from "set to the default".
 
@@ -173,25 +168,21 @@ convention, legacy-key fallback, one `$.ui.log` line). `SOURCE` · HIGH.
 
 ## The static source scan
 
-```ts
-export type PluginRegisterUses = {
-  events: readonly string[];  // the on(...) patterns as written, in registration order
-  calls:  readonly string[];  // what it calls on $, "noun.method", sorted
-  env?: { reads: readonly string[]; writes: readonly string[] };
-};  // :L6196
-```
-
-JSDoc: *"Exact, since a module that spells `on`, `$` or `$.env` other than
-literally does not load."* Corroborated independently by two readable binary
-strings, including the `modules` field's own `describe()`: *"What it hooks and
-calls is read from its source before it loads."* `SOURCE` `BINARY` · HIGH ·
+`PluginRegisterUses` (`:L6196`) is an object type with two read-only string lists,
+`events` and `calls`, and an optional `env` object holding `reads` and `writes`
+string lists. `events` holds the `on(...)` patterns in registration order and `calls` the sorted
+`noun.method` calls on `$`. The JSDoc calls both exact, because a module that
+writes `on`, `$` or `$.env` in any non-literal form fails to load. Two readable
+binary strings corroborate it independently, one of them the `modules` field's
+own `describe()`, which says hooks and calls come from the module's source,
+scanned ahead of loading. `SOURCE` `BINARY` · HIGH ·
 `repo-primary/VERIFICATION.md` row 6.11.
 
 **Hard authoring constraint.** A module that computes an event name, aliases `$`,
 or builds an env-var name at run time **does not load**. Write
-`$.env.get('FOO')` literally. Staff corroborate: *"The engine does refuse if the
-author does things like `$[<arbitrary expr>]`, both during plugin registration at
-startup and during the manual validation tool."* `STAFF` · HIGH.
+`$.env.get('FOO')` literally. Staff corroborate: the engine refuses a module that
+indexes `$` with a computed expression (`$[<arbitrary expr>]`), both when plugins
+register at startup and in the manual validation tool. `STAFF` · HIGH.
 
 The scan is of the source **as written**: a module registering conditionally
 still declares every pattern it *could* use. `SOURCE` · HIGH.
@@ -209,14 +200,14 @@ still declares every pattern it *could* use. `SOURCE` · HIGH.
 ```
 
 - **`modules` takes exactly one path.** The shipping 2.1.278 manifest schema caps
-  it at 1: *"hooks.json `modules` names one hooks module per plugin; a second
-  entry is refused."* The array type is a schema artifact, not extensibility.
+  it at 1: its message allows a plugin a single hooks module and rejects any
+  second entry. The array type is a schema artifact, not extensibility.
   **Do not design a multi-module plugin.** `BINARY` · HIGH ·
   `repo-primary/VERIFICATION.md` row 5.1 (this corrected a `WRONG` claim in the
   producing lane).
 - **One `hooks.json` may carry classic settings-format `hooks`, `modules`, or
-  both.** Schema refine message: *"hooks.json must have `hooks` (the hook
-  matchers) or `modules` (hooks modules), or both."* Confirmed independently by a
+  both.** The schema's refine message requires at least one of `hooks` (classic
+  matchers) and `modules`, and accepts the two together. Confirmed independently by a
   local `claude plugin validate` probe accepting both and rejecting a malformed
   classic block, and by `pleaseai/honmoon` in the wild.
   `BINARY` `OBSERVED` `COMMUNITY` · HIGH · `community-falsification/VERIFICATION.md`
@@ -233,15 +224,15 @@ appears in any of the four**; the module is found through the conventional
 
 ## Noun contracts (composing mods)
 
-A mod that adds a noun owns its types in its own `types/index.d.ts`, a
-declaration file with no imports that declaration-merges onto `EngineInterface`
-in `claude-code`, and names that file as `"types"` in `plugin.json`. The value its
-`engine.create` hook returns is checked against `EngineInterface['<noun>']`, so
-the implementation cannot drift from what callers read. `SOURCE` · HIGH ·
+To contribute a noun, a mod keeps its types in its own `types/index.d.ts`: an
+import-free declaration file merged into `EngineInterface` in `claude-code`,
+named as `"types"` in `plugin.json`. Its `engine.create` hook's return value is
+type-checked against `EngineInterface['<noun>']`, which keeps the implementation
+in step with the types callers see. `SOURCE` · HIGH ·
 `mods/README.md:L84-107`.
 
-`diff` consumes `telemetry`'s noun and degrades silently when absent (*"where it
-is absent the rows are dropped and nothing else changes"*), the documented
+`diff` consumes `telemetry`'s noun and degrades silently when absent (it leaves
+out the rows that need it and otherwise behaves the same), the documented
 posture for an optional noun, with a first-class test for the absent case.
 `SOURCE` · HIGH.
 
@@ -249,7 +240,7 @@ posture for an optional noun, with a first-class test for the absent case.
 
 | Limit | Value | Basis |
 |---|---|---|
-| Files a hooks module may link | **512** | `BINARY` HIGH (`var eo=512`, plus the refusal template *"is past the 512 files a hooks module may link and was not read"*) |
+| Files one hooks module can link | **512** | `BINARY` HIGH (`var eo=512`, plus a refusal template reporting a file beyond that count as skipped) |
 | Total module bytes | **8,388,608** (8 MiB) | `BINARY` HIGH (`var oo=8388608`, refusal template) |
 | Hook budget `ms` | **10,000** per dispatch, the hook's **own** time; waits on `next` and `$` are free, `$.clock` waits excepted | `SOURCE` `OBSERVED` HIGH: `.d.ts:L4173-4205`; cut observed live at 10,249.9 ms |
 | `.catch` handler grace `catchMs` | **1,000** | `SOURCE` HIGH |
@@ -257,10 +248,10 @@ posture for an optional noun, with a first-class test for the absent case.
 | Test timeout | **5,000 ms** default, or `timeoutMs` | `SOURCE` HIGH |
 | `Code` element source cap | **10,000** characters | `SOURCE` MEDIUM (commit `30a68508`) |
 | `TelemetryChoice.of` members | **32** | `SOURCE` MEDIUM |
-| `hooks.json` size cap | exists; numeric value not read | `BINARY` MEDIUM (*"hooks.json is past the size cap and was not read"*) |
+| `hooks.json` size cap | exists; numeric value not read | `BINARY` MEDIUM (a refusal template reports an oversized `hooks.json` as unread) |
 
 Both module-graph limits are counted over the transitive import closure, and both
-refuse at the offending file: *"was not read"*, so the load fails at the import
+refuse at the offending file, reporting it unread, so the load fails at the import
 rather than truncating. `BINARY` · HIGH ·
 `repo-primary/RESEARCH-enablement-and-limits.md`.
 
