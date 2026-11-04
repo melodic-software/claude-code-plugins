@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.wrap_column: pass, inert, plugins/notes/skills/summary/SKILL.md:6\n\ncritical-findings: 0",
+      "why": "inert, no flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.wrap_column: flag, new key outside the inert set\n\nseverity: IMPORTANT",
+      "why": "flags the inert key"
+    }
+  ]
+}

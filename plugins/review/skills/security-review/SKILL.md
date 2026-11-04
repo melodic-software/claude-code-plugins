@@ -306,11 +306,22 @@ eligible for skip 2. Compare the base and head manifests:
   pinned by `lib/view-settings.test.mjs`, the block "a publishing value counts only from a trusted
   scope". As of: 2026-11-03. Recheck trigger: that block is removed, or a `medium` key stops
   resolving through `view-settings.mjs`.
+- An inert key is advisory too. Judge the guard bullet first; a key it makes a finding stays one.
+  An added or changed `userConfig` key is inert when all of these hold: its `type` is `number` or
+  `boolean`; it is not `sensitive`; and, searched across the plugin's own files at head, its only
+  reader is skill or agent body text, so `${user_config.<key>}` appears only in `.md` files under
+  that plugin's `skills/` or `agents/`. It is not inert when the key's value reaches a hook, an MCP,
+  LSP or monitor server, a channel, a script or any other code file, whether as
+  `${user_config.<key>}` or as the `CLAUDE_PLUGIN_OPTION_<KEY>` environment variable the plugin's
+  code reads. An inert key gets one summary line, `manifest userConfig.<key>: pass, inert, <the
+  file and line that reads it>`, treated like a selector's line: no inline comment, no `severity:`
+  line, nothing in the findings total or `critical-findings: <n>`, and never `hold`. Basis: owner
+  decision Q3, 2026-11-04, in the owner-decisions record of `melodic-software/architecture`.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
   `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace
   entry's `tags` and `category`, a `userConfig` key's `title` and `description`, and a changed
-  (not added or removed) `version`, or it is a selector key (above). On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
+  (not added or removed) `version`, or it is a selector or inert key (above). On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
   path, package, or URL with its pin), or what installed users get on update. A source outside
   the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
   the command needs also gets its exploit path.
