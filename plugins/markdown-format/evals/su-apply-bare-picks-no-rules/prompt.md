@@ -9,4 +9,4 @@ expected_outcome: "Bare apply installs nothing and names apply install-lint as t
 
 /markdown-format:setup apply
 
-Suppose markdownlint-cli2 were missing here. We have no markdownlint config either. What will bare apply do about each? Does it install the linter, and which exact invocation authorizes an install? Will it pick rules for us? This repo has no package.json: what would an install do here, and what if there were two lockfiles, or a lockfile that contradicts packageManager?
+Suppose markdownlint-cli2 were missing here. We have no markdownlint config either. What will bare apply do about each? Does it install the linter, and which exact invocation authorizes an install? Will it pick rules for us? This repo has no package.json: what would an install do here, and what if there were two lockfiles, or a lockfile that contradicts packageManager? Can it give us a starter config at all?

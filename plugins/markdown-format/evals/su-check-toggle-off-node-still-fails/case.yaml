@@ -22,7 +22,7 @@ graders:
     focus: 'last_message'
   - name: 'resolving-not-enough'
     type: 'llm'
-    criteria: 'The reply says node resolving on PATH is not enough for a PASS: node --version must run, and a non-zero exit is FAIL.'
+    criteria: 'The reply says node resolving on PATH is not enough for a PASS: node --version must succeed.'
     focus: 'last_message'
   - name: 'no-install'
     type: 'tool_used'

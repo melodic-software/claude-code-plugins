@@ -47,7 +47,7 @@ graders:
     focus: 'last_message'
   - name: 'commit-can-rewrite'
     type: 'llm'
-    criteria: 'The reply says the entry formats staged Markdown at commit and stages the result, so a commit can change the Markdown files it contains.'
+    criteria: 'The reply says a commit can format or change the Markdown files it contains.'
     focus: 'last_message'
   - name: 'partly-staged-refused'
     type: 'llm'

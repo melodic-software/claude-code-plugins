@@ -13,7 +13,7 @@ graders:
     focus: 'last_message'
   - name: 'gated-info-needs-approval'
     type: 'llm'
-    criteria: 'The reply reports the tools/ and scripts/ configs as INFO and gated: markdownlint-cli2 runs under them only after the user approves that config state, and until then their files are neither rewritten nor checked.'
+    criteria: 'The reply reports the tools/ and scripts/ configs as INFO and gated: markdownlint-cli2 runs under them only after the user approves that config state.'
     focus: 'last_message'
   - name: 'node-modules-not-listed'
     type: 'llm'
