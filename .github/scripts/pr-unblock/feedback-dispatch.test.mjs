@@ -1239,6 +1239,16 @@ test("a dispatch whose fetch fails names the call and the cause, never the cause
   assert.equal(await annotationFor("no name"), `::error::pr-feedback dispatch failed: fetch failed on ${call} (TypeError)`);
 });
 
+test("a permission read whose fetch fails names the call, and a 404 is still none", async () => {
+  const cause = Object.assign(new Error("connect failed"), { code: "ETIMEDOUT" });
+  const answers = [() => { throw new TypeError("fetch failed", { cause }); }, () => new Response("{}", { status: 404 })];
+  const fetch = async () => answers.shift()();
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  const error = await api.getPermission("someone").then(() => assert.fail("the read resolved"), (thrown) => thrown);
+  assert.equal(failureAnnotation(error), `::error::pr-feedback dispatch failed: fetch failed on GET https://api.example/repos/${REPOSITORY}/collaborators/someone/permission (TypeError ETIMEDOUT)`);
+  assert.equal(await api.getPermission("someone"), "none");
+});
+
 // The GraphQL fallback is a read: it is aborted at the attempt timeout (5 ms
 // here) instead of hanging the step. Without it the test times out.
 test("pullsForCommit aborts a hung GraphQL fallback at the attempt timeout", { timeout: 5000 }, async () => {

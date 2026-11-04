@@ -1442,15 +1442,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
+  // A network error names no call; the annotation needs which one failed.
+  const send = (url, init) =>
+    fetch(url, init).catch((error) => {
+      throw Object.assign(error, { call: `${init.method ?? "GET"} ${url}` });
+    });
+
   async function request(url, method = "GET", body, signal) {
-    const response = await fetch(url, {
+    const response = await send(url, {
       method,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
-    }).catch((error) => {
-      // A network error names no call; the annotation needs which one failed.
-      throw Object.assign(error, { call: `${method} ${url}` });
     });
     if (!response.ok) {
       throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true, detail: await responseDetail(response) });
@@ -1491,7 +1494,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
       const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
-      const response = await fetch(url, { headers });
+      const response = await send(url, { headers });
       if (response.status === 404) {
         return "none";
       }
