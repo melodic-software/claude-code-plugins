@@ -31,10 +31,10 @@ Make a fresh directory under the OS temp directory (`mktemp -d`), never in the w
 - `--blast-radius` when a plan or `/review:quality-gate downstream` assessed one.
 - `--policy` only when the reader passed it.
 
-The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. Print each line of `medium.report` as it stands: it names the medium and what decided it, then any notice. Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
+The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. The script resolves `medium` through the shared medium resolver (`lib/view-settings.mjs`): take the medium from its output, not from the rendered-views settings files. Print each line of `medium.report` as it stands: it names the medium and what decided it, then any notice. Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
 
 - `skip`: stop without output.
-- `offer`: say in one sentence which triggers fired and offer the digest, naming where the page would go: "a private Artifact on claude.ai" when `medium` is `artifact`, "the shared page host" when it is `hosted`, else a local file or the terminal. Go on only when the reader accepts.
+- `offer`: say in one sentence which triggers fired and offer the digest, naming where the page would go as `medium.where` states it. Go on only when the reader accepts.
 - `build`: go on.
 
 ## 2. Write the record
@@ -95,7 +95,7 @@ This skill never relies on a permission prompt to stop an Artifact publish: the 
 The gate takes no repository or visibility argument: it reads the repository and host from the pull request `url` in step 1's `facts.json` and looks up that repository's visibility itself, the way `publish-hosted.mjs` does; no visibility from the facts file or the model reaches it. A missing facts file, one with no pull request URL, a host this machine is not logged in to, or a failed lookup gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.explicit` is `true`, that is, the reader's own setting chose `artifact`, never the shipped default. The gate prints the `medium` to use and why:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. Who can see a published Artifact is read at [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact); as of 2026-10-11; recheck trigger: that section stops saying a published artifact stays private until shared, and then drop "private" from the line above. When the tool is unavailable or refused, give the path and say why.
-- `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: setting the review plugin's `medium` option to `artifact` publishes such pages anyway.
+- `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in` as it stands: it names the review plugin's `medium` setting that publishes such pages anyway.
 - `medium: file` from step 1: tell the reader the path. A reader who keeps digests on their machine sets the review plugin's `medium` option to `file`.
 
 If the publish gate exits non-zero or its result is unclear, keep the page as a file and do not publish.
@@ -114,7 +114,7 @@ The script reads the repository, host and pull request number from the pull requ
 
 ### Answer the reader's questions from the page
 
-The reader can ask this session questions from the page instead of pasting them. Only when the page stays a file (`medium: file`, or the gate returned `file`) and the reader is at this machine: the page is served from `127.0.0.1`. A connected page is never published, so skip this for `artifact` and `hosted`, and when python3 or curl is missing. The copy and save buttons still close the loop.
+The reader can ask this session questions from the page instead of pasting them. Only when the page stays a local file (`medium.publishes` is `false`, or the `--publish-gate` run returned `file`) and the reader is at this machine: the page is served from `127.0.0.1`. A connected page is never published, so skip this in every other case, and when python3 or curl is missing. The copy and save buttons still close the loop.
 
 1. Start the view server on a new data dir under the OS temp directory, never beside the record (`ensure-running` creates it private):
 

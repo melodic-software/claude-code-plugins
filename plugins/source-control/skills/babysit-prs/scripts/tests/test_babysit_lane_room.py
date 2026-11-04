@@ -1717,14 +1717,10 @@ class SettleCommand(unittest.TestCase):
         )
         settle.assert_not_called()
 
-    def test_a_canary_finished_since_a_verified_report_refuses_its_reuse(
-        self,
-    ) -> None:
-        # pr-merge's PR-scoped wake reuses the last sweep's report through
-        # this call (pr-merge.yml "Keep the last sweep's report only while
-        # nothing it read has moved"): a fully verified report whose canary,
-        # queued before it, completed after its computedAt is refused before
-        # the lane room's rule runs, and with no report nothing arms.
+    def canary_settle(self, *flags: str) -> tuple[int, str | None, mock.Mock]:
+        """`settle` with `flags` on a fully verified report whose canary,
+        queued before it, completed after its computedAt, the run listings
+        read for real: its exit code, reason and the `settle_shared` mock."""
         queued = FLOOR - timedelta(hours=4)
         report = shared(report={**SETTLED, "outstandingSince": queued.isoformat()})
         red = run(
@@ -1755,16 +1751,19 @@ class SettleCommand(unittest.TestCase):
             mock.patch.object(policy, "check_code_unchanged", return_value=True),
             # The report's own checks are the clock's; this case is the runs'.
             mock.patch.object(ve.postmerge, "idle_report_refusal", return_value=None),
+            mock.patch.object(ve.postmerge, "idle_marks_refusal", return_value=None),
             mock.patch.object(policy, "_default_branch", return_value="main"),
             mock.patch.object(policy, "_default_branch_config", return_value=config()),
             mock.patch.object(pm, "_read", side_effect=read),
-            mock.patch.object(policy, "settle_shared") as settle,
+            mock.patch.object(
+                policy, "settle_shared", return_value=("answer", None)
+            ) as settle,
             contextlib.redirect_stdout(out),
         ):
             code = ve.main(
                 [
                     "settle",
-                    "--idle-tick",
+                    *flags,
                     "--repo",
                     REPO,
                     "--postmerge-result",
@@ -1773,8 +1772,27 @@ class SettleCommand(unittest.TestCase):
                     MAIN,
                 ]
             )
-        self.assertEqual(code, 1)
-        self.assertEqual(json.loads(out.getvalue())["reason"], "idle tick runs-changed")
+        return code, json.loads(out.getvalue())["reason"], settle
+
+    def test_a_fresh_report_stands_though_a_canary_finished_as_it_ran(
+        self,
+    ) -> None:
+        # The same report as the wake's own check just made it: the canary
+        # that finished as the check ran is in the report, not a move since.
+        code, reason, settle = self.canary_settle("--idle-tick", "--fresh")
+        self.assertEqual((code, reason), (0, None))
+        settle.assert_called_once()
+
+    def test_a_canary_finished_since_a_verified_report_refuses_its_reuse(
+        self,
+    ) -> None:
+        # pr-merge's PR-scoped wake reuses the last sweep's report through
+        # this call (pr-merge.yml "Keep the last sweep's report only while
+        # nothing it read has moved"): a fully verified report whose canary,
+        # queued before it, completed after its computedAt is refused before
+        # the lane room's rule runs, and with no report nothing arms.
+        code, reason, settle = self.canary_settle("--idle-tick")
+        self.assertEqual((code, reason), (1, "idle tick runs-changed"))
         settle.assert_not_called()
 
     def test_changed_verifying_runs_refuse_before_the_lane_rooms_reads(self) -> None:
@@ -1795,6 +1813,52 @@ class SettleCommand(unittest.TestCase):
         )
         self.assertEqual((code, out["reason"]), (1, "idle tick stale-soon"))
         self.assertEqual(self.order, ["report", "runs", "settle", "marks", "report"])
+
+    def test_a_fresh_report_skips_the_runs_its_own_check_just_read(self) -> None:
+        # 41737390591: the wake's fresh report, computed seconds earlier, was
+        # refused `runs-changed`. With --fresh the verifying runs are not
+        # read; the report checks and the quarantine and pin reads still are.
+        fresh = ("--idle-tick", "--fresh")
+        code, out, _ = self.main(
+            ("answer", None), extra=fresh, idle_runs="runs-changed"
+        )
+        self.assertEqual(
+            (code, out), (0, {"reuse": True, "reason": None, "outcome": None})
+        )
+        self.idle_runs.assert_not_called()
+        self.assertEqual(self.order, ["report", "settle", "marks", "report"])
+        # The wake's no full run, no re-run, no hold contract still holds.
+        code, out, _ = self.main(
+            ("answer", None), extra=fresh, idle_report="needs-dispatch"
+        )
+        self.assertEqual((code, out["reason"]), (1, "idle tick needs-dispatch"))
+        self.assertEqual(self.order, ["report"])
+        code, out, _ = self.main(("answer", None), extra=fresh, idle="pins-changed")
+        self.assertEqual((code, out["reason"]), (1, "idle tick pins-changed"))
+        code, out, _ = self.main(
+            (None, "post-merge answer stale"), extra=fresh, idle_runs="runs-changed"
+        )
+        self.assertEqual((code, out["reason"]), (1, "post-merge answer stale"))
+        self.idle.assert_not_called()
+
+    def test_fresh_needs_the_idle_tick(self) -> None:
+        with (
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit) as stop,
+        ):
+            ve.main(
+                [
+                    "settle",
+                    "--fresh",
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/tmp/x.json",
+                    "--code-sha",
+                    MAIN,
+                ]
+            )
+        self.assertEqual(stop.exception.code, 2)
 
 
 class LaneRoomCommand(unittest.TestCase):

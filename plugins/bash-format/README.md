@@ -29,9 +29,12 @@ for formatting. It ships no rules of its own.
   as a format gate would rewrite shell files to shfmt's built-in defaults. A repo whose
   `.editorconfig` only configures other languages (or has none) likewise leaves shell files
   untouched. Path-only sections like `[scripts/**]` are also excluded; use an explicit shell glob.
-  shfmt runs with no parser/printer flags, so your `.editorconfig` is authoritative, and with
-  `--apply-ignore` so an `ignore = true` section (e.g. for generated or vendored scripts) is
-  honored even on a single named file.
+  shfmt runs with no parser/printer flags and with `--apply-ignore`, so your `.editorconfig`
+  sets the style and an `ignore = true` section (e.g. for generated or vendored scripts) excludes
+  a file. For what each does, see the DESCRIPTION section and the `--apply-ignore` entry of the
+  [shfmt manual page](https://github.com/mvdan/sh/blob/master/cmd/shfmt/shfmt.1.scd), which the
+  [mvdan/sh README: shfmt](https://github.com/mvdan/sh#shfmt) section links (as of 2026-11-03;
+  recheck when either changes how EditorConfig options or ignore rules apply).
 - **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a file
   that already drifted from your style is formatted in full, as the pre-commit entry would.
 - **A rewrite that would change an array subscript is put back.** shfmt parses an unquoted
@@ -51,9 +54,11 @@ for formatting. It ships no rules of its own.
   read with `--to-json`, or with `-tojson` on a shfmt older than 3.8, since 3.4 and 3.5 have no
   `--to-json`. When the tree cannot be read, the rewrite is put back, because an unchecked rewrite
   may have changed a key. A file shfmt leaves unchanged reads no tree and costs no extra process.
-- **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking up from the file's
-  directory; shfmt reads `.editorconfig` the same way. Files under `.githooks/` (installed copies)
-  are skipped.
+- **Config from the consumer.** Both tools read their configuration from your repository:
+  `.shellcheckrc` for ShellCheck and `.editorconfig` for shfmt. For how each file is found, see
+  [ShellCheck manual: RC FILES](https://github.com/koalaman/shellcheck/blob/master/shellcheck.1.md#rc-files)
+  and the shfmt manual page linked above (as of 2026-11-03; recheck when either changes where it
+  looks for its file). Files under `.githooks/` (installed copies) are skipped.
 - **Gitignored files are skipped by default in the session.** The batch row does not rewrite a file
   the repository gitignores, silently, since a rewrite of an ignored file has no git checkout to
   undo it. Set `bash_format_lint_gitignored` to `true` to act on them too. A tracked file that

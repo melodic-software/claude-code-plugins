@@ -99,14 +99,14 @@
       "id": 8,
       "name": "offers-built-candidate-view",
       "prompt": "/planning:brainstorm how could we cut our CI runtime? Intake is done: the problem is confirmed, my why is that developers wait on CI before every merge, and I had no ideas of my own. You gave me twelve candidates, can I tick the ones I like in a page?",
-      "expected_output": "The skill keeps the numbered candidate list as the record and offers an interactive view built with the checked-in builder from JSON data, candidates ordered cheapest first, with the destination resolved from the medium cascade key.",
+      "expected_output": "The skill keeps the numbered candidate list as the record and offers an interactive view built with the checked-in builder from JSON data, candidates ordered cheapest first; the builder resolves the medium through the shared resolver and publish gate, and the skill prints its report line.",
       "files": [],
       "expectations": [
         "The numbered candidate list in the conversation stays the record",
-        "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
+        "The view is built by piping JSON to scripts/build-view.mjs with the plugin's medium option, not by writing HTML or script in the session",
         "The candidates in the view keep the cheapest-to-most-ambitious order of the list",
         "The page is not written into the memory slice, even when brainstorm.md is persisted there",
-        "The publish destination comes from the medium key of the rendered-views cascade"
+        "Output prints the builder's report line, `view: <medium> (<what decided it>)`, and delivers what the builder's JSON names without choosing a medium itself"
       ]
     }
   ]
