@@ -356,84 +356,44 @@ plugin off for a project is `enabledPlugins`, and removing it is uninstall.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Turns on the StopFailure detection hook and the module's snapshot writes to the machine-scope rate-limit file. Lines to Claude have their own option. On by default. Read from managed settings first, then user settings. |
-| `model_notices` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MODEL_NOTICES` | Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. Off by default; the toast, transcript line, band row, status tool and snapshot work either way. |
-| `rate_limit_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_REPORT_MODE` | Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
-| `rate_limit_line_threshold` | number | `95` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_THRESHOLD` | Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the pause threshold of a loop lane that opted in to pausing, which stays 95 whatever this is set to. |
-| `rate_limit_approach_pct` | number | `90` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_APPROACH_PCT` | Window use at which Claude gets one approach line before the threshold, 1 to 100; any other value reads as the default. Default 90; at or above the threshold, no approach line is sent. |
-| `rate_limit_line_data` | string | `"verdict,percent,window,reset"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_DATA` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,percent,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
-| `rate_limit_guard_band` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_BAND` | Draws the 5-hour and 7-day window figures in a row above the prompt. Off by default. Turn it on in /config, or for one session with /rate-limit-guard band on. |
-| `rate_limit_guard_toast` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_TOAST` | Shows a toast and writes one transcript line when a rate-limit window nears or reaches the line threshold, or resets from it. Off keeps the transcript line. On by default. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `rate_limit_guard_enabled` | boolean | `true` | Turns on the StopFailure detection hook and the module's snapshot writes to the machine-scope rate-limit file. Lines to Claude have their own option. On by default. Read from managed settings first, then user settings. |
+| `model_notices` | boolean | `false` | Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. Off by default; the toast, transcript line, band row, status tool and snapshot work either way. |
+| `rate_limit_report_mode` | string | `"automatic"` | Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
+| `rate_limit_line_threshold` | number | `95` | Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the pause threshold of a loop lane that opted in to pausing, which stays 95 whatever this is set to. |
+| `rate_limit_approach_pct` | number | `90` | Window use at which Claude gets one approach line before the threshold, 1 to 100; any other value reads as the default. Default 90; at or above the threshold, no approach line is sent. |
+| `rate_limit_line_data` | string | `"verdict,percent,window,reset"` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,percent,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
+| `rate_limit_guard_band` | boolean | `false` | Draws the 5-hour and 7-day window figures in a row above the prompt. Off by default. Turn it on in /config, or for one session with /rate-limit-guard band on. |
+| `rate_limit_guard_toast` | boolean | `true` | Shows a toast and writes one transcript line when a rate-limit window nears or reaches the line threshold, or resets from it. Off keeps the transcript line. On by default. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `rate-limit-guard@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure rate-limit-guard@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure rate-limit-guard@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"rate_limit_guard_enabled": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "rate-limit-guard@<marketplace>": {
-         "options": {
-           "rate_limit_guard_enabled": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 
