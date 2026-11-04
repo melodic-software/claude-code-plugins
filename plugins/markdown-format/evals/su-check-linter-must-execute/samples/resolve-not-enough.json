@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No, it proves more than resolution: check runs the resolved tool with --help, and a shim that resolves but cannot execute is FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The row only confirms the binary resolves on PATH or in node_modules/.bin, and a resolved shim is a PASS.",
+      "why": "resolution passes"
+    },
+    {
+      "answer": "It runs the tool with --help. A shim that resolves but cannot run is reported as INFO.",
+      "why": "wrong grade"
+    }
+  ]
+}

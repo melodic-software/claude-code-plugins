@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "At commit the entry formats staged Markdown and re-stages it, so a commit can change the files it contains."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "At commit the entry reports lint findings and blocks the commit; it changes nothing.",
+      "why": "check only"
+    }
+  ]
+}

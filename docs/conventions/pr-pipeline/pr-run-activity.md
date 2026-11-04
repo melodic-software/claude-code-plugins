@@ -738,15 +738,24 @@ tip's [`handoff-evidence.sh`](../../../.github/scripts/lib/handoff-evidence.sh) 
 fallback runs unless the first call's `<call> / report` job has a `Post the check run` step that
 succeeded. A skipped or absent report job, which every handoff leaves, decides that at once from
 the job's own conclusion; a report that ran answers through its step, which the script reads again
-with backoff for about five minutes while the jobs listing returns it empty, then fails the job with
-one error line. Each read after the first sends each listing page that came with an `etag` as a
-conditional request, and a `304` reuses the page it already read. A failed read runs the fallback
-too, except for `fix-docs`.
+while the jobs listing returns it empty, each wait drawn at random from 0 to a capped backoff, until
+the waits reach about five minutes, then fails the job with one error line. `pr-refine.yml`'s two
+handoff jobs set `HANDOFF_EVIDENCE_LAG=notice`, so there that lag ends as one notice with no handoff
+fact set; `fix-docs-handoff` still sets `fallback-ready`, which starts nothing without `handed-off`.
+Each read after the first sends each listing page that came with an `etag` as a conditional request,
+and a `304` reuses the page it already read. A failed read runs the fallback too, except for
+`fix-docs`.
 `fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
 broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either.
-`fix-docs-dispatch.mjs` dispatches no PR again once a run for it completed, check or not, unless
-that run is its only one and was lost (`cancelled`, `timed_out` or `startup_failure`). These fallback calls
+A `fix-docs` or `fix-docs-subscription` read that fails, or whose listing does not parse, stops after
+3 failures and holds instead of failing the job: one notice, no output and a green job. A usage error
+or a missing environment variable still fails it, as a failed read still does for every other call.
+`fix-docs-dispatch.mjs` dispatches no PR again once a run for it completed,
+check or not, unless each such run says nothing about the PR: one lost run (`cancelled`, `timed_out`
+or `startup_failure`), or fewer than `limits.limit-stops-per-head` runs that went red, held on that
+read or ended on that lag. It tells a held run from a decline by the job conclusions: a leg that handed off, whose handoff
+job succeeded, with no next leg started. These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
 job, which head code can forge, knows whether it was a credit stop or an empty key.
 
@@ -1455,7 +1464,10 @@ warns of a [classifier gap](README.md#classifier-gaps).
      it, proposing the `.github/dependabot.yml` `ignore` entry, then posts the marker, then closes
      an open pull request. Each step is safe to repeat, so a re-run after a partial failure
      resumes;
-   - `escalate`: escalates `dependency-escalate`;
+   - `escalate`: escalates `dependency-escalate-<owner_reason>`. `intent`, `design`, `security`
+     and `cost` hold for a person, and the hold comment carries that code's stop-reason marker
+     (`.github/scripts/lib/stop-reason.mjs`); `none` routes `fail` with `needs-session`, so it
+     never reaches the owner. A verdict without `owner_reason` is invalid;
    - posts the round marker once per model run, the scan job's verdict attempt; a run with none
      is named `none`, and its marker always posts, since a re-run cannot tell it from another
      round's.
@@ -1847,7 +1859,7 @@ outputs are sent), so the report job differs:
   head `fix-docs-head` reads, a job that runs no head code, as `head-sha`, so a push while the run
   goes posts its check on the head it ran on, not failure on the new head. They also pass
   `post-decline: false`: fix-docs is dispatched once per PR, so a run that stops before its
-  trigger gate posts no `not-assessed` neutral, and its completed run counts as the PR's one run; and
+  trigger gate posts no `not-assessed` neutral, and its green run counts as the PR's one run; and
   `apply-docs-patch` passes `fix-docs-head`'s head as `patch-head-sha`, never the read runner's
   run-job `head-sha` output; apply-patch still applies onto the head its own gate reads and measures the
   `docs` row's refusals from there.
@@ -2243,8 +2255,10 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   comment naming it, once per branch; the next run on the issue deletes it (below):
   `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
-  out that tip, so its patch is made there instead of on the default branch tip. Any failed
-  read, or an answer of the wrong shape, fails the step, so no model runs.
+  out that tip, so its patch is made there instead of on the default branch tip. A failed read,
+  or an answer of the wrong shape, holds: the step writes `proceed=false` and ends green, so no
+  model runs. A bad environment or trusted list, or a failed re-derive
+  (`FIND_PRIOR_KEEP_BEHIND`), still fails the step.
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
@@ -2314,7 +2328,10 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
-  event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
+  event is a listed human's or the lanes App's, or when the trusted list that judges it cannot be
+  read, and never for anyone else's. When the issue's events cannot be read, a run that would open
+  a PR opens none, posts nothing and ends green with a notice: the branch stays unreported, and
+  the next run work-unblock's sweep starts opens the PR from it.
   A PR with that line also gets the `do-not-merge` label right after it opens, or when the run
   reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
   and the issue retried (`hold-label-failed`).
@@ -2322,7 +2339,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
-  `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
+  `patch-protected-path`, `blocked-by-pr`, `blocked-by-issue`, `already-done`, `report-delivered`). A reason with no
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
   A `pushback` exit holds only for a code or an intent cause. A `reason` that opens with a hold
   code (`security-risk`, `cost-risk`, `design-change`, `intent-change`) takes that hold row,
@@ -2344,7 +2361,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   the run named the risk again after its intake rounds were spent. An earlier round's mark does
   not carry over to later runs: intake triage re-judged it before admitting the issue again.
   A `stopped` reason (a `pushback` takes this reading only as the paragraph above says) with no code, or one whose code's route is
-  `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
+  `close`, `host-run`, `attended` or `intake`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
   SSH or access key, `backdoor`, `exploit`, branch protection, `attack`, `unauthorized`, `hijack`,
   in any case and even inside a word; `XSS`, `RCE`, `CVE` or `PAT`, a takeover, `stolen`, a
@@ -2387,12 +2404,20 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   sweep restarts the issue and the next run resumes its branch, while the retry markers since a
   listed human last added `agent-ready`, whatever stop wrote them, are fewer than
   `limits.stop-retries` or the stop's row's `retries`; past that, the stop takes the
-  `retry-spent` row's route. `wait` (`blocked-by-pr`) keeps `agent-ready` with
+  `retry-spent` row's route. The exception is a stop whose row sets `fault: true` when at least one
+  retry was counted, every counted retry was such a stop, and the run made no branch of its own.
+  It holds: it ends green with a notice, keeps `agent-ready` and posts no marker, and the
+  work-unblock sweep re-fires it on the stranded backoff (`limits.stranded-backoff-hours`), at most
+  24 hours between re-fires. A fault hold has no hard count, only that backoff, and a re-fire can
+  spend a model run each time. `wait` (`blocked-by-pr`) keeps `agent-ready` with
   `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep restarts the
   issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
   apart from its retries; a pull request that is not open, or none named, retries instead.
   `intake` removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep,
-  which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
+  which counts `outcome=intake` as a hand-back, sends the issue back through intake. On
+  `blocked-by-issue` (`retries: 1`) the comment also names, outside the quoted run words, the
+  first `#<n>` in the reason as the issue the work must land after, which intake records on its
+  `Blocked by:` line as a blocked-by edge, so admission waits for that issue. `close`
   comments, removes `agent-ready` and closes the issue as completed: `already-done` only once a
   cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
   and its commit message closes the issue, and `report-delivered` only on an

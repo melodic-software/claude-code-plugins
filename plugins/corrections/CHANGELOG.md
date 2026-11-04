@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-11-04
+
+### Added
+
+- `/corrections:codify preferences` ([#7573](https://github.com/melodic-software/claude-code-plugins/issues/7573)): with the `session-flow` plugin installed, reads your typed turns through `/session-flow:audit-sessions excerpts-only`, counts each preference by distinct session against `recurrence.min_occurrences`, and proposes each one you confirm as a line for a user-scope file, never a repository file. You add the line yourself.
+
 ## [0.11.3] - 2026-11-04
 
 ### Changed

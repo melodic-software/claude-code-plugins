@@ -267,7 +267,8 @@ exists to catch. A script covers the pointers. Run the restatement check on the 
 ```
 
 It takes each sub-slice's declared IDs and labels, reads only the root's own index and sidecars
-for lines, and fails a root pointer that drops its claim's label or carries a sweep word. Without
+for lines, and fails a root pointer that drops its claim's label or carries a sweep word, and a
+root sidecar line that cites a claim without its verbatim quote. Without
 `--sub-slice` it would find no ID to look for at a `claims: []` root and pass without reading a
 pointer, and it exits 2 at a root with no sidecar, so the flag is not optional here. Cite its exit
 status as acceptance-gate step 5 for the root; the eligibility check has no claim of the root's to
@@ -329,9 +330,9 @@ run's marked one is still sitting there. Hence the ladder's first move on a disc
 ## The restatement and eligibility checks
 
 Two scripts check, at write time, the format and calibration rules a verifier would otherwise
-fail by hand: label and sweep-word drift in restatements (row 12), single-source flag eligibility
-(row 4), and the tier mix behind `HIGH` (row 7). Each runs on the directory of the index, as one
-plain command:
+fail by hand: label, sweep-word and sidecar-quote drift in restatements (row 12), single-source
+flag eligibility (row 4), and the tier mix behind `HIGH` (row 7). Each runs on the directory of
+the index, as one plain command:
 
 ```bash
 "<plugin-root>/scripts/check-restatement-labels.py" <that index's directory>
@@ -342,11 +343,13 @@ The rules they check are in [`artifact-shape.md`](artifact-shape.md): "Restateme
 not restate", and the `claim_kind:` and `source_owner:` paragraph under the sidecar header. Both
 read exit status the same way: **0** pass; **1** a violation, one stderr line per line or claim
 at fault; **2** ungradeable (a header the parser cannot read, an `id:` outside the claim-ID grammar,
-one ID declared twice, or a usage error). Both 1 and 2 are FAILs.
+a claim with an `id:` and no `claim:` text (the restatement check), one ID declared twice, or a
+usage error). Both 1 and 2 are FAILs.
 
 **They fail closed at the researcher.** The researcher runs both before hand-back, fixes each
-reported line or claim (shrinking a restatement to a pointer, lowering a confidence, or splitting a
-content claim from a behavior claim), and re-runs until both exit 0. A label or a flag fixed there
+reported line or claim (shrinking a restatement to a pointer in the index or to the verbatim quote
+in a sidecar, lowering a confidence, or splitting a content claim from a behavior claim), and
+re-runs until both exit 0. A label or a flag fixed there
 never reaches a verifier.
 
 **The parent re-runs them as acceptance-gate step 5**, after the source-applicability check and

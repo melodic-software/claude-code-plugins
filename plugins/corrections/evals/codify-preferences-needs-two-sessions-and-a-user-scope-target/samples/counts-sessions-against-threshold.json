@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Threshold 2 (defaults).\n- ISO dates: 2 sessions.\n- No emoji: 2 sessions.\nDropped: Makefile tabs, seen in one session.",
+      "why": "counts by session"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Threshold 2 (defaults).\n- ISO dates: 3 occurrences.\n- No emoji: 2.\nDropped: Makefile tabs, seen once.",
+      "why": "counted by line"
+    },
+    {
+      "answer": "- ISO dates: 2 sessions.\n- No emoji: 2 sessions.\nDropped: Makefile tabs, one session.",
+      "why": "no threshold stated"
+    },
+    {
+      "answer": "Threshold 2.\n- ISO dates: 2 sessions.\n- No emoji: 2 sessions.\n- Makefile tabs: 1 session, kept because it is a firm request.",
+      "why": "one-session request kept"
+    }
+  ]
+}

@@ -567,122 +567,83 @@ reported low-confidence rather than authoritative.
 
 ### Options reference
 
-Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
-will prompt for when the plugin is enabled, with the environment variable each hook
-reads it from.
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
-| Option | Type | Default | Environment variable | Description |
-| --- | --- | --- | --- | --- |
-| `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes. |
-| `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
-| `branch_issue_pattern` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN` | Deprecated fallback: set branch_issue_pattern in docs/conventions/source-control.yaml instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
-| `pr_open_state` | string | `"ready"` | `CLAUDE_PLUGIN_OPTION_PR_OPEN_STATE` | State /source-control:pull-request create leaves a PR in. ready (default) runs the ready action's gates and flips it; draft leaves it for ready to flip later. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value; a request for a draft wins over both. |
-| `fetch_logs_max_bytes` | number<br>*min 1* | `52428800` | `CLAUDE_PLUGIN_OPTION_FETCH_LOGS_MAX_BYTES` | Aborts a CI-log ZIP fetch larger than this many bytes. Default 52428800 (50 MiB). |
-| `worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path outside every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir. Never the in-repo .claude/worktrees/ default. |
-| `worktree_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORKTREE_STALE_DAYS` | Days since last commit before /worktree status classifies a worktree as stale. Default 14. |
-| `worktree_reap_after_hours` | number<br>*min 1* | `48` | `CLAUDE_PLUGIN_OPTION_WORKTREE_REAP_AFTER_HOURS` | Hours since last commit before /worktree cleanup proposes an already-safe worktree for removal by default. Default 48. |
-| `worktree_add_containment_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED` | Blocks a raw Bash git worktree add whose resolved target lands inside a git repository (a working tree, or a .git or bare directory), naming the configured external root. On by default. A conforming target, or one the hook cannot resolve statically, passes silently. |
-| `worktree_add_claim_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED` | After a raw Bash git worktree add, locks the parsed add target with a session-distinct claim (host, session id, timestamp) so concurrent adds cannot steal each other's trees. On by default. Off leaves plain-add trees unclaimed. |
-| `worktree_create_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` | Redirects a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. On by default. Off does not hand placement back to Claude Code: the gate refuses and every harness-driven worktree creation fails. |
-| `babysit_watched_owners` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WATCHED_OWNERS` | GitHub owners (users or orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
-| `babysit_self_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_SELF_LOGINS` | Extra GitHub posting identities (for example a project bot account) added to your gh api user login to form the self set babysit-prs treats as its own. Not a discovery filter. Absent: your gh login alone. |
-| `babysit_intended_write_identity` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_INTENDED_WRITE_IDENTITY` | The single GitHub login babysit-prs's own writes should land under, typically the bot posting identity; a recorded write landing under a different self login surfaces an attribution-drift finding. Set it to one of your self logins. Absent: the check is dormant. |
-| `babysit_default_tier` | string | `"safe"` | `CLAUDE_PLUGIN_OPTION_BABYSIT_DEFAULT_TIER` | Tier an explicit bare /source-control:babysit-prs invocation runs. safe (default) checks, fixes, and reports; worker adds resolving outdated bot threads and gate-proven merges; autopilot adds all authors under the watched owners. Never applies to auto-routed invocations. |
-| `babysit_merge_method` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_METHOD` | Merge method for gate-proven merges. auto (default) uses the repository's declared method, then squash; squash, merge, or rebase forces that method when the repository declares none. |
-| `babysit_stacked_prs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_STACKED_PRS` | Lets the merge gate merge a native stacked PR layer, which lands every open layer below it. Each of those layers must pass the same gate. Off by default: a stack layer is held for a human. |
-| `babysit_autopilot_merge_tier` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_AUTOPILOT_MERGE_TIER` | Turns on the autopilot merge tier: a distinct bot account submits an approving review, then the gate merges only when every criterion holds. Off by default; PRs go to the human merge-ready list. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels. |
-| `babysit_lane_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_LANE_LOGINS` | Logins recognized as pipeline lanes: the autopilot merge tier's lane-authored criterion, and the worker tier's resolve of outdated bot threads a lane already answered on your own PRs. Absent: the tier (when on) refuses fail-closed, and the worker resolves nothing on your own PRs. |
-| `babysit_approver_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_APPROVER_BOT_LOGINS` | Bot logins whose approving review satisfies the autopilot merge tier's author-is-not-approver criterion. Absent: the tier (when on) refuses fail-closed. |
-| `babysit_merge_block_labels` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_BLOCK_LABELS` | Labels that veto an autopilot-merge-tier merge, for example do-not-merge. Absent and undeclared in the target repository: the tier (when on) refuses fail-closed. |
-| `babysit_review_trigger_phrase` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_TRIGGER_PHRASE` | Comment phrase that requests an AI re-review (posted and recognized). Read only from this option: a target repository cannot supply it. Absent: the review-trigger module stays dormant. |
-| `babysit_review_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_BOT_LOGINS` | Logins of the AI review bots the trigger phrase addresses, and whose review of the live head the merge gate waits for. Absent: the review-trigger module and the merge gate's review-settle hold stay dormant. |
-| `babysit_review_settle_minutes` | number | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_SETTLE_MINUTES` | How long after a head appears a review bot's re-review may still be in flight; the merge gate holds an unreviewed head until the window elapses. Requires babysit_review_bot_logins. Absent: the hold stays dormant. Set it above the reviewer's observed latency. |
-| `babysit_review_gate_context` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_GATE_CONTEXT` | Check or status context name of the AI-review gate. Absent: the gate is treated as absent (degrade). |
-| `babysit_ci_gateway_context` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_CI_GATEWAY_CONTEXT` | Check or status context name of a CI gateway check. Absent: gateway classification unused. |
-| `babysit_extra_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_EXTRA_BOT_LOGINS` | Additional logins to treat as bots when structural detection cannot identify them. Absent: structural detection only. |
-| `babysit_extra_dependency_manager_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_EXTRA_DEPENDENCY_MANAGER_LOGINS` | Dependency-manager bot logins beyond the built-in dependabot and renovate set whose PRs the merge gate holds unless --allow-dependency is passed, the same as the built-ins. Absent: the built-in set only. |
-| `babysit_approval_downgrade_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_APPROVAL_DOWNGRADE_LOGINS` | AI reviewer logins whose approval carrying blocking-looking prose is surfaced as a material finding instead of ignored. Every bot's such approval is downgraded to non-blocking regardless. Absent: such approvals are ignored for every bot. |
-| `babysit_skip_downgrade_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_SKIP_DOWNGRADE_LOGINS` | AI reviewer logins whose skip or no-op review is not treated as an approval. Absent: the downgrade heuristic stays dormant. |
-| `babysit_max_quiet_recheck_seconds` | number | `14400` | `CLAUDE_PLUGIN_OPTION_BABYSIT_MAX_QUIET_RECHECK_SECONDS` | Longest a quiet PR may go without a worker recheck, in seconds. Default 14400. |
-| `babysit_stuck_check_age_seconds` | number | `1800` | `CLAUDE_PLUGIN_OPTION_BABYSIT_STUCK_CHECK_AGE_SECONDS` | Minimum age before a pending non-required check under UNSTABLE is reported stuck (a stuck_queued or never_settling material finding). Default 1800. Orphaned status contexts with no backing run are detected structurally and ignore this threshold. |
-| `babysit_advisory_fix_round_cap` | number | `100` | `CLAUDE_PLUGIN_OPTION_BABYSIT_ADVISORY_FIX_ROUND_CAP` | Per-PR cap on advisory-only fix rounds; never caps blocking defects. Default 100. |
-| `babysit_worker_concurrency_cap` | number | `10` | `CLAUDE_PLUGIN_OPTION_BABYSIT_WORKER_CONCURRENCY_CAP` | Maximum per-PR workers dispatched concurrently in one cycle. Default 10. |
-| `babysit_worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WORKTREE_ROOT` | Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir. |
-| `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's babysit-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: a random id made once and kept in the plugin data dir. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
-| `lane_app_slug` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_APP_SLUG` | Slug of the GitHub App whose installation token this lane runs under; babysit-loop's telemetry upsert resolves its write identity as <slug>\[bot\]. Absent: the identity comes from the token's user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
-| `promotion_evidence_binding` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING` | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
-| `promotion_evidence_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_ROOT` | Absolute path to the protected --probe-evidence-root directory isolation probe transcripts resolve against, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
-| `promotion_evidence_source` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_SOURCE` | Absolute path to the operator-published, epoch-scoped promotion-evidence events file (--evidence), outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
-| `promotion_evidence_checker` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_CHECKER` | Absolute path to the check-security-binding.mjs the seam runs, from an autonomy install the operator trusts, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
-| `promotion_evidence_credential_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_CREDENTIAL_ROOTS` | Comma-separated absolute paths trusted as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp/temp/shm or inside the repository or lane worktrees. User or managed settings only; --settings does not count. Absent: credential-probe isolation proofs stay unproven. |
-| `promotion_evidence_max_age_hours` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_MAX_AGE_HOURS` | Positive whole number of hours: after a demotion record restarts the evidence window, a cell re-earns promotion only when the events file's sidecar generated_at is no older than this. User or managed settings only; --settings does not count. Absent: a demoted cell stays effective-unpromoted. |
-| `setup_inference_window` | string | `"1 year"` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_WINDOW` | git log --since window /source-control:setup samples for commit-subject convention inference; any git approxidate, for example 1 year or 6 months. Default 1 year. |
-| `setup_inference_recency_days` | number<br>*min 1* | `90` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_RECENCY_DAYS` | Boundary for the recency split in /source-control:setup's convention-inference report: subjects newer than this many days are the recent bucket, weighted as the live convention when its share diverges from the older bucket. Default 90. |
-| `setup_inference_min_commits` | number<br>*min 1* | `50` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_MIN_COMMITS` | Below this many classifiable subjects in the window, /source-control:setup widens inference to full history; still below it, the inference is reported low-confidence. Default 50. |
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `pr_body_linkage_gate_enabled` | boolean | `true` | Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes. |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
+| `branch_issue_pattern` | string | *(none)* | Deprecated fallback: set branch_issue_pattern in docs/conventions/source-control.yaml instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
+| `pr_open_state` | string | `"ready"` | State /source-control:pull-request create leaves a PR in. ready (default) runs the ready action's gates and flips it; draft leaves it for ready to flip later. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value; a request for a draft wins over both. |
+| `review_venue` | string | `"auto"` | Who reviews a PR before the ready flip. auto (default) reviews locally only where no healthy CI lane does; local always reviews locally; ci leaves it to the CI lanes; both does both. A repository's review_venue in docs/conventions/source-control.yaml wins over this value. |
+| `fetch_logs_max_bytes` | number<br>*min 1* | `52428800` | Aborts a CI-log ZIP fetch larger than this many bytes. Default 52428800 (50 MiB). |
+| `worktree_root` | directory | *(none)* | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path outside every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir. Never the in-repo .claude/worktrees/ default. |
+| `worktree_stale_days` | number<br>*min 1* | `14` | Days since last commit before /worktree status classifies a worktree as stale. Default 14. |
+| `worktree_reap_after_hours` | number<br>*min 1* | `48` | Hours since last commit before /worktree cleanup proposes an already-safe worktree for removal by default. Default 48. |
+| `worktree_add_containment_gate_enabled` | boolean | `true` | Blocks a raw Bash git worktree add whose resolved target lands inside a git repository (a working tree, or a .git or bare directory), naming the configured external root. On by default. A conforming target, or one the hook cannot resolve statically, passes silently. |
+| `worktree_add_claim_gate_enabled` | boolean | `true` | After a raw Bash git worktree add, locks the parsed add target with a session-distinct claim (host, session id, timestamp) so concurrent adds cannot steal each other's trees. On by default. Off leaves plain-add trees unclaimed. |
+| `worktree_create_gate_enabled` | boolean | `true` | Redirects a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. On by default. Off does not hand placement back to Claude Code: the gate refuses and every harness-driven worktree creation fails. |
+| `babysit_watched_owners` | string (multiple) | *(none)* | GitHub owners (users or orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
+| `babysit_self_logins` | string (multiple) | *(none)* | Extra GitHub posting identities (for example a project bot account) added to your gh api user login to form the self set babysit-prs treats as its own. Not a discovery filter. Absent: your gh login alone. |
+| `babysit_intended_write_identity` | string | *(none)* | The single GitHub login babysit-prs's own writes should land under, typically the bot posting identity; a recorded write landing under a different self login surfaces an attribution-drift finding. Set it to one of your self logins. Absent: the check is dormant. |
+| `babysit_default_tier` | string | `"safe"` | Tier an explicit bare /source-control:babysit-prs invocation runs. safe (default) checks, fixes, and reports; worker adds resolving outdated bot threads and gate-proven merges; autopilot adds all authors under the watched owners. Never applies to auto-routed invocations. |
+| `babysit_merge_method` | string | `"auto"` | Merge method for gate-proven merges. auto (default) uses the repository's declared method, then squash; squash, merge, or rebase forces that method when the repository declares none. |
+| `babysit_stacked_prs` | boolean | `false` | Lets the merge gate merge a native stacked PR layer, which lands every open layer below it. Each of those layers must pass the same gate. Off by default: a stack layer is held for a human. |
+| `babysit_autopilot_merge_tier` | boolean | `false` | Turns on the autopilot merge tier: a distinct bot account submits an approving review, then the gate merges only when every criterion holds. Off by default; PRs go to the human merge-ready list. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels. |
+| `babysit_lane_logins` | string (multiple) | *(none)* | Logins recognized as pipeline lanes: the autopilot merge tier's lane-authored criterion, and the worker tier's resolve of outdated bot threads a lane already answered on your own PRs. Absent: the tier (when on) refuses fail-closed, and the worker resolves nothing on your own PRs. |
+| `babysit_approver_bot_logins` | string (multiple) | *(none)* | Bot logins whose approving review satisfies the autopilot merge tier's author-is-not-approver criterion. Absent: the tier (when on) refuses fail-closed. |
+| `babysit_merge_block_labels` | string (multiple) | *(none)* | Labels that veto an autopilot-merge-tier merge, for example do-not-merge. Absent and undeclared in the target repository: the tier (when on) refuses fail-closed. |
+| `babysit_review_trigger_phrase` | string | *(none)* | Comment phrase that requests an AI re-review (posted and recognized). Read only from this option: a target repository cannot supply it. Absent: the review-trigger module stays dormant. |
+| `babysit_review_bot_logins` | string (multiple) | *(none)* | Logins of the AI review bots the trigger phrase addresses, and whose review of the live head the merge gate waits for. Absent: the review-trigger module and the merge gate's review-settle hold stay dormant. |
+| `babysit_review_settle_minutes` | number | *(none)* | How long after a head appears a review bot's re-review may still be in flight; the merge gate holds an unreviewed head until the window elapses. Requires babysit_review_bot_logins. Absent: the hold stays dormant. Set it above the reviewer's observed latency. |
+| `babysit_review_gate_context` | string | *(none)* | Check or status context name of the AI-review gate. Absent: the gate is treated as absent (degrade). |
+| `babysit_ci_gateway_context` | string | *(none)* | Check or status context name of a CI gateway check. Absent: gateway classification unused. |
+| `babysit_extra_bot_logins` | string (multiple) | *(none)* | Additional logins to treat as bots when structural detection cannot identify them. Absent: structural detection only. |
+| `babysit_extra_dependency_manager_logins` | string (multiple) | *(none)* | Dependency-manager bot logins beyond the built-in dependabot and renovate set whose PRs the merge gate holds unless --allow-dependency is passed, the same as the built-ins. Absent: the built-in set only. |
+| `babysit_approval_downgrade_logins` | string (multiple) | *(none)* | AI reviewer logins whose approval carrying blocking-looking prose is surfaced as a material finding instead of ignored. Every bot's such approval is downgraded to non-blocking regardless. Absent: such approvals are ignored for every bot. |
+| `babysit_skip_downgrade_logins` | string (multiple) | *(none)* | AI reviewer logins whose skip or no-op review is not treated as an approval. Absent: the downgrade heuristic stays dormant. |
+| `babysit_max_quiet_recheck_seconds` | number | `14400` | Longest a quiet PR may go without a worker recheck, in seconds. Default 14400. |
+| `babysit_stuck_check_age_seconds` | number | `1800` | Minimum age before a pending non-required check under UNSTABLE is reported stuck (a stuck_queued or never_settling material finding). Default 1800. Orphaned status contexts with no backing run are detected structurally and ignore this threshold. |
+| `babysit_advisory_fix_round_cap` | number | `100` | Per-PR cap on advisory-only fix rounds; never caps blocking defects. Default 100. |
+| `babysit_worker_concurrency_cap` | number | `10` | Maximum per-PR workers dispatched concurrently in one cycle. Default 10. |
+| `babysit_worktree_root` | directory | *(none)* | Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir. |
+| `lane_instance` | string | *(none)* | Writer identity for this machine's babysit-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: a random id made once and kept in the plugin data dir. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
+| `lane_app_slug` | string | *(none)* | Slug of the GitHub App whose installation token this lane runs under; babysit-loop's telemetry upsert resolves its write identity as <slug>\[bot\]. Absent: the identity comes from the token's user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
+| `promotion_evidence_binding` | file | *(none)* | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_root` | directory | *(none)* | Absolute path to the protected --probe-evidence-root directory isolation probe transcripts resolve against, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_source` | file | *(none)* | Absolute path to the operator-published, epoch-scoped promotion-evidence events file (--evidence), outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_checker` | file | *(none)* | Absolute path to the check-security-binding.mjs the seam runs, from an autonomy install the operator trusts, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_credential_roots` | string | *(none)* | Comma-separated absolute paths trusted as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp/temp/shm or inside the repository or lane worktrees. User or managed settings only; --settings does not count. Absent: credential-probe isolation proofs stay unproven. |
+| `promotion_evidence_max_age_hours` | string | *(none)* | Positive whole number of hours: after a demotion record restarts the evidence window, a cell re-earns promotion only when the events file's sidecar generated_at is no older than this. User or managed settings only; --settings does not count. Absent: a demoted cell stays effective-unpromoted. |
+| `setup_inference_window` | string | `"1 year"` | git log --since window /source-control:setup samples for commit-subject convention inference; any git approxidate, for example 1 year or 6 months. Default 1 year. |
+| `setup_inference_recency_days` | number<br>*min 1* | `90` | Boundary for the recency split in /source-control:setup's convention-inference report: subjects newer than this many days are the recent bucket, weighted as the live convention when its share diverges from the older bucket. Default 90. |
+| `setup_inference_min_commits` | number<br>*min 1* | `50` | Below this many classifiable subjects in the window, /source-control:setup widens inference to full history; still below it, the inference is reported low-confidence. Default 50. |
 
 ### How to set these
 
-Three supported routes:
+Set the options above for `source-control@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
 
-1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
-   `/plugin configure source-control@<marketplace>`.
-2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
-   run from the project the plugin is installed in. Replace
-   `<marketplace>` with the marketplace you installed this plugin from:
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
 
-   ```shell
-   claude plugin configure source-control@<marketplace> --values-stdin < values.json
-   ```
-
-   `values.json` holds a JSON object of strings, booleans included:
-
-   ```json
-   {"pr_body_linkage_gate_enabled": "<value>"}
-   ```
-
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
-   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
-   value, and why a session started before the change keeps the old value until a fresh
-   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
-   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-
-   The fallback the convention names, for a Claude Code release without
-   `plugin configure`, reruns the install with the new value, passing the scope
-   `claude plugin list` reports for this plugin:
-
-   ```shell
-   claude plugin install source-control@<marketplace> -s <scope> --config pr_body_linkage_gate_enabled=<value>
-   ```
-
-3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
-   settings (`~/.claude/settings.json`):
-
-   ```json
-   {
-     "pluginConfigs": {
-       "source-control@<marketplace>": {
-         "options": {
-           "pr_body_linkage_gate_enabled": <value>
-         }
-       }
-     }
-   }
-   ```
-
-   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from.
-
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
-of the routes above.
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
-- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
+release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

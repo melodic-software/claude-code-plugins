@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The hook's opt-in accepts only biome.json and biome.jsonc, so .biome.json does not count."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".biome.json is the governing config.",
+      "why": "credits the hidden file"
+    },
+    {
+      "answer": "That file looks unusual.",
+      "why": "near miss: no answer on the opt-in"
+    }
+  ]
+}

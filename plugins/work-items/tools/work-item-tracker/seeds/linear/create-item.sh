@@ -117,6 +117,8 @@ if [[ -n "$PARENT_UUID" ]]; then
   }'
   CHILDREN='[]'
   CHILD_CURSOR=""
+  CHILD_SEEN=0
+  CHILD_PAGES=0
   while :; do
     wit_linear_gql "$CHILD_QUERY" \
       "$(jq -cn --arg id "$PARENT_UUID" --argjson f "$WIT_LINEAR_PAGE_SIZE" --arg a "$CHILD_CURSOR" \
@@ -130,6 +132,16 @@ if [[ -n "$PARENT_UUID" ]]; then
       printf 'create-item.sh: could not accumulate the children of %s\n' "$PARENT" >&2
       exit "$EX_INTERNAL"
     }
+    CHILD_SEEN=$((CHILD_SEEN + $(jq '(.nodes // []) | length' <<<"$CHILD_PAGE" 2>/dev/null || echo 0)))
+    CHILD_PAGES=$((CHILD_PAGES + 1))
+    # Bounded by the label walk's ceiling. A truncated child list would read as "no
+    # duplicate" and file one, so passing the ceiling is an error, never a partial check.
+    # Pages are counted too, so a server sending empty pages forever also stops.
+    if ((CHILD_SEEN > WIT_LINEAR_LIST_ITEMS_MAX || CHILD_PAGES > WIT_LINEAR_LIST_ITEMS_MAX)); then
+      printf 'create-item.sh: the children of %s passed the declared ceiling of %s items; created nothing rather than check a partial list for a duplicate\n' \
+        "$PARENT" "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
+      exit "$EX_INTERNAL"
+    fi
     [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$CHILD_PAGE")" == "true" ]] || break
     CHILD_CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$CHILD_PAGE")"
     [[ -n "$CHILD_CURSOR" ]] || break

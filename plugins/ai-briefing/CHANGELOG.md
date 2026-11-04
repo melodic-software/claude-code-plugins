@@ -3,6 +3,18 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.19] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [0.9.18] - 2026-11-04
+
+### Fixed
+
+- **The retired `~/.claude/rendered-views.md` notice no longer points at a `medium` option this plugin does not ship.** The shared medium resolver adds "; per user, the <plugin> plugin's medium option also works" only for a lane whose plugin ships a `medium` userConfig option, which each lane registration in `lib/view-registry.mjs` now records as `hasMediumOption`. `generate` now prints every notice as the resolver gives it, in place of rewriting that notice by hand.
+
 ## [0.9.17] - 2026-11-04
 
 ### Changed

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Searched the tree, skipping node_modules. Found docs/, tools/ and scripts/ configs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Found docs/.markdownlint.jsonc, node_modules/pkg/.markdownlint.json (governs node_modules/pkg/) and others.",
+      "why": "lists the decoy as governing"
+    }
+  ]
+}

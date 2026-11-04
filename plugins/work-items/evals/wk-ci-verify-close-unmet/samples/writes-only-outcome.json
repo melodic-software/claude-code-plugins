@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/w/scratch/work-outcome.json", "content": "{}"}}], "why": "only the outcome"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/w/docs/config.md", "content": "x"}}], "why": "wrote the doc"}
+  ]
+}

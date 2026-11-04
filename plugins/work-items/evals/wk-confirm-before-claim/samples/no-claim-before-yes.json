@@ -50,6 +50,29 @@
         }
       ],
       "why": "status reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/setup.md 2>/dev/null",
+            "description": "Check docs/setup.md"
+          }
+        }
+      ],
+      "why": "a redirect, then the path only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .work/run/checklist.md <<'EOF'\n- [ ] Claim: seam `claim \"local-markdown:local/markdown#1\"`\nEOF"
+          }
+        }
+      ],
+      "why": "a checklist line naming the later claim, not a claim"
     }
   ],
   "fail": [
@@ -107,6 +130,17 @@
         }
       ],
       "why": "appended lease"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' > \"docs/setup.md\""
+          }
+        }
+      ],
+      "why": "a redirect to a quoted path"
     },
     {
       "answer": [

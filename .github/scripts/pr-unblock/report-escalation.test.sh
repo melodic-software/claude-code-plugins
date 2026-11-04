@@ -175,12 +175,22 @@ context_of() {
 # queue with needs-session instead of in front of a person.
 HOLD_REASONS=(feedback-round-cap-security feedback-uncertain-security feedback-disputed-security
   feedback-question-intent feedback-question-design feedback-question-security
-  dependency-security-close dependency-escalate dependency-fix-refused)
+  dependency-security-close dependency-escalate dependency-fix-refused
+  dependency-escalate-intent dependency-escalate-design dependency-escalate-security dependency-escalate-cost)
+# Each hold row's owner reason, the stop-reason code its comment carries: the
+# security rows and dependency-fix-refused (untrusted provenance, a trust hold
+# the owner keeps) are security; a feedback question is its own question.
+declare -A OWNER_REASONS=([feedback-round-cap-security]=security [feedback-uncertain-security]=security
+  [feedback-disputed-security]=security [feedback-question-intent]=intent [feedback-question-design]=design
+  [feedback-question-security]=security [dependency-security-close]=security [dependency-fix-refused]=security [dependency-escalate]=intent
+  [dependency-escalate-intent]=intent [dependency-escalate-design]=design
+  [dependency-escalate-security]=security [dependency-escalate-cost]=cost)
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
   dependency-pin-invalid dependency-pin-not-applied dependency-pin-protected-path
+  dependency-escalate-none
   shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
   shared-copy-patch-protected-path shared-copy-merge-conflicted
   feedback-untaken-threads feedback-unadjudicated feedback-already-addressed
@@ -199,6 +209,13 @@ check "the routing table holds these for a person" \
 check "the routing table queues these for a session builder, each a fail route" \
   "$(printf '%s\n' "${SESSION_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "fail" and .value.label == "needs-session") | .key' "$ROUTES" | sort)"
 check "the routing table names no other label" "" "$(jq -r 'to_entries[] | select(.value | has("label")) | select(.value.route != "fail" or .value.label != "needs-session") | .key' "$ROUTES")"
+check "the routing table names these owner reasons, each on a hold route" \
+  "$(for r in "${!OWNER_REASONS[@]}"; do printf '%s=%s\n' "$r" "${OWNER_REASONS[$r]}"; done | sort)" \
+  "$(jq -r 'to_entries[] | select(.value | has("owner-reason")) | select(.value.route == "hold") | "\(.key)=\(.value."owner-reason")"' "$ROUTES" | sort)"
+check "the routing table names no owner reason off a hold route" "" "$(jq -r 'to_entries[] | select(.value | has("owner-reason")) | select(.value.route != "hold") | .key' "$ROUTES")"
+# The guard: a hold reaches the owner, so every hold row names which owner
+# reason it is, one a person may be handed work for.
+check "every hold row names its owner reason" "" "$(jq -r 'to_entries[] | select(.value.route == "hold") | select((.value."owner-reason" // "") | IN("intent", "design", "security", "cost") | not) | .key' "$ROUTES")"
 for reason in "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}"; do
   check "$reason: the table's activity" "$(activity_of "$reason")" "$(jq -r --arg r "$reason" '.[$r].activity' "$ROUTES")"
 done
@@ -275,6 +292,24 @@ for reason in "${HOLD_REASONS[@]}"; do
   has "$reason: label defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
   check "$reason: the comment run posts no commit status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 done
+
+# A hold row's owner reason: the comment carries ../lib/stop-reason.mjs's
+# marker, which parseReason reads back, and its visible line; the unlisted
+# reason's fail-safe hold carries neither.
+PARSE='const { parseReason } = await import(process.env.LIB); const b = (await import("node:fs")).readFileSync(0, "utf8"); process.stdout.write(JSON.stringify(parseReason(b)));'
+for reason in "${HOLD_REASONS[@]}"; do
+  setup '[]' '[]'
+  run "$reason"
+  parsed=$(LIB="$SCRIPT_DIR/../lib/stop-reason.mjs" node --input-type=module -e "$PARSE" <"$STUB/bodies")
+  code=${OWNER_REASONS[$reason]:-}
+  check "$reason: the stop-reason marker names $code" "{\"lane\":\"pr-unblock\",\"reason\":\"$code\"}" "$parsed"
+  has "$reason: the visible line names $code" "Reason: \`$code\`" "$STUB/bodies"
+  check "$reason: the resume key stays the second line" "<!-- pr-unblock resume-key=$HEAD_A -->" "$(sed -n 2p "$STUB/bodies")"
+done
+setup '[]' '[]'
+run bogus
+check "an unlisted reason's hold carries no stop-reason marker" null \
+  "$(LIB="$SCRIPT_DIR/../lib/stop-reason.mjs" node --input-type=module -e "$PARSE" <"$STUB/bodies")"
 
 # Fail-routed reasons: one lanes-stopped comment, no label, no status from
 # the comment run.

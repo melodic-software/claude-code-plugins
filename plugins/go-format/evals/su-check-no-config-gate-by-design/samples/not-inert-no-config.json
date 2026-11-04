@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. The hook is not inert: it acts on edited Go files as soon as the plugin is enabled, and you have no repo config to add."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, add a .goimports config to the repo root to activate it.",
+      "why": "tells the user to add config"
+    },
+    {
+      "answer": "The hook has its own settings.",
+      "why": "near miss: does not answer whether it is inert"
+    }
+  ]
+}

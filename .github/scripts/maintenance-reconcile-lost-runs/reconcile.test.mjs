@@ -102,6 +102,11 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
       const page = Number(byWorkflow[3] ?? 1);
       return { total_count: found.length, workflow_runs: found.slice((page - 1) * 100, page * 100) };
     }
+    const byStatus = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z&status=([a-z_]+)&per_page=100$/.exec(path);
+    if (method === "GET" && byStatus) {
+      const found = runs.filter((r) => r.status === byStatus[1] || r.conclusion === byStatus[1]);
+      return { total_count: found.length, workflow_runs: found.slice(0, 100) };
+    }
     const jobs = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/attempts\/1\/jobs\?per_page=100$/.exec(path);
     if (method === "GET" && jobs) {
       const found = byId.get(Number(jobs[1]))?.jobs ?? [];
@@ -141,6 +146,7 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
 // no trusted pass holds one), in run 900 after `carryRuns` in this workflow's
 // listing; the pass then writes its own, returned as `settled`.
 const LAST_PASS = { id: 900, path: ".github/workflows/maintenance-reconcile-lost-runs.yml", event: "schedule", head_branch: "main" };
+const CARRY_ARTIFACT = 4242;
 async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, statuses, github: wrap = (g) => g, carry, carryRuns = [], download } = {}) {
   const { github, calls } = fakeGitHub({ pulls, runs, fail, statuses });
   const sleeps = [];
@@ -154,7 +160,7 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
     const artifacts = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/artifacts\?per_page=100$/.exec(path);
     if (carry !== undefined && artifacts) {
       calls.push(`${method} ${path}`);
-      return { total_count: 1, artifacts: [{ name: "reconcile-settled-runs", expired: false }] };
+      return { total_count: 1, artifacts: [{ id: CARRY_ARTIFACT, name: "reconcile-settled-runs", expired: false }] };
     }
     return github(method, path, body);
   });
@@ -188,7 +194,7 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
         download:
           download ??
           ((id) => {
-            assert.equal(id, 900);
+            assert.equal(id, CARRY_ARTIFACT, "the carry is downloaded by the artifact id its listing gave");
             return carry;
           }),
       });
@@ -1033,7 +1039,7 @@ test("verify re-runs that start while the listing is read still take places", as
     pulls: [],
     runs: [...queued, verifyRun(201)],
     github: (g) => async (method, path, body) => {
-      if (path.includes("/workflows/pr-verify.yml/runs?") && path.includes("&status=queued&")) {
+      if (path.startsWith(`/repos/${REPO}/actions/runs?created=`) && path.includes("&status=queued&")) {
         for (const r of queued) {
           r.status = "in_progress";
         }
@@ -1043,6 +1049,55 @@ test("verify re-runs that start while the listing is read still take places", as
   });
   assert.equal(code, 0);
   assert.deepEqual(reruns, []);
+});
+
+// Two lane re-runs already in flight leave one of MAX_IN_FLIGHT's 3 places,
+// which the newest lost run (202, created 19:00) takes; a CI run in progress
+// belongs to neither lane.
+const laneMix = () => [
+  verifyRun(201),
+  verifyRun(202, { created: "2026-10-19T19:00:00Z" }),
+  verifyRun(209, { status: "in_progress", attempt: 2 }),
+  mainReviewRun(309, { status: "queued", attempt: 2 }),
+  run(500, sha(5), { path: CHECKS, status: "in_progress" }),
+];
+const repoWide = (calls) => calls.filter((c) => c.startsWith(`GET /repos/${REPO}/actions/runs?created=`));
+const perLane = (calls) => calls.filter((c) => /\/actions\/workflows\/pr-(verify|review-main)\.yml\/runs\?/.test(c));
+// Every repository-wide listing answers a total past one page.
+const overfull = (g) => async (method, apiPath, body) => {
+  const answer = await g(method, apiPath, body);
+  return apiPath.startsWith(`/repos/${REPO}/actions/runs?created=`) ? { ...answer, total_count: 101 } : answer;
+};
+
+test("the near-empty statuses are listed once repository-wide and split by lane, deciding as the per-lane listings do", async () => {
+  const shared = await reconcile({ pulls: [], runs: laneMix(), carry: null });
+  const fallback = await reconcile({ pulls: [], runs: laneMix(), carry: null, github: overfull });
+  for (const [label, result] of Object.entries({ shared, fallback })) {
+    assert.equal(result.code, 0, label);
+    assert.deepEqual(result.reruns, [202], label);
+    assert.deepEqual(records(result.outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, "", ""], label);
+  }
+  assert.deepEqual(shared.settled, fallback.settled);
+  assert.equal(repoWide(shared.calls).length, 7, "one listing per shared status");
+  assert.equal(perLane(shared.calls).length, 4, "cancelled and failure for each of 2 lanes");
+  assert.equal(repoWide(fallback.calls).length, 7);
+  assert.equal(perLane(fallback.calls).length, 18, "a listing past one page is read per lane, 9 statuses for each of 2 lanes");
+});
+
+test("a repository-wide listing that fails is read per lane, and a rate limit on it stops the run", async () => {
+  const failing = (error) => (g) => async (method, apiPath, body) => {
+    if (apiPath.startsWith(`/repos/${REPO}/actions/runs?created=`) && apiPath.includes("&status=in_progress&")) {
+      throw error;
+    }
+    return g(method, apiPath, body);
+  };
+  const failed = await reconcile({ pulls: [], runs: laneMix(), github: failing(new GitHubError(502, "bad gateway")) });
+  assert.equal(failed.code, 0);
+  assert.deepEqual(failed.reruns, [202]);
+  assert.equal(perLane(failed.calls).filter((c) => c.includes("&status=in_progress&")).length, 2);
+  const limited = await reconcile({ pulls: [], runs: laneMix(), github: failing(new GitHubError(429, "rate limited")) });
+  assert.equal(limited.code, 1);
+  assert.deepEqual(limited.reruns, []);
 });
 
 test("a lane listing past the page cap is a failure, and nothing is called lost", async (t) => {
@@ -1415,6 +1470,7 @@ test("a CI set with no stopped review carries one record, so the cap of 3 bounds
 const LANE = "melodic-automation-lanes[bot]";
 const PASS_RUN = 701;
 const PASS_STARTED = "2026-10-19T19:30:00Z";
+const PASS_EXPIRES = "2026-10-20T19:30:00.000Z";
 // The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
 const FIX_1_DIGEST = "fe65f143bd3d5845";
 // The pre-filter's batched answer holds the issues' comment pages only when its
@@ -1424,7 +1480,7 @@ const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(C
 
 // `updated` is the issue's updatedAt: the edit time by default, else a time
 // before the pass. PR `number` is the head under check.
-function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1 } = {}) {
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1, extra = 0 } = {}) {
   const head = sha(number);
   const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
   const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
@@ -1448,7 +1504,11 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     if (apiPath === `/repos/${REPO}/commits/${head}/pulls?per_page=100&page=1`) return [pull];
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(&page=1)?$/.exec(apiPath);
     if (named && !named[2]) passReads.push(apiPath);
-    if (named) return { artifacts: pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, workflow_run: { id: PASS_RUN } }] : [] };
+    if (named) {
+      const artifacts = pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, expires_at: PASS_EXPIRES, workflow_run: { id: PASS_RUN } }] : [];
+      // `extra` artifacts counted but not on the page: a listing that is not whole.
+      return { total_count: artifacts.length + extra, artifacts };
+    }
     if (apiPath === `/repos/${REPO}/compare/${MAIN_TIP}...main`) return { status: "ahead" };
     if (apiPath === "/graphql" && !body.variables) {
       // The pre-filter's batched read: one alias per candidate.
@@ -1520,6 +1580,75 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
   });
 });
 
+// The pass read the settled carry holds for pr(1)'s head: run 701 started at
+// `started`, its pass expiring at `expires`.
+const passCarry = (started = PASS_STARTED, expires = PASS_EXPIRES) => ({ pr: 1, head: sha(1), runs: [{ id: PASS_RUN, started_at: started }], expires_at: expires });
+const passRunReads = (calls) => calls.filter((c) => c === `GET /repos/${REPO}/actions/runs/${PASS_RUN}`).length;
+// The checks run was created at 18:59:43 and the pass started at 19:30; a
+// spec edited at 19:15 moved after the checks run but not after the pass.
+const EDITED_BEFORE_PASS = "2026-10-19T19:15:00Z";
+
+test("a whole pass read is carried, and the next pass pre-filters the head on it without reading its passes", async () => {
+  await withTrustedList(async (env) => {
+    const first = specChanged({ edited: EDITED_BEFORE_PASS });
+    const read = await reconcile({ ...first.setup, env, carry: null });
+    assert.equal(read.code, 0);
+    assert.deepEqual(read.reruns, []);
+    assert.equal(first.passReads.length, 2, "the pass and pass-notes listings");
+    assert.equal(passRunReads(read.calls), 1);
+    assert.deepEqual(read.settled.passes, [passCarry()]);
+    const second = specChanged({ edited: EDITED_BEFORE_PASS });
+    const carried = await reconcile({ ...second.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry()]) });
+    assert.equal(carried.code, 0);
+    assert.deepEqual(carried.reruns, []);
+    assert.equal(second.passReads.length, 0, "no pass listing");
+    assert.equal(passRunReads(carried.calls), 0, "no pass run read");
+    assert.deepEqual(second.specReads, []);
+    assert.deepEqual(carried.settled.passes, [passCarry()], "the carried read is carried again");
+  });
+});
+
+test("a carried pass read the pre-filter keeps is read again live and decides as a live read does", async () => {
+  await withTrustedList(async (env) => {
+    // The spec moved after the carried pass: read live, and re-run as with no carry.
+    const moved = specChanged({ edited: "2026-10-19T19:45:00Z" });
+    const rerun = await reconcile({ ...moved.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry()]) });
+    assert.deepEqual(rerun.reruns, [601]);
+    assert.equal(moved.passReads.length, 2);
+    const uncarried = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z" }).setup, env, carry: null });
+    assert.deepEqual(uncarried.reruns, [601]);
+    assert.equal(passRunReads(rerun.calls), passRunReads(uncarried.calls), "the live read reads run 701 as a pass with no carry does");
+    // A carry from before a newer pass (19:00, live 19:30): its start keeps
+    // the head, the live read drops it, and resolve-pr is never asked.
+    const stale = specChanged({ edited: EDITED_BEFORE_PASS });
+    const dropped = await reconcile({ ...stale.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry("2026-10-19T19:00:00Z")]) });
+    assert.deepEqual(dropped.reruns, []);
+    assert.deepEqual(stale.specReads, []);
+    assert.equal(stale.passReads.length, 2);
+    assert.deepEqual(dropped.settled.passes, [passCarry()], "the live read replaces the stale one");
+  });
+});
+
+test("an expired carried pass, no carried passes, or a listing that is not whole reads the passes as before", async () => {
+  await withTrustedList(async (env) => {
+    // Expired at 19:59, before NOW (20:00): listed again, but run 701's carried start is not read again.
+    const expired = specChanged({ edited: EDITED_BEFORE_PASS });
+    const listed = await reconcile({ ...expired.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry(PASS_STARTED, "2026-10-19T19:59:00.000Z")]) });
+    assert.deepEqual(listed.reruns, []);
+    assert.equal(expired.passReads.length, 2);
+    assert.equal(passRunReads(listed.calls), 0);
+    const none = specChanged({ edited: EDITED_BEFORE_PASS });
+    const plain = await reconcile({ ...none.setup, env, carry: carryOf([]) });
+    assert.deepEqual(plain.reruns, []);
+    assert.equal(none.passReads.length, 2);
+    assert.equal(passRunReads(plain.calls), 1);
+    const partial = specChanged({ edited: EDITED_BEFORE_PASS, extra: 1 });
+    const cut = await reconcile({ ...partial.setup, env, carry: null });
+    assert.deepEqual(cut.reruns, []);
+    assert.deepEqual(cut.settled.passes, [], "a listing that is not whole is not carried");
+  });
+});
+
 // The gate refuses a pull request past TOO_OLD_DAYS with no counted verdict
 // at its head `verify:too-old` until a fresh pass there: the head's passed
 // checks run is re-run once, recorded, so pr-verify judges it.
@@ -1578,10 +1707,11 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     const count = (part) => reads.filter((r) => r.includes(part)).length;
     assert.equal(count("/actions/artifacts?"), 0);
     assert.equal(count("POST /graphql"), 1);
-    // The pulls page, one run listing per head, nine status listings for each
-    // of pr-verify and pr-review-main, one intake listing, one stopped-verdict
-    // listing and the one pre-filter query.
-    assert.equal(reads.length, 1 + numbers.length + 2 * 9 + 1 + 1 + 1);
+    // The pulls page, one run listing per head, the cancelled and failure
+    // listings for each of pr-verify and pr-review-main, one repository-wide
+    // listing for each of the other seven statuses, one intake listing, one
+    // stopped-verdict listing and the one pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 1 + 1 + 1);
   });
 });
 
@@ -2138,7 +2268,7 @@ const SETTLED = [
 ];
 const jobReads = (calls) => calls.filter((c) => /\/attempts\/1\/jobs\?/.test(c)).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1])).sort();
 const ids = (settled) => settled.runs.map((r) => r.id).sort();
-const carryOf = (runs, version = SETTLED_VERSION, jobs = []) => JSON.stringify({ version, repository: REPO, runs, jobs });
+const carryOf = (runs, version = SETTLED_VERSION, jobs = [], passes = undefined) => JSON.stringify({ version, repository: REPO, runs, jobs, passes });
 
 test("a pass reads the attempt-1 jobs only of runs the last pass did not settle", async () => {
   const toRerun = [verifyRun(201), verdictRun(403)];
@@ -2196,7 +2326,17 @@ test("a short or unfinished listing, or a cut step list, is not settled", async 
 });
 
 test("a carry that cannot be read, names another repository or has another version reads every run", async () => {
-  for (const carry of ["not json", JSON.stringify({ version: SETTLED_VERSION, repository: "other/repo", runs: SETTLED, jobs: [] }), carryOf(SETTLED, SETTLED_VERSION - 1), carryOf([202, 302, 401, 402]), JSON.stringify({ version: SETTLED_VERSION, repository: REPO, runs: SETTLED }), carryOf(SETTLED, SETTLED_VERSION, [{ id: 101, attempt: 1, head: "main", updated_at: "x", jobs: [] }])]) {
+  for (const carry of [
+    "not json",
+    JSON.stringify({ version: SETTLED_VERSION, repository: "other/repo", runs: SETTLED, jobs: [] }),
+    carryOf(SETTLED, SETTLED_VERSION - 1),
+    carryOf([202, 302, 401, 402]),
+    JSON.stringify({ version: SETTLED_VERSION, repository: REPO, runs: SETTLED }),
+    carryOf(SETTLED, SETTLED_VERSION, [{ id: 101, attempt: 1, head: "main", updated_at: "x", jobs: [] }]),
+    carryOf(SETTLED, SETTLED_VERSION, [], {}),
+    carryOf(SETTLED, SETTLED_VERSION, [], [{ pr: 1, head: sha(1), runs: [], expires_at: PASS_EXPIRES }]),
+    carryOf(SETTLED, SETTLED_VERSION, [], [{ pr: 1, head: sha(1), runs: [{ id: PASS_RUN, started_at: null }], expires_at: PASS_EXPIRES }]),
+  ]) {
     const { code, calls, settled } = await reconcile({ pulls: [], runs: settledRuns(), carry });
     assert.equal(code, 0);
     assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
@@ -2222,6 +2362,24 @@ test("a carry whose download fails reads every run", async () => {
   const { code, calls } = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), download });
   assert.equal(code, 0);
   assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
+});
+
+test("the carry's run artifacts are listed once, and a listing that gives the carry no id reads every run", async () => {
+  const downloads = [];
+  const download = (id) => {
+    downloads.push(id);
+    return carryOf(SETTLED);
+  };
+  const listed = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), download });
+  assert.equal(listed.code, 0);
+  assert.deepEqual(jobReads(listed.calls), [], "the carried runs are not read again");
+  assert.equal(listed.calls.filter((c) => c.includes("/actions/runs/900/artifacts")).length, 1, "one artifact listing of the carry's run");
+  assert.deepEqual(downloads, [CARRY_ARTIFACT], "plan downloads artifact 4242 by id");
+  const noId = (github) => async (method, apiPath, body) =>
+    apiPath === `/repos/${REPO}/actions/runs/900/artifacts?per_page=100` ? { total_count: 1, artifacts: [{ name: "reconcile-settled-runs", expired: false }] } : github(method, apiPath, body);
+  const unread = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), github: noId, download: () => assert.fail("no id, no download") });
+  assert.equal(unread.code, 0);
+  assert.deepEqual(jobReads(unread.calls), [202, 302, 401, 402]);
 });
 
 test("a lane run listing no job settles only once its last change is a pass interval old", async () => {

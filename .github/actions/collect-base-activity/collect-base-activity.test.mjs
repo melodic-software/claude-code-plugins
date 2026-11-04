@@ -11,7 +11,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { LIMITS, UNPLAIN_PATTERN } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
+import { STOP_REASONS } from "../../scripts/lib/stop-reason.mjs";
+import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -139,7 +140,7 @@ function stage(overrides) {
     DOCS_DIR: path.join(runTemp, "lane-docs"),
     BASE_PATH: base,
     RESOLVED: resolved,
-    SKILL: "source-control:resolve-conflicts",
+    SKILL: "source-control:pull-request",
     GATING: "advisory",
     EFFECT: "mutate-branch",
     CAN_COMMIT: "true",
@@ -2015,7 +2016,8 @@ test("run-claude-cli: the dependency verdict schema matches the verdict job's ve
   assert.equal(run.status, 0, run.stdout);
   const schema = JSON.parse(readFileSync(path.join(run.schemaDir, "verdict.schema.json"), "utf8"));
   assert.deepEqual(schema.properties.verdict.enum, [...VERDICTS]);
-  assert.deepEqual(schema.required, ["verdict", "reasons", "evidence"]);
+  assert.deepEqual(schema.properties.owner_reason.enum, [...STOP_REASONS]);
+  assert.deepEqual(schema.required, [...VERDICT_KEYS]);
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(
     [schema.properties.reasons.minItems, schema.properties.reasons.maxItems, schema.properties.reasons.items.maxLength],
@@ -2037,7 +2039,7 @@ test("run-claude-cli: the dependency verdict schema rejects a bare @-mention and
   assert.equal(run.status, 0, run.stdout);
   const { default: Ajv } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("ajv");
   const valid = new Ajv({ strict: true }).compile(JSON.parse(readFileSync(path.join(run.schemaDir, "verdict.schema.json"), "utf8")));
-  const verdict = (text) => ({ verdict: "escalate", reasons: [text], evidence: [text] });
+  const verdict = (text) => ({ verdict: "escalate", owner_reason: "none", reasons: [text], evidence: [text] });
   for (const text of ["maintained by @koromix alone", "@koromix", "cc @a-b.c", "see\n", "```sh", "<!-- x -->"]) {
     assert.equal(valid(verdict(text)), false, text);
   }
@@ -2061,10 +2063,10 @@ test("run-claude-cli: a dependency-review skill with no context file fails red b
 const MERGE_FILE_DENIED = ["Edit(./.lane/merge/**)", "Write(./.lane/merge/**)", "NotebookEdit(./.lane/merge/**)"];
 
 test("run-claude-cli: a merge-base skill gets Edit, Write and Agent with no Bash, and the merge context denied to the file tools", () => {
-  const run = launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-conflict-patch" }, args: "ci" }), PREPARE: "merge-base", SKILL: "source-control:resolve-conflicts" });
+  const run = launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-conflict-patch" }, args: "conflicts --ci --unattended" }), PREPARE: "merge-base", SKILL: "source-control:pull-request" });
   assert.equal(run.status, 0, run.stdout);
   assert.deepEqual(run.tools.toSorted(), ["Agent", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
-  assert.deepEqual(run.allowedTools.toSorted(), ["Agent", "Edit", "Edit(./.lane/scratch/**)", "Glob", "Grep", "Skill(source-control:resolve-conflicts)", "Write"].toSorted());
+  assert.deepEqual(run.allowedTools.toSorted(), ["Agent", "Edit", "Edit(./.lane/scratch/**)", "Glob", "Grep", "Skill(source-control:pull-request)", "Write"].toSorted());
   for (const rule of [
     "Bash(git *)",
     ...SHELL_DENIED.filter((rule) => rule.startsWith("Bash(") || rule === "Read(//proc/**)"),
@@ -2084,12 +2086,12 @@ test("run-claude-cli: a merge-base skill gets Edit, Write and Agent with no Bash
   assert.match(run.preamble, /leave a path you cannot resolve with its conflict markers, and edit no other file/);
   assert.match(run.preamble, /You run no command and post nothing\./);
   assert.doesNotMatch(run.preamble, /shell command|commit tool|commit your/i, "no Bash and no commit tool, so no such instruction");
-  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:resolve-conflicts and args ci, then follow the skill instructions to the end.\n");
+  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args conflicts --ci --unattended, then follow the skill instructions to the end.\n");
   assert.equal(run.args, "", "no claude_args for the launcher");
 });
 
 test("run-claude-cli: a merge-base skill that hands on no patch fails red before any output", () => {
-  const run = launch({ PREPARE: "merge-base", SKILL: "source-control:resolve-conflicts" });
+  const run = launch({ PREPARE: "merge-base", SKILL: "source-control:pull-request" });
   assert.notEqual(run.status, 0);
   assert.match(run.stdout, /only a read skill/);
   assert.deepEqual(run.tools, []);

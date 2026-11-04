@@ -24,6 +24,8 @@
 # lane at the worker tier, merge authority up to the c2-mechanical rung, and a 30-minute activity
 # grace window. Landing them here is the lane's tracked adoption.
 pr_open_state: ready
+# review_venue: auto runs a local review only for a lane the CI review lanes do not cover.
+review_venue: auto
 # sync_stale_base: push-branch.sh merges the base into a branch behind it on paths
 # scripts/check-stale-base-overlap.sh calls overlapping, just before the push, so a push that
 # waited in the rate gate while main moved is not refused by the pre-push stale-base check.

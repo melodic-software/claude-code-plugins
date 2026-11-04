@@ -3,6 +3,24 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [0.10.2] - 2026-11-04
+
+### Changed
+
+- `reference/html-chrome.html` is now generated from the marketplace's one canonical chrome, `lib/html-chrome.html`, and adds a system/light/dark theme toggle (system by default) and a comment box beside the tokens and the accessibility floor. Its token values are unchanged (#12654).
+
+## [0.10.1] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
 ## [0.10.0] - 2026-11-04
 
 ### Added

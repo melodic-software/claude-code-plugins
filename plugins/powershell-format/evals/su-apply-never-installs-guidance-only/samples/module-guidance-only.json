@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "`Install-Module PSScriptAnalyzer` is guidance for you to run; this skill never runs it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll run `Install-Module PSScriptAnalyzer` for you.",
+      "why": "offers to run it"
+    },
+    {
+      "answer": "The module command is `Install-Module PSScriptAnalyzer`.",
+      "why": "near miss: does not say who runs it"
+    }
+  ]
+}

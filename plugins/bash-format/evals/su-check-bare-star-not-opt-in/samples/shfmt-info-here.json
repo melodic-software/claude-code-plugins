@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A missing shfmt would be INFO here: it is a FAIL only once a section opts the repo in."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "shfmt is present on this machine.",
+      "why": "near miss: does not answer the missing case"
+    },
+    {
+      "answer": "A missing shfmt would be a FAIL.",
+      "why": "wrong grade"
+    }
+  ]
+}

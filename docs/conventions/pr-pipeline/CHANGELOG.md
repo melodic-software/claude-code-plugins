@@ -1,5 +1,124 @@
 # Changelog for the PR pipeline convention
 
+## [8.50.10] - 2026-11-04
+
+### Changed
+
+- The `resolve-conflicts` activity in `docs/conventions/pr-pipeline.yaml` and the
+  `claude-code-plugins.yaml` example now runs `source-control:pull-request` with
+  `args: conflicts --ci --unattended` in place of `source-control:resolve-conflicts` with
+  `args: ci`. The activity keeps its name, so the grant files keyed on it are unchanged.
+
+## [8.50.9] - 2026-11-04
+
+### Fixed
+
+- work-resolve-issue routes a `blocked-by-issue` stop back through intake triage once (`intake`,
+  `retries: 1` in `stop-routes.json`) instead of to the owner. Its comment names the first `#<n>`
+  in the run's reason outside the quoted run words, so intake records that issue on its
+  `Blocked by:` line as a blocked-by edge and admission waits for it to close.
+
+## [8.50.8] - 2026-11-04
+
+### Fixed
+
+- A review-dependency `escalate` verdict now names its owner reason (`owner_reason`, required by
+  the verdict schema and `apply-dependency-verdict.mjs`). `intent`, `design`, `security` and
+  `cost` escalate `dependency-escalate-<code>`, which holds for a person, and the hold comment
+  carries the `stop-reason` marker and line for that code. `none` escalates
+  `dependency-escalate-none`, routed `fail` with `needs-session`, so it never reaches the owner.
+  A verdict without the field is invalid (`dependency-invalid`).
+- Every pr-unblock `hold` row in `escalation-routes.json` now names its `owner-reason`, and each
+  hold comment carries the `stop-reason` marker for it: the `feedback-*-security` rows,
+  `feedback-question-security`, `dependency-security-close` and `dependency-fix-refused` (an
+  untrusted-provenance trust hold) are `security`; `feedback-question-intent` and
+  `feedback-question-design` are `intent` and `design`. `report-escalation.test.sh` fails any hold
+  row without one. The `dependency-escalate` row stays for holds written before
+  `dependency-escalate-<owner reason>`, as `intent`.
+
+## [8.50.7] - 2026-11-04
+
+### Fixed
+
+- pr-refine holds through a failed read instead of losing the PR. A `fix-docs` handoff read that
+  fails prints a notice, starts no fallback and ends green, after at most 3 failed reads.
+  `fix-docs-dispatch.mjs` dispatches a PR again after a red run with no check, or a run that held on
+  that read, up to `limits.limit-stops-per-head` such runs.
+- `handoff-evidence.sh` draws each wait at random from 0 to its cap, for every lane, and keeps
+  reading at the last cap until the waits reach the caps' sum.
+
+## [8.50.6] - 2026-11-04
+
+### Fixed
+
+- `pr-refine.yml`'s `fix-docs-handoff` and `fix-docs-subscription-handoff` no longer go red when GitHub's jobs listing still leaves a fact unsettled after `handoff-evidence.sh`'s read budget. They set `HANDOFF_EVIDENCE_LAG=notice`, so that lag ends as one notice with no handoff fact set, which starts no later leg; `fix-docs-handoff` still sets `fallback-ready`, which starts nothing without `handed-off`. A read that failed, a listing that did not parse, a usage error or a missing environment variable still fails the job, and every other lane keeps the script's default.
+
+## [8.50.5] - 2026-11-04
+
+### Changed
+
+- `limits.fix-docs-per-run` accepts 0, which turns CI `fix-docs` off: the dispatcher logs
+  `fix-docs is off (fix-docs-per-run: 0)`, sends nothing and makes no GitHub call for it. This
+  repository sets 0, the owner's decision in #7576 (D100, Q158); set 1 or more to turn it back on.
+
+## [8.50.4] - 2026-11-04
+
+### Fixed
+
+- work-unblock's sweep holds through a failed listing instead of failing. A failed closed-issue
+  listing prints a notice, does nothing more and ends green, and the next sweep's window stays back,
+  so it reads the closes that listing missed: `sweepSince` starts from the last run only when its job
+  log shows it read the listing. A failed listing of the deferred, open or `agent-ready` issues holds
+  with a notice while the sweep goes on.
+
+## [8.50.3] - 2026-11-04
+
+### Fixed
+
+- Stale-branch cleanup (`maintenance-delete-stale-branches.yml`) moves from 06:17 to 13:17 UTC, the quietest hour of job-token calls measured, out of the busy overnight hours where its calls added to a `GITHUB_TOKEN` breaker trip.
+
+- work-resolve-issue holds through a read outage instead of failing. `report-outcome.mjs
+  --find-prior` ends green with a notice and `proceed=false` on a failed read, so no model runs and
+  a later run reads again. A run whose `merge: human` labeler cannot be read opens no PR and posts
+  nothing, and the next run opens it from the unreported branch. A stop past `limits.stop-retries`
+  no longer fails the issue when it and every counted retry were faults in the lane's machinery
+  (`fault: true` in `stop-routes.json`), unless the run left a branch of its own.
+
+## [8.50.2] - 2026-11-04
+
+### Fixed
+
+- A fix or quarantine issue the post-merge demotion alert could not hand to intake triage no longer takes `needs-human`. A fix issue gets a hidden marker comment on it and on its record, a quarantine issue one on the issue, and each alert run retries what a marker names until it succeeds. A record still takes `needs-human` when a failing check was over the cap or outside the name charset.
+
+## [8.50.1] - 2026-11-04
+
+### Fixed
+
+- The half-hourly address-feedback sweep now sends every eligible lanes App head on one tick, up to five (`SWEEP_TICK_CAP`), instead of only the first. Before, each released head after the first waited one more tick, about 30 minutes, per PR. The sweep runs its passes in the same order (fix request, released, stale stop, unsent, idle owner) and decides each PR at most once. It stops deciding after five minutes (`SWEEP_DECIDE_BUDGET_MS`), then sends the decided rounds back to back, so each dispatched-run record uploads seconds after its POST, well within the trusted-trigger gate's wait. `pr-feedback-dispatch.yml` records each send through its own numbered steps. Lost-run recovery still runs only on a tick that sent nothing.
+
+- A pr-verify `fail` now puts in `notes` only the lines that need a change, each saying what to change; a remark that asks for no change (a justified choice, a criterion met, coverage confirmed) goes in `summary`. Each note becomes a review thread that must be resolved before merge, so a remark there opened a thread nobody had to act on. The verifier prompt, the spec verifier prompt and the chunk note say the same; `pass-notes` and `pass` keep their rule.
+
+## [8.50.0] - 2026-11-04
+
+### Added
+
+- `pr-verify-capture.yml` drives the app a pull request changes, unattended, once
+  `merge.verify-capture.app` is set (unset: it stops with a note). It runs the pull request's
+  code in its own workflow, never in a `pr-verify.yml` run, on the same trigger and the same
+  in-repo-head gates as the judges, with a read-only token. A reach probe runs before any head
+  code and fails the job when a process where the app will run can read pr-verify's key, the
+  job token or the runtime token. The key goes to the Claude Code driver alone. The capture
+  uploads as `pr-capture-<pr>-<head-sha>` with `merge.verify-capture.retention-days`.
+- Each pr-verify judge job finds that capture (`find-capture.mjs`; check-intent waits at most 35
+  minutes for it) and downloads it into `pr-verify-data/capture/`. The judge reads it as
+  untrusted data, and a missing, unfinished or blocked capture never fails a head. The verdict's
+  evidence block reads run-e2e's `e2e-summary.json`.
+
+### Changed
+
+- A pull request body line `Evidence loop: 3/3 cap reached, last NEEDS WORK` in trusted text is
+  a `fail`, and the verdict's `local_loop` reads that line as 3.
+
 ## [8.49.2] - 2026-11-04
 
 ### Changed

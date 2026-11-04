@@ -9,6 +9,6 @@ expected_outcome: "Runs the checker the notice names, read-only, then check-mod-
 
 This showed up when the session started:
 
-> context-guard: /usr/local/bin/claude is 2.1.100; 2.1.287 or newer is needed. Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, draws the band row, serves the status tool and writes the snapshot does not load there. Run `bash <plugin root>/scripts/check-mod-load.sh`: it reports the floor and how to tell whether the mod runs in this session. Install (docs: https://code.claude.com/docs/en/setup#update-claude-code). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+> context-guard: /usr/local/bin/claude is 2.1.100; 2.1.287 or newer is needed. Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, draws the band row, serves the status tool and writes the snapshot does not load there. Run `bash scripts/check-mod-load.sh` from the plugin root, the directory passed to `prerequisites.mjs check`. It reports the floor and how to tell whether the mod runs in this session. Install (docs: https://code.claude.com/docs/en/setup#update-claude-code). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
 
 Is that right, and can the mod load?

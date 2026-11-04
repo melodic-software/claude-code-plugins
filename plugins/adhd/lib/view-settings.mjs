@@ -183,7 +183,7 @@ function retiredLocal(legacy) {
 }
 
 /** One notice per retired file, unless this plugin already showed it for this project with these bytes. */
-function retiredNotices(legacy, { plugin, root, userHome, dataDir }) {
+function retiredNotices(legacy, { plugin, hasMediumOption, root, userHome, dataDir }) {
   const where = (path) => retiredWhere(path, root, userHome);
   const destination = { "claude-user": PERSONAL_FILE, "claude-project": TEAM_FILE, "claude-local": PERSONAL_FILE, "fenced-block": TEAM_FILE };
   const key = dataDir ? stateKey(root) : null;
@@ -215,7 +215,7 @@ function retiredNotices(legacy, { plugin, root, userHome, dataDir }) {
             : ""
         : "";
     const status = rank({ path, kind }) >= 0 && isLocal(value) ? "is retired but still keeps the view local" : "is no longer read";
-    const perUser = kind === "claude-user" ? `; per user, the ${plugin} plugin's medium option also works` : "";
+    const perUser = kind === "claude-user" && hasMediumOption ? `; per user, the ${plugin} plugin's medium option also works` : "";
     notices.push({ kind: "retired", path: shown, value, destination: to, text: `${shown} ${status}${value ? ` (it sets medium: ${value})` : ""}; set it in ${to} instead${caveat}${perUser}` });
   }
   if (state && changed) {
@@ -245,7 +245,7 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
   const root = repoScopes(projectRoot, userHome) ? projectRoot : null;
   const team = root && typeof teamRef === "string" ? teamAt(root, teamRef, notices) : undefined;
   const { layers, legacy } = readLayers({ plugin: CONCERN, projectRoot: root, schema: SCHEMA, userConfig: { medium: userConfig ?? "" }, team, userHome });
-  notices.unshift(...retiredNotices(legacy, { plugin: lane.split(":")[0], root, userHome, dataDir }));
+  notices.unshift(...retiredNotices(legacy, { plugin: lane.split(":")[0], hasMediumOption: laneEntry.hasMediumOption, root, userHome, dataDir }));
   const finish = (preferred, decidedBy) => {
     if (!preferred) return { preferred: null, medium: null, decidedBy, notices };
     const { medium, fell } = fallBack(preferred, laneEntry, { interactive });

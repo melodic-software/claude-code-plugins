@@ -1361,7 +1361,7 @@ assert_present 'artifact-shape makes handoff lines ID pointers with labels only'
 assert_present 'artifact-shape bans sweep words on index lines that name a claim ID' \
   'skills/research/context/artifact-shape.md' 'carries no sweep word \(`every`, `all`, `none`, `only`\)'
 assert_present 'artifact-shape runs the restatement check fail-closed at the researcher' \
-  'skills/research/context/artifact-shape.md' '^index line that names any claim.s ID beside a sweep word\. It fails closed: the researcher runs it$'
+  'skills/research/context/artifact-shape.md' '^It fails closed: the researcher runs it before hand-back'
 assert_absent 'no file calls the restatement check advisory' \
   'restatement check (is|stays) advisory|advisory for now'
 assert_present 'artifact-shape declares claim_kind in the claim header' \
@@ -1423,6 +1423,21 @@ for script in check-claim-eligibility.py check-claim-eligibility.test.sh; do
     fail "$script ships"
   fi
 done
+# A re-run still failed row 12: the drift moved into sidecar decision bullets,
+# table cells, conflict notes and abstracts, which dropped a condition or turned
+# "prefer" into a rule with no sweep word and no missing label (#12902).
+assert_present 'artifact-shape makes a sidecar line quote the claim it cites' \
+  'skills/research/context/artifact-shape.md' '^\*\*A sidecar line that cites a claim quotes it verbatim\.\*\*'
+assert_present 'artifact-shape gives the one quote form' \
+  'skills/research/context/artifact-shape.md' '`M1 \(HIGH \(single source\)\): "<claim>"`'
+assert_present 'the checker matches each quote against its claim' \
+  'scripts/check-restatement-labels.py' '<id> quote does not match its claim$'
+assert_present 'the checker fails a sidecar line that cites a claim unquoted' \
+  'scripts/check-restatement-labels.py' '<id> cited without its claim quoted verbatim$'
+assert_present 'the researcher quotes claims in sidecar lines' \
+  'agents/researcher.md' 'A sidecar line that names a claim.s ID quotes its `claim:` text'
+assert_absent 'no file exempts sidecar bodies from the restatement check' \
+  'Sidecar bodies are where a claim is said in full'
 
 # ---------------------------------------------------------------------------
 # 26. A Direct claim rests on a person's own words (#12517)

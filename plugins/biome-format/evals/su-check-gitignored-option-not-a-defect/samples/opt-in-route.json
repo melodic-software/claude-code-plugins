@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Set biome_format_lint_gitignored to true with `/plugin configure biome-format@<marketplace>` or `claude plugin configure biome-format@<marketplace> --values-stdin`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Remove .work/ from .gitignore.",
+      "why": "another route"
+    },
+    {
+      "answer": "There is an option for this.",
+      "why": "near miss: names neither the option nor the flow"
+    }
+  ]
+}

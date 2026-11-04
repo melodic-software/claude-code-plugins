@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Rerun check in a fresh session, since a same-session check still reports the old value, and read the effective value it observes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook is off now. Rerun check to confirm.",
+      "why": "asserts the change, no fresh session"
+    },
+    {
+      "answer": "Rerun check right away in this session and read the toggle row.",
+      "why": "same session"
+    }
+  ]
+}

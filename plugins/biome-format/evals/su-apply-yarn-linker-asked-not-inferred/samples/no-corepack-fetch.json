@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "corepack --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v corepack",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n corepack package.json",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a search term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "corepack yarn config get nodeLinker",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "downloads Yarn to run it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "corepack enable",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "writes shims"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v yarn || corepack prepare yarn@stable --activate",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after ||"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/bin/corepack use yarn@stable",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "by path"
+    }
+  ]
+}

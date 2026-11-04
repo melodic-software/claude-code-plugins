@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Install Git for Windows, which ships Git Bash."
+    },
+    {
+      "answer": "They need git for windows.",
+      "why": "lower case, sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install bash.",
+      "why": "near miss: not the named fix"
+    },
+    {
+      "answer": "Use WSL.",
+      "why": "another route"
+    }
+  ]
+}

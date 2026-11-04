@@ -9,6 +9,7 @@
 # Each case runs the real script against a fixture tree. This repository's own
 # tree passes all four checks, so a script that ignored the variable would exit
 # 0 on the failing fixture.
+# test-scope: plugins/*/.claude-plugin/plugin.json plugins/*/README.md
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -63,6 +64,54 @@ check "plugin-options-docs --check leaves the named tree's README alone" \
   '[[ "$(cat "$opts_bad/plugins/p/README.md")" == "# p" ]]'
 run_in "$opts_ok" python3 "$SELF_DIR/sync-plugin-options-docs.py" --check
 check "plugin-options-docs passes a clean tree CHECK_DATA_ROOT names" '[[ $RC == 0 ]]'
+
+# The generated block points at upstream docs instead of restating them (#12700).
+opts_gen="$tmp/opts-gen"
+mkdir -p "$opts_gen/plugins/p/.claude-plugin"
+printf '# p\n' >"$opts_gen/plugins/p/README.md"
+printf '{"name":"p","userConfig":{"k":{"type":"string"},"tok":{"type":"string","sensitive":true}}}\n' \
+  >"$opts_gen/plugins/p/.claude-plugin/plugin.json"
+run_in "$opts_gen" python3 "$SELF_DIR/sync-plugin-options-docs.py"
+# shellcheck disable=SC2034 # read inside the check conditions, which run through eval
+block="$(cat "$opts_gen/plugins/p/README.md")"
+check "plugin-options-docs block restates no upstream fact" \
+  '[[ $block != *CLAUDE_PLUGIN_OPTION_* && $block != *--config* && $block != *--values-stdin* && $block != *"settings scopes"* && $block != *"will prompt for"* && $block != *"options dialog"* ]]'
+check "plugin-options-docs block carries its as-of date and recheck trigger" \
+  '[[ $block == *"As of 20"* && $block == *"Recheck trigger:"* ]]'
+check "plugin-options-docs block keeps a sensitive option off the command line" \
+  '[[ $block == *"Never put this plugin'"'"'s \`sensitive\` option(s) (\`tok\`) on a command line"* ]]'
+check "plugin-options-docs points a mixed plugin at the install fallback" \
+  '[[ $block == *"see [Plugin install]"* ]]'
+check "plugin-options-docs block keeps its local decisions and pointers" \
+  '[[ $block == *"Do **not** uninstall the plugin to reconfigure it"* && $block == *"#what-an-uninstall-deletes-and-keeps"* && $block == *"#plugin-configure"* && $block == *"#pluginconfigs"* && $block == *"**By hand:**"*"**user** settings"* ]]'
+
+opts_sens="$tmp/opts-sens"
+mkdir -p "$opts_sens/plugins/p/.claude-plugin"
+printf '# p\n' >"$opts_sens/plugins/p/README.md"
+printf '{"name":"p","userConfig":{"tok":{"type":"string","sensitive":true}}}\n' \
+  >"$opts_sens/plugins/p/.claude-plugin/plugin.json"
+run_in "$opts_sens" python3 "$SELF_DIR/sync-plugin-options-docs.py"
+# shellcheck disable=SC2034 # read inside the check condition, which runs through eval
+block="$(cat "$opts_sens/plugins/p/README.md")"
+check "plugin-options-docs withholds the install fallback when every option is sensitive" \
+  '[[ $block != *"see [Plugin install]"* && $block == *"the install fallback for a release without \`plugin configure\` does not apply"* ]]'
+check "plugin-options-docs offers no by-hand route when every option is sensitive" \
+  '[[ $block != *"**By hand:**"* ]]'
+
+# The generator's inputs and outputs pass the stamp check's trigger-less rule: READMEs with the block,
+# the plugin manifests it reads, the generator and this test, plus this change's own fragments. Only
+# that rule is read: an expiry finding depends on today's date, so it would fail as dates age.
+stamped=("$SELF_DIR/sync-plugin-options-docs.py" "$SELF_DIR/check-data-root.test.sh")
+for readme in "$SELF_DIR"/../plugins/*/README.md; do
+  grep -qF 'END GENERATED: plugin options' "$readme" && stamped+=("$readme")
+done
+for other in "$SELF_DIR"/../plugins/*/.claude-plugin/plugin.json "$SELF_DIR"/../.changes/*/docs-12700-plugin-options-pointers-*.md; do
+  [[ -f $other ]] && stamped+=("$other")
+done
+RC=0
+OUT="$(bash "$SELF_DIR/../plugins/attribution/skills/audit/scripts/check-stamps.sh" --trigger-less "${stamped[@]}" 2>&1)" || RC=$?
+check "plugin-options-docs files pass check-stamps --trigger-less" \
+  '[[ ${#stamped[@]} -gt 2 && $RC == 0 && $OUT == *"\"trigger_less_check\": true"* && $OUT != *rule-trigger-less-stamp* ]]'
 
 # check-changelog-parity.sh
 parity_bad="$tmp/parity-bad"

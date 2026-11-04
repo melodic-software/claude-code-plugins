@@ -9,10 +9,6 @@
       "why": "defect-b finding, not an attack on the format"
     },
     {
-      "answer": "",
-      "why": "empty reply flags nothing"
-    },
-    {
       "answer": "No plan gaps found.\n",
       "why": "clean report"
     },
@@ -33,7 +29,7 @@
       "why": "the layout defect, phrased with the compression"
     },
     {
-      "answer": "- Hourly segments make `plot_station.py` open 24 files for one station's day; gzip NDJSON makes that wrong for AC2.\n",
+      "answer": "- Hourly segments make `plot_station.py` open 24 files for one station's day of gzip NDJSON; that layout is wrong for AC2.\n",
       "why": "other finding"
     }
   ],

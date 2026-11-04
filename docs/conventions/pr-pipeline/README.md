@@ -150,7 +150,7 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch or at the dispatcher's half-hourly tick, or a trusted human's dispatch |
+| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch or at the dispatcher's half-hourly tick, or a trusted human's dispatch; off here by configuration (`limits.fix-docs-per-run: 0`, set 1 or more to turn it on), so only a trusted human's dispatch starts it |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
@@ -158,7 +158,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -245,9 +245,10 @@ person adds `do-not-merge`, since re-adding a label already on records no event)
 (the round handled nothing) or `finding-stands` (it left a finding standing at that head), and
 the round cap still bounds the retries; a limit stop keeps its
 reset hold and counts toward `limit-stops-per-head`; since such a head may see no later review,
-each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep that decides one
-such head per tick as for its newest completed review run, under three such skips at that
-head), and no `pr-unblock.yml` run titled
+each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep that decides each
+such head as for its newest completed review run, under three such skips at that head, and
+sends up to five rounds a tick (`SWEEP_TICK_CAP`) once every decision is made, each PR at most
+once), and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
@@ -345,7 +346,7 @@ serves an adopted owner PR, posting its replies as the lanes App:
 - When: as fix-ci adopts one, no body line starts `Hold:`, and both the PR's last update and its head
   commit's committer date are at least `adoption.idle-hours` old (`ownerSkip`), so the lane never
   pushes onto a branch a session is still working on. A review usually finishes while the session
-  is active, so that dispatch skips; each scheduled tick's sweep then sends one idle owner PR whose
+  is active, so that dispatch skips; each scheduled tick's sweep then sends each idle owner PR, within its cap, whose
   reviewed head has no `pr-unblock / address-feedback` check run (`sweepIdleOwner`), deciding it
   as for its newest completed review run. It decides such a head only within
   `IDLE_OWNER_WINDOW_HOURS` of the PR turning idle, so a head with nothing for the lane is not
@@ -402,7 +403,7 @@ thread, and one a trusted person answered after the lane escalated it, is
 worked even when its review is on an earlier head than the one the reviewed-head markers name.
 On a lanes App PR, the next half-hourly tick picks up a fix request on an unresolved thread the
 reviewer bot opened: each scheduled `pr-unblock-dispatch.yml` run's completion starts
-`pr-feedback-dispatch.yml`, whose sweep sends one such head per tick, ahead of the heads it retries.
+`pr-feedback-dispatch.yml`, whose sweep decides each such head ahead of the heads it retries, within its cap of five a tick.
 The request must be newer than the head's newest `pr-unblock / address-feedback` check run; check
 runs that started before it stop counting for that dispatch, except a limit stop, which keeps its
 reset hold. Each request is sent once, a head with three rounds or releasing skips is not sent, and
@@ -548,6 +549,10 @@ unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-hu
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
+CI `fix-docs` is off in this repository by configuration: `limits.fix-docs-per-run` is `0`, so the
+dispatcher logs `fix-docs is off (fix-docs-per-run: 0)`, sends nothing and makes no GitHub call
+for it. Set the value to 1 or more to turn it back on; the rest of this section describes it on.
+
 The same `pr-unblock-dispatch.yml` run dispatches `pr-refine.yml`'s `fix-docs` once per pull
 request: one GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists
 the non-draft, same-repository ones into `main`, whoever opened them, lanes App PRs included,
@@ -572,6 +577,14 @@ fact no run job can write) gets one `::warning::` and joins the record's handled
 push. A run the broker refused, or one a hold skipped, ran no model turn: it does not count and
 leaves the list once it ends, as a run that is gone does. A head whose runs cannot be read is not
 dispatched. A lost record restarts the count, at most that many runs more.
+
+A completed `fix-docs` run ends the PR too, check or not, unless it says nothing about the PR. One
+lost run gets another dispatch. So do fewer than `limits.limit-stops-per-head` runs that went red or
+held on a failed `handoff-evidence.sh` read, the next tick being the probe: red alone cannot tell a
+read that failed from a broker that refused, so the count is what ends a refusal, and an outage
+past that many runs still ends the PR. A held run ends green, so the dispatcher reads the jobs of
+each green run it finds for a candidate: a leg that handed off, whose handoff job succeeded, with no
+next leg started, is a held run. A run whose jobs cannot be read holds the PR for a later run.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -861,7 +874,7 @@ own push never lifts its own stop), the newest one landed the current head, and 
 read that fails keeps the label. Every other reason waits for a person: the security, intent and
 decision stops (`feedback-uncertain`, `feedback-disputed`, `feedback-unadjudicated`,
 `feedback-question-*`, `feedback-round-cap`, `feedback-not-converging`, `dependency-security-close`,
-`dependency-escalate`), the protected-path and own-patch stops (`ci-fix-protected-path`,
+`dependency-escalate` and `dependency-escalate-<owner reason>`), the protected-path and own-patch stops (`ci-fix-protected-path`,
 `unexpected-path-staged`, `conflict-patch-*`), and those with no cause-gone evidence yet (`repeat-cap`,
 `feedback-invalid`, `feedback-partial`, `feedback-incomplete`, and the other
 `dependency-*` stops). Removing the label this way approves nothing: `ci-status` still fails a
@@ -1154,9 +1167,11 @@ the rules that only tighten in
   or post-merge-failure, that either filer opened, that was never edited, and that a later green
   full run on main cleared by the merge gate's own rule (`_recovered_at`: attempt 1, a schedule or
   a github-actions[bot] dispatch, created after the record, at a commit ahead of its SHA and on
-  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
-  `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
-  outside the charset, or not filed; a fix issue reopened on a
+  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix issue not delivered to intake triage gets
+  a hidden marker comment on it and on its record, a quarantine issue one on the issue, and a check
+  whose fix issue could not be filed or reopened one on the record; each alert run retries what a marker names until it succeeds, with
+  the failing run staying red, and adds no label. A record gets `needs-human` when a failing check got
+  no fix issue because it was over the cap or outside the charset; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
   It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
@@ -1961,11 +1976,14 @@ the body must still close, or with no closing issue name by a plain `Refs:` line
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
 edited after arming to drop its link or name another issue does not merge on that pass. A pass
 or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
-dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
+reads the pull request once and, for a lanes App one that is not already armed and carries no
+`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
 and skips the merge job, `post-merge-dispatch` and every other sweep job. That report stands only
-while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
-post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
+while `settle --idle-tick` keeps it. When it refuses on what it found and nothing it read has
+moved, no verifying run created or re-run since included (`refusal-stands`), the wake refuses with
+it and arms nothing, since a fresh check would refuse too. Otherwise the wake never reuses it
+but runs the post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
 or 5) and `settle --idle-tick` keeps the fresh report too, since the wake starts no full run or
 re-run. Its `api-calls` totals, which report the room came from (`report=last`, `fresh` or `none`) and
 the outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms
@@ -3380,7 +3398,12 @@ match the filed sub-issues; a split by hand when its body has a task list whose 
 cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
 work, unless a split record took it because the comment was last written before the record. A
 parent left open goes through admission's rules like any issue, and a Size Large one is refused
-with `SIZE_SPLIT_DONE`.
+with `SIZE_SPLIT_DONE`, except a finished parent: every sub-issue closed as completed by a close
+`subIssueLeftOpen` accepts (`admit.mjs` `finishedParent`). Admission takes that one at any Size
+for one issue-lane run that checks the parent's own done-when and closes it `verified-done` or
+parks it `verify-unmet` (`.github/scripts/work-resolve-issue/stop-routes.json`), and work-unblock
+sends one already parked on `SIZE_SPLIT_DONE` back to intake once its sub-issues finish
+(`label-unblocked.mjs` `reenterFinished`).
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
@@ -3472,15 +3495,15 @@ with its default.
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
 | `parent-rescan-per-run` | 5 | Open issues whose every sub-issue is completed and whose number is the UTC hour modulo 24 that one work-unblock sweep reads to close a finished split parent, oldest updated first; at most 100. A parent whose last sub-issue closed outside the sweep window closes on its hour; one that stays open logs why. |
-| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
+| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets, and the red or held `fix-docs` runs in the run listing that one PR gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. Also the most immediate re-fires `report-outcome` makes of runs that stopped on stale workflow files, since a person last added `agent-ready` or a run last reported; past it, work-unblock's sweep re-fires them. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
-| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
+| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. A stop whose row sets `fault: true` holds at the cap instead when every counted retry was such a stop and the run made no branch of its own: that hold has no hard count, only the `stranded-backoff-hours` re-fire backoff, at most 24 hours between re-fires. |
 | `stranded-backoff-hours` | 3 each | Per cause, the base hours of work-unblock's re-fire backoff for a stranded `agent-ready` issue: the wait is these hours doubled once per re-fire already made on the same lane workflow files (per trip past `limit-stops-per-issue` for `kill-switch`), up to 24. Causes: `no-run` (no work-resolve-issue run started) and `no-report` (a run ended green with no report and no pull request), where it is also the wait before the first re-fire; `failed-again` (a re-fired run failed or was cancelled again), at least twice these hours; `failed-mint` (no lane token), backed off only past `limit-stops-per-issue` re-fires, so at least these hours doubled that many times; and `kill-switch` (a kill-switch refusal, past `limit-stops-per-issue` trips). Each 1 to 24. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
-| `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
+| `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; 0 to 20, and 0 turns CI fix-docs off (this repository sets 0). |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
 | `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks, halving its cadence (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler and pr-unblock-dispatch read it), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |

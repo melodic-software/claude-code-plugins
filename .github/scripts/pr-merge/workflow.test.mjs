@@ -573,11 +573,13 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
 // the post-merge check fresh, as post-merge-dispatch does on a refused idle
 // tick, and keeps the fresh report only when the check passed (exit 0 or 5)
 // and settle --idle-tick --fresh keeps it too (the idle rule less the
-// verifying runs the check just read). Anything else removes it, so the arm
-// step is skipped and nothing arms.
+// verifying runs the check just read). A last report that refuses on its own
+// content with nothing it read moved (refusal-stands exits 0) is removed with
+// no fresh check. Anything else removes it, so the arm step is skipped and
+// nothing arms.
 const KEEP_STEP = "Keep the last sweep's report only while nothing it read has moved";
 const FRESH_SHA = "f".repeat(40);
-const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attempts = false } = {}) => {
+const keepReport = ({ code = "0", settles = [0], standing = 1, fresh = 0, files = true, attempts = false } = {}) => {
   const arm = job("enable-auto-merge");
   const body = new RegExp(`- name: ${KEEP_STEP.replace(/[.']/g, "\\$&")}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)?.[1];
   assert.ok(body, "a PR-scoped run settles the last sweep's report");
@@ -588,7 +590,8 @@ const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attemp
   const args = join(dir, "args");
   writeFileSync(args, "");
   // Each settle call takes the next exit code from `settles` and prints
-  // settle's JSON; the fresh check prints a marked report and exits `fresh`.
+  // settle's JSON; refusal-stands exits `standing`; the fresh check prints a
+  // marked report and exits `fresh`.
   writeFileSync(join(dir, "settles"), settles.join("\n") + "\n");
   writeFileSync(
     join(bin, "python3"),
@@ -597,6 +600,11 @@ echo "$@" >>'${args}'
 case "$1" in
   *babysit_postmerge.py) echo '{"fresh":true}'; exit ${fresh} ;;
 esac
+if [ "$2" = refusal-stands ]; then
+  if [ ${standing} = 0 ]; then reason=null; else reason='"head-moved"'; fi
+  echo "{\\"stands\\": $([ ${standing} = 0 ] && echo true || echo false), \\"refusal\\": \\"needs-dispatch\\", \\"computedAt\\": \\"2026-10-01T00:00:00+00:00\\", \\"reason\\": $reason}"
+  exit ${standing}
+fi
 next=$(head -n1 '${join(dir, "settles")}'); sed -i 1d '${join(dir, "settles")}'
 if [ "\${next:-1}" = 0 ]; then echo '{"reuse": true, "reason": null}'; else echo '{"reuse": false, "reason": "idle tick needs-dispatch"}'; fi
 exit "\${next:-1}"
@@ -638,6 +646,7 @@ exit "\${next:-1}"
     codeFile: readKept("post-merge-code"),
     shaFile: readKept("post-merge-code-sha"),
     attempts: existsSync(attemptsPath) ? readFileSync(attemptsPath, "utf8") : null,
+    keptAttempts: readKept("attempts.json"),
   };
 };
 const SETTLE = (sha, fresh = "") =>
@@ -648,12 +657,15 @@ const SETTLE = (sha, fresh = "") =>
 const SETTLE_FRESH = (sha) => SETTLE(sha, " --fresh");
 const FRESH_CHECK =
   /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_postmerge\.py --repo o\/r --agent-identity lanes-bot --lane-merges-only$/;
+// Whether the last report's own refusal stands, at the commit whose code made it.
+const REFUSAL_STANDS =
+  /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_verify_evidence\.py refusal-stands --repo o\/r --postmerge-result \S+\/post-merge\/post-merge\.json --code-sha c{40}$/;
 
 test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick keeps it", () => {
   const kept = keepReport();
   assert.equal(kept.status, 0);
   assert.equal(kept.kept, true);
-  assert.equal(kept.output, "stands=true\nfresh=\nfresh-reason=\n");
+  assert.equal(kept.output, "stands=true\nfresh=\nfresh-reason=\nrefusal-stands=\n");
   assert.match(kept.body, /^ {8}id: keep-report\n/);
   // The same call post-merge-dispatch makes for a reused report, and no
   // fresh check.
@@ -671,17 +683,21 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
 // check runs, then settle --idle-tick --fresh on the fresh report at this checkout's
 // commit, and only both passing lets the arm step run on it.
 test("a PR-scoped run whose report does not stand runs the post-merge check fresh and keeps it when both checks pass", () => {
-  for (const [why, options] of [
-    ["settle refuses the last report", { settles: [1, 0] }],
-    ["the last check could not judge", { code: "3", settles: [0] }],
-    ["the last check failed", { code: "1", settles: [0] }],
-    ["no last report", { files: false, settles: [0] }],
-    ["the fresh check finds a merge not yet verified", { settles: [1, 0], fresh: 5 }],
+  // `before`: the calls on the last report ahead of the fresh check. A last
+  // report whose refusal could stand (exit 0, 1 or 5) is asked, and here
+  // something it read has moved; an unjudged or missing one is not.
+  const LAST_SETTLE = SETTLE("c{40}");
+  for (const [why, options, before] of [
+    ["settle refuses the last report and it has moved", { settles: [1, 0] }, [LAST_SETTLE, REFUSAL_STANDS]],
+    ["the last check could not judge", { code: "3", settles: [0] }, []],
+    ["the last check failed and it has moved", { code: "1", settles: [0] }, [REFUSAL_STANDS]],
+    ["no last report", { files: false, settles: [0] }, []],
+    ["the fresh check finds a merge not yet verified", { settles: [1, 0], fresh: 5 }, [LAST_SETTLE, REFUSAL_STANDS]],
   ]) {
     const run = keepReport(options);
     const fresh = String(options.fresh ?? 0);
     assert.equal(run.status, 0, why);
-    assert.equal(run.output, `fresh-started=true\nstands=true\nfresh=${fresh}\nfresh-reason=\n`, why);
+    assert.equal(run.output, `fresh-started=true\nstands=true\nfresh=${fresh}\nfresh-reason=\nrefusal-stands=\n`, why);
     assert.equal(run.kept, true, why);
     assert.equal(run.json, '{"fresh":true}\n', `${why}: the room is the fresh report, not the last one`);
     assert.equal(run.codeFile, `${fresh}\n`, why);
@@ -690,8 +706,42 @@ test("a PR-scoped run whose report does not stand runs the post-merge check fres
     assert.ok(check >= 0, `${why}: the fresh check ran`);
     assert.match(run.calls[check + 1] ?? "", SETTLE_FRESH(FRESH_SHA), `${why}: settle --idle-tick --fresh checked the fresh report`);
     // The last report's settle, when it ran, never skips the runs test.
-    if (check > 0) assert.match(run.calls[0], SETTLE("c{40}"), why);
+    assert.equal(check, before.length, why);
+    before.forEach((call, i) => assert.match(run.calls[i], call, why));
     assert.equal(run.calls.length, check + 2, why);
+    // What moved is logged whenever the refusal was asked about.
+    assert.equal(run.stdout.includes('"reason": "head-moved"'), before.includes(REFUSAL_STANDS), why);
+  }
+});
+
+// A last report that refuses on what it found, with nothing it read moved,
+// would be refused by a fresh check too: none runs, the report is removed and
+// the arm step stays skipped, with a notice naming the report and why.
+test("a PR-scoped run whose last report's refusal stands runs no fresh check and arms nothing", () => {
+  for (const [why, options, before] of [
+    ["an idle refusal on its content", { settles: [1], standing: 0 }, [SETTLE("c{40}"), REFUSAL_STANDS]],
+    ["a failed check", { code: "1", standing: 0 }, [REFUSAL_STANDS]],
+    ["a check not yet verified that needs a full run", { code: "5", settles: [1], standing: 0 }, [SETTLE("c{40}"), REFUSAL_STANDS]],
+  ]) {
+    const run = keepReport(options);
+    assert.equal(run.status, 0, why);
+    assert.equal(run.kept, false, `${why}: no report is left for the arm step`);
+    assert.equal(run.output, "stands=false\nfresh=\nfresh-reason=\nrefusal-stands=needs-dispatch\n", why);
+    assert.equal(run.calls.length, before.length, `${why}: no fresh check`);
+    before.forEach((call, i) => assert.match(run.calls[i], call, why));
+    assert.match(
+      run.stdout,
+      new RegExp(
+        `::notice::the last sweep's post-merge report \\(exit ${options.code ?? 0}, computed 2026-10-01T00:00:00\\+00:00\\) refuses on its own content \\(needs-dispatch\\) and nothing it read has moved since`,
+      ),
+      why,
+    );
+  }
+  // An unjudged report is never asked: its refusal is a failed read.
+  for (const code of ["3", "75"]) {
+    const run = keepReport({ code, standing: 0 });
+    assert.ok(!run.calls.some((c) => REFUSAL_STANDS.test(c)), `exit ${code}`);
+    assert.ok(run.calls.some((c) => FRESH_CHECK.test(c)), `exit ${code}: the fresh check ran`);
   }
 });
 
@@ -699,6 +749,18 @@ test("the fresh check answers the last check's completed attempts with no read",
   const run = keepReport({ settles: [1, 0], attempts: true });
   assert.equal(run.attempts, '{"attempts":[]}');
   assert.match(run.body, /\n {10}BABYSIT_POSTMERGE_ATTEMPTS: \$\{\{ runner\.temp \}\}\/post-merge-attempts\.json\n/);
+  // Kept beside the fresh report, where a sweep's artifact holds them, for
+  // the arm step's room.
+  assert.equal(run.keptAttempts, '{"attempts":[]}');
+});
+
+// The room's recompute in the arm step answers completed attempts from the
+// file kept beside the report it reads, on a sweep and on a wake alike.
+test("the arm step hands the room's post-merge check the attempts kept beside its report", () => {
+  const arm = job("enable-auto-merge");
+  const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(step, /\n {10}BABYSIT_POSTMERGE_ATTEMPTS: \$\{\{ runner\.temp \}\}\/post-merge\/attempts\.json\n/);
+  assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);
 });
 
 // (b) Any refusal on the fresh path leaves no report, so nothing arms.
@@ -712,7 +774,7 @@ test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report"
     const run = keepReport(options);
     assert.equal(run.status, 0, why);
     assert.equal(run.kept, false, why);
-    assert.equal(run.output, `fresh-started=true\nstands=false\nfresh=${options.fresh}\nfresh-reason=${reason}\n`, why);
+    assert.equal(run.output, `fresh-started=true\nstands=false\nfresh=${options.fresh}\nfresh-reason=${reason}\nrefusal-stands=\n`, why);
     assert.ok(run.calls.some((c) => FRESH_CHECK.test(c)), `${why}: the fresh check ran`);
     assert.equal(run.calls.some((c) => SETTLE_FRESH(FRESH_SHA).test(c)), settled, why);
     assert.match(run.stdout, new RegExp(`::notice::the fresh post-merge check \\(exit ${options.fresh}\\) does not stand for this run`), why);
@@ -753,6 +815,11 @@ test("a PR-scoped run's outcome names the fresh check's refusal and which report
   assert.match(wakeOutcome({ ...base, FRESH: "5" }), /refused the fresh post-merge report \(no reason read\)$/);
   assert.match(wakeOutcome({ ...base, STANDS: "true", FRESH: "0", OUTCOME: "armed" }), /report=fresh outcome=armed$/);
   assert.match(wakeOutcome({ ...base, STANDS: "true", OUTCOME: "armed" }), /report=last outcome=armed$/);
+  // A last report whose own refusal stood: no fresh check ran.
+  assert.match(
+    wakeOutcome({ ...base, REFUSAL_STANDS: "needs-dispatch" }),
+    /report=last outcome=skipped: the last sweep's report still refuses \(needs-dispatch\) and nothing it read has moved$/,
+  );
   // A fresh check that timed out or was cancelled writes no stands or fresh output.
   assert.match(
     wakeOutcome({ KILL: "true", WHO: "true", FRESH_STARTED: "true" }),

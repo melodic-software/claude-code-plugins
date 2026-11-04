@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Never: for jq it only points at the install instructions, and it does not write Claude Code user settings, pluginConfigs or the plugin cache."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It can `apt-get install jq` when jq is missing.",
+      "why": "installs a system package"
+    },
+    {
+      "answer": "It does not install jq.",
+      "why": "near miss: says nothing about settings"
+    }
+  ]
+}

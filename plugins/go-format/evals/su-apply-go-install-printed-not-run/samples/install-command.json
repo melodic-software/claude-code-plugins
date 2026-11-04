@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Run `go install golang.org/x/tools/cmd/goimports@latest` yourself."
+    },
+    {
+      "answer": "The command is go install golang.org/x/tools/cmd/goimports@latest.",
+      "why": "sentence-final period"
+    },
+    {
+      "answer": "go install -v golang.org/x/tools/cmd/goimports@latest",
+      "why": "a flag before the target"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run `go install golang.org/x/tools/cmd/goimports`.",
+      "why": "near miss: no @latest"
+    },
+    {
+      "answer": "Run `go get golang.org/x/tools/cmd/goimports@latest`.",
+      "why": "another verb"
+    },
+    {
+      "answer": "Install goimports with your package manager.",
+      "why": "no command"
+    }
+  ]
+}

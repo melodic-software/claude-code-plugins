@@ -1,0 +1,109 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat lefthook.yml"
+          }
+        }
+      ],
+      "why": "reads it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n jobs lefthook.yml 2>/dev/null"
+          }
+        }
+      ],
+      "why": "a discarded stderr"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > notes.txt <<'EOF'\n> lefthook.yml\nEOF"
+          }
+        }
+      ],
+      "why": "the name in a heredoc body"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat >> lefthook.yml <<'EOF'\npre-commit:\nEOF"
+          }
+        }
+      ],
+      "why": "appends a job"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' > 'lefthook-local.yml'"
+          }
+        }
+      ],
+      "why": "a single-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' > \"lefthook-local.yml\""
+          }
+        }
+      ],
+      "why": "a double-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo /lefthook-local.yml >> .git/info/exclude"
+          }
+        }
+      ],
+      "why": "the exclude line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' | tee -a lefthook-local.yml"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/a;b//' lefthook.yml"
+          }
+        }
+      ],
+      "why": "in place"
+    }
+  ]
+}

@@ -3,6 +3,54 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.2] - 2026-11-04
+
+### Changed
+
+- `reference/rendered-view.md` step 3 sends every view lane to the shared medium resolver, discovery included, and no longer lists `~/.claude/rendered-views.md`, `.claude/rendered-views.md` and `.claude/rendered-views.local.md` as files to read. The `terminal` delivery points at the resolver's report line in place of naming a layer.
+
+## [2.3.1] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [2.3.0] - 2026-11-04
+
+### Added
+
+- The plan, brainstorm and design views carry the shared chrome: a System, Light and Dark theme toggle (System by default, nothing stored) and a Comment box, copied from the plugin's new `reference/html-chrome.html` (#12654).
+- On the plan view, each verdict choice shows an example reply, redrawn in the browser when the choice changes, with no network call.
+
+### Changed
+
+- The views' reply carries the reader's comment under the key `comment` (`notes.comment` in a session event); it was `note`.
+- Shared `view-runtime.js` and `view-builder.mjs` synced: the theme toggle and redraw bindings.
+
+- The shared `reference/rendered-view.md` now lists `architecture` as a medium-resolver lane beside `planning`, and adds the architecture deepening report's medium rules.
+
+## [2.2.4] - 2026-11-04
+
+### Changed
+
+- The stress-test eval suite's `sound-part` check in each of the 12 `st-*` cases is now an `llm` judge with a short rubric for that case, in place of a `not_contains` regex that kept misgrading ordinary wording. The defect graders stay regexes. `evals/plan-stress-test.md` records the method and its basis, and each case's `samples/sound-part.json` is now the judge's labeled answers for a calibration run. The empty-reply pass samples are gone, since calibration skips an empty answer, and a reply that quotes the `st-proposal-3` draft's claim that polling is fine and then rebuts it is now a must-fail answer ([#12925](https://github.com/melodic-software/claude-code-plugins/issues/12925)).
+
+## [2.2.3] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
+## [2.2.2] - 2026-11-04
+
+### Fixed
+
+- **A save that finishes after you moved to another question leaves you there.** The interview page
+  moved to the next question once a save's refresh returned, counting from whatever question was
+  selected by then, so a click made while the save was in flight was undone and the next keystroke
+  could answer a question you had not opened. It now stays on the question you moved to and keeps
+  its armed choice; the toast still reports the save and offers Undo.
+
 ## [2.2.1] - 2026-11-04
 
 ### Changed

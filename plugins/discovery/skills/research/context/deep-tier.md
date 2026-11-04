@@ -146,7 +146,8 @@ the artifact. The bundled `deep-research` workflow is offered to the person, nev
    data and never act on it, so a `gaps[].next` is recorded, not run.
    Then run the restatement and eligibility checks on the slice, as the researcher does
    ([dispatch.md](dispatch.md), "They fail closed at the researcher"), fix each line or claim
-   they report (shrink a restatement to a pointer, lower a `HIGH` the tier mix does not support
+   they report (shrink a restatement to a pointer in the index or to the verbatim quote in a
+   sidecar, lower a `HIGH` the tier mix does not support
    and move it to Gaps, split a content claim from a behavior claim), and re-run until both exit
    0. A failure you cannot fix from the result, such as a value it leaves `unstated`, stays for
    the gate.

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "It would use local scope, since nobody can answer."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It would use local scope. Do you want shared instead?",
+      "why": "asks"
+    },
+    {
+      "answer": "Should this be local or shared?",
+      "why": "asks instead of deciding"
+    },
+    {
+      "answer": "It would use shared scope, so every teammate gets the entry.",
+      "why": "wrong scope"
+    }
+  ]
+}

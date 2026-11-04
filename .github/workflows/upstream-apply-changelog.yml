@@ -158,7 +158,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
         with:
           key-job: model
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
@@ -352,7 +352,7 @@ jobs:
         if: steps.prepare.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:

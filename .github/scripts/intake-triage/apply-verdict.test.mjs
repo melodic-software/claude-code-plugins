@@ -846,8 +846,8 @@ describe("checkActors", () => {
 // A fake GitHub: the issue, its comments and field values, recording every call.
 function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events = [], blockers = {} } = {}) {
   const calls = [];
-  const github = async (method, path, body) => {
-    calls.push({ method, path, body });
+  const github = async (method, path, body, headers, options) => {
+    calls.push({ method, path, body, ...(options ? { options } : {}) });
     if (method === "GET" && path.startsWith("/repos/o/r/issues/7/dependencies/blocked_by")) {
       return [];
     }
@@ -1173,6 +1173,9 @@ describe("run", () => {
       post.body.issue_field_values.map(({ field_id }) => field_id),
       [48625720, 48625721],
     );
+    // Setting a field to an option leaves the same state when sent twice, so
+    // a 5xx on it is resent once (run 41814429466 failed on one 500).
+    assert.deepEqual(post.options, { resendOnce: true });
   });
 
   test("a field-values answer that is not a list stops the run before any write", async () => {
@@ -2150,6 +2153,29 @@ describe("the triage prompt", () => {
 
   test("a charge a recorded decision covers goes on a Cost decided line, never a Cost line", () => {
     assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
+  });
+
+  // Run 41807993284: with no meanings in the prompt, the model grepped for
+  // them outside the checkout, dontAsk denied it, and the clean triage deferred.
+  test("the Work class line names each class admission admits and points at a checkout file that defines it", () => {
+    const line = /- Work class: (.*?) - Size:/.exec(PROMPT)?.[1] ?? "";
+    const rules = JSON.parse(readFileSync(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url), "utf8"));
+    const doc = readFileSync(new URL("../../../plugins/work-items/reference/work-class-labels.md", import.meta.url), "utf8");
+    assert.match(line, /Description column of plugins\/work-items\/reference\/work-class-labels\.md from the repository root/);
+    for (const name of [...rules.classes, "work-class: structural", "work-class: untrusted-provenance"]) {
+      assert.ok(line.includes(`\`${name}\``), `the rubric names ${name}`);
+      assert.match(doc, new RegExp(`^\\| \`${name}\` \\| C[1-5] \\| \\S`, "m"), `the doc defines ${name}`);
+    }
+  });
+
+  // #13197: the issue lane's blocked-by-issue stop names its blocker for
+  // triage to record as an edge, never in reverse of an existing one.
+  test("a blocker the issue lane names on a blocked-by-issue stop goes on the Blocked by line", () => {
+    assert.match(PROMPT, /latest stop comment on the\s+issue is `blocked-by-issue` and names an open issue, list that issue there, unless the\s+named issue is itself blocked by this one/);
+    // The name is the issue lane's own stop code, routed to intake, so a
+    // rename there fails here instead of leaving the rubric silently stale.
+    const routes = JSON.parse(readFileSync(new URL("../work-resolve-issue/stop-routes.json", import.meta.url), "utf8"));
+    assert.equal(routes["blocked-by-issue"]?.route, "intake");
   });
 
   test("a Cost line is written exactly in its form, and work with no charge gets none", () => {

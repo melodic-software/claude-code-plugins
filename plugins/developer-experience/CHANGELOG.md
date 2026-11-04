@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-11-04
+
+### Changed
+
+- Eval case `t4-apply-migrate` no longer grades the removal of `.claude/developer-experience.md`. The eval sandbox denies that removal because `.claude/` is a protected path, and the validity gate fails a run on the denial, so the prompt now keeps the old file and the `old-file-removed` grader is dropped ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
+
 ## [0.4.0] - 2026-11-01
 
 ### Changed

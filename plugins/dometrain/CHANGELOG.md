@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.14] - 2026-11-04
+
+### Fixed
+
+- `grounding` replies report a directive found in lesson text: the rule moves to Boundaries and says to name what it asked and that it was not done. On Opus it held in 9 of 10 runs, against 1 of 10 before.
+
 ## [0.8.13] - 2026-11-03
 
 ### Changed

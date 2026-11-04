@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No: a stale shim can resolve yet not run. check runs node --version, and a non-zero exit is FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: command -v node finding it is a PASS.",
+      "why": "resolution passes"
+    },
+    {
+      "answer": "No, resolving is not enough.",
+      "why": "no probe or exit rule"
+    }
+  ]
+}

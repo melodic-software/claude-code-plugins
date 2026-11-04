@@ -118,6 +118,8 @@ Categorize findings:
 
 Severity baseline when the caller needs tiers: `${CLAUDE_PLUGIN_ROOT}/context/severity.md`. Deletion-candidate and Stale map to IMPORTANT. Missing and Aspirational map to SUGGESTION.
 
+**Bundled files.** The `review` keys a repository sets in `docs/conventions/review.yaml` (`fanout_diversity` and the rest) are defined in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`: `Read` that file, never search the plugin directory with `Glob`, `Grep` or `ls`, since it sits outside the repository under review.
+
 You are a subagent and cannot ask the user questions. Flag ambiguities explicitly in your report instead.
 
 ## When you are done

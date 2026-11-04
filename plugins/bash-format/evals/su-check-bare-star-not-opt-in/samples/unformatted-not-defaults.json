@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Shell files are left unformatted, not rewritten to shfmt's built-in defaults."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing is being formatted.",
+      "why": "near miss: restates the symptom, no contrast with the defaults"
+    },
+    {
+      "answer": "shfmt rewrites them with its built-in defaults.",
+      "why": "wrong"
+    }
+  ]
+}

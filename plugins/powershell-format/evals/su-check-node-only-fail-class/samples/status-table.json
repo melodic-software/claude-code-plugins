@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| Node.js | PASS | /usr/bin/node |\n| pwsh | PASS | 7.6 |\n| PSScriptAnalyzer module | INFO | present |\n| PSScriptAnalyzerSettings.psd1 | INFO | at the root |\n| powershell_format_enabled | INFO | default true |\n| Git pre-commit entry | INFO | declined |",
+      "why": "every row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bash, node, pwsh, the module and the settings file all pass; the pre-commit entry is declined.",
+      "why": "prose, no table"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Bash | PASS |\n| Node.js | PASS |\n| pwsh | PASS |\n| PSScriptAnalyzerSettings.psd1 | INFO |\n| powershell_format_enabled | INFO |\n| Git pre-commit entry | INFO |",
+      "why": "near miss: the settings row is not a module row"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

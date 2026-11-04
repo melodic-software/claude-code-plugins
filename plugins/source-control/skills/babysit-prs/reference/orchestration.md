@@ -579,13 +579,15 @@ re-verify anyway.
 - **Understand both sides before touching markers.** Read and reconcile the actual semantic intent
   of the PR branch's own diff and of whatever changed on the base branch since divergence. Never
   resolve by blindly keeping "ours" or "theirs" without understanding what each side was trying to
-  do. `/source-control:resolve-conflicts` owns that discipline in full: intent recovery per side,
-  compose-by-default, evidence-gated side-dropping, and the post-resolution semantic-conflict sweep.
+  do. `/source-control:pull-request`'s base-merge step owns that discipline in full
+  ([Resolve a conflicted merge](../../pull-request/reference/ready-for-review.md#resolve-a-conflicted-merge)):
+  intent recovery per side, compose-by-default, evidence-gated side-dropping, and the
+  post-resolution semantic-conflict sweep.
 - **Resolve mechanical conflicts.** A textual/mechanical conflict is fixed, not escalated:
   formatting, adjacent unrelated changes, both sides adding different items to the same list.
   A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELOG.md`) is mechanical:
   run `<plugin-root>/scripts/resolve-version-bump-conflict.sh` first, per
-  `/source-control:resolve-conflicts` step 3. For a plugin listed in the repository's `fragment-plugins.txt` list (under `scripts/`),
+  [Plugin version-bump collisions](../../pull-request/reference/ready-for-review.md#plugin-version-bump-collisions). For a plugin listed in the repository's `fragment-plugins.txt` list (under `scripts/`),
   take main's `plugin.json` and `CHANGELOG.md` and move the PR's entry into a changelog fragment,
   per the same step.
 - **Conclude the merge locally, and stop at the remote boundary.** Stage the resolved paths and
@@ -629,9 +631,9 @@ re-verify anyway.
   `MERGE_HEAD` is still present because no porcelain commit concluded the merge, and the abort
   discards nothing, since the partial state was committed to the WIP branch the step before, returning
   the PR branch and worktree to the asserted head with a clean tree. That is not the
-  abort-as-resolution-strategy the resolve-conflicts skill forbids, whose objection is that an
+  abort-as-resolution-strategy the base-merge step forbids, whose objection is that an
   abort converts resolved hunks into a status report: here every resolved hunk is already on the
-  WIP branch, and the escalation report is exactly that skill's stop-and-ask-the-user fallback.
+  WIP branch, and the escalation report is exactly that step's stop-and-ask fallback.
   Name the WIP branch and the reasoning in the report. An in-progress
   merge left live blocks every later checkout of that worktree (`loop.md` §5.1.2) and makes the PR
   unworkable until a human intervenes, so leaving the worktree clean is mandatory even on the

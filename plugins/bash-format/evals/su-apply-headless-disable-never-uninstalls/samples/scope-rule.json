@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "`-s` defaults to user, so pass the scope `claude plugin list` reports, and for a project or local scope run from that project's directory; otherwise the rerun adds a second install record at the scope you passed and enables the plugin there. The value lands in user settings either way."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Always pass `-s user`.",
+      "why": "ignores the installed scope"
+    },
+    {
+      "answer": "Pass the scope `claude plugin list` reports.",
+      "why": "near miss: no directory rule, no second record, nothing on where the value lands"
+    }
+  ]
+}

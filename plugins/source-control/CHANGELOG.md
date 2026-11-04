@@ -3,6 +3,61 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.1] - 2026-11-04
+
+### Fixed
+
+- `dependency --ci` returns `owner_reason` in its verdict: `intent`, `design`, `security` or
+  `cost` on an `escalate` the owner decides, else `none`, which sends the stop to a session
+  builder instead of the owner.
+
+## [7.1.0] - 2026-11-04
+
+### Added
+
+- `/source-control:pull-request conflicts --ci --unattended`: an unattended conflict mode for the pr-unblock lane, which still calls `/source-control:resolve-conflicts ci` until its config switches over. It reads the runner's `conflicts.json`, resolves each conflicted path in place, runs no command, never edits a path under `.github/workflows/`, and leaves a path it cannot resolve with its markers, which hands the run to a person.
+
+- A `review_venue` setting (`auto`, `local`, `ci`, `both`; default `auto`) in `docs/conventions/source-control.yaml` and as a `userConfig` option, the repository value winning. `auto` keeps the per-lane CI health read; `local` runs every local review step; `ci` skips the local review steps and leaves the review to the CI lanes; `both` runs the local steps and still counts the CI lanes. The new `read-review-venue.sh` resolves it, reading the repository value at the pull request's base branch and honoring it only when that base is the default branch. An unknown value falls back to `auto` with a notice.
+
+### Changed
+
+- The babysit-prs carry check (`babysit_merge_policy.CARRY_REFUSES`) also refuses to carry an approval past a push touching `plugins/evals/skills/plugin-eval/scripts/`, which the `eval-hill-climb.yml` gate workflows load (#12035).
+
+- `/source-control:pull-request`'s base-merge step (`ready`, §2.5.2) now holds the conflict discipline: map the stop, recover both sides' intent, compose by default, sweep for semantic conflicts, and verify. It escalates only when the two intents cannot both hold. The plugin version-bump collision rule moved there too, and `create`, `push-branch.sh`'s exit-4 message, `/source-control:babysit-loop` and `/source-control:babysit-prs` now point to it instead of `/source-control:resolve-conflicts`.
+
+## [7.0.6] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [7.0.5] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
+- `babysit_verify_evidence.py refusal-stands` says whether an earlier tick's post-merge report refuses on what it found (exit 1, or needs-dispatch, unattributed, quarantines or excused; not its age, a re-run or a failed read) while nothing it was read from has moved: main's tip, the config commit, the demotion, the quarantine issues, the pins, and every verifying run, including one created, re-run or still running since. pr-merge's PR-scoped wake then refuses as that report does without running the post-merge check again.
+
+## [7.0.4] - 2026-11-04
+
+### Changed
+
+- `babysit_postmerge.py` lists only open issues when it reads quarantine issues (the check's quarantine read and `file_quarantines`), which keep only open ones anyway, instead of every issue the filers ever opened. Remediation's demotion-record lookup still lists closed records, since a new sighting reopens one.
+- `babysit_postmerge.py` shares each compare answer between two full SHAs through the run cache file (`BABYSIT_RUN_CACHE`, section `postmerge-compare`), so a run's later gate processes answer the same ancestry question with no compare call. A shared answer still counts against the settle and anchor compare budgets, so no gate decision changes. Branch tips are still read once per process.
+
+## [7.0.3] - 2026-11-04
+
+### Fixed
+
+- **`babysit-prs` verdict reader stops at the read floor when ci-status runs it.** With `BABYSIT_READ_FLOOR_STOP=1`, which ci-status sets on its merge-queue judgment, `babysit_gh` sends no read (any call or page) once its pool is below its `read-floor` share, and the judgment fails closed. ci-status no longer prices an index-mode judgment from the unfiltered artifact listing, which was returning HTTP 500 and holding every cold merge-queue entry.
+
+## [7.0.2] - 2026-11-04
+
+### Fixed
+
+- `babysit_gh.py` counts the GitHub requests of every call that gives no header block (a binary artifact download, a subcommand other than `gh api`, a bare `--paginate`). In a job that names its token, such a call runs with `GH_DEBUG=1`, each request to a GitHub API URL becomes a `request <route>` line in the token's api-budget file, and stderr comes back without the debug lines, as `api_budget_traced` does for the shell wrapper. The job's api-calls notice no longer leaves those requests out.
+
 ## [7.0.1] - 2026-11-04
 
 ### Fixed

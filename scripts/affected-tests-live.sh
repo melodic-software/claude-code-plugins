@@ -255,6 +255,9 @@ read_pairs=(
   "plugins/biome-format/hooks/biome-format-end-of-turn.test.sh|plugins/biome-format/hooks/exec-bash.mjs"
   "plugins/code-metrics/skills/audit/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
   "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
+  # Suites that read every plugin's manifest through a path built from parts.
+  "lib/view-settings.test.sh|plugins/architecture/.claude-plugin/plugin.json"
+  "scripts/check-data-root.test.sh|plugins/architecture/.claude-plugin/plugin.json"
 )
 for fixture in events-v1 invalid-device-scope-on-prototype invalid-reaction-agree \
   invalid-recommendation-on-choice state-full state-v7-live wire-heartbeat wire-presence; do

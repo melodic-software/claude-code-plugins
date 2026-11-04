@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No, it isn't broken. No settings file is INFO: absence is the opt-out by design, and the plugin stays inert until the repo adopts one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| PSScriptAnalyzerSettings.psd1 | FAIL | not found |\n\nThe plugin is misconfigured.",
+      "why": "grades the absence FAIL"
+    },
+    {
+      "answer": "There's no settings file, so nothing gets formatted.",
+      "why": "near miss: no verdict on broken and no INFO grade"
+    }
+  ]
+}

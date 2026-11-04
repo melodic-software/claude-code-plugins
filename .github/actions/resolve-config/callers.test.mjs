@@ -2284,7 +2284,7 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
 // ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
 // 2476d5dde8979eab34374150b7e4b0a2b99f4e88, bc62beb95a989641f30552a932a132ebb8ecd801 and
-// 09cf6f2ecd22f7188e62552dea9af48adbd23bb1: lane.cjs:404-405; in cliArgs. The org requires
+// b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6: lane.cjs:404-405; in cliArgs. The org requires
 // actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -2296,7 +2296,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "81a603a6e2b0319428c981bf28f3fe923032afb2",
   "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
   "bc62beb95a989641f30552a932a132ebb8ecd801",
-  "09cf6f2ecd22f7188e62552dea9af48adbd23bb1",
+  "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -6480,10 +6480,15 @@ test("pr-unblock.yml: resolve-conflicts-select skips a PR whose base is not the 
   const dir = tempDir("pr-unblock-base-");
   // A stand-in gh answering the pulls read's --jq with the head SHA, base ref and head repository.
   writeFileSync(join(dir, "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "${"d".repeat(40)}" "$FAKE_BASE" o/r\n`, { mode: 0o755 });
+  // The step sources its read helper from the default-branch checkout at .base.
+  const work = join(dir, "work");
+  mkdirSync(work);
+  symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(work, ".base"));
   const head = (base) => {
     const out = join(dir, `out-${base.replaceAll("/", "-")}`);
     writeFileSync(out, "");
     const run = spawnSync("bash", ["-c", step("head").run], {
+      cwd: work,
       encoding: "utf8",
       env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, FAKE_BASE: base, PR_NUMBER: "10981", GITHUB_REPOSITORY: "o/r", DEFAULT_BRANCH: "main", GITHUB_OUTPUT: out },
     });
@@ -7052,9 +7057,11 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   };
   assert.equal(legFrom(listing({ posted: false })), false, "a superseded call starts no next leg");
   assert.equal(legFrom(listing({ reportRan: false })), true, "a credit stop or an empty key starts the next leg");
+  // A failed read holds green with no output, which starts no second leg.
   const failed = readPosted(t, step, listing({ posted: true }), { fail: true });
-  assert.notEqual(failed.status, 0);
+  assert.equal(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
+  assert.equal(starts(failed.outputs.posted ?? "", failed.outputs.allowed ?? "", failed.outputs["handed-off"] ?? ""), false);
 });
 
 // #8890 for fix-docs's push job: patch-state, patch-sha256, patch-attempt,
@@ -8408,6 +8415,8 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
     "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
     "eval-browser-dispatch.yml": ["eval"],
+    "eval-hill-climb.yml": ["propose", "scan", "verdict"],
+    "eval-hill-climb-pass.yml": ["pass"],
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Missing jq is a FAIL: the batch row reads the file paths with jq, so it does nothing, and the pre-commit rewrite is skipped."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Missing jq is a FAIL because the batch row needs it.",
+      "why": "near miss: no pre-commit half, nothing on what stops"
+    },
+    {
+      "answer": "jq is optional; the batch row parses the payload without it.",
+      "why": "wrong"
+    }
+  ]
+}

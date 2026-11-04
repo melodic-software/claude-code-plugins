@@ -534,6 +534,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   let plan = planFor(labels);
 
   if (plan.fieldWrites.length > 0) {
+    // Safe to send twice: the POST sets each listed field to one option, so a
+    // second copy after a 5xx that GitHub did apply sets the same values.
     const written = await github(
       "POST",
       `${base}/issue-field-values`,
@@ -544,6 +546,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
         })),
       },
       FIELD_API,
+      { resendOnce: true },
     );
     const answered = new Map((Array.isArray(written) ? written : []).map((row) => [row?.issue_field_id, row?.single_select_option?.id]));
     const wrong = plan.fieldWrites.filter(({ fieldId, optionId }) => answered.get(fieldId) !== optionId);

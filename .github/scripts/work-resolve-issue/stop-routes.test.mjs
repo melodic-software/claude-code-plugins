@@ -7,10 +7,22 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { causeName, HOLD_CLASSES, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
+import { causeName, HOLD_CLASSES, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const KNOWN_NAMES = JSON.parse(readFileSync(new URL("./known-names.json", import.meta.url), "utf8"));
+
+// A fault says nothing about the issue: a runner, job or crash, not what the
+// run wrote or decided, which a retry can repeat for a reason in the issue.
+test("a stop is a fault only when the lane's machinery failed, never for what the run wrote", () => {
+  for (const reason of ["outcome-unread", "issue-file", "scan-refused-fault", "patch-apply-failed"]) {
+    assert.equal(stopFault(reason), true, reason);
+    assert.equal(stopRoute(reason), "retry", reason);
+  }
+  for (const reason of ["outcome-invalid", "patch-invalid", "stopped", "done-no-commit", "check-failed", "security-risk", "no-such-reason"]) {
+    assert.equal(stopFault(reason), false, reason);
+  }
+});
 
 test("a reason the table does not list names no owner reason, so it fails, to no person", () => {
   assert.equal(stopRoute("no-such-reason"), "fail");
@@ -67,6 +79,28 @@ test("a stop with no code, a done or delivered issue, a wait on a pull request a
   for (const code of ["already-done", "report-delivered", "blocked-by-pr"]) {
     assert.equal(runCode(`${code}: why`), code);
   }
+});
+
+// An ordering stop names no owner reason ("When work stops for the owner",
+// docs/contracts/loop-lane/README.md): intake triage writes the blocked-by
+// edge, so admission waits for the blocker.
+test("a blocked-by-issue code goes back through intake once, and an intent-change code still holds", () => {
+  assert.equal(runCode("blocked-by-issue #13187 must land first"), "blocked-by-issue");
+  assert.equal(runCode("blocked-by-issue: #13187 must land first"), "blocked-by-issue");
+  assert.equal(stopRoute("blocked-by-issue"), "intake");
+  assert.equal(stopRetries("blocked-by-issue", 2), 1);
+  assert.equal(stopReasonCode("blocked-by-issue"), "none");
+  assert.equal(runCode("intent-change: must land after the sibling part #13187"), "intent-change");
+  assert.equal(stopRoute("intent-change"), "hold");
+  // Owner Q4: intake removes agent-ready, so a security mention after the
+  // code still reaches a person, as it does with no code.
+  assert.equal(runCode("blocked-by-issue: #5 rotates the leaked token"), "security-risk");
+  assert.equal(runCode("rotates the leaked token"), "security-risk");
+});
+
+test("the issue lane's prompt names the blocked-by-issue code", () => {
+  const prompt = readFileSync(new URL("../../../plugins/work-items/skills/work/reference/ci-mode.md", import.meta.url), "utf8");
+  assert.ok(prompt.includes("`blocked-by-issue`"), "ci-mode.md names blocked-by-issue");
 });
 
 test("a spent cap never retries again", () => {

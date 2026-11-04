@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "With no package.json, two lockfiles, or a lockfile that contradicts packageManager, it stops with manager-specific guidance instead of guessing."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "With no package.json it runs npm install --save-dev, which creates one.",
+      "why": "guesses npm"
+    },
+    {
+      "answer": "With no package.json it stops with guidance. With two lockfiles it uses the newest.",
+      "why": "guesses on two lockfiles"
+    }
+  ]
+}

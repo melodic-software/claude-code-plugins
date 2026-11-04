@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "It is written down in the plugin README, under Requirements."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "See the Claude Code docs.",
+      "why": "near miss: not the README"
+    },
+    {
+      "answer": "It is not documented.",
+      "why": "wrong"
+    }
+  ]
+}

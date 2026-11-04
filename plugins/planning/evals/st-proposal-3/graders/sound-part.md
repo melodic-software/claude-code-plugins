@@ -1,7 +1,19 @@
 ---
-type: regex
-pattern: '^(?!(?![^\n]*\b(?:draft|plan|proposal|Phase\s*\d+|section|brief|author|it)(?:''s)?\s+(?:\w+\s+)?(?:says|said|assumes|assumed|claims|claimed|states|asserts|argues)\b[^\n]*\b(?:but|however|yet)\b)[^\n]*(?:\bno\s+need\s+(?:to|for)\b|\bdon''t\s+see\s+(?:a|any)\b|\b(?:is|are|looks?|seems?)\s+(?:(?!not\b)\w+\s+)?(?:fine|ok|okay|correct|sound|safe|good|right|justified)\b)(?![^\n]*\b(?:but|however|yet|although|though)\b[^\n]*(?:\bpoll\w*|\bfive[- ]seconds?\b)))(?![^\n]*(?:(?:\bnot\b|n''t\b|\bnever\b)\s+(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,2}(?:wrong|wasteful|inefficient)|\b(?:cannot|can''t|could\s*n''t|could\s+not|won''t|will\s+not|should\s+not|shouldn''t)\s+(?:\w+\s+)?(?:use|work\s+with|replac\w*|switch)|\b(?:no|none|nothing)\b\s*(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,3}?(?:wrong|wasteful|inefficient)))(?![^\n]*(?:\bRedis\b[^\n]*\b(?:contradict\w*|\binconsisten\w*|undercut\w*|reject\w*|Rollout|container|counters?|itself|anyway)\b|\b(?:contradict\w*|\binconsisten\w*|undercut\w*|reject\w*|Rollout)\b[^\n]*\bRedis\b|\b(?:not|non-?|isn''t)\s*idempotent\b|\bno\s+unique\b|\bplain\s+insert\b|\bduplicate\s+invoices?\b|\bstuck\b|\bstrand\w*|\borphan\w*|\breaper\b|\breclaim\w*|\bno\s+(?:\w+\s+)?lease\b|\blease\s+(?:expir\w*|timeout)\b|\bgrace\s+period\b|\b(?:left|stays?|remains?|leaves?\s+(?:\w+\s+){0,3})\s*(?:in\s+)?[''"`]?running\b))(?=[^\n]*(?:\bpoll\w*|\bfive[- ]seconds?\b))[^\n]*(?:\bwrong\b|\bwasteful\b|\binefficient\b|\bshould\s+use\s+(?:LISTEN|NOTIFY|a\s+notif\w*)|\buse\s+LISTEN\b|\bLISTEN\/NOTIFY\s+instead\b|\binstead\s+of\s+poll\w*|\breplac\w*\s+(?:the\s+)?(?:\w+\s+)?poll\w*|\bswitch\s+to\s+(?:LISTEN|NOTIFY)\b|\b(?:bad|poor)\s+(?:choice|fit|idea)\b|\btoo\s+(?:slow|frequent|chatty|expensive)\b|\bwastes?\b)'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft proposal for a database-backed invoice job queue in a billing service.
+One part of the draft is sound: workers poll for jobs every five seconds, because the connection
+pooler runs in transaction mode, which leaves no session for LISTEN/NOTIFY. This grader checks
+only that the reply leaves polling alone. The case's other graders score the defects it finds.
+
+PASS if no finding says polling is wrong or should be replaced. A reply passes when it approves
+polling, reports other defects (the Rollout adding Redis, `createInvoice` not being idempotent, or
+a job left in `running` after a killed worker), or flags nothing. A finding that the poll should
+also pick up stranded `running` jobs, for example through a lease, fixes that last defect and
+passes, as does a finding about the 5-second stop grace period.
+
+FAIL if any finding calls polling wasteful, wrong or a poor choice, or asks to replace the poll
+loop with LISTEN/NOTIFY or another notification channel. A finding that quotes the draft's claim
+that polling is fine and then rebuts it fails, with or without a contrast word.

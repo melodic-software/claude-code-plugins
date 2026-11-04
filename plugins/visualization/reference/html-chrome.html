@@ -1,10 +1,11 @@
 <!doctype html>
+<!-- GENERATED from lib/html-chrome.html by scripts/sync-shared-copies.sh. Do not edit this copy:
+edit the canonical source, then rerun the script. -->
 <!--
-  html-chrome.html: the marketplace's design-token and chrome reference for
-  rendered HTML views (the rendered-views convention's one sanctioned shared
-  piece). Skills that emit a person-facing HTML view take their palette, type
-  stacks, spacing, and accessibility floor from this page; open it in a browser
-  to see every token rendered.
+  html-chrome.html: the marketplace's one canonical chrome for rendered HTML views
+  (the rendered-views convention's sanctioned shared piece). Every person-facing
+  page family takes its palette, type stacks, spacing, theme toggle, comment box
+  and accessibility floor from this page; open it in a browser to see each one.
 
   Provenance: token values are derived from the "Unreasonable Effectiveness of
   HTML" example gallery pages (Copyright 2026 Anthropic PBC, published under
@@ -13,16 +14,21 @@
   derived file is distributed under this repository's MIT license with that
   attribution.
 
-  Accessibility floor: PROVISIONAL. The floor below (contrast pairings, focus
-  visibility, color-scheme and reduced-motion behavior) ships as wave-1 baseline
-  and is revisited cross-genre when the design-system vertical runs; the
-  rendered-views convention doc owns the revision trigger.
+  Theme: one system/light/dark toggle, system by default, is the only theme
+  choice a page offers. No team or user theme override, accent picker or palette
+  picker. `data-theme` on the root pins light or dark; with none, the page
+  follows prefers-color-scheme. A built view's runtime (view-runtime.js) binds
+  the toggle's `data-rv-theme` buttons; this page binds them with its own
+  inline script so it works opened alone.
 
-  Sharing contract: this is the canonical copy. A second plugin adopting it
-  copies the file byte-identical to the same path within its own plugin root
-  (reference/html-chrome.html) and registers the cluster in
-  scripts/cross-plugin-source-registry.txt; the drift checker rejects a
-  registration while only one plugin carries it.
+  Copying: a page adopting the chrome copies the toggle (the .rv-theme group),
+  the comment box (the .rv-comment section) and the rules between the
+  rv-chrome:begin and rv-chrome:end markers verbatim. Those rules use only
+  --bg, --fg and --muted, which every adopting page defines.
+
+  Sharing contract: this is the canonical copy. scripts/sync-shared-copies.sh
+  generates each plugin's reference/html-chrome.html from it (registry:
+  scripts/shared-copies.txt); edit this file, then rerun the script.
 -->
 <html lang="en">
 <head>
@@ -55,9 +61,10 @@
     --muted: var(--gray-500);
     --link: var(--clay-deep);
     --focus: var(--clay-deep);
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme=light]) {
       --bg: var(--slate);
       --fg: var(--ivory);
       --panel: var(--gray-700);
@@ -65,12 +72,22 @@
       --border: 1.5px solid var(--gray-500);
       --link: var(--clay-soft);
       --focus: var(--clay-soft);
+      color-scheme: dark;
     }
+  }
+  :root[data-theme=dark] {
+    --bg: var(--slate);
+    --fg: var(--ivory);
+    --panel: var(--gray-700);
+    --muted: var(--gray-300);
+    --border: 1.5px solid var(--gray-500);
+    --link: var(--clay-soft);
+    --focus: var(--clay-soft);
+    color-scheme: dark;
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
-  html { color-scheme: light dark; }
   body {
     margin: 0 auto; max-width: 860px; padding: 2rem 1.25rem 4rem;
     background: var(--bg); color: var(--fg);
@@ -96,11 +113,24 @@
   table { border-collapse: collapse; width: 100%; font-size: .92rem; }
   th, td { text-align: left; border-bottom: 1px solid var(--gray-300); padding: .45rem .5rem; vertical-align: top; }
   th { font-family: var(--sans); font-weight: 600; }
+  /* rv-chrome:begin */
+  .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+  .rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+  .rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+  .rv-theme button + button { border-left: 1px solid var(--muted); }
+  .rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+  .rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+  .rv-comment { display: grid; gap: 0.4rem; }
+  .rv-comment h2 { margin: 0; }
+  .rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+  .rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  /* rv-chrome:end */
 </style>
 </head>
 <body>
+<div class="rv-bar"><div class="rv-theme" role="group" aria-label="Theme"><button type="button" data-rv-theme="system" aria-pressed="true">System</button><button type="button" data-rv-theme="light" aria-pressed="false">Light</button><button type="button" data-rv-theme="dark" aria-pressed="false">Dark</button></div></div>
 <h1>Rendered-views chrome reference</h1>
-<p class="lead">Tokens, type, and the accessibility floor for this marketplace's person-facing HTML views. Self-contained: no external links, scripts, fonts, or images.</p>
+<p class="lead">Tokens, type, the theme toggle, the comment box and the accessibility floor for this marketplace's person-facing HTML views. Self-contained: no external links, fonts or images, and one inline script that runs the toggle.</p>
 
 <h2>Palette</h2>
 <div class="panel">
@@ -125,6 +155,21 @@
   <p>Borders are <code>1.5px solid</code>; panels round at <code>--radius-panel</code> (12px), rows at <code>--radius-row</code> (8px).</p>
 </div>
 
+<h2>Theme toggle</h2>
+<div class="panel">
+  <p>The toggle at the top of this page: System, Light and Dark, with System pressed when the page opens. System follows the reader's color-scheme preference; Light and Dark pin the page by setting <code>data-theme</code> on the root element. Nothing is stored, so a reload is System again. It is the only theme choice a page offers.</p>
+</div>
+
+<h2>Comment box</h2>
+<div class="panel">
+  <p>A page that takes the reader's words carries this box. Its text travels with the page's reply under the key <code>comment</code>.</p>
+  <section class="rv-comment" aria-labelledby="rv-comment-h">
+  <h2 id="rv-comment-h">Comment</h2>
+  <label for="rv-comment-text">Your comment for the session</label>
+  <textarea id="rv-comment-text" data-rv-note="comment" placeholder="Say what should change, or ask a question"></textarea>
+  </section>
+</div>
+
 <h2>Accessibility floor</h2>
 <div class="panel">
   <p>The web instance of the medium-neutral accessibility floor that <code>/user-interface:design</code> applies to every interface. A rule here may raise that floor, never lower it.</p>
@@ -133,8 +178,9 @@
     <tr><td>Body text contrast</td><td><code>--slate</code> on <code>--ivory</code> (and the inverse in dark scheme); <code>--gray-500</code> only for secondary text at 1rem or larger</td></tr>
     <tr><td>Link and accent text contrast</td><td>Text never wears <code>--clay</code> directly (2.96:1 on <code>--ivory</code>, below the 4.5:1 floor): links use <code>--link</code>, the clay-derived <code>--clay-deep</code> in light scheme (5.37:1 on <code>--ivory</code>) and <code>--clay-soft</code> in dark (4.89:1 on <code>--gray-700</code>)</td></tr>
     <tr><td>Accent is never the only signal</td><td><code>--clay</code> and <code>--olive</code> stay decorative: they accompany a text label or shape change, never carry meaning alone</td></tr>
-    <tr><td>Focus visibility</td><td><code>:focus-visible</code> gets a 3px <code>--focus</code> outline with 2px offset, at or above the 3:1 non-text floor in both schemes (styled above)</td></tr>
-    <tr><td>Color scheme</td><td><code>color-scheme: light dark</code> plus the <code>prefers-color-scheme</code> token flip above</td></tr>
+    <tr><td>Focus visibility</td><td><code>:focus-visible</code> gets a 3px <code>--focus</code> outline with 2px offset, at or above the 3:1 non-text floor in both schemes (styled above); the toggle and comment box outline in the text color</td></tr>
+    <tr><td>Color scheme</td><td>System by default: the <code>prefers-color-scheme</code> token flip above, unless the toggle pins <code>data-theme</code> to light or dark; <code>color-scheme</code> follows the scheme in use</td></tr>
+    <tr><td>Toggle state</td><td>The toggle is a labeled group of native buttons; the chosen one carries <code>aria-pressed="true"</code> and inverts its colors, so the state is never color alone</td></tr>
     <tr><td>Motion</td><td><code>prefers-reduced-motion: reduce</code> disables animations and transitions wholesale</td></tr>
     <tr><td>Keyboard reach</td><td>Every interactive control is a native element or carries a tabindex and key handler</td></tr>
   </table>
@@ -144,5 +190,18 @@
 <div class="panel">
   <p>A rendered view ships as one file: inline CSS and JS only, no external requests, assets as data URIs when unavoidable. Escape any interpolated content; the rendered-views convention owns the escaping baseline.</p>
 </div>
+<script>
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("button[data-rv-theme]");
+    if (!button) { return; }
+    var choice = button.getAttribute("data-rv-theme");
+    if (choice === "system") { document.documentElement.removeAttribute("data-theme"); }
+    else if (choice === "light" || choice === "dark") { document.documentElement.setAttribute("data-theme", choice); }
+    else { return; }
+    document.querySelectorAll("button[data-rv-theme]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b === button));
+    });
+  });
+</script>
 </body>
 </html>

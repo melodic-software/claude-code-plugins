@@ -240,13 +240,14 @@ maintenance is forbidden, safety.md and orchestration.md). Then:
   resolution immediately; on success continue the merge and `lane_push`
   → `integrated`; if ANY file requires intent judgment, abort the merge → `conflict-aborted`.
   Never proceed to comment processing, parking, or the next PR with an integration in progress.
-  Resolve via `/source-control:resolve-conflicts` discipline (understand both sides' intent;
-  compose, don't side-pick). A plugin version-bump collision (`.claude-plugin/plugin.json`,
-  `CHANGELOG.md`) is mechanical, not intent judgment: run
+  Resolve per `/source-control:pull-request`'s base-merge step,
+  [Resolve a conflicted merge](../../pull-request/reference/ready-for-review.md#resolve-a-conflicted-merge)
+  (understand both sides' intent; compose, don't side-pick). A plugin version-bump collision
+  (`.claude-plugin/plugin.json`, `CHANGELOG.md`) is mechanical, not intent judgment: run
   `<plugin-root>/scripts/resolve-version-bump-conflict.sh` first; exit 0 resolved and
   staged every such pair. For a plugin listed in the repository's `fragment-plugins.txt` list (under `scripts/`), take main's
   `plugin.json` and `CHANGELOG.md` and move the PR's entry into a changelog fragment, per
-  `/source-control:resolve-conflicts` step 3
+  [Plugin version-bump collisions](../../pull-request/reference/ready-for-review.md#plugin-version-bump-collisions)
 - **Complex conflicts** (>3 files, `INTEGRATION_STATUS=conflict-aborted`): abort the merge,
   post a PR comment: `"⚠️ Branch is behind $DEFAULT_BRANCH with integration conflicts ({N}
   files). Manual resolution is required before CI will trigger."`. If an interactive terminal,

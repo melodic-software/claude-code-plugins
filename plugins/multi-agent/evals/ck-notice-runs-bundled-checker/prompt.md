@@ -9,6 +9,6 @@ expected_outcome: "Runs the checker the notice names, read-only, then check-hook
 
 This showed up when the session started:
 
-> multi-agent: node not on the hook PATH. Without node, the multi-agent hooks cannot launch, so they do nothing. After node resolves, run `bash <plugin root>/scripts/check-hook-registration.sh`: it reports whether the fetch gate is registered and denies a sample off-host fetch. Install (docs: https://nodejs.org/en/download). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+> multi-agent: node not on the hook PATH. Without node, the multi-agent hooks cannot launch, so they do nothing. After node resolves, run `bash scripts/check-hook-registration.sh` from the plugin root, the directory passed to `prerequisites.mjs check`. It reports whether the fetch gate is registered and denies a sample off-host fetch. Install (docs: https://nodejs.org/en/download). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
 
 I installed node after that, and a copy of the plugin is in ./plugin. Does it check out now?

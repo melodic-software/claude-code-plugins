@@ -3,6 +3,52 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.2.0] - 2026-11-04
+
+### Changed
+
+- The CI review lanes post only blocking findings once they have reviewed an earlier head of the pull request, not only past the `loop.review-rounds` cap. `prior-findings.mjs` now writes `blocking only: yes` once the lane reviewed an earlier head (a clean review counts, a skip does not), and no longer reads `CAP_CONFIG`. `/review:code-review` and `/review:security-review` apply the rule as "After the first review".
+
+## [7.1.8] - 2026-11-04
+
+### Fixed
+
+- The run-everything sweep waits for the `review:fanout-sweep` workflow's completion notification and takes each leaf's text from the returned `raw` array or its findings file, instead of listing or reading the workflow's run directory. Those run-directory reads were denied in eval runs, which made the reviewer-diversity suites invalid.
+
+## [7.1.7] - 2026-11-04
+
+### Fixed
+
+- The run-everything sweep names its workflow script (`workflows/fanout-sweep.js`), and the `doc-drift-detector` agent names the file that defines the `review.yaml` keys (`reference/config.md`), so neither searches the plugin directory with `Glob`, `Grep` or `ls` to find them. Those searches were denied in eval runs, which made the reviewer-diversity suites invalid.
+
+## [7.1.6] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [7.1.5] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654); no other change to this plugin.
+
+## [7.1.4] - 2026-11-04
+
+### Changed
+
+- **The shared view registry records whether each lane's plugin ships a `medium` option.** `lib/view-registry.mjs` gains `hasMediumOption` on every lane registration, and the retired `~/.claude/rendered-views.md` notice names the plugin's `medium` option only for a lane where it is set; this plugin's notices are unchanged.
+
+### Fixed
+
+- The `check` line for a missing node no longer prints a literal `<plugin root>` in the registration probe command. It now says to run `bash scripts/check-hook-registration.sh` from the plugin root, the directory passed to `prerequisites.mjs check`, so the command runs as written.
+
+## [7.1.3] - 2026-11-04
+
+### Fixed
+
+- The `code-reviewer` agent now reads its bundled files (`context/severity.md`, the quality-gate code-design criteria and the other `${CLAUDE_PLUGIN_ROOT}` files it names) with the `Read` tool instead of a shell `cat` or `sed`. Shell reads of those files were denied in eval runs, which made the reviewer-diversity suites invalid.
+
 ## [7.1.2] - 2026-11-04
 
 ### Changed

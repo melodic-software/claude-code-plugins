@@ -29,17 +29,9 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/lib/view-
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one
 line per notice. Print the report line and the notices in the report as they stand (step 9),
-next to the format's source, which alone says what the briefing was emitted as. One exception:
-the notice for a retired `~/.claude/rendered-views.md` ends "set it in the ai-briefing plugin's
-medium option instead", and this plugin has no such option. Print that notice with
-`docs/conventions/rendered-views.local.yaml` (the personal override) in place of "the
-ai-briefing plugin's medium option". When that notice names a value (`(it sets medium: …)`),
-also append `; a publishing value there applies only while that file is untracked and
-gitignored`, since the resolver ignores a publishing value in a committed personal override.
-Which values publish is the resolver's to know, so this caveat holds whatever the value is. Leave
-every other notice as it stands. Do
-not read or weigh the rendered-views convention files yourself. When `node` is missing, say so in
-one line and carry on.
+next to the format's source, which alone says what the briefing was emitted as. Do not read or
+weigh the rendered-views convention files yourself. When `node` is missing, say so in one line and
+carry on.
 
 ## Source and access policy
 

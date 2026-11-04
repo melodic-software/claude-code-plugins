@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Not broken. No biome.json or biome.jsonc governs this repo, so check reports the config as INFO: absence is the opt-out by design and the plugin stays inert."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: Biome config missing. Add one.",
+      "why": "grades the opt-out FAIL"
+    },
+    {
+      "answer": "The plugin does nothing here.",
+      "why": "near miss: no grade, no reason"
+    }
+  ]
+}

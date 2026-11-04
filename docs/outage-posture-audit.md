@@ -337,23 +337,94 @@ A sixth part 2 change fixed this gap, with a test:
   resend still fails the step unless the step holds
   (`.github/scripts/pr-unblock/request-budget.mjs`).
 
-The other script rows below are still open. Part 2 also found two rows that are not script-only
-fixes. Holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
-start its window after this run (`sweepSince` in `.github/scripts/work-unblock/label-unblocked.mjs`),
-so the closes this run missed would never be read. That fix also changes how the window is chosen.
-Holding intake-triage green on a read error (element 2) needs something to start the lane again,
-since it has no cron.
+A seventh part 2 change fixed work-resolve-issue's script gaps, each with a test. A hold keeps
+`agent-ready` and posts no marker, so work-unblock's sweep starts the issue again, once per version
+of the lane workflow files and then on the stranded backoff (`refireRefusal` in
+`.github/scripts/work-unblock/label-unblocked.mjs`). The files are `report-outcome.mjs` and
+`stop-routes.json` under `.github/scripts/work-resolve-issue/`.
+
+- **work-resolve-issue, element 2: `--find-prior`.** A failed read, or an answer of the wrong shape,
+  writes `proceed=false`, logs a `::notice::` and ends green, so the model does not run and no branch
+  is reused or pruned. A bad issue number or an unreadable trusted list still fails the step. So does
+  the issue-fields job's re-derive, whose failure withholds the run's branch claim.
+- **work-resolve-issue, element 4: labeler read.** When who added `merge: human` cannot be read, a
+  run that would open a PR opens none, posts nothing and ends green with a notice, so the branch
+  stays unreported and the next run opens the PR from it. The label is never ignored, and the PR is
+  no longer held for a person on no evidence. A stop that opens no PR reports as usual, and an
+  unreadable trusted list still holds the PR.
+- **work-resolve-issue, element 4: `retry-spent`.** Rows with `fault: true` are the lane's machinery
+  failing: `outcome-unread`, `issue-file`, `scan-refused-fault` and `patch-apply-failed`. At the cap,
+  a fault stop whose counted retries were all faults holds instead of failing the issue. Three cases
+  still take the route: a run that left a branch of its own, which with no marker the next run would
+  open a PR from whatever its checks said; `limits.stop-retries: 0`; and a stop the run itself caused,
+  such as `outcome-invalid` or `patch-invalid`, which a retry can repeat for a reason in the issue.
+
+An eighth part 2 change fixed work-unblock's listing gap, with tests
+(`.github/scripts/work-unblock/label-unblocked.mjs`):
+
+- **work-unblock, element 2.** A sweep whose closed-issue listing fails prints a `::notice::`, reads
+  and writes nothing more and ends green. A held run looks like a full one in the run and step
+  conclusions, so a sweep now logs `label-unblocked: read the closed-issue listing` once it has read
+  that listing, and `sweepSince` starts its window from the last run only when that run's job log
+  holds the line. Otherwise the window is the full `LOOKBACK_HOURS`, so the next sweep reads the
+  closes the held one missed. That is one more read per sweep on the job token, and three holds or
+  more in a row still lose closes older than the 3 hours, as red runs did. A failed
+  listing of the deferred, open or `agent-ready` issues holds with a notice and the sweep goes on:
+  each is read whole every sweep. A read or write that fails for one issue still ends the run red,
+  and a rate limit past the guard's budget does too until the workflow sets `API_BUDGET_HOLD=1`.
+  Either red run is left out of `sweepSince`, so the window stays back.
+
+A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
+
+- **pr-refine, element 1.** Each `handoff-evidence.sh` wait is drawn at random from 0 to its cap
+  (full jitter), for every caller. Reads go on at the last cap until the waits reach the caps' sum,
+  so a listing that lags keeps its five minutes: at most 12 reads and about seven minutes. A
+  `fix-docs` call stops after 3 failed reads; other callers keep 6, since pr-unblock starts a second
+  model leg on a failed read. The head-SHA read is the workflow's (row below).
+- **pr-refine, element 2.** A `fix-docs` or `fix-docs-subscription` read that fails holds: one
+  `::notice::`, no output, exit 0, and a rate limit's annotation is a notice (the script sets
+  `API_BUDGET_HOLD=1` for these two calls). The script scopes this by `CALLS`, since a workflow edit
+  is out of this lane's reach and every other caller reads a red job or empty output its own way, so
+  they still fail closed. A listing that lags ends as a notice through the two jobs'
+  `HANDOFF_EVIDENCE_LAG=notice` in `pr-refine.yml`. A hold looks green, so a permanent fault such as
+  a token that cannot read the jobs shows only as notices, and each PR's hold ends with element 3's
+  count.
+- **pr-refine, element 3.** `fix-docs-dispatch.mjs` no longer ends a PR on a red run with no check. It
+  dispatches again until `limit-stops-per-head` runs went red or held, which bounds a broker refusal,
+  since red names no cause. A held run ends green, so the dispatcher reads a green run's jobs: a leg
+  that handed off, whose handoff job succeeded, with no next leg held. That is two more REST reads
+  for each green run a candidate head has, until one ends the PR. An outage past that many runs still ends the PR.
+
+Element 4 stays open: `decide.mjs` needs a kind that posts nothing, and the posting code in
+`report-check-run.mjs` needs to honor it (the Remaining row). A neutral check is not the fix, since
+babysit counts neutral as passing. A broker failure on pr-refine does not reach `decide.mjs`: off
+`pull_request` the report job posts no check on it (`.github/workflows/pr-run-activity-read.yml`,
+`Choose the head the check is posted on`).
+
+Two parts of the work-unblock rows stay open, for the reasons in the table:
+
+- **Element 3.** The breaker records are not redundant state. The sweep counts them to back a
+  kill-switch re-fire off past `limit-stops-per-issue`, which bounds re-fires that start a lane run
+  and, at a mint, run the model again. `isRestart` reads them so the App's removal counts as a
+  restart, and `backoff` uses them to keep a trip from raising another cause's wait.
+- **Element 6.** Nothing in the `label-unblocked` job keeps an `etag` between runs. The one cache is
+  in the `wip-state` job, and `work-unblock.yml` says a cache must not reach a job that mints. The
+  closed listing's URL also changes every run with its `since`, so its `etag` could not match.
+
+The other script rows below are still open. Part 2 also found one row that is not a script-only
+fix: holding intake-triage green on a read error (element 2) needs something to start the lane
+again, since it has no cron.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
 | shared | 2 | workflow | each lane workflow whose step should hold sets `API_BUDGET_HOLD=1`; part 2 fixed `rate-guard.mjs`'s wait and hold, `check-trusted-trigger.mjs`'s wait on the latch, and `api-budget.bash`'s notice |
-| work-resolve-issue | 2, 4 | script | `.github/scripts/work-resolve-issue/report-outcome.mjs` (`--find-prior` red on a failed read, a failed labeler read holds the PR), `stop-routes.json`; part 2 fixed `retry-fetch.mjs`'s rate-limit wait and the PR create sent again |
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
 | intake-triage | 2 | script | `.github/scripts/intake-triage/apply-verdict.mjs` (holding green needs a re-trigger, since the lane has no cron); part 2 fixed `admit.mjs`'s visibility read |
 | intake-triage | 5 | workflow | `.github/workflows/intake-triage.yml` |
-| work-unblock | 2, 3, 6 | script | `.github/scripts/work-unblock/label-unblocked.mjs` |
-| work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`) |
-| pr-refine | 1, 2, 3, 4 | script | `.github/scripts/lib/handoff-evidence.sh`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs`, `.github/actions/report-check-run/decide.mjs` |
+| work-unblock | 2 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (a failed read for one issue still ends the run red); part 2 fixed the failed listings |
+| work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |
+| work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`, somewhere to keep an `etag` between runs) |
+| pr-refine | 4 | script | `.github/actions/report-check-run/decide.mjs`, `report-check-run.mjs` (post nothing, with a notice, when `pr-refine / fix-docs` has a green run job and scan job and no verdict, which only a failed verdict download leaves); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs` |
 | pr-refine | 1, 2, 4, 5 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
 | pr-review, pr-review-security, pr-verify | 3, 5 | script | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |

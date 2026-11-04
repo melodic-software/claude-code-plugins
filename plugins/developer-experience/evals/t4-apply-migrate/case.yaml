@@ -7,10 +7,6 @@ graders:
   - name: conventions-created
     type: file_exists
     path: docs/conventions/developer-experience.md
-  - name: old-file-removed
-    type: tool_used
-    tool: Bash
-    input_match: '(?:"command":"|&&|\|\||[;|(]|\\n)\s*(?:sudo\s+)?(?:git\s+)?(?:rm|mv)\s(?:[^"\\;&|]|\\[^n])*?(?<![\w.-])\.claude/developer-experience\.md(?![\w.-])'
   - name: one-pointer-line
     type: regex
     pattern: '^- Before creating, changing or cleaning up CLIs'

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "After the install it re-runs the Biome probe live and reports that result; the install's exit code alone is not proof."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "If `yarn add` exits 0, the install worked.",
+      "why": "trusts the exit code"
+    },
+    {
+      "answer": "It checks afterwards.",
+      "why": "near miss: no live probe, no result reported"
+    }
+  ]
+}

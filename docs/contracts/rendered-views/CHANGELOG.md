@@ -3,6 +3,18 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## One canonical chrome with a theme toggle, and the redraw binding, 2026-11-04
+
+- **The chrome moves to `lib/html-chrome.html`.** `scripts/sync-shared-copies.sh` generates each
+  plugin's `reference/html-chrome.html` from it, its header after the doctype. The planning plugin
+  carries a copy beside visualization and adhd.
+- **The chrome carries a system/light/dark toggle and a comment box.** System is the default; the
+  toggle is the only theme choice a page offers. The planning plan, brainstorm and design views
+  copy the toggle and comment markup and the `rv-chrome` style rules.
+- **Two runtime bindings.** `data-rv-theme` drives the toggle, and `data-rv-shows` with
+  `data-rv-example` redraws a choice's example in the browser, with no network call and no
+  storage.
+
 ## One medium resolver on the ADR 0075 scopes and one fallback chain, 2026-11-02
 
 - **`medium` is set in the ADR 0075 scopes.** The argument, the lane plugin's `medium` option, the
