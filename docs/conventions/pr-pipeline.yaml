@@ -32,8 +32,11 @@ activities:
     # request. It runs no command and holds no write token: the read runner
     # merges the base tip before the skill and hands the skill's resolutions
     # on as a patch, which apply-conflict-patch commits with both parents.
-    skill: source-control:resolve-conflicts
-    args: ci
+    skill: source-control:pull-request
+    # The skill's CI mode for a base merge's conflicts: reads the runner's
+    # conflicts.json, resolves each conflicted path in place, runs no command,
+    # and leaves a path it cannot resolve with its markers, which escalates it.
+    args: conflicts --ci --unattended
     # pr-unblock.yml's resolve-conflicts-select job, which runs only base
     # code, merges the base tip and decides clean, conflicted or escalate
     # before any model turn; the read runner merges the same base again and
