@@ -4,7 +4,10 @@
 # (setup SKILL.md apply cache-line steps 2-3). The runner sets HOME to the
 # run's temporary home for a scaffold script
 # (https://code.claude.com/docs/en/plugin-evals, "Set up fixtures and mocks").
-# The guard refuses the account's real home and never overwrites a file.
+# It also places a byte-identical cache-line.mjs, because the run home's
+# ~/.claude is read-only inside the eval sandbox: step 1's copy then finds the
+# copy current and writes nothing. The guard refuses the account's real home
+# and never overwrites a file.
 set -euo pipefail
 
 refuse() {
@@ -37,3 +40,7 @@ cat >"$f" <<'JSON'
   }
 }
 JSON
+cg="$d/context-guard"
+mkdir -p "$cg"
+[[ ! -e "$cg/cache-line.mjs" ]] || refuse "$cg/cache-line.mjs already exists"
+cp "$(dirname "${BASH_SOURCE[0]}")/../../scripts/cache-line.mjs" "$cg/cache-line.mjs"
