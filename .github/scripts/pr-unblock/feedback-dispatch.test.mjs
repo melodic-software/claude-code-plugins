@@ -2303,6 +2303,78 @@ test("a lost run whose dispatch job never started or was not lost, or this run i
   }
 });
 
+// A round in flight when a lane workflow file changed on main: its push job's
+// token step got the broker's workflow-modified refusal (request-lane-token's
+// annotation), after its address-feedback check posted on the head.
+const REFUSED_RUN = 700;
+const WORKFLOW_MODIFIED = "lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-unblock.yml differs from refs/heads/main";
+const refusedRun = (overrides = {}) => ({
+  id: REFUSED_RUN,
+  display_title: TITLE_42,
+  status: "completed",
+  conclusion: "failure",
+  created_at: "2026-10-17T13:00:00Z",
+  updated_at: "2026-10-17T13:40:00Z",
+  ...overrides,
+});
+const refusedRound = (run = REFUSED_RUN) => ({
+  ...roundRun("address-feedback", "success", "Passed", "2026-10-17T13:05:00Z"),
+  external_id: `pr-unblock:address-feedback:${run}:1`,
+});
+const tokenJob = { id: 9001, name: "apply-feedback-patch / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
+function refusedApi({ runs = [refusedRun()], checks = [refusedRound()], message = WORKFLOW_MODIFIED, ...options } = {}) {
+  const api = sweepApi({ checksAt: { [HEAD]: checks }, workflowRuns: runs, ...options });
+  api.jobReads = [];
+  api.listRunJobs = async (id) => {
+    api.jobReads.push(id);
+    return [tokenJob];
+  };
+  api.listAnnotations = async (id) => (id === tokenJob.id ? [{ annotation_level: "notice", message: "token=github-token" }, { annotation_level: "failure", message }] : []);
+  return api;
+}
+
+test("a tick sends a round the broker refused as workflow-modified again once, on main, and the record names the refused run", async (t) => {
+  const api = refusedApi();
+  const { output, lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.jobReads, [REFUSED_RUN]);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, `run-id=38779200001\nupstream-run-id=13\nrefire-of=${REFUSED_RUN}\n`);
+  assert.ok(lines.some((line) => line.startsWith("refire: #42: run 700 was refused as workflow-modified (.github/workflows/pr-unblock.yml)")), lines.join("\n"));
+});
+
+test("a refused round already sent again, by the tick or a person, is not sent a second time", async (t) => {
+  for (const [label, later] of [
+    ["the refire is still going", refusedRun({ id: 701, status: "in_progress", conclusion: null, created_at: "2026-10-17T13:45:00Z" })],
+    ["the refire was refused as well", refusedRun({ id: 701, created_at: "2026-10-17T13:45:00Z", updated_at: "2026-10-17T13:50:00Z" })],
+    ["the refire passed", refusedRun({ id: 701, conclusion: "success", created_at: "2026-10-17T13:45:00Z" })],
+  ]) {
+    const api = refusedApi({ runs: [later, refusedRun()] });
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, [], label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("a round refused for another reason, outside the window, on another head or at the cap is not sent again", async (t) => {
+  for (const [label, options, reads] of [
+    ["a kill-switch 403", { message: "lane-token-denied: the broker answered 403 with reason kill-switch" }, [REFUSED_RUN]],
+    ["a broker 5xx", { message: "lane-token-denied: the broker answered 503 with reason broker-error" }, [REFUSED_RUN]],
+    ["another workflow file", { message: WORKFLOW_MODIFIED.replace("pr-unblock.yml", "pr-review-hosted.yml") }, [REFUSED_RUN]],
+    ["refused hours ago", { runs: [refusedRun({ updated_at: "2026-10-17T11:00:00Z" })] }, []],
+    ["the head moved since", { checks: [] }, []],
+    ["the head is at the cap", { checks: [refusedRound(), answeredRound, answeredRound] }, [REFUSED_RUN]],
+  ]) {
+    const api = refusedApi(options);
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, reads, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
 // A verdict the kill switch deferred: the reconciler re-ran post-verify-notes
 // (attempt 2, github-actions[bot]), which posted the notes or found the stale
 // ones and uploaded pr-feedback-deferred-<head>-<verdict>, since the gate

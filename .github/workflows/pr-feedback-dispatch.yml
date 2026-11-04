@@ -339,7 +339,7 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # the PR, its comments and review threads
-      checks: read # skip a head that already has an address-feedback check run
+      checks: read # skip a head that already has an address-feedback check run; a refused round's annotations
       statuses: read # the sweep's read of a head's pr-unblock/address-feedback stop
       actions: write # list pr-unblock runs; dispatch pr-unblock.yml
     env:
@@ -463,20 +463,22 @@ jobs:
       # started it: an artifact only steps of this run can upload, read by the
       # gate and the broker with one list call and no download. A sweep tick
       # sends up to five rounds (feedback-dispatch.mjs SWEEP_TICK_CAP), each
-      # recorded by its own numbered steps below.
+      # recorded by its own numbered steps below. A round sent again after a
+      # workflow-modified refusal also names the refused run (refire_of_run_id).
       - name: Name the dispatched-run record
         id: record
         if: always() && steps.dispatch.outputs.run-id != ''
         env:
           RUN_ID: ${{ steps.dispatch.outputs.run-id }}
           UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of }}
         run: |
-          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
-            echo "::error::run-id or the upstream run id is not a run id"
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id, the upstream run id or refire-of is not a run id"
             exit 1
           fi
-          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
-            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched.json"
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched.json"
           echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
 
       - name: Scan the upload for credentials
@@ -503,13 +505,14 @@ jobs:
         env:
           RUN_ID: ${{ steps.dispatch.outputs.run-id-2 }}
           UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-2 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-2 }}
         run: |
-          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
-            echo "::error::run-id-2 or the upstream run id is not a run id"
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-2, the upstream run id or refire-of-2 is not a run id"
             exit 1
           fi
-          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
-            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-2.json"
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-2.json"
           echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
 
       - name: Scan upload 2 for credentials
@@ -536,13 +539,14 @@ jobs:
         env:
           RUN_ID: ${{ steps.dispatch.outputs.run-id-3 }}
           UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-3 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-3 }}
         run: |
-          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
-            echo "::error::run-id-3 or the upstream run id is not a run id"
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-3, the upstream run id or refire-of-3 is not a run id"
             exit 1
           fi
-          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
-            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-3.json"
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-3.json"
           echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
 
       - name: Scan upload 3 for credentials
@@ -569,13 +573,14 @@ jobs:
         env:
           RUN_ID: ${{ steps.dispatch.outputs.run-id-4 }}
           UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-4 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-4 }}
         run: |
-          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
-            echo "::error::run-id-4 or the upstream run id is not a run id"
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-4, the upstream run id or refire-of-4 is not a run id"
             exit 1
           fi
-          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
-            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-4.json"
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-4.json"
           echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
 
       - name: Scan upload 4 for credentials
@@ -602,13 +607,14 @@ jobs:
         env:
           RUN_ID: ${{ steps.dispatch.outputs.run-id-5 }}
           UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id-5 }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of-5 }}
         run: |
-          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
-            echo "::error::run-id-5 or the upstream run id is not a run id"
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id-5, the upstream run id or refire-of-5 is not a run id"
             exit 1
           fi
-          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
-            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched-5.json"
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched-5.json"
           echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
 
       - name: Scan upload 5 for credentials
