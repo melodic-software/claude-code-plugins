@@ -79,7 +79,7 @@ decide() {
     -f query='query($id: ID!) { node(id: $id) { ... on PullRequest { isInMergeQueue } } }' \
     --jq '.data.node.isInMergeQueue')"
   if [[ $queued == true ]]; then
-    echo "::notice::Release pull request #$number is in the merge queue; not rebuilding it. If the queue ejects it, a later run decides it again."
+    echo "::notice::Release pull request #$number is in the merge queue at $head; not rebuilding it. If the queue ejects it, a later run decides it again."
     echo "rebuild=false" >>"$GITHUB_OUTPUT"
     return
   fi
