@@ -61,7 +61,7 @@ per FAIL. Modify nothing, and do NOT run a scan. That is `/improvement:find`.
    uncommitted, say that instead via `git diff --cached --name-only`). The `.local.md` personal override is
    expected to be gitignored, a personal override that is tracked or staged is FAIL (a personal deviation
    can reach team history); an ignored personal override is INFO.
-5. **Higher-layer divergence.** INFO: when the personal override or user-global layer changes the team file's
+5. **Other-layer divergence.** INFO: when the personal override or user-global layer changes the team file's
    effect (a different window, extra exclusions, an added or opted-out source), say so
    explicitly, since `apply` writes only the team file.
 
