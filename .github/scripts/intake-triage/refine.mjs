@@ -627,6 +627,19 @@ export function line(text) {
   return out;
 }
 
+// One line of title text: a title renders no Markdown links or HTML, so it
+// keeps its brackets, parens and `<` as written (a Conventional Commits scope
+// stays `type(scope):`), and still breaks mentions, issue links and URLs.
+export function titleLine(text) {
+  return String(text)
+    .replaceAll(/\s+/g, " ")
+    .trim()
+    .replaceAll("@", "@\u200b")
+    .replaceAll(/(#|GH-)(?=\d)/gi, "$1\u200b")
+    .replaceAll("://", ":/\u200b/")
+    .replaceAll(/www\./gi, "www\u200b.");
+}
+
 // The reply a refinement that asks questions shows the owner to copy: only a
 // comment whose first line is `**Decision recorded.**` counts as an answer
 // (select-trusted-text's isDecisionComment), and nothing tells them so but this.
@@ -995,7 +1008,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     const body = `${splitChildHeader(number, index + 1, record.parts.length, source, scope !== "")}\n${items.map((n) => lines[n - 1]).join("\n")}${scope}`;
     let child = filed.find((item) => item.body === body);
     if (child === undefined) {
-      child = await github("POST", `/repos/${repository}/issues`, { title: `${line(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });
+      child = await github("POST", `/repos/${repository}/issues`, { title: `${titleLine(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });
       if (!Number.isInteger(child?.number) || !Number.isInteger(child?.id)) {
         throw new Error("a sub-issue came back with no number or id");
       }
