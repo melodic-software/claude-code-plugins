@@ -1,8 +1,9 @@
 // Print each hold reason on the pull request read from stdin (`gh pr list
 // --json number,labels` row): merge-holds.mjs labelHolds over this checkout's
 // tracker config, the list ci-status and the merge queue act on. Without
-// `--queue` it leaves out `pr-verify-failed`, which only a pass at a new head
-// removes, so it never holds back the rebuild that makes one; with `--queue`
+// `--queue` it leaves out `pr-verify-failed`, which a pr-verify pass removes,
+// at a new head or at the same head judged again after trusted people alone
+// edited the body, so it never holds back the rebuild that makes a new head; with `--queue`
 // it counts every hold label, since the merge queue removes a pull request
 // carrying any of them.
 import { readFileSync } from "node:fs";
