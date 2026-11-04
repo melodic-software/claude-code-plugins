@@ -336,7 +336,7 @@ WALK_ERR="$(mktemp)"
 ADAPTER_TABLE="$(mktemp)"
 EXTEND_FILE=""
 ENGINE_DIR=""
-trap 'rm -rf "$WALK_ERR" "$ADAPTER_TABLE" "$EXTEND_FILE" "$ENGINE_DIR"' EXIT
+trap 'rm -rf "$WALK_ERR" "$WALK_ERR.walk" "$ADAPTER_TABLE" "$EXTEND_FILE" "$ENGINE_DIR"' EXIT
 
 # Location values are REPO-relative, not scan-root-relative: the fix action
 # fences each remediation to Location, so a subdirectory scan root must not
@@ -525,11 +525,10 @@ collect_files() {
 ALL_FILES=()
 WALK_ONCE_ERR=""
 walk_all() {
-  local err
-  err="$(mktemp)"
+  local err="$WALK_ERR.walk"
+  : >"$err"
   mapfile -t ALL_FILES < <(WALK_ERR="$err" collect_files "$@")
   WALK_ONCE_ERR="$(<"$err")"
-  rm -f "$err"
 }
 # walked <glob>...: the ALL_FILES entries whose base name matches a glob, one per
 # line, logging the walk's errors for this pass.
