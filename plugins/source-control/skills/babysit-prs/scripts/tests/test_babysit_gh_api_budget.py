@@ -155,10 +155,13 @@ class ApiBudgetTests(unittest.TestCase):
         )
         self.assertFalse(pathlib.Path(self.dir, "api-budget", "lanes-app").exists())
 
-    def test_without_a_token_name_or_for_a_non_api_call_nothing_is_read(self) -> None:
+    def test_without_a_token_name_or_for_a_non_api_call_no_reading_is_written(
+        self,
+    ) -> None:
         # Every `api` call but a paginated one still runs with -i, for the
         # guard, and a `--paginate --slurp` read goes page by page with -i
-        # (`_run_pages`); only a named token writes a reading.
+        # (`_run_pages`); only a named token writes a reading. A non-api call
+        # writes `request` lines only for the trace its stderr carries, none here.
         self.run_gh(
             "{}", ["api", "x"], env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": ""}
         )
