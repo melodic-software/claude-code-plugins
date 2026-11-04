@@ -86,8 +86,9 @@ node plugins/sql-server/skills/setup/scripts/check-setup.mjs --config ~/.config/
 - **Entra token lifetime.** `tedious` asks the credential for a token on each connect, and the
   pool closes idle connections. Whether a connection that stays busy past its token's expiry keeps
   working is not verified.
-- **Not tested here.** The integration test runs against a local container only; no test in this
-  plugin connects to Azure SQL Database.
+- **Integration test.** `integration/read-path.mjs --azure-server <server>.database.windows.net`
+  runs the read-path checks against an empty `app` database on a logical server you created; the
+  plugin's README lists what it needs. Nothing runs it automatically.
 
 Sources read on 2026-11-01:
 [Azure SQL Database free tier](https://learn.microsoft.com/en-us/azure/azure-sql/database/free-tier),
