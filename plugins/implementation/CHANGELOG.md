@@ -3,6 +3,15 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.1] - 2026-11-04
+
+### Fixed
+
+- Four eval graders that failed correct runs: `stop-on-mismatch` accepts "equals ... If it doesn't,
+  STOP" and "If not, STOP"; `verifier-runs` no longer fails a line whose later "no" is about
+  something other than the verifier; `phase-not-done` skips an unbolded `plan said:` field; and
+  `reports-repo-layer` accepts "comes from the repo file".
+
 ## [0.35.0] - 2026-11-03
 
 ### Added
