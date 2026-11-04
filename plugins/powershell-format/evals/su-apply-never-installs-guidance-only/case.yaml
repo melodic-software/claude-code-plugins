@@ -9,7 +9,7 @@ graders:
     exists: false
   - name: 'points-at-install-page'
     type: 'regex'
-    pattern: 'installing-powershell(?![\w-]|\.\w)'
+    pattern: 'learn\.microsoft\.com/(?:[\w-]+/)?powershell/scripting/install/[\w-]+'
     target: 'last_message'
   - name: 'names-module-command'
     type: 'regex'

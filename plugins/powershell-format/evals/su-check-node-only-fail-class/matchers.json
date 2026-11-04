@@ -68,6 +68,6 @@
     {
       "use": "command_position_multishell"
     },
-    "(?:\\\\\\\"|')?(?:\\$\\w+\\s*=\\s*)?Invoke-(?:Formatter|ScriptAnalyzer)\\b"
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:pwsh|powershell)(?:\\.exe)?(?:\\\\\\\"|')?(?:[^\"\\\\]|\\\\.)*?(?:(?<![\\w-])-(?:Command|c)\\s+(?:\\\\\\\"|')?|[;|{(]\\s*)(?:\\$\\w+\\s*=\\s*)?Invoke-(?:Formatter|ScriptAnalyzer)\\b"
   ]
 }

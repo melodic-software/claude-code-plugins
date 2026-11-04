@@ -34,6 +34,28 @@
       "why": "a read naming the cmdlet"
     },
     {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -nE 'Invoke-Formatter|Invoke-ScriptAnalyzer' plugin/git-hooks/powershell-check.ps1"
+          }
+        }
+      ],
+      "why": "both cmdlets in a quoted grep alternation"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"Invoke-Formatter\\|Invoke-ScriptAnalyzer\" plugin/git-hooks/powershell-check.ps1"
+          }
+        }
+      ],
+      "why": "both cmdlets in a double-quoted grep alternation"
+    },
+    {
       "answer": [],
       "why": "no calls"
     }
@@ -104,6 +126,17 @@
         }
       ],
       "why": "assigned"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -Command \"if (Test-Path demo.ps1) { Invoke-ScriptAnalyzer -Path demo.ps1 }\""
+          }
+        }
+      ],
+      "why": "inside a block"
     }
   ]
 }
