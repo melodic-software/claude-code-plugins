@@ -349,6 +349,18 @@ test("a leg that ran writes a start record on success, on any other failure, and
   assert.equal(evalIf(write, leg({ "steps.run.outcome": "skipped", "steps.credit-marker-upload.outcome": "skipped" })), false, "no leg");
 });
 
+test("the model step times out before the job does, so a timed-out leg still writes its start record", () => {
+  const minutes = (text, indent) => Number(new RegExp(`^ {${indent}}timeout-minutes: (\\d+)$`, "m").exec(text)?.[1]);
+  const job = minutes(jobOf("model").split(/\n {4}steps:\n/)[0], 4);
+  const run = stepIn("model", "Run the changelog apply");
+  const step = minutes(run, 8);
+  const legMinutes = Number(/^ {10}leg-timeout-minutes: "(\d+)"$/m.exec(run)?.[1]);
+  assert.ok(legMinutes < step && step <= job - 5, `leg ${legMinutes}, step ${step}, job ${job}`);
+  assert.match(run, /^ {8}continue-on-error: true$/m);
+  // A step past its timeout-minutes concludes failure, which the record step runs after.
+  assert.equal(evalIf(startWrite(), leg({ "steps.run.outcome": "failure", "steps.run.outputs.lane-class": "timeout", "steps.credit-marker-upload.outcome": "skipped" })), true);
+});
+
 test("the model job writes, scans and uploads the start record after the leg and the marker upload", () => {
   const record = stepIn("model", "Record the start");
   assert.match(record, /^ {8}id: start$/m);
