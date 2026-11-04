@@ -1668,7 +1668,8 @@ jobs:
           # histories, so a correction would change what the judge is measured on;
           # the developer-experience labeled samples are judge inputs for the same reason.
           # verify-legacy-fails.json is generated verdict data (SHAs, branch names).
-          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/** plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json
+          # The review revert cases' fixtures are byte copies of this repository's history.
+          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/** plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json plugins/review/evals/revert-*/fixtures/**
 
       # Every run scans only history the commit under test can reach, so a
       # finding on another branch cannot fail it (#3599); each branch is scanned
@@ -1708,8 +1709,9 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: .editorconfig-checker.json
-          # The Node.js release keyring: binary, a byte-exact upstream copy.
-          exclude: (^|/)\.github/actions/setup-pinned-node/pubring\.kbx$
+          # The Node.js release keyring: binary, a byte-exact upstream copy. The
+          # review revert cases' fixtures: byte copies of this repository's history.
+          exclude: (^|/)\.github/actions/setup-pinned-node/pubring\.kbx$|(^|/)plugins/review/evals/revert-[^/]+/fixtures/
 
       # The path-scoped readers gate on the filter group of what they read:
       # actionlint and the dependabot and workflow schemas on `run_workflows`
