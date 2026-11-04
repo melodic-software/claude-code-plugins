@@ -226,9 +226,11 @@ jobs:
   # allowed the call, read from this run's jobs through the Actions API, as
   # pr-unblock.yml's fix-ci-handoff reads them for fix-ci: never from a
   # fix-docs output, since fix-docs's run job runs head code and can forge
-  # handed-off, lane-class or credential-present. A failed read leaves both
-  # empty, which starts no fallback; with no check posted,
-  # fix-docs-dispatch.mjs dispatches the PR again.
+  # handed-off, lane-class or credential-present. A listing that lags past the
+  # read budget ends as a notice and a failed read as a red job. Both leave the
+  # outputs empty, which starts no fallback, and fix-docs-dispatch.mjs dispatches
+  # no PR again once a run for it completed, red or green. A failed fix-docs
+  # still reds its own jobs and the run.
   fix-docs-handoff:
     needs: [fix-docs-head, fix-docs]
     if: ${{ !cancelled() && needs.fix-docs.result != 'skipped' }}
@@ -246,6 +248,7 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      HANDOFF_EVIDENCE_LAG: notice
     steps:
       - name: Resolve main's tip
         id: tip
@@ -277,7 +280,8 @@ jobs:
 
       # Whether the third call can run, never the token. fix-docs-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last; a failed read leaves it empty, which hands nothing on.
+      # stays the last. A failed read leaves it empty. A lagging read sets it, and
+      # the empty handed-off still keeps both later legs from starting.
       - name: Check the fallback token
         id: fallback
         env:
@@ -341,7 +345,8 @@ jobs:
   # jobs by handoff-evidence.sh, never from a fix-docs-subscription output: its broker
   # allowed it, its run job succeeded and its scan job never ran. It runs
   # only when fix-docs-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed read starts no third call.
+  # nothing starts that did not before. A failed or lagging read starts no third
+  # call.
   fix-docs-subscription-handoff:
     needs: [fix-docs-handoff, fix-docs-subscription]
     if: ${{ !cancelled() && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-handoff.outputs.fallback-ready == 'true' }}
@@ -356,6 +361,7 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      HANDOFF_EVIDENCE_LAG: notice
     steps:
       - name: Resolve main's tip
         id: tip

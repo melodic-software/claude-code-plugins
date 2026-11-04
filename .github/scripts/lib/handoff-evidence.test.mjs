@@ -28,7 +28,7 @@ const POSTED = { name: "fix-docs / report", conclusion: "success", steps: [{ nam
 // Runs `handoff-evidence.sh posted` for CALLS=fix-docs with no waits; each
 // answer is [gh -i output, gh exit status]. A call past the last answer gets
 // nothing and exits 1.
-function run(answers, delays = "0 0 0") {
+function run(answers, delays = "0 0 0", { env = {}, facts = ["posted"] } = {}) {
   const dir = tempDir("handoff-evidence-");
   try {
     const bin = join(dir, "bin");
@@ -47,7 +47,7 @@ function run(answers, delays = "0 0 0") {
     chmodSync(join(bin, "gh"), 0o755);
     const output = join(dir, "output");
     writeFileSync(output, "");
-    const result = spawnSync("bash", [SCRIPT, "posted"], {
+    const result = spawnSync("bash", [SCRIPT, ...facts], {
       encoding: "utf8",
       env: {
         ...process.env,
@@ -59,6 +59,7 @@ function run(answers, delays = "0 0 0") {
         GITHUB_OUTPUT: output,
         CALLS: "fix-docs",
         HANDOFF_EVIDENCE_DELAYS: delays,
+        ...env,
       },
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
@@ -132,3 +133,48 @@ test("a listing still unread after the last delay fails with no output", () => {
   assert.match(out.stdout, /^::error::handoff evidence for fix-docs still missing after 2 reads: the jobs read failed$/m);
   assert.equal(out.output, "");
 });
+
+const lagged = () => [
+  [answer("200 OK", {}, listing(UNLISTED)), 0],
+  [answer("200 OK", {}, listing(UNLISTED)), 0],
+];
+// The job-level setting a pr-refine.yml job passes the script, read from the
+// job's block in the workflow file; this suite runs with no yaml dependency.
+function refineJobEnv(name) {
+  const blocks = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8").split(/^(?=  [\w-]+:$)/m);
+  const value = /^ {6}HANDOFF_EVIDENCE_LAG: (\S+)$/m.exec(blocks.find((block) => block.startsWith(`  ${name}:`)))?.[1];
+  return value ? { HANDOFF_EVIDENCE_LAG: value } : {};
+}
+
+test("a fact still unsettled in a listing that was read fails with no output by default", () => {
+  const out = run(lagged(), "0");
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^::error::handoff evidence for fix-docs still missing after 2 reads: missing: fix-docs \/ report has no steps listed$/m);
+  assert.equal(out.output, "");
+});
+
+for (const name of ["fix-docs-handoff", "fix-docs-subscription-handoff"]) {
+  test(`${name}: a listing that lags past the last read ends as a notice with no output`, () => {
+    const out = run(lagged(), "0", { env: refineJobEnv(name) });
+    assert.equal(out.status, 0, out.stdout + out.stderr);
+    assert.match(out.stdout, /^::notice::handoff evidence for fix-docs still missing after 2 reads: missing: fix-docs \/ report has no steps listed; the outputs stay empty$/m);
+    assert.doesNotMatch(out.stdout, /::error::/);
+    assert.equal(out.output, "", "an empty output starts no later leg");
+  });
+
+  test(`${name}: a read that failed, or a fact the script does not know, still fails`, () => {
+    const env = refineJobEnv(name);
+    const failed = answer("403 Forbidden", {}, { message: "Resource not accessible by integration" });
+    const unread = run([[failed, 1], [failed, 1]], "0", { env });
+    assert.equal(unread.status, 1);
+    assert.match(unread.stdout, /^::error::handoff evidence for fix-docs still missing after 2 reads: the jobs read failed$/m);
+    assert.equal(unread.output, "");
+    const notJson = [answer("200 OK", {}).replace(/\r\n$/, "\r\n[1]"), 0];
+    const unparsed = run([notJson, notJson], "0", { env });
+    assert.equal(unparsed.status, 1);
+    assert.equal(unparsed.output, "");
+    const usage = run([], "0", { env, facts: ["nonsense"] });
+    assert.equal(usage.status, 2);
+    assert.match(usage.stdout, /^::error::unknown handoff fact: nonsense$/m);
+  });
+}
