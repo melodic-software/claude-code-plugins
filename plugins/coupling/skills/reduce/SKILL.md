@@ -183,7 +183,7 @@ Budget per run: the target and hard cap in
 `proposed` in the ledger for the next run. A confirmed `change apply` site set is the one
 exception (see the Apply sequence in [`reference/change-mode.md`](reference/change-mode.md)). Use the Edit tool; one atomic commit per logical
 reduction; stage listed paths only and inspect the staged diff before each commit. Never
-touch CI workflow files, hook or settings surfaces, lint configs, database migrations, or
+touch CI workflow files, hook or settings files, lint configs, database migrations, or
 any published contract surface (API shapes, message schemas, tool schemas). Those are route
 lane by definition.
 
