@@ -489,14 +489,14 @@ than reading it from the environment (it is not per-plugin in a Bash-tool subpro
 deliberately outside the repository tree and outside repository-discovery roots such as a ghq root,
 which a checkout-relative default would land inside. The in-repo `.claude/worktrees/` default is
 never used because the nesting invariant forbids its nested placement; that claim is stated,
-measured, dated and given an expiry in exactly one place: `skills/worktree/reference/nesting-invariant.md` "The nesting
+measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` "The nesting
 invariant, dated measurement".
 
 **`worktree_add_containment_gate_enabled`.** The message names the external root resolved from the
 `worktreeroot.path` git config key, then the `worktree_root` plugin option, then the plugin data
 dir. The hook blocks only the nesting class: a conforming target passes with no advisory, and a
 target it cannot resolve statically (dynamic path, prior `cd`, unreadable payload) always passes.
-The nesting invariant's measurement, disputed arms and expiry live in `skills/worktree/reference/nesting-invariant.md`
+The nesting invariant's measurement, disputed arms and expiry live in `skills/worktree/SKILL.md`
 "The nesting invariant, dated measurement".
 
 **`worktree_add_claim_gate_enabled`.** Only the parsed add target is claimed, not every currently

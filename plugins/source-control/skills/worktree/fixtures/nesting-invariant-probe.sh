@@ -183,4 +183,4 @@ arm unrelated-nested "$P4" "$UNREL/nested/wt" "src/target.md"
 
 printf 'traces: %s\n' "$TRACE_DIR"
 printf 'Record the outcome — including a null — in fixtures/README.md, and refresh\n'
-printf 'the as-of stamp in skills/worktree/reference/nesting-invariant.md with the verdict.\n'
+printf 'the as-of stamp in skills/worktree/SKILL.md with the verdict.\n'
