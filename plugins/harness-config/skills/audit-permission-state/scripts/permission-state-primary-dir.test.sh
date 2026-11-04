@@ -33,11 +33,11 @@ mkdir -p "$ROOT/.claude" "$ROOT/sub/.claude" "$ROOT/bare-sub" "$BASE/home" "$BAS
 git -C "$ROOT" init -q
 git -C "$ROOT" -c user.name=fixture -c user.email=fixture@example.com -c commit.gpgsign=false commit -q --allow-empty -m fixture
 git -C "$ROOT" worktree add -q "$BASE/wt" -b fixture-wt
-mkdir -p "$BASE/wt/.claude"
+mkdir -p "$BASE/wt/.claude" "$BASE/wt/sub"
 
-jq -n '{permissions:{allow:["Bash(root-shared)"]}}' >"$ROOT/.claude/settings.json"
+jq -n '{permissions:{allow:["Bash(root-shared)"],deny:["Bash(root-deny)"]}}' >"$ROOT/.claude/settings.json"
 jq -n '{permissions:{allow:["Bash(root-local)"]}}' >"$ROOT/.claude/settings.local.json"
-jq -n '{permissions:{allow:["Bash(sub-shared)"]}}' >"$ROOT/sub/.claude/settings.json"
+jq -n '{permissions:{allow:["Bash(sub-shared)"],deny:["Bash(sub-deny)"]}}' >"$ROOT/sub/.claude/settings.json"
 jq -n '{permissions:{allow:["Bash(wt-shared)"]}}' >"$BASE/wt/.claude/settings.json"
 jq -n '{permissions:{allow:["Bash(outside-shared)"]}}' >"$BASE/outside/.claude/settings.json"
 jq -n '{permissions:{allow:["Bash(elsewhere-shared)"]}}' >"$BASE/elsewhere/.claude/settings.json"
@@ -60,32 +60,67 @@ run_in() {
 OUT="$(run_in "$ROOT")"
 assert_contains "root session: shared file at the root" "$OUT" "project settings present $ROOT/.claude/settings.json"
 assert_contains "root session: its rule is read" "$OUT" "rule project settings allow Bash(root-shared)"
+assert_contains "root session: no second file to read" "$OUT" "project toplevel not-applicable -"
+assert_eq "root session: the root's rule is reported once" 1 "$(count_matching "$OUT" 'Bash\(root-shared\)')"
 
-# --- A session in a subdirectory reads that subdirectory's shared file ---------
+# --- Below the root: a session started here and a root session after a Bash cd --
+# look the same to the reader (tools-reference, what persists between commands),
+# and each reads a different shared file (settings, the shared-file paragraph), so
+# both files are reported and neither's deny rules go missing.
 OUT="$(run_in "$ROOT/sub")"
-assert_contains "subdirectory session: shared file in the subdirectory" "$OUT" "project settings present $ROOT/sub/.claude/settings.json"
-assert_contains "subdirectory session: its rule is read" "$OUT" "rule project settings allow Bash(sub-shared)"
-assert_not_contains "subdirectory session: the root's shared rule is not in effect" "$OUT" "Bash(root-shared)"
+assert_contains "below the root: shared file in this directory" "$OUT" "project settings present $ROOT/sub/.claude/settings.json"
+assert_contains "below the root: its rule is read" "$OUT" "rule project settings allow Bash(sub-shared)"
+assert_contains "below the root: its deny rule is read" "$OUT" "rule project settings deny Bash(sub-deny)"
 # The root is matched by its tail: git spells it differently from the shell on Windows.
+assert_eq "below the root: the root's shared file is read too" 1 "$(count_matching "$OUT" '^project toplevel present .*/repo/\.claude/settings\.json$')"
+assert_contains "below the root: the root's deny rule is not omitted" "$OUT" "rule project toplevel deny Bash(root-deny)"
+assert_not_contains "below the root: the root's rule is not filed under this directory" "$OUT" "rule project settings allow Bash(root-shared)"
+assert_eq "below the root: a note names this directory and says both were read" 1 "$(count_matching "$OUT" "^NOTE: .*$ROOT/sub.*below the repository root.*reads both")"
 assert_eq "subdirectory session: the local file stays at the root" 1 "$(count_matching "$OUT" '^local settings present .*/repo/\.claude/settings\.local\.json$')"
 assert_contains "subdirectory session: the local rule is read" "$OUT" "rule local settings allow Bash(root-local)"
+MERGED="$(printf '%s\n' "$OUT" | bash "$SCRIPT_DIR/permission-merge.sh" --merge-only)"
+assert_contains "below the root: the merge keeps the root's deny" "$MERGED" "precedence_basis=uncontested Bash(root-deny)"
+assert_contains "below the root: the merge keeps this directory's deny" "$MERGED" "precedence_basis=uncontested Bash(sub-deny)"
 
-# --- With no shared file there, the root's does not stand in for it ------------
+# --- With no shared file here, the root's is still labeled as the root's --------
 OUT="$(run_in "$ROOT/bare-sub")"
 assert_contains "no shared file here: reported absent at this directory" "$OUT" "project settings absent $ROOT/bare-sub/.claude/settings.json"
-assert_not_contains "no shared file here: the root's rule is not claimed" "$OUT" "Bash(root-shared)"
+assert_contains "no shared file here: the root's deny rule is not omitted" "$OUT" "rule project toplevel deny Bash(root-deny)"
+assert_not_contains "no shared file here: the root's rule is not filed under this directory" "$OUT" "rule project settings allow Bash(root-shared)"
+
+# --- A root file that cannot be read makes the merge incomplete, not clean -------
+BROKEN="$BASE/broken"
+mkdir -p "$BROKEN/.claude" "$BROKEN/sub"
+git -C "$BROKEN" init -q
+printf '{not json' >"$BROKEN/.claude/settings.json"
+OUT="$(run_in "$BROKEN/sub")"
+assert_eq "broken root file: reported invalid" 1 "$(count_matching "$OUT" '^project toplevel invalid-json ')"
+assert_contains "broken root file: the merge says it is incomplete" "$(printf '%s\n' "$OUT" | bash "$SCRIPT_DIR/permission-merge.sh" --merge-only)" "status=incomplete"
+
+# --- A repository rooted at the home directory: the root file is the user file --
+OUT="$(run_in "$ROOT/sub" HOME="$ROOT")"
+assert_eq "root is home: the root file is not read as project" 1 "$(count_matching "$OUT" '^project toplevel not-applicable .*/repo/\.claude/settings\.json$')"
+assert_contains "root is home: it is read as user" "$OUT" "rule user settings deny Bash(root-deny)"
+assert_not_contains "root is home: it is not read twice" "$OUT" "rule project toplevel"
 
 # --- A worktree session: shared file in the worktree, local at the main checkout
 OUT="$(run_in "$BASE/wt")"
 assert_contains "worktree session: shared file in the worktree" "$OUT" "project settings present $BASE/wt/.claude/settings.json"
 assert_contains "worktree session: its rule is read" "$OUT" "rule project settings allow Bash(wt-shared)"
+assert_contains "worktree session: no second file to read" "$OUT" "project toplevel not-applicable -"
 assert_eq "worktree session: local file at the main checkout" 1 "$(count_matching "$OUT" '^local settings present .*/repo/\.claude/settings\.local\.json$')"
 assert_contains "worktree session: the basis line says so" "$OUT" "main checkout, resolved through this worktree"
+
+# --- Below a worktree's root: the worktree's shared file, not the main checkout's
+OUT="$(run_in "$BASE/wt/sub")"
+assert_contains "below a worktree root: the worktree's rule is read" "$OUT" "rule project toplevel allow Bash(wt-shared)"
+assert_not_contains "below a worktree root: the main checkout's shared rule is not" "$OUT" "Bash(root-shared)"
 
 # --- Outside a repository: the working directory, whatever the environment says
 OUT="$(run_in "$BASE/outside" CLAUDE_PROJECT_DIR="$BASE/elsewhere")"
 assert_contains "outside a repository: shared file here" "$OUT" "project settings present $BASE/outside/.claude/settings.json"
 assert_not_contains "outside a repository: CLAUDE_PROJECT_DIR is not a second input" "$OUT" "Bash(elsewhere-shared)"
 assert_contains "outside a repository: the local file sits beside it" "$OUT" "local settings absent $BASE/outside/.claude/settings.local.json"
+assert_contains "outside a repository: no second file to read" "$OUT" "project toplevel not-applicable -"
 
 report_and_exit

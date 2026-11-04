@@ -84,7 +84,8 @@ rc=0
 OUT=$(run) || rc=$?
 assert_exit "full run exits 0" 0 "$rc"
 assert_eq "user scope appears exactly once" "1" "$(count_matching "$OUT" '^user ')"
-assert_eq "project scope appears exactly once" "1" "$(count_matching "$OUT" '^project ')"
+assert_eq "project settings surface appears exactly once" "1" "$(count_matching "$OUT" '^project settings ')"
+assert_eq "project toplevel surface appears exactly once" "1" "$(count_matching "$OUT" '^project toplevel ')"
 assert_eq "local scope appears exactly once" "1" "$(count_matching "$OUT" '^local ')"
 assert_eq "start-directory scope appears exactly once" "1" "$(count_matching "$OUT" '^startdir-local ')"
 

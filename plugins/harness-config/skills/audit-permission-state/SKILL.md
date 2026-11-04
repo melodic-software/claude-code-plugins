@@ -129,7 +129,7 @@ NOTE: <text>                               anything the operator must know
 | Field | Values |
 | --- | --- |
 | `scope` | `managed`, `user`, `project`, `local`, `startdir-local` |
-| `surface` | `file`, `dropin-dir`, `dropin-file:<name>`, `registry`, `plist` (managed); `settings` elsewhere |
+| `surface` | `file`, `dropin-dir`, `dropin-file:<name>`, `registry`, `plist` (managed); `toplevel` (project, see Scopes); `settings` elsewhere |
 | `status` | `present`, `absent`, `unreadable`, `invalid-json`, `skipped`, `not-applicable` |
 | `kind` | `allow`, `ask`, `deny` |
 
@@ -355,7 +355,15 @@ the two easy to get wrong; when deciding where the local file is read from, fetc
 [settings: where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
 live (as of 2026-11-04; recheck when that section changes where the local or shared file is kept).
 The reader takes its own working directory as the session's primary working directory, the one input
-for `project` and `local`, so run it from there. `managed`
+for `project` and `local`, so run it from there. A Bash `cd` inside the project moves the reader and
+not the session, and the reader cannot tell that from a session started in that directory, so below
+the repository root it reads both shared files: `project settings` from its directory and
+`project toplevel` from the root. Both feed the merge, so a deny rule in either is never dropped, and
+the set can over-report the file not in force. Say which directory the session started in or moved
+to with `/cd` when that decides the answer. When judging whether a `cd` still carries over, fetch
+[tools reference: what persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands)
+live (as of 2026-11-04; recheck when that section changes what a `cd` does to the working directory).
+`managed`
 is four admin surfaces per OS, not one file, plus a `remote-cache` record for the server-managed
 cache that is not folded into the effective set. `reference/criteria.md` §Scopes has the full table
 and the dated record.
