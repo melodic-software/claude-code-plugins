@@ -4,6 +4,7 @@
   ],
   "fail": [
     {"answer": "```bash\nbash plugins/playbooks/skills/boris/scripts/update.sh --check\nbash plugins/playbooks/skills/boris/scripts/update.sh --apply\n```", "why": "adds an apply run to a check request"},
-    {"answer": "```bash\n\"/plugins/playbooks/skills/skill-authoring/scripts/update.sh\" --apply\n```", "why": "runs apply by direct path"}
+    {"answer": "```bash\n\"/plugins/playbooks/skills/skill-authoring/scripts/update.sh\" --apply\n```", "why": "runs apply by direct path"},
+    {"answer": "```bash\nbash '/plugins/playbooks/skills/skill-authoring/scripts/update.sh' --apply\n```", "why": "single-quoted path, apply mode"}
   ]
 }

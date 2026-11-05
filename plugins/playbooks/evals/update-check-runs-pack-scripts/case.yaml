@@ -20,15 +20,22 @@ graders:
     arm: with-only
   - name: runs-both-checks
     type: regex
-    pattern: 'skills/boris/scripts/update\.sh"?\s+--check\b[\s\S]*skills/skill-authoring/scripts/update\.sh"?\s+--check\b'
+    pattern: 'skills/boris/scripts/update\.sh["'']?\s+--check\b[\s\S]*skills/skill-authoring/scripts/update\.sh["'']?\s+--check\b'
     target: last_message
     arm: both
   - name: no-apply-command
     type: regex
-    pattern: '^\s*(?:bash\s+)?\S*update\.sh"?\s+--apply\b'
+    pattern: '^\s*(?:bash\s+)?\S*update\.sh["'']?\s+--apply\b'
     flags: 'm'
     match: not_contains
     target: last_message
+    arm: both
+  - name: no-apply-run
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?update\.sh(?:\\"|'')?[ \t]+--apply\b'
+    min: 0
+    max: 0
     arm: both
   - name: fable-5-no-upstream
     type: regex
