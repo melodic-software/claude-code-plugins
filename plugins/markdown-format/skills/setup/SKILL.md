@@ -62,7 +62,7 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    shim resolves on `PATH` yet cannot run, so resolution alone is not a PASS). FAIL if it is
    absent or exits non-zero, in every toggle state; the remediation is to install or repair
    Node.js (README Requirements).
-2. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
+2. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 3. **`jq`.** The pre-computed `jq` row, or the Bash probe when that row carries no result. The
    batch hook reads the file paths with `jq` and does nothing, silently, without it. FAIL if
    absent *and* the repository opted in per item 5; INFO otherwise, because without a config
