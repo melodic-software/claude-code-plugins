@@ -261,24 +261,6 @@ test("an absent verdict with no env head POSTs failure on the fallback head", as
   assert.equal(calls[0].body.head_sha, FALLBACK);
 });
 
-test("pr-refine / fix-docs with a green run and no verdict holds: no API call, a notice, exit 0", async () => {
-  const { code, calls, lines } = await run({
-    ACTIVITY: "fix-docs",
-    VERDICT_PATH: path.join(dir, "missing.json"),
-  });
-  assert.equal(code, 0);
-  assert.equal(calls.length, 0);
-  assert.ok(lines.some((line) => line.startsWith("::notice::report-check-run: posted no check run")));
-});
-
-test("no verdict still POSTs failure for another activity, or for fix-docs on a red run", async () => {
-  for (const env of [{ ACTIVITY: "simplify" }, { ACTIVITY: "fix-docs", RUN_RESULT: "failure" }]) {
-    const { calls } = await run({ ...env, VERDICT_PATH: path.join(dir, "missing.json") });
-    assert.equal(calls.length, 1, JSON.stringify(env));
-    assert.equal(calls[0].body.conclusion, "failure", JSON.stringify(env));
-  }
-});
-
 test("an empty verdict path POSTs failure", async () => {
   const { calls } = await run({ VERDICT_PATH: "" });
   assert.equal(calls[0].body.conclusion, "failure");

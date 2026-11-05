@@ -115,10 +115,6 @@ export async function main({
     log(`::error::report-check-run: refused (${decision.why})`);
     return 1;
   }
-  if (decision.kind === "hold") {
-    log(`::notice::report-check-run: posted no check run (${decision.why}); holding`);
-    return 0;
-  }
   const body = { ...decision.report };
   const record = laneRecordOutput({
     lane: env.LANE,

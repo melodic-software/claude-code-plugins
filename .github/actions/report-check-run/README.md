@@ -20,7 +20,7 @@ conclusion is `success`, `failure`, or `neutral` with one skip reason.
 | `can-commit` | `''` | The run job's `can-commit` output; only `false` skips the signed-commit requirement |
 | `all-verified` | `''` | The `check-signed-commits` `all-verified` output |
 | `unverified` | `''` | The `check-signed-commits` `unverified` output; empty on a failed check means the commits could not be verified |
-| `verdict-path` | `''` | The downloaded `verdict.json`; a missing file is a failure, except as rule 3 says |
+| `verdict-path` | `''` | The downloaded `verdict.json`; a missing file is a failure |
 | `base-path` | `.base` | Base-SHA checkout; the skip-reason enum is read from its pr-pipeline schema |
 | `head-sha-fallback` | `${{ github.sha }}` | Head SHA when `head-sha` is empty |
 | `github-token` | required | The report job's `GITHUB_TOKEN` |
@@ -49,9 +49,7 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
      `address-feedback` and `publish-feedback` after an `address-feedback-select` run that kept
      no thread or handed the PR to a person.
   3. No verdict, a malformed verdict, or one whose lane, activity, gate stop reason or `head-sha`
-     differs from the inputs: failure. The one exception is no verdict for `pr-refine / fix-docs`
-     with `run-result` `success`, which only a failed verdict download leaves: no check run is
-     posted, and the step logs a notice and exits 0.
+     differs from the inputs: failure.
   4. `config: invalid`: failure.
   5. A `gate-reason`: neutral with the reason mapped through
      [`gate-skip-reasons.json`](gate-skip-reasons.json); an unmapped reason fails. A gate stop
