@@ -1405,7 +1405,10 @@ merge:
   # missing records `blocked` with why. retention-days is 1 to 30, the most
   # the pr-capture-* row in .github/artifact-retention.json allows; 30 is
   # judgment: long enough for a review round, short of the 90-day verdict.
+  # claude-code is harness-ops' control-claude-code, the app this
+  # repository's plugins run in.
   verify-capture:
+    app: claude-code
     retention-days: 30
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
