@@ -261,7 +261,27 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# dir_of <path>: dirname(1)'s answer, set in DIR_OF. A fork and exec cost tens
+# of milliseconds on Windows Git Bash, and a suite runs this script hundreds
+# of times.
+dir_of() {
+  local p="$1"
+  if [[ "$p" != *[!/]* ]]; then
+    DIR_OF=/
+    [[ -n "$p" ]] || DIR_OF=.
+    return 0
+  fi
+  p="${p%"${p##*[!/]}"}"
+  if [[ "$p" != */* ]]; then
+    DIR_OF=.
+    return 0
+  fi
+  p="${p%/*}"
+  p="${p%"${p##*[!/]}"}"
+  DIR_OF="${p:-/}"
+}
+dir_of "${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(cd "$DIR_OF" && pwd)"
 AWK_PROG="$SCRIPT_DIR/cant-fail-scan.awk"
 # The JavaScript masker is shared by both engines and lives in mask-js.awk; awk
 # loads it as the first of two -f programs, so it is as load-bearing as the
@@ -297,8 +317,9 @@ if [[ -n "$FILE" ]]; then
     printf 'ERROR: --file is not a file: %s\n' "$FILE" >&2
     exit 2
   fi
-  ROOT="$(cd "$(dirname "$FILE")" && pwd)"
-  FILE="$ROOT/$(basename "$FILE")"
+  dir_of "$FILE"
+  ROOT="$(cd "$DIR_OF" && pwd)"
+  FILE="$ROOT/${FILE##*/}"
   ROOT_SOURCE="--file"
 elif [[ -n "${CANT_FAIL_SCAN_ROOT:-}" ]]; then
   ROOT="$CANT_FAIL_SCAN_ROOT"
@@ -332,11 +353,18 @@ if [[ ! -d "$ROOT" ]]; then
   exit 2
 fi
 
-WALK_ERR="$(mktemp)"
-ADAPTER_TABLE="$(mktemp)"
+# One temporary directory holds every scratch file: each mktemp is a process.
+# The parallel engine's numbered records share it, beside these named files.
+SCRATCH="$(mktemp -d)" || {
+  printf 'ERROR: could not create a temporary directory; refusing to scan.\n' >&2
+  exit 2
+}
+trap 'rm -rf "${SCRATCH:?}"' EXIT
+WALK_ERR="$SCRATCH/walk-errors"
+ADAPTER_TABLE="$SCRATCH/adapters"
+: >"$WALK_ERR"
 EXTEND_FILE=""
 ENGINE_DIR=""
-trap 'rm -rf "$WALK_ERR" "$ADAPTER_TABLE" "$EXTEND_FILE" "$ENGINE_DIR"' EXIT
 
 # Location values are REPO-relative, not scan-root-relative: the fix action
 # fences each remediation to Location, so a subdirectory scan root must not
@@ -349,7 +377,9 @@ REPO_PREFIX=""
 {
   IFS= read -r TOP
   IFS= read -r REPO_PREFIX
-} < <(git -C "$ROOT" rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
+} < <(git -C "$ROOT" rev-parse --show-toplevel --show-prefix 2>/dev/null)
+TOP="${TOP//$'\r'/}"
+REPO_PREFIX="${REPO_PREFIX//$'\r'/}"
 
 # --- Config -------------------------------------------------------------------
 # The testing config, resolved by scripts/resolve-config.sh. With no layer
@@ -400,7 +430,7 @@ if ((tc_layers)); then
     adapter_dirs) for f in "$val"/*.yaml; do [[ -f "$f" ]] && tc_extra+=("$f"); done ;;
     extend.*)
       val="${key#extend.}"$'\t'"$val"
-      [[ -n "$EXTEND_FILE" ]] || EXTEND_FILE="$(mktemp)"
+      EXTEND_FILE="$SCRATCH/extend"
       printf '%s\t%s\n' "${val%%.*}" "${val#*.}" >>"$EXTEND_FILE"
       ;;
     rules.*) rule_level[${key#rules.}]="$val" ;;
@@ -480,8 +510,8 @@ claims() {
 
 # pick_adapter <file>: the adapter claiming <file>; among several, the first in
 # load order whose detect.any_regex matches the content, else the first in load
-# order with no detect list, else the first in load order. Prints nothing when
-# none claims the file.
+# order with no detect list, else the first in load order, set in PICKED (no
+# command substitution, so no subshell per file); empty when none claims it.
 pick_adapter() {
   local id first="" first_detects=""
   for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
@@ -494,11 +524,11 @@ pick_adapter() {
     fi
     regex_args "${a_detect[$id]:-}"
     if [[ ${#PATS[@]} -gt 0 ]] && LC_ALL=C grep -qE "${PATS[@]}" -- "$1" 2>/dev/null; then
-      printf '%s' "$id"
+      PICKED="$id"
       return
     fi
   done
-  printf '%s' "$first"
+  PICKED="$first"
 }
 
 # --- Walk ---------------------------------------------------------------------
@@ -506,13 +536,20 @@ pick_adapter() {
 # (a detector's fixture corpus is deliberately defective test code; scanning it
 # reports planted defects as the consumer's own). With --file the walk starts
 # at that one file, so the prune never applies and only its name is tested.
+# A leading -print or -print0 leaves the walk unsorted, for a caller that sorts
+# what it reads from it anyway; -print0 feeds xargs with no tr stage.
 collect_files() {
-  find "${FILE:-$ROOT}" \
-    \( -name .git -o -name node_modules -o -name vendor -o -name dist \
-    -o -name build -o -name out -o -name obj -o -name bin -o -name target \
-    -o -name .work -o -name __pycache__ -o -name .venv -o -name venv \
-    -o \( -name fixtures -path '*/evals/fixtures' \) \) -prune \
-    -o -type f \( "$@" \) -print 2>>"$WALK_ERR" | sort
+  local prune=(\( -name .git -o -name node_modules -o -name vendor -o -name dist
+    -o -name build -o -name out -o -name obj -o -name bin -o -name target
+    -o -name .work -o -name __pycache__ -o -name .venv -o -name venv
+    -o \( -name fixtures -path '*/evals/fixtures' \) \) -prune)
+  if [[ "$1" == -print || "$1" == -print0 ]]; then
+    local act="$1"
+    shift
+    find "${FILE:-$ROOT}" "${prune[@]}" -o -type f \( "$@" \) "$act" 2>>"$WALK_ERR"
+    return
+  fi
+  find "${FILE:-$ROOT}" "${prune[@]}" -o -type f \( "$@" \) -print 2>>"$WALK_ERR" | sort
 }
 
 # The walk takes the union of every adapter's files: globs, plus the files
@@ -547,7 +584,7 @@ content_files() {
       [[ -n "$glob" ]] && args+=(${args[@]+-o} -name "$glob")
     done <<<"${a_cglobs[$id]}"
     regex_args "${a_cregex[$id]}"
-    collect_files "${args[@]}" | tr '\n' '\0' | LC_ALL=C xargs -0 -r grep -lE "${PATS[@]}" -- 2>/dev/null
+    collect_files -print0 "${args[@]}" | LC_ALL=C xargs -0 -r grep -lE "${PATS[@]}" -- 2>/dev/null
   done
 }
 
@@ -597,7 +634,8 @@ while IFS= read -r f; do
     file_adapter[$f]=""
     continue
   fi
-  id="$(pick_adapter "$f")"
+  pick_adapter "$f"
+  id="$PICKED"
   if [[ -z "$id" ]]; then
     tc_unclaimed=$((tc_unclaimed + 1))
     file_adapter[$f]=""
@@ -621,7 +659,7 @@ while IFS= read -r f; do
   esac
 done < <(
   {
-    collect_files "${name_args[@]}"
+    collect_files -print "${name_args[@]}"
     content_files
   } | sort
   include_files
@@ -673,9 +711,9 @@ if [[ -z "$LINES" ]]; then
     [[ -n "$f" ]] || continue
     if [[ ${#tc_exclude_re[@]} -gt 0 ]] && excluded "$f"; then continue; fi
     rc_js_files+=("$f")
-  done < <(collect_files -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
+  done < <(collect_files -print0 -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
     -o -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' |
-    tr '\n' '\0' | xargs -0 -r grep -lE 'retryTimes' -- 2>/dev/null | sort)
+    xargs -0 -r grep -lE 'retryTimes' -- 2>/dev/null | sort)
 fi
 
 # --- Denominator --------------------------------------------------------------
@@ -940,10 +978,14 @@ scan_config() {
 
 scan_files=(${js_files[@]+"${js_files[@]}"} ${py_files[@]+"${py_files[@]}"} ${cs_files[@]+"${cs_files[@]}"}
   ${sh_files[@]+"${sh_files[@]}"} ${ps_files[@]+"${ps_files[@]}"} ${go_files[@]+"${go_files[@]}"})
-max_jobs="${CANT_FAIL_SCAN_JOBS:-}"
-[[ "$max_jobs" =~ ^[1-9][0-9]*$ ]] || max_jobs="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)"
-[[ "$max_jobs" =~ ^[1-9][0-9]*$ ]] || max_jobs=1
-if [[ -z "$FILE" && "$max_jobs" -gt 1 && ${#scan_files[@]} -gt 1 ]] && ENGINE_DIR="$(mktemp -d)"; then
+max_jobs=1
+if [[ -z "$FILE" && ${#scan_files[@]} -gt 1 ]]; then
+  max_jobs="${CANT_FAIL_SCAN_JOBS:-}"
+  [[ "$max_jobs" =~ ^[1-9][0-9]*$ ]] || max_jobs="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)"
+  [[ "$max_jobs" =~ ^[1-9][0-9]*$ ]] || max_jobs=1
+fi
+if [[ "$max_jobs" -gt 1 ]]; then
+  ENGINE_DIR="$SCRATCH"
   running=0
   for i in "${!scan_files[@]}"; do
     f="${scan_files[$i]}"
@@ -969,7 +1011,8 @@ done
 cfg_dirs=()
 declare -A cfg_seen=()
 for f in ${cfg_files[@]+"${cfg_files[@]}"}; do
-  cfg_dir="$(dirname "$f")"
+  dir_of "$f"
+  cfg_dir="$DIR_OF"
   if [[ -z "${cfg_seen[$cfg_dir]:-}" ]]; then
     cfg_seen["$cfg_dir"]=1
     cfg_dirs+=("$cfg_dir")
@@ -1038,7 +1081,8 @@ scan_retry() {
 # are shadowed: pytest never merges two config files.
 declare -A rc_seen=()
 for f in ${rc_py_files[@]+"${rc_py_files[@]}"}; do
-  d="$(dirname "$f")"
+  dir_of "$f"
+  d="$DIR_OF"
   [[ -z "${rc_seen[$d]:-}" ]] || continue
   rc_seen["$d"]=1
   picked=""
@@ -1060,7 +1104,8 @@ done
 # extension order; the rest are shadowed.
 rc_seen=()
 for f in ${rc_vt_files[@]+"${rc_vt_files[@]}"}; do
-  d="$(dirname "$f")"
+  dir_of "$f"
+  d="$DIR_OF"
   [[ -z "${rc_seen[$d]:-}" ]] || continue
   rc_seen["$d"]=1
   picked=""
@@ -1084,8 +1129,11 @@ total=$((n_cf1 + n_cf2 + n_cf3 + cfg_findings + report_only))
 gating=$((n_cf1 + n_cf2 - n_adv))
 [[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings + n_adv))
 gating=$((gating + tc_gate - tc_ungate))
-walk_errors="$(awk 'NF { n++ } END { print n + 0 }' "$WALK_ERR" 2>/dev/null)"
-[[ -n "$walk_errors" ]] || walk_errors=0
+# Lines with a field in awk's default sense: some byte other than space or tab.
+walk_errors=0
+while IFS= read -r err_line || [[ -n "$err_line" ]]; do
+  [[ "$err_line" == *[!$' \t']* ]] && walk_errors=$((walk_errors + 1))
+done <"$WALK_ERR"
 enumerated=$((enum_js + enum_py + enum_cs + enum_sh + enum_ps + enum_go))
 fired_blocks=$((n_cf1 + n_cf3 + x_cf1 + x_cf3))
 declined_cf1=$((blocks - n_cf1 - x_cf1))
@@ -1660,7 +1708,8 @@ yaml_scalar() {
 
 emit_findings_file() {
   local branch ts i rank conf
-  branch="$(git -C "$ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
+  branch="$(git -C "$ROOT" branch --show-current 2>/dev/null)"
+  branch="${branch//$'\r'/}"
   if [[ -z "$branch" ]]; then
     printf 'ERROR: --findings needs a checked-out branch at the scan root (the consumer matches files by exact branch): %s\n' "$ROOT" >&2
     exit 2
