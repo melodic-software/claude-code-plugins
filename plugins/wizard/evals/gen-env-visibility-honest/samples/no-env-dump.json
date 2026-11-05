@@ -85,6 +85,30 @@
         }
       ],
       "why": "same command on the second line of a multi-line call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ". .env",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "dot-sourced at the start of the command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\n. .env",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "dot-sourced on the second line of a multi-line call"
     }
   ]
 }
