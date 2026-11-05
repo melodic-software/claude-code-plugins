@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.5] - 2026-11-05
+
+### Changed
+
+- `babysit_verify_evidence.py evidence` requires `--base-sha` and drops `--max-fails`: the FAIL cap and the lanes App identity come from the config at that base, and a read without it took every lanes App spec as `verify:untrusted-spec`. verify-cap.mjs no longer starts the reader without a base commit; the read counts as failed, with a warning.
+
 ## [8.1.4] - 2026-11-04
 
 ### Fixed
