@@ -2367,7 +2367,7 @@ const baseAdmission = (env) => {
     })());
 };
 
-export { budgetLatch };
+export { budgetLatch, failedFor, markReads };
 
 export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), mirrorStatus, statusOf } = {}) {
   try {
