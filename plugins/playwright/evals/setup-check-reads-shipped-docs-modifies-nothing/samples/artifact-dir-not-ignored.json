@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| Artifact directory | INFO | `.playwright-cli/` is not gitignored in this project |"
+    },
+    {
+      "answer": "Add `.playwright-cli/` to your `.gitignore`; check changed nothing.",
+      "why": "the add recommendation"
+    },
+    {
+      "answer": "Artifacts go to .playwright-cli/, which isn't ignored yet: append it to .gitignore.",
+      "why": "isn't ignored"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Artifact directory | PASS | `.playwright-cli/` is already gitignored |",
+      "why": "wrong: claims it is ignored"
+    },
+    {
+      "answer": "Artifacts land in `.playwright-cli/`.",
+      "why": "no gitignore status"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

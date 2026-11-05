@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| python | ruff PT011 | FINDING | select PT011 (or its prefix) in the ruff config |"
+    },
+    {
+      "answer": "One gap: ruff PT011 is not selected, so `pytest.raises` without `match=` goes unflagged.",
+      "why": "prose"
+    },
+    {
+      "answer": "Missing rule: PT011.",
+      "why": "missing first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| python | ruff PT011 | PRESENT | selected in the ruff config |",
+      "why": "wrong: reports it present"
+    },
+    {
+      "answer": "ruff PLR0124 and F631 are selected; the lint config looks fine.",
+      "why": "PT011 not named"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

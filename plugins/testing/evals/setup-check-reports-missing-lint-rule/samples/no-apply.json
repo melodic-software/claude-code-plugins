@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/plugin/skills/setup/scripts/setup.sh\" check"
+          }
+        }
+      ],
+      "why": "check only"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/plugin/skills/setup/scripts/setup.sh\" apply --rule weak-oracle=warn"
+          }
+        }
+      ],
+      "why": "runs apply"
+    }
+  ]
+}
