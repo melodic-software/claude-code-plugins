@@ -354,6 +354,20 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-empty" --repo r
 expect_rc "an empty log archive exits 0" 0
 expect_out "an empty log archive is no gap" $'## GAPS (0)\n\nNone'
 
+# A skipped run is counted, and its logs and check runs are not fetched.
+F="$TMP/skipped"
+base_fixture "$F" r
+fix "$F" "$(day_runs r 2026-10-06)" \
+  '{"total_count":1,"workflow_runs":[{"id":61,"run_attempt":1,"check_suite_id":71,"conclusion":"skipped","created_at":"2026-10-06T10:00:00Z"}]}'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-skipped" --repo r
+expect_rc "a skipped run alone exits 0" 0
+expect_out "skipped runs have their own report line" 'skipped runs (no job ran): 1;'
+if [[ "$LOG" != *runs/61/* && "$LOG" != *check-suites/71/* ]]; then
+  ok "a skipped run's logs and check runs are not fetched"
+else
+  fail "skipped run fetched: $LOG"
+fi
+
 # Expired logs (HTTP 410) are served to nobody: listed apart, exit 0.
 F="$TMP/expired"
 base_fixture "$F" r

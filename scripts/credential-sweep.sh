@@ -23,7 +23,7 @@
 #                listed one UTC day at a time; a window whose total_count is
 #                over the 1,000 results a filtered run list returns is halved
 #                until it fits, and a window listed short of its total_count
-#                is a gap
+#                is a gap. A skipped run (no job ran) is counted, not fetched.
 #   check-runs   output title, summary and text of each run's check runs, every
 #                attempt
 #   artifacts    every artifact created since --since, unzipped
@@ -95,6 +95,7 @@ REMAINING=""
 RESET=""
 PAUSES=0
 PAUSED=0
+SKIPPED=0
 MAX_TOTAL=""
 TOTAL=""
 declare -A COUNT=()
@@ -283,8 +284,14 @@ sweep_logs_and_checks() {
   for (( ; day <= end; day += 86400)); do
     list_runs "$r" "$base" "$day" "$((day + 86399))" || return 3
   done
-  while IFS=$'\t' read -r id attempt suite; do
+  while IFS=$'\t' read -r id attempt suite conclusion; do
     bump "$r" runs
+    # A skipped run started no job: its log archive is empty and its check
+    # runs carry no output, so neither is fetched.
+    if [[ "$conclusion" == skipped ]]; then
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
     for ((a = 1; a <= attempt; a++)); do
       api_download "$dl/logs/run-$id-attempt-$a.zip" "$base/actions/runs/$id/attempts/$a/logs"
       rc=$?
@@ -314,7 +321,7 @@ sweep_logs_and_checks() {
     bump "$r" check-runs "$n"
     jq -r '"check-run \(.id) \(.name)\ntitle: \(.output.title // "")\nsummary: \(.output.summary // "")\ntext: \(.output.text // "")\n"' \
       "$STATE/checks.jsonl" >"$dl/check-runs/run-$id.txt"
-  done < <(jq -rs 'unique_by(.id)[] | [.id, (.run_attempt // 1), .check_suite_id] | @tsv' "$STATE/runs.jsonl")
+  done < <(jq -rs 'unique_by(.id)[] | [.id, (.run_attempt // 1), .check_suite_id, (.conclusion // "")] | @tsv' "$STATE/runs.jsonl")
   ((jobs == 0)) || by_design "$r" step-summaries "$jobs jobs: no REST endpoint serves GITHUB_STEP_SUMMARY"
   return 0
 }
@@ -552,8 +559,9 @@ report() {
     printf '# Credential sweep: %s since %s\n\n' "$OWNER" "$SINCE"
     printf 'Scanner: gitleaks %s, default config without its global path allowlist, redacted. Binaries: strings(1) -n 8 pass, scanned as text (<repo>/strings/). Nested archives: gitleaks --max-archive-depth 8.\n' \
       "$GITLEAKS_PIN"
-    printf 'API requests: %d (REST GET only). Reserve: %d; waited for the reset %d times, %ds.\n\n## Swept\n\n' \
+    printf 'API requests: %d (REST GET only). Reserve: %d; waited for the reset %d times, %ds.\n' \
       "$REQUESTS" "$RESERVE" "$PAUSES" "$PAUSED"
+    printf 'skipped runs (no job ran): %d; their logs and check runs are not fetched.\n\n## Swept\n\n' "$SKIPPED"
     printf '| repo |'
     printf ' %s |' "${sources[@]}" hits
     printf '\n|---|'
