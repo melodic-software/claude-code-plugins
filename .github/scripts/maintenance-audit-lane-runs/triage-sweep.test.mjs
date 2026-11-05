@@ -143,12 +143,19 @@ test("an issue whose Work status field is unset, or set by another account, is c
   assert.deepEqual(await fieldSelect(issues, { 1: { state: "agent-ready", setter: STRANGER_ID } }), [1]);
 });
 
-test("the sweep asks the field only of the issues the labels select", async () => {
+test("the sweep asks the field only of an issue it is about to act on, and a field hold drops it uncounted", async () => {
   const asked = [];
+  // The first candidate carries the sweep's handed-to-a-maintainer state, so
+  // the sweep skips it before acting; the second has no state; the third is
+  // labeled agent-ready.
+  const comments = { 1: [{ id: 10, user: BOT, body: renderState({ runs: [], filed: 77, runUrl: "u" }) }], 2: [] };
   const gh = {
     call: async (method, path) => {
-      if (path.startsWith("/repos/o/r/issues?")) return [issue(1), issue(2, { labels: [{ name: "agent-ready" }] })];
-      throw new Error(`unexpected ${method} ${path}`);
+      if (method !== "GET") throw new Error(`unexpected ${method} ${path}`);
+      if (path.startsWith("/repos/o/r/issues?")) return [issue(1), issue(2), issue(3, { labels: [{ name: "agent-ready" }] })];
+      const m = /^\/repos\/o\/r\/issues\/(\d+)\/comments/.exec(path);
+      if (m) return comments[m[1]] ?? [];
+      return [];
     },
   };
   const statusOf = async (number, labels) => {
@@ -156,8 +163,10 @@ test("the sweep asks the field only of the issues the labels select", async () =
     return [...labels, "agent-ready"];
   };
   const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), statusOf });
-  assert.deepEqual(asked, [1]);
-  assert.equal(result.candidates, 0);
+  // Neither the agent-ready issue (dropped by its labels) nor the filed one
+  // (skipped before acting) costs a field read.
+  assert.deepEqual(asked, [2]);
+  assert.deepEqual([result.dispatched, result.handed, result.handedOff], [[], [], []]);
 });
 
 test("the sweep state round-trips and is read only from the bot's comment", () => {

@@ -340,12 +340,14 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (batch.length < 100) break;
   }
   const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], waiting: [], failed: [], truncated: null };
-  const byLabels = selectCandidates({ issues, now, authorIds });
-  const statusLabels = new Map();
-  for (const i of byLabels) {
-    statusLabels.set(i.number, await statusOf(i.number, (i.labels ?? []).map((l) => l.name)));
-  }
-  const selected = selectCandidates({ issues: byLabels, now, authorIds, statusLabels });
+  const selected = selectCandidates({ issues, now, authorIds });
+  // The Work status field is read only for an issue the sweep is about to act
+  // on, so the reader's cap (MAX_CHECKED) and the check cap cover the same
+  // issues: a field hold the labels lack drops it, uncounted.
+  const fieldHolds = async (issue) => {
+    const statusLabels = new Map([[issue.number, await statusOf(issue.number, (issue.labels ?? []).map((l) => l.name))]]);
+    return selectCandidates({ issues: [issue], now, authorIds, statusLabels }).length === 0;
+  };
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && names(i).includes(FLOOR)));
   result.candidates = candidates.length;
@@ -356,7 +358,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   // Issues the sweep already handed off cost their reads and do not count
   // toward MAX_CHECKED, so they cannot starve the issues behind them.
   let checked = 0;
-  for (const { number, labels } of candidates) {
+  for (const issue of candidates) {
+    const { number, labels } = issue;
     if (checked >= MAX_CHECKED) break;
     if (result.dispatched.length >= MAX_DISPATCHES && result.handed.length >= MAX_HANDED) break;
     try {
@@ -372,6 +375,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       // decides, so the label goes on once.
       if (full) {
         if ((labels ?? []).some((l) => l.name === FLOOR)) continue;
+        if (await fieldHolds(issue)) continue;
         checked += 1;
         await handOff(number, labels);
         result.handedOff.push(number);
@@ -380,6 +384,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       const state = readState(comments, appId);
       // Handed to a maintainer already: the needs-triage label is on it.
       if (state.filed) continue;
+      if (await fieldHolds(issue)) continue;
       checked += 1;
       const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${state.runs.at(-1)}`) : null;
       // A run the API no longer has counts as finished.
