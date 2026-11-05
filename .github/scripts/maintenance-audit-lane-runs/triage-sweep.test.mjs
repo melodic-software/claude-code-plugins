@@ -331,6 +331,18 @@ test("after 2 untriaged dispatches the sweep labels the issue and hands it off i
   assert.deepEqual(second.writes, []);
 });
 
+test("a hand-off mirrors its needs-triage add into the Work status field, after the label", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1, { labels: [{ name: "priority: medium" }] })],
+    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "failure" }, 22: { status: "completed", conclusion: "success" } },
+  });
+  const mirrored = [];
+  const mirrorStatus = async (number, change) => mirrored.push([number, change, gh.writes.length]);
+  await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), mirrorStatus });
+  assert.deepEqual(mirrored, [[1, { had: [{ name: "priority: medium" }], add: ["needs-triage"] }, 1]]);
+});
+
 test("a run still in progress holds the issue for a later pass", async () => {
   const gh = fakeGitHub({
     issues: [issue(1)],
