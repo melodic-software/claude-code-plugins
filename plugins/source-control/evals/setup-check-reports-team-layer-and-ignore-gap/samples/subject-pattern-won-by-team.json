@@ -6,6 +6,10 @@
     {
       "answer": "| Key | Value | Won by |\n|---|---|---|\n| `subject_pattern` | `^[A-Z]+-\\d+: .+` | Team (`docs/conventions/source-control.yaml`) |",
       "why": "table form"
+    },
+    {
+      "answer": "| Key | Value | Won by |\n|---|---|---|\n| `subject_pattern` | `^[A-Z]+-\\d+: .+` | `docs/conventions/source-control.yaml` |",
+      "why": "names the supplying file, as SKILL.md:103-104 says, not the word team"
     }
   ],
   "fail": [

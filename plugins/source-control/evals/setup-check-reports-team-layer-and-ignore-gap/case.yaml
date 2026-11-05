@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'subject-pattern-won-by-team'
     type: 'regex'
-    pattern: '\bsubject_pattern\b[^\n]*?\^\[A-Z\]\+-[^\n]*?\b[Tt]eam\b'
+    pattern: '\bsubject_pattern\b[^\n]*?\^\[A-Z\]\+-[^\n]*?(?:\b[Tt]eam\b|docs/conventions/source-control\.yaml)'
     target: 'last_message'
   - name: 'ignore-rule-fail'
     type: 'regex'

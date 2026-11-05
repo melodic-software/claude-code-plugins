@@ -4,6 +4,7 @@
 # .claude/**/*.local.* ignore rule is missing.
 set -euo pipefail
 git init -q -b main
+git config core.excludesFile /dev/null
 git config user.name eval
 git config user.email eval@example.invalid
 mkdir -p docs/conventions

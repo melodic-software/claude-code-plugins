@@ -25,6 +25,13 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'no-browser-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&]|\\n))?\s*(?:(?:sudo|env|npx|bunx|pnpm\s+dlx|yarn\s+dlx)\s+)*(?:@playwright/cli|playwright-cli|playwright)(?:\.exe)?\s+install(?:-browser|-deps)?\b'
+    min: 0
+    max: 0
+    arm: 'both'
   - name: 'no-shell-gitignore-write'
     type: 'tool_used'
     tool: 'Bash'
