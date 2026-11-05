@@ -2258,10 +2258,10 @@ describe("re-entry after a recorded decision", () => {
   const held = (comments) =>
     fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment(), ...comments], events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }] });
 
-  test("flagsAfterDecision drops intent and an unrecorded flag after a newer decision, and keeps security and cost", () => {
+  test("flagsAfterDecision drops intent after a newer decision, and keeps security, cost and an unrecorded flag", () => {
     const own = appVerdict("- flagged: intent");
     assert.deepEqual(flagsAfterDecision(["intent", "security", "cost"], own, kept(decision()), humans), ["security", "cost"]);
-    assert.deepEqual(flagsAfterDecision(null, own, kept(decision()), humans), []);
+    assert.equal(flagsAfterDecision(null, own, kept(decision()), humans), null, "an unrecorded flag may have been security");
     assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision("2026-10-22T09:00:00Z")), humans), ["intent"], "an older decision answers nothing");
     assert.deepEqual(flagsAfterDecision(null, own, kept(decision("2026-10-22T09:00:00Z")), humans), null);
     assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision(undefined, { user: { id: OUTSIDER } })), humans), ["intent"], "an unlisted author decides nothing");
@@ -2277,8 +2277,8 @@ describe("re-entry after a recorded decision", () => {
     assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(NEEDS_DECISION)}`));
   });
 
-  test("an unrecorded earlier flag a newer decision answers does not re-hold a clean verdict", async () => {
-    assert.equal((await go(held([appVerdict(`- ${UNRECORDED}`), decision()]))).outcome, "ready");
+  test("an unrecorded earlier flag still holds after a decision, since it may have been security", async () => {
+    assert.equal((await go(held([appVerdict(`- ${UNRECORDED}`), decision()]))).outcome, "needs-decision");
   });
 
   test("a failed read of the decisions answers nothing: the carried intent flag holds", async () => {
@@ -2298,7 +2298,7 @@ describe("re-entry after a recorded decision", () => {
     assert.equal((await go(fake)).outcome, "needs-decision");
   });
 
-  test("a carried security flag still holds after a decision, as security", async () => {
+  test("owner Q4: a carried security flag still holds after a decision, as security", async () => {
     const fake = held([appVerdict("- flagged: security\n- flagged: intent (an earlier verdict)"), decision()]);
     const result = await go(fake);
     assert.equal(result.outcome, "needs-decision");
@@ -2309,7 +2309,7 @@ describe("re-entry after a recorded decision", () => {
     assert.deepEqual(parseReason(patch.body.body), { lane: "intake-triage", reason: "security" });
   });
 
-  test("this run's own security flag holds whatever the decision says", async () => {
+  test("owner Q4: this run's own security flag holds whatever the decision says", async () => {
     const lane = laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] }));
     const fake = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [lane, appVerdict("- flagged: intent"), decision()], events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }] });
     const result = await go(fake);

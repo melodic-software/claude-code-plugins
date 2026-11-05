@@ -13,6 +13,6 @@ bump: patch
   refine.mjs splits the other items off from there, as it still does for an issue held at
   needs-decision before this change. A split is no question for a person.
 - A listed human's `**Decision recorded.**` comment written after the lanes App's verdict comment
-  now answers that comment's carried `intent` flag and an unrecorded earlier flag, so a re-triage
-  after the decision no longer re-holds the issue for them. A carried `security` or `cost` flag
-  still holds, as does any flag the new verdict raises.
+  now answers that comment's carried `intent` flag, so a re-triage after the decision no longer
+  re-holds the issue for it. A carried `security` or `cost` flag, an unrecorded earlier flag, and
+  any flag the new verdict raises still hold.

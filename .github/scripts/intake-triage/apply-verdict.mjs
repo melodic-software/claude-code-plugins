@@ -28,7 +28,7 @@
 // held before these comments), holds, and the new comment carries the flag or
 // the missing record forward, except that a listed human's `**Decision
 // recorded.**` written after that comment last changed answers its intent flag
-// and an unrecorded one (flagsAfterDecision); a security or cost flag stays. A
+// (flagsAfterDecision); a security, cost or unrecorded flag stays. A
 // held verdict's comment names its owner reason as the stop-reason marker and
 // line (../lib/stop-reason.mjs), the strongest of its causes. A held verdict
 // writes that comment before its labels and, when the comment write fails, adds no label and takes off only
@@ -428,14 +428,15 @@ export { earlierFlags, ownVerdict, UNRECORDED, VERDICT_MARKER };
 // comment (select-trusted-text isDecisionComment over `kept`, its
 // selectTrustedIssueComments items) written after the lanes App's verdict
 // comment (`own`) last changed answers the questions that verdict held for:
-// its carried intent flag and an unrecorded earlier flag no longer hold, and
-// this run's own verdict says what the decision leaves open. A carried
-// security or cost flag stays (owner Q4: a security flag reaches the owner;
-// a charge clears only through a `Cost decided: ` line). Pure.
+// its carried intent flag no longer holds, and this run's own verdict says
+// what the decision leaves open. A carried security or cost flag stays (owner
+// Q4: a security flag reaches the owner; a charge clears only through a
+// `Cost decided: ` line), and so does an unrecorded one (null), which may have
+// been either. Pure.
 export function flagsAfterDecision(flags, own, kept, humans) {
   const since = Date.parse(own?.updated_at);
   const decided = Number.isFinite(since) && kept.some((item) => Date.parse(item.comment?.created_at) > since && isDecisionComment(item, humans));
-  return decided ? (flags ?? []).filter((flag) => flag !== "intent") : flags;
+  return decided && flags !== null ? flags.filter((flag) => flag !== "intent") : flags;
 }
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
@@ -566,11 +567,11 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const fields = await readFields(github, repository, number, fieldSetters);
   const { setters, triage } = await labelSetters(github, base, labels, startedAt);
   // A carried flag holds only beside a hold label, and a decision answers only
-  // intent or an unrecorded flag, so the trusted comments are read only then.
-  // A failed read answers nothing: the earlier flags hold.
+  // an intent flag, so the trusted comments are read only then. A failed read
+  // answers nothing: the earlier flags hold.
   let flagsBefore = earlierFlags(comments, appId);
   const own = ownVerdict(comments, appId);
-  if (own && labels.some((label) => HOLDS.has(label)) && (flagsBefore === null || flagsBefore.includes("intent"))) {
+  if (own && labels.some((label) => HOLDS.has(label)) && flagsBefore?.includes("intent")) {
     try {
       const { kept } = await selectTrustedIssueComments({ github, repository, issueNumber: number, ids: humans });
       flagsBefore = flagsAfterDecision(flagsBefore, own, kept, humans);
