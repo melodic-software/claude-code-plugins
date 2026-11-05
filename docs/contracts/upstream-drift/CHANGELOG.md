@@ -52,8 +52,8 @@ runs of 2026-08-28 (9 fetches, 491 parsed stamps) and 2026-10-28 (200 fetches, 3
 stamps) met the same event and recorded no evaluation. The first event has no instance on record:
 the sweep's 4 expired stamps came from date arithmetic, not from a changed page. As the deferral
 prescribes, the hash store is its own designed issue,
-[#3567](https://github.com/melodic-software/claude-code-plugins/issues/3567), reopened; nothing is
-built here.
+[#3567](https://github.com/melodic-software/claude-code-plugins/issues/3567), closed on 2026-09-27
+to be reopened when this trigger fires; nothing is built here.
 
 **Not done at this firing.** Dead-pointer wiring: the weekly online link check is a sync-managed
 file from `melodic-software/standards` with a read-only token, so routing its dead links to the
