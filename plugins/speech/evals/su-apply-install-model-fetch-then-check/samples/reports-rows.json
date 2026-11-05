@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL  espeak-ng: none of espeak-ng is on PATH\nFAIL  python-packages: not installed\nFAIL  kokoro-model: 9 of the pinned files are missing\n3 passed, 3 failed",
+      "why": "the rows as printed"
+    },
+    {
+      "answer": "| Row | Result |\n|---|---|\n| espeak-ng | FAIL |\n| python | PASS |",
+      "why": "the rows as a table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "espeak-ng is missing and the model is not downloaded.",
+      "why": "near miss: no PASS or FAIL rows"
+    },
+    {
+      "answer": "FAIL  python-packages: not installed\n2 passed, 1 failed",
+      "why": "near miss: the espeak-ng row left out"
+    },
+    {
+      "answer": "Everything looks ready.",
+      "why": "near miss: no rows"
+    }
+  ]
+}
