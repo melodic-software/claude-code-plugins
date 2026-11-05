@@ -8,6 +8,15 @@ field, removing a field, changing a kind's detection semantics, an exit code's m
 severity map is a major bump; adding an optional field, a `status` value, or a new `kind` with its
 own detection rule is a minor bump.
 
+## [2.0] - 2026-11-05
+
+`kind: file` detection now needs a repository root. When the resolved root is `$HOME`, or has no
+`.git` and is not inside a git work tree, the helper skips every `kind: file` record, reporting
+`<id>: skipped: root is not a repository` on stderr with no row, and `--clean` of such a record is
+exit 2. There a `.claude/<name>.json` path is the live user-global layer, which a `migrate` or
+`delete` clean must not touch. Major per the versioning rule: a kind's detection semantics and an
+exit code's meaning changed. No manifest field changed, so no record needs editing.
+
 ## Suite-case eval coverage, contract unchanged at 1.1 - 2026-11-04
 
 One eval per record may now sit in a plugin suite case (`evals/<case>/`) as well as the legacy
