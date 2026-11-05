@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: reply
+focus: last_message
 ---
 
 PASS if the final reply treats handling the absent coupon code (no code means no discount) as the fix for the cause, and says why that state is legitimate: the coupon field is optional, so many orders have no code.

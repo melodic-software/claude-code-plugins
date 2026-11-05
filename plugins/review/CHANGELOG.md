@@ -3,6 +3,19 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.0.0] - 2026-11-05
+
+### Removed
+
+- `/review:explain-change` no longer reads the old team locations
+
+  The team layer is `docs/conventions/review-digest.yaml` only. The `json config` block in
+  `docs/conventions/review-digest.md` and `.claude/review-digest.json` were read for one release
+  while the YAML file was absent; they are now ignored, and a change to either no longer fires the
+  risk-path trigger on its own. Move their keys into `docs/conventions/review-digest.yaml`. The
+  user-global `~/.claude/review-digest.json` and the personal override
+  `.claude/review-digest.local.json` are still read.
+
 ## [7.4.1] - 2026-11-05
 
 ### Changed

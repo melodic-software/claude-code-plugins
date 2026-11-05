@@ -36,12 +36,12 @@ It binds every step below, hardest at step 1.
 ## Scope: raw intake only
 
 **Classification vocabulary.** Triage records an item's class on the `work-class:` label axis (`read-only`,
-`mechanical`, `scoped`, `structural`); C5 is marked by the `provenance: untrusted` label instead.
-Human-readable aliases of the autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
+`mechanical`, `scoped`, `structural`), and C5 as `provenance: untrusted`. Human-readable aliases
+of the autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
 [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md);
 read it before step 5 stamps a member. No class gates the autonomous-eligible role label; only
-`provenance: untrusted` and `provenance: signal` keep an item off it, and so does
-`work-class: untrusted-provenance`, the legacy name of `provenance: untrusted`. `T1`/`T2`/`T3` and
+`provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) and
+`provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
 `simple`/`medium`/`complex` are not classification metadata (loop-lane status lines may report
 simple/medium/complex counts as lane-local telemetry only). The separate frontier
 capability-tier stamp (`capability-tier: frontier`) has its own canonical member and migration
@@ -239,8 +239,8 @@ machine and changes no label but that one.
 1. **List** open issues carrying the label (adapter: "List items", label filter), after the
    lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
-   - `provenance: untrusted` or `provenance: signal`, or
-     `work-class: untrusted-provenance`, the legacy name of `provenance: untrusted`;
+   - `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) or
+     `provenance: signal`;
    - an escalation marker from a
      [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);
    - issue dimensions that human-gated it (a split size or an uncertainty mode other than `run`);
@@ -377,7 +377,8 @@ Instead, route it to `/planning:interview`. Once the direction gate is met, run 
 cannot be posted, apply no label. Then, in one label edit, apply `needs-spec` and remove the raw
 marker. Apply no `status:`, priority, work-class or role label, except that a signal-marked idea
 issue also gets `provenance: signal` and `provenance: untrusted` (`provenance: signal`
-alone in a lane that may not write `work-class:` labels), and never the human-gated role label. In an
+alone in a lane that may not write `work-class:` labels, which applies no `provenance: untrusted`
+either), and never the human-gated role label. In an
 interactive session, offer to run `/planning:interview` on the item now. A lane does not run it.
 Once an interview records the item's intent, return it to raw in one label edit that removes
 `needs-spec` and restores the raw marker, then triage it from step 1. A request whose purpose is

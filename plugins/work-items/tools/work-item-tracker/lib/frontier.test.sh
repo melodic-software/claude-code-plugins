@@ -168,6 +168,18 @@ IDS="$(frontier_ids false <<<"$SIGNAL")"
 assert_eq "default frontier still surfaces a provenance: signal item" \
   "github:o/r#1,github:o/r#6" "$IDS"
 
+# provenance: untrusted floors an item the same way, and the attended lane still
+# sees it. The WORK_CLASS fixture above keeps proving the legacy name is floored.
+UNTRUSTED='{"schema_version":"1.0","items":[
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
+  {"id":"github:o/r#13","state":"open","assignees":[],"labels":["agent-ready","provenance: untrusted"],"blocked_by_count":0}]}'
+IDS="$(frontier_ids true <<<"$UNTRUSTED")"
+assert_eq "autonomous frontier drops provenance: untrusted even when agent-ready" \
+  "github:o/r#1" "$IDS"
+IDS="$(frontier_ids false <<<"$UNTRUSTED")"
+assert_eq "default frontier still surfaces a provenance: untrusted item" \
+  "github:o/r#1,github:o/r#13" "$IDS"
+
 # A status label that waits on a person floors the item too, and the attended lane
 # still sees it.
 STATUS='{"schema_version":"1.0","items":[

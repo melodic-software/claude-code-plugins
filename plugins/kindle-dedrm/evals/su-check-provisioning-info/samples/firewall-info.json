@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Calibre | PASS | 8.4 installed |\n| Python | FAIL | `where python` finds only the WindowsApps stub; install Python 3.6+ from python.org and put it first on PATH |\n| pwsh | PASS | 7.5 |\n| Admin rights | PASS | available |\n| Kindle for PC | INFO | not installed yet; apply installs 2.8.0.70980 |\n| Firewall rule | INFO | not yet provisioned; run apply |\n| ICACLS deny | INFO | not yet provisioned; run apply |\n| Kindle_Key_Finder | INFO | absent; run apply |\n| Downloads | INFO | 0/3; run apply |\n| Cached installer | PASS | absent |\n| Calibre plugins | INFO | DeDRM absent, KFX Input absent |\n| dedrm.json | INFO | present (left over); contents not shown, it holds extracted keys |\n\nOne FAIL: fix Python, then run `/kindle-dedrm:setup apply`."
+    },
+    {
+      "answer": "Check | Status | Note\n--- | --- | ---\nWindows Firewall rule | Info | absent, apply creates it",
+      "why": "no outer pipes, title case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Firewall rule | FAIL | absent; run apply |",
+      "why": "not-yet-provisioned state marked FAIL"
+    },
+    {
+      "answer": "| Firewall rule | FAIL | absent (INFO before first setup) |",
+      "why": "near miss: FAIL verdict with INFO only in the note"
+    },
+    {
+      "answer": "| Firewall rule | absent |\n| Downloads | INFO | 0/3 |",
+      "why": "INFO only on another row"
+    },
+    {
+      "answer": "Firewall rule: INFO, not yet provisioned.",
+      "why": "no table row"
+    }
+  ]
+}

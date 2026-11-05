@@ -114,7 +114,7 @@ check.
      holds, either would substitute this probe's own verdict for probe 4's.
 7. **Work-class label axis**, when probe 2 found a present, shape-valid binding whose provider
    exposes label listing (the `github` adapter: `gh label list`), verify all five canonical
-   members (the `work-class:` ones and `provenance: untrusted`) from
+   members (four `work-class:` labels and `provenance: untrusted`) from
    [`reference/work-class-labels.md`](../../../reference/work-class-labels.md)
    exist. Any missing member is FAIL. Triage cannot apply autonomous-eligible outcomes until the
    axis is provisioned; remediation is `/work-items:setup apply` on repos without label-as-code,

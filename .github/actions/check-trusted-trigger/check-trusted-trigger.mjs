@@ -188,6 +188,14 @@ export const networkFailure = (error) =>
   error?.name === "AbortError" ||
   (error?.name === "TypeError" && error.message === "fetch failed") ||
   typeof error?.cause?.code === "string";
+// A GitHub fault: a 5xx or 429, a call the rate guard refused (RateLimitStop),
+// or a request that got no answer. What the call did is unknown, not wrong, so
+// a lane holds on it (outage posture element 2). Any other 4xx (a lost
+// permission, a missing label) is not one, since a retry meets it again.
+export const isFault = (error) =>
+  (error?.name === "GitHubError" && (error.status >= 500 || error.status === 429)) ||
+  error?.name === "RateLimitStop" ||
+  networkFailure(error);
 // An error's name and cause code, never its message.
 export const errorLabel = (error) =>
   [error?.name ?? "Error", typeof error?.cause?.code === "string" ? error.cause.code : null].filter(Boolean).join(" ");

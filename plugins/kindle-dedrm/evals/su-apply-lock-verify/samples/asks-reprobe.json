@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "An exit code of 0 is not proof the lock is on. Before the Calibre plugins, run the status script again on the PC:\n\n```bash\nbash \"<plugin-root>/skills/manage/scripts/status.sh\"\n```\n\nand paste it. I need `firewall_rule` to read `True` and `icacls_deny` to read `applied`; then we do the plugins."
+    },
+    {
+      "answer": "Please check both on the PC first: `Get-NetFirewallRule -DisplayName \"Block Kindle for PC (lock 2.8.0)\"` should show Enabled True, and the write test should print LOCK OK.",
+      "why": "the per-step checks instead of status.sh"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both exited 0, so the firewall block and the ICACLS lock are done. Next, the Calibre plugins: open Calibre, Preferences, Plugins...",
+      "why": "takes the exit codes"
+    },
+    {
+      "answer": "Re-run the status check and send me the output before we continue.",
+      "why": "near miss: names no probe the user can run"
+    },
+    {
+      "answer": "Your status shows firewall_rule absent and icacls_deny absent, so confirm they changed.",
+      "why": "near miss: echoes the pasted field names, names no probe"
+    }
+  ]
+}

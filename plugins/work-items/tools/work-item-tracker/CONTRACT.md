@@ -374,10 +374,9 @@ blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a `work-map` item is never its own frontier item, see
 "Containers and state") AND no label starting `wayfind:` (a wayfind map item belongs to
 `/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
-`needs-human` are additionally excluded, as are items carrying the **human-floor** label
-`provenance: untrusted` (C5; its legacy name is in [`work-class-labels.md`](../../reference/work-class-labels.md))
-or the `provenance: signal` label, which are
-human-gated regardless of any other signal, and items labeled `status: needs-decision`,
+`needs-human` are additionally excluded, as are items carrying the **human-floor class**
+label `provenance: untrusted` (C5; its legacy name is in [`work-class-labels.md`](../../reference/work-class-labels.md)) or the
+`provenance: signal` label, which are human-gated regardless of any other signal, and items labeled `status: needs-decision`,
 `status: needs-info` or `needs-spec`, which wait on a person. When `status-storage` reports
 `field` and the adapter declares `get-statuses`, core reads the `Work status` of each open,
 unblocked, unassigned item and puts it on the item as `status`. The field can only add a hold:

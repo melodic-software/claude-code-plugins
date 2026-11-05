@@ -1,0 +1,8 @@
+{
+  "no-download": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:\\bcurl\\b|\\bwget\\b|Invoke-WebRequest|\\biwr\\b|Invoke-RestMethod|Start-BitsTransfer|\\bgh\\s+release\\s+download\\b)"
+  ]
+}

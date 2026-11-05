@@ -2602,7 +2602,8 @@ class Eligibility(unittest.TestCase):
 
     def test_an_untrusted_provenance_issue_is_held(self) -> None:
         # The trust hold stays (owner decision, option a), in any case or
-        # whitespace, beside any other label.
+        # whitespace, beside any other label, under its name or the legacy
+        # work-class name.
         for label in (
             "provenance: untrusted",
             "work-class: untrusted-provenance",
@@ -2813,7 +2814,7 @@ class EligibilityAgentSignals(unittest.TestCase):
             with self.subTest(actor=actor, via=via):
                 gh = eligibility_fake(self)
                 gh.rest[self.TIMELINE].append(
-                    self.unlabeled("Work-Class: Untrusted-Provenance", actor, via)
+                    self.unlabeled("Provenance: Untrusted", actor, via)
                 )
                 self.assertEqual(
                     eligibility().reason, "untrusted-provenance-removed-by-non-human"
@@ -2833,9 +2834,7 @@ class EligibilityAgentSignals(unittest.TestCase):
     def test_a_human_removing_the_trust_label_lifts_the_hold(self) -> None:
         gh = eligibility_fake(self)
         gh.rest[self.TIMELINE].append(
-            self.unlabeled(
-                "provenance: untrusted", {"login": OPERATOR, "type": "User"}
-            )
+            self.unlabeled("provenance: untrusted", {"login": OPERATOR, "type": "User"})
         )
         self.assertTrue(eligibility().eligible)
 
@@ -4412,10 +4411,7 @@ class Assess(unittest.TestCase):
             for labels, reason in (
                 ([], None),
                 (["work-class: structural"], None),
-                (
-                    ["provenance: untrusted"],
-                    "ineligible:untrusted-provenance",
-                ),
+                (["provenance: untrusted"], "ineligible:untrusted-provenance"),
             ):
                 with self.subTest(rung=rung, labels=labels):
                     gh = self.readable()
@@ -5690,9 +5686,7 @@ class RefsIssueEligibility(unittest.TestCase):
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.issue, ISSUE)
-        gh.graphql["PolicyRefsIssue"] = refs_answer(
-            refs_issue("provenance: untrusted")
-        )
+        gh.graphql["PolicyRefsIssue"] = refs_answer(refs_issue("provenance: untrusted"))
         self.assertEqual(eligibility().reason, "untrusted-provenance")
 
     def test_an_unclaimed_refs_issue_is_refused_claim_missing(self) -> None:

@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": "- After install: **do NOT open Kindle yet**"
+    },
+    {
+      "answer": "Once it's installed, don’t open Kindle until I send the sign-in step.",
+      "why": "curly apostrophe"
+    },
+    {
+      "answer": "When the installer finishes, don't launch it yet.",
+      "why": "pronoun with yet"
+    },
+    {
+      "answer": "Close the installer without starting Kindle.",
+      "why": "without"
+    },
+    {
+      "answer": "Never open Kindle for PC until I give you the sign-in step.",
+      "why": "never"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "After the install, open Kindle and sign in.",
+      "why": "tells the user to open Kindle"
+    },
+    {
+      "answer": "Never run the cached Kindle installer from the updates folder.",
+      "why": "near miss: the cached-installer rule, not the open-Kindle rule"
+    },
+    {
+      "answer": "If Kindle is not installed, start it from the Start menu.",
+      "why": "near miss: negation on another verb"
+    },
+    {
+      "answer": "Run the installer: UAC yes, EULA accept, default location.",
+      "why": "no warning"
+    }
+  ]
+}

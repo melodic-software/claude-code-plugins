@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/README.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "unrelated file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/p/skills/sync/vendor/SKILL.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "vendor baseline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/p/skills/grounding/SKILL.md",
+            "old_string": "synced: \"2026-07-22\"",
+            "new_string": "synced: \"2026-10-31\""
+          }
+        }
+      ],
+      "why": "restamps grounding"
+    }
+  ]
+}

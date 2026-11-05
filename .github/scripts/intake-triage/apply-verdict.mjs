@@ -95,7 +95,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, GitHubError, loadTrustedList, networkFailure, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
@@ -825,13 +825,9 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
-// A GitHub 5xx or 429, a call the rate guard refused, or a request that got no
-// answer: what happened to the issue is unknown, not wrong. Any other 4xx (a
-// lost permission, a missing label) stays red, since a retry meets it again.
-export const isFault = (error) =>
-  (error?.name === "GitHubError" && (error.status >= 500 || error.status === 429)) ||
-  error?.name === "RateLimitStop" ||
-  networkFailure(error);
+// isFault (check-trusted-trigger.mjs): what happened to the issue is unknown,
+// not wrong.
+export { isFault };
 
 // The step's closing annotations and exit code, for run()'s result or the
 // error it threw. A fault, in admission or anywhere in the run, holds green

@@ -121,9 +121,9 @@ LOOP_MERGE_RUNG = {
     "full-autonomy": "C3",
 }
 # The trust hold: a pull request whose linked issue carries this label, or
-# had it removed by a non-human, waits for a human merge. The hold matches
-# through `_untrusted`, so it also reads this label's legacy work-class name.
-# No other class label is read.
+# had it removed by a non-human, waits for a human merge. The hold also
+# reads the label's legacy work-class name through `_untrusted`, which
+# matches any label holding "untrusted". No other class label is read.
 UNTRUSTED_PROVENANCE_LABEL = "provenance: untrusted"
 
 OPT_IN_LABEL = "merge: agent-allowed"

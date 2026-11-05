@@ -331,12 +331,12 @@ the former default-on pause).
 
 The gate does not decide by work class. A candidate that passes the in-flight check, the objection
 window, the labeler precondition and the hard gates below is admitted, whatever its `work-class:`
-label, and with none. Of the class and provenance labels, only the three the provenance hold
-below names hold a candidate for a person: `list-frontier --autonomous` already drops all three
+label, and with none. Of the class and provenance labels, only `provenance: signal` or
+`provenance: untrusted` (also under its legacy name `work-class: untrusted-provenance`) holds a
+candidate for a person: `list-frontier --autonomous` already drops each
 ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)),
 and a candidate found carrying any of them is escalated through step 5, never dispatched. A candidate
-whose latest removal of any of them came from an actor below `write` is held the same way (the
-provenance-removal hold below).
+whose latest removal of any of them came from an actor below `write` is held the same way (the provenance-removal hold below).
 
 **In-flight precondition (before the other checks).** A frontier candidate that already has an
 open closing PR from its own repository (not a fork) is work in flight, not a candidate. Apply
@@ -391,17 +391,16 @@ As of: 2026-10-04. Recheck trigger: the endpoint's role mapping changes.
 
 Hard gates:
 
-- **Provenance hold.** A candidate carrying `provenance: untrusted`, `provenance: signal`, or
-  `work-class: untrusted-provenance` (the legacy name of `provenance: untrusted`) is human-gated.
+- **Provenance hold.** A candidate carrying `provenance: signal` or
+  `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) is human-gated.
   Step 5 escalates it as `kind=escalated`; it is never dispatched.
 - **Provenance-removal hold.** The provenance hold tests only whether a label is present, so its
   absence counts only when someone allowed to grant admission removed it. For each candidate, and
-  for each of `provenance: untrusted`, `provenance: signal` and
-  `work-class: untrusted-provenance` (the legacy name of `provenance: untrusted`), run the bound adapter's
-  "Label-removal provenance" operation (GitHub: the adapter README section of that name). Its
-  latest-removal read names the actor of the label's latest removal, and its actor-permission read
+  for each of `provenance: untrusted`, its legacy name `work-class: untrusted-provenance`, and
+  `provenance: signal`, run the bound adapter's "Label-removal provenance" operation (GitHub: the
+  adapter README section of that name). Its latest-removal read names the actor of the label's latest removal, and its actor-permission read
   reads that actor's permission with the labeler precondition's permission mapping. A candidate whose latest removal of
-  any of those labels came from an actor below `write` (a triage or read actor, `none`, or a permission
+  any of these labels came from an actor below `write` (a triage or read actor, `none`, or a permission
   that does not read) is human-gated: step 5 escalates it as `kind=escalated`, and it is never
   dispatched. The escalation's one-line question names the label, the actor and the permission,
   and gives the human both ways to settle it. If the item is trusted, a person with `write`
