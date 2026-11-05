@@ -226,10 +226,13 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
         .catch((error) => log(`::warning::pr-merge's carried reads were not all fetched (${oneLine(error?.message ?? error)}); the reader asks GitHub for the rest`));
       await carried;
     }
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
-    if (SHA.test(String(base ?? ""))) {
-      args.push("--base-sha", base);
+    // The reader requires the base: its config names the lanes App, without
+    // which every lanes App spec reads untrusted.
+    if (!SHA.test(String(base ?? ""))) {
+      log(`::warning::#${number}: no base commit to read the verifier at (${oneLine(String(base))}); the round runs under its own caps`);
+      return { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true };
     }
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
     // The reader sizes its listing to this kill limit and names this caller
     // when a listing cannot fit (babysit_verify_evidence.py DEADLINE_ENV).
     const readerEnv = { ...env, ...(deadlineMissed && NO_INCREMENTAL_WAITS), BABYSIT_VERIFY_DEADLINE_SECONDS: String(VERIFY_CAP_TIMEOUT_MS / 1000), BABYSIT_VERIFY_CALLER: "verify-cap.mjs" };
