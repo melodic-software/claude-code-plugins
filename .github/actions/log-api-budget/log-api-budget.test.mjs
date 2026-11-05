@@ -1116,7 +1116,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token", "check-intent-fallback": "github-token" },
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
     // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
-    "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"], "sync-status": ["lanes-app", "lanes-app github-token"] },
+    "work-unblock.yml": { "label-unblocked": ["lanes-app", "lanes-app github-token"], "sync-status": ["lanes-app", "lanes-app github-token"] },
     "pr-merge.yml": { "post-merge-dispatch": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
     "security-outside-actor.yml": { flag: "github-token" },
