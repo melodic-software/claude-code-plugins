@@ -3331,7 +3331,7 @@ jobs:
       # (Neither basis speaks for a 200k-window consumer, whose budget the
       # fleet overflows today; docs/cloud-sessions.md records that.)
       # Report-only (the script always exits 0). The fix for the aggregate is
-      # the per-skill description trim, which #6846 owns.
+      # trimming descriptions at their source, not raising the fraction.
       - name: Report the skill-listing budget at this repo's configured fraction
         id: listing_budget_configured
         if: github.event_name == 'schedule'
