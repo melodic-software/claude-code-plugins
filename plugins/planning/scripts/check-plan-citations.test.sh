@@ -173,6 +173,19 @@ run "a shape anchor line that lacks the symbol warns and passes" 0 shapeline.md 
 plan shapedir.md '```shape src/lib/' 'src/lib/' '  util.ts' '```'
 run "a directory shape anchor needs no symbol" 0 shapedir.md '^shapes=1 failed=0 '
 
+plan shapedirline.md '```shape src/lib/ L1' 'src/lib/' '```'
+run "a shape anchor with L<n> on a directory fails" 1 shapedirline.md '^shape=[0-9]+:src/lib/ L1 status=fail reason=shape-not-a-file$'
+
+# A raw US byte (\037) in the info string must not shift the fields bash reads
+# back into the line number, where arithmetic would run a command substitution.
+plan shapeus.md $'```shape src/shape.ts\037main\037x[$(touch${IFS}'"$TMP"$'/pwned)]' 'main' '```'
+run "a shape anchor with a control byte is malformed" 1 shapeus.md 'status=fail reason=shape-malformed$'
+if [[ -e "$TMP/pwned" ]]; then
+  fail "a shape anchor with a control byte runs no command"
+else
+  pass "a shape anchor with a control byte runs no command"
+fi
+
 plan shapedash.md '```shape src/shape.ts#--dry-run' '--dry-run' '```'
 run "a shape symbol starting with - is searched for, not read as an option" 0 shapedash.md '^shapes=1 failed=0 '
 

@@ -42,7 +42,8 @@
 #   shape-missing-symbol  a file path has no symbol, or the symbol is not found
 #   shape-past-end        L<n> is past the file's last line
 #   shape-not-a-file      L<n> on a directory, or the path names a submodule
-#   shape-malformed       no path, an empty `#`, or a second word that is not L<n>
+#   shape-malformed       no path, an empty `#`, a second word that is not L<n>,
+#                         or a control character in the info string
 #   shape-line            a warning, not a failure: line <n> lacks the symbol
 #
 # The commit the check ran at is printed as `commit=<full sha>`; the plan records
@@ -131,7 +132,12 @@ citations="$(
       n = split(info, words, / /)
       form = "ok"
       path = symbol = line = ""
-      if (n < 1 || n > 2) form = "malformed"
+      if (info ~ /[\001-\037\177]/) {
+        # A control byte (the US field separator among them) would shift the
+        # fields bash reads back, so the row carries none of them.
+        form = "malformed"
+        gsub(/[\001-\037\177]/, "?", info)
+      } else if (n < 1 || n > 2) form = "malformed"
       else {
         hash = index(words[1], "#")
         path = hash ? substr(words[1], 1, hash - 1) : words[1]
@@ -269,7 +275,12 @@ while IFS=$'\037' read -r tag at form path symbol line label; do
       die "could not read $path at $commit"
     count="${read_out%% *}"
     text="${read_out#* }"
-    if [[ "$line" -gt "$count" ]]; then
+    # Checked as digits before any arithmetic: bash evaluates an operand of
+    # `-gt` or `(( ))` as an expression, and an array subscript in one runs
+    # command substitutions.
+    if [[ ! "$line" =~ ^[1-9][0-9]*$ ]]; then
+      reason="shape-malformed"
+    elif (( 10#$line > count )); then
       reason="shape-past-end last-line=$count"
     elif ! grep -q -w -F -e "$symbol" <<<"$text"; then
       status="warn"
