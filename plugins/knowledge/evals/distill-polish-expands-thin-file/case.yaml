@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: distill-polish-expands-thin-file
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: thin-file-expanded
+    type: regex
+    pattern: '"name":"(?:Write|Edit)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"file_path":"[^"]*/reference/idempotency\.md"(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:Idempotency-Key|24 hours|24-hour|409|422)'
+    target: trace
