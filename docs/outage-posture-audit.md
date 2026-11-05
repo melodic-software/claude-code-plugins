@@ -395,15 +395,31 @@ A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
   that handed off, whose handoff job succeeded, with no next leg held. That is two more REST reads
   for each green run a candidate head has, until one ends the PR. An outage past that many runs still ends the PR.
 
+Part 2 also fixed intake-triage's element 2 gap, with tests. A GitHub fault in `apply-verdict.mjs`
+(a 5xx or 429, a rate-guard stop under the step's `API_BUDGET_HOLD` opt-in, or no answer), in
+admission or anywhere else in the run, holds green with one `held:` notice (`closing`, `isFault`);
+any other error, another 4xx, a forbidden missed edge and an unwritten reasons comment still fail. The lane has no
+cron, but two hourly sweeps take a held issue up again: work-unblock's `readmitReady` runs
+admission on a `status: ready` issue in no queue, and the triage sweep dispatches intake on one with
+no `status:` label. The triage sweep reads a `held:` notice as it reads a failure annotation
+(`triage-sweep.mjs` `classifyRun`), so a hold on a 5xx stays forgiven and a hold on any other
+status counts. A hold also sets the apply-verdict job's `held` output, and `refine-select` runs only
+when it is empty (`.github/workflows/intake-triage.yml`), so no refinement acts on a verdict whose
+result is unknown.
+
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
 `retry-spent` fault hold, work-unblock's held listings and pr-refine's held `fix-docs` reads. A
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
 (`.github/scripts/maintenance-monitor-signals/signals.mjs` `laneHoldFindings`). It adds no stop
-and no cap.
+and no cap. intake-triage's hold is not among them.
 
-Element 4 stays open: `decide.mjs` needs a kind that posts nothing, and the posting code in
-`report-check-run.mjs` needs to honor it (the Remaining row). A neutral check is not the fix, since
+pr-refine's element 4 row is kept on evidence: the failure check `decide.mjs` posts for a run with
+no verdict is the retry signal. `fix-docs-dispatch.mjs` `docsRunsEnded`
+(`.github/scripts/pr-unblock/fix-docs-dispatch.mjs:180-186`) dispatches again after a red run but
+counts a green run that did not hold on a handoff read as done, so a green hold that posts nothing
+would stop the retry a red run gets. pr-unblock's `fix-ci-unreported` reads the same failure
+(`.github/workflows/pr-unblock.yml`, `fix-ci-unreported`). A neutral check is no fix either, since
 babysit counts neutral as passing. A broker failure on pr-refine does not reach `decide.mjs`: off
 `pull_request` the report job posts no check on it (`.github/workflows/pr-run-activity-read.yml`,
 `Choose the head the check is posted on`).
@@ -418,20 +434,17 @@ Two parts of the work-unblock rows stay open, for the reasons in the table:
   in the `wip-state` job, and `work-unblock.yml` says a cache must not reach a job that mints. The
   closed listing's URL also changes every run with its `since`, so its `etag` could not match.
 
-The other script rows below are still open. Part 2 also found one row that is not a script-only
-fix: holding intake-triage green on a read error (element 2) needs something to start the lane
-again, since it has no cron.
+The other script rows below are still open.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
 | shared | 2 | workflow | each lane workflow whose step should hold sets `API_BUDGET_HOLD=1`; part 2 fixed `rate-guard.mjs`'s wait and hold, `check-trusted-trigger.mjs`'s wait on the latch, and `api-budget.bash`'s notice |
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
-| intake-triage | 2 | script | `.github/scripts/intake-triage/apply-verdict.mjs` (holding green needs a re-trigger, since the lane has no cron); part 2 fixed `admit.mjs`'s visibility read |
 | intake-triage | 5 | workflow | `.github/workflows/intake-triage.yml` |
 | work-unblock | 2 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (a failed read for one issue still ends the run red); part 2 fixed the failed listings |
 | work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |
 | work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`, somewhere to keep an `etag` between runs) |
-| pr-refine | 4 | script | `.github/actions/report-check-run/decide.mjs`, `report-check-run.mjs` (post nothing, with a notice, when `pr-refine / fix-docs` has a green run job and scan job and no verdict, which only a failed verdict download leaves); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs` |
+| pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:180-186` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs` |
 | pr-refine | 1, 2, 4, 5 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
 | pr-review, pr-review-security, pr-verify | 3, 5 | script | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
