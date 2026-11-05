@@ -116,7 +116,10 @@ inputs:
     required: false
     default: ""
   verdict-path:
-    description: Path of the downloaded verdict.json. A missing file posts failure.
+    description: >
+      Path of the downloaded verdict.json. A missing file posts failure, except
+      for `pr-refine / fix-docs` with run-result `success`, which posts nothing
+      and logs a notice.
     required: false
     default: ""
   base-path:
