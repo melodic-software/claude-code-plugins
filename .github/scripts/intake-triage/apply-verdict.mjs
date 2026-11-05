@@ -759,12 +759,14 @@ export const isFault = (error) => error?.name === "GitHubError" || error?.name =
 // no queue, the triage sweep one with no `status:` label, which reads this
 // notice's `held: ` as it reads a failure (triage-sweep.mjs classifyRun). Any
 // other error, a forbidden missed edge and an unwritten reasons comment fail.
+// `held` is the step's `held` output, which keeps refine-select from acting
+// on a verdict whose result is unknown (intake-triage.yml).
 export function closing({ result, error } = {}) {
   const clean = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
   const held = (why) => `::notice title=apply-verdict::held: ${why}`;
   if (error !== undefined) {
     const why = clean(error?.message ?? error);
-    return isFault(error) ? { lines: [held(why)], code: 0 } : { lines: [`::error title=apply-verdict::${why}`], code: 1 };
+    return isFault(error) ? { lines: [held(why)], code: 0, held: true } : { lines: [`::error title=apply-verdict::${why}`], code: 1, held: false };
   }
   const lines = [];
   let code = 0;
@@ -782,7 +784,17 @@ export function closing({ result, error } = {}) {
     lines.push(`::error title=apply-verdict::the reasons comment was not written: ${clean(result.reasonsError)}`);
     code = 1;
   }
-  return { lines, code };
+  return { lines, code, held: Boolean(result.admission?.fault) };
+}
+
+// Logs closing()'s lines, writes `held=true` to the step outputs on a hold,
+// and returns the exit code.
+export function finish({ lines, code, held }, { outputPath, log = console.log } = {}) {
+  lines.forEach((line) => log(line));
+  if (held && outputPath) {
+    writeOutputs({ held: "true" }, outputPath);
+  }
+  return code;
 }
 
 // Why a ready verdict took a triage hold off, for the comment and the summary.
@@ -858,6 +870,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     writeOutputs({ proceed: String(proceed) });
     console.log(`apply-verdict: the broker ${proceed ? "would" : "would not"} mint for this run's actors`);
   } else {
+    let closed;
     try {
       const { issueDimensionsFromBase, issueLaneWebHostsFromBase, fieldSetters } = await import(
         new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
@@ -915,13 +928,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
       }
-      const { lines, code } = closing({ result });
-      lines.forEach((line) => console.log(line));
-      process.exitCode = code;
+      closed = closing({ result });
     } catch (error) {
-      const { lines, code } = closing({ error });
-      lines.forEach((line) => console.log(line));
-      process.exitCode = code;
+      closed = closing({ error });
     }
+    process.exitCode = finish(closed, { outputPath: env.GITHUB_OUTPUT });
   }
 }

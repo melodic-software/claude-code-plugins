@@ -475,6 +475,9 @@ jobs:
     outputs:
       # `kill-switch` when the broker refused the token for a kill switch.
       stopped: ${{ steps.lane-token.outputs.skip-reason }}
+      # `true` when a GitHub fault held the verdict green (apply-verdict.mjs
+      # closing): its result is unknown, so refine-select does not run.
+      held: ${{ steps.verdict.outputs.held }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -564,6 +567,7 @@ jobs:
           kill-switch-ok: true
 
       - name: Write the verdict
+        id: verdict
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -618,7 +622,7 @@ jobs:
   # in a separate marked comment. Rules: .github/scripts/intake-triage/refine.mjs.
   refine-select:
     needs: [born-triaged, apply-verdict]
-    if: ${{ !cancelled() && needs.apply-verdict.result == 'success' && needs.apply-verdict.outputs.stopped == '' }}
+    if: ${{ !cancelled() && needs.apply-verdict.result == 'success' && needs.apply-verdict.outputs.stopped == '' && needs.apply-verdict.outputs.held == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:

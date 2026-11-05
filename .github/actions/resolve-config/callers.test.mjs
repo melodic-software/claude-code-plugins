@@ -568,11 +568,14 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
-  const selects = (result, stopped) =>
-    evaluate(select.if, { "needs.apply-verdict.result": result, "needs.apply-verdict.outputs.stopped": stopped });
+  const selects = (result, stopped, held = "") =>
+    evaluate(select.if, { "needs.apply-verdict.result": result, "needs.apply-verdict.outputs.stopped": stopped, "needs.apply-verdict.outputs.held": held });
   assert.equal(selects("success", ""), true);
   assert.equal(selects("failure", ""), false);
   assert.equal(selects("success", "kill-switch"), false, "a kill-switch stop of apply-verdict refines nothing");
+  assert.equal(selects("success", "", "true"), false, "a verdict a fault held refines nothing");
+  assert.equal(jobs["apply-verdict"].outputs.held, "${{ steps.verdict.outputs.held }}");
+  assert.equal(jobs["apply-verdict"].steps.find((s) => s.id === "verdict")?.run, 'node ".base/$SCRIPT"');
   const picked = (refine, mode = "refine") => ({ "needs.refine-select.outputs.refine": refine, "needs.refine-select.outputs.mode": mode });
   assert.equal(evaluate(model.if, picked("true")), true);
   assert.equal(evaluate(model.if, picked("true", "size-split")), true);
