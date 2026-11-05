@@ -913,18 +913,20 @@ const threadPatch = (t, paths) =>
   });
 const threadPush = (fix, threads = SCOPE_THREADS) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: keptOf(threads), fixedThreads: [] } });
 
-test("review-threads: the thread's path, its plugin's files and a sibling test push", async (t) => {
+test("review-threads: the thread's path, its plugin's files, any plugin's eval files and a sibling test push", async (t) => {
   const fix = threadPatch(t, [
     "plugins/p/evals/c/case.yaml",
     "plugins/p/evals/c/samples/deep/new.json",
     "plugins/p/evals/other/samples/new.json",
     "plugins/p/README.md",
+    "plugins/p/lib/run.js",
+    "plugins/q/evals/c/samples/new.json",
     "src/test_round.py",
   ]);
   assert.equal((await threadPush(fix)).outcome, "pushed");
 });
 
-for (const path of ["plugins/q/evals/c/samples/new.json", "src/lib/test_round.py", "plugins/p/lib/run.js"]) {
+for (const path of ["plugins/q/README.md", "src/lib/test_round.py", "src/run.js"]) {
   test(`review-threads: a change outside every kept thread's scope is refused whole: ${path}`, async (t) => {
     const fix = threadPatch(t, ["plugins/p/evals/c/case.yaml", path]);
     assert.deepEqual(await threadPush(fix), { outcome: "escalate", escalationReason: "patch-protected-path" });
@@ -932,14 +934,11 @@ for (const path of ["plugins/q/evals/c/samples/new.json", "src/lib/test_round.py
 }
 
 // #8116: a write-access fix request named a same-plugin code file, which the
-// thread file carries as named_paths; without it the file is out of scope.
-test("review-threads: a file a kept thread's named_paths holds pushes; the same file unnamed, or a named instruction path, is refused", async (t) => {
+// thread file carries as named_paths; the plugin-wide scope now holds it too.
+test("review-threads: a same-plugin code file pushes, named or not; a named instruction path is refused", async (t) => {
   const named = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/lib/run.js"] }];
   assert.equal((await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), named)).outcome, "pushed");
-  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), [{ path: "plugins/p/evals/c/case.yaml" }]), {
-    outcome: "escalate",
-    escalationReason: "patch-protected-path",
-  });
+  assert.equal((await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), [{ path: "plugins/p/evals/c/case.yaml" }])).outcome, "pushed");
   const instruction = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/CODEOWNERS"] }];
   assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/CODEOWNERS"]), instruction), {
     outcome: "escalate",
@@ -965,6 +964,21 @@ test("review-threads: a fix in a file the PR does not change is refused", async 
 test("review-threads: a new file stays refused even when pr_paths lists it", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/new.sh"), "#!/bin/sh\n"));
   assert.deepEqual(await docPush(fix, ["README.md", "scripts/new.sh"]), { outcome: "escalate", escalationReason: "patch-protected-path" });
+});
+
+// #12346: the fix to lib/hook-utils.sh had to regenerate its copies in other
+// plugins, which the thread file's copy_paths carry into scope.
+test("review-threads: a shared copy of a canonical the PR changes pushes, and a file beside it stays refused", async (t) => {
+  const COPY = "plugins/q/hooks/hook-utils.sh";
+  const seed = { head: (repo) => (mkdirSync(join(repo, "plugins/q/hooks"), { recursive: true }), writeFileSync(join(repo, COPY), "head\n"), writeFileSync(join(repo, "plugins/q/README.md"), "head\n")) };
+  const context = { keptThreads: { ...docThread(["README.md", "lib/hook-utils.sh"]), copyPaths: new Set([COPY]) }, fixedThreads: [] };
+  const copy = repoWithPatch(t, (repo) => writeFileSync(join(repo, COPY), "synced\n"), seed);
+  assert.equal((await pushWith(copy, fakeApi(copy.repo, copy.head), { row: row("review-threads"), context })).outcome, "pushed");
+  const beside = repoWithPatch(t, (repo) => writeFileSync(join(repo, "plugins/q/README.md"), "changed\n"), seed);
+  assert.deepEqual(await pushWith(beside, fakeApi(beside.repo, beside.head), { row: row("review-threads"), context }), {
+    outcome: "escalate",
+    escalationReason: "patch-protected-path",
+  });
 });
 
 test("review-threads: a protected path the PR changes is still refused", async (t) => {
@@ -1123,12 +1137,14 @@ test("keptThreadsFrom reads a threads.json's paths and named_paths, and refuses 
       { path: "src/c.py", named_paths: undefined },
     ],
     prPaths: new Set(),
+    copyPaths: new Set(),
     ids: ["PRRT_1", "PRRT_2"],
   });
-  writeFileSync(file, JSON.stringify({ threads: [{ path: "plugins/p/a.md" }], pr_paths: ["plugins/p/a.md", "src/d.sh"] }));
+  writeFileSync(file, JSON.stringify({ threads: [{ path: "plugins/p/a.md" }], pr_paths: ["plugins/p/a.md", "src/d.sh"], copy_paths: ["plugins/q/hooks/hook-utils.sh"] }));
   assert.deepEqual(keptThreadsFrom(file).prPaths, new Set(["plugins/p/a.md", "src/d.sh"]));
+  assert.deepEqual(keptThreadsFrom(file).copyPaths, new Set(["plugins/q/hooks/hook-utils.sh"]));
   assert.equal(keptThreadsFrom(""), undefined);
-  for (const text of [JSON.stringify(["plugins/p/a.md"]), JSON.stringify({ threads: [{ path: 7 }] }), JSON.stringify({ threads: [{ path: "a", named_paths: "b" }] }), JSON.stringify({ threads: [{ path: "a" }], pr_paths: "b" }), JSON.stringify({ threads: [{ path: "a" }], pr_paths: [7] })]) {
+  for (const text of [JSON.stringify(["plugins/p/a.md"]), JSON.stringify({ threads: [{ path: 7 }] }), JSON.stringify({ threads: [{ path: "a", named_paths: "b" }] }), JSON.stringify({ threads: [{ path: "a" }], pr_paths: "b" }), JSON.stringify({ threads: [{ path: "a" }], pr_paths: [7] }), JSON.stringify({ threads: [{ path: "a" }], copy_paths: "b" })]) {
     writeFileSync(file, text);
     assert.throws(() => keptThreadsFrom(file), /KEPT_THREADS_FILE/, text);
   }

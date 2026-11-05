@@ -125,7 +125,7 @@ retried_refusal() {
     annotations=$(jq -c --arg id "$id" --argjson notes "$notes" '. + {($id): $notes}' <<<"$annotations") || return 1
   done
   # The head's address-feedback rounds, which the sweep counts against its cap.
-  rounds=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=pr-unblock%20%2F%20address-feedback&per_page=100") || return 1
+  rounds=$(gh api "repos/$GITHUB_REPOSITORY/commits/${HEAD_SHA:-}/check-runs?check_name=pr-unblock%20%2F%20address-feedback&per_page=100") || return 1
   # shellcheck disable=SC2016 # a JavaScript template literal, not a shell expansion
   REFIRE_MODULE="$(dirname "${BASH_SOURCE[0]}")/../pr-merge/refire-refused.mjs" DISPATCH_MODULE="$(dirname "${BASH_SOURCE[0]}")/feedback-dispatch.mjs" JOBS="$jobs" ANNOTATIONS="$annotations" ROUNDS="$rounds" node --input-type=module -e '
     const { pathToFileURL } = await import("node:url");

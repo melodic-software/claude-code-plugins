@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The egress floor blocks ElevenLabs. Shall I use the local kokoro backend instead?",
+      "why": "offers"
+    },
+    {
+      "answer": "Kokoro runs on this machine and is allowed; say the word and I will narrate with it.",
+      "why": "title case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The egress floor blocks ElevenLabs. Ask your administrator to change it.",
+      "why": "near miss: no local alternative"
+    },
+    {
+      "answer": "The egress floor blocks ElevenLabs; a local backend could be used instead.",
+      "why": "near miss: no backend named"
+    }
+  ]
+}

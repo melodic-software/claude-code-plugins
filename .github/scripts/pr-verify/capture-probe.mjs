@@ -1,10 +1,11 @@
-// The reach probe: run as a Bash child of a Claude Code leg holding a key. In
-// pr-verify-capture.yml that is where the app under test and its hooks will
-// run, before any pull request code is checked out; upstream-apply-changelog.yml
-// runs it on each new Claude Code release to check the subprocess scrub. It
-// reports whether a process in that position can read a credential or the
-// job's runtime token: in its own environment, in any process environment
-// /proc lets it read, or in a git or gh credential file. It writes RESULT_FILE
+// The reach probe: run as a Bash child of a Claude Code leg holding a key or
+// a subscription token. In pr-verify-capture.yml that is where the app under
+// test and its hooks will run, before any pull request code is checked out;
+// upstream-apply-changelog.yml runs it on each new Claude Code release to
+// check the subprocess scrub. It reports whether a process in that position
+// can read a credential or the job's runtime token: in its own environment,
+// in any process environment /proc lets it read, or in a git, gh or Claude
+// Code credential file. It writes RESULT_FILE
 // (default capture-probe.json in the working directory) with names and places
 // only, never a value, and exits 0 clean, 1 on any hit, 2 when the scan cannot
 // show it works: a canary child it starts must turn up in the scan, so a
@@ -102,12 +103,15 @@ export function scanFiles(files) {
   return hits;
 }
 
+// git's and gh's stores, and Claude Code's own, where a subscription login
+// keeps its OAuth token.
 export function credentialFiles(cwd, home) {
   return [
     path.join(cwd, ".git/config"),
     path.join(cwd, ".base/.git/config"),
     path.join(home, ".git-credentials"),
     path.join(home, ".config/gh/hosts.yml"),
+    path.join(home, ".claude/.credentials.json"),
   ].filter((file) => existsSync(file));
 }
 

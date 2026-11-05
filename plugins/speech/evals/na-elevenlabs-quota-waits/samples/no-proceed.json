@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/elevenlabs.py\" --data-dir \"/tmp/run-1/data\" --model '${user_config.elevenlabs_model}' --script docs/script.txt --out docs"
+          }
+        }
+      ],
+      "why": "step 1 run again, no --proceed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/elevenlabs.py\" --data-dir \"/tmp/run-1/data\" --model '${user_config.elevenlabs_model}' --script docs/script.txt --out docs --proceed"
+          }
+        }
+      ],
+      "why": "near miss: proceeds before the answer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/elevenlabs.py\" --data-dir \"/tmp/run-1/data\" --model '${user_config.elevenlabs_model}' --script docs/script.txt --out docs \\\n  --proceed"
+          }
+        }
+      ],
+      "why": "near miss: --proceed on a continuation line"
+    }
+  ]
+}

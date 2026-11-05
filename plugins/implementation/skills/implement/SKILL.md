@@ -211,7 +211,7 @@ If the trap fires, document it in this session's retro. When the `session-flow` 
 
 ## Step 4: Task Tracking and Phase-Boundary Handoff
 
-For non-trivial implementations (3+ steps), track each major logical block from the plan as a task in the harness task list, marking a block complete only after its tests pass. Skip this for trivial single-step implementations.
+For non-trivial implementations (3+ steps), track each major logical block from the plan as a task in the harness task list, marking a block complete only after its tests pass. A block not done stays listed as `skip: <reason>`, never removed. Skip this for trivial single-step implementations.
 
 ### Phase-boundary discipline (the durable layer)
 
