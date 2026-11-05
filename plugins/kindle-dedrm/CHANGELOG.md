@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.22] - 2026-11-05
+
+### Changed
+
+- The manage and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Four of the nine legacy cases become five new cases: `md-setup-delegates`, `su-check-provisioning-info`, `su-apply-download-guards`, and the two halves of the apply hand-off case, `su-apply-lock-verify` and `su-apply-installer-checkpoint`. The other five were already covered by `md-share-keys-refused`, `md-cleanup-batch-library` (two cases), `md-friend-files` and `md-installer-popup`, and `md-cleanup-batch-library` now also grades the redo-cost reason and the other `--full` reversals. The manage setup case now checks the hand-off to `/kindle-dedrm:setup`, because the router no longer provisions inline. Both `evals.json` files are deleted.
+
 ## [0.8.21] - 2026-11-04
 
 ### Fixed

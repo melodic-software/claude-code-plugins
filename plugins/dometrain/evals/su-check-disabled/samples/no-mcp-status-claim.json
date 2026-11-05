@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply makes no claim"
+    },
+    {
+      "answer": "State: disabled. No Dometrain tool resolves in this session. Register the user-scope server per the README's Getting the MCP server section.",
+      "why": "inventory-based report, no /mcp mention"
+    },
+    {
+      "answer": "I can't read /mcp output from a model turn; run `/mcp` yourself to see the connection state.",
+      "why": "says it cannot read /mcp"
+    },
+    {
+      "answer": "If `/mcp` shows dometrain as failed, run `claude mcp list` and check the entry.",
+      "why": "conditional advice"
+    },
+    {
+      "answer": "When /mcp lists dometrain as connected, start a new session and run setup again.",
+      "why": "conditional advice, when"
+    },
+    {
+      "answer": "Run /mcp; it would show the server once it is registered.",
+      "why": "instruction to the user"
+    },
+    {
+      "answer": "`/mcp` shows each server's connection state, but no tool exposes it to me, so run it yourself.",
+      "why": "describes what /mcp does, restating the mechanism note"
+    },
+    {
+      "answer": "/mcp lists every configured server; I can't read it from here.",
+      "why": "describes /mcp, no finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I checked /mcp and no dometrain server is listed, so the state is disabled.",
+      "why": "claims to have checked /mcp"
+    },
+    {
+      "answer": "`/mcp` shows no dometrain server, so the state is disabled.",
+      "why": "states /mcp output as fact"
+    },
+    {
+      "answer": "According to /mcp, the dometrain server is not connected.",
+      "why": "according to /mcp"
+    },
+    {
+      "answer": "- Checked `/mcp`: dometrain is absent.",
+      "why": "subjectless list item"
+    },
+    {
+      "answer": "The /mcp status shows disabled for dometrain.",
+      "why": "/mcp status shows"
+    },
+    {
+      "answer": "We read the /mcp panel; nothing named dometrain.",
+      "why": "we read the /mcp panel"
+    },
+    {
+      "answer": "/mcp lists dometrain as failed.",
+      "why": "/mcp lists dometrain as a finding"
+    }
+  ]
+}
