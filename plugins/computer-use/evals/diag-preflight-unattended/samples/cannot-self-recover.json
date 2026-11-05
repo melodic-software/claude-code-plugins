@@ -33,6 +33,10 @@
     {
       "answer": "It will be clicking the whole time, so the machine won't go idle.",
       "why": "echoes the prompt"
+    },
+    {
+      "answer": "Claude will keep clicking until you get back.",
+      "why": "optimistic: until you, with no recovery limit"
     }
   ]
 }
