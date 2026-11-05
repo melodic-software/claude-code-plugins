@@ -95,6 +95,33 @@ repo=$(fixture repeated $'verification: strict\nverification: off\n')
 assert_eq "a repeated key is named and gives standard" \
   "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo")"
 
+repo=$(fixture slash $'verification: off/\n')
+assert_eq "a value with a trailing slash is named, never read as off" \
+  "verification: standard (default; $F verification=off/ is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+
+repo=$(fixture list-skill $'verification: strict\nverification_skills:\n  confirm: [strict]\n')
+assert_eq "a list-valued skill entry is named and gives standard" \
+  "verification: standard (default; $F verification_skills.confirm is a list or map, not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+
+# A tag and a local branch both named origin/main, on a commit that sets off,
+# must not shadow the remote-tracking ref (gitrevisions resolves refs/tags first).
+repo=$(fixture shadow $'verification: strict\n')
+want="verification: strict ($F verification $(at "$repo"))"
+printf 'verification: off\n' >"$repo/$F"
+g -C "$repo" commit -q -am lower
+g -C "$repo" tag origin/main
+g -C "$repo" branch origin/main
+g -C "$repo" reset -q --hard HEAD~1
+assert_eq "a tag or local branch named origin/main does not shadow origin's default branch" "$want" "$(run "$repo")"
+
+# A single-branch clone of another branch has no refs/remotes/origin/main until
+# the reader fetches it into that ref.
+repo=$(fixture single $'verification: strict\n')
+g -C "$repo" push -q origin main:refs/heads/other
+g clone -q --single-branch --branch other "$TEST_TMPDIR/single/origin.git" "$TEST_TMPDIR/single/clone"
+assert_eq "a single-branch clone still reads the default branch" \
+  "verification: strict ($F verification $(at "$repo"))" "$(run "$TEST_TMPDIR/single/clone")"
+
 repo=$(fixture lowered $'verification: strict\n')
 printf 'verification: off\n' >"$repo/$F"
 assert_eq "a branch-lowered copy loses to the default-branch value, and both are named" \

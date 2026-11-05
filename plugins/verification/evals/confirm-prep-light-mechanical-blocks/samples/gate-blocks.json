@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Stage 1: tests/test_slug.py fails. Verdict: NOT VERIFIED. Gate: blocks PR creation.",
+      "why": "Stage 1 failure blocks"
+    },
+    {
+      "answer": "PR creation is blocked: the slugify unit test fails, and the light level does not excuse a Stage 1 failure.",
+      "why": "passive phrasing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "verification: skipped (light). The gate does not block PR creation.",
+      "why": "the light level excused a failing test"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

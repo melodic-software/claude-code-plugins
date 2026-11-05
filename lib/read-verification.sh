@@ -16,8 +16,7 @@
 #
 # SINGLE SOURCE OF TRUTH: lib/read-verification.sh at the marketplace repo root.
 # Each copy sits beside its plugin's copies of config-root.sh,
-# resolve-convention-home.sh, parse-concern-value.sh and yaml-subset.awk; never
-# edit a copy. Edit the
+# resolve-convention-home.sh and yaml-subset.awk; never edit a copy. Edit the
 # source and run scripts/sync-shared-copies.sh.
 #
 # Usage:
@@ -74,13 +73,17 @@ if [[ ! "$branch" =~ ^[A-Za-z0-9._/-]+$ || "$branch" == -* || "$branch" == *..* 
 fi
 
 stale=""
-git -C "$root" fetch --quiet origin "$branch" >/dev/null 2>&1 ||
+# An explicit destination, so a single-branch clone's narrowed refspec still
+# updates refs/remotes/origin/<branch>.
+git -C "$root" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch" >/dev/null 2>&1 ||
   stale="; the fetch failed, so the last fetched copy may be stale"
 sha="$(git -C "$root" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}")" ||
   standard "default; team layer skipped: origin/$branch has not been fetched"
 
 rc=0
-home="$(bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$root" --ref "origin/$branch" 2>/dev/null)" || rc=$?
+# Every read below names the commit, never a short ref a same-named tag or
+# local branch could shadow.
+home="$(bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$root" --ref "$sha" 2>/dev/null)" || rc=$?
 case "$rc" in
 0) ;;
 1 | 4) home=docs/conventions ;;
@@ -89,19 +92,29 @@ esac
 file="$home/$plugin.yaml"
 at="at origin/$branch, commit $sha$stale"
 
-# resolve [ref]: sets LEVEL, KEY (empty when no key set) and ERR (empty when valid).
+# resolve [sha]: sets LEVEL, KEY (empty when no key set) and ERR (empty when
+# valid), from the file at <sha>, or the working tree's copy with no argument.
+# The value is checked as the parser records it, before any normalization, so
+# `off/` or a list is named as invalid rather than read as a level.
 resolve() {
-  local ref=() v rc k
-  [[ -z "${1:-}" ]] || ref=(--ref "$1")
+  local text records v k
   LEVEL=standard KEY="" ERR=""
+  if [[ -n "${1:-}" ]]; then
+    text="$(git -C "$root" show --end-of-options "$1:$file" 2>/dev/null)" || return
+  else
+    [[ -f "$root/$file" ]] || return
+    text="$(<"$root/$file")"
+  fi
+  records="$(LC_ALL=C awk -f "$SCRIPT_DIR/yaml-subset.awk" <<<"$text" 2>/dev/null)" || {
+    ERR="$file does not parse or repeats a key"
+    return
+  }
   for k in "verification_skills.$skill" verification; do
-    rc=0
-    v="$(cd "$root" && bash "$SCRIPT_DIR/parse-concern-value.sh" --strict ${ref[@]+"${ref[@]}"} "$file" "$k" 2>/dev/null)" || rc=$?
-    case "$rc" in
-    0) ;;
-    3) ERR="$file does not parse or repeats a key" && return ;;
-    *) ERR="$file could not be read" && return ;;
-    esac
+    if awk -F '\t' -v k="$k." 'index($1, k) == 1 { found = 1 } END { exit !found }' <<<"$records"; then
+      ERR="$file $k is a list or map, not off, light, standard or strict"
+      return
+    fi
+    v="$(awk -F '\t' -v k="$k" '$1 == k { print substr($0, length($1) + 2); exit }' <<<"$records")"
     [[ -z "$v" ]] || break
   done
   [[ -n "$v" ]] || return
@@ -122,7 +135,7 @@ describe() {
   fi
 }
 
-resolve "origin/$branch"
+resolve "$sha"
 team_level="$LEVEL"
 say "$(describe) $at)"
 

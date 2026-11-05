@@ -55,6 +55,12 @@ emits the results labeled unverified instead of skipping them.
   verifier on every phase under `light` and `off`. `strict` implies `true`.
 - **`pre_ready`** (source-control) decides whether the ready flow's verify step runs;
   `verification` decides only what happens inside it.
+- **The PR-prep gate.** When PR prep calls `/verification:confirm`, a `NOT VERIFIED` whose only
+  cause is `verification: skipped (<level>)`, from a level the default branch set, does not block
+  PR creation: the report names it and the PR body carries the skipped line. A level that turns
+  verification down never becomes a new blocker. Any other `NOT VERIFIED` cause still blocks, and
+  Stage 1's mechanical checks still run and gate under `light` and, in `/verification:confirm`,
+  under `off`.
 
 ## Exempt skills
 
