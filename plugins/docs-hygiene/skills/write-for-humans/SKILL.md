@@ -99,6 +99,9 @@ Run these three checks over a finished draft:
 
 ## Write the sentences
 
+If applying a rule leaves a sentence harder to read, revert that edit, then repair the sentence
+another way or keep the earlier wording.
+
 The address, load, and ambiguity layers apply to every sentence at once, so they share one file:
 [`reference/sentence-rules.md`](reference/sentence-rules.md). Read it while drafting, not after.
 It holds the load rules in full: the hard 20-word cap on instruction sentences, simple verb forms,
