@@ -385,6 +385,26 @@ jobs:
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' '{"type":"object","properties":{"file":{"type":"string","minLength":1,"maxLength":200},"old_string":{"type":"string","minLength":1,"maxLength":20000},"new_string":{"type":"string","maxLength":20000},"rationale":{"type":"string","maxLength":4000},"findings":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":500}}},"required":["file","old_string","new_string","rationale","findings"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
+      # Which legs can run, never a token's value. The maintenance role holds
+      # no API key (#13586): the subscription leg runs first, and the central
+      # fallback token's leg after it hands off (a limit stop, a credit stop,
+      # or a 401 or 402) or when its token is empty.
+      - name: Check the credentials
+        id: credential
+        if: steps.prompt.outcome == 'success'
+        env:
+          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            if [ "$FALLBACK_PRESENT" = true ]; then
+              echo "::warning::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty; the fallback leg proposes on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+            else
+              echo "::notice::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs"
+            fi
+          fi
+          { echo "present=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -397,7 +417,7 @@ jobs:
 
       - name: Propose the edit
         id: run
-        if: steps.prompt.outcome == 'success'
+        if: steps.prompt.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 30
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -409,6 +429,48 @@ jobs:
           prompt-file: ${{ runner.temp }}/hill-climb-prompt.md
           preamble: You run unattended as the eval hill-climb CI lane. No one can answer a question during this run, and you change nothing.
           subscription-token: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Grep
+            Glob
+          allowed-tools: |
+            Read(./hill-climb-data/**)
+            Read(./.base/plugins/**)
+          disallowed-tools: |
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+            Read(//proc/**)
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
+          leg-timeout-minutes: "25"
+
+      - name: Propose the edit on the fallback token
+        id: run-fallback
+        if: >-
+          steps.prompt.outcome == 'success' && steps.credential.outputs.fallback-ready == 'true'
+          && (steps.run.outputs.handoff == 'true' || steps.credential.outputs.present != 'true')
+        continue-on-error: true
+        timeout-minutes: 30
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: maintenance-measure-skill-edit
+          role: maintenance
+          prompt-file: ${{ runner.temp }}/hill-climb-prompt.md
+          preamble: You run unattended as the eval hill-climb CI lane. No one can answer a question during this run, and you change nothing.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -443,15 +505,62 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      - name: Upload the fallback leg's sealed transcript
+        if: always() && steps.run-fallback.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.run-fallback.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-fallback
+
+      # The subscription leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record the subscription leg
+        if: always() && steps.run.outcome != 'skipped' && steps.run.outcome != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.run.outcome }}
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          log-file: ${{ steps.run.outputs.log-file }}
+          lane: maintenance-measure-skill-edit
+          lane-id: maintenance-measure-skill-edit
+          credential: ${{ steps.run.outputs.credential }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          known-failure-class: ${{ steps.run.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ""
+
+      # The fallback leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record the fallback leg
+        if: always() && steps.run-fallback.outcome != 'skipped' && steps.run-fallback.outcome != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.run-fallback.outcome }}
+          execution-file: ${{ steps.run-fallback.outputs.execution-file }}
+          log-file: ${{ steps.run-fallback.outputs.log-file }}
+          lane: maintenance-measure-skill-edit
+          lane-id: maintenance-measure-skill-edit
+          credential: ${{ steps.run-fallback.outputs.credential }}
+          handoff: ${{ steps.run-fallback.outputs.handoff }}
+          known-failure-class: ${{ steps.run-fallback.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.run.outputs.handoff-reason || steps.credential.outputs.present != 'true' && 'no-key' || '' }}
+
       # Read from the launcher's file only after the leg's init message reports
       # dontAsk; the scan job validates it.
       - name: Collect the proposal
         id: collect
-        if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
+        if: >-
+          steps.run-fallback.outcome == 'success' && steps.run-fallback.outputs.structured-output-file != ''
+          || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
         env:
-          EXECUTION_FILE: ${{ steps.run.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.run-fallback.outputs.execution-file || steps.run.outputs.execution-file }}
           MODE: dontAsk
-          OUTPUT_FILE: ${{ steps.run.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.run-fallback.outputs.structured-output-file || steps.run.outputs.structured-output-file }}
         run: |
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           mkdir -p "$RUNNER_TEMP/proposal"
