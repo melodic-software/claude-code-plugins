@@ -1281,6 +1281,30 @@ class IdleRefusal(unittest.TestCase):
         self.assertIsNone(self.refusal(runs=quiet))
         self.assertTrue(self.refusal(runs_total=101).startswith("unreadable"))
 
+    def test_a_run_the_report_judged_finished_moves_nothing(self) -> None:
+        # Updated 30 s before the report, inside the 60 s clock margin.
+        def done(updated: datetime) -> dict[str, object]:
+            return run(
+                "pr-require-checks.yml", status="completed", updated=updated, run_id=77
+            )
+
+        judged = FLOOR - timedelta(seconds=30)
+        self.assertEqual(
+            self.refusal(runs=[done(judged)]),
+            "runs-changed",
+            "with no judgedRuns record the run in the margin counts as moved",
+        )
+        recorded = {**SETTLED, "judgedRuns": {"77": "2026-09-30T23:59:30Z"}}
+        self.assertIsNone(
+            self.refusal(recorded, runs=[done(judged)]),
+            "a run the report judged at the same updated_at counts for nothing",
+        )
+        self.assertEqual(
+            self.refusal(recorded, runs=[done(NOW)]),
+            "runs-changed",
+            "the same run re-run since has a later updated_at and counts",
+        )
+
     def test_an_unverified_merge_lists_runs_from_its_merge_and_ends_at_the_deadline(
         self,
     ) -> None:
