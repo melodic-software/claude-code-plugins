@@ -34,6 +34,12 @@ name: pr-verify-capture
 # process environment or credential file it can reach, or cannot show its
 # scan works, the job fails and no pull request code runs. A handoff skips
 # the probe check, so that job checks out no head code and stays green.
+# There is no credential after the subscription token, so the
+# capture-subscription probe passes run-claude-cli's fallback-ready only to
+# get that handoff: when the subscription is at its usage limit, out of
+# credit or refused with 401 or 402, the job ends green with a notice and
+# captures nothing. A driver that stops at the usage limit after the head
+# checkout leaves a blocked capture saying so, as any driver failure does.
 # Every checkout keeps no credential in its .git/config. Steps after the
 # head checkout load .base's scan-upload, which head code could have
 # changed; the capture is untrusted data to its only reader, and nothing
@@ -176,6 +182,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate-guard stop holds green with the resolver's other GitHub
+          # faults (resolve-pr.mjs closing) instead of failing the step.
+          API_BUDGET_HOLD: "1"
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -663,8 +672,10 @@ jobs:
       # prompt names, and the files its publishable list names, each a
       # regular file under the summary's directory with no
       # link on its path, at most 50 files of 10 MB each; with no usable
-      # summary, a blocked one in run-e2e's shape naming why. write-verdict.mjs
-      # (fromE2eSummary) reads it into the verdict's evidence.
+      # summary, a blocked one in run-e2e's shape naming why, a usage limit
+      # when the driver's lane-class is rate-limit with a lane-resets time
+      # (run-claude-cli's limit stop). write-verdict.mjs (fromE2eSummary)
+      # reads it into the verdict's evidence.
       - name: Collect the capture
         id: collect
         if: always() && steps.probe-check.outcome == 'success'
@@ -673,6 +684,7 @@ jobs:
           OUT: ${{ runner.temp }}/pr-capture
           DRIVE_OUTCOME: ${{ steps.drive.outcome }}
           DRIVE_CLASS: ${{ steps.drive.outputs.lane-class }}
+          DRIVE_RESETS: ${{ steps.drive.outputs.lane-resets }}
           OUTPUT_FILE: ${{ steps.drive.outputs.structured-output-file }}
         run: |
           rm -rf "${OUT:?}"
@@ -683,6 +695,9 @@ jobs:
             echo "::notice::capture blocked: $1"
             exit 0
           }
+          if [ "$DRIVE_CLASS" = rate-limit ] && [ -n "$DRIVE_RESETS" ]; then
+            blocked "the capture session stopped at its credential's usage limit"
+          fi
           [ "$DRIVE_OUTCOME" = success ] || blocked "the capture session ended without a result (${DRIVE_CLASS:-${DRIVE_OUTCOME:-not run}})"
           [ -n "$OUTPUT_FILE" ] && [ -f "$OUTPUT_FILE" ] || blocked "the capture session returned no structured output"
           summary=$(jq -r '.summary // "" | strings' "$OUTPUT_FILE")
@@ -749,9 +764,10 @@ jobs:
   # hardening and the reach probe run again, on this job's token. Only this
   # job references the subscription token. It runs after a capture job that
   # succeeded and could not capture on the key: its credit gate skipped the
-  # key, its probe handed off, or the key is empty. Its leg passes no
-  # fallback-ready, so it never hands off, and the probe check's handoff
-  # term always holds here.
+  # key, its probe handed off, or the key is empty. Its probe alone passes
+  # fallback-ready, so a limit stop, a credit stop or a 401 or 402 on the
+  # subscription sets its handoff, though no further leg runs: the job then
+  # reports the stop, skips the probe check and checks out no head code.
   capture-subscription:
     needs: capture
     if: >-
@@ -841,6 +857,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate-guard stop holds green with the resolver's other GitHub
+          # faults (resolve-pr.mjs closing) instead of failing the step.
+          API_BUDGET_HOLD: "1"
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -994,6 +1013,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-capture-probe.md
           preamble: You run unattended; do only what you are told.
           subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: "true"
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
@@ -1038,6 +1058,22 @@ jobs:
           execution-file: ${{ steps.probe.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-probe
+
+      # After the probe's stop on the subscription's limit, credit or a 401
+      # or 402 (its handoff, with fallback-ready): no further credential
+      # exists, so the job captures nothing and stays green, and each verdict
+      # records the capture blocked (find-capture.mjs).
+      - name: Report the subscription's stop
+        if: steps.probe.outputs.handoff == 'true'
+        env:
+          HANDOFF_REASON: ${{ steps.probe.outputs.handoff-reason }}
+        run: |
+          case "$HANDOFF_REASON" in
+            limit-stop) echo "::notice::the pr-verify role's subscription (PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN) is at its usage limit" ;;
+            credit-stop) echo "::notice::the pr-verify role's subscription (PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN) is out of credit" ;;
+            *) echo "::warning::the API refused the pr-verify role's subscription token (PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN), class auth; the owner must replace the secret" ;;
+          esac
+          echo "::notice::no pull request code runs and nothing is captured"
 
       # Fails closed: a probe step that did not succeed, any reachable
       # credential or token, a scan that missed its canary, or no result at
@@ -1210,8 +1246,10 @@ jobs:
       # prompt names, and the files its publishable list names, each a
       # regular file under the summary's directory with no
       # link on its path, at most 50 files of 10 MB each; with no usable
-      # summary, a blocked one in run-e2e's shape naming why. write-verdict.mjs
-      # (fromE2eSummary) reads it into the verdict's evidence.
+      # summary, a blocked one in run-e2e's shape naming why, a usage limit
+      # when the driver's lane-class is rate-limit with a lane-resets time
+      # (run-claude-cli's limit stop). write-verdict.mjs (fromE2eSummary)
+      # reads it into the verdict's evidence.
       - name: Collect the capture
         id: collect
         if: always() && steps.probe-check.outcome == 'success'
@@ -1220,6 +1258,7 @@ jobs:
           OUT: ${{ runner.temp }}/pr-capture
           DRIVE_OUTCOME: ${{ steps.drive.outcome }}
           DRIVE_CLASS: ${{ steps.drive.outputs.lane-class }}
+          DRIVE_RESETS: ${{ steps.drive.outputs.lane-resets }}
           OUTPUT_FILE: ${{ steps.drive.outputs.structured-output-file }}
         run: |
           rm -rf "${OUT:?}"
@@ -1230,6 +1269,9 @@ jobs:
             echo "::notice::capture blocked: $1"
             exit 0
           }
+          if [ "$DRIVE_CLASS" = rate-limit ] && [ -n "$DRIVE_RESETS" ]; then
+            blocked "the capture session stopped at its credential's usage limit"
+          fi
           [ "$DRIVE_OUTCOME" = success ] || blocked "the capture session ended without a result (${DRIVE_CLASS:-${DRIVE_OUTCOME:-not run}})"
           [ -n "$OUTPUT_FILE" ] && [ -f "$OUTPUT_FILE" ] || blocked "the capture session returned no structured output"
           summary=$(jq -r '.summary // "" | strings' "$OUTPUT_FILE")

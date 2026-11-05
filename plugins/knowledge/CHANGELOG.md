@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.2.6] - 2026-11-05
+
+### Changed
+
+- `/knowledge:distill` Phase 5 no longer asks the model to re-read files that felt rushed; the cross-reference, routing and fresh-session corpus tests stay.
+
 ## [1.2.5] - 2026-11-04
 
 ### Changed

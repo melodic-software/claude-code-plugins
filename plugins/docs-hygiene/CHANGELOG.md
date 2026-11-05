@@ -1,5 +1,18 @@
 # Changelog: docs-hygiene plugin
 
+## [2.5.9] - 2026-11-05
+
+### Changed
+
+- write-for-humans no longer tells the model to re-read its finished draft
+
+  The "After writing" bullet that asked for one more read of the draft
+  as a newcomer is gone: Claude Opus 5 checks its own work unprompted,
+  and the instruction caused over-verification. Its precedence rule
+  (revert a rule's edit that leaves a sentence harder to read) now
+  opens "Write the sentences" as a drafting rule. The prose linter and
+  AI-tell checks, which produce new evidence, stay.
+
 ## [2.5.8] - 2026-11-05
 
 ### Fixed

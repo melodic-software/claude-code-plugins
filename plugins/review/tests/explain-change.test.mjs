@@ -28,7 +28,7 @@ const POLICY = join(SKILL, "scripts/digest-policy.mjs");
 const BUILDER = join(SKILL, "scripts/build-digest.mjs");
 const REPO = join(PLUGIN, "../..");
 
-const { DEFAULTS, MAX_GLOB_LENGTH, MAX_RISK_PATHS, configBlock, decide, findSecret, globMatcher, parseYamlLayer, publishGate } = await import(
+const { DEFAULTS, MAX_GLOB_LENGTH, MAX_RISK_PATHS, decide, findSecret, globMatcher, parseYamlLayer, publishGate } = await import(
   pathToFileURL(POLICY).href
 );
 const { buildDigest, shapeDigest } = await import(pathToFileURL(BUILDER).href);
@@ -176,27 +176,10 @@ describe("globs", () => {
   });
 });
 
-describe("config block", () => {
-  test("finds the one json config block and skips other fences", () => {
-    const md = ["````", "```json config", '{"x":1}', "```", "````", "```json config", '{"max_files":2}', "```"].join("\n");
-    assert.deepEqual(configBlock(md), { body: '{"max_files":2}' });
-  });
-  test("two blocks is an error naming both lines", () => {
-    const md = ["```json config", "{}", "```", "", "```json config", "{}", "```"].join("\n");
-    assert.match(configBlock(md).error, /lines 1 and 5/);
-  });
-  test("this repository's team layer holds the shipped defaults", () => {
-    const doc = readFileSync(join(REPO, "docs/conventions/review-digest.md"), "utf8");
-    assert.deepEqual(JSON.parse(configBlock(doc).body), { ...DEFAULTS });
-  });
-});
-
 describe("team YAML file", () => {
-  test("this repository's review-digest.yaml holds the shipped defaults and the old block's values", () => {
+  test("this repository's review-digest.yaml holds the shipped defaults", () => {
     const yaml = parseYamlLayer(readFileSync(join(REPO, "docs/conventions/review-digest.yaml"), "utf8"), "team", "review-digest.yaml", []);
     assert.deepEqual({ ...yaml }, { ...DEFAULTS });
-    const doc = readFileSync(join(REPO, "docs/conventions/review-digest.md"), "utf8");
-    assert.deepEqual({ ...yaml }, JSON.parse(configBlock(doc).body));
   });
   test("keys, lists, numbers, an empty list and an empty string read back", () => {
     const text = 'max_files: 0\nrisk_paths: []\nblast_radius: [LOW]\nopt_in_label: ""\n"$schema": x\n';
@@ -214,35 +197,36 @@ describe("team YAML file", () => {
   });
 });
 
-describe("the team YAML file against the old locations", () => {
+describe("the team YAML file is the only team location", () => {
   const home = join(scratch, "home-yaml");
   const repo = join(scratch, "repo-yaml");
   mkdirSync(join(home, ".claude"), { recursive: true });
+  mkdirSync(join(repo, ".claude"), { recursive: true });
   mkdirSync(join(repo, "docs/conventions"), { recursive: true });
   const { git, commit } = gitRepo(repo);
   const run = runPolicy(home, repo);
   const facts = { ...quiet, files: files(3), baseRefOid: "MAIN" };
   const yamlPath = "docs/conventions/review-digest.yaml";
-  const docPath = "docs/conventions/review-digest.md";
   const track = (rel, text) => {
     writeFileSync(join(repo, rel), text);
     git("add", rel);
     commit();
   };
 
-  test("the old docs block is read when the YAML is absent", () => {
-    track(docPath, '```json config\n{"max_files": 2}\n```\n');
+  test("a tracked docs json-config block and a tracked .claude/review-digest.json are not read", () => {
+    track("docs/conventions/review-digest.md", '```json config\n{"max_files": 2, "digest_policy": "off"}\n```\n');
+    track(".claude/review-digest.json", '{"max_files": 0, "opt_in_label": "old"}');
     const result = run(facts);
-    assert.equal(result.config.max_files.value, 2);
-    assert.match(result.config.max_files.source, /^team [0-9a-f]{40}:docs\/conventions\/review-digest\.md$/);
+    for (const key of ["max_files", "digest_policy", "opt_in_label"]) assert.equal(result.config[key].source, "default", key);
+    assert.deepEqual(result.warnings, []);
   });
-  test("the YAML wins when both exist, and each value names the layer that supplied it", () => {
+  test("the YAML file supplies the team layer, and each value names the layer that supplied it", () => {
     track(yamlPath, "max_files: 1\nrisk_paths: []\n");
     const result = run(facts);
     assert.equal(result.config.max_files.value, 1);
     assert.match(result.config.max_files.source, /^team [0-9a-f]{40}:docs\/conventions\/review-digest\.yaml$/);
     assert.deepEqual(result.config.risk_paths.value, []);
-    assert.equal(result.config.digest_policy.source, "default", "the old block's other keys are not mixed in");
+    assert.equal(result.config.digest_policy.source, "default", "the old files' keys are not mixed in");
     assert.deepEqual(result.triggers, ["files"]);
   });
   test("the YAML file, a user key and the personal override resolve key by key", () => {
@@ -252,14 +236,14 @@ describe("the team YAML file against the old locations", () => {
     assert.match(result.config.max_files.source, /review-digest\.yaml$/);
     assert.match(result.config.opt_in_label.source, /^user-global /);
   });
-  test("an invalid YAML value is named and ignored, and the old block is not consulted", () => {
+  test("an invalid YAML value is named and ignored, and the old files are not consulted", () => {
     track(yamlPath, "max_files: many\ndigest_policy: sometimes\nunknown_key: 1\n");
     const result = run(facts);
     const warnings = result.warnings.join("\n");
     assert.match(warnings, /invalid max_files; key ignored/);
     assert.match(warnings, /invalid digest_policy; key ignored/);
     assert.match(warnings, /unknown key unknown_key is inert/);
-    assert.equal(result.config.max_files.value, 9, "the layer below supplies it, not the old block's 2");
+    assert.equal(result.config.max_files.value, 9, "the layer below supplies it, not an old file's 2 or 0");
   });
   test("a YAML file that does not parse drops the team layer with a warning", () => {
     track(yamlPath, "max_files: {1}\n");
@@ -290,23 +274,22 @@ describe("cascade layers resolve through the CLI", () => {
     assert.equal(result.config.max_files.source, "default");
     assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
   });
-  test("user-global, then the tracked team docs block, then the personal override, key by key", () => {
+  test("user-global, then the tracked team YAML file, then the personal override, key by key", () => {
     writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": 1, "opt_in_label": "mine"}');
     let result = run(facts);
     assert.deepEqual(result.triggers, ["files"]);
     assert.match(result.config.max_files.source, /^user-global /);
 
-    const doc = join(repo, "docs/conventions/review-digest.md");
-    writeFileSync(doc, '# x\n\n```json config\n{"max_files": 2, "digest_policy": "off"}\n```\n');
+    writeFileSync(join(repo, "docs/conventions/review-digest.yaml"), 'max_files: 2\ndigest_policy: "off"\n');
     result = run(facts);
     assert.match(result.warnings.join("\n"), /not on the base commit/);
     assert.equal(result.config.max_files.value, 1);
-    git("add", "docs/conventions/review-digest.md");
+    git("add", "docs/conventions/review-digest.yaml");
     commit();
     result = run(facts);
     assert.equal(result.action, "skip");
     assert.equal(result.policy.value, "off");
-    assert.match(result.config.max_files.source, /^team .*review-digest\.md$/);
+    assert.match(result.config.max_files.source, /^team .*review-digest\.yaml$/);
     assert.equal(result.config.opt_in_label.value, "mine");
 
     writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "offer"}');
@@ -340,13 +323,14 @@ describe("cascade layers resolve through the CLI", () => {
     writeFileSync(join(home, ".claude/review-digest.json"), JSON.stringify({ risk_paths: ["a".repeat(MAX_GLOB_LENGTH)] }));
     assert.deepEqual(run(facts).config.risk_paths.value, ["a".repeat(MAX_GLOB_LENGTH)], "a glob at the cap is kept");
   });
-  test("both team locations: the docs block wins with a warning", () => {
+  test("a tracked .claude/review-digest.json beside the YAML file is not read", () => {
     writeFileSync(join(repo, ".claude/review-digest.json"), '{"max_files": 0}');
     git("add", ".claude/review-digest.json");
     commit();
     const result = run(facts);
-    assert.match(result.warnings.join("\n"), /both .* exist; used .*review-digest\.md/);
+    assert.doesNotMatch(result.warnings.join("\n"), /\.claude\/review-digest\.json/);
     assert.equal(result.config.max_files.value, 2);
+    assert.match(result.config.max_files.source, /^team .*review-digest\.yaml$/);
   });
   test("medium resolves through the shared resolver: the plugin option, then a personal override's local value", () => {
     assert.deepEqual(at(run(facts, ["--option", "file"]).medium), { value: "file", source: "userConfig", explicit: false });
@@ -380,13 +364,13 @@ describe("a pull request branch cannot silence its own digest", () => {
   git("add", ".gitignore");
   commit();
   git("checkout", "-q", "-b", "pr");
-  writeFileSync(join(repo, "docs/conventions/review-digest.md"), '```json config\n{"digest_policy": "off", "risk_paths": []}\n```\n');
+  writeFileSync(join(repo, "docs/conventions/review-digest.yaml"), 'digest_policy: "off"\nrisk_paths: []\n');
   writeFileSync(join(repo, "docs/conventions/rendered-views.yaml"), "medium: terminal\n");
   writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "off"}');
   git("add", "-f", ".");
   commit();
   const run = runPolicy(home, repo);
-  const facts = { ...quiet, files: [{ path: "docs/conventions/review-digest.md" }], baseRefOid: "MAIN" };
+  const facts = { ...quiet, files: [{ path: "docs/conventions/review-digest.yaml" }], baseRefOid: "MAIN" };
 
   test("team config comes from the base ref, a tracked personal override is ignored, and a config path offers", () => {
     const result = run(facts);

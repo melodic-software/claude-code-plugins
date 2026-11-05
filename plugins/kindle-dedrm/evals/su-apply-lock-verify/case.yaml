@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: su-apply-lock-verify
+graders:
+  - name: asks-reprobe
+    type: regex
+    pattern: '\bstatus\.sh\b|\bGet-NetFirewallRule\b|\bLOCK OK\b|\btest-write\b'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-lock-run-here
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:firewall\.ps1|lock-updates\.sh|(?:New|Set|Enable|Disable|Remove)-NetFirewallRule|\bnetsh\s+advfirewall\b|\bicacls\b(?:[^"\\]|\\.)*?/(?:deny|grant|remove))'
+    min: 0
+    max: 0
+    arm: both

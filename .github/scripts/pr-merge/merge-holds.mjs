@@ -1568,6 +1568,11 @@ export function humanGatedLabel(tracker) {
 // only a person removes it: no lane or sweep takes it off.
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 
+// The labels that hold untrusted-provenance work for a person; either holds
+// alone. Writers still apply UNTRUSTED_LABEL until every reader takes both.
+export const UNTRUSTED_LABEL = "work-class: untrusted-provenance";
+export const UNTRUSTED_LABELS = Object.freeze([UNTRUSTED_LABEL, "provenance: untrusted"]);
+
 // The label a pr-verify fail puts on a person's pull request; a pass removes
 // it, at a new commit or at the same head judged again after trusted people
 // alone edited the body (resolve-pr.mjs `body-edited`).

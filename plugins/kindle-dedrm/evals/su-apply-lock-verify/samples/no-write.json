@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/run-1/plugin/skills/manage/reference/workflow.md"
+          }
+        }
+      ],
+      "why": "near miss: a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/run-1/.claude/settings.local.json",
+            "content": "{\"pluginConfigs\": {\"kindle-dedrm\": {\"lock_done\": true}}}"
+          }
+        }
+      ],
+      "why": "records progress in settings"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd ~/Downloads && curl -L -o DeDRM_tools-v10.0.28.zip \"https://github.com/Satsuoni/DeDRM_tools/releases/download/v10.0.28/DeDRM_tools.zip\"",
+            "description": "Download DeDRM_tools at the pinned tag"
+          }
+        }
+      ],
+      "why": "literal tag in the URL"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name // empty' 2>/dev/null || true)\nif [[ -z \"${LATEST_TAG}\" ]]; then\n  LATEST_TAG=\"v10.0.28\"\nfi\ncurl -L -o \"DeDRM_tools-${LATEST_TAG}.zip\" \"https://github.com/Satsuoni/DeDRM_tools/releases/download/${LATEST_TAG}/DeDRM_tools.zip\""
+          }
+        }
+      ],
+      "why": "the workflow block with the pin substituted"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "LATEST_TAG='v10.0.20'; curl -L -O https://github.com/Satsuoni/DeDRM_tools/releases/download/$LATEST_TAG/DeDRM_tools.zip"
+          }
+        }
+      ],
+      "why": "single-quoted assignment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "LATEST_TAG=\"PINNED_TAG_FROM_VERSIONS_MD\"; curl -L -o x.zip \"https://github.com/Satsuoni/DeDRM_tools/releases/download/${LATEST_TAG}/DeDRM_tools.zip\""
+          }
+        }
+      ],
+      "why": "near miss: the placeholder left in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -L -o DeDRM_tools.zip https://github.com/Satsuoni/DeDRM_tools/releases/latest/download/DeDRM_tools.zip"
+          }
+        }
+      ],
+      "why": "latest, not the pin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/Satsuoni/DeDRM_tools/releases --jq '.[0].tag_name'"
+          }
+        }
+      ],
+      "why": "only the gh query"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ~/Downloads",
+            "description": "then fetch releases/download/v10.0.28/"
+          }
+        }
+      ],
+      "why": "the tag only in the description"
+    }
+  ]
+}

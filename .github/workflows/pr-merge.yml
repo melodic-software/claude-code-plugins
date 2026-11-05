@@ -69,6 +69,12 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # in its body, or add the `do-not-merge` or `needs-human` label (the
 # human-gated role label). The gate refuses all of them.
 
+# API_BUDGET_HOLD (outage posture element 2): only the candidate listing sets it (retry_call holds it
+# green with `held`); every other guarded step is not yet shown to hold.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   # Every trigger below is only a wake-up call. The run never trusts the event
   # for a PR's state: it lists the open PRs from the GitHub API and checks
@@ -1173,6 +1179,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate limit past the guard's budget refuses the listing with a
+          # notice, not an error (api-budget.bash), and retry_call's unknown
+          # holds the step green with `held`.
+          API_BUDGET_HOLD: "1"
           REPO: ${{ github.repository }}
           DEPENDABOT: ${{ steps.mode.outputs.dependabot }}
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}

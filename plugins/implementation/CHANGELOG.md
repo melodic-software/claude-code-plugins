@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0] - 2026-11-05
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `docs/conventions/implementation.yaml`, read from the default branch by `lib/read-verification.sh`. `/implementation:implement-dispatch` skips the phase verifier and the post-phase commit verifier under `light` and `off`, writing `verification: skipped (<level>)`, unless `verify_mechanical_phases` resolves `true`; `strict` turns `verify_mechanical_phases` on.
+
+## [0.35.4] - 2026-11-05
+
+### Changed
+
+- `/implementation:implement` keeps a plan block it will not do on the task list as `skip: <reason>` instead of removing it.
+
 ## [0.35.3] - 2026-11-05
 
 ### Changed

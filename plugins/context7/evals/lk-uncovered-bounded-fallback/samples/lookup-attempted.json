@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library obscure-internal-lib \"frobnicate parameters\"",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/acme/obscure-internal-lib\" \"frobnicate parameters\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "docs with an ID"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y ctx7@latest search \"obscure-internal-lib frobnicate\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npx search form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: version only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -r frobnicate node_modules/obscure-internal-lib",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: searches local files instead"
+    }
+  ]
+}
