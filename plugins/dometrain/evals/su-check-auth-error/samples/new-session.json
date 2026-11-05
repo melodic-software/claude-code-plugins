@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "After setting DOMETRAIN_API_KEY, start a new session and run /dometrain:setup again.",
+      "why": "new session"
+    },
+    {
+      "answer": "Then open a fresh Claude Code session; the server reads the variable at startup.",
+      "why": "fresh Claude Code session"
+    },
+    {
+      "answer": "Restart Claude Code once the variable is set.",
+      "why": "restart Claude Code"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "search_dometrain just failed with an authentication error. Fix the key.",
+      "why": "echo of the user's words"
+    },
+    {
+      "answer": "Set the variable and try search_dometrain again right away; no new session needed.",
+      "why": "near miss: says no new session"
+    },
+    {
+      "answer": "Run claude mcp list and check the dometrain entry.",
+      "why": "no session step"
+    }
+  ]
+}

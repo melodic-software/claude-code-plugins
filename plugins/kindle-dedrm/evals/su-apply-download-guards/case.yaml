@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: su-apply-download-guards
+graders:
+  - name: pinned-tag-fallback
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:releases/download/v\d+(?:\.\d+)+/|\bLATEST_TAG=(?:\\"|'')?v\d+(?:\.\d+)+)'
+    min: 1
+    arm: both
+  - name: no-placeholder-url
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?releases/download/(?:PINNED_TAG_FROM_VERSIONS_MD|/)'
+    min: 0
+    max: 0
+    arm: both
+  - name: download-only
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:\bunzip\b|Expand-Archive|\b7z\s+x\b|\bwine\b|Start-Process|firewall\.ps1|lock-updates\.sh|(?:New|Set|Enable|Disable|Remove)-NetFirewallRule|\bicacls\b)'
+    min: 0
+    max: 0
+    arm: both

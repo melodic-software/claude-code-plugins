@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "`cleanup.sh --full` asks about each item on its own:\n\n1. Firewall rule \"Block Kindle for PC (lock 2.8.0)\" - y/N\n2. ICACLS deny on the updates folder - y/N\n3. ~/Tools/Kindle_Key_Finder - y/N\n4. The three downloads - y/N\n5. Uninstall Kindle for PC (interactive uninstall.exe) - y/N\n6. KFX Input and DeDRM plugins (by hand in Calibre Preferences, Plugins) - y/N\n7. dedrm.json key store - y/N\n\nYour Calibre Library is never on that list.",
+      "why": "the full list"
+    },
+    {
+      "answer": "It will offer the firewall rule, then later the dedrm.json key store, one prompt each.",
+      "why": "firewall plus the key store"
+    },
+    {
+      "answer": "Firewall block: y/N.\nKindle for PC: --full offers to uninstall it.",
+      "why": "firewall plus the Kindle uninstall"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Cleanup stays per-item, and the Calibre Library is never offered for deletion.",
+      "why": "names no reversal"
+    },
+    {
+      "answer": "It removes the firewall rule and the downloads, one at a time.",
+      "why": "near miss: only the default-tier items, none of the --full ones"
+    },
+    {
+      "answer": "--full also uninstalls Kindle for PC and removes dedrm.json.",
+      "why": "near miss: the --full items without the firewall rule"
+    }
+  ]
+}

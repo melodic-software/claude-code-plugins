@@ -1,0 +1,20 @@
+{
+  "pinned-tag-fallback": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:releases/download/v\\d+(?:\\.\\d+)+/|\\bLATEST_TAG=(?:\\\\\"|')?v\\d+(?:\\.\\d+)+)"
+  ],
+  "no-placeholder-url": [
+    {
+      "use": "command_anywhere"
+    },
+    "releases/download/(?:PINNED_TAG_FROM_VERSIONS_MD|/)"
+  ],
+  "download-only": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:\\bunzip\\b|Expand-Archive|\\b7z\\s+x\\b|\\bwine\\b|Start-Process|firewall\\.ps1|lock-updates\\.sh|(?:New|Set|Enable|Disable|Remove)-NetFirewallRule|\\bicacls\\b)"
+  ]
+}

@@ -1,5 +1,6 @@
 {
   "holds": [
+    "provenance: untrusted",
     "work-class: untrusted-provenance",
     "Work-Class: Untrusted_Provenance",
     "work-class:UNTRUSTED-provenance",

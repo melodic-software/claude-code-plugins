@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/run-1/plugin/skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "near miss: a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/run-1/progress.md",
+            "old_string": "- [ ] firewall",
+            "new_string": "- [x] firewall"
+          }
+        }
+      ],
+      "why": "ticks the step off in a file"
+    }
+  ]
+}

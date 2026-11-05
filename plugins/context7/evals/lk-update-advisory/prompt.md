@@ -1,6 +1,6 @@
 ---
 description: "The update action runs the bundled update.sh in its default report mode, never passes --fix or --refresh-baseline unasked, and edits no file"
-tags: [context7, lookup, update, outcome, read-only]
+tags: [context7, lookup, update, outcome, read-only, no-network]
 max_turns: 10
 timeout_seconds: 300
 allowed_tools: [Bash, Read, Write, Edit]
