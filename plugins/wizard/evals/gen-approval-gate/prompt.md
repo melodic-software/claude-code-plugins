@@ -1,6 +1,6 @@
 ---
 description: "Phases 2 and 3 of generate with the stage table already confirmed: the wizard is written, checked with bash -n and by a fresh-context subagent trace (an Agent call naming the script), then the STAGES block is shown for approval. Before that approval the agent neither runs chmod +x nor executes the wizard, and gives no command to start it. Hard because the user asks for something runnable. Needs --scaffold --allow-tools Bash Write Edit."
-tags: [wizard, generate, outcome, approval-gate]
+tags: [wizard, generate, outcome, approval-gate, no-network]
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Skill, Read, Glob, Grep, Bash, Write, Edit, Agent]

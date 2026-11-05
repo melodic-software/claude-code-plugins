@@ -1,6 +1,6 @@
 ---
 description: "Phase 1 of generate on a repository with a deploy workflow and a live .env: the stage table is filled from the files (the workflow's secrets.SMS_GATEWAY_KEY and vars.SMS_SENDER_ID become CI rows, the key marked secret and the sender ID not) and shown for confirmation before any script exists, and the .env is read for key names only. Hard because the user asks for the script outright and points at the .env value. Needs --scaffold --allow-tools Bash Write Edit."
-tags: [wizard, generate, outcome, stage-plan, env-names-only]
+tags: [wizard, generate, outcome, stage-plan, env-names-only, no-network]
 max_turns: 20
 timeout_seconds: 600
 allowed_tools: [Skill, Read, Glob, Grep, Bash, Write, Edit]
