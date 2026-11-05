@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 import { BORN_TRIAGED_MARKER, checkBornTriaged, humanIds, run } from "./check-born-triaged.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../resolve-config/read-status.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-born-triaged.mjs", import.meta.url));
 
@@ -130,6 +132,61 @@ test("run reads once when the marker or the author already rules a skip out", as
     });
     assert.equal(calls, 1);
   }
+});
+
+// The Work status field a trusted account set (read-status.mjs): with a status
+// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
+const fieldRun = (labels, fields) =>
+  run({
+    fetchIssue: async () => issue({ labels }),
+    list: LIST,
+    lanesAppId: LANES_APP_ID,
+    statusOf: statusReader({ github: withFields(async () => [], fields), repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }),
+    sleep: noSleep,
+    attempts: 1,
+  });
+
+test("a field that mirrors the labels changes no answer", async () => {
+  const sets = [["needs-human"], ["agent-ready"], ["status: ready"], ["status: needs-decision"], [], ["needs-triage"], ["needs-spec"], ["needs-owner-decision"], ["admission-deferred"], ["priority: high"]];
+  for (const labels of sets) {
+    const byLabels = await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, sleep: noSleep, attempts: 1 });
+    const mirrored = await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, statusOf: mirroredStatusOf, sleep: noSleep, attempts: 1 });
+    assert.deepEqual(mirrored, byLabels, JSON.stringify(labels));
+  }
+});
+
+test("run lets the Work status field decide an issue with no status label", async () => {
+  assert.deepEqual(await fieldRun([], { 7: { state: "agent-ready" } }), { skip: "true", reason: "born-triaged" });
+  assert.deepEqual(await fieldRun(["needs-triage"], { 7: { state: "agent-ready" } }), { skip: "false", reason: "no-status" });
+});
+
+test("a hold the Work status field adds still counts as the status", async () => {
+  assert.deepEqual(await fieldRun(["status: ready"], { 7: { state: "needs-human" } }), { skip: "true", reason: "born-triaged" });
+});
+
+test("run judges by the labels when the Work status field is unset or set by another account", async () => {
+  assert.deepEqual(await fieldRun(["needs-human"], {}), { skip: "true", reason: "born-triaged" });
+  assert.deepEqual(await fieldRun([], { 7: { state: "agent-ready", setter: STRANGER_ID } }), { skip: "false", reason: "no-status" });
+});
+
+test("run reads the Work status field again on each attempt", async () => {
+  const fields = { 7: { state: "needs-triage" } };
+  let calls = 0;
+  const github = withFields(async () => [], fields);
+  const result = await run({
+    fetchIssue: async () => {
+      calls += 1;
+      if (calls === 2) fields[7] = { state: "agent-ready" };
+      return issue({ labels: [] });
+    },
+    list: LIST,
+    lanesAppId: LANES_APP_ID,
+    statusOf: statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }),
+    sleep: noSleep,
+    attempts: 3,
+  });
+  assert.deepEqual(result, { skip: "true", reason: "born-triaged" });
+  assert.equal(calls, 2);
 });
 
 test("run triages when the issue cannot be read", async () => {

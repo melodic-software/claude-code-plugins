@@ -237,6 +237,7 @@ work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--r
 work-item-tracker.sh label-provenance <id> --label <name> [--label <name> ...]
 work-item-tracker.sh set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
 work-item-tracker.sh get-field-options --field <name-or-id> [--repo <o>/<r>]
+work-item-tracker.sh get-statuses --field <name> <id>...
 work-item-tracker.sh status-storage [--repo <o>/<r>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh add-recurrence <id> --source-link <url> --note <text>
@@ -323,6 +324,13 @@ GitHub adapter implements it, from the same `GET /orgs/{org}/issue-fields` listi
 validates against (same `read:org` need). An adapter that declares no `get-field-options` key exits
 `6`, which a caller reads as "unsupported", not as a failure. Label groups are not read by this verb.
 
+`get-statuses` reads, for each `<id>`, the item's value of one single-select issue field, by its
+exact name: the autonomous frontier asks for `Work status`. It prints `{schema_version,
+statuses: {"<id>": "<option name>" | null}}`, null for an item whose field is unset. Only the
+GitHub adapter implements it, from GraphQL `Issue.issueFieldValues`, one query per repository per
+100 items, so a session whose proxy refuses GraphQL exits `3`. An adapter that declares no
+`get-statuses` key exits `6`.
+
 `status-storage` is a CORE-side derivation that reports where the tracker stores an item's
 status: in the `Work status` single-select issue field, or in labels. No adapter implements it,
 so it needs no manifest key. It prints `{schema_version, storage, field, reason}`, where
@@ -369,7 +377,16 @@ assignee AND not a container (a `work-map` item is never its own frontier item, 
 `needs-human` are additionally excluded, as are items carrying the **human-floor work class**
 `work-class: untrusted-provenance` (C5) or the `provenance: signal` label, which are
 human-gated regardless of any other signal, and items labeled `status: needs-decision`,
-`status: needs-info` or `needs-spec`, which wait on a person. The floor wins over the autonomous-eligible role label: an
+`status: needs-info` or `needs-spec`, which wait on a person. When `status-storage` reports
+`field` and the adapter declares `get-statuses`, core reads the `Work status` of each open,
+unblocked, unassigned item and puts it on the item as `status`. The field can only add a hold:
+an item whose `status` is `needs-human`, `needs-owner-decision`, `needs-reporter-info` or
+`needs-spec`, and that carries none of those states' labels (`needs-human`,
+`status: needs-decision`, `needs-owner-decision`, `status: needs-info`, `needs-spec`), is held
+too, and the labels decide everything else, since labels are written first
+and reach the field afterwards. No setter is checked, because a value can only hold an item back. A status read that fails, or a `status-storage`
+read the provider did not answer, prints one warning on stderr and leaves the labels to
+decide; the frontier does not fail on it. The default frontier reads no status. The floor wins over the autonomous-eligible role label: an
 item carrying both is contradictory, and resolving it against the floor is what keeps a
 worker from claiming and then escalating it once per lane pass. No other work class is
 floored, and neither is an item with no `work-class:` label: work class is not an admission
@@ -578,6 +595,7 @@ Per-verb result objects:
 | `add-sub-item` | `id, parent_id, linked: true` |
 | `list-sub-items` | `{items:[…]}` envelope of normalized item objects (each `parent_id` = the container) |
 | `label-provenance` | `id, admitted` (bool), `labels: [{label, actor, at, permission, role, trusted, reason}]`, `body_edit: {edited_at, after_admission, reason}` (`null` where not read) |
+| `get-statuses` | `statuses` (item id → option name or `null`) |
 | `status-storage` | `storage` (`field` or `labels`), `field` (`"Work status"` or `null`), `reason` |
 | `add-recurrence` | `id, source_link, recorded` (bool, `false` when the link was already recorded), `reason` |
 | `capabilities` | manifest object (see below) |

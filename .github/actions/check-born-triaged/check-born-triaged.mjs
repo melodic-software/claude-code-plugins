@@ -1,15 +1,18 @@
 // Intake gate: skip an issue that /work-items:decompose published already
 // triaged. Skip only when the issue carries the born-triaged marker, its
 // author is a listed human or the lanes App (matched by numeric id), and it
-// has an Issue Type and a status label. Anything else, including any read
-// failure, lets intake run.
+// has an Issue Type and a status label, read with the Work status field as
+// read-status.mjs adds it (it decides only an issue with no status label).
+// Anything else, including any read failure, lets intake run.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
+import { statusReader } from "../resolve-config/read-status.mjs";
 
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
@@ -41,9 +44,12 @@ export function humanIds(list) {
     .join(",");
 }
 
+const labelNames = (issue) => (issue.labels ?? []).map((label) => label.name ?? "");
+
 // Why `issue` is not born triaged, or null when it is. `trusted(id)` answers
-// whether its author's numeric id is a listed human's or the lanes App's.
-export function notBornTriaged(issue, trusted) {
+// whether its author's numeric id is a listed human's or the lanes App's;
+// `names` are its label names, by default as read.
+export function notBornTriaged(issue, trusted, names = labelNames(issue)) {
   // The publisher writes the marker as the body's last line, so a quoted copy
   // mid-body does not count.
   if (!String(issue.body ?? "").trimEnd().endsWith(BORN_TRIAGED_MARKER)) {
@@ -55,22 +61,24 @@ export function notBornTriaged(issue, trusted) {
   if (!issue.type?.name) {
     return "no-type";
   }
-  const labels = (issue.labels ?? []).map((label) => label.name ?? "");
-  if (!labels.some((name) => ROLE_LABELS.has(name) || name.startsWith("status:"))) {
+  if (!names.some((name) => ROLE_LABELS.has(name) || name.startsWith("status:"))) {
     return "no-status";
   }
   return null;
 }
 
-export function checkBornTriaged({ issue, list, lanesAppId }) {
+export function checkBornTriaged({ issue, list, lanesAppId, names }) {
   if (!isListReadable(list)) {
     return triage("list-unreadable");
   }
-  const reason = notBornTriaged(issue, (id) => isTrustedAuthor(id, list, lanesAppId));
+  const reason = notBornTriaged(issue, (id) => isTrustedAuthor(id, list, lanesAppId), names);
   return reason ? triage(reason) : { skip: "true", reason: "born-triaged" };
 }
 
-export async function run({ fetchIssue, list, lanesAppId, sleep = delay, attempts = 6, delayMs = 5000 }) {
+// `statusOf(number, names)` gives the issue's label names as its Work status
+// field adds to them (read-status.mjs statusReader); it is asked only once the
+// marker, author and type pass.
+export async function run({ fetchIssue, list, lanesAppId, statusOf, sleep = delay, attempts = 6, delayMs = 5000 }) {
   if (!isListReadable(list)) {
     return triage("list-unreadable");
   }
@@ -83,6 +91,9 @@ export async function run({ fetchIssue, list, lanesAppId, sleep = delay, attempt
       return triage("issue-unreadable");
     }
     result = checkBornTriaged({ issue, list, lanesAppId });
+    if (statusOf && (result.reason === "born-triaged" || result.reason === "no-status")) {
+      result = checkBornTriaged({ issue, list, lanesAppId, names: await statusOf(Number(issue.number), labelNames(issue)) });
+    }
     if (!PENDING.has(result.reason)) {
       return result;
     }
@@ -132,8 +143,10 @@ async function main() {
     }
     return response.json();
   };
+  const github = createGitHub({ token: GITHUB_TOKEN, apiUrl: GITHUB_API_URL || undefined });
+  const statusOf = statusReader({ env: process.env, github, repository: REPOSITORY });
   const result = /^[1-9][0-9]*$/.test(ISSUE_NUMBER ?? "")
-    ? await run({ fetchIssue, list, lanesAppId: LANES_APP_ID })
+    ? await run({ fetchIssue, list, lanesAppId: LANES_APP_ID, statusOf })
     : triage("issue-unreadable");
   const rateLimited = latch.until(issueUrl) !== null ? "true" : "false";
   writeOutputs({ ...result, "human-ids": humanIds(list), "rate-limited": rateLimited });

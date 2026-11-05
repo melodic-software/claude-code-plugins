@@ -183,6 +183,29 @@ NEARMISS='{"schema_version":"1.0","items":[
 COUNT="$(frontier_count true <<<"$NEARMISS")"
 assert_eq "floor matching is exact, not substring" "1" "$COUNT"
 
+# --- the Work status field (`status`) only adds a hold the labels lack ---
+STATUSED='{"schema_version":"1.0","items":[
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0,"status":"agent-ready"},
+  {"id":"github:o/r#2","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-owner-decision"},
+  {"id":"github:o/r#3","state":"open","assignees":[],"labels":["status: needs-info"],"blocked_by_count":0,"status":null},
+  {"id":"github:o/r#4","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0,"status":"needs-spec"},
+  {"id":"github:o/r#5","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"ready"},
+  {"id":"github:o/r#6","state":"open","assignees":[],"labels":["status: needs-info"],"blocked_by_count":0,"status":"agent-ready"}]}'
+assert_eq "a field hold holds; a field ready state never frees a label-held item" \
+  "github:o/r#5" "$(frontier_ids true <<<"$STATUSED")"
+assert_eq "the default frontier ignores status" "6" "$(frontier_count false <<<"$STATUSED")"
+
+# A field that holds what the labels collapse to answers as the labels alone.
+MIRRORED='{"schema_version":"1.0","items":[
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-triage"},
+  {"id":"github:o/r#2","state":"open","assignees":[],"labels":["agent-ready","needs-spec"],"blocked_by_count":0,"status":"needs-spec"},
+  {"id":"github:o/r#3","state":"open","assignees":[],"labels":["needs-owner-decision"],"blocked_by_count":0,"status":"needs-owner-decision"},
+  {"id":"github:o/r#4","state":"open","assignees":[],"labels":["status: needs-decision"],"blocked_by_count":0,"status":"needs-owner-decision"},
+  {"id":"github:o/r#5","state":"open","assignees":[],"labels":["status: ready","agent-ready"],"blocked_by_count":0,"status":"agent-ready"},
+  {"id":"github:o/r#6","state":"open","assignees":[],"labels":["needs-human","agent-ready"],"blocked_by_count":0,"status":"needs-human"}]}'
+assert_eq "a mirroring field changes no frontier answer" \
+  "$(jq -c '.items |= map(del(.status))' <<<"$MIRRORED" | frontier_ids true)" "$(frontier_ids true <<<"$MIRRORED")"
+
 # --- wit_filter_label: exact label match, envelope keys untouched ---
 LABELED='{"schema_version":"1.0","truncated":true,"items":[
   {"id":"github:o/r#1","labels":["area: ci"]},

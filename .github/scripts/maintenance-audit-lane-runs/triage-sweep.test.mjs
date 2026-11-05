@@ -12,6 +12,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ADMIT_MARKER, retriageNote } from "../intake-triage/admit.mjs";
+import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 import {
   decide,
@@ -97,6 +99,106 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
     [1, 7, 8],
   );
+});
+
+// The Work status field a trusted account set (read-status.mjs): with a status
+// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
+const fieldSelect = async (issues, fields) => {
+  const statusOf = statusReader({ github: withFields(async () => [], fields), repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+  const statusLabels = new Map();
+  for (const i of issues) statusLabels.set(i.number, await statusOf(i.number, i.labels.map((l) => l.name)));
+  return selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels }).map((i) => i.number);
+};
+
+test("a field that mirrors the labels chooses the same candidates", async () => {
+  const born = (number, labels = [], over = {}) =>
+    issue(number, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }, ...labels.map((name) => ({ name }))], ...over });
+  const fixtures = [
+    [issue(1), issue(2, { labels: [{ name: "needs-triage" }] }), issue(3, { labels: [{ name: "status: needs-info" }] }), issue(4, { labels: [{ name: "agent-ready" }] }), issue(5, { labels: [{ name: "needs-human" }] }), issue(6, { labels: [{ name: "priority: low" }] }), issue(8, { labels: [{ name: "needs-spec" }] }), issue(16, { labels: [{ name: "status: ready" }] }), issue(17, { labels: [{ name: "needs-owner-decision" }] }), issue(18, { labels: [{ name: "admission-deferred" }] })],
+    [born(1), born(2, ["agent-ready"]), born(3, ["admission-deferred"]), born(4, ["needs-human"]), born(5, ["work-class: untrusted-provenance"]), born(8, ["priority: high"]), born(9, ["status: confirmed"])],
+  ];
+  for (const issues of fixtures) {
+    const statusLabels = new Map();
+    for (const i of issues) statusLabels.set(i.number, await mirroredStatusOf(i.number, i.labels.map((l) => l.name)));
+    assert.deepEqual(
+      selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels }).map((i) => i.number),
+      selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
+    );
+  }
+});
+
+test("the Work status field decides an issue with no status label, and adds a hold the labels lack", async () => {
+  const issues = [
+    issue(1),
+    issue(2),
+    issue(3, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }] }),
+    issue(4, { labels: [{ name: "agent-ready" }] }),
+  ];
+  const fields = { 1: { state: "agent-ready" }, 2: { state: "needs-triage" }, 3: { state: "needs-human" }, 4: { state: "needs-triage" } };
+  assert.deepEqual(await fieldSelect(issues, fields), [2]);
+});
+
+test("an issue whose Work status field is unset, or set by another account, is chosen by its labels", async () => {
+  const issues = [issue(1), issue(2, { labels: [{ name: "agent-ready" }] })];
+  assert.deepEqual(await fieldSelect(issues, { 1: { state: "agent-ready", setter: STRANGER_ID } }), [1]);
+});
+
+test("the sweep asks the field only of an issue it is about to act on, and a field hold drops it uncounted", async () => {
+  const asked = [];
+  // The first candidate carries the sweep's handed-to-a-maintainer state, so
+  // the sweep skips it before acting; the second has no state; the third is
+  // labeled agent-ready.
+  const comments = { 1: [{ id: 10, user: BOT, body: renderState({ runs: [], filed: 77, runUrl: "u" }) }], 2: [] };
+  const gh = {
+    call: async (method, path) => {
+      if (method !== "GET") throw new Error(`unexpected ${method} ${path}`);
+      if (path.startsWith("/repos/o/r/issues?")) return [issue(1), issue(2), issue(3, { labels: [{ name: "agent-ready" }] })];
+      const m = /^\/repos\/o\/r\/issues\/(\d+)\/comments/.exec(path);
+      if (m) return comments[m[1]] ?? [];
+      return [];
+    },
+  };
+  const statusOf = async (number, labels) => {
+    asked.push(number);
+    return [...labels, "agent-ready"];
+  };
+  const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), statusOf });
+  // Neither the agent-ready issue (dropped by its labels) nor the filed one
+  // (skipped before acting) costs a field read.
+  assert.deepEqual(asked, [2]);
+  assert.deepEqual([result.dispatched, result.handed, result.handedOff], [[], [], []]);
+});
+
+test("a field-held issue counts toward the check cap, so a capped reader never leaves an acted-on issue unread", async () => {
+  // The sweep's MAX_CHECKED is 20; its reader stops reading after 20 calls.
+  // 21 unlabeled candidates, the field holding the first and the last.
+  const cap = 20;
+  const count = cap + 1;
+  const held = new Set([1, count]);
+  const writes = [];
+  const gh = {
+    call: async (method, path, body) => {
+      if (method === "GET" && path.startsWith("/repos/o/r/issues?")) return Array.from({ length: count }, (_, k) => issue(k + 1));
+      // The issues between the two held ones each have a triage run still in
+      // progress: they count as checks and need no write.
+      const m = /^\/repos\/o\/r\/issues\/(\d+)\/comments/.exec(path);
+      if (m && !held.has(Number(m[1]))) return [{ id: Number(m[1]), user: BOT, body: renderState({ runs: [500 + Number(m[1])], filed: null, runUrl: "u" }) }];
+      if (method === "GET" && path.startsWith("/repos/o/r/actions/runs/")) return { status: "in_progress" };
+      if (method === "GET") return [];
+      writes.push({ path, number: Number(body?.inputs?.["issue-number"] ?? /issues\/(\d+)\//.exec(path)?.[1]) });
+      return { workflow_run_id: 99 };
+    },
+  };
+  let reads = 0;
+  const statusOf = async (number, labels) => {
+    if (reads >= cap) return labels;
+    reads += 1;
+    return held.has(number) ? [...labels, "needs-human"] : labels;
+  };
+  const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), statusOf });
+  assert.ok(reads <= cap);
+  assert.ok(!writes.some((w) => held.has(w.number)), JSON.stringify(writes));
+  assert.ok(![...result.dispatched, ...result.handed, ...result.handedOff].some((n) => held.has(n)), JSON.stringify(result));
 });
 
 test("the sweep state round-trips and is read only from the bot's comment", () => {
