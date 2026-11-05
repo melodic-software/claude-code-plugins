@@ -5,6 +5,17 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.14] - 2026-11-05
+
+### Fixed
+
+- `/x:read` no longer contradicts itself on five points:
+  - A failed request (a nonzero curl exit, a `429` or timeout, a `3xx`, or another unlisted non-`200`) now ends only that request. The skill then goes on to its other sources, and to the Thread Reader App step only when that step's entry condition holds.
+  - An xtomd `502` (private, protected, or deleted post) ends the whole invocation.
+  - A post the user already calls private, protected, or deleted gets no request.
+  - The Thread Reader App step also runs when `curl` is absent and the URL may start a thread.
+  - A Thread Reader App result is presented as `WebFetch`'s rendering of the page, not as the posts' exact text.
+
 ## [0.4.13] - 2026-11-04
 
 ### Fixed
