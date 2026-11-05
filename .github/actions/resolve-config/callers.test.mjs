@@ -3190,6 +3190,29 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   assert.equal(held.steps[0].env.PR_NUMBER, "${{ inputs.pr-number }}");
   // fix-docs-dispatch.mjs heldHead reads this job's name.
   assert.match(readFileSync(new URL("../../scripts/pr-unblock/fix-docs-dispatch.mjs", import.meta.url), "utf8"), /`\$\{activity\}-head-held`/);
+  // fix-docs-head ends green on an unread head, so its dependents are not
+  // skipped by a failed need: each one's own if must keep it from running.
+  // Walk them in file order, each skipped job's outputs empty for the next.
+  const needsOf = (job) => [job.needs ?? []].flat();
+  const downstream = new Set(["fix-docs-head"]);
+  const results = { "fix-docs-head": "success", "fix-docs-head-held": "success" };
+  for (const [id, job] of Object.entries(jobs)) {
+    if (id === "fix-docs-head" || id === "fix-docs-head-held" || !needsOf(job).some((n) => downstream.has(n))) continue;
+    downstream.add(id);
+    // A real fix-docs dispatch from a person: a PR number, this activity,
+    // and the sender check passing, so only the head's outputs can stop it.
+    const context = { "inputs.pr-number": "7", "inputs.activity": "fix-docs" };
+    const expression = String(job.if ?? "true").replace(/format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/g, "true");
+    for (const [ref] of expression.matchAll(/\b(?:needs|inputs|github|vars)\.[\w-]+(?:\.[\w-]+)*/g)) {
+      if (Object.hasOwn(context, ref)) continue;
+      const [, need, kind, name] = /^needs\.([\w-]+)\.(result|outputs)\.?([\w-]*)$/.exec(ref) ?? [];
+      context[ref] = need === undefined ? "" : kind === "result" ? (results[need] ?? "skipped") : need === "fix-docs-head" && name === "unread" ? "true" : "";
+    }
+    const runs = evaluate(expression, context);
+    assert.equal(runs, false, `${id} runs on an unread head: ${expression}`);
+    results[id] = "skipped";
+  }
+  assert.ok(downstream.has("fix-docs") && downstream.has("apply-docs-patch"), [...downstream].join(", "));
 });
 
 // The read report job posts on the run's head only when it equals a head the
