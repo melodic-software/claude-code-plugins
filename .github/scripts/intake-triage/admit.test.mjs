@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -325,6 +325,11 @@ describe("decide", () => {
     [
       "criterion 3: an untrusted-provenance label on the issue",
       { issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) },
+      /untrusted-provenance work needs a person/,
+    ],
+    [
+      "criterion 3: a provenance: untrusted label on the issue",
+      { issue: issueOf({ labels: [{ name: READY }, { name: "provenance: untrusted" }] }) },
       /untrusted-provenance work needs a person/,
     ],
     ["criterion 7: no task list to check", { issue: issueOf({ body: "Make the README better." }) }, /no trusted-human acceptance criteria: .*confirmed `- \[ \]` criteria/],
@@ -3132,14 +3137,36 @@ describe("size split sub-issues", () => {
   });
 });
 
+describe("roomDeferred", () => {
+  test("either untrusted-provenance label keeps a ready deferred issue out of the room count", () => {
+    assert.equal(roomDeferred([{ name: "status: ready" }]), true);
+    for (const label of ["work-class: untrusted-provenance", "provenance: untrusted"]) {
+      assert.equal(roomDeferred([{ name: "status: ready" }, { name: label }]), false, label);
+    }
+  });
+});
+
 describe("untrustedHold", () => {
   const LABEL = "work-class: untrusted-provenance";
+  const NEW = "provenance: untrusted";
   const humans = new Set([1]);
   const isApp = (actor) => actor?.id === 9;
   const event = (kind, id, name = LABEL) => ({ event: kind, label: { name }, actor: { id } });
   test("the label on the issue holds it", () => {
     assert.equal(untrustedHold({ labels: [{ name: LABEL }], events: [], humans, isApp }), true);
     assert.equal(untrustedHold({ labels: [LABEL], events: [], humans, isApp }), true);
+  });
+  test("provenance: untrusted alone holds it as the work-class label does", () => {
+    assert.equal(untrustedHold({ labels: [{ name: NEW }], events: [], humans, isApp }), true);
+    assert.equal(untrustedHold({ labels: [NEW], events: [], humans, isApp }), true);
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9, NEW), event("unlabeled", 5, NEW)], humans, isApp }), true);
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9, NEW), event("unlabeled", 1, NEW)], humans, isApp }), false);
+  });
+  test("a person's later change to one label never lifts a stranger's removal of the other", () => {
+    const events = [event("labeled", 9), event("unlabeled", 5), event("labeled", 1, NEW), event("unlabeled", 1, NEW)];
+    assert.equal(untrustedHold({ labels: [], events, humans, isApp }), true);
+    const reversed = [event("labeled", 9, NEW), event("unlabeled", 5, NEW), event("labeled", 1), event("unlabeled", 1)];
+    assert.equal(untrustedHold({ labels: [], events: reversed, humans, isApp }), true);
   });
   test("a newest removal by neither a listed human nor the App still holds it; theirs lifts it", () => {
     assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 5)], humans, isApp }), true);

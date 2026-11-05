@@ -1,0 +1,59 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Rename phase 1",
+            "prompt": "Rename invoice_total to compute_invoice_total in billing/.",
+            "subagent_type": "implementation:scoped-implementer",
+            "model": "sonnet"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Verify phase 1",
+            "prompt": "Check the acceptance criteria against the diff.",
+            "subagent_type": "implementation:phase-verifier"
+          }
+        }
+      ],
+      "why": "worker then the fresh-context verifier, the shape the setting asks for"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Verify phase 1",
+            "prompt": "Check the acceptance criteria against the diff.",
+            "subagent_type": "implementation:phase-verifier"
+          }
+        }
+      ],
+      "why": "verifier dispatched after an inline edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no subagent at all: the phase was verified from the diff alone"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Rename phase 1",
+            "prompt": "Rename invoice_total to compute_invoice_total in billing/.",
+            "subagent_type": "implementation:scoped-implementer",
+            "model": "sonnet"
+          }
+        }
+      ],
+      "why": "a worker but no verifier: the mechanical carve-out was applied"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "verification: skipped (light)\nVerdict: NOT VERIFIED\nGate: does not block PR creation (the only cause is the skipped verifier).",
+      "why": "names the skip and the open gate"
+    },
+    {
+      "answer": "The NOT VERIFIED verdict is not blocked for the pull request: its only cause is verification: skipped (light).",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "PR creation can proceed; verification: skipped (light).",
+      "why": "proceed phrasing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Verdict: NOT VERIFIED. This blocks PR creation.",
+      "why": "the skip treated as a blocker"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

@@ -62,6 +62,8 @@ here without opening the script:
 - Required options per type: `regex` `pattern`; `tool_used` `tool`; `tool_order` `before`,
   `after`; `file_exists` `path`; `llm` `criteria`; `baseline` `baseline_file`, `criteria`. A
   `graders/*.md` body stands in for `pattern` (regex) or `criteria` (llm, baseline).
+- Regex `target` and llm `focus` values: `last_message`, `trace`, `files`, `mock_calls`, or
+  `{ source: file, path: <path> }`. Any other value, such as `focus: reply`, fails to load.
 - Bounds: `runs` 1 to 50, `max_turns` 1 to 200, `timeout_seconds` 1 to 3600.
 
 The script's constants are the one place to correct when the schema moves, under the drift record

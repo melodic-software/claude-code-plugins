@@ -379,7 +379,7 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
-  for (const label of ["security: outside-actor", "work-class: untrusted-provenance"]) {
+  for (const label of ["security: outside-actor", "work-class: untrusted-provenance", "provenance: untrusted"]) {
     test(`needs-human this run's triage applied with no flag holds beside ${label}`, () => {
       const result = plan(laneBody(), { labels: ["needs-human", label], triageLabels: ["needs-human"] });
       assert.equal(result.ready, false);
@@ -645,6 +645,15 @@ describe("planWrites", () => {
     assert.deepEqual(result.remove, []);
     assert.deepEqual(result.add, [NEEDS_DECISION]);
   });
+
+  for (const hold of ["work-class: untrusted-provenance", "provenance: untrusted"]) {
+    test(`${hold} on the issue holds it whatever class the verdict proposes`, () => {
+      const result = plan(laneBody(), { labels: [hold] });
+      assert.equal(result.ready, false);
+      assert.ok(result.reasons.includes("work-class: untrusted-provenance work needs a person"), result.reasons.join("; "));
+      assert.deepEqual(result.remove, []);
+    });
+  }
 
   test("a verdict proposing work-class: untrusted-provenance applies it and holds the issue", () => {
     const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }));
@@ -1641,7 +1650,7 @@ describe("run", () => {
 
   // flag.mjs can add the outside-actor label and needs-human after the first
   // read; admission never reads outside-actor, so needs-human must stay.
-  for (const late of ["security: outside-actor", "work-class: untrusted-provenance"]) {
+  for (const late of ["security: outside-actor", "work-class: untrusted-provenance", "provenance: untrusted"]) {
     test(`${late} landing after the first read keeps a refused needs-human`, async () => {
       const fake = fakeGitHub({
         issue: { labels: [{ name: "needs-human" }] },

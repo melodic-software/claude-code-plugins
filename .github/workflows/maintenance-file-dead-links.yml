@@ -1,0 +1,238 @@
+name: maintenance-file-dead-links
+
+# Routes the dead links the weekly online link check finds to one rollup
+# issue, so each is repaired by the demotion path in
+# plugins/attribution/skills/audit/reference/dispositions.md ("The demotion
+# path when a pointer later dies"). This repository owns that trigger; the
+# plugin owns the repair.
+#
+# The link check (maintenance-check-links-online-claude-code-plugins.yml) is a
+# sync-managed caller of the ci-workflows reusable workflow, which uploads the
+# run's broken links as the link-check-online-dead-links artifact. A
+# reusable workflow's outputs reach only its own caller, so this workflow reads
+# the artifact instead, in two jobs that each hold one scope:
+#
+# - read: actions: read, to download the artifact from the link-check run. It
+#   checks the shape, keeps at most MAX_LINKS links, and hands them on through
+#   its outputs, an empty list included. A run that uploaded no artifact (a
+#   scheduled run the repository property turned off) hands on nothing, so
+#   the rollup is left as it is.
+# - file: issues: write alone, no checkout. It finds the rollup, an issue
+#   github-actions[bot] filed whose first body line is
+#   `<!-- link-check-dead-pointer rollup -->`, and rewrites its list of dead
+#   links. With none it closes an open rollup as completed, with a comment. A
+#   rollup closed as completed is reopened when links are dead again; one
+#   closed as not planned is left alone. With no rollup it opens one, labeled
+#   needs-triage: its token starts no workflow, so intake-triage.yml never
+#   adds that floor label on open, and the hourly triage sweep leaves
+#   github-actions[bot] issues out (triage-sweep.mjs), so the label is what
+#   puts the issue in the untriaged queue. A reopened rollup keeps its labels.
+#
+# The trigger names the link-check workflow by its `name:`, which the
+# standards component owns: a rename there disconnects this workflow.
+
+on:
+  # Runs this file from the default branch and executes no code from the
+  # link-check run: the artifact is data, checked before use.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [maintenance-check-links-online-claude-code-plugins]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  read:
+    name: Read the dead links
+    if: >-
+      github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && contains(fromJSON('["success", "failure"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # download the link-check run's artifact
+    outputs:
+      found: ${{ steps.links.outputs.found }}
+      links: ${{ steps.links.outputs.links }}
+      more: ${{ steps.links.outputs.more }}
+    steps:
+      # A run the property gate skipped uploads no artifact; that is not an
+      # error, so the next step decides.
+      - name: Download the dead links
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: link-check-online-dead-links
+          path: ${{ runner.temp }}/dead-links
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Check the dead links
+        id: links
+        env:
+          DOWNLOAD: ${{ steps.download.outcome }}
+          DEAD_LINKS: ${{ runner.temp }}/dead-links/dead-links.json
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          MAX_LINKS: 50
+        run: |
+          set -euo pipefail
+          if [[ "$DOWNLOAD" != success || ! -s "$DEAD_LINKS" ]]; then
+            if [[ "$RUN_CONCLUSION" == failure ]]; then
+              echo "::warning::the red link-check run left no dead-links artifact: nothing to file"
+            else
+              echo "the link-check run left no dead-links artifact: nothing to file"
+            fi
+            exit 0
+          fi
+          # Each URL a plain http(s) URL, each path free of backticks and line
+          # breaks, so both sit safely in a code span; anything else is dropped.
+          # The server's text is never kept: it is written outside the org and
+          # intake reads the issue body. Each link keeps 5 locations and a count
+          # of the rest, and URLs and paths are length-capped, so 50 links stay
+          # well under the 128 KiB a single environment variable can hold when
+          # the file job reads them as LINKS.
+          if ! valid="$(jq -c '
+            if type != "array" then error("not an array") else . end
+            | map(select((.url | type == "string" and length <= 1000 and test("^https?://[^\\s`<>]+$"))
+                and (.locations | type == "array")))
+            | map({url,
+                status: (if (.status | type) == "number" then .status else null end),
+                all: [.locations[]
+                  | select(type == "object" and (.path | type == "string" and test("^[^`\\r\\n]{1,200}$")))
+                  | {path, line: (if (.line | type) == "number" then .line else null end)}]})
+            | map(select(.all | length > 0)
+                | {url, status, locations: .all[:5], more_locations: ((.all | length) - 5 | if . < 0 then 0 else . end)})' "$DEAD_LINKS")"; then
+            echo "::error::the dead-links artifact is not a JSON array"
+            exit 1
+          fi
+          total="$(jq 'length' "$DEAD_LINKS")"
+          count="$(jq 'length' <<<"$valid")"
+          if ((count < total)); then
+            echo "::warning::dropped $((total - count)) of $total malformed dead-link entries"
+          fi
+          # Only an artifact that is itself empty means no dead links. One whose
+          # every entry failed the shape check (a malformed artifact or a format
+          # change upstream) hands on nothing, so the rollup is never closed as
+          # fixed on bad data.
+          if ((total > 0 && count == 0)); then
+            echo "::warning::every dead-link entry failed the shape check: the rollup is left as it is"
+            exit 0
+          fi
+          links="$(jq -c --argjson max "$MAX_LINKS" '.[:$max]' <<<"$valid")"
+          more=$((count > MAX_LINKS ? count - MAX_LINKS : 0))
+          delim="EOF_$(openssl rand -hex 16)"
+          {
+            echo "found=true"
+            echo "more=$more"
+            echo "links<<$delim"
+            echo "$links"
+            echo "$delim"
+          } >>"$GITHUB_OUTPUT"
+          echo "handed $((count - more)) dead links to the file job ($more more over the cap)"
+
+  file:
+    name: Update the dead-link rollup issue
+    needs: [read]
+    if: needs.read.outputs.found == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      issues: write # read, open, rewrite, comment on, close and reopen the rollup
+    # Two link-check runs finishing close together must not both find no
+    # rollup and open two.
+    concurrency:
+      group: maintenance-file-dead-links
+      cancel-in-progress: false
+    steps:
+      - name: Rewrite the rollup issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINKS: ${{ needs.read.outputs.links }}
+          MORE: ${{ needs.read.outputs.more }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          MARKER: <!-- link-check-dead-pointer rollup -->
+          DEMOTION_PATH: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/attribution/skills/audit/reference/dispositions.md#the-demotion-path-when-a-pointer-later-dies
+        run: |
+          set -euo pipefail
+          [[ "$MORE" =~ ^[0-9]+$ ]] || MORE=0
+          # The rollups github-actions[bot] filed: an open one wins, else the
+          # newest. A failed read writes nothing, so it never opens a second.
+          # shellcheck disable=SC2016 # jq string interpolation, not shell
+          if ! listing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100" \
+            --jq '.[] | select(.pull_request == null)
+              | select((.body // "") | sub("^\\s+"; "") | split("\n")[0] | rtrimstr("\r") == env.MARKER)
+              | "\(.number) \(.state) \(.state_reason // "none")"')"; then
+            echo "::error::could not read the dead-link rollup issues: nothing written"
+            exit 1
+          fi
+          number='' state='' reason=''
+          while read -r n s r; do
+            [[ "$n" =~ ^[0-9]+$ ]] || continue
+            if [[ -z "$number" || ( "$s" == open && "$state" != open ) || ( "$state" != open && "$s" != open && n -gt number ) ]]; then
+              number="$n" state="$s" reason="$r"
+            fi
+          done <<<"$listing"
+          count="$(jq 'length' <<<"$LINKS")"
+
+          summary() { printf '# Dead-link rollup\n\n%s\n' "$1" >>"$GITHUB_STEP_SUMMARY"; echo "$1"; }
+          if ((count == 0)); then
+            if [[ "$state" != open ]]; then
+              summary "No dead links, and no open rollup issue: nothing to do."
+              exit 0
+            fi
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" \
+              -f body="The link check reported no dead links in $RUN_URL: closing." >/dev/null
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$number" -f state=closed -f state_reason=completed >/dev/null
+            summary "No dead links: closed the rollup #$number as completed."
+            exit 0
+          fi
+          if [[ "$state" == closed && "$reason" == not_planned ]]; then
+            summary "$count dead links, but the rollup #$number was closed as not planned: left alone. Reopen it to resume the list."
+            exit 0
+          fi
+
+          # The body with the first $1 links, the rest counted in the +N more
+          # line. Each item shows at most 5 locations.
+          render() {
+            jq -r --arg marker "$MARKER" --arg run "$RUN_URL" --arg demote "$DEMOTION_PATH" \
+              --argjson keep "$1" --argjson more "$((MORE + count - $1))" '
+            "\($marker)\n\n"
+            + "The weekly online link check found these links dead in \($run). Each run rewrites this list.\n\n"
+            + ([.[:$keep][] | "- [ ] `\(.url)`, status \(.status // "none"): "
+                + ([.locations[:5][] | "`\(.path)`" + (if .line then " line \(.line)" else "" end)] | join(", "))
+                + (((.more_locations // 0) + ((.locations | length) - 5 | if . < 0 then 0 else . end)) as $k
+                   | if $k > 0 then ", +\($k) more locations" else "" end)]
+               | join("\n"))
+            + (if $more > 0 then "\n- +\($more) more, see the run." else "" end)
+            + "\n\nThe status is the code alone: the text the server sent is left out, since it is written "
+            + "outside the org and intake reads this body.\n\n"
+            + "Repair each pointer by [the demotion path when a pointer later dies](\($demote)): "
+            + "point at a live source that holds the same fact, or demote the pointer to a stamped record "
+            + "or an archived-snapshot citation; never re-expand it into a copy. A page that is alive but "
+            + "refuses the checker gets an exact-URL `.lycheeignore` entry with a dated reason.\n\n"
+            + "Close this only once the link check no longer reports these URLs: removed, replaced, or in "
+            + "`.lycheeignore`. A run that reports none closes it. A dead URL kept in a link, the marked "
+            + "pointer of a demoted record included, is found again and reopens this issue on the next run.\n"
+          ' <<<"$LINKS"
+          }
+          # An issue body holds at most 65,536 characters; past 60,000, links
+          # move from the end of the list into the +N more line.
+          keep="$count"
+          body="$(render "$keep")"
+          while ((${#body} > 60000 && keep > 0)); do
+            keep=$((keep - 1))
+            body="$(render "$keep")"
+          done
+          if [[ -z "$number" ]]; then
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-triage' \
+              -f title="Dead links found by the online link check" -f body="$body" >/dev/null
+            summary "Opened the rollup issue with $count dead links."
+          elif [[ "$state" == open ]]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$number" -f body="$body" >/dev/null
+            summary "Rewrote the rollup #$number with $count dead links."
+          else
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$number" -f state=open -f body="$body" >/dev/null
+            summary "Reopened the rollup #$number with $count dead links."
+          fi

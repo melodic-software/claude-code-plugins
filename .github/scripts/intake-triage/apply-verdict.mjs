@@ -95,14 +95,14 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, GitHubError, loadTrustedList, networkFailure, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
-import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { FIELD_API, statusMirror } from "../../actions/resolve-config/write-status.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 
@@ -124,7 +124,7 @@ const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
 const TRIAGE_REFUSABLE = [NEEDS_HUMAN, NEEDS_DECISION];
 // Labels that stop admission for a person; a refusal is dropped when one
 // lands after the first read.
-const LATE_HOLDS = [OUTSIDE_ACTOR_LABEL, UNTRUSTED];
+const LATE_HOLDS = [OUTSIDE_ACTOR_LABEL, ...UNTRUSTED_LABELS];
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
   size: "Size",
@@ -275,7 +275,7 @@ export function planWrites(
     reasons.push("the triage run escalated");
     codes.add("security");
   }
-  if (verdict.untrusted || labels.includes(UNTRUSTED)) {
+  if (verdict.untrusted || labels.some((label) => UNTRUSTED_LABELS.includes(label))) {
     reasons.push(`${UNTRUSTED} work needs a person`);
     codes.add("security");
   }
@@ -647,7 +647,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // The body's own `Blocked by` and `Depends on` lines count too, since
   // the model's line can leave them out (#8994); an escalated verdict
   // writes them, so a label added by hand later still finds the edge.
-  const named = verdict.untrusted || labels.includes(UNTRUSTED) ? { numbers: [], dropped: 0 } : textBlockers(issue.body, repository);
+  const named = verdict.untrusted || labels.some((label) => UNTRUSTED_LABELS.includes(label)) ? { numbers: [], dropped: 0 } : textBlockers(issue.body, repository);
   const blockers = [...new Set([...verdict.blockedBy, ...named.numbers])];
   const edges = blockers.length > 0 ? await writeEdges({ github, repository, number, blockers }) : null;
   if (named.dropped > 0) {
@@ -825,13 +825,9 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
-// A GitHub 5xx or 429, a call the rate guard refused, or a request that got no
-// answer: what happened to the issue is unknown, not wrong. Any other 4xx (a
-// lost permission, a missing label) stays red, since a retry meets it again.
-export const isFault = (error) =>
-  (error?.name === "GitHubError" && (error.status >= 500 || error.status === 429)) ||
-  error?.name === "RateLimitStop" ||
-  networkFailure(error);
+// isFault (check-trusted-trigger.mjs): what happened to the issue is unknown,
+// not wrong.
+export { isFault };
 
 // The step's closing annotations and exit code, for run()'s result or the
 // error it threw. A fault, in admission or anywhere in the run, holds green

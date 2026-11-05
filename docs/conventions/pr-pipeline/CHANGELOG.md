@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [8.56.0] - 2026-11-05
+
+### Changed
+
+- The CI lanes hold an issue labeled `provenance: untrusted` exactly as they hold one labeled
+  `work-class: untrusted-provenance`, and still read the old name: admission, intake's verdict
+  apply, the issue lane's blocker gate and merge hold, work-unblock's re-fire and the triage sweep.
+  Both names live once, in `merge-holds.mjs` (`UNTRUSTED_LABELS`); writers still apply the old
+  name.
+
+## [8.55.1] - 2026-11-05
+
+### Fixed
+
+- `report-stop-status` posts no failing `pr-unblock/address-feedback` status for a `feedback-publish-failed` whose lane token was refused as workflow-modified (`tokenRefusal`), which the feedback sweep sends again; it reads the run's jobs and annotations with `actions: read` and `checks: read`
+- `API_BUDGET_HOLD: "1"` on work-unblock's label-unblocked step, the pr-unblock-dispatch dispatch step and pr-merge's candidate listing, whose scripts hold green on a refused call; every other lane workflow records why its steps stay unset
+- pr-refine's `fix-docs-head` reads the PR head through `read-pr-head.bash`, so a transient fault is read once more
+
 ## [8.55.0] - 2026-11-05
 
 ### Changed
