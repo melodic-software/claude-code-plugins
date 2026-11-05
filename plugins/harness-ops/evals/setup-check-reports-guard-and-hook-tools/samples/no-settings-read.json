@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/hooks/normalize-eol.sh"
+          }
+        }
+      ],
+      "why": "the library"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "~/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "user settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/settings.local.json"
+          }
+        }
+      ],
+      "why": "local settings"
+    }
+  ]
+}
