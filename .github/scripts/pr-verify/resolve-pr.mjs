@@ -98,6 +98,10 @@ const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const MAX_PAGES = 100;
 
+// A 200 whose completeness check failed: a list shorter than its count, or a
+// field the answer lacks. The verdict is unknown, so closing holds on it.
+const incomplete = (message) => Object.assign(new Error(message), { incomplete: true });
+
 const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
           author { ...actor } editor { ...actor }
           comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
@@ -384,13 +388,13 @@ export async function draftRun(github, repository, runId, read) {
   const listed = await (read ?? (() => latestJobs(github, repository, runId)))();
   const jobs = listed?.jobs;
   if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
-    throw new Error(`the jobs of run ${runId} could not be read whole`);
+    throw incomplete(`the jobs of run ${runId} could not be read whole`);
   }
   const ci = jobs.filter((job) => job?.name === "ci-status");
   const steps = ci.length === 1 && Array.isArray(ci[0].steps) ? ci[0].steps.filter((step) => step?.name === DRAFT_STEP) : [];
   const conclusion = steps.length === 1 ? steps[0].conclusion : undefined;
   if (conclusion !== "success" && conclusion !== "skipped") {
-    throw new Error(`run ${runId}'s draft state could not be read: ci-status lists no conclusion for ${DRAFT_STEP}`);
+    throw incomplete(`run ${runId}'s draft state could not be read: ci-status lists no conclusion for ${DRAFT_STEP}`);
   }
   return conclusion === "success";
 }
@@ -492,7 +496,7 @@ async function pullsOfCommit(github, repository, head) {
     for (let page = 1; page <= MAX_PAGES; page += 1) {
       const batch = await github("GET", `/repos/${repository}/commits/${head}/pulls?per_page=100&page=${page}`);
       if (!Array.isArray(batch)) {
-        throw new Error(`page ${page} is not a list`);
+        throw incomplete(`page ${page} is not a list`);
       }
       pulls.push(...batch);
       if (batch.length < 100) {
@@ -629,8 +633,11 @@ async function creditedSiblings(readRefs, repository, number, body, base, humans
   for (const sibling of siblingNumbers(body).filter((n) => n !== number)) {
     const answer = await readRefs("POST", "/graphql", { query: SIBLING_QUERY, variables: { owner, name, number: sibling } });
     const node = answer?.data?.repository?.issueOrPullRequest;
+    // A GraphQL error other than NOT_FOUND stays red, as the client's own
+    // GraphQL errors do; an answer with no node holds (incomplete).
     if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : node === null || typeof node !== "object") {
-      throw new Error(`#${number}: sibling #${sibling} could not be read`);
+      const message = `#${number}: sibling #${sibling} could not be read`;
+      throw answer?.errors ? new Error(message) : incomplete(message);
     }
     const merged = node?.__typename === "PullRequest" && node.number === sibling && node.merged === true && node.repository?.nameWithOwner === repository && node.baseRefName === base;
     const slice = merged && node.closingIssuesReferences?.totalCount === 0 && (trustedHuman(node.author, humans) || lanesApp(node.author));
@@ -672,7 +679,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   const data = await (read ? read(variables) : github("POST", "/graphql", { query: SPEC_QUERY, variables }));
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
   if (!refs || !Array.isArray(refs.nodes) || refs.totalCount !== refs.nodes.length) {
-    throw new Error(`#${number}: the closing issues could not be read`);
+    throw incomplete(`#${number}: the closing issues could not be read`);
   }
   const trusted = (actor) => trustedHuman(actor, humans);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
@@ -684,7 +691,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     // Only an exact NOT_FOUND names nothing; a null without it is no answer.
     const node = answer?.data?.repository?.issueOrPullRequest;
     if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : node === null || typeof node !== "object") {
-      throw new Error(`#${number}: the Refs issue could not be read`);
+      const message = `#${number}: the Refs issue could not be read`;
+      throw answer?.errors ? new Error(message) : incomplete(message);
     }
     nodes = node?.__typename === "Issue" ? [node] : [];
   }
@@ -694,7 +702,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   for (const issue of issues) {
     const comments = issue.comments;
     if (!Array.isArray(comments?.nodes) || comments.totalCount !== comments.nodes.length) {
-      throw new Error(`#${issue.number}: the issue's comments could not be read`);
+      throw incomplete(`#${issue.number}: the issue's comments could not be read`);
     }
   }
   // The split sub-issues' bodies that count, by issue number.
@@ -709,12 +717,12 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     // padding the parent past the page, then deleting the padding).
     const read = (await github("POST", "/graphql", { query: PARENT_QUERY, variables: { owner, name, number: issue.number } }))?.data?.repository?.issue;
     if (read === null || typeof read !== "object" || !Object.hasOwn(read, "parent")) {
-      throw new Error(`#${issue.number}: the split parent could not be read`);
+      throw incomplete(`#${issue.number}: the split parent could not be read`);
     }
     const parent = read.parent;
     const here = parent?.repository?.nameWithOwner === repository;
     if (here && (!Array.isArray(parent.comments?.nodes) || parent.comments.totalCount !== parent.comments.nodes.length)) {
-      throw new Error(`#${issue.number}: the split parent's comments could not be read`);
+      throw incomplete(`#${issue.number}: the split parent's comments could not be read`);
     }
     const body = here ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId: laneAppId } }, humans, taskList) : null;
     if (body !== null) {
@@ -832,8 +840,8 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("not-a-passing-run");
   }
   // An unreadable draft state throws, as any other failed read here does: the
-  // run fails before its judgment, so it writes no verdict, and the lost-run
-  // reconciler re-runs it once (reconcile.mjs, the Lane kind).
+  // step holds before its judgment (closing), so it writes no verdict, and the
+  // lost-run reconciler re-runs it once (reconcile.mjs faultHeld).
   if (await draftRun(github, repository, upstreamRunId, readJobs)) {
     return skip("draft-run");
   }
@@ -902,7 +910,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   const titleIsIntent = async () => {
     const renames = specPull?.renames;
     if (!Array.isArray(renames?.nodes)) {
-      throw new Error("timelineItems could not be read");
+      throw incomplete("timelineItems could not be read");
     }
     const renamers = renames.pageInfo?.hasNextPage === true ? await titleRenamers(github, repository, pull.number) : renames.nodes.map((event) => event?.actor ?? null);
     return renamers.length === 0 || byAuthorOrPerson(renamers.at(-1)?.databaseId);
@@ -1160,12 +1168,13 @@ export const HELD_REASON = "held";
 export const HELD_STEP = "Note the hold";
 
 // The step's closing for the error main threw: a GitHub fault (isFault: a 5xx,
-// a 429, a rate-guard stop under API_BUDGET_HOLD, or no answer) holds green
-// with a `held: ` notice and proceed=false, so nothing is judged and the lost-run
-// reconciler re-runs the run once on its next pass (outage posture element 2);
-// any other error fails the step with failureAnnotation.
+// a 429, a rate-guard stop under API_BUDGET_HOLD, or no answer) or a 200 whose
+// completeness check failed (`incomplete`) holds green with a `held: ` notice
+// and proceed=false, so nothing is judged and the lost-run reconciler re-runs
+// the run once on its next pass (outage posture element 2); any other error
+// fails the step with failureAnnotation.
 export function closing(error) {
-  if (!isFault(error)) {
+  if (!isFault(error) && error?.incomplete !== true) {
     return { lines: [failureAnnotation(error)], outputs: null, code: 1 };
   }
   const why = `${error?.message ?? error}${detailSuffix(error)}`.replaceAll(/[\r\n%]/g, " ");

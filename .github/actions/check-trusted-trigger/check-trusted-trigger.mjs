@@ -295,6 +295,9 @@ export function retryServerErrors(
   };
 }
 
+// The key createGitHub keeps an answer's ETag under.
+export const ETAG = Symbol.for("github.etag");
+
 // One function every API read and write goes through; tests replace it.
 // keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
 // judge, instead of raising on any. A read answered 5xx is sent again
@@ -349,6 +352,12 @@ export function createGitHub({
     if (Array.isArray(json)) {
       Object.defineProperty(json, Symbol.for("github.link"), { value: response.headers.get("link") });
     }
+    // An answer keeps its ETag for a reader that reads it again conditionally
+    // (verifyRecordedRerun's listing). A 304 still throws GitHubError.
+    const etag = response.headers.get("etag");
+    if (etag && json !== null && typeof json === "object") {
+      Object.defineProperty(json, ETAG, { value: etag });
+    }
     return json;
   };
 }
@@ -384,7 +393,8 @@ export function commitPullsFromGraphQL(data) {
     list.pageInfo?.hasNextPage !== false ||
     list.nodes.some((node) => !Array.isArray(node?.labels?.nodes) || node.labels.pageInfo?.hasNextPage !== false)
   ) {
-    throw new Error("the commit's pull requests could not be read through GraphQL");
+    // A 200 cut short: `incomplete` tells a lane that holds on it (resolve-pr.mjs closing).
+    throw Object.assign(new Error("the commit's pull requests could not be read through GraphQL"), { incomplete: true });
   }
   return list.nodes.map((node) => ({
     number: node.number,
@@ -1028,6 +1038,30 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
   }
   const isListedHuman = (user) =>
     Number.isInteger(user?.id) && list.humans.has(user.id) && !deniedIds.has(user.id);
+  // Each listing page's ETag and the body it came with. The re-read sends the
+  // ETag (If-None-Match), and a 304, which GitHub does not count against the
+  // rate limit, gives back that body, judged again as it was (outage posture
+  // element 6). A page that came with no ETag is read again unconditionally.
+  const pagesSeen = new Map();
+  const readListing = async (apiPath) => {
+    const cached = pagesSeen.get(apiPath);
+    let body;
+    try {
+      body = await (cached ? github("GET", apiPath, undefined, { "If-None-Match": cached.etag }) : github("GET", apiPath));
+    } catch (error) {
+      if (cached && error instanceof GitHubError && error.status === 304) {
+        return cached.body;
+      }
+      throw new Stop(refuse);
+    }
+    if (!isPlainObject(body)) {
+      throw new Stop(refuse);
+    }
+    if (typeof body[ETAG] === "string") {
+      pagesSeen.set(apiPath, { etag: body[ETAG], body });
+    }
+    return body;
+  };
   // Anyone's run can upload an artifact of this name, so each candidate's run
   // is read and judged, at most RECORD_MAX_CANDIDATES of them per record name;
   // one that cannot be read does not vouch. A name past its cap returns null:
@@ -1084,7 +1118,7 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
       const name = recorder.name(runId, attempt, own.head_sha);
       const listingPath = `/repos/${repository}/actions/artifacts?name=${name}&per_page=100`;
       pages: for (let page = 1; page <= RECORD_MAX_PAGES; page += 1) {
-        const body = await readOrRefuse(github, `${listingPath}&page=${page}`, refuse);
+        const body = await readListing(`${listingPath}&page=${page}`);
         if (!Array.isArray(body.artifacts)) {
           throw new Stop(refuse);
         }

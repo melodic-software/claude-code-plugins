@@ -461,24 +461,69 @@ test("a refused upstream-run read's annotation carries the status, the rate-limi
 });
 
 // Outage posture element 2 (docs/outage-posture-audit.md): a GitHub fault (a
-// 5xx, a 429, a rate-guard stop, no answer) makes the verdict unknown, so the
-// step holds green with a `held: ` notice and judges nothing; any other error
-// is red, as before.
-test("a GitHub fault holds the resolver green with a held notice; a 404 or a short read stays red", () => {
+// 5xx, a 429, a rate-guard stop, no answer) or a 200 whose completeness check
+// fails makes the verdict unknown, so the step holds green with a `held: `
+// notice and judges nothing; any other error is red, as before.
+const assertHeld = (closed, why) => {
+  assert.equal(closed.code, 0, why);
+  assert.equal(closed.outputs, "proceed=false\nreason=held\n", why);
+  assert.equal(closed.lines.length, 1, why);
+  assert.match(closed.lines[0], /^::notice title=pr-verify::held: pr-verify could not resolve the pull request: /, why);
+};
+const assertRed = (closed, error) => {
+  assert.equal(closed.code, 1, error.message);
+  assert.equal(closed.outputs, null, error.message);
+  assert.deepEqual(closed.lines, [failureAnnotation(error)]);
+};
+
+test("a GitHub fault holds the resolver green with a held notice; a 404, a 403 or a hand-made error stays red", () => {
   const stop = Object.assign(new Error("GET /repos/x rate-limited until 12:00"), { name: "RateLimitStop" });
   const unanswered = Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
   for (const error of [new GitHubError(502, "GET /repos/x/actions/runs/1"), new GitHubError(429, "GET /repos/x/actions/runs/1"), stop, unanswered]) {
-    const closed = closing(error);
-    assert.equal(closed.code, 0, error.message);
-    assert.equal(closed.outputs, "proceed=false\nreason=held\n", error.message);
-    assert.equal(closed.lines.length, 1);
-    assert.match(closed.lines[0], /^::notice title=pr-verify::held: pr-verify could not resolve the pull request: /);
+    assertHeld(closing(error), error.message);
   }
   for (const error of [new GitHubError(404, "GET /repos/x/actions/runs/1"), new GitHubError(403, "GET /repos/x/actions/runs/1"), new Error("#7: the closing issues could not be read")]) {
-    const closed = closing(error);
-    assert.equal(closed.code, 1, error.message);
-    assert.equal(closed.outputs, null);
-    assert.deepEqual(closed.lines, [failureAnnotation(error)]);
+    assertRed(closing(error), error);
+  }
+});
+
+const thrown = (promise) => promise.then(() => assert.fail("resolved"), (error) => error);
+
+test("a 200 whose completeness check fails holds the resolver green with the held notice", async () => {
+  const cutComments = { ...ISSUE, comments: { totalCount: 101, nodes: [] } };
+  const cases = {
+    "closing issues shorter than their count": { issues: [ISSUE], github: (base) => async (method, apiPath, body) => {
+      const answer = await base(method, apiPath, body);
+      const refs = answer?.data?.repository?.pullRequest?.closingIssuesReferences;
+      return refs ? { data: { repository: { pullRequest: { ...answer.data.repository.pullRequest, closingIssuesReferences: { totalCount: 2, nodes: refs.nodes } } } } } : answer;
+    } },
+    "an issue's comments cut off": { issues: [cutComments] },
+    "jobs shorter than their count": { jobs: { total_count: 2, jobs: READY_JOBS.jobs } },
+    "a ci-status job with no draft step": { jobs: { total_count: 1, jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps: [] }] } },
+    "a Refs answer with no node": { issues: [], body: "Refs: #7", refs: { 7: { answer: { data: { repository: null } } } } },
+    "a GraphQL pulls fallback with more pages": { restFails: true, associated: [GRAPHQL_PULL], github: (base) => async (method, apiPath, body) => {
+      const answer = await base(method, apiPath, body);
+      return body?.query?.includes("associatedPullRequests") ? { data: { repository: { object: { associatedPullRequests: { nodes: [GRAPHQL_PULL], pageInfo: { hasNextPage: true } } } } } } : answer;
+    } },
+  };
+  for (const [name, { github: wrap, ...setup }] of Object.entries(cases)) {
+    const github = wrap ? wrap(fake(setup)) : fake(setup);
+    const error = await thrown(resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE }));
+    assertHeld(closing(error), `${name}: ${error.message}`);
+  }
+});
+
+test("a real defect still fails the resolver red", async () => {
+  // A malformed run id, a GraphQL error other than NOT_FOUND and the page cap
+  // are not a short answer, so a retry would meet them again.
+  const malformed = await thrown(resolvePull({ github: fake(), repository: REPO, upstreamRunId: "1;x" }));
+  assert.equal(malformed.message, "the upstream run id is not a run id");
+  const graphqlError = await thrown(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer: { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "INTERNAL" }] } } } }));
+  assert.equal(graphqlError.message, "#41: the Refs issue could not be read");
+  const capped = await thrown(resolve({ pulls: Array.from({ length: 100 * 100 + 1 }, (_, index) => pull({ number: 1000 + index, state: "closed" })) }));
+  assert.match(capped.message, /more than 100 pages/);
+  for (const error of [malformed, graphqlError, capped]) {
+    assertRed(closing(error), error);
   }
 });
 
