@@ -1,0 +1,86 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la pc-calibre/plugins/",
+            "description": "List the plugins copy"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ~/Downloads",
+            "description": "would curl the installer next"
+          }
+        }
+      ],
+      "why": "near miss: the word only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'Captured URL' /tmp/run-1/plugin/skills/manage/reference/versions.md"
+          }
+        }
+      ],
+      "why": "near miss: reads a pin, fetches nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd ~/Downloads && curl -L -o KindleForPC-installer-2.8.70980.exe \"https://kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe\""
+          }
+        }
+      ],
+      "why": "downloads the installer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "wget -q https://github.com/Satsuoni/DeDRM_tools/releases/download/v10.0.28/DeDRM_tools.zip"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -Command \"Invoke-WebRequest -Uri 'https://techy-notes.com/x.zip' -OutFile x.zip\""
+          }
+        }
+      ],
+      "why": "inside pwsh -Command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh release download -R Satsuoni/DeDRM_tools"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Your PC is pristine, so this is first-time setup. That has its own skill: open Claude Code on the PC and run `/kindle-dedrm:setup check`, then `/kindle-dedrm:setup apply`. It walks the download, install, sign-in checkpoint, firewall block and ICACLS lock, pausing for you at each hand-off. I won't download or install anything from this session."
+    },
+    {
+      "answer": "First-time provisioning belongs to /kindle-dedrm:setup. Run it on the Windows PC.",
+      "why": "bare command at the end of a sentence"
+    },
+    {
+      "answer": "Next: `/kindle-dedrm:setup apply download` on the PC fetches and SHA256-checks the three files.",
+      "why": "the download subaction"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run `/kindle-dedrm:manage setup` on the PC and it will walk you through everything.",
+      "why": "near miss: the router's own setup action, not the setup skill"
+    },
+    {
+      "answer": "Here is the setup: download Kindle for PC 2.8.0, install it, sign in, then add the DeDRM plugin to Calibre.",
+      "why": "provisions inline with no hand-off to the setup skill"
+    },
+    {
+      "answer": "Use the setup skill on your PC to get started.",
+      "why": "names no command the user can run"
+    },
+    {
+      "answer": "Run /kindle-dedrm:setups on the PC.",
+      "why": "a longer word"
+    }
+  ]
+}

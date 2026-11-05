@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "I can't mark those done on the exit codes: setup verifies each mutation by re-probing. Run `status.sh` on the PC and paste the output. Once it shows `firewall_rule: True` and `icacls_deny: applied`, the next step is the Calibre plugins (a GUI hand-off: KFX Input from Get new plugins, then DeDRM_plugin.zip from file)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Great, both exited 0, so the firewall block and the ICACLS lock are in place. Now the Calibre plugins: open Calibre, Preferences, Plugins, Get new plugins, filter KFX Input.",
+      "why": "marks the steps done on exit codes"
+    },
+    {
+      "answer": "Marked done. If you want, you can run status.sh later to double-check. Next: Calibre plugins.",
+      "why": "near miss: mentions the probe but marks the steps done first"
+    }
+  ]
+}

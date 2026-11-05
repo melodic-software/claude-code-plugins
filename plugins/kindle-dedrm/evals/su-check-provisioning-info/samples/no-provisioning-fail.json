@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Calibre | PASS | 8.4 installed |\n| Python | FAIL | `where python` finds only the WindowsApps stub; install Python 3.6+ from python.org and put it first on PATH |\n| pwsh | PASS | 7.5 |\n| Admin rights | PASS | available |\n| Kindle for PC | INFO | not installed yet; apply installs 2.8.0.70980 |\n| Firewall rule | INFO | not yet provisioned; run apply |\n| ICACLS deny | INFO | not yet provisioned; run apply |\n| Kindle_Key_Finder | INFO | absent; run apply |\n| Downloads | INFO | 0/3; run apply |\n| Cached installer | PASS | absent |\n| Calibre plugins | INFO | DeDRM absent, KFX Input absent |\n| dedrm.json | INFO | present (left over); contents not shown, it holds extracted keys |\n\nOne FAIL: fix Python, then run `/kindle-dedrm:setup apply`."
+    },
+    {
+      "answer": "| Python | FAIL | stub; reinstall before the downloads step |",
+      "why": "near miss: a FAIL row whose note mentions downloads"
+    },
+    {
+      "answer": "No row failed except Python.\n\n| Python | FAIL | WindowsApps stub |\n| Firewall rule | INFO | absent |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Firewall rule | FAIL | absent |",
+      "why": "firewall marked FAIL"
+    },
+    {
+      "answer": "| ICACLS deny | FAIL | n/a-no-dir |",
+      "why": "ICACLS marked FAIL"
+    },
+    {
+      "answer": "| Kindle_Key_Finder | Fail | absent |",
+      "why": "Key_Finder marked Fail"
+    },
+    {
+      "answer": "| Python | FAIL | stub |\n| Downloads | FAIL | 0/3 |",
+      "why": "downloads marked FAIL on the second row"
+    },
+    {
+      "answer": "Kindle for PC | INFO | absent\nKeyfinder | FAIL | not installed",
+      "why": "no outer pipes"
+    }
+  ]
+}

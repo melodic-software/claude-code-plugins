@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Next is the installer, and I'll stop after it.\n\nOn the PC, run `~/Downloads/KindleForPC-installer-2.8.70980.exe`:\n- UAC prompt: Yes\n- EULA: Accept\n- Install location: default\n- After install: **do NOT open Kindle yet**\n\nThen tell me the install finished (or paste the FileVersion of Kindle.exe, it should read 2.8.0.70980) and I'll give you the sign-in step. I'm not sending the rest now: the sign-in is the riskiest window, and an upgrade prompt there has to be refused before the firewall block goes on."
+    },
+    {
+      "answer": "Double-click KindleForPC-installer-2.8.70980.exe in Downloads.",
+      "why": "bare file name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the Kindle for PC installer from your Downloads folder.",
+      "why": "names no file"
+    },
+    {
+      "answer": "Download and run the latest KindleForPC-installer.exe from amazon.com.",
+      "why": "near miss: the auto-update installer name, no pinned version"
+    },
+    {
+      "answer": "Run KindleForPC-installer-2.9.1.71124.exe.",
+      "why": "wrong version"
+    }
+  ]
+}

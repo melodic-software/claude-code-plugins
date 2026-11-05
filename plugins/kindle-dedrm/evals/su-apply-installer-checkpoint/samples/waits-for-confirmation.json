@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "Then tell me the install finished (or paste the FileVersion of Kindle.exe, it should read 2.8.0.70980) and I'll give you the sign-in step."
+    },
+    {
+      "answer": "Reply here when the installer is done, and we go on to the sign-in window.",
+      "why": "reply"
+    },
+    {
+      "answer": "Let me know once it has completed.",
+      "why": "let me know"
+    },
+    {
+      "answer": "Paste the output of the version check and I'll continue: it should print 2.8.0.70980.",
+      "why": "asks for the version"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the installer, then open Kindle, sign in, sync, quit, enable the firewall rule, run lock-updates.sh, load the plugins and run the keyfinder.",
+      "why": "no stop"
+    },
+    {
+      "answer": "Here are all nine steps; work through them in order tonight.",
+      "why": "hands over everything"
+    },
+    {
+      "answer": "Tell me if you have questions.",
+      "why": "near miss: an open offer, not a wait on the install"
+    },
+    {
+      "answer": "Step 3: run KindleForPC-installer-2.8.70980.exe and wait for the installer to finish.\nCHECKPOINT: wait for user confirmation that installer completed.\nStep 4: open Kindle, refuse any upgrade prompt, sign in, sync, quit.\nStep 5: run New-NetFirewallRule in admin PowerShell.\nConfirm the rule is enabled, then run lock-updates.sh apply.",
+      "why": "near miss: a full dump whose own instructions say wait and confirm"
+    }
+  ]
+}
