@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No blocking findings.\n\nAdvisory (summary, no inline comment): src/names.js:2 formatName joins first and last with no check, so a customer with no last name renders as \"Ada undefined\". src/report.js:5 now calls it; src/profile.js already did on main, so this predates the PR.\n\nSummary: the report line is correct for the inputs it handles; one pre-existing defect it calls is listed as advisory for the author to place.",
+      "why": "names the defect, says it predates the PR, advisory in the summary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Blocking (inline on src/report.js:5): formatName renders \"Ada undefined\" for a customer with no last name. Fix before merge.",
+      "why": "pre-existing, non-severe defect reported as a blocking inline finding"
+    },
+    {
+      "answer": "No findings. src/report.js is clean.",
+      "why": "the called pre-existing defect is not reported at all"
+    }
+  ]
+}

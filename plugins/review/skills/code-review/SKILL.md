@@ -183,7 +183,7 @@ syntax.
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
 `manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
-`flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
+`flag` line is a finding: it counts in the review's findings total.
 
 Pointer: field semantics, the `options` floor, and how a saved value is read are at
 [plugin manifest reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration);
@@ -194,9 +194,9 @@ As of: 2026-11-04. Recheck trigger: that page changes a `userConfig` field's sem
 
 Scope the review to files changed in this PR: read the diff from "Inputs"
 below, then review those files. Reading the PR context file, the matching rule
-files, the tests that would cover a criterion, and a changed plugin's files when
-looking for what reads a new or changed `userConfig` key is in scope; do not explore
-other parts of the codebase.
+files, the tests that would cover a criterion, the unchanged code a changed line
+calls, and a changed plugin's files when looking for what reads a new or changed
+`userConfig` key is in scope; do not explore other parts of the codebase.
 
 Never restate the PR author's own claimed verification (e.g. a Test plan's
 described commands or output) as evidence you independently confirmed. Only
@@ -215,11 +215,30 @@ Read it from the file at head, or count it from the hunk header
 line, counted from `a` over context and `-` lines. Exclude:
 
 - Anything a linter, formatter, typechecker, or trivial static check catches
-- Pre-existing issues on untouched lines
+- Pre-existing issues on unchanged lines that no changed line calls
 - Generic advice, style nits, and "consider adding tests" without a concrete gap
 - Security findings that belong on the security lane (see "Gotchas" above)
 
 A `manifest <field>: flag` line is exempt from this bar: it counts as a finding as written.
+
+**Pre-existing defects.** A defect on an unchanged line that a changed line
+calls is reported when it already reproduces on the base branch, through a
+caller or input that existed before this change. Report it as an advisory
+finding in the summary comment: its `file:line` as a commit-blob permalink,
+the changed line that calls it, and that it predates this change. Post no
+inline comment for it, even where a hunk's context line could carry one, so
+it opens no thread and does not hold the merge; the PR author places it.
+Only a severe one this pull request can fix is a blocking finding: one that
+loses or corrupts data, crashes, or breaks a path users rely on, with a fix
+that fits this change and needs no planning pass of its own. Post it inline
+on the changed line that calls the defect, and link the defect's line from
+the comment.
+
+Provenance is the behavior on the base branch, never the file the defect sits
+in. A defect that did not reproduce before this change is one the change
+introduced, and it is an ordinary finding at its own severity: a changed
+contract that breaks an unchanged caller, a change that makes an existing
+defect worse, or a new call that first makes a defect reachable.
 
 **Settled points.** Before returning findings, drop a candidate whose point
 matches a thread in the settled-threads file ("Inputs") marked
