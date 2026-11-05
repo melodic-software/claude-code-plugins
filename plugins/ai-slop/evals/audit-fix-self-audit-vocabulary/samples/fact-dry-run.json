@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The CLI also has a new `--dry-run` flag that prints the row count without writing a file.",
+      "why": "keeps the --dry-run fact"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The CLI also has a new flag that prints the row count without writing a file.",
+      "why": "drops the flag name"
+    }
+  ]
+}

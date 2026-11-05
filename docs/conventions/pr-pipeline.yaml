@@ -1456,9 +1456,10 @@ merge:
   # judgment: long enough for a review round, short of the 90-day verdict.
   # This repository's app is claude-code-plugins, the control skill
   # .claude/skills/control-claude-code-plugins, which drives each changed
-  # plugin through harness-ops' control-claude-code.
+  # plugin through harness-ops' control-claude-code. It stays unset until the
+  # capture job puts `claude` on PATH: without it, every matched capture ends
+  # blocked while the judges wait on it (#12232).
   verify-capture:
-    app: claude-code-plugins
     retention-days: 30
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status

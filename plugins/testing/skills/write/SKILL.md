@@ -1,5 +1,5 @@
 ---
-description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection (including property, characterization and old-versus-new tests), project placement, and fixture patterns. Use when: the user wants tests written or coverage added for code ('test this', 'write a unit test'), asks where a test should go, or code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
+description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection (including property, characterization and old-versus-new tests), project placement, and fixture patterns. Use when: the user wants tests written or coverage added for code, new code included ('test this', 'write a unit test', 'add X with unit tests'), asks where a test should go, or code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
 argument-hint: "[task]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.16.11] - 2026-11-05
+
+### Changed
+
+- plugin-eval: the cloud-session route row now records why no run exists there and links the record.
+
 ## [0.16.10] - 2026-11-05
 
 ### Fixed
