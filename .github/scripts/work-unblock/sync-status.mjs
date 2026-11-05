@@ -59,9 +59,18 @@ export async function mirrorIssue({ github, repository, number, issue, config, t
     fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
     fieldSetters: await status.fieldSetters(github, repository, number),
   };
-  const labels = read?.labels ?? [];
-  const want = status.collapseStatus(labels, config);
-  if (status.issueStatus(facts, config, trustedActors) === want) {
+  const have = status.issueStatus(facts, config, trustedActors);
+  let labels = read?.labels ?? [];
+  let want = status.collapseStatus(labels, config);
+  // A listed issue's labels can be minutes old by its turn in the sweep, and a
+  // label-event run may have written the newer state since: read the issue
+  // again before writing, so a stale listing never reverts the field.
+  if (have !== want && issue) {
+    const fresh = await github("GET", `/repos/${repository}/issues/${number}`);
+    labels = fresh?.labels ?? [];
+    want = status.collapseStatus(labels, config);
+  }
+  if (have === want) {
     return { outcome: "unchanged", state: want };
   }
   return status.writeStatus({ github, repository, number, labels, config, log });

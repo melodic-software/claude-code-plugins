@@ -127,7 +127,26 @@ test("the sweep mirrors every open issue but pull requests, and counts wrote, un
   const result = await sweep({ ...args(github, writes), pause: async () => {}, log: (line) => lines.push(line) });
   assert.deepEqual([result.swept, result.wrote, result.unchanged, result.failed], [3, 1, 1, 1]);
   assert.deepEqual(writes, [[1, ["agent-ready"]]]);
-  assert.ok(lines.includes("swept 3: wrote 1, unchanged 1, failed 1 (6 calls)"), lines.join("\n"));
+  // The first listed issue's field differs from its listed labels, so it is read again before the write.
+  assert.ok(lines.includes("swept 3: wrote 1, unchanged 1, failed 1 (7 calls)"), lines.join("\n"));
+});
+
+test("the sweep reads a listed issue again before writing, so a stale listing never reverts a newer field", async () => {
+  // Listed with needs-triage; since the listing a label-event run moved the
+  // labels to agent-ready and wrote the field to match.
+  const { github: base, calls } = fakeGitHub({ 1: { labels: ["agent-ready"], field: 101, setter: TRUSTED_ID } });
+  const github = async (method, path, ...rest) => {
+    if (method === "GET" && /^\/repos\/o\/r\/issues\?state=open/.test(path)) {
+      calls.push(`${method} ${path}`);
+      return [{ number: 1, labels: [{ name: "needs-triage" }] }];
+    }
+    return base(method, path, ...rest);
+  };
+  const writes = [];
+  const result = await sweep({ ...args(github, writes), pause: async () => {}, log: () => {} });
+  assert.deepEqual([result.wrote, result.unchanged], [0, 1]);
+  assert.deepEqual(writes, []);
+  assert.ok(calls.includes("GET /repos/o/r/issues/1"));
 });
 
 test("a failed field write counts as failed, and the sweep stops at its call budget", async () => {
