@@ -85,6 +85,9 @@ jobs:
       # action installs; this job does not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 5
+        # A failed install leaves only the Work status field unwritten (the
+        # mirror warns); the label writes still run.
+        continue-on-error: true
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
