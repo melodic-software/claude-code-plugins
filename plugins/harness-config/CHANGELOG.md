@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.13] - 2026-11-05
+
+### Changed
+
+- The audit's skill-listing budget category and the audit pass's listing-drop gap route the per-skill question of which descriptions are dropped to `/harness-ops:audit-skill-visibility`.
+
 ## [3.0.12] - 2026-11-05
 
 ### Fixed

@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4] - 2026-11-05
+
+### Changed
+
+- `name-it-better`'s method sources point at `/playbooks:skill-authoring` `## Descriptions` for the shape of a skill description.
+
 ## [0.6.3] - 2026-11-03
 
 ### Changed
