@@ -27,6 +27,21 @@ no() {
   echo "FAIL - $1: $2"
 }
 
+# alive <pid>: the process still runs. A killed process answers `kill -0` until
+# its reaper collects it, often for a moment after its parent died too, so a gone
+# pid or a zombie (state Z) is not running; wait up to 2 s for one of the two.
+alive() {
+  local s i
+  for ((i = 0; i < 20; i++)); do
+    kill -0 "$1" 2>/dev/null || return 1
+    if IFS= read -r s 2>/dev/null <"/proc/$1/stat"; then
+      s=${s##*) }
+      [[ ${s%% *} == Z ]] && return 1
+    fi
+    sleep 0.1
+  done
+}
+
 # shim <name> <body>: an executable named <name> in the test's shim directory.
 SHIMS="$TEST_TMPDIR/shims"
 mkdir -p "$SHIMS"
@@ -77,7 +92,7 @@ rdt_bounded_to got 1 "$SHIMS/slow" "$TEST_TMPDIR/slow.pid" || rc=$?
 took=$((SECONDS - start))
 if ((rc == 124)); then ok 'expiry answers 124'; else no 'expiry answers 124' "rc=$rc"; fi
 if ((took <= 3)); then ok 'expiry returns on time'; else no 'expiry returns on time' "${took}s"; fi
-if kill -0 "$(<"$TEST_TMPDIR/slow.pid")" 2>/dev/null; then
+if alive "$(<"$TEST_TMPDIR/slow.pid")"; then
   no 'expiry kills the command' "pid $(<"$TEST_TMPDIR/slow.pid") alive"
 else
   ok 'expiry kills the command'
@@ -94,7 +109,7 @@ if ((rc == 124 && took <= 3)); then
 else
   no 'a closed stdout does not end the bound' "rc=$rc after ${took}s"
 fi
-if kill -0 "$(<"$TEST_TMPDIR/closes.pid")" 2>/dev/null; then
+if alive "$(<"$TEST_TMPDIR/closes.pid")"; then
   no 'a closed stdout command is killed' "pid alive"
 else
   ok 'a closed stdout command is killed'
@@ -112,7 +127,7 @@ if ((rc == 124 && took <= 3)); then
 else
   no 'a child started without exec does not outlast the bound' "rc=$rc after ${took}s"
 fi
-if kill -0 "$(<"$TEST_TMPDIR/wraps.pid")" 2>/dev/null; then
+if alive "$(<"$TEST_TMPDIR/wraps.pid")"; then
   no 'a child started without exec is killed' "pid alive"
 else
   ok 'a child started without exec is killed'
@@ -175,7 +190,7 @@ too_slow() {
     no "$1: the guard refuses as too slow" "rc=$rc: $out"
   fi
   if ((took < 30)); then ok "$1: the refusal comes before the process would end"; else no "$1: the refusal comes before the process would end" "${took}s"; fi
-  if [[ -s "$pidfile" ]] && kill -0 "$(<"$pidfile")" 2>/dev/null; then
+  if [[ -s "$pidfile" ]] && alive "$(<"$pidfile")"; then
     no "$1: the slow process is gone" "pid alive"
   else
     ok "$1: the slow process is gone"
