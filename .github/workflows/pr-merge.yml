@@ -2499,13 +2499,7 @@ jobs:
       # 5) and `settle --idle-tick` keeps, so a verifying run or canary that
       # moved since its computedAt, changed quarantine markers or pins, or
       # any hold the report carries refuses it (postmerge.idle_refusal).
-      # A report that refuses on what it found (exit 1, or an idle refusal
-      # such as needs-dispatch, not its age or a failed read) while nothing
-      # it read has moved, no verifying run created or re-run since included
-      # (`refusal-stands`), stands only as that refusal: a fresh check would
-      # refuse too, so none runs, and the step removes it, so the wake arms
-      # and disarms nothing, as on a refused fresh check. No other report
-      # that does not stand is reused: the step removes it
+      # A report that does not stand is never reused: the step removes it
       # and runs the sweep's post-merge check fresh, as post-merge-dispatch
       # does when its idle tick refuses, with this job's read-only token (the
       # check writes nothing without --remediate). The fresh report stands
@@ -2541,7 +2535,7 @@ jobs:
           set -uo pipefail
           last=$RUNNER_TEMP/post-merge
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
-          kept=false fresh='' reason='' refusal='' standing='' last_code='' last_sha=''
+          kept=false fresh='' reason=''
           settle() {
             python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
               --postmerge-result "$last/post-merge.json" --code-sha "$@"
@@ -2555,17 +2549,7 @@ jobs:
           fi
           if [ "$kept" = true ]; then
             echo "the last sweep's post-merge report still stands: nothing it reads has moved"
-          elif [[ $last_code =~ ^[015]$ ]] &&
-            standing=$(python3 "$scripts/babysit_verify_evidence.py" refusal-stands --repo "$REPO" \
-              --postmerge-result "$last/post-merge.json" --code-sha "$last_sha"); then
-            refusal=$(jq -r '.refusal // ""' <<<"$standing" 2>/dev/null) || refusal=''
-            refusal=${refusal:-unnamed}
-            computed=$(jq -r '.computedAt // ""' <<<"$standing" 2>/dev/null) || computed=''
-            rm -rf "${last:?}"
-            echo "::notice::the last sweep's post-merge report (exit $last_code, computed $computed) refuses on its own content ($refusal) and nothing it read has moved since, so a fresh check would refuse it too and is not run; nothing is armed or disarmed, and the next sweep checks again"
           else
-            # Why the last report's refusal does not stand, when it refused.
-            [ -z "$standing" ] || echo "$standing"
             [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             rm -rf "${last:?}"
             mkdir -p "$last"
@@ -2603,7 +2587,6 @@ jobs:
             echo "stands=$kept"
             echo "fresh=$fresh"
             echo "fresh-reason=${reason//[$'\r\n']/ }"
-            echo "refusal-stands=${refusal//[$'\r\n']/ }"
           } >>"$GITHUB_OUTPUT"
 
       # While merge.report-only is anything but false it reports each
@@ -2770,7 +2753,6 @@ jobs:
           FRESH: ${{ steps.keep-report.outputs.fresh }}
           FRESH_REASON: ${{ steps.keep-report.outputs.fresh-reason }}
           FRESH_STARTED: ${{ steps.keep-report.outputs.fresh-started }}
-          REFUSAL_STANDS: ${{ steps.keep-report.outputs.refusal-stands }}
           CALLS: ${{ steps.budget-end.outputs.calls }}
         run: |
           if [ -z "$OUTCOME" ]; then
@@ -2780,8 +2762,6 @@ jobs:
               OUTCOME="skipped: the who step stopped it"
             elif [ "$SUPERSEDED" = true ]; then
               OUTCOME="skipped: a waiting run does this work"
-            elif [ "$STANDS" = false ] && [ -n "$REFUSAL_STANDS" ]; then
-              OUTCOME="skipped: the last sweep's report still refuses ($REFUSAL_STANDS) and nothing it read has moved"
             elif [ -z "$FRESH" ] && [ "$FRESH_STARTED" = true ]; then
               OUTCOME="skipped: the fresh post-merge check did not finish (timeout or cancel)"
             elif [ "$STANDS" = false ] && [ "$FRESH" = 75 ]; then

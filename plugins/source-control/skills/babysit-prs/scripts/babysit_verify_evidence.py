@@ -4811,49 +4811,6 @@ def _settle_reason(
     )
 
 
-def _refusal_stands(repo: str, path: str, code_sha: str) -> int:
-    """`refusal-stands`: whether an earlier tick's post-merge report at `path`,
-    its check run by the code at commit `code_sha`, refuses on what it found
-    (`postmerge.content_refusal`) with nothing it was read from moved since
-    (`postmerge.refusal_moved`), so a check run now would refuse too and need
-    not run. The content is judged before any read. Prints `{"stands",
-    "refusal", "computedAt", "reason"}`, `reason` why it does not stand;
-    exit 0 when it stands, else 1, and the caller runs the check."""
-    shared = postmerge.read_shared(path)
-    refusal: str | None = None
-    reason: str | None
-    if shared is None:
-        reason = "post-merge answer missing or unreadable"
-    elif not merge_policy.check_code_unchanged(code_sha):
-        reason = "post-merge answer code-changed"
-    elif (refusal := postmerge.content_refusal(shared)) is None:
-        reason = "no refusal of its own content"
-    else:
-        try:
-            default = merge_policy._default_branch(repo, shared=True)
-            config = merge_policy._default_branch_config(repo, default)
-            reason = postmerge.refusal_moved(
-                repo,
-                shared,
-                default,
-                identity=config.agent_identity,
-                confirm_wait_minutes=config.confirm_wait_minutes,
-            )
-        except (RuntimeError, ValueError, OSError) as exc:
-            reason = f"unreadable: {exc}"
-    print(
-        json.dumps(
-            {
-                "stands": reason is None,
-                "refusal": refusal,
-                "computedAt": shared and shared.computed_at.isoformat(),
-                "reason": reason,
-            }
-        )
-    )
-    return 0 if reason is None else 1
-
-
 # GitHub refuses a comment body over 65536 characters; the findings are cut
 # to leave room for the framing (judgment).
 FINDINGS_MAX = 60000
@@ -6132,12 +6089,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
     earlier tick's report, which must also pass `postmerge.idle_refusal`;
     `--fresh` with it, for a report this job's check just made, skips that
-    rule's verifying runs (`idle_runs_refusal`).
-
-    `refusal-stands --repo R --postmerge-result <file> --code-sha <sha>`:
-    whether an earlier tick's report refuses on its own content with nothing
-    it read moved since, so pr-merge's PR-scoped wake refuses as it does
-    without running the check (`_refusal_stands`)."""
+    rule's verifying runs (`idle_runs_refusal`)."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -6177,10 +6129,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
     settle.add_argument("--fresh", action="store_true")
-    stands = sub.add_parser("refusal-stands", allow_abbrev=False)
-    stands.add_argument("--repo", required=True)
-    stands.add_argument("--postmerge-result", required=True)
-    stands.add_argument("--code-sha", required=True)
     legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
     legacy.add_argument("--repo", required=True)
     legacy.add_argument("--branch", default="main")
@@ -6218,8 +6166,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             idle=args.idle_tick,
             fresh=args.fresh,
         )
-    if args.command == "refusal-stands":
-        return _refusal_stands(args.repo, args.postmerge_result, args.code_sha)
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(
