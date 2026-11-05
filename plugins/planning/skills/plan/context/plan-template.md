@@ -7,6 +7,7 @@
 - [Choosing the Right Scale](#choosing-the-right-scale)
 - [Script Repeatable Operations (default deliverable)](#script-repeatable-operations-default-deliverable)
 - [Sanity-Check Format (per-phase)](#sanity-check-format-per-phase)
+- [Shape fences (per-phase)](#shape-fences-per-phase)
 - [Sub-Topic Promotion Trigger](#sub-topic-promotion-trigger)
 - [Execution-shape analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
@@ -215,6 +216,21 @@ Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be 
 - ~~"Convention applied correctly"~~
 
 When in doubt, surface the exact command a reviewer would run.
+
+## Shape fences (per-phase)
+
+A phase shows which code changes in a `shape` fence, anchored to the code it touches:
+
+````markdown
+```shape <path>[#<symbol>][ L<n>]
+<one shape>
+```
+````
+
+- **Forms.** The body is one of `/visualization:visualize`'s code-shape sketches: a call tree, a shallow file tree, or a diff-shaped delta over one of them.
+- **Anchor.** `<path>` is from the repository root. A file path takes `#<symbol>`, a token with no spaces that occurs as a whole word in the file; a directory path needs none, and a symbol it carries is searched for in that directory. `L<n>` is optional and names the line the symbol is on.
+- **Level.** The shape says where the change goes and what calls what. Types, signatures and contracts belong to `## Design`; a phase cites the Design subsection rather than restating them.
+- **Checked.** The Step 4.7 citation gate fails an anchor whose path is missing (`shape-missing-path`), whose symbol is absent (`shape-missing-symbol`), whose `L<n>` is past the file's end (`shape-past-end`), that puts `L<n>` on a directory or names a submodule (`shape-not-a-file`), or that does not parse (`shape-malformed`). It warns (`shape-line`) when line `<n>` lacks the symbol. Only an outermost fence is checked, so quote a shape example inside a longer fence.
 
 ## Sub-Topic Promotion Trigger
 
