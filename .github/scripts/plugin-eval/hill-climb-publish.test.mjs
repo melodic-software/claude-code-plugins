@@ -11,7 +11,7 @@ import process from "node:process";
 import { test } from "node:test";
 
 import { netRawDiff } from "../upstream-apply-changelog/upstream-apply-changelog.mjs";
-import { BRANCH_PREFIX, bodyOf, branchOf, diffRefusal, existingHead, fragmentOf, openDraft, SPEC_ISSUE, titleOf } from "./hill-climb-publish.mjs";
+import { BRANCH_PREFIX, bodyOf, branchOf, diffRefusal, existingHead, fragmentOf, frontmatterOf, frontmatterRefusal, openDraft, SPEC_ISSUE, titleOf } from "./hill-climb-publish.mjs";
 
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
@@ -57,6 +57,33 @@ test("the fragment is named as new-changelog-fragment.sh names one, and the same
 const ctx = { plugin: "testing", skill: "write", fragment: ".changes/testing/f-12345678.md" };
 const edit = (path) => `:100644 100644 ${SHA_A} ${SHA_B} M\t${path}`;
 const added = (path, mode = "100644") => `:000000 ${mode} ${"0".repeat(40)} ${SHA_B} A\t${path}`;
+
+test("frontmatterOf takes the block between the opening --- lines, and nothing from a file without one", () => {
+  assert.equal(frontmatterOf("---\nname: write\nallowed-tools: Read\n---\n\n# Write\n"), "---\nname: write\nallowed-tools: Read\n---\n");
+  assert.equal(frontmatterOf("# Write\n\n---\n\nbody\n"), "");
+  assert.equal(frontmatterOf(""), "");
+});
+
+test("an edit that changes a skill file's frontmatter is refused; a body-only edit passes", () => {
+  const files = {
+    "base:SKILL.md": "---\nname: write\nallowed-tools: Read\n---\n\nOld body.\n",
+    "body:SKILL.md": "---\nname: write\nallowed-tools: Read\n---\n\nNew body.\n",
+    "tools:SKILL.md": "---\nname: write\nallowed-tools: Read, Bash\n---\n\nOld body.\n",
+    "hook:SKILL.md": "---\nname: write\nallowed-tools: Read\nhooks:\n  PreToolUse: [{ command: \"curl x\" }]\n---\n\nOld body.\n",
+    "base:ref.md": "No frontmatter here.\n",
+    "added:ref.md": "---\nhooks: x\n---\nNo frontmatter here.\n",
+  };
+  const show = (ref, path) => files[`${ref}:${path}`];
+  assert.equal(frontmatterRefusal(["SKILL.md"], show, "base", "body"), null);
+  assert.equal(frontmatterRefusal(["SKILL.md"], show, "base", "tools"), "a frontmatter change in SKILL.md");
+  assert.equal(frontmatterRefusal(["SKILL.md"], show, "base", "hook"), "a frontmatter change in SKILL.md");
+  assert.equal(frontmatterRefusal(["ref.md"], show, "base", "added"), "a frontmatter change in ref.md");
+});
+
+test("the draft body says the frontmatter is unchanged", () => {
+  const body = bodyOf({ plugin: "testing", skill: "write", runUrl: "https://example.invalid/run", winTest: "w", summaryA: "a", summaryB: "b", fragment: ctx.fragment });
+  assert.match(body, /markdown body only; its frontmatter is unchanged/);
+});
 
 test("the pushed diff may hold only edits to the skill's markdown and the one new fragment", () => {
   assert.equal(diffRefusal([edit("plugins/testing/skills/write/SKILL.md"), added(ctx.fragment)].join("\n"), ctx, noHold), null);

@@ -4,7 +4,8 @@
 // the pull request text is written here from the verdict job's scripted results.
 //
 //   push     applies edit.patch to a checkout of the base, adds a fixed changelog fragment, checks
-//            the result changes only the skill's markdown and that fragment, and recreates it as one
+//            the result changes only the skill's markdown body (never its frontmatter) and that
+//            fragment, and recreates it as one
 //            lanes App commit on chore/hill-climb-<plugin>-<skill>-<run id> (mutate-branch)
 //   body     writes the draft pull request's title and body from the win's files (no token)
 //   publish  opens that branch's pull request as a draft, unless it has one (publish-artifact)
@@ -78,6 +79,20 @@ export function diffRefusal(raw, { plugin, skill, fragment }, holdPath = changes
   return null;
 }
 
+// A markdown file's frontmatter block: the text from an opening `---` line to the next `---` line,
+// or "" when the file has none. Frontmatter is configuration (hooks, allowed-tools), not prose.
+export function frontmatterOf(text) {
+  const match = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(text);
+  return match ? match[0] : "";
+}
+
+// Why an edit may not be pushed because it changes a file's frontmatter, or null. `show(ref, path)`
+// returns the file's text at that commit.
+export function frontmatterRefusal(paths, show, baseRef, headRef) {
+  const changed = paths.find((path) => frontmatterOf(show(baseRef, path)) !== frontmatterOf(show(headRef, path)));
+  return changed ? `a frontmatter change in ${changed}` : null;
+}
+
 // A backtick fence longer than any run of backticks in `text`, so the text cannot close it.
 const fenced = (text) => {
   const longest = Math.max(2, ...[...text.matchAll(/`+/g)].map(([run]) => run.length));
@@ -99,7 +114,7 @@ export function bodyOf({ plugin, skill, runUrl, winTest, summaryA, summaryB, fra
     "",
     "## Fix",
     "",
-    `- The edit the run measured, as the scan job checked it: changes to the skill's markdown only.`,
+    `- The edit the run measured, as the scan job checked it: changes to the skill's markdown body only; its frontmatter is unchanged.`,
     `- \`${fragment}\`: a patch bump.`,
     "",
     "## Verification",
@@ -169,7 +184,10 @@ async function push(env) {
   const title = titleOf(plugin, skill);
   git(repo, ["-c", "user.name=maintenance-measure-skill-edit", "-c", "user.email=maintenance-measure-skill-edit@users.noreply.github.com", "-c", "core.hooksPath=/dev/null", "commit", "--quiet", "--no-verify", "-m", title]);
   const commit = git(repo, ["rev-parse", "HEAD"]);
-  const refusal = diffRefusal(netRawDiff(repo, baseSha, commit), { plugin, skill, fragment: fragment.path });
+  const raw = netRawDiff(repo, baseSha, commit);
+  const skillPaths = raw.split("\n").filter((line) => line.startsWith(":")).map((line) => line.split("\t")[1]).filter((path) => path !== fragment.path);
+  const show = (ref, path) => git(repo, ["show", `${ref}:${path}`]);
+  const refusal = diffRefusal(raw, { plugin, skill, fragment: fragment.path }) ?? frontmatterRefusal(skillPaths, show, baseSha, commit);
   if (refusal) throw new Error(`the edit is refused: ${refusal}`);
   const headTree = git(repo, ["rev-parse", `${commit}^{tree}`]);
   let head = await existingHead(api, repository, branch, headTree);
