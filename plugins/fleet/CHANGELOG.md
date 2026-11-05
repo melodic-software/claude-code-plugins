@@ -3,6 +3,14 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.19] - 2026-11-05
+
+### Fixed
+
+- `/fleet:reach` says a lane's session listing shows only that lane, so a request naming a machine lists each of its lanes (#12908).
+- `/fleet:reach` points a receiver that must stay up at a background session, links the docs section on when a `-p` run ends, and asks for standing instructions that say what to do with each message and when to stop (#12908).
+- `/fleet:reach` gives one PowerShell quoting rule, for its PowerShell tool and a PowerShell window alike, that passes an apostrophe intact on Windows PowerShell 5.1 and pwsh 7, in place of `-p "..."`, which 5.1 cuts to its first word (#12908).
+
 ## [0.2.18] - 2026-11-04
 
 ### Fixed
