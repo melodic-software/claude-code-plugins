@@ -1,0 +1,11 @@
+"""`bfk app start`: start the brackenfold app server in the background."""
+
+import subprocess
+import sys
+
+
+def start():
+    # Default stdio, so the server's logs show up in the terminal.
+    subprocess.Popen([sys.executable, "-m", "bfk.server"])
+    print("started")
+    return 0

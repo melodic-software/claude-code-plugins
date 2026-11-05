@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {"answer": "It hangs because `bfk/app.py:9` starts the server with `subprocess.Popen` and default stdio, so the server inherits the command's stdout and stderr. In `scripts/deploy.sh` that stdout is the pipe into `logger`. `bfk app start` exits, but the server still holds the write end of the pipe open, so `logger` never sees EOF and the step waits forever."},
+    {"answer": "Cause: the child process inherits the caller's stdout/stderr handles. When the caller is a pipe, the long-running server keeps the pipe open after the parent returns, and the pipeline waits for end of input that never comes."},
+    {"answer": "The app server is a child holding your pipe: Popen with no stdio arguments hands it the deploy step's stdout, and since the server never exits, the log collector reading that pipe never gets end-of-file."}
+  ],
+  "fail": [
+    {"answer": "It hangs because Python buffers stdout when it is a pipe, so `started` is never flushed to the log collector. Add `flush=True` to the print.", "why": "near miss: buffering as the cause"},
+    {"answer": "The command never waits for the server, so the deploy step can't tell when it's done. Call `proc.wait()`.", "why": "near miss: a missing wait as the cause"},
+    {"answer": "The server runs `while True` forever, so anything that starts it never finishes.", "why": "near miss: the loop alone, no pipe"},
+    {"answer": "The child inherits the caller's stdin, and since the deploy step's stdin is never closed, the server blocks waiting for input.", "why": "near miss: inherited stdin as the cause"},
+    {"answer": "`set -o pipefail` in deploy.sh makes the step wait for every command in the pipeline, including `logger`, which never exits.", "why": "near miss: pipefail as the cause"},
+    {"answer": "The parent process `bfk app start` never exits because Popen keeps it alive until the child ends.", "why": "near miss: says the parent never returns"},
+    {"answer": "The child inherits the caller's stdout and stderr. That breaks the contract, so redirect them.", "why": "near miss: names the inheritance but not why the pipe stays open and the step waits"},
+    {"answer": "`logger -t brackenfold` waits on syslog, and syslog is not reachable in the deploy environment, so the step blocks.", "why": "near miss: blames the log collector"}
+  ]
+}

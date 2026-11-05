@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {"answer": "Start it with `start_new_session=True` and the three streams redirected, so it is detached from the caller."},
+    {"answer": "Detach the server from the caller: run it in its own session (`setsid`), with stdin, stdout and stderr on /dev/null or a log file."},
+    {"answer": "On Windows use `creationflags=subprocess.DETACHED_PROCESS`; elsewhere `start_new_session=True`, so the caller does not wait on it."}
+  ],
+  "fail": [
+    {"answer": "Redirect stdin, stdout and stderr to DEVNULL. That is enough.", "why": "near miss: redirect only, no detach"},
+    {"answer": "Call `proc.wait()` after Popen so the command finishes cleanly.", "why": "near miss: waits for the child"},
+    {"answer": "Use `subprocess.run` instead of Popen so the command reports the server's exit code.", "why": "near miss: runs it in the foreground"},
+    {"answer": "In deploy.sh, run `python3 -m bfk.cli app start | logger -t brackenfold &`.", "why": "near miss: backgrounds the pipeline with &"},
+    {"answer": "Use `proc.communicate()` to read the server's output, then return.", "why": "near miss: waits on the child's output"},
+    {"answer": "Send the server's output to a log file instead of the terminal.", "why": "near miss: redirect only"},
+    {"answer": "Pass `close_fds=True` to Popen.", "why": "near miss: closes extra descriptors, does not detach"},
+    {"answer": "Keep the server attached so Ctrl-C stops it with the deploy step.", "why": "near miss: argues against detaching"}
+  ]
+}

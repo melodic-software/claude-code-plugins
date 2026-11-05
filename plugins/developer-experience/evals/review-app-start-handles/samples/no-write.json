@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Grep", "input": {"pattern": "Popen", "path": "/tmp/run-1/work/bfk"}}],
+      "why": "searched the source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/run-1/work/bfk/app.py", "content": "import subprocess\n"}}],
+      "why": "near miss: rewrote the command it was asked only to review"
+    }
+  ]
+}
