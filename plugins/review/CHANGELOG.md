@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.4.0] - 2026-11-05
+
+### Changed
+
+- `/review:code-review` reports a pre-existing defect on an unchanged line that a changed line calls, instead of excluding it: as an advisory summary finding with no inline comment, so it never holds the merge, and the PR author places it. Only a severe one (data loss or corruption, a crash, a broken path users rely on) that the pull request can fix is a blocking inline finding, anchored on the changed line that calls it. A defect that did not reproduce on the base branch stays an ordinary finding the change introduced. Issues on unchanged lines that no changed line calls stay excluded.
+
 ## [7.3.10] - 2026-11-05
 
 ### Changed
