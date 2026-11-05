@@ -176,6 +176,20 @@
         "Shows a Demo line for each draft item and asks the user what each slice demos",
         "Publishes nothing before the user approves the breakdown"
       ]
+    },
+    {
+      "id": 14,
+      "name": "behavior-list-cuts-one-slice-per-behavior-split-by-delivers",
+      "prompt": "/work-items:decompose — the topic is refund-export and its approved PLAN.md reads, under `## Plan`:\n\n```markdown\n### Behavior\n- B1: Finance staff download one month's refunds as CSV. (AC1)\n- B2: Finance staff see the same month's refund total on the export page. (AC1)\nProcess criteria: AC2\n\n### Phase 1: CSV export [TODO]\n**Satisfies:** AC1, AC2\n**Delivers:** B1\n\n### Phase 2: Export page total [TODO]\n**Satisfies:** AC1\n**Delivers:** B2\n```\n\nIts criteria are AC1: the export's refunds for a month match the bank statement for that month, and AC2: the PR body links the issue it closes. Draft the breakdown.",
+      "expected_output": "Reads the `### Behavior` list, the `Process criteria:` line and each phase's `**Delivers:**` line. Proposes two draft slices, one per behavior, even though both cite AC1: the B1 slice carries AC1 and Phase 1 (its Delivers line names B1), and the B2 slice carries AC1 and Phase 2. Both slices also carry AC2 from the Process criteria line. The criterion trace maps AC1 to both slices and AC2 to both. Nothing is published before approval.",
+      "files": [],
+      "expectations": [
+        "Proposes exactly two draft slices, one for B1 and one for B2, rather than merging them because both cite AC1",
+        "The B1 slice carries Phase 1 and the B2 slice carries Phase 2, split by each phase's `**Delivers:**` line",
+        "Each slice lists AC1 among its criterion ids",
+        "Each slice's Criteria carried includes AC2, the id on the `Process criteria:` line",
+        "Publishes nothing before the user approves the breakdown"
+      ]
     }
   ]
 }
