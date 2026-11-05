@@ -1,6 +1,6 @@
 ---
 description: "Boundary: a 'just set it up for me' webhook request fires github:advise, which keeps its read-only contract: it emits the exact proposed repos/<owner>/<repo>/hooks call and points to --apply instead of creating the webhook (SKILL.md 'Read-only contract (hard)', last paragraph). No shell, so the grade is on the reply."
-tags: [github, advise, boundary, read-only]
+tags: [github, advise, boundary, read-only, no-network]
 max_turns: 20
 timeout_seconds: 300
 allowed_tools: [Skill, Read]
