@@ -2147,20 +2147,47 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 // (intake-triage.yml and pr-review-cli.yml from v0.65.12, ci-workflows#890),
 // or a job that runs the fallback leg itself, passing it to run-claude-cli as
 // fallback-token, to the read runner as its third call's
-// fallback-claude-code-oauth-token, or to a `claude plugin eval` leg's claude
-// steps as CLAUDE_CODE_OAUTH_TOKEN; or a call of the eval pass workflow, which
-// runs that leg. Any job may ask only whether it is set.
+// fallback-claude-code-oauth-token, or to a `claude plugin eval` leg's eval
+// and probe steps, and no other step, as CLAUDE_CODE_OAUTH_TOKEN; or a call of
+// the eval pass workflow, which runs that leg. Any job may ask only whether it
+// is set.
 const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@main$/;
 const EVAL_PASS_REUSABLE = "./.github/workflows/eval-hill-climb-pass.yml";
 const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
+// A plugin eval leg's claude steps: the `claude plugin eval` run, and the
+// policy probe (step id `probe`, a `claude -p`) in a job that runs one.
+const EVAL_RUN = /^\s*claude plugin eval /m;
+const isEvalLegStep = (step, job) =>
+  isLauncherStep(step, "claude-cli") &&
+  (EVAL_RUN.test(step.run) || (step.id === "probe" && /^\s*claude -p /m.test(step.run) && (job.steps ?? []).some((s) => EVAL_RUN.test(String(s.run ?? "")))));
+// The fallback token reaches only a plugin eval leg's claude steps, as their
+// CLAUDE_CODE_OAUTH_TOKEN; any other step that reads it disqualifies the job.
+const evalLegReadsFallback = (job) => {
+  const readers = (job.steps ?? []).filter((step) => claudeReads(withoutPresenceChecks(step)).includes(FALLBACK_SECRET));
+  return readers.length > 0 && readers.every((step) => isEvalLegStep(step, job) && step.env?.CLAUDE_CODE_OAUTH_TOKEN === FALLBACK_VALUE);
+};
 const readsFallback = (job) =>
   (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
   (job.uses === EVAL_PASS_REUSABLE && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
   (job.steps ?? []).some((step) => isLauncherStep(step, "run-claude-cli") && step.with?.["fallback-token"] === FALLBACK_VALUE) ||
-  (job.steps ?? []).some((step) => isLauncherStep(step, "claude-cli") && step.env?.CLAUDE_CODE_OAUTH_TOKEN === FALLBACK_VALUE) ||
+  evalLegReadsFallback(job) ||
   (job.uses === READ_RUNNER && job.with?.fallback === "fallback" && job.secrets?.["fallback-claude-code-oauth-token"] === FALLBACK_VALUE) ||
   (claudeReads(job).includes(FALLBACK_SECRET) && !claudeReads(withoutPresenceChecks(job)).includes(FALLBACK_SECRET));
+test("the fallback token is allowed only in a plugin eval leg's eval and probe steps", () => {
+  const token = { CLAUDE_CODE_OAUTH_TOKEN: FALLBACK_VALUE };
+  const evalStep = { name: "Run the pass", env: token, run: "set -e\nclaude plugin eval x --json r.json" };
+  const probe = { name: "Probe", id: "probe", env: token, run: 'claude -p "probe" --output-format stream-json' };
+  const other = { name: "Ask", env: token, run: 'claude -p "summarize the diff"' };
+  const presence = { name: "Check", env: { P: `\${{ secrets.${FALLBACK_SECRET} != '' }}` }, run: "true" };
+  assert.equal(readsFallback({ steps: [presence, probe, evalStep] }), true, "an eval leg");
+  assert.equal(readsFallback({ steps: [evalStep] }), true, "an eval leg with no probe");
+  assert.equal(readsFallback({ steps: [other] }), false, "a claude -p step that runs no eval");
+  assert.equal(readsFallback({ steps: [probe] }), false, "a probe in a job that runs no eval");
+  assert.equal(readsFallback({ steps: [probe, evalStep, other] }), false, "an eval leg with another step on the token");
+  assert.equal(readsFallback({ steps: [{ ...evalStep, env: { ANY_NAME: FALLBACK_VALUE } }] }), false, "the token under another name");
+});
+
 test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
   const jobs = claudeSecretJobs();
   for (const { role, lane, key } of catalogLanes()) {
