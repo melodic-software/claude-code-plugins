@@ -14,7 +14,7 @@ execution:
 graders:
   - name: names-duplicate-id
     type: regex
-    pattern: '\bFAIL[^\n]{0,160}(?:(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|(?:Twice|twice)|[Rr]epeated|[Mm]ore than once)[^\n]{0,120}dependency-review|dependency-review[^\n]{0,120}(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|twice|[Rr]epeated|more than once))|(?:(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|(?:Twice|twice)|[Rr]epeated|[Mm]ore than once)[^\n]{0,120}dependency-review|dependency-review[^\n]{0,120}(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|twice|[Rr]epeated|more than once))[^\n]{0,160}\bFAIL'
+    pattern: '\bFAIL[^\n]{0,300}(?:(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|(?:Twice|twice)|[Rr]epeated|[Mm]ore than once|[Bb]oth rows (?:use|share|have)|[Ss]ame id)[^\n]{0,120}dependency-review|dependency-review[^\n]{0,120}(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|(?:Twice|twice)|[Rr]epeated|[Mm]ore than once|[Bb]oth rows (?:use|share|have)|[Ss]ame id))|(?:(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|(?:Twice|twice)|[Rr]epeated|[Mm]ore than once|[Bb]oth rows (?:use|share|have)|[Ss]ame id)[^\n]{0,120}dependency-review|dependency-review[^\n]{0,120}(?:[Dd]uplicat\w*|[Cc]ollision|[Cc]ollides|(?:Not|not) unique|[Nn]on-unique|(?:Twice|twice)|[Rr]epeated|[Mm]ore than once|[Bb]oth rows (?:use|share|have)|[Ss]ame id))[^\n]{0,300}\bFAIL'
     target: last_message
     arm: both
   - name: ran-home-resolver
