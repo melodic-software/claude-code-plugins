@@ -113,7 +113,8 @@ leave_queue() {
 # re-fire skips a PR that changes a lane file, a skip branch or one that fails
 # qualifies (refire-refused.mjs), so it is no proof of a retry. Anything else,
 # a failed read included, returns 1 and the status goes on: only positive
-# evidence withholds it. Past SWEEP_HEAD_CAP neither status nor retry comes.
+# evidence withholds it. A head with SWEEP_HEAD_CAP address-feedback rounds,
+# which the sweep skips, returns 1 too, so a refusal it will not resend posts.
 retried_refusal() {
   local jobs ids id notes annotations='{}'
   [[ ${GITHUB_RUN_ID:-} =~ ^[1-9][0-9]*$ ]] || return 1
@@ -123,13 +124,20 @@ retried_refusal() {
     notes=$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100") || return 1
     annotations=$(jq -c --arg id "$id" --argjson notes "$notes" '. + {($id): $notes}' <<<"$annotations") || return 1
   done
+  # The head's address-feedback rounds, which the sweep counts against its cap.
+  rounds=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=pr-unblock%20%2F%20address-feedback&per_page=100") || return 1
   # shellcheck disable=SC2016 # a JavaScript template literal, not a shell expansion
-  REFIRE_MODULE="$(dirname "${BASH_SOURCE[0]}")/../pr-merge/refire-refused.mjs" JOBS="$jobs" ANNOTATIONS="$annotations" node --input-type=module -e '
+  REFIRE_MODULE="$(dirname "${BASH_SOURCE[0]}")/../pr-merge/refire-refused.mjs" DISPATCH_MODULE="$(dirname "${BASH_SOURCE[0]}")/feedback-dispatch.mjs" JOBS="$jobs" ANNOTATIONS="$annotations" ROUNDS="$rounds" node --input-type=module -e '
     const { pathToFileURL } = await import("node:url");
     const { tokenRefusal } = await import(pathToFileURL(process.env.REFIRE_MODULE).href);
+    const { DEFAULTS, SWEEP_HEAD_CAP } = await import(pathToFileURL(process.env.DISPATCH_MODULE).href);
     const notes = JSON.parse(process.env.ANNOTATIONS);
     const why = await tokenRefusal({ jobs: JSON.parse(process.env.JOBS).jobs, readAnnotations: async (id) => notes[id] ?? [], activity: "address-feedback" });
     if (why === null || why.kind === "transient") process.exit(1);
+    // The URL names the check; a renamed one reads no rounds, so post.
+    if (DEFAULTS.checkName !== "pr-unblock / address-feedback") process.exit(1);
+    const rounds = (JSON.parse(process.env.ROUNDS).check_runs ?? []).filter((c) => c.name === DEFAULTS.checkName && c.app?.id === DEFAULTS.appId).length;
+    if (rounds >= SWEEP_HEAD_CAP) process.exit(1);
     process.stdout.write(`workflow-modified, ${why.path}`);' 2>/dev/null
 }
 

@@ -121,6 +121,9 @@ case "$method $endpoint" in
   id=${endpoint#repos/o/r/check-runs/}
   cat "$STUB/annotations-${id%%/*}.json"
   ;;
+"GET repos/o/r/commits/"*"/check-runs?check_name=pr-unblock%20%2F%20address-feedback&per_page=100")
+  cat "$STUB/rounds.json" 2>/dev/null || echo '{"check_runs":[]}'
+  ;;
 *) echo "stub gh: unexpected $method $endpoint" >&2; exit 1 ;;
 esac
 EOF
@@ -498,6 +501,7 @@ publish_case() {
   printf '{"jobs":[{"id":9000,"name":"address-feedback-select","conclusion":"success","steps":[]},{"id":9001,"name":"publish-feedback / run","conclusion":"%s","steps":[{"name":"Request the lane token","conclusion":"%s"}]}]}' \
     "${2:-failure}" "${3:-failure}" >"$STUB/jobs.json"
   if [[ $1 == - ]]; then echo '[]'; else jq -n --arg m "$1" '[{annotation_level:"failure",message:$m}]'; fi >"$STUB/annotations-9001.json"
+  [[ -z ${ROUNDS:-} ]] || printf '%s' "$ROUNDS" >"$STUB/rounds.json"
   GITHUB_RUN_ID=777 MODE=status run feedback-publish-failed
 }
 MODIFIED='lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-unblock.yml differs from refs/heads/main'
@@ -505,6 +509,13 @@ publish_case "$MODIFIED"
 check "publish-failed, workflow-modified: exit 0" 0 "$RC"
 check "publish-failed, workflow-modified: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 has "publish-failed, workflow-modified: a notice names the refusal" 'workflow-modified, .github/workflows/pr-unblock.yml' "$STUB/out"
+# A head at the sweep's cap gets no resend, so the status goes on. Rounds
+# another app posted, or another check, do not count.
+ROUND='{"name":"pr-unblock / address-feedback","app":{"id":15368}}'
+ROUNDS="{\"check_runs\":[$ROUND,$ROUND,$ROUND]}" publish_case "$MODIFIED"
+check "publish-failed, workflow-modified at the sweep cap: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+ROUNDS="{\"check_runs\":[$ROUND,$ROUND,{\"name\":\"pr-unblock / address-feedback\",\"app\":{\"id\":1}},{\"name\":\"other\",\"app\":{\"id\":15368}}]}" publish_case "$MODIFIED"
+check "publish-failed, workflow-modified under the cap: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 # A transient refusal proves no retry: pr-merge's re-fire skips a PR that
 # changes a lane file, a skip branch or one that fails qualifies, so the
 # status goes on.
