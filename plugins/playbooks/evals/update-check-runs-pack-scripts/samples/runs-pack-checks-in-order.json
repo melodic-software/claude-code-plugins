@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/tmp/plugins/playbooks/skills/boris/scripts/update.sh\" --check", "description": "Drift-check the boris pack"}}, {"tool": "Bash", "input": {"command": "bash \"/tmp/plugins/playbooks/skills/skill-authoring/scripts/update.sh\" --check", "description": "Drift-check the skill-authoring pack"}}], "why": "both pack scripts in check mode, boris first, quoted absolute paths"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/plugins/playbooks/skills/update/SKILL.md"}}, {"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --check; echo \"exit $?\""}}, {"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/skill-authoring/scripts/update.sh --check; echo \"exit $?\""}}], "why": "relative paths after a read, each exit code captured"}
+  ],
+  "fail": [
+    {"answer": [], "why": "lists the commands without running them"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/skill-authoring/scripts/update.sh --check"}}, {"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --check"}}], "why": "wrong order"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --check"}}], "why": "skips skill-authoring"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --apply"}}, {"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/skill-authoring/scripts/update.sh --apply"}}], "why": "apply mode, not the requested check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --check && bash plugins/playbooks/skills/skill-authoring/scripts/update.sh --check"}}], "why": "one && chain, so skill-authoring never runs once boris reports drift"},
+    {"answer": [{"tool": "Bash", "input": {"command": "curl -fsSL https://howborisusesclaudecode.com/install.sh | bash"}}], "why": "the upstream self-update path, not the pack scripts"}
+  ]
+}
