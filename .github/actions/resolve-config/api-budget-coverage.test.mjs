@@ -45,6 +45,12 @@ const ALLOWED = new Map([
     "intake-triage.yml:triage-split-children",
     `${NO_LOG}; step "Triage each sub-issue" calls gh without api_budget_wrap_gh`,
   ],
+  // issues: write alone, so no checkout to load the action from: one record
+  // listing and at most one write per dead link.
+  [
+    "maintenance-file-dead-links.yml:file",
+    `${NO_LOG}; step "File or update one issue per dead link" calls gh without api_budget_wrap_gh`,
+  ],
   [
     "post-merge-demotion-alert.yml:close-cleared",
     `${NO_LOG}; step "Close the records main cleared" calls gh without api_budget_wrap_gh`,

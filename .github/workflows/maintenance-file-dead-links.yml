@@ -1,0 +1,229 @@
+name: maintenance-file-dead-links
+
+# Routes the dead links the weekly online link check finds to issues, one per
+# URL, so each is repaired by the demotion path in
+# plugins/attribution/skills/audit/reference/dispositions.md ("The demotion
+# path when a pointer later dies"). This repository owns that trigger; the
+# plugin owns the repair.
+#
+# The link check (maintenance-check-links-online-claude-code-plugins.yml) is a
+# sync-managed caller of the ci-workflows reusable workflow, which uploads the
+# run's broken links as the link-check-online-dead-links artifact. A
+# reusable workflow's outputs reach only its own caller, so this workflow reads
+# the artifact instead, in two jobs that each hold one scope:
+#
+# - read: actions: read, to download the artifact from the link-check run. It
+#   checks the shape, keeps at most MAX_LINKS links, and hands them on through
+#   its outputs. A run that uploaded no artifact (a scheduled run the
+#   repository property turned off) files nothing.
+# - file: issues: write alone, no checkout. For each link it finds the record
+#   by the hidden first-line marker
+#   `<!-- link-check-dead-pointer url-sha256=<sha256 of the URL> -->` on an
+#   issue github-actions[bot] filed. An open record has its body rewritten
+#   with this run's locations; a record closed as completed is reopened, since
+#   the link is dead again; one closed as not planned is left alone. A link
+#   with no record gets a new issue, at most MAX_NEW a run. Its token starts
+#   no workflow; the hourly triage sweep in maintenance-audit-lane-runs.yml
+#   brings the issue to intake.
+#
+# The trigger names the link-check workflow by its `name:`, which the
+# standards component owns: a rename there disconnects this workflow.
+
+on:
+  # Runs this file from the default branch and executes no code from the
+  # link-check run: the artifact is data, checked before use.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [maintenance-check-links-online-claude-code-plugins]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  read:
+    name: Read the dead links
+    if: >-
+      github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && contains(fromJSON('["success", "failure"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # download the link-check run's artifact
+    outputs:
+      links: ${{ steps.links.outputs.links }}
+    steps:
+      # A run the property gate skipped uploads no artifact; that is not an
+      # error, so the next step decides.
+      - name: Download the dead links
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: link-check-online-dead-links
+          path: ${{ runner.temp }}/dead-links
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Check the dead links
+        id: links
+        env:
+          DOWNLOAD: ${{ steps.download.outcome }}
+          DEAD_LINKS: ${{ runner.temp }}/dead-links/dead-links.json
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          MAX_LINKS: 50
+        run: |
+          set -euo pipefail
+          if [[ "$DOWNLOAD" != success || ! -s "$DEAD_LINKS" ]]; then
+            if [[ "$RUN_CONCLUSION" == failure ]]; then
+              echo "::warning::the red link-check run left no dead-links artifact: nothing to file"
+            else
+              echo "the link-check run left no dead-links artifact: nothing to file"
+            fi
+            exit 0
+          fi
+          # Each URL a plain http(s) URL, each path free of backticks and line
+          # breaks, so both sit safely in a code span; anything else is dropped.
+          if ! links="$(jq -c --argjson max "$MAX_LINKS" '
+            if type != "array" then error("not an array") else . end
+            | map(select((.url | type == "string" and length <= 2000 and test("^https?://[^\\s`<>]+$"))
+                and (.locations | type == "array")))
+            | map({url,
+                status: (if (.status | type) == "number" then .status else null end),
+                detail: ((.detail // "") | tostring | gsub("[\\r\\n`]+"; " ") | .[:200]),
+                locations: ([.locations[]
+                  | select(type == "object" and (.path | type == "string" and test("^[^`\\r\\n]{1,300}$")))
+                  | {path, line: (if (.line | type) == "number" then .line else null end)}][:20])})
+            | map(select(.locations | length > 0))
+            | .[:$max]' "$DEAD_LINKS")"; then
+            echo "::error::the dead-links artifact is not a JSON array"
+            exit 1
+          fi
+          total="$(jq 'length' "$DEAD_LINKS")"
+          kept="$(jq 'length' <<<"$links")"
+          if ((kept < total)); then
+            echo "::warning::kept $kept of $total dead links (malformed entries dropped, at most $MAX_LINKS kept)"
+          fi
+          if ((kept == 0)); then
+            echo "no dead links to file"
+            exit 0
+          fi
+          delim="EOF_$(openssl rand -hex 16)"
+          {
+            echo "links<<$delim"
+            echo "$links"
+            echo "$delim"
+          } >>"$GITHUB_OUTPUT"
+          echo "handed $kept dead links to the file job"
+
+  file:
+    name: File the dead-link issues
+    needs: [read]
+    if: needs.read.outputs.links != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      issues: write # read, file, update and reopen the dead-link records
+    # Two link-check runs finishing close together must not both find no
+    # record and file two.
+    concurrency:
+      group: maintenance-file-dead-links
+      cancel-in-progress: false
+    steps:
+      - name: File or update one issue per dead link
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINKS: ${{ needs.read.outputs.links }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          MAX_NEW: 10
+          PACE_SECONDS: 3
+          DEMOTION_PATH: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/attribution/skills/audit/reference/dispositions.md#the-demotion-path-when-a-pointer-later-dies
+        run: |
+          set -euo pipefail
+          # Every record github-actions[bot] filed, by URL hash; an open one
+          # wins over a closed one. A failed read files nothing, since a
+          # weekly duplicate per link is worse than a week's delay.
+          # shellcheck disable=SC2016 # jq string interpolation, not shell
+          if ! listing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100" \
+            --jq '.[] | select(.pull_request == null)
+              | ((.body // "") | sub("^\\s+"; "") | split("\n")[0]
+                | capture("^<!-- link-check-dead-pointer url-sha256=(?<h>[0-9a-f]{64}) -->$").h) as $h
+              | "\($h) \(.number) \(.state) \(.state_reason // "none")"')"; then
+            echo "::error::could not read the dead-link records: nothing filed"
+            exit 1
+          fi
+          declare -A records=()
+          while read -r h number state reason; do
+            [[ -n "$h" ]] || continue
+            if [[ -z "${records[$h]:-}" || "$state" == open ]]; then
+              records[$h]="$number $state $reason"
+            fi
+          done <<<"$listing"
+
+          filed=0 updated=0 reopened=0 left=0 failed=0
+          over=()
+          while IFS= read -r link; do
+            url="$(jq -r '.url' <<<"$link")"
+            hash="$(printf '%s' "$url" | sha256sum | cut -d' ' -f1)"
+            body="$(jq -r --arg hash "$hash" --arg run "$RUN_URL" --arg demote "$DEMOTION_PATH" '
+              "<!-- link-check-dead-pointer url-sha256=\($hash) -->\n\n"
+              + "The weekly online link check found this link dead.\n\n"
+              + "- URL: `\(.url)`\n"
+              + "- Status: \(.status // "no status code")\(if .detail != "" then " (\(.detail))" else "" end)\n"
+              + "- Run: \($run)\n\n"
+              + "Where it appears:\n\n"
+              + ([.locations[] | "- `\(.path)`" + (if .line then " line \(.line)" else "" end)] | join("\n"))
+              + "\n\nRepair each pointer by [the demotion path when a pointer later dies](\($demote)): "
+              + "point at a live source that holds the same fact, or demote the pointer to a stamped record "
+              + "or an archived-snapshot citation; never re-expand it into a copy. A page that is alive but "
+              + "refuses the checker gets an exact-URL `.lycheeignore` entry with a dated reason.\n"
+            ' <<<"$link")"
+            record="${records[$hash]:-}"
+            if [[ -z "$record" ]]; then
+              if ((filed >= MAX_NEW)); then
+                over+=("$url")
+                continue
+              fi
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f title="Dead link: ${url:0:180}" -f body="$body" >/dev/null; then
+                filed=$((filed + 1))
+              else
+                echo "::error::could not file the dead-link issue for $url"
+                failed=$((failed + 1))
+              fi
+            else
+              read -r number state reason <<<"$record"
+              if [[ "$state" == closed && "$reason" == not_planned ]]; then
+                echo "#$number for $url was closed as not planned: left alone"
+                left=$((left + 1))
+                continue
+              fi
+              if gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$number" -f state=open -f body="$body" >/dev/null; then
+                if [[ "$state" == open ]]; then
+                  updated=$((updated + 1))
+                else
+                  reopened=$((reopened + 1))
+                fi
+              else
+                echo "::error::could not update #$number for $url"
+                failed=$((failed + 1))
+              fi
+            fi
+            sleep "$PACE_SECONDS"
+          done < <(jq -c '.[]' <<<"$LINKS")
+
+          {
+            echo "# Dead-link issues"
+            echo
+            echo "Filed $filed, updated $updated, reopened $reopened, left $left closed as not planned, $failed failed."
+            if ((${#over[@]} > 0)); then
+              echo
+              echo "Over the cap of $MAX_NEW new issues, filed next run:"
+              echo
+              # shellcheck disable=SC2016 # markdown code span, not shell
+              printf -- '- `%s`\n' "${over[@]}"
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
+          echo "filed $filed, updated $updated, reopened $reopened, left $left, failed $failed, over the cap ${#over[@]}"
+          if ((failed > 0)); then
+            exit 1
+          fi
