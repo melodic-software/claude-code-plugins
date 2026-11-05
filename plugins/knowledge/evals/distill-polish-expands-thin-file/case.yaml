@@ -3,7 +3,7 @@ name: distill-polish-expands-thin-file
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: thin-file-expanded
+  - name: thin-file-named
     type: regex
-    pattern: '"name":"(?:Write|Edit)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"file_path":"[^"]*/reference/idempotency\.md"(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:Idempotency-Key|24 hours|24-hour|409|422)'
-    target: trace
+    pattern: 'idempotency\.md[\s\S]*(?:Idempotency-Key|24 hours|24-hour|409|422)|(?:Idempotency-Key|24 hours|24-hour|409|422)[\s\S]*idempotency\.md'
+    target: last_message

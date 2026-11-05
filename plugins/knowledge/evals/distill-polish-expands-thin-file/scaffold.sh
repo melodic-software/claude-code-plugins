@@ -4,10 +4,10 @@
 set -euo pipefail
 
 git init -q
-mkdir -p books .claude/skills/testing/reference
+mkdir -p books skills/testing/reference
 python3 -I "$(dirname "${BASH_SOURCE[0]}")/../fixtures/distill-make-pdf.py" books/field-notes-on-retries.pdf
 
-cat > .claude/skills/testing/SKILL.md <<'EOF'
+cat > skills/testing/SKILL.md <<'EOF'
 ---
 name: testing
 description: "Retry practice from Field Notes on Retries: backoff schedules and idempotent retries."
@@ -28,7 +28,7 @@ description: "Retry practice from Field Notes on Retries: backoff schedules and 
 - "Is this request safe to retry?" → only when the operation is idempotent.
 EOF
 
-cat > .claude/skills/testing/reference/backoff.md <<'EOF'
+cat > skills/testing/reference/backoff.md <<'EOF'
 # Backoff
 
 Source: Field Notes on Retries, Chapter 1 (PDF page 1).
@@ -38,7 +38,7 @@ Source: Field Notes on Retries, Chapter 1 (PDF page 1).
 - Stop after 6 attempts.
 EOF
 
-cat > .claude/skills/testing/reference/idempotency.md <<'EOF'
+cat > skills/testing/reference/idempotency.md <<'EOF'
 # Idempotency
 
 Source: Field Notes on Retries, Chapter 2 (PDF page 2).
