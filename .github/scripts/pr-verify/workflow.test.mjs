@@ -1536,8 +1536,22 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   for (const rule of allowed) assert.doesNotMatch(rule, FILE_TOOL, rule);
   // Only main's named skills: a head skill's frontmatter hooks would run beside the key.
   assert.deepEqual(allowed.filter((rule) => rule.startsWith("Skill")), ["Skill(testing:run-e2e *)", "Skill(app-control:drive *)"]);
-  // The default settings allow managed hooks only; no override.
-  assert.doesNotMatch(capStep("Apply the Claude managed settings"), /^ {8}with:$/m);
+  // The managed settings: the action's required pins (its action.yml check at
+  // b8bdd7f), plus the subprocess scrub and TLS verification, which a
+  // settings file head code writes mid-session cannot override (managed is
+  // the top of the settings stack, and `env` follows it:
+  // https://code.claude.com/docs/en/settings#settings-precedence).
+  for (const steps of [CAP_STEPS, SUB_STEPS]) {
+    const block = steps.find((s) => s.name === "Apply the Claude managed settings").block;
+    const folded = /^ {10}settings: >-\n((?: {12}.*\n?)+)/m.exec(block)?.[1];
+    assert.ok(folded, "a settings input");
+    assert.deepEqual(JSON.parse(folded.replace(/\n {12}/g, " ")), {
+      apiKeyHelper: "",
+      allowManagedHooksOnly: true,
+      env: { ANTHROPIC_BASE_URL: "https://api.anthropic.com", CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1", NODE_TLS_REJECT_UNAUTHORIZED: "1" },
+      permissions: { disableBypassPermissionsMode: "disable" },
+    });
+  }
   assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Read(./.base/.claude/skills/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");

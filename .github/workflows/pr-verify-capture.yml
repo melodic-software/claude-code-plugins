@@ -43,7 +43,11 @@ name: pr-verify-capture
 # last credit stop is inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset).
 # The capture job uploads the gate's credit-stop marker after its probe's
 # credit stop, and the probing marker when the gate names this run the
-# probe; both before the head checkout, so head code cannot forge one.
+# probe; both before the head checkout, from this run's own evidence. A
+# marker is still forgeable: any same-repository pull_request workflow can
+# upload an artifact of either name, and gate.cjs newestMarker checks only
+# head_repository_id. A forged one can only skip the key leg, which moves
+# captures to the subscription token: plan capacity, no credential leak.
 #
 # Both jobs upload the same pr-capture-<pr>-<head-sha> name; find-capture.mjs
 # reads the run's conclusion and the run's artifacts, so either job's
@@ -320,10 +324,21 @@ jobs:
           tokens: github-token
 
       # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
+      # need sudo, so they are written before the runner is isolated. The
+      # action's default pins, plus two env values head code could otherwise
+      # set mid-session through a settings file it writes (~/.claude or the
+      # head's .claude): the subprocess scrub, and TLS verification, so a
+      # proxy a head settings file names sees only a tunnel to the API.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          settings: >-
+            {"apiKeyHelper": "", "allowManagedHooksOnly": true,
+            "env": {"ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+            "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+            "NODE_TLS_REJECT_UNAUTHORIZED": "1"},
+            "permissions": {"disableBypassPermissionsMode": "disable"}}
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -428,9 +443,10 @@ jobs:
       # Read by the next runs' credit gate: the artifact its `marker` output
       # names (gate.cjs markerName), uploaded only after the probe's
       # credit-stop handoff, which means the key is out of credit. Written
-      # here, before the head checkout, and never later: steps after it load
-      # .base actions head code could have changed, which could forge a
-      # marker and hold the key off. The name is written out so its retention
+      # here, before the head checkout, and never later, so this run writes
+      # one only on its own probe's evidence. Another same-repository workflow
+      # can still upload this name (see the header); a forged marker only
+      # moves captures to the subscription. The name is written out so its retention
       # row claims it; a gate that names another marker writes none. Its
       # upload time starts the window; one day's retention covers windows up
       # to 24 hours.
@@ -907,10 +923,21 @@ jobs:
           tokens: github-token
 
       # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
+      # need sudo, so they are written before the runner is isolated. The
+      # action's default pins, plus two env values head code could otherwise
+      # set mid-session through a settings file it writes (~/.claude or the
+      # head's .claude): the subprocess scrub, and TLS verification, so a
+      # proxy a head settings file names sees only a tunnel to the API.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          settings: >-
+            {"apiKeyHelper": "", "allowManagedHooksOnly": true,
+            "env": {"ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+            "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+            "NODE_TLS_REJECT_UNAUTHORIZED": "1"},
+            "permissions": {"disableBypassPermissionsMode": "disable"}}
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
