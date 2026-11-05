@@ -51,7 +51,8 @@ report**. It is routed there, never to the relay.
 ## Compose by script, not by hand
 
 Once the destination is resolved and the contract fetch succeeded, run
-`${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <scan output file> --from-lane <lane rows file> --out <resolved path>`,
+`bash "<skill dir>/scripts/emit-findings.sh" --from <scan output file> --from-lane <lane rows file> --out <resolved path>`,
+`<skill dir>` being the resolved `skills/audit-instructions` path SKILL.md names,
 omitting whichever input the run has nothing for. The script owns the mechanical half: the fence
 recomputation, cell assembly and escaping, tier lookup (a mirror of the crosswalk, and the
 crosswalk row is authoritative), each row's finding identity (through `scripts/finding-ids.sh`,

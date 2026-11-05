@@ -21,10 +21,10 @@ diff, so instruction surfaces shrink as models get better instead of only ever g
 
 The check catalog, covering the checks I1–I42, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
-[reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
-`${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
+[reference/criteria.md](reference/criteria.md); the deterministic pre-scan is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
 One check has a different unit of judgment, do two surfaces contradict each other, and Phase B2
 answers it against [reference/conflict-criteria.md](reference/conflict-criteria.md).
+Every `context/`, `reference/` and `scripts/` path below, linked or bare, is under `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/`. Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names, with the Read tool, never `cat`, `sed` or `head`; never Glob or Grep the plugin directory.
 
 ## Read-only contract
 
@@ -201,7 +201,7 @@ report is incomplete or whose inputs changed; Phase B's "Run files and resume" o
 ## Phase A: Inventory
 
 Enumerate every locally-owned instruction surface, then hand the per-surface list to Phase B.
-Read [context/phase-a-inventory.md](context/phase-a-inventory.md) before starting Phase A: it
+Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/context/phase-a-inventory.md` before starting Phase A: it
 owns the surface discovery order, the per-surface record fields Phase B and Phase B2 both key
 off, and the exclusions. Phase B cannot run against a record set built any other way.
 
@@ -289,9 +289,9 @@ Phase D cost line disclose the planned and actual dispatch counts in place of th
 
 Each run lives under `${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/`, the run
 id a UTC `YYYYMMDDTHHMMSSZ` stamp, and each lane writes its report to `lanes/<lane-id>.md` there.
-`last-audit.md` stays where Phase D puts it. The lease is audit-pass's `run-state.sh`, invoked with
+`last-audit.md` stays where Phase D puts it. The lease is `${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh`, invoked with
 `--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions` so its containment pin holds: `paths` names
-the run directory, `lease acquire` starts the run, `lease heartbeat` runs as each lane's report
+the run directory, `lease acquire` creates it and starts the run, `lease heartbeat` runs as each lane's report
 lands, and `lease release` writes the tombstone at the end. The skill is read-only, so it takes a
 lease and no lock.
 
@@ -384,7 +384,7 @@ blocked, unavailable, or the session cannot spawn subagents (including a nested 
 
 ## Phase D: Report
 
-Read the prior report at the key first, since the cost line below compares against it; the key is
+Read the prior report first, `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`, with the Read tool (not found is the no-prior case), since the cost line below compares against it; the key is
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"`'s output. Write this run's report with the Write tool
 to `report.md` in the run directory, as lane reports are written, then persist it with this script,
 which writes `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md` atomically:
@@ -393,7 +393,7 @@ which writes `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md
 bash "${CLAUDE_PLUGIN_ROOT}/lib/persist-report.sh" --plugin-data "${CLAUDE_PLUGIN_DATA}" --component audit-instructions --report <run-dir>/report.md
 ```
 
-**Never run a standalone `mkdir` against the plugin data directory.** [context/report-keying.md](context/report-keying.md) owns why the key matters here and the two absent-prior cases.
+**Never run `ls`, `touch`, `mkdir` or any other probe against the plugin data directory, nor Glob it:** `lease acquire` creates the run directory and the script above writes `last-audit.md`. `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/context/report-keying.md` owns why the key matters here and the two absent-prior cases.
 
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
