@@ -10,7 +10,8 @@
 //   issue's labels fresh (several label events can land together) and its
 //   field, and write the state the labels collapse to unless the field
 //   already holds it.
-// - `schedule` (work-unblock's hourly run): the same for every open issue, one
+// - `schedule`: the same for every open issue updated in the last two hours
+//   (the hourly entries), or every open issue (the daily entry), one
 //   at a time, a short pause apart, within CALL_BUDGET calls, ending on
 //   `swept N: wrote W, unchanged U, failed F`.
 //
@@ -87,9 +88,10 @@ export async function onLabelEvent({ event, github, repository, config, trustedA
   return mirrorIssue({ github, repository, number: Number(event.issue.number), config, trustedActors, status, log });
 }
 
-// Every open issue, oldest first. `budget` is the most calls the sweep makes;
-// past it the sweep stops and says so.
-export async function sweep({ github, repository, config, trustedActors, status, budget = 800, pause = () => delay(250), log = console.log }) {
+// Every open issue, oldest first, or with `since` (an ISO time) only those
+// updated since then: a label change updates an issue. `budget` is the most
+// calls the sweep makes; past it the sweep stops and says so.
+export async function sweep({ github, repository, config, trustedActors, status, since, budget = 800, pause = () => delay(250), log = console.log }) {
   let used = 0;
   const call = (...args) => {
     if (used >= budget) {
@@ -102,7 +104,8 @@ export async function sweep({ github, repository, config, trustedActors, status,
   let stopped = "";
   const issues = [];
   for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
-    const batch = await call("GET", `/repos/${repository}/issues?state=open&direction=asc&per_page=100&page=${page}`);
+    const window = since ? `&since=${encodeURIComponent(since)}` : "";
+    const batch = await call("GET", `/repos/${repository}/issues?state=open&direction=asc&per_page=100&page=${page}${window}`);
     issues.push(...batch.filter((item) => !item.pull_request));
     if (batch.length < 100) {
       break;
@@ -134,7 +137,19 @@ export async function sweep({ github, repository, config, trustedActors, status,
   return { ...counts, stopped, used };
 }
 
-export async function main({ env = process.env, log = console.log } = {}) {
+// Label events mirror each change as it lands, so an hourly run only catches
+// what they missed: issues updated in the last two hours, a window that
+// covers a late scheduled run. The run started by work-unblock.yml's daily
+// FULL_SWEEP_CRON entry reads every open issue to catch any other drift; the
+// trigger decides, not the clock, so a late start still sweeps in full.
+// Returns the `since` time, or undefined for the full sweep.
+export const FULL_SWEEP_CRON = "47 4 * * *";
+export const SWEEP_WINDOW_MS = 2 * 60 * 60 * 1000;
+export function sweepSince(at, schedule) {
+  return schedule === FULL_SWEEP_CRON ? undefined : new Date(at.getTime() - SWEEP_WINDOW_MS).toISOString();
+}
+
+export async function main({ env = process.env, log = console.log, now = () => new Date() } = {}) {
   try {
     if (env.KILL_SWITCH !== "proceed") {
       log("sync-status: the kill switch stops this run; nothing read or written");
@@ -159,7 +174,7 @@ export async function main({ env = process.env, log = console.log } = {}) {
     const args = { github, repository, config, trustedActors, status, log };
     if (env.GITHUB_EVENT_NAME === "schedule") {
       const budget = /^[1-9][0-9]{0,4}$/.test(env.CALL_BUDGET ?? "") ? Number(env.CALL_BUDGET) : undefined;
-      const result = await sweep({ ...args, budget });
+      const result = await sweep({ ...args, budget, since: sweepSince(now(), env.SCHEDULE) });
       return result.failed > 0 || result.stopped ? 1 : 0;
     }
     if (env.GITHUB_EVENT_NAME !== "issues") {

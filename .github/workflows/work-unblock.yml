@@ -86,8 +86,8 @@ name: work-unblock
 # until it is marked `status: ready` again.
 #
 # Its sync-status job writes an issue's Work status field after a listed human
-# adds or removes a status label, and the hourly run does so for every open
-# issue whose field the labels disagree with
+# adds or removes a status label; the hourly run does so for every open issue
+# updated in the last two hours, and the daily 04:47 UTC run for every open issue
 # (.github/scripts/work-unblock/sync-status.mjs).
 
 on:
@@ -96,7 +96,10 @@ on:
     types: [closed, labeled, unlabeled]
   # Off the top of the hour, at a minute no other schedule here uses.
   schedule:
-    - cron: "47 * * * *"
+    - cron: "47 0-3,5-23 * * *"
+    # The daily full status sweep (sync-status). Its own entry, so a late start
+    # still runs the full sweep.
+    - cron: "47 4 * * *"
   # A finished issue lane run may free a slot, so the sweep runs at once and
   # admits the next deferred issue instead of waiting for the hour. It runs
   # main's code only, for a same-repository run, and reads no artifact.
@@ -338,7 +341,8 @@ jobs:
           tokens: lanes-app github-token
 
   # Mirrors an issue's status labels into its Work status field after a person
-  # adds or removes one, and hourly for every open issue
+  # adds or removes one, hourly for issues updated in the last two hours, and
+  # daily (the 47 4 * * * entry) for every open issue
   # (.github/scripts/work-unblock/sync-status.mjs). It writes with the lanes
   # App token: the field's reader counts only a value a listed human or the App
   # set. A label change by a bot (the lanes App, whose scripts mirror their own
@@ -468,6 +472,7 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           CALL_BUDGET: "800"
+          SCHEDULE: ${{ github.event.schedule }}
         run: node ".base/$SCRIPT"
 
       # The token is cancelled as soon as the job is done; it would otherwise
