@@ -14,9 +14,14 @@ name: maintenance-tidy-code-upkeep
 #     upkeep_spec_issue is not set: every pull request's body opens with
 #     `Refs: #<upkeep_spec_issue>`, the spec pr-verify judges it against.
 #   model runs `/code-tidying:tidy <glob> in-place=commit` per area on a local
-#     chore/tidy-adhoc-<slug>-<date> branch, on the automations role's
-#     subscription token, with a read-only GITHUB_TOKEN and nothing else. What
-#     it leaves is sealed to the scan-carrier key.
+#     chore/tidy-adhoc-<slug>-<date> branch, on the automations role's API
+#     key, with a read-only GITHUB_TOKEN and nothing else. When that key leg
+#     hands off (a credit stop, or a 401 or 402), the key is empty, or the
+#     gate's key-credit check skips a key that credit-stopped inside its
+#     window, model-subscription runs the same steps on the role's
+#     subscription token, and model-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+#     after the subscription leg hands off (a limit stop, a credit stop, or a
+#     401 or 402). What a leg leaves is sealed to the scan-carrier key.
 #   scan (the key's third holder: main only, no model, no id-token, no write
 #     token) opens it, checks each branch stays in its area and off the hold
 #     paths, and scans what will be published. It records each area that needed
@@ -97,6 +102,8 @@ jobs:
       date: ${{ steps.gate.outputs.date }}
       spec-issue: ${{ steps.gate.outputs.spec-issue }}
       base-sha: ${{ github.sha }}
+      skip-key: ${{ steps.credit.outputs.skip-key }}
+      credit-marker: ${{ steps.credit.outputs.marker }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -149,6 +156,38 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs gate --root "$PWD"
 
+      # Whether the key is still out of credit: a credit stop of the model job
+      # inside the window (vars.KEY_CREDIT_WINDOW_HOURS, 1 hour unset) skips
+      # the key leg, and model-subscription sweeps on the subscription token
+      # (ci-workflows check-key-credit, gate.cjs: one artifact-list call for
+      # the `marker` the model job uploads after a credit stop). It runs only
+      # once areas are picked. Probing is off: one batch runs at a time. Every
+      # failure runs the key: skip-key is then empty.
+      - name: Read the key's credit history
+        id: credit
+        if: steps.gate.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          key-job: model
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: maintenance-tidy-code-upkeep
+          lane-id: maintenance-tidy-code-upkeep
+          credential: AUTOMATIONS_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -157,16 +196,18 @@ jobs:
         with:
           tokens: github-token
 
-  # The model, with the subscription token and a read-only GITHUB_TOKEN and
+  # The model's key leg, with the API key and a read-only GITHUB_TOKEN and
   # nothing else: tidy needs Bash to commit and verify, so this job holds no
   # write token. run-claude-cli runs the CLI with --restricted; the plugin loads
   # from a read-only copy staged from main before the root checkout, and every
   # CLAUDE.md, AGENTS.md, .mcp.json and .claude/ in the checkout is removed from
-  # the working tree first.
+  # the working tree first. A handoff or an empty key leaves the sweep to
+  # model-subscription.
   model:
     needs: gate
-    # The first attempt only: a re-run never runs the model again.
-    if: needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+    # The first attempt only: a re-run never runs the model again. A key the
+    # credit gate skipped runs nothing here; model-subscription runs it.
+    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -178,6 +219,9 @@ jobs:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
     outputs:
+      handoff: ${{ steps.run.outputs.handoff }}
+      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
       sealed-2: ${{ steps.seal.outputs.sealed-2 }}
@@ -216,6 +260,19 @@ jobs:
           model-route: resolve-issue
           base-path: .base
           output-path: ${{ runner.temp }}/upkeep-models.json
+
+      # Only whether the secret is set leaves this step, never its value. An
+      # empty key hands the sweep to model-subscription.
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success'
+        env:
+          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            echo "::warning::AUTOMATIONS_CLAUDE_API_KEY is empty; model-subscription sweeps on the subscription token"
+          fi
+          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
 
       # The plugin and the prompt, written from main before the root checkout
       # replaces .base.
@@ -278,7 +335,7 @@ jobs:
 
       - name: Sweep the areas
         id: run
-        if: steps.prepare.outcome == 'success'
+        if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -289,7 +346,7 @@ jobs:
           role: automations
           prompt-file: ${{ runner.temp }}/upkeep-prompt.md
           preamble: You run unattended as the code-tidying upkeep CI lane, and no one can answer a question.
-          subscription-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -348,6 +405,75 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # Read by the next runs' credit gate: the artifact its `marker` output
+      # names (check-key-credit gate.cjs markerName), uploaded only after the
+      # key leg's credit-stop handoff. The name is written out so its
+      # retention row (.github/artifact-retention.json) claims it; one day's
+      # retention covers windows up to 24 hours. The file is written after the
+      # leg and scanned with the trusted checkout's action.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: always() && needs.gate.outputs.credit-marker == 'key-credit-stop-maintenance-tidy-code-upkeep.yml-model' && steps.run.outputs.handoff-reason == 'credit-stop'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Scan the key's credit-stop marker for credentials
+        id: credit-marker-scan
+        if: always() && steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+
+      - name: Upload the key's credit-stop marker
+        id: credit-marker-upload
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-maintenance-tidy-code-upkeep.yml-model
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Report the key's handoff
+        if: always() && steps.run.outputs.handoff == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          LANE_CLASS: ${{ steps.run.outputs.lane-class }}
+        run: |
+          case "$LANE_CLASS" in
+            auth) line="the API refused AUTOMATIONS_CLAUDE_API_KEY (class auth); the owner must replace the secret, and model-subscription sweeps on the subscription token" ;;
+            *) line="AUTOMATIONS_CLAUDE_API_KEY hit a credit stop (class credit-stop); model-subscription sweeps on the subscription token" ;;
+          esac
+          echo "::warning::$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs, one record per leg.
+      - name: Record the leg
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.run.outcome }}
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          log-file: ${{ steps.run.outputs.log-file }}
+          lane: maintenance-tidy-code-upkeep
+          lane-id: maintenance-tidy-code-upkeep
+          credential: ${{ steps.run.outputs.credential }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          known-failure-class: ${{ steps.run.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ""
+
       # The plan, and the planned branches as one git bundle from the base,
       # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
@@ -383,12 +509,554 @@ jobs:
         with:
           tokens: github-token
 
+  # The subscription leg: the key leg's steps from a fresh VM, on the
+  # automations role's subscription token alone, with no credit-stop marker.
+  # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop, or
+  # a 401 or 402 hands off to model-fallback. callers.test.mjs holds its
+  # steps equal to the key leg's but for the credential, the handoff report,
+  # the leg record's fallback reason and the seal's job id.
+  model-subscription:
+    needs: [gate, model]
+    # The first attempt only, after the key leg handed off, found its key
+    # empty, or was skipped by the credit gate.
+    if: >-
+      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+      && (needs.model.outputs.handoff == 'true' || needs.model.outputs.credential-present == 'false'
+      || needs.gate.outputs.skip-key == 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    cache-mode: read
+    permissions:
+      contents: read # check out main with history, to branch from it
+    # No global or system git config applies to any step: one the model writes
+    # during its leg would otherwise reach every later git call.
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    outputs:
+      handoff: ${{ steps.run.outputs.handoff }}
+      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
+      sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      sealed-1: ${{ steps.seal.outputs.sealed-1 }}
+      sealed-2: ${{ steps.seal.outputs.sealed-2 }}
+      sealed-3: ${{ steps.seal.outputs.sealed-3 }}
+      sealed-4: ${{ steps.seal.outputs.sealed-4 }}
+      sealed-5: ${{ steps.seal.outputs.sealed-5 }}
+      sealed-6: ${{ steps.seal.outputs.sealed-6 }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the model
+        id: models
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: resolve-issue
+          base-path: .base
+          output-path: ${{ runner.temp }}/upkeep-models.json
+
+      # Only whether each secret is set leaves this step, never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success'
+        env:
+          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          # Whether the fallback leg can run, never the token.
+          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            echo "::warning::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN is empty; model-fallback sweeps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+          fi
+          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+          echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
+
+      # The plugin and the prompt, written from main before the root checkout
+      # replaces .base.
+      - name: Stage the plugin and the prompt
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/upkeep-stage
+          AREAS: ${{ needs.gate.outputs.areas }}
+          DATE: ${{ needs.gate.outputs.date }}
+          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          PROMPT_FILE: ${{ runner.temp }}/upkeep-prompt.md
+        run: |
+          mkdir -p "$STAGE/plugins"
+          cp -R .base/plugins/code-tidying "$STAGE/plugins/"
+          printf '{"mcpServers":{}}\n' >"$STAGE/plugins/code-tidying/.mcp.json"
+          [ -z "$(find "$STAGE" -type l -print -quit)" ] || { echo "::error::a staged plugin holds a symbolic link"; exit 1; }
+          node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs prompt
+
+      - name: Apply the Claude managed settings
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+
+      - name: Isolate the runner
+        if: steps.models.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # The skill branches from here. Nothing after this step runs from .base.
+      - name: Check out main with history
+        if: steps.models.outcome == 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Prepare the working tree
+        id: prepare
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/upkeep-stage
+          MODEL: ${{ steps.models.outputs.model }}
+        run: |
+          [ -n "$MODEL" ] || { echo "::error::the resolve-issue route's model is default, which run-claude-cli cannot pass"; exit 1; }
+          git config user.name "maintenance-tidy-code-upkeep"
+          git config user.email "maintenance-tidy-code-upkeep@users.noreply.github.com"
+          printf '.lane/\n' >>.git/info/exclude
+          # Head instruction, settings and server files stay out of the session;
+          # skip-worktree keeps their removal out of every commit.
+          mapfile -t held < <(git ls-files -- ':(glob)**/CLAUDE.md' ':(glob)**/AGENTS.md' ':(glob)**/.mcp.json' ':(glob)**/.claude/**' CLAUDE.md AGENTS.md .mcp.json)
+          if ((${#held[@]})); then
+            git update-index --skip-worktree -- "${held[@]}"
+            rm -f -- "${held[@]}"
+          fi
+          mkdir .lane
+          cp -R "$STAGE/plugins" .lane/plugins
+          chmod -R a-w .lane/plugins
+
+      - name: Sweep the areas
+        id: run
+        if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 75
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: maintenance-tidy-code-upkeep
+          role: automations
+          prompt-file: ${{ runner.temp }}/upkeep-prompt.md
+          preamble: You run unattended as the code-tidying upkeep CI lane, and no one can answer a question.
+          subscription-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Grep
+            Glob
+            Skill
+            Edit
+            Write
+            Bash
+            WebFetch
+          allowed-tools: |
+            Skill
+            Edit
+            Write
+            Bash
+            WebFetch(domain:code.claude.com)
+            WebFetch(domain:docs.anthropic.com)
+            WebFetch(domain:raw.githubusercontent.com)
+          disallowed-tools: |
+            Bash(git push *)
+            Bash(gh *)
+            Edit(./.lane/plugins/**)
+            Write(./.lane/plugins/**)
+            Read(//proc/**)
+            WebSearch
+            mcp__*
+          plugin-dirs: |
+            .lane/plugins/code-tidying
+          leg-timeout-minutes: "70"
+
+      # The sealer, its key and the transcript uploader come from a fresh
+      # checkout of the base after the leg: the model could have written anything
+      # under the workspace and RUNNER_TEMP, including this path.
+      - name: Clear the trusted checkout path
+        if: always() && steps.run.outcome != 'skipped'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
+
+      - name: Check out the base for the sealer
+        if: always() && steps.run.outcome != 'skipped'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .lane-trusted
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Upload the sealed transcript
+        if: always() && steps.run.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.lane-trusted/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+
+      - name: Report the subscription's handoff
+        if: always() && steps.run.outputs.handoff == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          HANDOFF_REASON: ${{ steps.run.outputs.handoff-reason }}
+        run: |
+          line="AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); model-fallback sweeps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+          echo "::notice::$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs, one record per leg.
+      - name: Record the leg
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.run.outcome }}
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          log-file: ${{ steps.run.outputs.log-file }}
+          lane: maintenance-tidy-code-upkeep
+          lane-id: maintenance-tidy-code-upkeep
+          credential: ${{ steps.run.outputs.credential }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          known-failure-class: ${{ steps.run.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ needs.model.outputs.handoff-reason || needs.model.outputs.credential-present == 'false' && 'no-key' || needs.gate.outputs.skip-key == 'true' && 'credit-stop' || '' }}
+
+      # The plan, and the planned branches as one git bundle from the base,
+      # sealed with the sealer from the trusted checkout.
+      - name: Seal the plan and the branches
+        id: seal
+        if: always() && steps.run.outcome != 'skipped'
+        env:
+          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          TRUSTED: ${{ github.workspace }}/.lane-trusted
+          OUT: ${{ runner.temp }}/upkeep-out
+          JOB_ID: model-subscription
+          MAX_CHUNKS: "6"
+        run: |
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          plan=.work/upkeep-plan.json
+          if [ -f "$plan" ] && [ ! -L "$plan" ]; then
+            cp "$plan" "$OUT/plan.json"
+          fi
+          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --format='%(refname)' 'refs/heads/chore/tidy-adhoc-*')
+          if ((${#refs[@]})); then
+            git -c core.fsmonitor=false bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}" || true
+          fi
+          PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
+          PAYLOADS=$(printf 'plan.json=%s\nbranches.bundle=%s\n' "$OUT/plan.json" "$OUT/branches.bundle")
+          export PUBLIC_KEY_FILE PAYLOADS
+          node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
+
+      - name: Log the API budget at the end
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # The fallback leg: the same steps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+  # alone, after the subscription leg handed off. It is the last leg and
+  # never hands off.
+  model-fallback:
+    needs: [gate, model-subscription]
+    # The first attempt only, after the subscription leg handed off or found
+    # its token empty.
+    if: >-
+      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+      && (needs.model-subscription.outputs.handoff == 'true' || needs.model-subscription.outputs.credential-present == 'false') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    cache-mode: read
+    permissions:
+      contents: read # check out main with history, to branch from it
+    # No global or system git config applies to any step: one the model writes
+    # during its leg would otherwise reach every later git call.
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    outputs:
+      handoff: ${{ steps.run.outputs.handoff }}
+      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
+      sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      sealed-1: ${{ steps.seal.outputs.sealed-1 }}
+      sealed-2: ${{ steps.seal.outputs.sealed-2 }}
+      sealed-3: ${{ steps.seal.outputs.sealed-3 }}
+      sealed-4: ${{ steps.seal.outputs.sealed-4 }}
+      sealed-5: ${{ steps.seal.outputs.sealed-5 }}
+      sealed-6: ${{ steps.seal.outputs.sealed-6 }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the model
+        id: models
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: resolve-issue
+          base-path: .base
+          output-path: ${{ runner.temp }}/upkeep-models.json
+
+      # Only whether each secret is set leaves this step, never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success'
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty; nothing sweeps the areas"
+          fi
+          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+
+      # The plugin and the prompt, written from main before the root checkout
+      # replaces .base.
+      - name: Stage the plugin and the prompt
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/upkeep-stage
+          AREAS: ${{ needs.gate.outputs.areas }}
+          DATE: ${{ needs.gate.outputs.date }}
+          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          PROMPT_FILE: ${{ runner.temp }}/upkeep-prompt.md
+        run: |
+          mkdir -p "$STAGE/plugins"
+          cp -R .base/plugins/code-tidying "$STAGE/plugins/"
+          printf '{"mcpServers":{}}\n' >"$STAGE/plugins/code-tidying/.mcp.json"
+          [ -z "$(find "$STAGE" -type l -print -quit)" ] || { echo "::error::a staged plugin holds a symbolic link"; exit 1; }
+          node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs prompt
+
+      - name: Apply the Claude managed settings
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+
+      - name: Isolate the runner
+        if: steps.models.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # The skill branches from here. Nothing after this step runs from .base.
+      - name: Check out main with history
+        if: steps.models.outcome == 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Prepare the working tree
+        id: prepare
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/upkeep-stage
+          MODEL: ${{ steps.models.outputs.model }}
+        run: |
+          [ -n "$MODEL" ] || { echo "::error::the resolve-issue route's model is default, which run-claude-cli cannot pass"; exit 1; }
+          git config user.name "maintenance-tidy-code-upkeep"
+          git config user.email "maintenance-tidy-code-upkeep@users.noreply.github.com"
+          printf '.lane/\n' >>.git/info/exclude
+          # Head instruction, settings and server files stay out of the session;
+          # skip-worktree keeps their removal out of every commit.
+          mapfile -t held < <(git ls-files -- ':(glob)**/CLAUDE.md' ':(glob)**/AGENTS.md' ':(glob)**/.mcp.json' ':(glob)**/.claude/**' CLAUDE.md AGENTS.md .mcp.json)
+          if ((${#held[@]})); then
+            git update-index --skip-worktree -- "${held[@]}"
+            rm -f -- "${held[@]}"
+          fi
+          mkdir .lane
+          cp -R "$STAGE/plugins" .lane/plugins
+          chmod -R a-w .lane/plugins
+
+      - name: Sweep the areas
+        id: run
+        if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 75
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: maintenance-tidy-code-upkeep
+          role: automations
+          prompt-file: ${{ runner.temp }}/upkeep-prompt.md
+          preamble: You run unattended as the code-tidying upkeep CI lane, and no one can answer a question.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Grep
+            Glob
+            Skill
+            Edit
+            Write
+            Bash
+            WebFetch
+          allowed-tools: |
+            Skill
+            Edit
+            Write
+            Bash
+            WebFetch(domain:code.claude.com)
+            WebFetch(domain:docs.anthropic.com)
+            WebFetch(domain:raw.githubusercontent.com)
+          disallowed-tools: |
+            Bash(git push *)
+            Bash(gh *)
+            Edit(./.lane/plugins/**)
+            Write(./.lane/plugins/**)
+            Read(//proc/**)
+            WebSearch
+            mcp__*
+          plugin-dirs: |
+            .lane/plugins/code-tidying
+          leg-timeout-minutes: "70"
+
+      # The sealer, its key and the transcript uploader come from a fresh
+      # checkout of the base after the leg: the model could have written anything
+      # under the workspace and RUNNER_TEMP, including this path.
+      - name: Clear the trusted checkout path
+        if: always() && steps.run.outcome != 'skipped'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
+
+      - name: Check out the base for the sealer
+        if: always() && steps.run.outcome != 'skipped'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .lane-trusted
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Upload the sealed transcript
+        if: always() && steps.run.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.lane-trusted/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs, one record per leg.
+      - name: Record the leg
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.run.outcome }}
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          log-file: ${{ steps.run.outputs.log-file }}
+          lane: maintenance-tidy-code-upkeep
+          lane-id: maintenance-tidy-code-upkeep
+          credential: ${{ steps.run.outputs.credential }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          known-failure-class: ${{ steps.run.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ needs.model-subscription.outputs.handoff-reason || needs.model-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
+
+      # The plan, and the planned branches as one git bundle from the base,
+      # sealed with the sealer from the trusted checkout.
+      - name: Seal the plan and the branches
+        id: seal
+        if: always() && steps.run.outcome != 'skipped'
+        env:
+          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          TRUSTED: ${{ github.workspace }}/.lane-trusted
+          OUT: ${{ runner.temp }}/upkeep-out
+          JOB_ID: model-fallback
+          MAX_CHUNKS: "6"
+        run: |
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          plan=.work/upkeep-plan.json
+          if [ -f "$plan" ] && [ ! -L "$plan" ]; then
+            cp "$plan" "$OUT/plan.json"
+          fi
+          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --format='%(refname)' 'refs/heads/chore/tidy-adhoc-*')
+          if ((${#refs[@]})); then
+            git -c core.fsmonitor=false bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}" || true
+          fi
+          PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
+          PAYLOADS=$(printf 'plan.json=%s\nbranches.bundle=%s\n' "$OUT/plan.json" "$OUT/branches.bundle")
+          export PUBLIC_KEY_FILE PAYLOADS
+          node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
+
+      - name: Log the API budget at the end
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # Opens the sealed plan and bundle, scans what will be published for
   # credentials, uploads only a clean set, and records the areas that need no
   # pull request. No model, no write token.
+  # One leg answers the run: the fallback leg when it ran, else the
+  # subscription leg when it ran, else the key leg.
   scan:
-    needs: [gate, model]
-    if: ${{ !cancelled() && needs.model.outputs.sealed-length != '' }}
+    needs: [gate, model, model-subscription, model-fallback]
+    if: ${{ !cancelled() && (needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '') != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -436,18 +1104,18 @@ jobs:
         with:
           private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
           expected-key-ids: ${{ steps.key.outputs.id }}
-          job-id: model
+          job-id: ${{ needs.model-fallback.result != 'skipped' && 'model-fallback' || needs.model-subscription.result != 'skipped' && 'model-subscription' || 'model' }}
           max-bytes: |
             plan.json=262144
             branches.bundle=393216
           directory: ${{ runner.temp }}/scan-in
-          sealed-length: ${{ needs.model.outputs.sealed-length }}
-          sealed-1: ${{ needs.model.outputs.sealed-1 }}
-          sealed-2: ${{ needs.model.outputs.sealed-2 }}
-          sealed-3: ${{ needs.model.outputs.sealed-3 }}
-          sealed-4: ${{ needs.model.outputs.sealed-4 }}
-          sealed-5: ${{ needs.model.outputs.sealed-5 }}
-          sealed-6: ${{ needs.model.outputs.sealed-6 }}
+          sealed-length: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '' }}
+          sealed-1: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-1 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-1 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-1 || '' }}
+          sealed-2: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-2 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-2 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-2 || '' }}
+          sealed-3: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-3 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-3 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-3 || '' }}
+          sealed-4: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-4 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-4 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-4 || '' }}
+          sealed-5: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-5 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-5 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-5 || '' }}
+          sealed-6: ${{ needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-6 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-6 || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-6 || '' }}
 
       - name: Check the plan and write the diffs
         id: check

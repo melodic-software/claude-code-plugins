@@ -107,7 +107,9 @@
         { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "judge-subscription", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "judge-fallback", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "model", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "model", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "model-subscription", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "model-fallback", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "audit", "workflow": "post-merge-test-mutation.yml", "launcher": "claude-code-action", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
