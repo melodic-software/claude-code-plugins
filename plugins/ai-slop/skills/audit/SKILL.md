@@ -123,8 +123,11 @@ generator.
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules
    from the detector's `Summary` rows. State what was scanned and what the rubric did not cover.
 5. **Persist the findings file** per [`context/persist-findings.md`](context/persist-findings.md)
-   whenever the audit examined tracked files: fetch the producer contract first and refuse to
-   write when unreachable, or when the findings home cannot be resolved without asking. The
+   whenever the audit examined tracked files. Settle that before any fetch
+   (`git ls-files --error-unmatch <file>` per file target): a run that examined no tracked file
+   skips this step, contract fetch included, and says no findings file applies. Otherwise fetch
+   the producer contract and refuse to write when unreachable, or when the findings home cannot
+   be resolved without asking. The
    outcome is then report-only, and the report says `report-only` and why; it never skips
    silently. When the home resolves, the file is mandatory even with zero findings, as the
    coverage record. Script findings only. A run with any non-repository target writes no
