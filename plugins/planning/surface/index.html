@@ -1434,7 +1434,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       return;
     }
     const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
-    const marks = (S.doc.meta || {}).emojiMarkers === true;
+    const marks = (S.doc.meta || {}).emojiMarkers !== false;
     let h = checkpointBanner() + roundRestateCard(q);
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + sweepChip(q) + addedChip(q) + groupSpan(q, g) +
       '<span class="chip s-' + esc(st) + '">' + stateLabel(q) + '</span><span class="grow"></span>' +
