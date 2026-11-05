@@ -91,12 +91,13 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { FIELD_API, statusMirror } from "../../actions/resolve-config/write-status.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -853,6 +854,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
               limits: readLimits(env.RESOLVED_CONFIG),
               wip: readWip(env.RESOLVED_CONFIG),
               remaining: rate.remaining,
+              statusOf: statusReader({ env, github, repository, limit: STATUS_READS }),
             }),
         });
       const noteSplit = (issue) =>

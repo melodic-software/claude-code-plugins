@@ -22,14 +22,23 @@ wit_filter_label() {
 # source envelope's `truncated` passes through unchanged: filtering a truncated
 # listing yields a truncated frontier. An adapter that predates the field emits
 # none, and the frontier then carries none either, so a reader sees "unknown".
+# An item whose `status` (its Work status, wit_attach_statuses) is a hold state
+# and that carries no hold-state label is held as well: labels reach the field
+# first, so the field may only add a hold the labels lack and never frees an
+# item they hold. That is also why no
+# setter is checked here: any value can only hold an item back.
 wit_filter_frontier() {
   local autonomous="${1:-false}" human_gated="${2:-$WIT_DEFAULT_HUMAN_GATED_LABEL}" container="${3:-$WIT_DEFAULT_CONTAINER_LABEL}"
-  local floor_json
-  # Build the floor list (work classes, provenance and status labels) as a jq array argument.
-  # --args positionals keep labels containing spaces intact (every member does).
+  local floor_json states_json hold_labels_json
+  # Build the floor lists (work classes, provenance and status labels; the hold
+  # states) as jq array arguments. --args positionals keep labels containing
+  # spaces intact (every member does).
   floor_json="$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_WORK_CLASS_LABELS[@]}" "${WIT_HUMAN_FLOOR_PROVENANCE_LABELS[@]}" "${WIT_HUMAN_FLOOR_STATUS_LABELS[@]}")"
+  states_json="$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_STATUS_STATES[@]}")"
+  hold_labels_json="$(jq -n -c '$ARGS.positional' --args "$human_gated" "${WIT_HOLD_STATE_LABELS[@]}")"
   jq -c --arg auto "$autonomous" --arg human_gated "$human_gated" --arg container "$container" \
-    --arg wayfind "$WIT_WAYFIND_LABEL_PREFIX" --argjson floor "$floor_json" '{
+    --arg wayfind "$WIT_WAYFIND_LABEL_PREFIX" --argjson floor "$floor_json" --argjson states "$states_json" \
+    --argjson hold_labels "$hold_labels_json" '{
     schema_version: .schema_version,
     items: [
       .items[]
@@ -42,6 +51,8 @@ wit_filter_frontier() {
           and (if $auto == "true"
                then (((.labels // []) | index($human_gated)) | not)
                     and (((.labels // []) | any(. as $l | $floor | index($l))) | not)
+                    and (((.status | type) == "string" and (.status as $s | $states | index($s))
+                          and (((.labels // []) | any(. as $l | $hold_labels | index($l))) | not)) | not)
                else true
                end)
         )

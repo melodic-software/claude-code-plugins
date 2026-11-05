@@ -19,6 +19,8 @@ import { test } from "node:test";
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
 import { BLOCKER_READS, isHeld, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../resolve-config/read-status.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const AUTHOR = "author:app/melodic-automation-lanes";
@@ -159,6 +161,52 @@ test("the queued listing leaves out pull requests and hold labels in any case, i
   assert.deepEqual(reads.queued, [1, 7, 8]);
   assert.equal(reads.queuedUnlisted, 0);
   assert.equal(status(reads).queued_issues, 3);
+});
+
+// The Work status field a trusted account set (read-status.mjs): with a status
+// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
+const fieldRead = (fields, queued) => {
+  const { github } = searchApi({ merged: 24, queued });
+  const fielded = withFields(github, fields);
+  const statusOf = statusReader({ github: fielded, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+  return readLaneWip(fielded, { repo: REPO, now: NOW, windowHours: 24, statusOf });
+};
+
+test("a field that mirrors the labels changes no queued answer", async () => {
+  const queued = [
+    { number: 1 },
+    { number: 2, pull_request: {} },
+    { number: 3, labels: [{ name: "needs-human" }] },
+    { number: 4, labels: [{ name: "Status: Needs-Decision" }] },
+    { number: 5, labels: [{ name: "needs-owner-decision" }] },
+    { number: 6, labels: [{ name: "status: needs-info" }] },
+    { number: 7, labels: [{ name: "agent-ready" }, { name: "priority: high" }, null, { name: 7 }] },
+    { number: 8, labels: [{ name: "status: ready" }] },
+    { number: 9, labels: [{ name: "agent-ready" }, { name: "needs-spec" }] },
+  ];
+  const reads = await read({ merged: 24, queued }, { statusOf: mirroredStatusOf });
+  assert.deepEqual(reads.queued, [1, 7, 8, 9]);
+});
+
+test("a hold in the Work status field the labels lack keeps an issue out of the queue", async () => {
+  const queued = [
+    { number: 1, labels: [{ name: "agent-ready" }] },
+    { number: 2, labels: [{ name: "agent-ready" }, { name: "needs-human" }] },
+    { number: 3, labels: [{ name: "agent-ready" }] },
+  ];
+  const reads = await fieldRead({ 1: { state: "needs-human" }, 2: { state: "agent-ready" } }, queued);
+  assert.deepEqual(reads.queued, [3]);
+});
+
+// The listing names only agent-ready issues, so every listed one carries a
+// status label: the field never decides alone here.
+test("a queued issue whose Work status field is unset, or set by another account, is judged by its labels", async () => {
+  const queued = [
+    { number: 1, labels: [{ name: "agent-ready" }] },
+    { number: 2, labels: [{ name: "agent-ready" }] },
+  ];
+  const reads = await fieldRead({ 2: { state: "needs-human", setter: STRANGER_ID } }, queued);
+  assert.deepEqual(reads.queued, [1, 2]);
 });
 
 test("the queued listing pages until a short page, counting pull requests toward the page size", async () => {

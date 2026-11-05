@@ -20,6 +20,8 @@ import { test } from "node:test";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./reenter.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };
@@ -295,6 +297,61 @@ test("a run that loses the status label to another run dispatches nothing", asyn
     w.writes.map(([method]) => method),
     ["DELETE"],
   );
+});
+
+// The Work status field a trusted account set (read-status.mjs): with a status
+// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
+const fieldEnv = { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "1", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id) };
+const runWithField = (w, fields) => {
+  const github = withFields(w.github, fields);
+  return main({
+    github,
+    log: () => {},
+    statusOf: statusReader({ github, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }),
+    env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "1", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id) },
+  });
+};
+
+test("a field that mirrors the labels changes no answer", async () => {
+  const scenarios = [
+    { labels: ["status: needs-decision", "priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }] },
+    { labels: ["needs-human", "status: needs-decision"], comments: [{ id: 1, user: OWNER, body: DECISION }] },
+    { labels: ["status: confirmed"], comments: [{ id: 1, user: OWNER, body: DECISION }] },
+    { labels: ["status: confirmed", "agent-ready"], comments: [{ id: 1, user: OWNER, body: DECISION }] },
+    { labels: ["status: confirmed", "status: ready"], comments: [{ id: 1, user: OWNER, body: DECISION }] },
+    { labels: ["status: needs-info"], author: AUTHOR, comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] },
+    { labels: ["status: needs-info"], comments: [{ id: 1, user: STRANGER, body: "me too" }] },
+    { labels: ["agent-ready"], comments: [{ id: 1, user: OWNER, body: DECISION }] },
+  ];
+  for (const scenario of scenarios) {
+    const byLabels = world(scenario);
+    const mirrored = world(scenario);
+    assert.equal(await run(byLabels, 1), await main({ github: mirrored.github, log: () => {}, statusOf: mirroredStatusOf, env: fieldEnv }), JSON.stringify(scenario.labels));
+    assert.deepEqual(mirrored.writes, byLabels.writes, JSON.stringify(scenario.labels));
+  }
+});
+
+test("a hold in the Work status field the labels lack stops a decision", async () => {
+  const w = world({ labels: ["status: confirmed"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await runWithField(w, { [NUMBER]: { state: "needs-human" } }), 0);
+  assert.deepEqual(w.writes, []);
+});
+
+// The claim is removing the status label, so an issue with none has nothing
+// the field could answer for: it is not read.
+test("an issue with no status label is not read, whatever its Work status field holds", async () => {
+  const w = world({ labels: [], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await runWithField(w, { [NUMBER]: { state: "needs-owner-decision" } }), 0);
+  assert.deepEqual(w.writes, []);
+});
+
+test("a decision is judged by the labels when the Work status field is unset, set by another account, or names a ready state", async () => {
+  for (const fields of [{}, { [NUMBER]: { state: "needs-human", setter: STRANGER_ID } }, { [NUMBER]: { state: "agent-ready" } }]) {
+    const w = world({ labels: ["status: needs-decision"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+    assert.equal(await runWithField(w, fields), 0);
+    assert.deepEqual(w.labels(), ["needs-triage"]);
+    expectDispatched(w);
+  }
 });
 
 const DISPATCH = `/repos/${REPO}/actions/workflows/intake-triage.yml/dispatches`;

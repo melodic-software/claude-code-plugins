@@ -45,3 +45,26 @@ readonly WIT_HUMAN_FLOOR_STATUS_LABELS=(
   "status: needs-info"
   "needs-spec"
 )
+
+# The Work status field's states that hold an item for a person, added to the
+# label floor when the tracker stores status in that field (CONTRACT.md "Verbs",
+# list-frontier). Option names of the field; no binding key.
+# shellcheck disable=SC2034
+readonly WIT_HUMAN_FLOOR_STATUS_STATES=(
+  "needs-human"
+  "needs-owner-decision"
+  "needs-reporter-info"
+  "needs-spec"
+)
+
+# The labels of those states. An item carrying one already has its hold decided by
+# its labels, so the field adds none (needs-owner-decision floors only through the
+# field's hold, never through its bare label, as before the field was read).
+# shellcheck disable=SC2034
+readonly WIT_HOLD_STATE_LABELS=(
+  "needs-human"
+  "status: needs-decision"
+  "needs-owner-decision"
+  "status: needs-info"
+  "needs-spec"
+)

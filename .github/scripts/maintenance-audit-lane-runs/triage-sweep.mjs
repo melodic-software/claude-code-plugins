@@ -42,6 +42,7 @@ import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createBudget } from "./collect.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
 
 // Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
@@ -87,22 +88,26 @@ const TRIAGED = /^(needs-human|needs-spec|agent-ready)$|^status: /;
 // What keeps a born-triaged `status: ready` issue out of admission on purpose.
 const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "work-class: untrusted-provenance"]);
 
-const names = (i) => (i.labels ?? []).map((l) => String(l.name ?? "").toLowerCase());
-const bornReady = (i) =>
+// An issue's lowercased label names; `labels`, when given, stands in for its
+// own (with the Work status field's say added, read-status.mjs).
+const names = (i, labels) => (labels ?? (i.labels ?? []).map((l) => l.name)).map((n) => String(n ?? "").toLowerCase());
+const bornReady = (i, labels) =>
   String(i.body ?? "")
     .trimEnd()
     .endsWith(BORN_TRIAGED_MARKER) &&
-  names(i).includes("status: ready") &&
-  !names(i).some((n) => ADMISSION_HOLDS.has(n)) &&
+  names(i, labels).includes("status: ready") &&
+  !names(i, labels).some((n) => ADMISSION_HOLDS.has(n)) &&
   !(i.issue_dependencies_summary?.blocked_by > 0);
 
-export function selectCandidates({ issues, now, authorIds }) {
+// `statusLabels` maps an issue number to its label names as its Work status
+// field adds to them; an issue it leaves out is judged by its own labels.
+export function selectCandidates({ issues, now, authorIds, statusLabels = new Map() }) {
   return issues
     .filter(
       (i) =>
         !i.pull_request &&
         authorIds.has(String(i.user?.id)) &&
-        (!names(i).some((n) => TRIAGED.test(n)) || bornReady(i)) &&
+        (!names(i, statusLabels.get(i.number)).some((n) => TRIAGED.test(n)) || bornReady(i, statusLabels.get(i.number))) &&
         now - new Date(i.created_at) >= MIN_AGE_MS,
     )
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.number - b.number);
@@ -323,8 +328,10 @@ async function handedOff(call, repo, appId) {
 
 // One pass. `call` returns null for a GET that 404s. `mirrorStatus`
 // (write-status.mjs statusMirror) mirrors each needs-triage add into the Work
-// status field.
-export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, mirrorStatus = async () => {} }) {
+// status field. `statusOf(number, names)` (read-status.mjs statusReader)
+// gives an issue's label names with its Work status field's say added; it is
+// asked only of the issues the labels select, which it can only drop.
+export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, mirrorStatus = async () => {}, statusOf = async (number, labels) => labels }) {
   const repoUrl = `${serverUrl}/${repo}`;
   const issues = [];
   for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
@@ -333,7 +340,12 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (batch.length < 100) break;
   }
   const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], waiting: [], failed: [], truncated: null };
-  const selected = selectCandidates({ issues, now, authorIds });
+  const byLabels = selectCandidates({ issues, now, authorIds });
+  const statusLabels = new Map();
+  for (const i of byLabels) {
+    statusLabels.set(i.number, await statusOf(i.number, (i.labels ?? []).map((l) => l.name)));
+  }
+  const selected = selectCandidates({ issues: byLabels, now, authorIds, statusLabels });
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && names(i).includes(FLOOR)));
   result.candidates = candidates.length;
@@ -490,10 +502,11 @@ async function main() {
   const list = JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH, "utf8"));
   const authorIds = new Set(humanIds(list).split(",").filter(Boolean));
   if (/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "")) authorIds.add(env.LANES_APP_ID);
-  // The field write sends its own API version, which `call` cannot, so it
-  // goes through its own client, outside the call budget.
+  // The field read and write send their own API version, which `call` cannot,
+  // so they go through their own client, outside the call budget.
   const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
   const mirrorStatus = await statusMirror({ env, github, repository: env.REPOSITORY });
+  const statusOf = statusReader({ env, github, repository: env.REPOSITORY, limit: MAX_CHECKED });
   const result = await runSweep({
     call,
     remaining: () => budget.limit - budget.used,
@@ -503,6 +516,7 @@ async function main() {
     authorIds,
     appId: /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? env.LANES_APP_ID : null,
     mirrorStatus,
+    statusOf,
   });
   const numbers = (xs) => xs.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
