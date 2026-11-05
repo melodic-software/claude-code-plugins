@@ -428,7 +428,7 @@ most `FAULT_HELD_READS` a pass. At about 700 succeeded runs a day that is about 
 hour, plus one or two listing reads a pass. Monitor signal 13 does not count these holds.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
-`retry-spent` fault hold, work-unblock's held listings, pr-refine's held `fix-docs` reads and
+`retry-spent` fault hold, work-resolve-issue's `WIP cap hold`, work-unblock's held listings, pr-refine's held `fix-docs` reads and
 intake-triage's held verdicts (`apply-verdict.mjs` `closing`). A
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
@@ -471,9 +471,9 @@ head, not `222d8023`.
   and pick-slot names that hold itself. The job ends green and work-unblock's sweep re-fires the
   issue as a WIP cap skip (`label-unblocked.mjs` `didNoWork`), with no per-issue bound. The cached
   last known pause is gone: the action's cache restore and save, its `save-state` input, and
-  work-unblock's `wip-state` job, which only saved it. Monitor signal 13 does not count this hold:
-  its work-resolve-issue entry reads only `report-outcome / run` (`signals.mjs` `HOLD_LANES`). So a
-  permanent fault, such as a token that cannot search, holds every run and shows only as notices.
+  work-unblock's `wip-state` job, which only saved it. Monitor signal 13 counts this hold: its
+  work-resolve-issue entry reads `pick-slot` too (`signals.mjs` `HOLD_LANES`), so a permanent fault,
+  such as a token that cannot search, raises the signal's issue.
 
 The other script rows below are still open.
 

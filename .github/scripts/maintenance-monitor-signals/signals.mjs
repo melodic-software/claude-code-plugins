@@ -410,7 +410,7 @@ export function listingHeldFindings({ heldSweeps = [] }) {
 // (collect.mjs LIMITS.holdRuns otherwise).
 export const LANE_HOLDS = { threshold: 4, "window-hours": 24 };
 export const HOLD_LANES = [
-  { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run"], area: "Issue lane (work-resolve-issue)" },
+  { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run", "pick-slot"], area: "Issue lane (work-resolve-issue)" },
   { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)" },
   { lane: "pr-refine", workflow: "pr-refine.yml", jobs: ["fix-docs-handoff", "fix-docs-subscription-handoff"], area: "PR refine lane (pr-refine fix-docs)" },
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
@@ -426,6 +426,14 @@ const HOLD_NOTICES = [
   { title: "label-unblocked", pattern: new RegExp(`^the (${NAME}) listing failed \\(`), hold: (m) => ({ item: null, reason: `${m[1]} listing failed` }) },
   // handoff-evidence.sh: a fix-docs read that failed.
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
+  // check-wip-cap.mjs, or pick-slot's step when the check did not finish: the
+  // pause could not be read, so the run started no work. A fixed reason per
+  // cause, and no item, since the hold is the lane's, not one issue's.
+  {
+    title: "WIP cap hold",
+    pattern: /^(?:WIP cap hold: the (base config) could not be read|WIP cap hold: the (open lane PRs) could not be listed|the (WIP cap check) did not finish), so the pause is unknown/,
+    hold: (m) => ({ item: null, reason: m[1] ? "WIP cap base config unread" : m[2] ? "WIP cap open listing failed" : "WIP cap check unfinished" }),
+  },
   // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is
   // a closed set, never the fault's own text, so the finding's fingerprint
   // stays put; the issue a path names may be a blocker, so no item.

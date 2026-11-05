@@ -3,6 +3,7 @@
 // day, held over 24 hours, 0 merges for 3 hours); annotation and status-page
 // shapes are copied from real pr-merge, broker and githubstatus.com output.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -13,6 +14,7 @@ import {
   detect,
   ejectionFindings,
   heldFindings,
+  HOLD_LANES,
   holdRule,
   laneHoldFindings,
   mainRedFindings,
@@ -582,6 +584,27 @@ test("signal 13: intake-triage's held verdict parses to a fixed reason with no i
   assert.equal(parseHold("apply-verdict", /::(.*)$/.exec(red)[1]), null);
   assert.equal(parseHold("pr-verify", "held: pr-verify could not resolve the pull request: x failed with status 502"), null);
   assert.equal(parseHold("apply-verdict", "apply-verdict does not apply (off); nothing written"), null);
+});
+
+test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per cause with no item", () => {
+  // check-wip-cap.mjs's notice template and its causes, read from the script,
+  // so producer and parser are one contract.
+  const script = readFileSync(new URL("../../actions/check-wip-cap/check-wip-cap.mjs", import.meta.url), "utf8");
+  const template = /const line = `(WIP cap hold: \$\{unread\}[^`]*)`/.exec(script)[1];
+  for (const [unread, reason] of [
+    ["the base config could not be read", "WIP cap base config unread"],
+    ["the open lane PRs could not be listed", "WIP cap open listing failed"],
+  ]) {
+    assert.ok(script.includes(`"${unread}"`), unread);
+    assert.deepEqual(parseHold("WIP cap hold", template.replace("${unread}", unread)), { item: null, reason });
+  }
+  // pick-slot's step names a check that did not finish, read from the workflow itself.
+  const workflow = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8");
+  const step = /run: echo "(::notice title=WIP cap hold::[^"]*)"/.exec(workflow)[1];
+  assert.deepEqual(parseHold(...annotation(step)), { item: null, reason: "WIP cap check unfinished" });
+  // A pause that was read is no hold.
+  assert.equal(parseHold("admission paused", "admission paused: reason=wip countable=13 wip_cap=12 held=0 held_cap=10"), null);
+  assert.ok(HOLD_LANES.find((l) => l.lane === "work-resolve-issue").jobs.includes("pick-slot"));
 });
 
 const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({
