@@ -78,17 +78,22 @@ spreads, and designs handed to the plan. Resolver lane: `--lane planning`.
 Resolve, build and deliver in one call. The builder runs the shared medium resolver
 (`lib/view-settings.mjs`, the same resolution as its `resolve` command), runs the publish gate over a
 publishing medium, builds the page unless the medium shows none, and hands it to the medium's entry in the
-registry (`lib/view-registry.mjs`). Pipe one JSON object (shapes under "Data shapes") for the plan or
-brainstorm view:
+registry (`lib/view-registry.mjs`). The plan view reads `PLAN.md` itself:
 
 ```bash
-node "<plugin-root>/scripts/build-view.mjs" plan --option "<medium option>" --visibility "<visibility>" <<'JSON'
-{"title": "...", "goal": "...", "blast": "...", "phases": [{"status": "TODO", "name": "...", "what": "...", "needs": "none", "criteria": ["..."]}]}
-JSON
+node "<plugin-root>/scripts/build-view.mjs" plan --record "<PLAN.md path>" --option "<medium option>" --visibility "<visibility>"
 ```
 
-- `plan` names the view: `brainstorm` for the brainstorm view; `design --record "<PLAN.md path>"` for the
-  design view, which reads the record's `## Design` section and takes no stdin.
+- `plan` names the view: `design` for the design view, which reads the same record's `## Design`
+  section; `brainstorm` for the brainstorm view, which takes no `--record` and reads one JSON object
+  (shape under "Data shapes") piped on stdin:
+
+  ```bash
+  node "<plugin-root>/scripts/build-view.mjs" brainstorm --option "<medium option>" --visibility "<visibility>" <<'JSON'
+  {"title": "...", "problem": "...", "candidates": [{"effort": "small", "name": "...", "what": "...", "where": "...", "impact": "..."}]}
+  JSON
+  ```
+
 - `--option` takes this plugin's `medium` option as the calling skill states it. Add
   `--argument "<medium>"` only when the reader named a medium in the request.
 - `--visibility` is the visibility of the repository the record draws on
@@ -128,13 +133,11 @@ closes the loop.
    ```
 
    It prints one JSON line: `url`, `origin`, `page` and `watch`.
-2. Build the page into `page`, naming `origin` (`brainstorm`, or `design --record "<PLAN.md path>"`, in
-   place of `plan` for the other views):
+2. Build the page into `page`, naming `origin` (`design` in place of `plan` for the design view;
+   `brainstorm`, with its JSON on stdin and no `--record`, for the brainstorm view):
 
    ```bash
-   node "<plugin-root>/scripts/build-view.mjs" plan --connect "<origin>" --out "<page>" <<'JSON'
-   {"title": "...", "goal": "...", "blast": "...", "phases": [...]}
-   JSON
+   node "<plugin-root>/scripts/build-view.mjs" plan --record "<PLAN.md path>" --connect "<origin>" --out "<page>"
    ```
 
 3. Give the reader `url` (the `127.0.0.1` form; a `localhost` URL cannot reach the server).
@@ -244,9 +247,15 @@ The interview's `page` surface follows the `surface` option, not `medium`.
 
 Every field is plain text. List order is the numbering in the record.
 
-`plan`: `title`, `goal`, `blast` (the blast radius level), and `phases`, each with `status` (`TODO`, `DOING`,
-`DONE`), `name` (the phase heading without its status tag), `what`, `needs` (the phases it depends on, or
-`none`), and `criteria` (a list of acceptance criteria).
+`plan`: no JSON. The builder reads the `PLAN.md` that `--record` names (or stdin), in the shape plan
+SKILL.md "PLAN.md anatomy" gives it: the title from its level-one heading or a `## Plan: <title>` heading
+(`Plan` when it names none); the Brief's Goal paragraph, or a `No Brief:` plan's `Goal:` line; the blast
+radius level; the Brief's Problem, Constraints and Out-of-scope lines; the acceptance criteria (the
+Brief's, then any `## Plan` adds); and from `## Plan` the behaviors (each id, claim and cited criterion
+ids), the `Process criteria:` line, the "Decisions made" table rows, and the phases. Each phase shows its heading
+with its number, its status tag, its Delivers and Satisfies lines, its Sanity Check lines, its other text,
+and each `shape` fence as preformatted text. The page links to its Brief, Behaviors, Criteria, Decisions and
+Phases sections. A record with no `## Plan` section exits 1.
 
 `brainstorm`: `title`, `problem`, and `candidates` ordered cheapest first, each with `effort`, `name`, `what`,
 `where` (the files or mechanisms it touches), and `impact`.

@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { render, validateView, VIEW_KINDS, ViewBuildError } from "../lib/view-builder.mjs";
+import { parsePlan, render, validateView, VIEW_KINDS, ViewBuildError } from "../lib/view-builder.mjs";
 import { MEDIUMS } from "../lib/view-registry.mjs";
 import { resolveMedium } from "../lib/view-settings.mjs";
 import { deliverView } from "./build-view.mjs";
@@ -54,13 +54,7 @@ const DESIGN_RECORD = [
   "",
 ].join("\n");
 
-const PLAN = {
-  title: "Add caching to query handlers",
-  goal: "Cache repeated query results.",
-  blast: "MEDIUM",
-  phases: [{ status: "TODO", name: "Phase 1: Cache layer", what: "Add the cache.", needs: "none", criteria: ["Tests pass."] }],
-};
-const PLAN_RECORD = JSON.stringify(PLAN);
+const PLAN_RECORD = readFileSync(join(HERE, "testdata", "plan-record.md"), "utf8");
 const dataOf = (page) => JSON.parse(/<script type="application\/json" id="rv-data">([\s\S]*?)<\/script>/.exec(page)[1]);
 const resolution = (medium, decidedBy, preferred = medium) => ({ preferred, medium, decidedBy, notices: [] });
 
@@ -93,9 +87,102 @@ describe("the design kind", () => {
   });
 });
 
+describe("parsePlan", () => {
+  test("reads the Brief, behaviors, criteria, decisions and phases of a PLAN.md", () => {
+    assert.deepEqual(parsePlan(PLAN_RECORD), {
+      title: "Plan: Add caching to query handlers",
+      goal: "Cache repeated query results so a repeated lookup skips the database.",
+      blast: "MEDIUM",
+      brief: {
+        problem: ["Repeated order lookups hit the database on every request.", "Peak latency is twice the target."],
+        constraints: ["No new runtime dependency."],
+        outOfScope: ["Cache invalidation across instances."],
+      },
+      behaviors: [
+        { id: "B1", text: "A repeated order lookup returns without a database read.", cites: "AC1" },
+        { id: "B2", text: "Each lookup logs whether it hit the cache.", cites: "AC2" },
+      ],
+      process: "AC3",
+      criteria: [
+        { id: "AC1", text: "A repeated lookup within the TTL reads from the cache." },
+        { id: "AC2", text: "The hit rate is logged." },
+        { id: "AC3", text: "The PR body links the issue it closes." },
+      ],
+      decisions: [
+        { decision: "D1 In-process cache first", changes: "Phase 1 adds a map-backed cache", basis: "the handler runs in one process", source: "plan" },
+        { decision: "D2 Log through the existing logger", changes: "Phase 2 reuses `log.info`", basis: "the logger module read this session", source: "plan" },
+      ],
+      phases: [
+        {
+          status: "DONE",
+          name: "Phase 1: Cache layer",
+          what: "Add the cache module and read through it in the order handler.",
+          satisfies: "AC1",
+          delivers: "B1",
+          criteria: ["`pytest tests/test_cache.py` exits 0", '`grep -c "cache.get" src/orders/handler.py` prints 1'],
+          shapes: [{ anchor: "src/orders/handler.py#get_order", body: "get_order\n+ cache.get\n  db.fetch_order" }],
+        },
+        {
+          status: "TODO",
+          name: "Phase 2: Wire the hit-rate log",
+          what: "Log each lookup's hit or miss.\n\n```text\n## a heading inside a fence stays text\n```",
+          satisfies: "AC2, AC3",
+          delivers: "B2",
+          criteria: ["`pytest tests/test_log.py` exits 0"],
+          shapes: [],
+        },
+      ],
+    });
+  });
+
+  test("a missing part is an empty list or empty text, and a No Brief plan takes its Goal line", () => {
+    const plan = parsePlan("No Brief: a one-line fix.\nGoal: fix the typo; done when the page reads right.\n\n## Plan\n\n### Phase 1: Fix [TODO]\n");
+    assert.equal(plan.goal, "fix the typo; done when the page reads right.");
+    assert.deepEqual([plan.title, plan.blast, plan.process], ["", "", ""]);
+    assert.deepEqual([plan.behaviors, plan.criteria, plan.decisions, plan.brief.problem], [[], [], [], []]);
+    assert.deepEqual(plan.phases, [{ status: "TODO", name: "Phase 1: Fix", what: "", satisfies: "", delivers: "", criteria: [], shapes: [] }]);
+  });
+
+  test("only a ### Phase N: heading under ## Plan is a phase, as the outcome gate counts them", () => {
+    const plan = parsePlan(
+      [
+        "## Plan",
+        "",
+        "### Phase file-overlap matrix",
+        "",
+        "| Phase | Files |",
+        "|---|---|",
+        "| 1 | a.py |",
+        "",
+        "### Phase ordering",
+        "",
+        "### Phase 1: Fix [DONE]",
+        "",
+        "### Phase 2.5: Wire [TODO]",
+        "",
+        "### Phase IV: Ship [TODO]",
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(plan.phases.map((phase) => phase.name), ["Phase 1: Fix", "Phase 2.5: Wire", "Phase IV: Ship"]);
+  });
+
+  test("a record with no ## Plan section is refused as data", () => {
+    assert.throws(() => parsePlan("# Plan\n\n## Brief\n\n```\n## Plan\n```\n"), ViewBuildError);
+    assert.throws(() => VIEW_KINDS.plan.parse({ phases: [] }), ViewBuildError);
+  });
+});
+
 describe("render", () => {
-  test("renders the plan kind from its JSON record", () => {
-    assert.equal(dataOf(render("planning", "plan", PLAN_RECORD)).title, "Add caching to query handlers");
+  test("renders the plan kind from its PLAN.md record, the Brief lists as top-level keys", () => {
+    const data = dataOf(render("planning", "plan", PLAN_RECORD));
+    assert.equal(data.title, "Plan: Add caching to query handlers");
+    assert.deepEqual(data["out-of-scope"], ["Cache invalidation across instances."]);
+    assert.equal(data.brief, undefined);
+  });
+
+  test("a plan record that names no title shows Plan", () => {
+    assert.equal(dataOf(render("planning", "plan", "## Plan\n\n### Phase 1: Fix [TODO]\n")).title, "Plan");
   });
 
   test("refuses a kind the lane does not register", () => {
@@ -149,7 +236,7 @@ describe("deliverView", () => {
   });
 
   test("the publish gate keeps a credential-shaped record local in a public repository", () => {
-    const record = JSON.stringify({ ...PLAN, goal: `token ghp_${"a".repeat(36)}` });
+    const record = PLAN_RECORD.replace("Cache repeated query results", `token ghp_${"a".repeat(36)}`);
     const out = deliverView({ kind: "plan", record, resolution: resolution("artifact", "plugin default"), visibility: "PUBLIC", write: memory().write });
     assert.equal(out.delivery.publish, undefined);
     assert.match(out.report[0], /^view: file \(publish gate: .*GitHub token/);
