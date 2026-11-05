@@ -32,12 +32,25 @@
 # 2, since it would hide every citation after it. A line carrying
 # <!-- citation-example --> is ignored too.
 #
+# A fence whose info string starts with `shape` anchors a code shape:
+# `shape <path>[#<symbol>][ L<n>]`. Only an outermost fence counts, so a shape
+# fence quoted inside a longer fence is not checked. The path is read like a
+# citation path; a file path needs `#<symbol>`, a token with no spaces that
+# `git grep -w -F -e <symbol>` finds in it at the commit, and a directory path
+# needs none (a symbol it carries is searched for in that directory).
+#   shape-missing-path    the path is not in the commit's tree
+#   shape-missing-symbol  a file path has no symbol, or the symbol is not found
+#   shape-past-end        L<n> is past the file's last line
+#   shape-not-a-file      L<n> on a directory, or the path names a submodule
+#   shape-malformed       no path, an empty `#`, or a second word that is not L<n>
+#   shape-line            a warning, not a failure: line <n> lacks the symbol
+#
 # The commit the check ran at is printed as `commit=<full sha>`; the plan records
 # it on its `Citations checked at:` line, so a later reader knows which tree the
 # line numbers describe.
 #
-# Exit 0 = every citation resolves (a plan with no citation passes)
-# Exit 1 = at least one citation does not resolve
+# Exit 0 = every citation and shape anchor resolves (a plan with neither passes)
+# Exit 1 = at least one citation or shape anchor does not resolve
 # Exit 2 = usage or environment error (missing file, not a git repository,
 #          a commit that does not resolve, an unterminated fence, ...)
 #
@@ -51,8 +64,11 @@
 #
 # Output (stdout, greppable): one
 # `citation=<plan line>:<path>:<lines> status=fail reason=<reason>` line per
-# failing citation (a past-end reason adds ` last-line=<n>`), then a closing
-# `citations=<n> failed=<n> commit=<sha> status=<ok|fail>` line.
+# failing citation (a past-end reason adds ` last-line=<n>`), one
+# `shape=<plan line>:<info after shape> status=<fail|warn> reason=<reason>` line
+# per failing or warned shape anchor, a `shapes=<n> failed=<n> warned=<n>` line,
+# then a closing `citations=<n> failed=<n> commit=<sha> status=<ok|fail>` line,
+# whose status is fail when a citation or a shape anchor failed.
 
 set -uo pipefail
 
@@ -102,15 +118,47 @@ git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || die "not a git repository:
 commit="$(git -C "$repo" rev-parse --verify --quiet "$rev^{commit}")" || die "not a commit: $rev"
 
 # One citation per line: C TAB <plan line> TAB <path> TAB <start> TAB <end>.
+# One shape anchor per line, fields split by US (\037) so an empty one stays:
+# S US <plan line> US <ok|malformed> US <path> US <symbol> US <n> US <label>.
 # Exit 4 = a fence was still open at end of file.
 citations="$(
   LC_ALL=C awk '
+    function shape_row(info,   words, n, hash, path, symbol, line, form) {
+      sub(/^[ \t]*shape/, "", info)
+      sub(/^[ \t]+/, "", info)
+      sub(/[ \t]+$/, "", info)
+      gsub(/[ \t]+/, " ", info)
+      n = split(info, words, / /)
+      form = "ok"
+      path = symbol = line = ""
+      if (n < 1 || n > 2) form = "malformed"
+      else {
+        hash = index(words[1], "#")
+        path = hash ? substr(words[1], 1, hash - 1) : words[1]
+        symbol = hash ? substr(words[1], hash + 1) : ""
+        sub(/^(\.\/)+/, "", path)
+        sub(/\/+$/, "", path)
+        if (path == "" || (hash && symbol == "")) form = "malformed"
+        if (n == 2) {
+          if (words[2] ~ /^L[1-9][0-9]*$/) line = substr(words[2], 2)
+          else form = "malformed"
+        }
+      }
+      printf "S\037%d\037%s\037%s\037%s\037%s\037%s\n", NR, form, path, symbol, line, info
+    }
     { sub(/\r$/, "") }
     match($0, /^([ \t]*>)*[ \t]*(([-*+]|[0-9]+[.)])[ \t]+)?(```+|~~~+)/) {
       fence = substr($0, RSTART, RLENGTH)
+      info = substr($0, RSTART + RLENGTH)
       sub(/^[^`~]*/, "", fence)
-      bare = (substr($0, RSTART + RLENGTH) ~ /^[ \t]*$/)
-      if (!in_fence) { in_fence = 1; fence_ch = substr(fence, 1, 1); fence_len = length(fence); next }
+      bare = (info ~ /^[ \t]*$/)
+      if (!in_fence) {
+        in_fence = 1
+        fence_ch = substr(fence, 1, 1)
+        fence_len = length(fence)
+        if (info ~ /^[ \t]*shape([ \t]|$)/) shape_row(info)
+        next
+      }
       if (substr(fence, 1, 1) == fence_ch && length(fence) >= fence_len && bare) in_fence = 0
       next
     }
@@ -165,7 +213,7 @@ while IFS= read -r path; do
     kind="other"
   fi
   paths+="P"$'\t'"$path"$'\t'"$kind"$'\t'"$count"$'\n'
-done < <(printf '%s\n' "$citations" | cut -f3 | LC_ALL=C sort -u)
+done < <(printf '%s\n' "$citations" | cut -s -f3 | LC_ALL=C sort -u)
 
 # The path rows come first in one stream, so every citation row finds its path.
 report="$(
@@ -190,11 +238,60 @@ report="$(
   '
 )" || die "could not grade: $plan"
 
+shape_report=""
+shapes=0
+shape_failed=0
+shape_warned=0
+while IFS=$'\037' read -r tag at form path symbol line label; do
+  [[ "$tag" == S ]] || continue
+  shapes=$((shapes + 1))
+  status="fail"
+  reason=""
+  if [[ "$form" != ok ]]; then
+    reason="shape-malformed"
+  elif ! kind="$(git -C "$repo" cat-file -t "$commit:$path" 2>/dev/null)"; then
+    reason="shape-missing-path"
+  elif [[ "$kind" != blob && "$kind" != tree ]] || [[ "$kind" == tree && -n "$line" ]]; then
+    reason="shape-not-a-file"
+  elif [[ "$kind" == blob && -z "$symbol" ]]; then
+    reason="shape-missing-symbol"
+  elif [[ -n "$symbol" ]]; then
+    git -C "$repo" grep -q -w -F -e "$symbol" "$commit" -- ":(top,literal)$path" >/dev/null 2>&1
+    case $? in
+    0) ;;
+    1) reason="shape-missing-symbol" ;;
+    *) die "could not search $path at $commit" ;;
+    esac
+  fi
+  if [[ -z "$reason" && -n "$line" ]]; then
+    read_out="$(git -C "$repo" cat-file blob "$commit:$path" |
+      LC_ALL=C awk -v n="$line" 'NR == n { text = $0 } END { print NR " " text }')" ||
+      die "could not read $path at $commit"
+    count="${read_out%% *}"
+    text="${read_out#* }"
+    if [[ "$line" -gt "$count" ]]; then
+      reason="shape-past-end last-line=$count"
+    elif ! grep -q -w -F -e "$symbol" <<<"$text"; then
+      status="warn"
+      reason="shape-line"
+    fi
+  fi
+  [[ -n "$reason" ]] || continue
+  if [[ "$status" == fail ]]; then
+    shape_failed=$((shape_failed + 1))
+  else
+    shape_warned=$((shape_warned + 1))
+  fi
+  shape_report+="shape=$at:$label status=$status reason=$reason"$'\n'
+done < <(printf '%s\n' "$citations")
+
 summary="${report##*$'\n'}"
 failed="${summary##*failed=}"
 [[ "$summary" == citations=*" failed="* && "$failed" =~ ^[0-9]+$ ]] || die "could not grade: $plan"
 [[ "$report" != *$'\n'* ]] || printf '%s\n' "${report%$'\n'*}"
-if [[ "$failed" -eq 0 ]]; then
+printf '%s' "$shape_report"
+printf 'shapes=%d failed=%d warned=%d\n' "$shapes" "$shape_failed" "$shape_warned"
+if [[ "$failed" -eq 0 && "$shape_failed" -eq 0 ]]; then
   printf '%s commit=%s status=ok\n' "$summary" "$commit"
   exit 0
 fi

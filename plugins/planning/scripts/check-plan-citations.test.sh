@@ -33,6 +33,7 @@ if ! {
     printf 'l1\nl2\nl3\nl4\nl5\n' >"$REPO/scripts/build.sh" &&
     printf 'a\nb\nc' >"$REPO/src/app.ts" &&
     printf 'x\n' >"$REPO/src/lib/util.ts" &&
+    printf 'export function main() {}\nconst helper = 1\n// --dry-run\n' >"$REPO/src/shape.ts" &&
     printf 'old\n' >"$REPO/docs/old.md" &&
     fixture_git add -A &&
     fixture_git commit -qm first
@@ -150,6 +151,36 @@ quiet "a line marked citation-example is ignored" example.md
 
 printf '## Plan\r\n\r\n```\r\nscripts/nope.sh:9\r\n```\r\n- Edit scripts/gone.sh:1.\r\n- Keep scripts/build.sh:5.\r\n' >"$TMP/crlf.md"
 run "a CRLF plan grades the same, fence close included" 1 crlf.md '^citations=2 failed=1 '
+
+plan shapeok.md '```shape src/shape.ts#main L1' 'main' '  helper' '```'
+run "a shape anchor that resolves passes and is counted" 0 shapeok.md '^shapes=1 failed=0 warned=0$'
+
+plan shapepath.md '```shape src/nope.ts#main' 'main' '```'
+run "a shape anchor on a missing path fails" 1 shapepath.md '^shape=[0-9]+:src/nope.ts#main status=fail reason=shape-missing-path$'
+
+plan shapesym.md '```shape src/shape.ts#absent' 'absent' '```'
+run "a shape anchor whose symbol is not in the file fails" 1 shapesym.md '^shape=[0-9]+:src/shape.ts#absent status=fail reason=shape-missing-symbol$'
+
+plan shapenosym.md '```shape src/shape.ts' 'main' '```'
+run "a shape anchor on a file with no symbol fails" 1 shapenosym.md 'reason=shape-missing-symbol$'
+
+plan shapepast.md '```shape src/shape.ts#main L9' 'main' '```'
+run "a shape anchor line past the end fails" 1 shapepast.md '^shape=[0-9]+:src/shape.ts#main L9 status=fail reason=shape-past-end last-line=3$'
+
+plan shapeline.md '```shape src/shape.ts#main L2' 'main' '```'
+run "a shape anchor line that lacks the symbol warns and passes" 0 shapeline.md '^shape=[0-9]+:src/shape.ts#main L2 status=warn reason=shape-line$'
+
+plan shapedir.md '```shape src/lib/' 'src/lib/' '  util.ts' '```'
+run "a directory shape anchor needs no symbol" 0 shapedir.md '^shapes=1 failed=0 '
+
+plan shapedash.md '```shape src/shape.ts#--dry-run' '--dry-run' '```'
+run "a shape symbol starting with - is searched for, not read as an option" 0 shapedash.md '^shapes=1 failed=0 '
+
+plan shapebad.md '```shape src/shape.ts#main L2 extra' 'main' '```'
+run "a shape anchor with an extra word is malformed" 1 shapebad.md 'reason=shape-malformed$'
+
+plan shapequoted.md '````markdown' '```shape src/nope.ts#main' 'main' '```' '````'
+run "a shape fence quoted in a longer fence is not checked" 0 shapequoted.md '^shapes=0 failed=0 '
 
 plan old.md '- Retire docs/old.md:1.'
 run "a file removed after the named commit fails at HEAD" 1 old.md 'reason=missing-path$'

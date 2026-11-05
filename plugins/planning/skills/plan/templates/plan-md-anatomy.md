@@ -7,7 +7,7 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 
 **PLAN.md anatomy.** PLAN holds Brief + Design + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`). The Brief is the spec: what to build and how to tell it is done. Design and Plan say how, each value has one section, and a later section points at an earlier one rather than restating it:
 
-```markdown
+````markdown
 ## Brief
 <the Brief `/planning:interview` writes, in its Brief template's shape, kept as written except for criterion ids added per ../context/plan-template.md "Criterion ids". It owns the Goal, the acceptance criteria and the open questions (`### Deferred questions`). With no interview: a minimal Brief (Problem, Goal with its three lines, Acceptance criteria, Out-of-scope) or one line `No Brief: <reason>`, per plan Step 1>
 
@@ -61,6 +61,10 @@ Process criteria: <the criterion ids no behavior shows, e.g. a PR-body rule; omi
 **Delivers:** <the behavior ids this phase builds, e.g. B1; omit when the phase builds none>
 <file-by-file changes, rationale, per-phase sanity-check criteria>
 
+```shape <path>#<symbol>
+<which code changes, as a call tree, shallow file tree or diff-shaped delta; per ../context/plan-template.md "Shape fences">
+```
+
 ### Phase N: <name> [TODO]
 <...>
 
@@ -83,7 +87,9 @@ Reader depth: <guardrails, standard or step-by-step, and the layer that supplied
 
 ### Mechanical work
 <commit boundaries and verification checkpoints. Standard implementation boilerplate — rarely needs user-specific override>
-```
+````
+
+The skeleton's outer fence is four backticks so the `shape` fence inside stays quoted: a fence closes only on one at least as long as its opener, so quoting a fence takes a longer outer fence. The citation gate checks only an outermost `shape` fence.
 
 `### Behavior` is the first `###` under `## Plan`; the outcome gate's `behaviors` criterion fails a plan with criterion ids whose `## Plan` does not open with it ([`../context/plan-template.md`](../context/plan-template.md) "Criterion ids"). The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps the assumptions table whenever the Brief captured any, and the prototype evidence section whenever it consumes a prototype.
 
