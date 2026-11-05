@@ -46,9 +46,9 @@ the sum of its members; prefix-side deltas double-count, and their sum is only a
 what the basket saves on the prefix side. Confirm both on this binary with
 `attribute --verify-additivity`, which reports its verdict per bucket.
 
-**Bundled files.** A `reference/...` path this skill names is under
-`${CLAUDE_PLUGIN_ROOT}/skills/audit/`. Read each one with the `Read` tool, never through Bash
-(`cat`, `sed`, `grep`), Glob or Grep.
+**Bundled files.** Every reference file this skill links is in
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/`. Read each one with the `Read` tool, never through
+Bash (`cat`, `sed`, `grep`), Glob or Grep.
 
 Two rules govern everything this skill says, per the plugin's
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/engine.md`](reference/engine.md):
