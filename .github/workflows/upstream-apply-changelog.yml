@@ -1386,6 +1386,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # The probe leg's lane-outcome record: its credential, outcome, handoff
+      # and durationMs.
+      - name: Record the probe leg
+        if: always() && steps.probe.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.probe.outcome }}
+          execution-file: ${{ steps.probe.outputs.execution-file }}
+          log-file: ${{ steps.probe.outputs.log-file }}
+          lane: upstream-apply-changelog scrub probe
+          lane-id: upstream-apply-changelog-scrub-probe
+          credential: ${{ steps.probe.outputs.credential }}
+          handoff: ${{ steps.probe.outputs.handoff }}
+          known-failure-class: ${{ steps.probe.outputs.lane-class }}
+          max-turns: "6"
+
       # Fails closed, naming the release and hit names only: a failed leg, a
       # CLI other than the release, no result, a name that never reached the
       # probe, any hit, a missed canary, or a Read the deny rules let through.
@@ -1579,6 +1596,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # The probe leg's lane-outcome record: its credential, outcome, handoff
+      # and durationMs.
+      - name: Record the probe leg
+        if: always() && steps.probe.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.probe.outcome }}
+          execution-file: ${{ steps.probe.outputs.execution-file }}
+          log-file: ${{ steps.probe.outputs.log-file }}
+          lane: upstream-apply-changelog scrub probe
+          lane-id: upstream-apply-changelog-scrub-probe
+          credential: ${{ steps.probe.outputs.credential }}
+          handoff: ${{ steps.probe.outputs.handoff }}
+          known-failure-class: ${{ steps.probe.outputs.lane-class }}
+          max-turns: "6"
+
       # Fails closed, naming the release and hit names only: a failed leg, a
       # CLI other than the release, no result, a name that never reached the
       # probe, any hit, a missed canary, or a Read the deny rules let through.
@@ -1762,6 +1796,23 @@ jobs:
           execution-file: ${{ steps.probe.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
+
+      # The probe leg's lane-outcome record: its credential, outcome, handoff
+      # and durationMs.
+      - name: Record the probe leg
+        if: always() && steps.probe.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.probe.outcome }}
+          execution-file: ${{ steps.probe.outputs.execution-file }}
+          log-file: ${{ steps.probe.outputs.log-file }}
+          lane: upstream-apply-changelog scrub probe
+          lane-id: upstream-apply-changelog-scrub-probe
+          credential: ${{ steps.probe.outputs.credential }}
+          handoff: ${{ steps.probe.outputs.handoff }}
+          known-failure-class: ${{ steps.probe.outputs.lane-class }}
+          max-turns: "6"
 
       # Fails closed, naming the release and hit names only: a failed leg, a
       # CLI other than the release, no result, a name that never reached the

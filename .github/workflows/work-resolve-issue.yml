@@ -307,6 +307,7 @@ jobs:
     # which runs only default-branch-tip code. The first call holds the API
     # key alone.
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -317,6 +318,7 @@ jobs:
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
+      key-credit-job: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
@@ -402,6 +404,83 @@ jobs:
         with:
           tokens: github-token
 
+  # The key's credit-stop markers, read by the read runner's broker-check in
+  # later runs (each first call's key-credit-job). Each comes from a jobs-API
+  # read of the call's run job (handoff-evidence.sh credit-stop), never from a
+  # call's output. No job needs this one, so the read, which waits for the
+  # jobs listing's steps, delays no handoff.
+  key-credit-markers:
+    needs: [resolve-issue]
+    if: ${{ !cancelled() && (needs.resolve-issue.result != 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether resolve-issue's key hit a credit stop
+        id: credit-stop-resolve-issue
+        if: needs.resolve-issue.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-issue
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write resolve-issue's credit-stop marker
+        id: credit-marker-resolve-issue
+        if: steps.credit-stop-resolve-issue.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-resolve-issue"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-resolve-issue/run-id"
+
+      - name: Upload resolve-issue's credit-stop marker
+        if: steps.credit-marker-resolve-issue.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-work-resolve-issue.yml-resolve-issue
+          path: ${{ runner.temp }}/key-credit-stop-resolve-issue/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The subscription fallback, a second call on new VMs in the same slot: it
   # runs only on resolve-issue-handoff's read, holds the OAuth token alone,
   # and passes fallback handoff, the one fact that read attests.
@@ -414,6 +493,7 @@ jobs:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -506,6 +586,7 @@ jobs:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
