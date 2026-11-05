@@ -107,12 +107,13 @@ leave_queue() {
 # its lane token for a reason a retry takes the head on, read from this run's
 # jobs (actions: read) and that job's annotations (checks: read) by
 # ../pr-merge/refire-refused.mjs tokenRefusal, the one copy of those reasons.
-# A workflow-modified refusal the feedback sweep sends again
-# (feedback-dispatch.mjs sweepRefused), or a transient one pr-merge re-fires
-# (refire-refused.mjs), prints its kind and returns 0. Anything else, a failed
-# read included, returns 1 and the status goes on: only positive evidence
-# withholds it. Each retry path has its own cap (SWEEP_HEAD_CAP,
-# TRANSIENT_PER_HEAD), past which neither status nor retry comes.
+# A workflow-modified refusal, which the feedback sweep sends again with no
+# lane-file, branch or author filter (feedback-dispatch.mjs sweepRefused),
+# prints its path and returns 0. A transient refusal returns 1: pr-merge's
+# re-fire skips a PR that changes a lane file, a skip branch or one that fails
+# qualifies (refire-refused.mjs), so it is no proof of a retry. Anything else,
+# a failed read included, returns 1 and the status goes on: only positive
+# evidence withholds it. Past SWEEP_HEAD_CAP neither status nor retry comes.
 retried_refusal() {
   local jobs ids id notes annotations='{}'
   [[ ${GITHUB_RUN_ID:-} =~ ^[1-9][0-9]*$ ]] || return 1
@@ -128,8 +129,8 @@ retried_refusal() {
     const { tokenRefusal } = await import(pathToFileURL(process.env.REFIRE_MODULE).href);
     const notes = JSON.parse(process.env.ANNOTATIONS);
     const why = await tokenRefusal({ jobs: JSON.parse(process.env.JOBS).jobs, readAnnotations: async (id) => notes[id] ?? [], activity: "address-feedback" });
-    if (why === null) process.exit(1);
-    process.stdout.write(why.kind === "transient" ? `transient, ${why.label}` : `workflow-modified, ${why.path}`);' 2>/dev/null
+    if (why === null || why.kind === "transient") process.exit(1);
+    process.stdout.write(`workflow-modified, ${why.path}`);' 2>/dev/null
 }
 
 # `clear`: an attempt of ACTIVITY on HEAD_SHA ended without a stop (a same-head

@@ -505,11 +505,13 @@ publish_case "$MODIFIED"
 check "publish-failed, workflow-modified: exit 0" 0 "$RC"
 check "publish-failed, workflow-modified: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 has "publish-failed, workflow-modified: a notice names the refusal" 'workflow-modified, .github/workflows/pr-unblock.yml' "$STUB/out"
+# A transient refusal proves no retry: pr-merge's re-fire skips a PR that
+# changes a lane file, a skip branch or one that fails qualifies, so the
+# status goes on.
 publish_case 'broker-unreachable: the lanes token broker gave no response'
-check "publish-failed, broker unreachable: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
-has "publish-failed, broker unreachable: a notice names it" 'transient, broker-unreachable' "$STUB/out"
+check "publish-failed, broker unreachable: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 publish_case 'lane-token-denied: the broker answered 503 with reason github-unavailable'
-check "publish-failed, broker 503: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
+check "publish-failed, broker 503: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 # A 403 other than workflow-modified is no retry, so the status goes on.
 publish_case 'lane-token-denied: the broker answered 403 with reason actor-not-trusted'
 check "publish-failed, other 403: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
