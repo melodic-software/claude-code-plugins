@@ -47,7 +47,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=273
+EXPECTED_CASES=274
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -72,14 +72,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "contains: $3" "$2" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-  *"$3"*) fail "$1" "absent: $3" "present" ;;
-  *) pass "$1" ;;
+    *"$3"*) fail "$1" "absent: $3" "present" ;;
+    *) pass "$1" ;;
   esac
 }
 assert_eq() {
@@ -787,17 +787,40 @@ assert_not_contains "threshold injection: a forged row reaches no path" "$out" "
 # the threshold scalar (cascade::scalar). The list, slug-map and phrase cases
 # reproduce on both platforms; the scalar case at the end discriminates on Linux
 # only, for the reason recorded there.
-CRLF_BIN="$TEST_TMPDIR/bin-crlf-jq"
-mkdir -p "$CRLF_BIN"
-REAL_JQ="$(command -v jq)"
-cat >"$CRLF_BIN/jq" <<EOF
+make_crlf_jq() { # make_crlf_jq <dir> <real jq>
+  mkdir -p "$1"
+  cat >"$1/jq" <<EOF
 #!/usr/bin/env bash
 # pipefail so a jq failure stays a failure: awk's exit status would otherwise
 # mask it, and the readers skip a refused layer only on jq's nonzero status.
 set -o pipefail
-"$REAL_JQ" "\$@" | awk '{ printf "%s\r\n", \$0 }'
+# A wrapper jq, such as a mise shim that cannot run its own jq, falls back to the
+# next jq on PATH, which is this shim: each level would start a bash and an awk
+# without end. Refuse the second entry instead.
+[[ -z "\${CRLF_JQ_SHIM:-}" ]] || { echo "crlf jq shim: re-entered through $2" >&2; exit 97; }
+export CRLF_JQ_SHIM=1
+"$2" "\$@" | awk '{ printf "%s\r\n", \$0 }'
 EOF
-chmod +x "$CRLF_BIN/jq"
+  chmod +x "$1/jq"
+}
+CRLF_BIN="$TEST_TMPDIR/bin-crlf-jq"
+make_crlf_jq "$CRLF_BIN" "$(command -v jq)"
+
+# A real jq that resolves jq through PATH, as a falling-back wrapper does, must
+# meet the refusal. Its own depth cap (exit 99) keeps a missing refusal bounded.
+LOOP_BIN="$TEST_TMPDIR/bin-loop-jq"
+mkdir -p "$LOOP_BIN"
+cat >"$LOOP_BIN/fallback-jq" <<'EOF'
+#!/usr/bin/env bash
+d=$((${FALLBACK_DEPTH:-0} + 1))
+[[ "$d" -lt 4 ]] || exit 99
+FALLBACK_DEPTH="$d" exec jq "$@"
+EOF
+chmod +x "$LOOP_BIN/fallback-jq"
+make_crlf_jq "$LOOP_BIN" "$LOOP_BIN/fallback-jq"
+PATH="$LOOP_BIN:$PATH" jq -n 1 >/dev/null 2>&1
+rc=$?
+assert_exit "crlf jq: a jq that resolves back to the shim is refused, not recursed into" 97 "$rc"
 
 # Pin the shim itself. Without this every case below is green on a Linux
 # runner whether or not the shim is ever selected — an unset exec bit or a
@@ -1539,8 +1562,8 @@ assert_tier() {
   local row
   row="$(LC_ALL=C grep -m1 "ai-slop/audit/$1 " "$TIEROUT")"
   case "$row" in
-  *"| $2 |"*) pass "tier mirror: $1 is $2" ;;
-  *) fail "tier mirror: $1 is $2" "$2" "$row" ;;
+    *"| $2 |"*) pass "tier mirror: $1 is $2" ;;
+    *) fail "tier mirror: $1 is $2" "$2" "$row" ;;
   esac
 }
 for slug in $EXPECTED_IMPORTANT; do assert_tier "$slug" IMPORTANT; done
