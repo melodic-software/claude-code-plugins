@@ -328,13 +328,13 @@ say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /GIT_CONFIG_GLOBA
   && /--filter=blob:none/.test(summaryData.run ?? "")
   && /diff --no-ext-diff --no-textconv/.test(summaryData.run ?? "") && !/checkout|worktree|npm |bash "\$SRC|node "\$SRC/.test(summaryData.run ?? ""),
   "the summary data step fetches the branch as objects with the read-only token and diffs it without running anything from it");
-// One launcher step per secret: the first call's pass on the API key, a
-// fallback call's on the OAuth token.
-const summaryLegs = [["summary-key", "api-key", "claude-api-key", "inputs.fallback == ''"], ["summary-token", "subscription-token", "claude-code-oauth-token", "inputs.fallback != ''"]];
+// One launcher step per secret: the first call's pass on the API key, the
+// second call's on the OAuth token, the third call's on the fallback token.
+const summaryLegs = [["summary-key", "api-key", "claude-api-key", "inputs.fallback == ''"], ["summary-token", "subscription-token", "claude-code-oauth-token", "inputs.fallback != '' && inputs.fallback != 'fallback'"], ["summary-fallback", "fallback-token", "fallback-claude-code-oauth-token", "inputs.fallback == 'fallback'"]];
 say(summaryLegs.every(([id, input, secret, when]) => {
   const leg = sById(id);
   return String(leg.uses ?? "") === String(rById("act-key").uses ?? "") && leg.with?.[input] === "${{ secrets." + secret + " }}"
-    && ["api-key", "subscription-token"].filter((name) => name in (leg.with ?? {})).length === 1
+    && ["api-key", "subscription-token", "fallback-token"].filter((name) => name in (leg.with ?? {})).length === 1
     && String(leg.if ?? "") === "steps.isolate.outcome == 'success' && " + when;
 }) && sById("isolate").uses === "./.base/.github/actions/setup-runner-isolation" && /\/apply-claude-managed-settings@/.test(sById("summary-settings").uses ?? "")
   && String(sById("isolate").if ?? "") === "steps.summary-settings.outcome == 'success'",
