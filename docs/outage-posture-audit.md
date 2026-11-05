@@ -412,11 +412,11 @@ result is unknown.
 Part 2 also fixed pr-verify's element 2 fault gap, with tests. When `resolve-pr.mjs` throws on a
 GitHub fault (the same `isFault` test as `apply-verdict.mjs`, now shared from
 `check-trusted-trigger.mjs`: a 5xx or 429, a rate-guard stop under the resolver steps'
-`API_BUDGET_HOLD` opt-in, or no answer), the step logs one `held: ` notice, writes `proceed=false`
+`API_BUDGET_HOLD` opt-in, or no answer), the step logs one `held:` notice, writes `proceed=false`
 and `reason=held`, and ends green, so nothing is judged (`closing`). Any other error, a 4xx
 included, still fails, and so does a 200 whose completeness check fails. A held run concludes
 success, so it is not lost. Its `Note the hold` step (`.github/workflows/pr-verify.yml`) marks it,
-and the lost-run reconciler's next pass reads that job's annotations for the `held: ` notice, as
+and the lost-run reconciler's next pass reads that job's annotations for the `held:` notice, as
 `triage-sweep.mjs` `classifyRun` does, and re-runs the run once with the same record a lost lane
 run gets (`reconcile.mjs` `faultHeld`). That happens only at attempt 1 and only while the status
 page shows Actions operational, so outside an outage a held verdict is retried within about 30
