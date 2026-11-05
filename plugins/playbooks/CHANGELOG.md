@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.8] - 2026-11-05
+
+### Added
+
+- Plugin eval cases for three skills that had none: `boris-parallel-sessions-from-reference` (answers from the tips and leaves the vendored baseline unread), `repo-sweep-next-stops-on-conflicting-pr` (a conflicting sweep PR stops the step), and `update-check-runs-pack-scripts` (check mode runs both pack scripts, no `--apply`, and nothing for fable-5) ([#13310](https://github.com/melodic-software/claude-code-plugins/issues/13310)). The `update` case has no `Skill` grader, since only its slash command loads that skill and a slash command makes no `Skill` call.
+
 ## [0.28.7] - 2026-11-04
 
 ### Changed

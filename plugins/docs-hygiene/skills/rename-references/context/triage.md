@@ -137,7 +137,9 @@ Identify these documents from conversation context and the consuming repository'
 
 ## Special case: Frozen historical records
 
-Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen.
+Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen. A released, dated or versioned entry in a live changelog is frozen too; only an entry drafted for this rename is not.
+
+Without `--include-historical`, a frozen hit never enters a bucket and is never a question or a suggestion: the report counts it in the Excluded row and names it on one "Kept as history: <file>:<line>" line, with no advice to edit it. With `--include-historical`, frozen records are swept and triaged like any other file.
 
 ## Special case: Memory entries
 
@@ -159,6 +161,8 @@ Sweep results across <N> tracked files:
 | Chain-context   | <Y>   | Review-recommended   |
 | Ambiguous       | <Z>   | Per-match confirm    |
 | Excluded        | <W>   | Skipped (plan-docs/historical/memory) |
+
+Kept as history: <file>:<line>[, <file>:<line>...]  (frozen records; omit the line when none)
 
 Certain examples: <1-2 matches as file:line: text>
 Certain matches apply without a question. To review them one by one

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/tmp/plugins/playbooks/skills/boris/scripts/update.sh\" --check"}}, {"tool": "Bash", "input": {"command": "bash \"/tmp/plugins/playbooks/skills/skill-authoring/scripts/update.sh\" --check"}}], "why": "both packs in check mode only"},
+    {"answer": [], "why": "no Bash call at all"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --check"}}, {"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --apply"}}], "why": "applies after the check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/tmp/plugins/playbooks/skills/skill-authoring/scripts/update.sh\" --apply"}}], "why": "double-quoted path, apply mode"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash '/tmp/plugins/playbooks/skills/skill-authoring/scripts/update.sh' --apply"}}], "why": "single-quoted path, apply mode"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/playbooks/skills/boris/scripts/update.sh --check && bash plugins/playbooks/skills/boris/scripts/update.sh --apply"}}], "why": "apply chained after the check in one call"}
+  ]
+}

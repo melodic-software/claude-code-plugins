@@ -45,6 +45,8 @@ Read the source document (PLAN.md/PRD.md read from the topic's memory slice abov
 
 Collect the source's acceptance criteria with their ids for Step 2's criterion trace. A PLAN.md carries them under its `### Acceptance criteria` headings (the Brief's, and any the plan added), each opening with `AC<n>:`. Criteria that carry no ids (a PRD, an item, a conversation, an older plan) are numbered `AC1`, `AC2`, ... in source order for this run, and Step 3 shows that numbering.
 
+When `## Plan` opens with a `### Behavior` list, extract it for Step 2's cut: each `- B<n>: <claim> (AC<i>, ...)` item with the criterion ids it cites, the list's `Process criteria:` line (criteria no behavior shows), and each phase's `**Delivers:**` line naming the B ids that phase builds.
+
 Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
 
 ### 2. Draft vertical slices
@@ -63,7 +65,7 @@ slice that fails one before moving to the next:
 
 | Check | Passes when | On failure |
 |---|---|---|
-| One concern | The vertical slice serves a single concern. From a PLAN.md source, a phase becomes one vertical slice unless it mixes independent concerns | Split along the concerns |
+| One concern | The vertical slice serves a single concern. From a PLAN.md with a `### Behavior` list, each behavior becomes one vertical slice carrying the criterion ids it cites and the phases whose `**Delivers:**` line names it, even when two behaviors cite the same id. Every slice also carries the `Process criteria:` ids, so the criterion trace maps them to every slice and Step 4 writes them into each Done when. From a PLAN.md without the list, and for a phase with no `**Delivers:**` line, a phase becomes one vertical slice unless it mixes independent concerns | Split along the concerns |
 | End to end | Every layer the behavior needs, its tests included, is real in this vertical slice and none is stubbed for later. A vertical slice adding a retention setting, say, ships the config key, the cleanup job that honors it, and a test that runs the job | Add the missing layers, or narrow the behavior until it fits |
 | Proof on its own | After merge, someone can run or inspect it without any later vertical slice | Narrow it until they can |
 | Window bar | A session that starts cold, reads the brief, and finishes the vertical slice in **one fresh context window**, and it can merge to the mainline at least daily. Judge this beside S/M/L, qualitatively; never set a token budget, a numeric window size, a time estimate or a day cap. "At least daily" is practice guidance on integration cadence, the merge floor, not an estimate ([DORA, trunk-based development](https://dora.dev/capabilities/trunk-based-development/#how-to-implement-trunk-based-development), "How to implement trunk-based development"; [Fowler, Continuous Integration](https://martinfowler.com/articles/continuousIntegration.html#EveryonePushesCommitsToTheMainlineEveryDay), "Everyone Pushes Commits To the Mainline Every Day"; as of 2026-10-18, recheck when either page changes its daily-merge guidance) | Split it |

@@ -46,6 +46,8 @@ truth for what it requires and how it resolves things.
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence except Node.js downgrades
 from FAIL to INFO. The hook script exits through its enabled-gate before probing anything, so
@@ -53,7 +55,7 @@ a deliberately disabled plugin is not broken. Node.js stays FAIL: `hooks.json` s
 before the script can read the toggle. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **Ruff binary.** Resolve it exactly the way the hook's resolution code does: its
@@ -90,7 +92,7 @@ restores the FAIL semantics.
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
-   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 ## `apply install-git-hooks [scope=local|shared]`
