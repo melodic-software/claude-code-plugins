@@ -54,7 +54,10 @@ fi
 # 30 draws: with no redraw, a suffix holds two hex letters in a row more often than not.
 paired=""
 for _ in $(seq 30); do
-  name="$(run_new "$f" alpha patch)" || break
+  name="$(run_new "$f" alpha patch)" || {
+    paired="run failed (rc=$?)"
+    break
+  }
   [[ "${name##*-}" =~ [a-f]{2} ]] && paired="$name"
 done
 if [[ -z "$paired" ]]; then
