@@ -471,7 +471,9 @@ head, not `222d8023`.
   and pick-slot names that hold itself. The job ends green and work-unblock's sweep re-fires the
   issue as a WIP cap skip (`label-unblocked.mjs` `didNoWork`), with no per-issue bound. The cached
   last known pause is gone: the action's cache restore and save, its `save-state` input, and
-  work-unblock's `wip-state` job, which only saved it.
+  work-unblock's `wip-state` job, which only saved it. Monitor signal 13 does not count this hold:
+  its work-resolve-issue entry reads only `report-outcome / run` (`signals.mjs` `HOLD_LANES`). So a
+  permanent fault, such as a token that cannot search, holds every run and shows only as notices.
 
 The other script rows below are still open.
 
