@@ -143,6 +143,30 @@ describe("parsePlan", () => {
     assert.deepEqual(plan.phases, [{ status: "TODO", name: "Phase 1: Fix", what: "", satisfies: "", delivers: "", criteria: [], shapes: [] }]);
   });
 
+  test("only a ### Phase N: heading under ## Plan is a phase, as the outcome gate counts them", () => {
+    const plan = parsePlan(
+      [
+        "## Plan",
+        "",
+        "### Phase file-overlap matrix",
+        "",
+        "| Phase | Files |",
+        "|---|---|",
+        "| 1 | a.py |",
+        "",
+        "### Phase ordering",
+        "",
+        "### Phase 1: Fix [DONE]",
+        "",
+        "### Phase 2.5: Wire [TODO]",
+        "",
+        "### Phase IV: Ship [TODO]",
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(plan.phases.map((phase) => phase.name), ["Phase 1: Fix", "Phase 2.5: Wire", "Phase IV: Ship"]);
+  });
+
   test("a record with no ## Plan section is refused as data", () => {
     assert.throws(() => parsePlan("# Plan\n\n## Brief\n\n```\n## Plan\n```\n"), ViewBuildError);
     assert.throws(() => VIEW_KINDS.plan.parse({ phases: [] }), ViewBuildError);

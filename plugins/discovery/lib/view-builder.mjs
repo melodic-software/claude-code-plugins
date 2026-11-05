@@ -398,7 +398,7 @@ export function parsePlan(record) {
         const [decision = "", changes = "", basis = "", source = ""] = cells(row);
         return { decision, changes, basis, source };
       }),
-    phases: parts.filter((part) => PLAN_HEADING.test(part.h2) && /^Phase\b/.test(part.h3)).map(phaseOf),
+    phases: parts.filter((part) => PLAN_HEADING.test(part.h2) && /^Phase[ \t]+(?:\d+(?:\.\d+)?[A-Za-z]?|[IVXLC]+)[ \t]*:/.test(part.h3)).map(phaseOf),
   };
 }
 
