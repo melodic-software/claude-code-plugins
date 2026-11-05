@@ -48,6 +48,12 @@ name: pr-unblock
 # Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
 run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it: the select jobs stop on a failed read
+# before any model turn, and their red result is what dispatch.mjs retries.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   workflow_dispatch:
     inputs:
