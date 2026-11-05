@@ -479,6 +479,31 @@ test("pr-unblock.yml: publish-feedback runs exactly when the select job proceede
   }
 });
 
+// resolve-threads.mjs serves only a PR a listed person opened, and leaves
+// open every thread a person wrote in, so a lanes App PR's round and a
+// relayed person's reply start no resolve job and ask the broker for no token
+// (#13580). A person's PR on a review-completion round runs as before.
+test("pr-unblock.yml: resolve-feedback-threads starts no job on a PR no listed person opened or a relayed reply", () => {
+  const { gate } = jobGate(UNBLOCK, "resolve-feedback-threads");
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "needs.publish-feedback.result": "success",
+      "needs.publish-feedback.outputs.skip-reason": "",
+      "needs.address-feedback-select.outputs.person-opened": "true",
+      "inputs.upstream-relay": "",
+      ...overrides,
+    });
+  assert.equal(runs(), true, "a person's PR on a review-completion round");
+  assert.equal(runs({ "needs.publish-feedback.outputs.skip-reason": "lane-stopped" }), true, "and on the reply script's own stop");
+  assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "false" }), false, "a lanes App PR");
+  assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "" }), false, "an unread author");
+  assert.equal(runs({ "inputs.upstream-relay": "true" }), false, "a relayed person's reply");
+  assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "false", "inputs.upstream-relay": "true" }), false, "a relay on a lanes App PR");
+  // The input feedback-dispatch.mjs sends on a relay round is declared, or
+  // GitHub refuses the dispatch.
+  assert.match(readFileSync(new URL(`../../workflows/${UNBLOCK}`, import.meta.url), "utf8"), /\n      upstream-relay:\n        description: .+\n        required: false\n        type: string\n        default: ""\n/);
+});
+
 // A pass-only round lists only stale fail-note threads: its select job's
 // proceed stays empty, so no model job and no neutral check runs, and only
 // resolve-only turns on the reply job.

@@ -376,7 +376,10 @@ serves an adopted owner PR, posting its replies as the lanes App:
   reply that left it open (`resolve-threads.mjs`). It reads the threads from GitHub, never from
   another job, judges each again on its re-read comments just before resolving, and escalates
   nothing. It runs after an acted round and after the reply script's own stops (an escalation,
-  `finding-stands`, `no-model-turn`), never after a kill-switch or gate skip. A CRITICAL finding
+  `finding-stands`, `no-model-turn`), never after a kill-switch or gate skip, and starts no job
+  (so asks the broker for no token) on a PR no listed person opened (the select job's
+  `person-opened`) or on a round whose upstream is a relayed person's reply (the dispatch's
+  `upstream-relay`), where it has no thread to resolve. A CRITICAL finding
   and any thread a person wrote or joined stay open for the person.
 - No pass-only round goes to an owner PR: a person-opened PR gets no fail-note threads
   (`verify-notes.mjs`).
