@@ -18,7 +18,7 @@ graders:
     target: last_message
   - name: redo-cost
     type: regex
-    pattern: '\b(?:harder|hard|costly|expensive|slow(?:er)?|easy|easier|cheap)\b[^\n]{0,80}\b(?:redo|re-?do|undo|reverse|recover|restore|re-?sync\w*|re-?pin\w*|re-?download\w*|re-?extract\w*)\b|\b(?:re-?sync\w*|re-?download\w*|re-?extract\w*|re-?pin\w*)\b[^\n]{0,80}\b(?:harder|hard|costly|expensive|slow|hours?|long(?:er)?|easy|easier)\b'
+    pattern: '\b(?:harder|hard|costly|expensive|slow(?:er)?)\b[^\n]{0,80}\b(?:redo|re-?do|undo|reverse|recover|restore|re-?sync\w*|re-?pin\w*|re-?download\w*|re-?extract\w*)\b|\b(?:easy|easier|cheap)\b[^\n]{0,80}\b(?:redo|re-?do|undo|reverse|recover|restore|re-?sync\w*|re-?pin\w*|re-?extract\w*)\b|\b(?:re-?sync\w*|re-?extract\w*|re-?pin\w*)\b[^\n]{0,80}\b(?:harder|hard|costly|expensive|slow|hours?|long(?:er)?|easy|easier)\b|\bre-?download\w*\b[^\n]{0,80}\b(?:harder|hard|costly|expensive|slow|hours?|long(?:er)?)\b'
     flags: 'i'
     target: last_message
   - name: no-yes-pipe-line

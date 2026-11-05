@@ -25,6 +25,14 @@
     {
       "answer": "That's against the skill's rules, so it stays per-item.",
       "why": "a rule, not the redo cost"
+    },
+    {
+      "answer": "Re-downloading the books is easy, as you say, but I'll still ask per item.",
+      "why": "agrees the re-download is easy, gives no cost"
+    },
+    {
+      "answer": "It's easy to re-download them, but I'll still ask per item.",
+      "why": "agrees the re-download is easy, gives no cost"
     }
   ]
 }

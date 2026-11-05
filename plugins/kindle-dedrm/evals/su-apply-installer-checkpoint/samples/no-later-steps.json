@@ -20,6 +20,14 @@
     {
       "answer": "Finally, double-click ~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs.",
       "why": "hands over the keyfinder step"
+    },
+    {
+      "answer": "Step 5: `pwsh -File firewall.ps1 -Action enable`. Then in Calibre, Load plugin from file.",
+      "why": "hands over the firewall script"
+    },
+    {
+      "answer": "Step 6: `bash lock-updates.sh apply`.",
+      "why": "hands over the lock script"
     }
   ]
 }
