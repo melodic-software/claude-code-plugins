@@ -113,11 +113,14 @@ export function fromE2eSummary(summary) {
   };
 }
 
-// The capture summary as recorded: undefined (no summary) is no-app, and
-// anything outside the schema, credential-shaped text included, is blocked.
-function captureEvidence(raw) {
+// The capture summary as recorded, and anything outside the schema,
+// credential-shaped text included, blocked. With no summary, find-capture's
+// blocked reason (CAPTURE_BLOCKED, which it writes for every miss with the
+// app set) is blocked with that reason, and only no reason at all, the app
+// unset, is no-app.
+function captureEvidence(raw, blocked) {
   if (raw === undefined) {
-    return noApp();
+    return blocked ? captureEvidence({ capture: "blocked", reason: blocked, capture_count: 0, features: [] }) : noApp();
   }
   const summary = fromE2eSummary(raw);
   if (
@@ -150,8 +153,8 @@ export function localLoop(body) {
   return match ? Number(match[1] ?? match[2]) : null;
 }
 
-export function buildEvidence({ capture, prBody } = {}) {
-  return { ...captureEvidence(capture), local_loop: localLoop(prBody) };
+export function buildEvidence({ capture, captureBlocked, prBody } = {}) {
+  return { ...captureEvidence(capture, captureBlocked), local_loop: localLoop(prBody) };
 }
 
 // run-claude-cli's own scan, which fails its step on a shorter Anthropic key
@@ -347,7 +350,7 @@ function readParts(text, partBytes) {
   return parts;
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, prBody }) {
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, captureBlocked, prBody }) {
   if (
     !NUMBER.test(String(pr)) ||
     !SHA.test(headSha ?? "") ||
@@ -381,7 +384,7 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
     ...(parsed[WITHHELD] ? { withheld: true } : {}),
-    evidence: buildEvidence({ capture, prBody }),
+    evidence: buildEvidence({ capture, captureBlocked, prBody }),
     run_id: Number(runId),
   };
 }
@@ -805,7 +808,8 @@ export function main(env = process.env) {
       throw new Error("the spec text file is unreadable");
     }
   }
-  // The evidence inputs are optional: no capture summary file is no-app, and
+  // The evidence inputs are optional: no capture summary file is blocked
+  // with find-capture's reason (CAPTURE_BLOCKED), or no-app with none, and
   // an unreadable one is blocked (null); a trusted PR text file
   // (select-trusted-text's context) that is unreadable or for another pull
   // request leaves local_loop null.
@@ -836,6 +840,7 @@ export function main(env = process.env) {
     linkedIssues,
     specText,
     capture,
+    captureBlocked: env.CAPTURE_BLOCKED || undefined,
     prBody,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });

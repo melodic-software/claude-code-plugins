@@ -1401,8 +1401,10 @@ merge:
   verify-authors: lane-or-owner
   # The app pr-verify drives to capture evidence of a change working, and how
   # long each capture artifact lasts. `app` unset: no capture runs, and each
-  # verdict's evidence records `capture: no-app`. 30 days is judgment: long
-  # enough for a review round, short of the 90-day verdict.
+  # verdict's evidence records `capture: no-app`; set, a capture that is
+  # missing records `blocked` with why. retention-days is 1 to 30, the most
+  # the pr-capture-* row in .github/artifact-retention.json allows; 30 is
+  # judgment: long enough for a review round, short of the 90-day verdict.
   verify-capture:
     retention-days: 30
   # Dependabot pull requests answer to this switch, not report-only: tier auto
