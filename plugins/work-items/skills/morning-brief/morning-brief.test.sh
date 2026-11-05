@@ -668,9 +668,29 @@ assert_contains "stranded: names the reviewer" "$OUT" "by chatgpt-codex-connecto
 assert_contains "stranded: says why it was missed" "$OUT" "merge gate could not see it"
 # The three negative cases matter more than the positive: a check that reports
 # every unresolved thread on every merged PR is noise, not a signal.
-assert_not_contains "stranded: a thread PREDATING the merge is not stranded" "$OUT" "#1707"
-assert_not_contains "stranded: an already-RESOLVED post-merge thread is excluded" "$OUT" "#1712"
+STRANDED_ONLY="$(printf '%s\n' "$OUT" | sed -n '/stranded on merged/,/^== Landed/p')"
+assert_not_contains "stranded: a thread PREDATING the merge is not stranded" "$STRANDED_ONLY" "#1707"
+assert_not_contains "stranded: an already-RESOLVED post-merge thread is excluded" "$STRANDED_ONLY" "#1712"
 assert_not_contains "stranded: a merge outside the window is excluded" "$OUT" "#1690"
+
+# --- Landed PRs and the ones to read ------------------------------------------
+# A fixture run has no landed_at, so the window is the last day: the three
+# merges on 07-19 land, #1690 (07-01) does not.
+LANDED_BLOCK="$(printf '%s\n' "$OUT" | sed -n '/^== Landed/,/^$/p')"
+assert_contains "landed: the first read on a machine covers the last day" "$LANDED_BLOCK" "first read on this machine: last 1d"
+assert_contains "landed: counts the PRs merged in the window" "$LANDED_BLOCK" "3 PRs merged"
+assert_contains "landed: lists every PR when there are no more than the sample" "$LANDED_BLOCK" "Read these (3 of 3"
+assert_contains "landed: a listed PR carries its link" "$LANDED_BLOCK" "https://github.com/o/r/pull/1707"
+assert_not_contains "landed: a merge outside the window is not listed" "$LANDED_BLOCK" "#1690"
+OUT_LANDED_TWO="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --behind-json "$TMP/behind.json" --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged.json" --landed-sample 2 "${CLEAR_COST_ARGS[@]}" 2>&1)"
+LANDED_TWO="$(printf '%s\n' "$OUT_LANDED_TWO" | sed -n '/^== Landed/,/^$/p')"
+assert_contains "landed: the sample size is a setting" "$LANDED_TWO" "Read these (2 of 3"
+assert_contains "landed: the sample takes the oldest merge" "$LANDED_TWO" "#1707"
+assert_contains "landed: the sample takes the newest merge" "$LANDED_TWO" "#1720"
+assert_not_contains "landed: the sample skips the one between" "$LANDED_TWO" "#1712"
+assert_contains "landed: a flag setting names its layer" "$LANDED_TWO" "setting: landed_sample=2 (flag)"
 
 # Severity ordering: a P0/P1 must not sort below advisory findings.
 STRANDED_BLOCK="$(printf '%s\n' "$OUT" | sed -n '/stranded on merged/,$p')"
@@ -697,7 +717,7 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
 assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
-assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 9 sections unreadable: stranded"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "2 of 10 sections unreadable: stranded landed"
 
 # --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
@@ -791,7 +811,7 @@ OUT_STUCK_ERR="$(run_stuck --stuck-json "$TMP/stuck-error.json")"
 RC_STUCK_ERR=$?
 assert_exit "stuck: an error document exits 6" 6 "$RC_STUCK_ERR"
 assert_contains "stuck: an error document is UNREADABLE" "$(section "$OUT_STUCK_ERR" "== Stuck")" "UNREADABLE: boom stuck"
-assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 9 sections unreadable: stuck"
+assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 10 sections unreadable: stuck"
 printf '[]\n' >"$TMP/stuck-array.json"
 assert_contains "stuck: a fixture that is not a label map is UNREADABLE" "$(section "$(run_stuck --stuck-json "$TMP/stuck-array.json")" "== Stuck")" \
   "UNREADABLE: --stuck-json is not an object"
@@ -927,7 +947,7 @@ assert_contains "touches: no operator login is UNREADABLE" \
 printf '{"errors": [{"message": "boom touches"}]}\n' >"$TMP/touch-error.json"
 OUT_TOUCH_ERR="$(run_touch --touch-json "$TMP/touch-error.json")"
 assert_exit "touches: an error document exits 6" 6 "$?"
-assert_contains "touches: the header counts the unreadable section" "$OUT_TOUCH_ERR" "1 of 9 sections unreadable: touches"
+assert_contains "touches: the header counts the unreadable section" "$OUT_TOUCH_ERR" "1 of 10 sections unreadable: touches"
 assert_contains "touches: no repo and no fixture is an empty state" "$(section "$OUT3" "== Owner touches")" \
   "(no repo resolved — pass --repo or --touch-json)"
 bash "$BRIEF" --touch-days 0 >/dev/null 2>&1
@@ -1164,7 +1184,7 @@ OUT_FAIL="$(run_stub fail)"
 RC_FAIL=$?
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
-assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "9 of 9 sections unreadable"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "10 of 10 sections unreadable"
 assert_contains "blocked: stuck is UNREADABLE" "$(section "$OUT_BLOCKED" "== Stuck")" "UNREADABLE:"
 assert_not_contains "blocked: stuck never renders an all-clear" "$OUT_BLOCKED" "no open item has held a queue label"
 COST_BLOCKED="$(section "$OUT_BLOCKED" "== Cost")"
@@ -1204,7 +1224,7 @@ OUT_ONE="$(run_stub blocked \
   --lane-runs-json "$TMP/lanes-empty.json")"
 RC_ONE=$?
 assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
-assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 9 sections unreadable: stranded"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "2 of 10 sections unreadable: stranded landed"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
 # A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
@@ -1237,7 +1257,7 @@ if have git; then
   assert_exit "git remote fallback: renders (exit 6, five of nine unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
-  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "5 of 9 sections unreadable: telemetry stranded lanes touches cost"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "6 of 10 sections unreadable: telemetry stranded landed lanes touches cost"
 fi
 
 # --- REST fallback: sections 1-4 from repository-scoped endpoints -------------
@@ -1369,7 +1389,7 @@ assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issu
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z UTC  age=1h 30m"
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
 assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
-assert_contains "rest: header counts the three lost sections" "$OUT_REST" "3 of 9 sections unreadable: stuck stranded touches"
+assert_contains "rest: header counts the four lost sections" "$OUT_REST" "4 of 10 sections unreadable: stuck stranded landed touches"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'
@@ -1460,7 +1480,7 @@ OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 RC_BAD=$?
 assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
-assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 9 sections unreadable: merge-ready decisions telemetry stranded"
+assert_contains "unparsable: the header counts the five lost sections" "$OUT_BAD" "5 of 10 sections unreadable: merge-ready decisions telemetry stranded landed"
 assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
 assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
 assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
@@ -1609,11 +1629,33 @@ assert_not_contains "bookmark: a merge before the bookmark is not reported" "$ST
 assert_not_contains "bookmark: paging still stops at the cutoff" "$(cat "$TMP/log-mark")" "api-graphql-c2"
 assert_eq "bookmark: a full read advances it to this run's floor" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-mark")"
 
+# Landed: landed_at sits beside the stranded bookmark, one per machine's data dir.
+landed_of() { cat "$1/morning-brief/$FIXTURE_REPO/landed-at" 2>/dev/null; }
+LANDED_PAGE="$(section "$OUT_PAGE" "== Landed")"
+assert_contains "landed live: a first read covers the last day" "$LANDED_PAGE" "#500"
+assert_not_contains "landed live: a merge before the last day is not listed" "$LANDED_PAGE" "#501"
+assert_eq "landed live: the stranded pages are reused when they reach back far enough" "1" \
+  "$(grep -c 'api-graphql-first' "$TMP/log-page")"
+assert_eq "landed live: a full read saves landed_at as this run's clock" "2026-07-20T08:00Z" "$(landed_of "$TMP/data-page")"
+mkdir -p "$TMP/data-landed/morning-brief/$FIXTURE_REPO"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-landed/morning-brief/$FIXTURE_REPO/landed-at"
+OUT_LANDED="$(MB_GH_FIXTURES="$STR" MB_GH_LOG="$TMP/log-landed" MB_DATA_DIR="$TMP/data-landed" run_stub gql "${FIX_ARGS[@]}")"
+LANDED_MARK="$(section "$OUT_LANDED" "== Landed")"
+assert_contains "landed live: the window starts at landed_at" "$LANDED_MARK" "merged since 2026-07-10T08:00Z UTC: since landed_at"
+assert_contains "landed live: a merge after landed_at is listed" "$LANDED_MARK" "#501"
+assert_not_contains "landed live: a merge before landed_at is not listed" "$LANDED_MARK" "#502"
+assert_eq "landed live: an older landed_at reads the pages again" "2" "$(grep -c 'api-graphql-first' "$TMP/log-landed")"
+assert_eq "landed live: a full read advances landed_at" "2026-07-20T08:00Z" "$(landed_of "$TMP/data-landed")"
+
 mkdir -p "$TMP/gql-none" "$TMP/data-fail/morning-brief/$FIXTURE_REPO"
 printf '2026-07-10T08:00Z\n' >"$TMP/data-fail/morning-brief/$FIXTURE_REPO/stranded-cutoff"
 OUT_MARK_FAIL="$(MB_GH_FIXTURES="$TMP/gql-none" MB_DATA_DIR="$TMP/data-fail" run_stub gql "${FIX_ARGS[@]}")"
 assert_contains "bookmark: a failed read renders UNREADABLE" "$(section "$OUT_MARK_FAIL" "== Findings stranded")" "UNREADABLE:"
 assert_eq "bookmark: a failed read leaves it where it was" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-fail")"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-fail/morning-brief/$FIXTURE_REPO/landed-at"
+OUT_LANDED_FAIL="$(MB_GH_FIXTURES="$TMP/gql-none" MB_DATA_DIR="$TMP/data-fail" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "landed live: a failed read renders UNREADABLE" "$(section "$OUT_LANDED_FAIL" "== Landed")" "UNREADABLE:"
+assert_eq "landed live: a failed read leaves landed_at where it was" "2026-07-10T08:00Z" "$(landed_of "$TMP/data-fail")"
 
 mkdir -p "$TMP/gql-trunc" "$TMP/data-trunc/morning-brief/$FIXTURE_REPO"
 jq '.[0] | .data.repository.pullRequests.nodes[0].updatedAt = "2026-07-19T17:00:00Z"' "$TMP/merged-truncated.json" >"$TMP/gql-trunc/api-graphql-first.json"
@@ -2275,7 +2317,7 @@ OUT_COST_403="$(cost_brief --billing-usage-json "$TMP/billing-403.json" --billin
 RC_COST_403=$?
 COST_403="$(section "$OUT_COST_403" "== Cost")"
 assert_exit "cost 403: a billing read refused for want of an org admin counts the section as lost" 6 "$RC_COST_403"
-assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 9 sections unreadable: cost"
+assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 10 sections unreadable: cost"
 assert_contains "cost 403: the usage line is UNREADABLE with the fix" "$COST_403" \
   "UNREADABLE GitHub usage 2026-07: org admin needed: run gh auth login with an org admin account"
 assert_contains "cost 403: the minutes line is UNREADABLE too" "$COST_403" \
@@ -2317,7 +2359,7 @@ OUT_COST_ONE="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" 
 RC_COST_ONE=$?
 COST_ONE="$(section "$OUT_COST_ONE" "== Cost")"
 assert_exit "cost one unreadable: the brief exits 6" 6 "$RC_COST_ONE"
-assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 9 sections unreadable: cost"
+assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 10 sections unreadable: cost"
 assert_contains "cost one unreadable: the failed read is its own UNREADABLE line" "$COST_ONE" "UNREADABLE Azure Defender plans: no pricings in --azure-json"
 assert_contains "cost one unreadable: the reads beside it still print" "$COST_ONE" "OK         Azure budget budget-example: spent 1.5, forecast 3.25"
 printf '{"usageItems": "not a list"}\n' >"$TMP/billing-usage-bad.json"
@@ -2331,8 +2373,8 @@ assert_contains "cost unparsable: a usage response of the wrong shape is UNREADA
 OUT_COST_ONLY="$(run_stub blocked)"
 RC_COST_ONLY=$?
 assert_exit "cost only: a brief whose cost lines read is never exit 5" 6 "$RC_COST_ONLY"
-assert_contains "cost only: the header counts the eight lost sections" "$OUT_COST_ONLY" \
-  "8 of 9 sections unreadable: queues stuck merge-ready decisions telemetry stranded lanes touches"
+assert_contains "cost only: the header counts the nine lost sections" "$OUT_COST_ONLY" \
+  "9 of 10 sections unreadable: queues stuck merge-ready decisions telemetry stranded landed lanes touches"
 
 # A fixture run with no cost fixtures reads nothing live: every cost line is
 # UNREADABLE with the fix, six GitHub lines and ten Azure lines.
@@ -2421,7 +2463,7 @@ OUT_429="$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azur
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "defender: a throttled cost query is UNREADABLE with the error" "$(section "$OUT_429" "== Cost")" \
   "UNREADABLE Azure Defender charges, month to date: Too Many Requests(Too many requests. Please retry.)"
-assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "4 of 9 sections unreadable: stuck stranded touches cost"
+assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "5 of 10 sections unreadable: stuck stranded landed touches cost"
 jq '.defenderCost = {"properties": {"columns": [{"name": "ServiceName"}], "rows": []}}' "$TMP/azure-clear.json" >"$TMP/azure-cost-bad.json"
 assert_contains "defender: a cost response without its columns is UNREADABLE" "$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
   --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-cost-bad.json")" "== Cost")" \
@@ -2780,7 +2822,7 @@ EOF
     "settings: org=team-org (work-items.yaml)"
   assert_not_contains "settings: a bare-filename run parses the team file" "$OUT_BARE" "could not be parsed"
   assert_contains "settings: outside a checkout no file is read" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")" \
-    "settings: defaults (no morning_brief key in work-items.yaml or work-items.local.yaml)"
+    "settings: defaults (no morning_brief cost key in work-items.yaml or work-items.local.yaml)"
   # A settings file never turns a fixture run live: no gh or az call is made.
   NET_BIN="$TMP/net-bin"
   mkdir -p "$NET_BIN"
