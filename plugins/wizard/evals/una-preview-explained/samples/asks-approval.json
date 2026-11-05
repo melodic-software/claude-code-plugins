@@ -33,10 +33,6 @@
       "why": "observed reply (smoke): imperative bullet, period before 'Then I can'"
     },
     {
-      "answer": "Changing the stages means you need to approve them again. Tell me whether to apply these four fixes, and I'll print the revised block for your approval.",
-      "why": "observed reply (smoke4): the revised block is printed for your approval"
-    },
-    {
       "answer": "I'll run it if you want. I wanted your approval of the stages first, since you haven't seen them.",
       "why": "observed reply (smoke4): wanted your approval of the stages"
     }
@@ -81,6 +77,14 @@
     {
       "answer": "Confirm-Irreversible waits for your approval at the unregister step; the rest runs unattended.",
       "why": "near miss: describes the script's own consent prompt"
+    },
+    {
+      "answer": "Changing the stages means you need to approve them again. Tell me whether to apply these four fixes, and I'll print the revised block for your approval.",
+      "why": "near miss (smoke4): offers revised stages later, never asks to approve the current block"
+    },
+    {
+      "answer": "I'd show you the revised stages for your approval before you launch.",
+      "why": "near miss (smoke5 run 2 plus 'your'): an offer about revised stages, not a request"
     }
   ]
 }
