@@ -1,6 +1,6 @@
 ---
 description: "Ranked menu of every installed skill that fits this moment (Now, Next, Skipped upstream, Later, Spotlight), hiding nothing; a free-text question gets one skill and an example prompt. Use when: 'what are my options', 'which skill fits here', 'what am I forgetting'. One next stage: /session-flow:workflow."
-argument-hint: "[topic-slug | question]"
+argument-hint: "[topic-slug|question]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Lay out the skills that fit this moment as a ranked, nothing-hidden menu
 ---
 
-**Arguments.** `[topic-slug | question]`. e.g. /session-flow:recommend-skills, /session-flow:recommend-skills my-topic, /session-flow:recommend-skills which skill finds why the build is slow?
+**Arguments.** `[topic-slug|question]`. e.g. /session-flow:recommend-skills, /session-flow:recommend-skills my-topic, /session-flow:recommend-skills which skill finds why the build is slow?
 
 # Recommend skills
 
