@@ -5,6 +5,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { closing } from "../intake-triage/apply-verdict.mjs";
 import {
   auditFindings,
   ceilingFindings,
@@ -564,6 +566,24 @@ test("signal 13: each lane's hold notice parses, and other notices do not", () =
   assert.equal(parseHold(undefined, "handoff evidence for fix-docs still missing after 3 reads: x; the outputs stay empty"), null);
 });
 
+// apply-verdict.mjs closing's own annotation line, split as the runner splits
+// `::notice title=<title>::<message>`, so producer and parser are one contract.
+const annotation = (line) => /^::notice title=([^:]+)::(.*)$/.exec(line).slice(1);
+const verdictHold = (closed) => parseHold(...annotation(closed.lines[0]));
+
+test("signal 13: intake-triage's held verdict parses to a fixed reason with no item", () => {
+  assert.deepEqual(verdictHold(closing({ error: new GitHubError(502, "GET /repos/o/r/issues/7") })), { item: null, reason: "fault HTTP 502" });
+  const admission = { admission: { outcome: "error", fault: true, reasons: ["GET /repos/o/r/issues/7/timeline failed with status 503"] } };
+  assert.deepEqual(verdictHold(closing({ result: admission })), { item: null, reason: "admission fault HTTP 503" });
+  // A network fault names no status.
+  assert.deepEqual(verdictHold(closing({ error: new TypeError("fetch failed") })), { item: null, reason: "fault" });
+  // Its error line and another title's held: text are no hold.
+  const red = closing({ error: new Error("models.issue-dimensions maps no option 7") }).lines[0];
+  assert.equal(parseHold("apply-verdict", /::(.*)$/.exec(red)[1]), null);
+  assert.equal(parseHold("pr-verify", "held: pr-verify could not resolve the pull request: x failed with status 502"), null);
+  assert.equal(parseHold("apply-verdict", "apply-verdict does not apply (off); nothing written"), null);
+});
+
 const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({
   lane,
   runId,
@@ -604,6 +624,17 @@ test("signal 13: the default threshold counts each lane on its own, and no rule 
   assert.deepEqual(laneHoldFindings({ laneHolds: four }), []);
   assert.throws(() => holdRule({ threshold: 1 }), /threshold of 2 to 100/);
   assert.throws(() => holdRule({ "window-hours": 1.5 }), /window-hours of 1 to 168/);
+});
+
+test("signal 13: intake-triage's held verdicts raise its own finding at the threshold", () => {
+  const rule = holdRule({});
+  const three = [1, 2, 3].map((id) => held("intake-triage", id, { reason: "fault HTTP 502", hour: 9 + id }));
+  assert.deepEqual(laneHoldFindings({ laneHolds: three, holdRule: rule }), []);
+  const [f, ...rest] = laneHoldFindings({ laneHolds: [...three, held("intake-triage", 4, { reason: "admission fault HTTP 503", hour: 14 })], holdRule: rule });
+  assert.deepEqual(rest, []);
+  assert.equal(f.key, "lane-hold:intake-triage");
+  assert.equal(f.area, "Intake lane (intake-triage apply-verdict)");
+  assert.match(f.summary, /^4 green intake-triage runs held on a fault in the last 24 hours/);
 });
 
 test("signal 13: the fingerprint holds while the reasons hold, through new runs", () => {
