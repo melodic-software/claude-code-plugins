@@ -50,12 +50,15 @@ assert_file_eq() {
 }
 
 # mkrepo <name> — echo a fresh fixture root (a git repo when git is present,
-# so the default-root rung can be exercised; a plain directory otherwise).
+# so the default-root rung can be exercised; else a directory holding `.git`,
+# which the helper's no-git fallback reads as a repository).
 mkrepo() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d"
   if command -v git >/dev/null 2>&1; then
     git -C "$d" init -q 2>/dev/null
+  else
+    mkdir -p "$d/.git"
   fi
   printf '%s' "$d"
 }
@@ -645,6 +648,52 @@ assert_exit "case 22: CRLF heading-scoped --clean exits 0" 0 "$RC"
 printf '## convention_source  \r\n## convention_source\r\n' >"$TEST_TMPDIR/heading-crlf-expected"
 assert_file_eq "case 22: both heading-titled sections cleaned; heading lines kept" \
   "$TEST_TMPDIR/heading-crlf-expected" "$r/.claude/doc.md"
+
+# --- Case 23: a $HOME or non-repository root skips kind file records ---------
+# There a .claude/<name>.json path is the live user-global layer.
+m="$TEST_TMPDIR/user-global.yaml"
+{
+  good_record fx-r001 file .claude/old.json delete
+  echo '---'
+  good_record fx-r002 dir .claude/scratch delete
+} | manifest "$m"
+fake_home="$(mkrepo fake-home)"
+plain="$TEST_TMPDIR/not-a-repo"
+for r in "$fake_home" "$plain"; do
+  mkdir -p "$r/.claude/scratch"
+  printf '{}\n' >"$r/.claude/old.json"
+done
+# GIT_CEILING_DIRECTORIES: a TMPDIR inside some repository must not make the
+# plain directory look like one.
+run_at() { # <root> [args...] -- HOME is the fake home, git stops at TEST_TMPDIR
+  local root="$1"
+  shift
+  OUT="$(HOME="$fake_home" GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" --manifest "$m" --root "$root" "$@" 2>"$TEST_TMPDIR/err")"
+  RC=$?
+  ERR="$(cat "$TEST_TMPDIR/err")"
+}
+for r in "$fake_home" "$plain"; do
+  label="case 23 ($(basename "$r"))"
+  run_at "$r"
+  assert_exit "$label: the dir leftover still exits 1" 1 "$RC"
+  assert_eq "$label: no file row, the dir row stays" "fx-r002" "$(printf '%s\n' "$OUT" | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+  assert_contains "$label: the file record is reported skipped" "$ERR" "fx-r001: skipped: root is not a repository"
+  run_at "$r" --clean fx-r001
+  assert_exit "$label: --clean of the file record is refused (exit 2)" 2 "$RC"
+  if [[ -f "$r/.claude/old.json" ]]; then pass "$label: the file is left in place"; else fail "$label: the file is left in place" "deleted"; fi
+done
+r="$(mkrepo in-repo)"
+mkdir -p "$r/.claude"
+printf '{}\n' >"$r/.claude/old.json"
+run_at "$r"
+assert_contains "case 23: a repository root outside HOME still reports the file row" "$OUT" "fx-r001"
+# A `.git` git rejects (here an empty directory, as with git missing or a
+# repository git refuses for dubious ownership) still counts as a repository.
+r="$TEST_TMPDIR/bare-dot-git"
+mkdir -p "$r/.git" "$r/.claude"
+printf '{}\n' >"$r/.claude/old.json"
+run_at "$r"
+assert_contains "case 23: a .git that git rejects still reports the file row" "$OUT" "fx-r001"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
