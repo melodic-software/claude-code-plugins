@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.2.3] - 2026-11-05
+
+### Changed
+
+- name provenance: untrusted as the merge gate's trust-hold label
+
+  `UNTRUSTED_PROVENANCE_LABEL` is now `provenance: untrusted`. The hold
+  matches any label naming untrusted work, so the legacy
+  `work-class: untrusted-provenance` still holds a merge; the refusal
+  reason codes are unchanged.
+
 ## [8.2.2] - 2026-11-05
 
 ### Changed
