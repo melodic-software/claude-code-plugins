@@ -510,11 +510,12 @@ done
 # #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 # #12502 replacement: answer_audit_rounds drops its userConfig layer (a manifest key outside the inert set), so the audit-offer paragraph names no user_config token; the pointer still asks nothing, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 # #12658: the lane table gives way to the surface registry (surfaces/registry.mjs resolve), the share row passes share as its argument, and the Stance surface sentence names the resolution; each changes how the surface is picked, resolves no row, and the lock row, STOP-on-gap and no-silent-resolve defenses are byte-identical
+# emoji paragraph and the Question lanes declared-default line flip the emoji default to on (#6233); presentation only, they resolve no row, and the no-silent-resolve and lock defenses are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "6abc026c684d4b26f2c5817504e1ce9c4cae4c4c500cd6c8a297abb755442a52"
+  "1c50a4686a8b3b8f59a30a454cac4a1530d730eead82c846c26a02700e85982b"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -666,11 +667,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 # #12658: the lane table gives way to the surface registry (surfaces/registry.mjs resolve), its offer line opens the round-1 message, and the share row passes share as its argument; each changes how the surface is picked, resolves no row, and the lock row and STOP-on-gap are byte-identical
 # #12660: the Question lanes paragraph passes --data-dir and, on a caller-declared unattended run, --unattended to the surface resolver, and its one line may name an installed optional planner or offer an optional plugin (on a yes it installs at user scope and points to /reload-plugins; never required); the share row no longer names a page; each changes what the surface line says, resolves no row, and the lock row and STOP-on-gap are byte-identical
+# emoji paragraph and the Question lanes declared-default line flip the emoji default to on (#6233); presentation only, they resolve no row, and the no-silent-resolve and lock defenses are byte-identical
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "8e376330c3c795b0bd83b6dc227db2d036b651d670cdfdb8c975d9bcc2ddc924"
+  "5905191292335dbd1b44a77d2488b62d84c80e70a121521de016ec9382a9346b"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
