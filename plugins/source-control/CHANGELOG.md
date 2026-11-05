@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.6] - 2026-11-05
+
+### Removed
+
+- `babysit_verify_evidence.py refusal-stands` is gone, with `babysit_postmerge.py`'s `content_refusal` and `refusal_moved` and the `running` option of the idle tick's verifying-runs read: pr-merge's PR-scoped wake no longer asks whether the last sweep's refusing report still stands, since over its first 24 hours the probe never let a wake skip its fresh check. The idle tick's `judgedRuns` reading is unchanged.
+
 ## [8.1.5] - 2026-11-05
 
 ### Changed
