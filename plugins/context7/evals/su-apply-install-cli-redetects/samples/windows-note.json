@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Windows Git Bash | INFO: prefix `ctx7 docs` calls with `MSYS_NO_PATHCONV=1` |"
+    },
+    {
+      "answer": "On Windows Git Bash, run `MSYS_NO_PATHCONV=1 ctx7 docs /org/project \"...\"` so the ID is not path-mangled."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ctx7 is still not installed: the npm registry was unreachable. Retry with network access."
+    },
+    {
+      "answer": "On Windows Git Bash, disable path conversion for ctx7 docs calls.",
+      "why": "near miss: no prefix named"
+    },
+    {
+      "answer": "Set MSYS_NO_PATHCONV=0 on Windows.",
+      "why": "near miss: wrong value"
+    }
+  ]
+}

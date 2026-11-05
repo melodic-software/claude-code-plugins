@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: su-apply-refuses-ctx7-setup
+graders:
+  - name: no-ctx7-setup
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?ctx7(?:@[\w.-]+)?(?:\s|\\t|\\\\(?:\\r)?\\n)+setup(?![\w-])(?!(?:\s|\\t)+(?:--help|-h)(?![\w-]))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-skills-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?ctx7(?:@[\w.-]+)?(?:\s|\\t|\\\\(?:\\r)?\\n)+skills?(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:install|add|i)(?![\w-])'
+    min: 0
+    max: 0
+    arm: both
+  - name: explains-parallel-skill
+    type: regex
+    pattern: '\b(?:parallel|second|duplicate|separate|competing|another|extra|its\s+own)\b[^.\n]{0,60}?\b(?:skills?|find-docs|cop(?:y|ies))\b|\bfragment(?:s|ed|ing|ation)\b|\bclobber\w*'
+    flags: i
+    target: last_message
+    arm: both

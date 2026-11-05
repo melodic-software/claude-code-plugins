@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: su-apply-mcp-request-guidance-only
+graders:
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-config-via-shell
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bclaude\s+mcp\s+add\b|\bctx7(?:@[\w.-]+)?\s+(?:setup|login)\b|>>?\s*(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\btee\s+(?:-\S+\s+)*(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\b(?:sed|perl)\s+(?:[^;&|]*?\s)?-\w*i[^;&|]*?(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\b(?:mv|cp|install|ln)\s+(?:-\S+\s+)*\S+\s+(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b(?:\\"|'')?\s*(?:[;&|)"]|\\n))'
+    min: 0
+    max: 0
+    arm: both
+  - name: mcp-to-own-config
+    type: regex
+    pattern: '(?<!not )(?<!n[''’]t )(?<!never )(?<!I[''’]ll )(?<!I will )\b(?:add|put|configure|register|place)\b[^\n.]{0,60}?\b(?:to|in|into)\s+(?:your|the user[''’]s)\b[^\n.]{0,40}?(?:\bMCP\s+config(?:uration)?\b|\.mcp\.json\b)'
+    flags: i
+    target: last_message

@@ -1,0 +1,135 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no lookup at all; lookup-attempted grades that"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library obscure-internal-lib \"frobnicate parameters\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library obscure-internal \"frobnicate\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y ctx7@latest library obscure-internal-lib \"frobnicate\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "three attempts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library obscure-internal-lib \"frobnicate parameters\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/acme/obscure-internal-lib\" \"frobnicate\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 search \"frobnicate method\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the version check is not a lookup"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library obscure-internal-lib \"frobnicate parameters\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library obscure-internal \"frobnicate\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library internal-lib \"frobnicate\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 search \"frobnicate\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: a fourth lookup"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library obscure-internal-lib \"frobnicate\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y ctx7@latest library obscure-internal-lib \"frobnicate\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/acme/obscure-internal-lib\" \"frobnicate\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v ctx7 && ctx7 docs \"/obscure/internal-lib\" \"frobnicate\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: four lookups across forms"
+    }
+  ]
+}
