@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.5] - 2026-11-05
+
+### Changed
+
+- name `provenance: untrusted` as the label the merge trust hold reads
+
+  The work-classes guardrail now names `provenance: untrusted`, the
+  label that marks C5 untrusted provenance, in place of the legacy
+  `work-class:` name.
+
 ## [4.1.4] - 2026-11-04
 
 ### Changed
