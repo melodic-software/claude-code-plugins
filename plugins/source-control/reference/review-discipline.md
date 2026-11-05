@@ -268,6 +268,15 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     the base branch. Provenance decides this, never severity: a self-introduced regression
     wearing a low-severity badge is still a regression this change is shipping
     <!-- contract-restatement-end: D4.6-deferral-provenance -->
+  - [ ] **Give each summary advisory a disposition, as a thread gets one.** An advisory line in a
+    review summary comment (a pre-existing defect on an unchanged line that a changed line calls)
+    opens no thread and never holds the merge, so on an auto-merging PR nothing else catches it.
+    Fix it in this PR when the scope test above places it here; otherwise ground it as a
+    `VALID (defer)` above, whatever its size, and post the D5 reply as a conversation comment
+    answering the summary. When the project's own CLAUDE.md or AGENTS.md pauses new issue
+    filing, list it instead under a `## Follow-ups` heading in the PR body, with its permalink and
+    the changed line that calls it; that entry is its disposition. Inline threads keep every rule
+    above unchanged
   - [ ] Record the work class the item was filed under, because it bounds when the finding gets
     addressed: an autonomously-drainable class is a materially stronger deferral candidate than
     a human-gated one, whose latency is unbounded
