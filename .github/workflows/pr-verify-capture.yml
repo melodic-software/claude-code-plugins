@@ -334,12 +334,17 @@ jobs:
       # The run directory is made here so it exists for the driver's
       # add-dirs; run-e2e takes no run-directory argument (its SKILL.md
       # Arguments), so the capture prompt names it.
+      # FENCE_FILE stands in for Claude Code's credential store
+      # (~/.claude/.credentials.json): a file that exists under ~/.claude,
+      # so a refused Read of it is the fence, not a missing file.
       - name: Write the probe prompt
         if: steps.credential.outputs.present == 'true'
         env:
           PROMPT_FILE: ${{ runner.temp }}/pr-verify-capture-probe.md
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/capture-run"
+          mkdir -p "$GITHUB_WORKSPACE/capture-run" "$HOME/.claude"
+          FENCE_FILE="$HOME/.claude/pr-verify-probe-fence"
+          echo 'not a credential' >"$FENCE_FILE"
           {
             echo 'Run this one command with the Bash tool, exactly as written:'
             echo
@@ -350,6 +355,7 @@ jobs:
             echo
             echo '    /proc/self/environ'
             echo "    $PROMPT_FILE"
+            echo "    $FENCE_FILE"
             echo
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
@@ -357,7 +363,7 @@ jobs:
       # The reach probe, before any pull request code, under the driver's
       # own file-tool fence (the same deny rules as "Capture the change"): a
       # Bash child of a leg on the job's credential, where the app under
-      # test will run, and two Read calls the fence must refuse. continue-on-error lets a
+      # test will run, and three Read calls the fence must refuse. continue-on-error lets a
       # handoff end the job green; "Check the probe" fails the job on any
       # other probe failure, so no head code runs unprobed.
       - name: Probe what head code can reach
@@ -392,9 +398,11 @@ jobs:
             Read(/${{ runner.temp }}/**)
             Read(~/.config/**)
             Read(~/.git-credentials)
+            Read(~/.claude/**)
             Edit(//proc/**)
             Edit(/${{ runner.temp }}/**)
             Edit(./.base/**)
+            Edit(~/.claude/**)
             Glob
             Grep
             Edit
@@ -498,8 +506,8 @@ jobs:
             echo "::error::head code could reach a credential or token, or the probe could not show its scan works (${reach:-no readable result}); no pull request code runs"
             exit 1
           fi
-          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE"; then
-            echo "::error::the driver's file tools are not fenced off /proc and the runner's temp directory; no pull request code runs"
+          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" "$HOME/.claude/pr-verify-probe-fence"; then
+            echo "::error::the driver's file tools are not fenced off /proc, the runner's temp directory and ~/.claude; no pull request code runs"
             exit 1
           fi
           echo "::notice::the reach probe found nothing head code or the driver's file tools can read"
@@ -604,9 +612,11 @@ jobs:
             Read(/${{ runner.temp }}/**)
             Read(~/.config/**)
             Read(~/.git-credentials)
+            Read(~/.claude/**)
             Edit(//proc/**)
             Edit(/${{ runner.temp }}/**)
             Edit(./.base/**)
+            Edit(~/.claude/**)
             NotebookEdit
             WebFetch
             WebSearch
@@ -911,12 +921,17 @@ jobs:
       # The run directory is made here so it exists for the driver's
       # add-dirs; run-e2e takes no run-directory argument (its SKILL.md
       # Arguments), so the capture prompt names it.
+      # FENCE_FILE stands in for Claude Code's credential store
+      # (~/.claude/.credentials.json): a file that exists under ~/.claude,
+      # so a refused Read of it is the fence, not a missing file.
       - name: Write the probe prompt
         if: steps.credential.outputs.present == 'true'
         env:
           PROMPT_FILE: ${{ runner.temp }}/pr-verify-capture-probe.md
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/capture-run"
+          mkdir -p "$GITHUB_WORKSPACE/capture-run" "$HOME/.claude"
+          FENCE_FILE="$HOME/.claude/pr-verify-probe-fence"
+          echo 'not a credential' >"$FENCE_FILE"
           {
             echo 'Run this one command with the Bash tool, exactly as written:'
             echo
@@ -927,6 +942,7 @@ jobs:
             echo
             echo '    /proc/self/environ'
             echo "    $PROMPT_FILE"
+            echo "    $FENCE_FILE"
             echo
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
@@ -934,7 +950,7 @@ jobs:
       # The reach probe, before any pull request code, under the driver's
       # own file-tool fence (the same deny rules as "Capture the change"): a
       # Bash child of a leg on the job's credential, where the app under
-      # test will run, and two Read calls the fence must refuse. continue-on-error lets a
+      # test will run, and three Read calls the fence must refuse. continue-on-error lets a
       # handoff end the job green; "Check the probe" fails the job on any
       # other probe failure, so no head code runs unprobed.
       - name: Probe what head code can reach
@@ -969,9 +985,11 @@ jobs:
             Read(/${{ runner.temp }}/**)
             Read(~/.config/**)
             Read(~/.git-credentials)
+            Read(~/.claude/**)
             Edit(//proc/**)
             Edit(/${{ runner.temp }}/**)
             Edit(./.base/**)
+            Edit(~/.claude/**)
             Glob
             Grep
             Edit
@@ -1024,8 +1042,8 @@ jobs:
             echo "::error::head code could reach a credential or token, or the probe could not show its scan works (${reach:-no readable result}); no pull request code runs"
             exit 1
           fi
-          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE"; then
-            echo "::error::the driver's file tools are not fenced off /proc and the runner's temp directory; no pull request code runs"
+          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" "$HOME/.claude/pr-verify-probe-fence"; then
+            echo "::error::the driver's file tools are not fenced off /proc, the runner's temp directory and ~/.claude; no pull request code runs"
             exit 1
           fi
           echo "::notice::the reach probe found nothing head code or the driver's file tools can read"
@@ -1130,9 +1148,11 @@ jobs:
             Read(/${{ runner.temp }}/**)
             Read(~/.config/**)
             Read(~/.git-credentials)
+            Read(~/.claude/**)
             Edit(//proc/**)
             Edit(/${{ runner.temp }}/**)
             Edit(./.base/**)
+            Edit(~/.claude/**)
             NotebookEdit
             WebFetch
             WebSearch

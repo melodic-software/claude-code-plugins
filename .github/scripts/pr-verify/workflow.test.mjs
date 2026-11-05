@@ -14,7 +14,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
-import { CREDENTIAL_NAMES } from "./capture-probe.mjs";
+import { CREDENTIAL_NAMES, scanFiles } from "./capture-probe.mjs";
 import { WAIT_MS } from "./find-capture.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -1520,9 +1520,13 @@ const FENCE = [
   "Read(/${{ runner.temp }}/**)",
   "Read(~/.config/**)",
   "Read(~/.git-credentials)",
+  // Claude Code's own store, where a subscription login keeps its token
+  // (https://code.claude.com/docs/en/authentication, Credential management).
+  "Read(~/.claude/**)",
   "Edit(//proc/**)",
   "Edit(/${{ runner.temp }}/**)",
   "Edit(./.base/**)",
+  "Edit(~/.claude/**)",
 ];
 const FILE_TOOL = /^(?:Read|Edit|Write|Glob|Grep|NotebookEdit)$/;
 test("the driver's file tools are fenced to the head and the run directory, and the probe tries the fence", () => {
@@ -1546,11 +1550,27 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   const probePrompt = capStep("Write the probe prompt");
   assert.match(probePrompt, /^ {12}echo ' {4}\/proc\/self\/environ'$/m);
   assert.match(probePrompt, /^ {12}echo " {4}\$PROMPT_FILE"$/m);
-  assert.match(capStep(PROBE_CHECK), /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE"; then\n {12}echo "::error::.*"\n {12}exit 1$/m);
+  assert.match(probePrompt, /^ {12}echo " {4}\$FENCE_FILE"$/m);
+  assert.match(capStep(PROBE_CHECK), /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE" "\$HOME\/\.claude\/pr-verify-probe-fence"; then\n {12}echo "::error::.*"\n {12}exit 1$/m);
+  // Every launcher step in both jobs carries the same fence, the probes' and the drivers' alike.
+  const launchers = [...CAP_STEPS, ...SUB_STEPS].filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
+  assert.equal(launchers.length, 4);
+  const fences = launchers.map((s) => list(s.block, "disallowed-tools").filter((rule) => /^(?:Read|Edit)\(/.test(rule)));
+  for (const fence of fences) assert.deepEqual(fence, FENCE);
+  // The fence file the probe reads exists under ~/.claude, so its refusal is the
+  // deny rule's and not a missing file's; it holds no credential.
+  const home = tempDir("capture-probe-home-");
+  const promptFile = path.join(tempDir("capture-probe-prompt-"), "probe.md");
+  const wrote = runStep(probePrompt, { HOME: home, GITHUB_WORKSPACE: tempDir("capture-probe-ws-"), PROMPT_FILE: promptFile });
+  assert.equal(wrote.status, 0, wrote.stderr);
+  const fenceFile = path.join(home, ".claude", "pr-verify-probe-fence");
+  assert.ok(existsSync(fenceFile));
+  assert.deepEqual(scanFiles([fenceFile]), []);
+  assert.match(readFileSync(promptFile, "utf8"), new RegExp(`^ {4}${fenceFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
   assert.equal(input(capStep(PROBE_CHECK), "EXECUTION_FILE"), "${{ steps.probe.outputs.execution-file }}");
   assert.equal(input(capStep(PROBE_CHECK), "PROMPT_FILE"), input(probePrompt, "PROMPT_FILE"));
   // The run directory: made before the legs, named to the driver, and the only place the collect step takes a summary from.
-  assert.match(probePrompt, /^ {10}mkdir -p "\$GITHUB_WORKSPACE\/capture-run"$/m);
+  assert.match(probePrompt, /^ {10}mkdir -p "\$GITHUB_WORKSPACE\/capture-run" "\$HOME\/\.claude"$/m);
   assert.match(capStep("Write the capture prompt and schema"), /Its run directory is"\n {12}echo "\$GITHUB_WORKSPACE\/capture-run: write e2e-summary\.json/);
   assert.match(capStep("Collect the capture"), /^ {12}"\$GITHUB_WORKSPACE"\/capture-run\/\*\) ;;$/m);
 });

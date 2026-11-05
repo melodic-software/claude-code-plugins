@@ -131,6 +131,13 @@ test("the driver's file tools pass only when a Read of every fenced path was ref
   assert.equal(fileReach([readUse("a", TARGETS[0]), readResult("a", true), readUse("c", TARGETS[0]), readResult("c", false), readUse("b", TARGETS[1]), readResult("b", true)], TARGETS).clean, false);
   assert.equal(fileReach(null, TARGETS).clean, false);
   assert.equal(fileReach(refused, []).clean, false);
+  // The ~/.claude fence file is a third target: refused with the others it
+  // passes; read, or never tried, it fails the probe.
+  const fence = "/home/runner/.claude/pr-verify-probe-fence";
+  const three = [...TARGETS, fence];
+  assert.equal(fileReach([...refused.slice(0, 4), readUse("f", fence), readResult("f", true), resultMessage(["a", "b", "f"])], three).clean, true);
+  assert.deepEqual(fileReach([...refused, readUse("f", fence), readResult("f", false)], three).reach[2], { target: fence, status: "read" });
+  assert.deepEqual(fileReach(refused, three), { clean: false, reach: [...TARGETS.map((target) => ({ target, status: "refused" })), { target: fence, status: "not tried" }] });
 });
 
 test("the reads subcommand exits 0 only on a refused read of every path, and prints no content", () => {
