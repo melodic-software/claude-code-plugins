@@ -1,6 +1,6 @@
 ---
 description: "Plain-language 'walk me through' ruleset request fires github:advise, which emits the exact proposed repository-ruleset call with the one-approval field and, with no doc fetch available, labels from-memory mechanics unverified (SKILL.md 'Refusal branch'). No shell, so nothing can be executed."
-tags: [github, advise, outcome, read-only]
+tags: [github, advise, outcome, read-only, no-network]
 max_turns: 20
 timeout_seconds: 300
 allowed_tools: [Skill, Read]

@@ -179,7 +179,7 @@ export const graphqlQuery = (url, init) => {
     return false;
   }
 };
-const networkFailure = (error) =>
+export const networkFailure = (error) =>
   error?.name === "TimeoutError" ||
   error?.name === "AbortError" ||
   (error?.name === "TypeError" && error.message === "fetch failed") ||

@@ -96,6 +96,13 @@ apply: answer from them and name the record's as-of date. Step 1's stop rule cov
 `/goal` condition shape and limit. Proceed only when the intent genuinely wants "keep working
 until this condition is met."
 
+## Step 0.5. Readiness before an unattended run
+
+When the run will be left alone (the user says so, or `--unattended`), check the four conditions
+in [reference/run-contract.md](reference/run-contract.md) from evidence, naming it; evidence that
+cannot settle one is a "no". Ask only about a "no" (fix the gap, or run it watched); under
+`--unattended`, record it and recommend a watched run.
+
 ## Step 1. Read the live contract
 
 Fetch the current official `/goal` documentation and extract, from the page itself:
@@ -227,6 +234,8 @@ The tool has its own, lower cap (500 characters on 2.1.285, per
 `--limit 500` first, and propose only a condition that passes it and contains no tab character
 (the tool expands tabs before it counts, so the raw count would understate it). The paste-ready
 line is emitted either way.
+
+When Step 0.5 ran, emit the run contract in `reference/run-contract.md` beside the condition.
 
 Tell the user `/goal` holds for the current session only: what a resume carries over and what
 `/clear` does to an active goal, taken from the "Resume with an active goal" and "Clear a goal"

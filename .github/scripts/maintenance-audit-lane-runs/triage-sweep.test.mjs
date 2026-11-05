@@ -641,6 +641,7 @@ for (const [shape, jobs22, annotations] of [
   ["apply-verdict failed on a 500", FAILED_500, { 220: NOTES[500] }],
   ["apply-verdict missed its writes on a 5xx", MISSED_502, { 220: NOTES[502] }],
   ["the triage deferred on a permission denial", DEFERRED, { 221: NOTES.deferred }],
+  ["apply-verdict held green on a 503", MISSED_502, { 220: [note("notice", "api-calls lanes-app=6"), note("notice", "held: admission failed: GET /repos/o/r/issues/1 failed with status 503")] }],
 ]) {
   test(`a run where ${shape} does not count: the sweep dispatches again and marks it transient`, async () => {
     const gh = transientRuns(jobs22, annotations);
@@ -665,6 +666,9 @@ test("a run whose apply failed for a reason a retry does not clear counts", asyn
     220: [note("warning", "blocked-by edges not written: #2 not written (GitHub answered 500), #3 not written (GitHub answered 403); the verdict's labels are written without status: ready")],
   });
   assert.deepEqual((await sweep(joined)).handed, [1]);
+  // A green hold on a 403 counts too.
+  const held = transientRuns(MISSED_502, { 220: [note("notice", "held: POST /repos/o/r/issues/1/labels failed with status 403")] });
+  assert.deepEqual((await sweep(held)).handed, [1]);
   // So does an apply-verdict that skipped with no deferral, or failed with no annotation.
   assert.deepEqual((await sweep(transientRuns(DEFERRED, { 221: [] }))).handed, [1]);
   assert.deepEqual((await sweep(transientRuns(FAILED_500, { 220: [] }))).handed, [1]);
