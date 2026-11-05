@@ -22,7 +22,8 @@
 // kill switch or a gate skipped before intake does not count, up to 6
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
 // a network error or a deferred triage) the sweep labels it needs-triage
-// and rewrites that comment to hand it to a maintainer, listing the runs. It
+// and rewrites that comment to hand it to a maintainer, listing the runs, and
+// mirrors the label into the Work status field (write-status.mjs). It
 // files no issue. No model. The count is per triage cycle: a work-unblock
 // hand-back comment the lanes App posted after the state comment's last edit
 // starts a new cycle with no runs, in the same comment. An issue still
@@ -38,8 +39,10 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createBudget } from "./collect.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
 
 // Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
 // is read at call time, so a test's stub is guarded too.
@@ -318,8 +321,10 @@ async function handedOff(call, repo, appId) {
   return new Set([...filed, ...(await handedInSweepComments(call, repo, appId))]);
 }
 
-// One pass. `call` returns null for a GET that 404s.
-export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null }) {
+// One pass. `call` returns null for a GET that 404s. `mirrorStatus`
+// (write-status.mjs statusMirror) mirrors each needs-triage add into the Work
+// status field.
+export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, mirrorStatus = async () => {} }) {
   const repoUrl = `${serverUrl}/${repo}`;
   const issues = [];
   for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
@@ -332,7 +337,10 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && names(i).includes(FLOOR)));
   result.candidates = candidates.length;
-  const handOff = (number) => call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [FLOOR] });
+  const handOff = async (number, labels) => {
+    await call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [FLOOR] });
+    await mirrorStatus(number, { had: labels ?? [], add: [FLOOR] });
+  };
   // Issues the sweep already handed off cost their reads and do not count
   // toward MAX_CHECKED, so they cannot starve the issues behind them.
   let checked = 0;
@@ -353,7 +361,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (full) {
         if ((labels ?? []).some((l) => l.name === FLOOR)) continue;
         checked += 1;
-        await handOff(number);
+        await handOff(number, labels);
         result.handedOff.push(number);
         continue;
       }
@@ -439,7 +447,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         }
         // The label first, then the record that stops later passes: a failed
         // record leaves the issue for the next pass, which labels it again.
-        await handOff(number);
+        await handOff(number, labels);
         await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs, reached: known });
         result.handed.push(number);
       }
@@ -482,6 +490,10 @@ async function main() {
   const list = JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH, "utf8"));
   const authorIds = new Set(humanIds(list).split(",").filter(Boolean));
   if (/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "")) authorIds.add(env.LANES_APP_ID);
+  // The field write sends its own API version, which `call` cannot, so it
+  // goes through its own client, outside the call budget.
+  const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+  const mirrorStatus = await statusMirror({ env, github, repository: env.REPOSITORY });
   const result = await runSweep({
     call,
     remaining: () => budget.limit - budget.used,
@@ -490,6 +502,7 @@ async function main() {
     now: new Date(),
     authorIds,
     appId: /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? env.LANES_APP_ID : null,
+    mirrorStatus,
   });
   const numbers = (xs) => xs.map((n) => `#${n}`).join(", ") || "none";
   const lines = [

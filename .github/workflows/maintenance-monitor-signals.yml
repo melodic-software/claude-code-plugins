@@ -49,6 +49,11 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,6 +79,14 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or filed"
+
+      # The Work status mirror (write-status.mjs) reads models.issue-status
+      # through resolve-config.mjs, whose packages only the resolve-config
+      # action installs; this job does not run it.
+      - name: Install resolve-config's packages
+        timeout-minutes: 5
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: Read the signals and file their issues
         if: steps.kill.outputs.proceed == 'true'

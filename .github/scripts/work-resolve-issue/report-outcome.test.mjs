@@ -1222,6 +1222,49 @@ for (const [reason, step] of [
   });
 }
 
+// Each stop's label edits reach the Work status field through mirrorStatus,
+// from the labels read before them, once the edits are done.
+test("main mirrors a park's label edits into the Work status field after they land", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const mirrored = [];
+    const mirrorStatus = async (number, change) => mirrored.push([number, change, calls.filter((c) => c.method === "DELETE").length]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch, mirrorStatus }), 0);
+    assert.deepEqual(mirrored, [[77, { had: ISSUE[2].labels, add: ["status: confirmed"], remove: ["agent-ready", "status: ready", "admission-deferred"] }, 3]]);
+  });
+});
+
+test("main mirrors a close's queue and state label removals into the Work status field", async () => {
+  const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
+  const labels = [{ name: "agent-ready" }, { name: "status: confirmed" }, { name: "work-class: read-only" }];
+  await withAsyncDir({ "work-outcome.json": report }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, 200, { ...ISSUE[2], labels }],
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ["PATCH", /\/issues\/77$/, 200, {}],
+    ]);
+    const mirrored = [];
+    const mirrorStatus = async (number, change) => mirrored.push([number, change]);
+    assert.equal(await main({ env: env(dir), fetch, mirrorStatus }), 0);
+    assert.ok(calls.some((c) => c.method === "PATCH" && c.body?.state === "closed"));
+    // The hand-back step of a close edits no label, so its mirror changes nothing.
+    assert.deepEqual(mirrored, [
+      [77, { had: labels, add: [], remove: [] }],
+      [77, { had: labels, remove: ["agent-ready", "status: confirmed"] }],
+    ]);
+  });
+});
+
 // The lanes App keeps one admission comment per issue, so a park edits the one
 // admission already wrote.
 test("main on a dimension skip edits the lanes App's earlier admission comment in place", async () => {
