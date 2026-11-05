@@ -31,7 +31,8 @@ The restated-fact class, whose rubric grades this separation, measures n 9, prec
 recall 1.00 on the golden set (`plugins/attribution/CHANGELOG.md` 0.14.12), below
 `min_n_per_class` 10, and stays report-only. The detector is model-led with deterministic
 verification, so a deterministic, suppression-free gate for the zero-part shape is still not
-available. The recorded decision keeps its text; its as-of date moves to 2026-11-05.
+available. The recorded decision keeps its conclusion; its as-of date moves to 2026-11-05, and its two
+sentences about the stamp check now say the check is built and still does not cover this class.
 
 **Enforceability: no tier changes, as of 2026-11-05.** The stamp-trigger row moves from "named but
 not built" to "built, off by default, repo override enabled": `/attribution:audit` runs the check

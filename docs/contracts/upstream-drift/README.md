@@ -493,13 +493,14 @@ shape.** Recorded as a decision rather than left implicit, because this repo's `
 is the standing precedent for promoting a convention to a check and the question was asked directly
 ([#2273](https://github.com/melodic-software/claude-code-plugins/issues/2273)).
 
-The premise that settles it: the candidate check named in the table above, *flag any
-`Verified <date>` line or row whose surface states no trigger*, **would not have caught
+The premise that settles it: the stamp check in the table above, *flagging a dated stamp in a
+file that states no trigger*, **would not have caught
 [#2207](https://github.com/melodic-software/claude-code-plugins/issues/2207)**, the finding that
 prompted the question. That surface carried no stamp at all, so a stamp-anchored grep had nothing to
 match on. The named check is shaped for a *half-conforming* record; the failure that actually ships
-is the *zero-part* one. It therefore stays named-not-built on its own build trigger, unchanged, and
-is not evidence that mechanization covers this class.
+is the *zero-part* one. The check was later built on its own build trigger
+([CHANGELOG 4.2.0](CHANGELOG.md)) and still does not cover this class, so it is not evidence that
+mechanization does.
 
 The zero-part shape has no deterministic check available. Deciding whether a sentence restates an
 upstream-owned specific, as against an in-repo fact, a description of the surface's own behavior,
