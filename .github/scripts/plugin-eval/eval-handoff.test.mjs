@@ -8,11 +8,11 @@
 // checkout at that pin; their messages are the observed shapes ci-workflows'
 // classify.test.cjs records (CLI 2.1.302).
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 import { erroredTraces, handoffReason, judgeLegStreams } from "./eval-handoff.mjs";
 
 test("a key leg hands off on a credit stop or a 401 or 402, never a 403 or a limit stop", () => {
@@ -108,7 +108,7 @@ test("the real classifier: a subscription leg's limit stop and credit stop hand 
 
 test("the CLI reads the probe and the errored runs, and writes the leg's duration for the lane record", { skip }, async () => {
   const { spawnSync } = await import("node:child_process");
-  const dir = mkdtempSync(join(tmpdir(), "eval-handoff-cli-"));
+  const dir = tempDir("eval-handoff-cli-");
   mkdirSync(join(dir, "t"));
   writeFileSync(join(dir, "probe.jsonl"), jsonl(CLEAN));
   writeFileSync(join(dir, "t/1.jsonl"), jsonl(LIMITED));
