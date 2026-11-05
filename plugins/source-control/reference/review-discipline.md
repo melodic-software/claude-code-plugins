@@ -274,15 +274,20 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     Fix it in this PR when the scope test above places it here; otherwise ground it as a
     `VALID (defer)` above, whatever its size, and post the D5 reply as a conversation comment
     answering the summary. When the project's own CLAUDE.md or AGENTS.md pauses new issue
-    filing, list it instead under a `## Follow-ups` heading in the PR body, with its permalink and
-    the changed line that calls it; that entry is its disposition. Inline threads keep every rule
-    above unchanged
-  - [ ] Record the work class the item was filed under, because it bounds when the finding gets
-    addressed: an autonomously-drainable class is a materially stronger deferral candidate than
-    a human-gated one, whose latency is unbounded
-  - [ ] **verify the item exists:** re-query it by id and confirm it is filed and open before
-    the D5 reply cites it. A cited id that does not resolve is the dropped finding this step
-    exists to prevent
+    filing, list it instead under a `## Follow-ups` heading in the PR body. Each entry starts with
+    the fixed marker `Pre-existing (advisory):`, followed by its permalink and the changed line
+    that calls it. That marker is the entry's reader: when the pause lifts, the sweep the
+    project's pause line names searches merged PRs' bodies and review summaries for it and files
+    each entry as an issue, so the record stays durable and findable, the bar above. Only the
+    tracker item is replaced: the D5 classification reply on the summary is still posted, and it
+    cites the Follow-ups entry. Inline threads keep every rule above unchanged
+  - [ ] For a filed tracker item, record the work class it was filed under, because it bounds
+    when the finding gets addressed: an autonomously-drainable class is a materially stronger
+    deferral candidate than a human-gated one, whose latency is unbounded
+  - [ ] **verify the item exists:** for a filed tracker item, re-query it by id and confirm it is
+    filed and open before the D5 reply cites it. A cited id that does not resolve is the dropped
+    finding this step exists to prevent. For a Follow-ups entry, read the PR body back and
+    confirm the entry is under `## Follow-ups` with its `Pre-existing (advisory):` marker
 - [ ] D5. Reply with the per-finding classification table + evidence (before fixing). Table
   format per §2, which includes the Reacted column and the required `<!-- d5 finding=` label
   marker line for each finding. **Route the reply by comment type, REQUIRED
