@@ -44,7 +44,9 @@ near-verbatim is fix-eligible by the owner's ruling of 2026-11-02
 ([#5654](https://github.com/melodic-software/claude-code-plugins/issues/5654#issuecomment-6578852154));
 the sweep's one file past every gate was a test fixture its run was fenced from editing.
 
-**The hash-store deferral trigger fired, on its second event.** The sweep's scope held 3,706
+**The hash-store deferral trigger fired, on its second event.** No doc here defines "fleet
+audit"; this entry reads it as an audit over the whole plugin fleet's tracked files, which the
+sweep was. Under a narrower definition the outcome is not fired. The sweep's scope held 3,706
 parsed stamps across 5,776 files. It read 170 sources (199 of its 200-fetch ceiling attempted),
 chosen by citation rank (160) and by copy nominations (39), never by stamp, and checked stamps by
 date only, so it completed without re-fetching every stamped claim in its scope. The report-only
