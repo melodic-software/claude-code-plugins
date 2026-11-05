@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.6.0] - 2026-11-04
+
+### Added
+
+- Review-page lock and comment input
+  ([#12656](https://github.com/melodic-software/claude-code-plugins/issues/12656)). On the local
+  plan page the reader can lock or unlock the verdict, and the session writes each lock, unlock and
+  comment as a row in a `## Reader input` section at the end of the record. A lock is never
+  approval: a plan is approved only in the conversation.
+- `view-bridge.sh status --record-id <kind>` lists what the reader sent that the session has not
+  handled, with PageInput fields only, so input sent while no watcher ran is picked up at the
+  owner's next message.
+- The plan, brainstorm and design views have a Copy choices as prompt control. It copies a fenced
+  `page-input` block for a published page, which cannot reach the session, and each page says live
+  input needs the local page. The new `scripts/page-input.mjs` checks a pasted block against the
+  open record's view kind and refuses a choice or option that view does not carry. The session
+  writes the entries only after the owner confirms them in the conversation.
+
+### Changed
+
+- Shared `view-runtime.js`, `view-builder.mjs`, `view_bridge.py` and `reference/rendered-view.md`
+  synced: the `data-rv-record` copy binding, the `status` command and the Reader input procedure.
+
 ## [2.5.2] - 2026-11-04
 
 ### Changed

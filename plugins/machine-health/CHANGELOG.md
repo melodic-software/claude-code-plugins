@@ -3,6 +3,15 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.7] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced
+  ([#12656](https://github.com/melodic-software/claude-code-plugins/issues/12656)): a copy button
+  that also carries `data-rv-record` copies the reader's choices as a fenced `page-input` block.
+  The checkup page carries no such button, so it behaves as before.
+
 ## [0.26.6] - 2026-11-04
 
 ### Fixed
