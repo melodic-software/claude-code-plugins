@@ -1456,22 +1456,18 @@ done <<<"$INV_PLUGINS"
 # A permissions.ask rule prompts even in auto mode and is auto-denied under
 # dontAsk, so recommending the git push ask-gates to a repo that runs an
 # unattended lane would stall or break that lane's own pushes. The signal is
-# babysit_loop_merge resolving above human-only in the team layer:
-# docs/conventions/source-control.yaml, else, for one release, the
-# .claude/source-control.md H2. Raises bind from that layer only
+# babysit_loop_merge resolving above human-only in the team layer,
+# docs/conventions/source-control.yaml. Raises bind from that layer only
 # (source-control's config-resolution.md), and a team layer that adopts
-# loop-lane keys in either file without the merge key resolves to the
-# c2-mechanical baseline. A YAML the shared parser rejects makes the team
-# layer unreadable: no signal, and the legacy file is not read past it.
+# loop-lane keys without the merge key resolves to the c2-mechanical
+# baseline. A YAML the shared parser rejects makes the team layer
+# unreadable: no signal.
 UNATTENDED_LANE=""
 SC_TEAM_YAML_REL="docs/conventions/source-control.yaml"
-SC_TEAM_REL=".claude/source-control.md"
 SC_TEAM_YAML="$PROJECT_ROOT/$SC_TEAM_YAML_REL"
-SC_TEAM="$PROJECT_ROOT/$SC_TEAM_REL"
 lane_adopted=0
 lane_rung=""
 lane_file=""
-lane_read_legacy=1
 if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM_YAML" ]]; then
   if lane_records="$(LC_ALL=C awk -v STRICT=1 -f "$YAML_SUBSET" "$SC_TEAM_YAML" 2>/dev/null)"; then
     IFS=$'\t' read -r lane_adopted lane_rung < <(awk -F'\t' '
@@ -1480,34 +1476,13 @@ if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM_YAML" ]]; then
       END { printf "%s\t%s\n", adopted ? 1 : 0, val }
     ' <<<"$lane_records")
     [[ -n "$lane_rung" ]] && lane_file="$SC_TEAM_YAML_REL"
-  else
-    lane_read_legacy=0
   fi
-fi
-if [[ -n "$PROJECT_ROOT" && $lane_read_legacy -eq 1 && -z "$lane_rung" && -f "$SC_TEAM" ]]; then
-  IFS=$'\t' read -r md_adopted lane_rung < <(awk '
-    {
-      sub(/\r$/, "")
-    }
-    /^## / {
-      inkey = ($0 ~ /^## babysit_loop_merge[ \t]*$/)
-      if ($0 ~ /^## babysit_loop_/) adopted = 1
-      next
-    }
-    inkey && NF && val == "" {
-      val = $0
-      gsub(/^[ \t`]+|[ \t`]+$/, "", val)
-    }
-    END { printf "%s\t%s\n", adopted ? 1 : 0, val }
-  ' "$SC_TEAM")
-  [[ "$md_adopted" == "1" ]] && lane_adopted=1
-  [[ -n "$lane_rung" ]] && lane_file="$SC_TEAM_REL"
 fi
 lane_source="babysit_loop_merge: $lane_rung"
 if [[ -z "$lane_rung" && "$lane_adopted" == "1" ]]; then
   lane_rung="c2-mechanical"
   lane_source="loop-lane keys with no babysit_loop_merge (baseline c2-mechanical)"
-  lane_file="$SC_TEAM_YAML_REL or $SC_TEAM_REL"
+  lane_file="$SC_TEAM_YAML_REL"
 fi
 case "$lane_rung" in
 c2-mechanical | c3-autonomous | full-autonomy)
