@@ -307,10 +307,12 @@ test("read-only work on ordinary files carries no hold line", () => {
   assert.ok(!decideDone().body.includes("Hold: a human merges this"));
 });
 
-test("untrusted-provenance work carries the hold line", () => {
-  const plan = decideDone({ issueLabels: ["work-class: untrusted-provenance"] });
-  assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
-});
+for (const label of ["work-class: untrusted-provenance", "provenance: untrusted"]) {
+  test(`untrusted-provenance work labeled only ${label} carries the hold line`, () => {
+    const plan = decideDone({ issueLabels: [label] });
+    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+  });
+}
 
 // Structural risk shows in the diff, which the review lanes read.
 test("structural work on ordinary files carries no hold line", () => {
@@ -5277,6 +5279,7 @@ const HOLD_CASES = {
   "the listing is cut at the cap while a path is denied": { changedFiles: CAPPED },
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
+  "the issue is labeled provenance: untrusted": { issueLabels: ["agent-ready", "provenance: untrusted"] },
   "a trusted labeler set merge: human": { humanMerge: true },
 };
 // A reuse's scan word, when it is anything but clean: lint-repo's gitleaks
@@ -5729,7 +5732,7 @@ test("main on a workflow-stale stop re-fires through refireStale and reads no ou
 // One hold set for the lane, which work-unblock's sweep reads too: every hold
 // on it stops the immediate re-fire, the owner-only ones included.
 test("refireStale re-fires nothing on any of the lane's holds", async () => {
-  assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("work-class: untrusted-provenance"));
+  assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("work-class: untrusted-provenance") && LANE_HOLDS.has("provenance: untrusted"));
   for (const hold of LANE_HOLDS) {
     const { fetch, calls } = staleFetch({ labels: ["agent-ready", hold] });
     assert.equal(await refire(fetch), `skipped: held by ${hold}`, hold);
