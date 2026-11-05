@@ -8037,14 +8037,9 @@ test("check-catalog keeps its 9-minute job bound with the install step under it"
 // The read runner's model job uploads nothing (the test above). The write
 // runner's skill job holds id-token: write while the skill can rewrite any
 // file a later step would run, so no step runs staged code after it there.
-// The mutation audit's mutants run as the runner user and can rewrite code a
-// later step in that job runs, so an upload there would run tampered code
-// holding the runtime token; the token scan there runs with an empty env and
-// absolute paths for the same reason.
 const TRANSCRIPT_EXEMPT = new Set([
   "pr-run-activity-read.yml#run",
   "pr-run-activity-write.yml#run",
-  "post-merge-test-mutation.yml#audit",
 ]);
 const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
 const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
@@ -9165,6 +9160,105 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
   assert.deepEqual(readPosted(t, read, listing([], "skipped")).outputs, { "credit-stop": "false" });
 });
 
+// --- mutated code never runs beside a credential (#13586) ---
+
+// Owner constraint on #13586: no job that runs mutants holds a Claude
+// credential or a write token. A job runs mutants when a step runs the
+// covering-tests harness or execute.mjs. Such a job reads no secret in any form
+// secretRefs sees (a name, secrets[...], toJSON(secrets), secrets: inherit),
+// names no github.token or GITHUB_TOKEN, holds no write or id-token grant, and
+// keeps no checkout credential on disk.
+const runsMutants = (job) => (job.steps ?? []).some((step) => /run-covering-tests\.sh|post-merge-test-mutation\/execute\.mjs/.test(String(step.run ?? "")));
+function mutantJobProblems(doc, job) {
+  const problems = [];
+  const refs = [...secretRefs({ env: doc.env }), ...secretRefs(job)];
+  if (refs.length) problems.push(`reads secrets ${[...new Set(refs)].sort().join(", ")}`);
+  if (/github\.token|GITHUB_TOKEN/.test(JSON.stringify(job))) problems.push("names the job token");
+  const grants = typeof job.permissions === "string" ? [job.permissions] : Object.entries(job.permissions ?? {}).map(([k, v]) => `${k}: ${v}`);
+  if (job.permissions === undefined) problems.push("inherits the workflow's permissions");
+  for (const grant of grants) if (/write|id-token/.test(grant)) problems.push(`grants ${grant}`);
+  for (const step of job.steps ?? []) {
+    if (String(step.uses ?? "").startsWith("actions/checkout@") && step.with?.["persist-credentials"] !== false) problems.push(`step ${step.name} keeps the checkout credential`);
+  }
+  return problems;
+}
+
+test("no job that runs mutants holds a secret, the job token or a write grant", () => {
+  let found = 0;
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      if (!runsMutants(job)) continue;
+      found++;
+      assert.deepEqual(mutantJobProblems(doc, job), [], `${file} ${id}`);
+    }
+  }
+  assert.ok(found >= 1, "the mutation lane has a job that runs mutants");
+  assert.ok(runsMutants(workflow("post-merge-test-mutation.yml").jobs.mutate));
+  // Every model leg of that workflow runs no mutant.
+  for (const [id, job] of Object.entries(workflow("post-merge-test-mutation.yml").jobs)) {
+    if ((job.steps ?? []).some((s) => String(s.uses ?? "").includes("/run-claude-cli@"))) assert.equal(runsMutants(job), false, id);
+  }
+});
+
+test("the mutant-job check names each way a credential could reach mutated code", () => {
+  const run = { name: "Run the mutants", run: "node .base/.github/scripts/post-merge-test-mutation/execute.mjs g o" };
+  const checkout = { name: "Check out", uses: "actions/checkout@abc", with: { "persist-credentials": false } };
+  const ok = { permissions: { contents: "read" }, steps: [checkout, run] };
+  assert.deepEqual(mutantJobProblems({}, ok), []);
+  assert.deepEqual(mutantJobProblems({}, { ...ok, steps: [checkout, { ...run, env: { T: "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}" } }] }), ["reads secrets AUTOMATIONS_CLAUDE_API_KEY"]);
+  assert.deepEqual(mutantJobProblems({}, { ...ok, steps: [checkout, { ...run, env: { T: "${{ secrets.SCAN_KEY }}" } }] }), ["reads secrets SCAN_KEY"], "any secret, not only a Claude one");
+  assert.deepEqual(mutantJobProblems({ env: { T: "${{ toJSON(secrets) }}" } }, ok), [`reads secrets ${ALL_SECRETS}`]);
+  assert.deepEqual(mutantJobProblems({}, { ...ok, steps: [checkout, { ...run, env: { GH_TOKEN: "${{ github.token }}" } }] }), ["names the job token"]);
+  assert.deepEqual(mutantJobProblems({}, { ...ok, permissions: { contents: "read", "pull-requests": "write" } }), ["grants pull-requests: write"]);
+  assert.deepEqual(mutantJobProblems({}, { ...ok, permissions: { "id-token": "write" } }), ["grants id-token: write"]);
+  assert.deepEqual(mutantJobProblems({}, { steps: ok.steps }), ["inherits the workflow's permissions"]);
+  assert.deepEqual(mutantJobProblems({}, { ...ok, steps: [{ ...checkout, with: {} }, run] }), ["step Check out keeps the checkout credential"]);
+  assert.equal(runsMutants({ steps: [{ run: "bash /h/scripts/run-covering-tests.sh a.sh" }] }), true);
+  assert.equal(runsMutants({ steps: [{ run: "echo hi" }] }), false);
+});
+
+// Both of the mutation lane's model chains run key, subscription and fallback
+// legs, one credential per job, each the key leg's steps but for the
+// credential, the key's credit-stop marker and the leg record's fallback reason.
+for (const stage of ["generate", "triage"]) {
+  test(`post-merge-test-mutation.yml: the ${stage} chain runs key, subscription and fallback legs, each with one credential`, () => {
+    const { jobs } = workflow("post-merge-test-mutation.yml");
+    const ids = [stage, `${stage}-subscription`, `${stage}-fallback`];
+    const run = (id) => jobs[id].steps.find((s) => s.id === "run");
+    assert.equal(run(ids[0]).with["api-key"], "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}");
+    assert.equal(run(ids[1]).with["subscription-token"], "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}");
+    assert.equal(run(ids[1]).with["fallback-ready"], "${{ steps.credential.outputs.fallback-ready }}");
+    assert.equal(run(ids[2]).with["fallback-token"], "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}");
+    for (const id of ids) {
+      assert.deepEqual(jobs[id].permissions, { contents: "read" }, `${id} holds no write grant`);
+      assert.ok(ifTerms(jobs[id].if).includes(SAME_REPO), `${id} keeps the same-repo gate`);
+      assert.doesNotMatch(run(id).with.tools, /^\s*(?:Edit|Write)\s*$/m, `${id} edits nothing`);
+    }
+    const shape = (id) =>
+      jobs[id].steps
+        .filter((s) => !["credential", "credit-marker", "credit-marker-scan", "credit-marker-upload"].includes(s.id))
+        .map((s) => {
+          const copy = structuredClone(s);
+          if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
+          if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
+          return copy;
+        });
+    assert.deepEqual(shape(ids[1]), shape(ids[0]));
+    assert.deepEqual(shape(ids[2]), shape(ids[0]));
+    const fb = (handoff, present, ready) =>
+      ifTerms(jobs[ids[2]].if).slice(-2).every((term) =>
+        evaluate(term, { [`needs.${ids[1]}.outputs.handoff`]: handoff, [`needs.${ids[1]}.outputs.credential-present`]: present, [`needs.${ids[1]}.outputs.fallback-ready`]: ready }),
+      );
+    assert.equal(fb("true", "true", "true"), true);
+    assert.equal(fb("", "false", "true"), true, "an empty subscription token hands to the fallback leg");
+    assert.equal(fb("", "false", "false"), false, "the fallback leg starts only when its token is set");
+    const marker = jobs[ids[0]].steps.find((s) => s.id === "credit-marker-upload");
+    assert.equal(marker.with.name, `key-credit-stop-post-merge-test-mutation.yml-${stage}`);
+    assert.equal(jobs["key-credit"].steps.find((s) => s.id === `credit-${stage}`).with["key-job"], stage);
+  });
+}
+
 // --- every model lane runs the three-leg chain (#13586) ---
 
 // A lane is the catalog lanes of one workflow and role that share an id once
@@ -9208,10 +9302,6 @@ const LEG_EXEMPTIONS = {
   "maintenance-measure-skill-edit.yml maintenance pass-a2": { legs: ["key", "fallback"], reason: EVAL_REASON },
   "maintenance-measure-skill-edit.yml maintenance pass-b": { legs: ["key", "fallback"], reason: EVAL_REASON },
   "maintenance-measure-skill-edit.yml maintenance propose": { legs: ["key"], reason: "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY) (#13586)" },
-  "post-merge-test-mutation.yml automations audit": {
-    legs: ["key", "fallback"],
-    reason: "it runs on claude-code-action, which takes no API key here (only run-claude-cli does) and has no handoff to a fallback leg; both wait on the audit's move to run-claude-cli (#13586)",
-  },
 };
 // A secret name's leg: the role's API key, its subscription token, or the
 // central fallback token.

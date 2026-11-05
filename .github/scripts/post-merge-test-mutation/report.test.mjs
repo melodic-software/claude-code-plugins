@@ -1,7 +1,7 @@
 // report.mjs, and the hardening of the two post-merge mutation workflows:
 // no pull request starts either, only the model-free report job writes, the
-// model job reads contents only and runs under the subprocess env scrub, and
-// the trigger's path filter equals the config's mutate globs.
+// model jobs read contents only and run no test, the mutants run in a job that
+// holds no secret, and the trigger's path filter equals the config's mutate globs.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -222,67 +222,71 @@ test("only a push to main starts the gate, and only the gate's run starts the la
   assert.match(LANE, /\n {4}workflows: \[post-merge-select-mutation-range\]\n/);
 });
 
-test("only the model-free report job writes, and the model job reads contents only under the env scrub", () => {
+const MODEL_JOBS = ["generate", "generate-subscription", "generate-fallback", "triage", "triage-subscription", "triage-fallback"];
+// One step of a job block, by its id or its name.
+const stepOf = (block, key) => {
+  const step = block.split(/\n(?= {6}- name: )/).find((s) => s.includes(`\n        id: ${key}\n`) || s.includes(`- name: ${key}\n`));
+  assert.ok(step, key);
+  return step;
+};
+// A literal block (`key: |`) of a step, one entry per line.
+const literal = (step, key) => {
+  const lines = step.split(`\n          ${key}: |\n`)[1].split("\n");
+  const end = lines.findIndex((line) => !line.startsWith("            "));
+  return lines.slice(0, end < 0 ? lines.length : end).map((line) => line.trim());
+};
+// A run step's script, as the runner runs it.
+const script = (step) => step.split("\n        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
+const field = (step, key) => new RegExp(`\\n {8,10}${key}: (.*)\\n`).exec(step)?.[1];
+
+test("only the model-free report job writes, the model jobs read contents only, and the mutants run in a job with no secret", () => {
   const jobs = jobsOf(LANE);
-  assert.deepEqual(Object.keys(jobs), ["prep", "audit", "report"]);
-  for (const block of [...Object.values(jobsOf(GATE)), jobs.prep, jobs.audit]) {
+  assert.deepEqual(Object.keys(jobs), ["prep", "key-credit", ...MODEL_JOBS.slice(0, 3), "mutate", ...MODEL_JOBS.slice(3), "report"]);
+  for (const block of [...Object.values(jobsOf(GATE)), jobs.prep, jobs["key-credit"], jobs.mutate, ...MODEL_JOBS.map((id) => jobs[id])]) {
     assert.ok(Object.values(permissionsOf(block)).every((value) => value === "read"), block.split("\n")[0]);
   }
-  assert.deepEqual(permissionsOf(jobs.audit), { contents: "read" });
+  for (const id of MODEL_JOBS) {
+    assert.deepEqual(permissionsOf(jobs[id]), { contents: "read" }, id);
+    assert.match(jobs[id], /run-claude-cli@[0-9a-f]{40} /, id);
+    assert.match(jobs[id], /\n {10}permission-mode: dontAsk\n/, id);
+    assert.doesNotMatch(jobs[id].replace(/^\s*#.*$/gm, ""), /run-covering-tests|execute\.mjs|setup-env\.sh/, `${id} runs no test and no head install`);
+  }
+  assert.deepEqual(permissionsOf(jobs.mutate), { contents: "read" });
+  assert.doesNotMatch(jobs.mutate, /secrets\.|github\.token|run-claude-cli/, "the mutate job holds no secret and runs no model");
+  assert.match(jobs.mutate, /post-merge-test-mutation\/execute\.mjs "\$GENERATION"/);
+  assert.match(jobs.mutate, /\n {10}install-subprocess-isolation: true\n/);
   assert.deepEqual(permissionsOf(jobs.report), { contents: "read", "pull-requests": "write" });
-  assert.doesNotMatch(jobs.report, /claude-code-action|secrets\./, "the writing job runs no model and holds no secret");
-  assert.equal(LANE.match(/anthropics\/claude-code-action@/g).length, 1);
-  assert.match(jobs.audit, /anthropics\/claude-code-action@/);
-  assert.match(jobs.audit, /\n {10}CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"\n/);
-  assert.match(jobs.audit, /install-subprocess-isolation: true/);
-  assert.match(jobs.audit, /--permission-mode dontAsk/);
-  assert.equal(LANE.match(/secrets\./g).length, 1, "the OAuth token is the one secret");
+  assert.doesNotMatch(jobs.report, /claude-code-action|run-claude-cli|secrets\./, "the writing job runs no model and holds no secret");
+  assert.doesNotMatch(LANE, /anthropics\/claude-code-action@/);
+  assert.equal(LANE.match(/\/run-claude-cli@/g).length, 6);
   assert.doesNotMatch(`${GATE}${LANE}`, /id-token|request-lane-token|persist-credentials: true/);
   assert.equal(LANE.match(/actions\/checkout@/g).length, LANE.match(/persist-credentials: false/g).length);
 });
 
-test("the model's git reads stay in the checkout and its edits stay out of home dot paths", () => {
-  const { audit } = jobsOf(LANE);
-  const allowed = /\n {10}allowed="\$allowed,Bash\(git status \*\)[^\n]*/.exec(audit)[0];
-  assert.doesNotMatch(allowed, /git log|git show/, "the audit skill runs neither");
-  // `\$` is bash's escape for a literal `$` inside the double quotes.
-  const denied = [...audit.matchAll(/\n {10}denied="([^\n]*)"/g)].map((m) => m[1].replaceAll("\\$", "$")).join(",");
-  for (const rule of [
-    "Bash(git log *)",
-    "Bash(git show *)",
-    "Bash(git diff *--no-index*)",
-    "Bash(git diff *--output*)",
-    "Bash(git diff *~*)",
-    "Bash(git diff * /*)",
-    "Bash(git diff *../*)",
-    "Bash(git diff *$*)",
-    "Edit(~/.*)",
-    "Edit(~/.*/**)",
-  ]) {
-    assert.ok(denied.includes(rule), rule);
+// Each model leg's Bash runs read-only git, and the triage legs also the
+// plugin's suppression lint; no leg may edit or write a file.
+test("the model's Bash allows git reads only and its git reads stay in the checkout", () => {
+  const jobs = jobsOf(LANE);
+  for (const id of MODEL_JOBS) {
+    const run = stepOf(jobs[id], "run");
+    const allowed = literal(run, "allowed-tools");
+    const git = allowed.flatMap((rule) => [.../^Bash\(git ([a-z-]+)/.exec(rule) ?? []].slice(1));
+    assert.ok(git.length > 0, id);
+    assert.deepEqual(git.filter((verb) => !["status", "diff", "branch", "rev-parse"].includes(verb)), [], id);
+    assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(") && !rule.startsWith("Bash(git ")), id.startsWith("triage") ? ["Bash(bash ${{ steps.prompt.outputs.lint }} *)"] : [], id);
+    const denied = literal(run, "disallowed-tools");
+    for (const rule of ["Edit", "Write", "NotebookEdit", "Bash(git log *)", "Bash(git show *)", "Bash(git diff *--no-index*)", "Bash(git diff *--output*)", "Bash(git diff *~*)", "Bash(git diff * /*)", "Bash(git diff *../*)", "Bash(git diff *$*)"]) {
+      assert.ok(denied.includes(rule), `${id} ${rule}`);
+    }
   }
-  // Single quotes keep the action's shell-quote parse from expanding the `$`.
-  assert.match(audit, /--disallowedTools '\$denied'/);
 });
 
-// Under the env scrub Bash runs sandboxed with .git write-denied, so a git
-// command that writes (restore, checkout, add, stash, commit) fails there.
-test("the model's Bash allows git reads only", () => {
-  const { audit } = jobsOf(LANE);
-  const allowed = [...audit.matchAll(/\n {10}allowed="([^\n]*)"/g)].map((m) => m[1]).join(",");
-  const git = [...allowed.matchAll(/Bash\(git ([a-z-]+)/g)].map((m) => m[1]);
-  assert.ok(git.length > 0);
-  assert.deepEqual(git.filter((verb) => !["status", "diff", "branch", "rev-parse"].includes(verb)), []);
-});
-
-// The audit job's stop step, run as the runner runs it.
+// A model leg's stop step, run as the runner runs it.
 function stopStep(failureClass) {
-  const { audit } = jobsOf(LANE);
-  const step = audit.split(/\n(?= {6}- name: )/).find((block) => block.includes("- name: Fail the audit unless a limit stopped it"));
-  const body = step.split("\n        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
+  const step = stepOf(jobsOf(LANE).generate, "stop");
   const dir = tempDir("mutation-stop-");
   const output = join(dir, "output");
-  const res = spawnSync("bash", ["-e", "-c", body], { env: { PATH: process.env.PATH, FAILURE_CLASS: failureClass, GITHUB_OUTPUT: output }, encoding: "utf8" });
+  const res = spawnSync("bash", ["-e", "-c", script(step)], { env: { PATH: process.env.PATH, FAILURE_CLASS: failureClass, GITHUB_OUTPUT: output }, encoding: "utf8" });
   return { code: res.status, output: existsSync(output) ? readFileSync(output, "utf8") : "" };
 }
 
@@ -293,20 +297,24 @@ test("the stop step passes a usage or capacity limit and fails every other class
   for (const failureClass of ["auth", "max-turns", "timeout", "no-execution", "other", ""]) {
     assert.deepEqual(stopStep(failureClass), { code: 1, output: "" }, failureClass);
   }
+  // A handoff is no failure: the step runs only on a failed leg that handed nothing on.
+  for (const id of MODEL_JOBS) {
+    assert.equal(field(stepOf(jobsOf(LANE)[id], "stop"), "if"), "always() && steps.run.outcome == 'failure' && steps.run.outputs.handoff != 'true'", id);
+  }
 });
 
-test("the model edits only checkout files a mutant can land in", () => {
-  const { audit } = jobsOf(LANE);
-  const allowed = [...audit.matchAll(/\n {10}allowed="([^\n]*)"/g)].map((m) => m[1]).join(",").split(",");
-  assert.ok(allowed.includes("Edit(./**)"));
-  assert.ok(!allowed.includes("Edit"), "a bare Edit reaches files outside the checkout");
-  const denied = [...audit.matchAll(/\n {10}denied="([^\n]*)"/g)].map((m) => m[1]).join(",");
-  const config = readFileSync(new URL("../../../docs/conventions/mutation-testing.yaml", import.meta.url), "utf8");
-  const excluded = [...config.split("\nmutate:\n")[1].split("\n\n")[0].matchAll(/^ {2}- "!([^"]+)"$/gm)].map((m) => m[1]);
-  assert.ok(excluded.length > 0);
-  for (const glob of excluded) {
-    assert.ok(denied.includes(`Edit(./${glob})`), glob);
+test("the mutate job applies mutants under the config's mutate globs and checks the tree it leaves", () => {
+  const jobs = jobsOf(LANE);
+  const execute = stepOf(jobs.mutate, "execute");
+  assert.match(execute, /CONFIG=docs\/conventions\/mutation-testing\.yaml/);
+  assert.match(execute, /cp -R scripts "\$HARNESS\/"\n\s*chmod -R a-w "\$HARNESS"/, "a mutant of the harness cannot break the harness");
+  assert.match(stepOf(jobs.mutate, "restored"), /git diff --quiet HEAD/);
+  // Each handoff between jobs is one artifact pinned by the SHA-256 its job recorded.
+  assert.match(field(stepOf(jobs.mutate, "mutants"), "WANT"), /needs\.generate-fallback\.outputs\.sha256/);
+  for (const id of ["triage", "triage-subscription", "triage-fallback"]) {
+    assert.equal(field(stepOf(jobs[id], "Check the executed mutants"), "WANT"), "${{ needs.mutate.outputs.sha256 }}", id);
   }
+  assert.match(stepOf(jobs.report, "report"), /pinned "\$EXECUTED" "\$EXECUTED_SUM"/);
 });
 
 test("the gate's path filter equals the config's mutate globs", () => {
