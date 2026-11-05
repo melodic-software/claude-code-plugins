@@ -480,18 +480,18 @@
 #     follows a symlink (a `*/` glob's symlink matches are read and judged by
 #     where they point). `~name` and a newline in an operand are refused.
 #     Operands are collected while the command is parsed and judged once at
-#     the end, with one realpath, (on Windows) one cygpath and one git for the
-#     whole command. Past 32 directories (counting the starting one), 512
+#     the end, with one git and at most one realpath and one cygpath for the
+#     whole command. On Windows the realpath and cygpath answers come from
+#     the shell itself where they can (block-root-delete-target-resolve.sh),
+#     so an ordinary delete starts git alone. Past 32 directories (counting the starting one), 512
 #     directory-and-target pairs, 256 glob entries in total across the levels
 #     of one glob, 25 seconds of wall time from this arm's first work (through
 #     the rest of the parse and the judgment), or 50 seconds of the hook's
 #     whole run once that work has begun, the guard refuses rather than risk
 #     the hook timeout, and an unexpected error while judging refuses too.
-#     The batched realpath and cygpath run under `timeout` for the time left
-#     where `timeout` exists, and an operand over 4096 bytes or 128
-#     separators is refused before any scan. Where `timeout` is absent
-#     (stock macOS) a batch call cannot be cut short: the clock is checked
-#     on both sides of it, and the operand caps are what keep one call short.
+#     The batched realpath and cygpath are bounded by the time left, in the
+#     shell itself (block-root-delete-target-resolve.sh), and an operand over
+#     4096 bytes or 128 separators is refused before any scan.
 #     An
 #     operand this guard cannot place (an expansion other than a leading HOME,
 #     a drive-relative path) is left alone rather than guessed. A NUL byte in
@@ -866,6 +866,8 @@ guard::abort_boundary block-root-delete-target PreToolUse open 0 2
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 # shellcheck source=refuse.sh
 source "$_HOOK_SELF/refuse.sh" || exit 70 # not a chosen status: the boundary reports it
+# shellcheck source=block-root-delete-target-resolve.sh
+source "$_HOOK_SELF/block-root-delete-target-resolve.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry. Referencing
@@ -1981,7 +1983,7 @@ rdt_deadline() {
 }
 
 # rdt_remaining_to <var>: whole seconds left before rdt_deadline would refuse,
-# at least 1. A batch process (realpath, cygpath) runs under `timeout` with
+# at least 1. A process (realpath, cygpath, git) runs under rdt_bounded_to with
 # this bound, because the deadline is otherwise checked only between steps and
 # one slow process could carry the hook past the harness timeout.
 rdt_remaining_to() {
@@ -2022,29 +2024,18 @@ rdt_nearest_to() {
   printf -v "$1" '%s' "$__rn_a"
 }
 
-# rdt_lines_to <array var> <want count> <command...>: run a batch command,
-# strip CRs, and split its output into lines. Returns 1 when it fails or the
-# line count differs from <want count>, so the caller keeps its own answer.
-# Where `timeout` exists the command is bounded by the time left, and running
-# out refuses: realpath took 90 s over one path of 2,000 missing components.
+# rdt_lines_to <array var> <want count> <command...>: run a batch command and
+# split its output into lines. Returns 1 when it fails or the line count differs
+# from <want count>, so the caller keeps its own answer. The command is bounded
+# by the time left, and running out refuses: realpath took 90 s over one path of
+# 2,000 missing components.
 rdt_lines_to() {
-  local __rb_dest="$1" __rb_want="$2" __rb_out __rb_left __rb_rc=0
+  local __rb_dest="$1" __rb_want="$2" __rb_out="" __rb_left __rb_rc=0
   shift 2
-  if command -v timeout >/dev/null 2>&1; then
-    rdt_remaining_to __rb_left
-    __rb_out=$(timeout "$__rb_left" "$@" 2>/dev/null) || __rb_rc=$?
-    ((__rb_rc == 124)) && rdt_block "too-slow"
-    ((__rb_rc == 0)) || return 1
-  else
-    # No `timeout` (stock macOS): the call cannot be cut short, so the clock
-    # is checked on both sides of it and a slow call refuses once it returns.
-    # The operand length and depth caps are what keep one call short here.
-    rdt_deadline
-    __rb_out=$("$@" 2>/dev/null) || __rb_rc=$?
-    rdt_deadline
-    ((__rb_rc == 0)) || return 1
-  fi
-  __rb_out="${__rb_out//$'\r'/}"
+  rdt_remaining_to __rb_left
+  rdt_bounded_to __rb_out "$__rb_left" "$@" || __rb_rc=$?
+  ((__rb_rc == 124)) && rdt_block "too-slow"
+  ((__rb_rc == 0)) || return 1
   mapfile -t "$__rb_dest" <<<"$__rb_out"
   local -n __rb_ref="$__rb_dest"
   ((${#__rb_ref[@]} == __rb_want))
@@ -2438,6 +2429,13 @@ rdt_resolve_all() {
       RDT_RES[$p]="$r"
       continue
     fi
+    if ((RDT_WIN)); then
+      rdt_deadline
+      if [[ "$p" != *$'\n'* ]] && rdt_phys_to r "$p"; then
+        RDT_RES[$p]="$r"
+        continue
+      fi
+    fi
     todo+=("$p")
   done
   ((${#todo[@]})) || return 0
@@ -2493,6 +2491,18 @@ rdt_winmap_all() {
   # the scratchpad itself named through the /tmp mount, which then reads as a
   # path strictly under /tmp.
   command -v cygpath >/dev/null 2>&1 || return 0
+  # rdt_win_to answers most paths without cygpath; the rest go to it below.
+  local -a slow=()
+  for p in "${todo[@]}"; do
+    rdt_deadline
+    if [[ "$p" != *$'\n'* ]] && rdt_win_to r "$p"; then
+      RDT_WMAP[$p]="$r"
+    else
+      slow+=("$p")
+    fi
+  done
+  todo=(${slow[@]+"${slow[@]}"})
+  ((${#todo[@]})) || return 0
   for ((i = 0; i < ${#todo[@]}; i++)); do
     rdt_deadline
     rdt_split_existing a rem "${todo[i]}"
@@ -2550,20 +2560,10 @@ rdt_tree_to() {
     # Bounded like the batch resolvers: a git that stalls (a slow network
     # mount, a locked repository) would otherwise carry the hook past the
     # harness timeout, which fails open. Running out of time refuses.
-    local left="" tcmd=()
-    if command -v timeout >/dev/null 2>&1; then
-      rdt_remaining_to left
-      tcmd=(timeout "$left")
-    else
-      rdt_deadline
-    fi
-    out=$(
-      unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
-      ${tcmd[@]+"${tcmd[@]}"} git -C "$d" rev-parse --show-toplevel 2>/dev/null
-    ) || rc=$?
-    ((rc == 124 && ${#tcmd[@]} > 0)) && rdt_block "too-slow"
-    ((${#tcmd[@]} > 0)) || rdt_deadline
-    out="${out//$'\r'/}"
+    local left RDT_BOUND_UNSET=(GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM)
+    rdt_remaining_to left
+    rdt_bounded_to out "$left" git -C "$d" rev-parse --show-toplevel || rc=$?
+    ((rc == 124)) && rdt_block "too-slow"
     ((rc == 0)) || out=""
   fi
   RDT_TREE[$o]="$out"
@@ -3055,7 +3055,9 @@ rdt_judge_pending() {
     sp="${sp//\\//}"
   fi
   rdt_is_abs "$sp" || sp=""
-  hook::_temp_root_candidates
+  # Without the drive spellings, which cost cygpath processes: each one names a
+  # candidate already in the list, which this guard resolves itself.
+  hook::_temp_root_candidates --no-drive
   local -a temps=()
   for c in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do temps+=("${c//\\//}"); done
   # ONE tree: the payload cwd's. A directory a cd reaches is judged against

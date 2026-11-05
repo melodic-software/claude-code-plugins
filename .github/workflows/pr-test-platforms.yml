@@ -121,8 +121,8 @@ jobs:
   #
   # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
   # cygpath or MSYS run here too: block-windows-drive-tmp, hardcoded-path-check,
-  # secret-pattern-detection, run-guards and
-  # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
+  # secret-pattern-detection, run-guards, block-root-delete-target-resolve (its
+  # differential cases need cygpath and NTFS) and coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
   # `jq.exe` on a Windows host writes CRLF after every line, so its family and
   # README lookups miss there and only a Windows run exercises that. The
   # code-metrics Python resolver is here for the same reason (#6794): native
@@ -147,7 +147,8 @@ jobs:
   #             pipefail grep 12, drive-root litter 2, emit helper 1     = 198
   #   secrets   secret-pattern-detection 176, GuardTests 18,
   #             skill-visibility 3, coverage-manifest 2                  = 199
-  #   guards    hardcoded-path-check 63                                  =  63
+  #   guards    hardcoded-path-check 63, shfmt install ~3 (est.),
+  #             block-root-delete-target-resolve ~30 (est.)              ~  96
   #   hooks     markdown-format 114, cloud-bootstrap 69, PyYAML +
   #             exec-form probe 9, exec-bash launcher 5, resolver 1      = 198
   #   lib       block-windows-drive-tmp 85, hook-utils 84, DLSS 5 22,
@@ -358,6 +359,25 @@ jobs:
       - name: Test hardcoded-path-check on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/hardcoded-path-check.test.sh')
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
+      # block-root-delete-target-resolve runs the guard, which reads every Bash
+      # command through shfmt; same pin as the rename-1 job.
+      - name: Install pinned shfmt
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh')
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
+          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
+          cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
+          test "$("$HOME/.local/bin/shfmt.exe" --version)" = "$SHFMT_VERSION"
+      # The guard's in-shell realpath and cygpath stand-ins against the processes,
+      # on the Git Bash they replace them on.
+      - name: Test block-root-delete-target-resolve on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh')
+        run: bash plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh
 
       - name: Log the API budget at the end
         if: always()

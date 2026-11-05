@@ -1333,44 +1333,24 @@ expect_both 'a trailing */ over a few entries under temp allowed' 0 "${RDT_CWD[@
   --command "rm -rf '$TEST_TMPDIR/wide/d01'/*/"
 guard_invoke "${RDT_CWD[@]}" --command "rm -rf '$TEST_TMPDIR/wide2'/*/"
 assert_contains 'the glob-cap refusal names the entry cap' "$GUARD_ERR" "more than 256 directory entries"
-# A batch resolver that runs out of time refuses. A stand-in `timeout` that
-# answers 124, the code GNU timeout gives when it kills the command, stands
-# for a realpath that ran past the time left.
-mkdir -p "$TEST_TMPDIR/bin-to"
-printf '#!/usr/bin/env bash\nexit 124\n' >"$TEST_TMPDIR/bin-to/timeout"
-chmod +x "$TEST_TMPDIR/bin-to/timeout"
-guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-to:$PATH"
+# A batch resolver that runs out of time refuses: a stand-in realpath that
+# sleeps past the time left. SECONDS=44 in the guard's environment (bash imports
+# it) puts the hook 44 s into its 50 s, so the case takes about 6 s. A 70 s git
+# stall had carried the guard past the 60 s hook timeout, which fails open, so
+# the git toplevel lookup is bounded the same way. The `~` keeps the realpath
+# case's parent off the in-shell resolver on Windows. block-root-delete-target-resolve.test.sh
+# also proves each stalled process is killed.
+for rdt_t in realpath git; do
+  mkdir -p "$TEST_TMPDIR/bin-slow-$rdt_t"
+  printf '#!/usr/bin/env bash\nexec sleep 60\n' >"$TEST_TMPDIR/bin-slow-$rdt_t/$rdt_t"
+  chmod +x "$TEST_TMPDIR/bin-slow-$rdt_t/$rdt_t"
+done
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./x~1/build' -- "PATH=$TEST_TMPDIR/bin-slow-realpath:$PATH" SECONDS=44
 assert_exit 'a resolver that runs out of time refuses' 2 "$GUARD_RC"
 assert_contains 'the timeout refusal names the time bound' "$GUARD_ERR" "ran out of time"
-# With no `timeout` (stock macOS) the batch call cannot be cut short. An
-# exported `command` that reports `timeout` missing sends the guard down that
-# branch, with the 124 stand-in above still first on PATH: the if-branch would
-# refuse, so an allow here proves the no-timeout branch ran and judged. That
-# branch must also check the deadline AFTER the call, which is pinned in the
-# source because a real call cannot be made to hang on demand.
-rdt_nocmd="BASH_FUNC_command%%=() { [[ \"\${1-} \${2-}\" == \"-v timeout\" ]] && return 1; builtin command \"\$@\"; }"
-guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-to:$PATH" "$rdt_nocmd"
-assert_exit 'with no timeout an ordinary delete in the tree is allowed' 0 "$GUARD_RC"
-guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ../../x' -- "PATH=$TEST_TMPDIR/bin-to:$PATH" "$rdt_nocmd"
-assert_exit 'with no timeout an escape from the tree still blocks' 2 "$GUARD_RC"
-# The git toplevel lookup is bounded the same way: a stand-in `timeout` that
-# answers 124 for git alone, and runs the real `timeout` for everything else,
-# stands for a git that stalled. A 70 s git stall had carried the guard past
-# the 60 s hook timeout, which fails open.
-rdt_real_to="$(type -P timeout)"
-if [[ -n "$rdt_real_to" ]]; then
-  mkdir -p "$TEST_TMPDIR/bin-tog"
-  printf '#!/usr/bin/env bash\n[[ "${2-}" == git ]] && exit 124\nexec %q "$@"\n' "$rdt_real_to" >"$TEST_TMPDIR/bin-tog/timeout"
-  chmod +x "$TEST_TMPDIR/bin-tog/timeout"
-  guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-tog:$PATH"
-  assert_exit 'a git lookup that runs out of time refuses' 2 "$GUARD_RC"
-  assert_contains 'the git timeout refusal names the time bound' "$GUARD_ERR" "ran out of time"
-else
-  rdt_skip "no timeout on PATH to wrap (2 cases)"
-fi
-rdt_nt="$(sed -n '/^rdt_lines_to() {/,/^}/p' "$HOOK")"
-assert_contains 'with no timeout the deadline is checked after the batch call' \
-  "$(grep -A1 -F '__rb_out=$("$@" 2>/dev/null) || __rb_rc=$?' <<<"$rdt_nt")" "rdt_deadline"
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-slow-git:$PATH" SECONDS=44
+assert_exit 'a git lookup that runs out of time refuses' 2 "$GUARD_RC"
+assert_contains 'the git timeout refusal names the time bound' "$GUARD_ERR" "ran out of time"
 rdt_sys=""
 for rdt_t in C:/Windows /usr; do
   [[ -d "$rdt_t" ]] && rdt_sys="$rdt_t" && break
@@ -1435,8 +1415,10 @@ expect_both 'cd glob: an absolute delete after it is still judged' 0 "${RDT_CWD[
 
 # An unexpected error inside the judgment refuses rather than exiting 1, which
 # the abort boundary would pass. The exported function stands in for any such
-# error: it shadows a builtin the judgment calls and reads an unset variable.
-expect_both 'an error inside the judgment refuses' 2 "${RDT_CWD[@]}" --command 'rm -rf build' \
+# error: it shadows a builtin the realpath batch calls and reads an unset
+# variable. The `~` keeps the operand off the in-shell cygpath stand-in on
+# Windows, so a batch reaches mapfile on every host.
+expect_both 'an error inside the judgment refuses' 2 "${RDT_CWD[@]}" --command 'rm -rf build~1' \
   -- 'BASH_FUNC_mapfile%%=() { : "$RDT_NO_SUCH_VARIABLE"; }'
 
 # A host with no `realpath -m` (BSD, macOS) takes the lexical fallback.
