@@ -84,7 +84,10 @@ jobs:
                       && !contains(github.event.issue.labels.*.name, 'agent-ready')
                       && !contains(github.event.issue.labels.*.name, 'needs-triage')))))
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # The resolve-config install can take its full 3 minutes on a slow registry;
+    # the 5 minutes the job had before stay for the rest, so a slow install
+    # cannot cut the re-entry off between its label removal and add.
+    timeout-minutes: 9
     permissions:
       contents: read # check out main
       issues: write # read the issue and comments; edit its labels
