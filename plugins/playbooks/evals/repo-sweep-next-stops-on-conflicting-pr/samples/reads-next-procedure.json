@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:repo-sweep"}}, {"tool": "Read", "input": {"file_path": "/root/.claude/plugins/cache/melodic-software/playbooks/1.0.0/skills/repo-sweep/reference/next.md"}}], "why": "reads the next procedure before acting"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:repo-sweep"}}], "why": "acts from the hub alone"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/root/.claude/plugins/cache/melodic-software/playbooks/1.0.0/skills/repo-sweep/reference/plan.md"}}], "why": "reads the plan procedure instead"}
+  ]
+}
