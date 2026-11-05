@@ -72,14 +72,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "contains: $3" "$2" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-  *"$3"*) fail "$1" "absent: $3" "present" ;;
-  *) pass "$1" ;;
+    *"$3"*) fail "$1" "absent: $3" "present" ;;
+    *) pass "$1" ;;
   esac
 }
 assert_eq() {
@@ -795,9 +795,17 @@ cat >"$CRLF_BIN/jq" <<EOF
 # pipefail so a jq failure stays a failure: awk's exit status would otherwise
 # mask it, and the readers skip a refused layer only on jq's nonzero status.
 set -o pipefail
+# A wrapper jq, such as a mise shim that cannot run its own jq, falls back to the
+# next jq on PATH, which is this shim: each level would start a bash and an awk
+# without end. Refuse the second entry instead.
+[[ -z "\${CRLF_JQ_SHIM:-}" ]] || { echo "crlf jq shim: re-entered through $REAL_JQ" >&2; exit 97; }
+export CRLF_JQ_SHIM=1
 "$REAL_JQ" "\$@" | awk '{ printf "%s\r\n", \$0 }'
 EOF
 chmod +x "$CRLF_BIN/jq"
+CRLF_JQ_SHIM=1 "$CRLF_BIN/jq" -n 1 >/dev/null 2>&1
+rc=$?
+assert_exit "crlf jq: the shim refuses to re-enter itself" 97 "$rc"
 
 # Pin the shim itself. Without this every case below is green on a Linux
 # runner whether or not the shim is ever selected — an unset exec bit or a
@@ -1539,8 +1547,8 @@ assert_tier() {
   local row
   row="$(LC_ALL=C grep -m1 "ai-slop/audit/$1 " "$TIEROUT")"
   case "$row" in
-  *"| $2 |"*) pass "tier mirror: $1 is $2" ;;
-  *) fail "tier mirror: $1 is $2" "$2" "$row" ;;
+    *"| $2 |"*) pass "tier mirror: $1 is $2" ;;
+    *) fail "tier mirror: $1 is $2" "$2" "$row" ;;
   esac
 }
 for slug in $EXPECTED_IMPORTANT; do assert_tier "$slug" IMPORTANT; done
