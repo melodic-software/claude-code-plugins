@@ -52,6 +52,8 @@ what it requires and how it resolves things.
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
 FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -59,7 +61,7 @@ disabled plugin is not broken. Report those probes informationally and note that
 restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
 `node` before the launcher can read the toggle, so both hook rows fail to start.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
@@ -89,7 +91,7 @@ restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
-   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 There is no consumer-config probe (unlike `typos-format`'s config-walk check). This hook has
