@@ -5,6 +5,17 @@
         {
           "tool": "Grep",
           "input": {
+            "pattern": "\\B/review([^\\w-]|$)|\\{[^}]*\\breview\\b[^}]*\\}|\\|\\s*\\d+\\.\\s*review\\b|skills/review/"
+          }
+        }
+      ],
+      "why": "one Grep combining every form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
             "pattern": "\\B/review([^\\w-]|$)"
           }
         },
@@ -17,46 +28,11 @@
         {
           "tool": "Grep",
           "input": {
-            "pattern": "\\|\\s*\\d+\\.\\s*review\\b"
-          }
-        },
-        {
-          "tool": "Grep",
-          "input": {
             "pattern": "skills/review/"
           }
         }
       ],
-      "why": "four pattern sweeps"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "README.md"
-          }
-        },
-        {
-          "tool": "Grep",
-          "input": {
-            "pattern": "review"
-          }
-        },
-        {
-          "tool": "Grep",
-          "input": {
-            "pattern": "/review"
-          }
-        },
-        {
-          "tool": "Grep",
-          "input": {
-            "pattern": "→\\s*review"
-          }
-        }
-      ],
-      "why": "three sweeps after a read"
+      "why": "one Grep per form"
     }
   ],
   "fail": [
@@ -66,23 +42,6 @@
     },
     {
       "answer": [
-        {
-          "tool": "Grep",
-          "input": {
-            "pattern": "/review"
-          }
-        }
-      ],
-      "why": "single token-only grep"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Grep",
-          "input": {
-            "pattern": "/review"
-          }
-        },
         {
           "tool": "Read",
           "input": {
@@ -96,14 +55,14 @@
           }
         }
       ],
-      "why": "one grep then reads"
+      "why": "reads files one by one, no sweep"
     },
     {
       "answer": [
         {
-          "tool": "Grep",
+          "tool": "Glob",
           "input": {
-            "pattern": "TODO"
+            "pattern": "**/*.md"
           }
         },
         {
@@ -113,7 +72,7 @@
           }
         }
       ],
-      "why": "unrelated search below the minimum"
+      "why": "lists files and reads them, no Grep"
     }
   ]
 }
