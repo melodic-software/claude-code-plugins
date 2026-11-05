@@ -3482,7 +3482,8 @@ jobs:
           install-subprocess-isolation: "true"
 
       # One launcher step per secret, as in the run job: the first call's
-      # pass runs on the API key, a fallback call's on the OAuth token. The
+      # pass runs on the API key, the second call's on the OAuth token and the
+      # third call's on the central fallback token. The
       # model reads the data files and nothing else: Read is its one tool,
       # and the default branch checkout and process files are denied.
       - name: Summarize the reused branch on the API key
@@ -3513,7 +3514,7 @@ jobs:
 
       - name: Summarize the reused branch on the OAuth token
         id: summary-token
-        if: steps.isolate.outcome == 'success' && inputs.fallback != ''
+        if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -3537,16 +3538,58 @@ jobs:
           json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
           leg-timeout-minutes: "10"
 
+      - name: Summarize the reused branch on the fallback token
+        id: summary-fallback
+        if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
+        continue-on-error: true
+        timeout-minutes: 15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: summarize-reuse
+          role: ${{ inputs.role }}
+          prompt-file: ${{ github.workspace }}/.summary/prompt.md
+          preamble: You run unattended as a CI lane's read-only summary pass, and no one can answer a question.
+          fallback-token: ${{ secrets.fallback-claude-code-oauth-token }}
+          model: ${{ steps.summary-models.outputs.model }}
+          effort: ${{ steps.summary-models.outputs.effort }}
+          max-turns: ${{ steps.summary-models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./.summary/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(//proc/**)
+          json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
+          leg-timeout-minutes: "10"
+
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
-        if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file) != ''
+        if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file) != ''
         continue-on-error: true
         uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
         with:
-          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file }}
+          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: reuse-summary-${{ inputs.issue-number }}-${{ inputs.fallback == '' && 'key' || 'token' }}
+          job-id: reuse-summary-${{ inputs.issue-number }}-${{ inputs.fallback == '' && 'key' || inputs.fallback == 'fallback' && 'fallback' || 'token' }}
+
+      # The summary leg's lane-outcome record: its credential, outcome and
+      # durationMs.
+      - name: Record the summary leg
+        if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.summary-key.outcome != 'skipped' && steps.summary-key.outcome || steps.summary-token.outcome != 'skipped' && steps.summary-token.outcome || steps.summary-fallback.outcome }}
+          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
+          log-file: ${{ steps.summary-key.outputs.log-file || steps.summary-token.outputs.log-file || steps.summary-fallback.outputs.log-file }}
+          lane: summarize-reuse
+          lane-id: summarize-reuse
+          credential: ${{ steps.summary-key.outputs.credential || steps.summary-token.outputs.credential || steps.summary-fallback.outputs.credential }}
+          known-failure-class: ${{ steps.summary-key.outputs.lane-class || steps.summary-token.outputs.lane-class || steps.summary-fallback.outputs.lane-class }}
+          max-turns: ${{ steps.summary-models.outputs.max-turns }}
 
       # The summary file: issue, branch and tip are runner values from before
       # the model ran; output is the launcher's structured output, model
@@ -3554,10 +3597,10 @@ jobs:
       # it only for the PR's title and body text.
       - name: Collect the reused branch's summary
         id: summary-collect
-        if: steps.summary-key.outcome == 'success' || steps.summary-token.outcome == 'success'
+        if: steps.summary-key.outcome == 'success' || steps.summary-token.outcome == 'success' || steps.summary-fallback.outcome == 'success'
         continue-on-error: true
         env:
-          OUTPUT_FILE: ${{ steps.summary-key.outputs.structured-output-file || steps.summary-token.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.summary-key.outputs.structured-output-file || steps.summary-token.outputs.structured-output-file || steps.summary-fallback.outputs.structured-output-file }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
           TIP: ${{ steps.summary-data.outputs.tip }}

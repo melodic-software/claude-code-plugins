@@ -8981,3 +8981,39 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
   assert.equal(credit.with["key-job"], "model");
   for (const id of ["model-subscription", "model-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
 });
+
+// Every job that runs a run-claude-cli leg writes that leg's lane-outcome
+// record (report-lane-outcome with a lane-id): the record carries the leg's
+// credential, outcome, handoff and durationMs, which lane telemetry
+// aggregates per leg (#13586).
+const RECORDLESS_LEGS = new Set([
+  // The maintenance role's proposal pass, open on #13586 with that role's
+  // missing key; its lane record comes with its legs.
+  "maintenance-measure-skill-edit.yml propose",
+]);
+test("every run-claude-cli job writes a lane record for its leg", () => {
+  const missing = [];
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job?.steps ?? [];
+      if (!steps.some((s) => String(s.uses ?? "").includes("/run-claude-cli@"))) continue;
+      const recorded = steps.some((s) => String(s.uses ?? "").includes("/report-lane-outcome@") && s.with?.["lane-id"]);
+      if (!recorded && !RECORDLESS_LEGS.has(`${file} ${id}`)) missing.push(`${file} ${id}`);
+    }
+  }
+  assert.deepEqual(missing, []);
+});
+
+test("pr-run-activity-read.yml: the reuse summary runs on the credential of the call it is in", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  const step = (id) => jobs.summary.steps.find((s) => s.id === id);
+  const runs = (id, fallback) => atStep(step(id).if, { "steps.isolate.outcome": "success", "inputs.fallback": fallback });
+  for (const [fallback, id] of [["", "summary-key"], ["handoff", "summary-token"], ["credit-stop", "summary-token"], ["fallback", "summary-fallback"]]) {
+    for (const other of ["summary-key", "summary-token", "summary-fallback"]) {
+      assert.equal(runs(other, fallback), other === id, `${other} on fallback ${JSON.stringify(fallback)}`);
+    }
+  }
+  assert.equal(step("summary-fallback").with["fallback-token"], "${{ secrets.fallback-claude-code-oauth-token }}");
+  assert.equal(step("summary-token").with["subscription-token"], "${{ secrets.claude-code-oauth-token }}");
+  assert.equal(step("summary-key").with["api-key"], "${{ secrets.claude-api-key }}");
+});
