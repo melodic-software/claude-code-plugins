@@ -1444,7 +1444,13 @@ test("with no app set the capture stops with a note, and an app or retention it 
   assert.match(unset.stdout, /::notice::merge\.verify-capture\.app is unset; no capture runs/);
   assert.equal(run("merge:\n  verify-capture:\n    app: claude-code\n").output, "app=claude-code\nretention-days=30\n");
   assert.equal(run("merge:\n  verify-capture:\n    app: claude-code\n    retention-days: 7\n").output, "app=claude-code\nretention-days=7\n");
-  for (const bad of ["app: 'x; rm'", "app: claude-code\n    retention-days: 91", "app: claude-code\n    retention-days: 0"]) {
+  // The artifact's retention row is the most the config can set, so the row
+  // holds for every accepted value.
+  const most = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families["pr-capture-*"]["retention-days"];
+  assert.equal(most, 30);
+  assert.equal(run(`merge:\n  verify-capture:\n    app: claude-code\n    retention-days: ${most}\n`).output, `app=claude-code\nretention-days=${most}\n`);
+  assert.match(run(`merge:\n  verify-capture:\n    app: claude-code\n    retention-days: ${most + 1}\n`).stdout, /::error::merge\.verify-capture\.retention-days is not 1 to 30/);
+  for (const bad of ["app: 'x; rm'", `app: claude-code\n    retention-days: ${most + 1}`, "app: claude-code\n    retention-days: 91", "app: claude-code\n    retention-days: 0"]) {
     const result = run(`merge:\n  verify-capture:\n    ${bad}\n`);
     assert.equal(result.status, 1, bad);
     assert.equal(result.output, "", bad);
@@ -1554,6 +1560,8 @@ test("the three judge jobs carry identical capture steps, before the prompt, tha
     assert.ok(index("Find the capture", job) > index("Assert the gate and the resolver agree", job), job);
     assert.match(step("Write the prompt and schema", job), /^ {12}prompt=\$\{prompt\/\/CAPTURE_DIR\/\$DATA\/capture\}$/m, job);
     assert.equal(input(step("Write the verdict", job), "CAPTURE_FILE"), "${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json", job);
+    // Every miss with the app set reaches the verdict as blocked (find-capture.mjs blocked-reason).
+    assert.equal(input(step("Write the verdict", job), "CAPTURE_BLOCKED"), "${{ steps.capture.outputs.blocked-reason }}", job);
     assert.equal(input(step("Write the verdict", job), "CONTEXT_FILE"), "${{ github.workspace }}/pr-verify-data/context.json", job);
     // The cross-run download needs only the jobs' existing actions: read.
     assert.match(jobIn(text, job), /^ {6}actions: read /m, job);

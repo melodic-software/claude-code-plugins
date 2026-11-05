@@ -1275,9 +1275,9 @@
             "retention-days": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 90,
+              "maximum": 30,
               "default": 30,
-              "description": "Days each capture artifact lasts. At most 90, the longest this repository keeps an artifact (README.md, Verifier verdict)."
+              "description": "Days each capture artifact lasts. At most 30, the pr-capture-* row's days in .github/artifact-retention.json (README.md, Verifier verdict)."
             }
           }
         },

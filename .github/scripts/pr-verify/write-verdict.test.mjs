@@ -99,9 +99,24 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
   }
 });
 
-test("with no capture summary the evidence records no-app", () => {
+test("with no capture summary the evidence records no-app only with no blocked reason, the app unset", () => {
   assert.deepEqual(buildEvidence(), NO_APP);
   assert.deepEqual(buildEvidence({ capture: undefined, prBody: null }), NO_APP);
+  assert.deepEqual(buildEvidence({ capture: undefined, captureBlocked: "" }), NO_APP);
+  // The app set and no capture: find-capture's reason, blocked, never a failed verdict.
+  const missed = { capture: "blocked", reason: "capture run 900 ended failure", capture_count: 0, features: [], local_loop: null };
+  assert.deepEqual(buildEvidence({ captureBlocked: "capture run 900 ended failure" }), missed);
+  for (const verdict of ["pass", "fail"]) {
+    const built = buildVerdict({ ...ids, captureBlocked: "capture run 900 ended failure", output: JSON.stringify({ verdict, summary: "s", notes: [] }) });
+    assert.equal(built.verdict, verdict);
+    assert.deepEqual(built.evidence, missed);
+  }
+  // A downloaded summary wins over the reason find-capture left for its absence.
+  const ran = { capture: "ran", reason: null, capture_count: 1, features: ["login"] };
+  assert.deepEqual(buildEvidence({ capture: ran, captureBlocked: "capture run 900's artifact 5001 did not download a summary" }), { ...ran, local_loop: null });
+  // The reason is held to the summary's own screen and cap.
+  assert.deepEqual(buildEvidence({ captureBlocked: `leaked ${`${"sk-ant-"}api03-${"Q".repeat(40)}`}` }), BLOCKED);
+  assert.equal(buildEvidence({ captureBlocked: "r".repeat(1500) }).reason, "r".repeat(1000));
 });
 
 test("a blocked capture records why, and a malformed summary is blocked, never a failed verdict", () => {
@@ -584,7 +599,8 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(existsSync(unindexed.GITHUB_OUTPUT), false);
 
   // The capture summary and the trusted PR text: a missing summary file is
-  // no-app, an unparsable one blocked, and neither fails the verdict.
+  // blocked with find-capture's reason, else no-app, an unparsable one
+  // blocked, and none fails the verdict.
   const file = (name, text) => {
     const target = path.join(dir, name);
     writeFileSync(target, text);
@@ -595,6 +611,12 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   for (const [label, extra, evidence] of [
     ["a blocked capture", { CAPTURE_FILE: file("capture.json", JSON.stringify(blocked)), CONTEXT_FILE: context }, { ...blocked, local_loop: 2 }],
     ["a missing capture file", { CAPTURE_FILE: path.join(dir, "no-capture.json"), CONTEXT_FILE: context }, { ...NO_APP, local_loop: 2 }],
+    [
+      "a missing capture file with find-capture's reason",
+      { CAPTURE_FILE: path.join(dir, "no-capture.json"), CAPTURE_BLOCKED: "no capture run was started for this head" },
+      { capture: "blocked", reason: "no capture run was started for this head", capture_count: 0, features: [], local_loop: null },
+    ],
+    ["a blocked capture over find-capture's reason", { CAPTURE_FILE: file("capture-2.json", JSON.stringify(blocked)), CAPTURE_BLOCKED: "capture run 900's artifact 5001 did not download a summary" }, { ...blocked, local_loop: null }],
     ["an unparsable capture file", { CAPTURE_FILE: file("bad-capture.json", "{not json") }, BLOCKED],
     ["a withheld PR body", { CONTEXT_FILE: file("withheld.json", JSON.stringify({ pr: { number: 41, title: "", body: null } })) }, NO_APP],
     ["an unparsable context file", { CONTEXT_FILE: file("bad-context.json", "{not json") }, NO_APP],

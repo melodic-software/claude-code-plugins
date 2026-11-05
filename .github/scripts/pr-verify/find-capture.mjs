@@ -2,16 +2,22 @@
 // the same pr-require-checks run started, waited on until it completes or a
 // bound passes, and the id of its pr-capture-<pr>-<head-sha> artifact. Both
 // workflows start on the same event, so the capture is still running when
-// check-intent first asks. A later judge job takes the ids the job before it
-// found (FOUND_CAPTURE, `<run id>:<artifact id>`, a job output written only here)
-// and reads nothing; it looks for itself only when that job found none. The
-// listing starts at the upstream run's creation, before which no capture
-// run of it exists, and is read page by page. Every miss (no app set, no
-// run, a run still going at the bound, no artifact, an API failure) writes
-// no artifact id and exits 0: a missing capture never fails a verdict. The
-// capture run is taken only when its record shows it is that file, on main,
-// started by workflow_run, in this repository, and its title names this
-// upstream run and head (the capture workflow's run-name).
+// check-intent first asks. The runs are listed only until the capture run
+// shows up; after that only its own record is read. A later judge job takes
+// what the job before it found (FOUND_CAPTURE, a job output written only
+// here: `<run id>:<artifact id>`, or a miss code that cannot change) and
+// reads nothing; it looks for itself when that job wrote neither. The listing starts at the
+// upstream run's creation, before which no capture run of it exists, and is
+// read page by page. Every miss with the app set (no run, a run that ended
+// other than success, a run still going at the bound, no artifact, an API
+// failure) writes no artifact id but a blocked reason the verdict records
+// (write-verdict.mjs CAPTURE_BLOCKED), and exits 0: a missing capture never
+// fails a verdict. Each reason is built here from a fixed code, a run id and
+// a run conclusion, each pattern-checked, so a carried miss gives the same
+// reason and no API text reaches an output. The capture run is taken only
+// when its record shows it is that file, on main, started by workflow_run,
+// in this repository, and its title names this upstream run and head (the
+// capture workflow's run-name).
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -24,6 +30,18 @@ const PR = /^[1-9][0-9]{0,15}$/;
 const SHA = /^[0-9a-f]{40}$/;
 const CREATED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const CARRIED = /^([1-9][0-9]{0,19}):([1-9][0-9]{0,19})$/;
+// A miss: a code alone, a code and the run id, or `ended`, the run id and its
+// conclusion (GitHub's lowercase enum: failure, cancelled, timed_out, ...).
+const MISS = /^(?:(not-started|malformed|unreadable)|(running|no-artifact|mismatch):([1-9][0-9]{0,19})|(ended):([1-9][0-9]{0,19}):([a-z_]{1,32}))$/;
+// The misses that cannot change, which alone are carried to the later jobs:
+// a malformed input, and a completed run's outcome. A run not yet started,
+// still running, or an API read that failed can change by the time a later
+// job asks (at least one 22-minute judge step later), so that job searches
+// again under the same bound. That costs it little: the capture job's own
+// 30-minute timeout has mostly run out by then, so its wait is short, and a
+// run that never started is given up on in two minutes.
+const PERMANENT = /^(?:malformed|(?:no-artifact|mismatch):[1-9][0-9]{0,19}|ended:[1-9][0-9]{0,19}:[a-z_]{1,32})$/;
+const CONCLUSION = /^[a-z_]{1,32}$/;
 const MINUTE = 60_000;
 // The capture job's timeout (pr-verify-capture.yml) and five minutes for its
 // queue and gates: past this the capture cannot still be running.
@@ -31,7 +49,15 @@ export const WAIT_MS = 35 * MINUTE;
 // Both runs are created on the same event; one that has not shown up in two
 // minutes was not started.
 export const APPEAR_MS = 2 * MINUTE;
+// The listing's interval while the run has yet to show up.
 export const POLL_MS = MINUTE;
+// The found run's own record, read first this long after it showed up and
+// then at this interval, the last read at the bound. A capture that drives
+// the app runs its gates, a reach-probe session of up to 7 minutes and a
+// driver of up to 16 (pr-verify-capture.yml), so a sooner read finds it still
+// running; 3 minutes of added wait is small beside the judge steps' 22 each,
+// and the 35-minute bound costs 13 calls where a listing each minute took 36.
+export const RUN_POLL_MS = 3 * MINUTE;
 export const PER_PAGE = 50;
 // Capture runs started since the upstream run, one per pull request run:
 // ten pages is 500, more than the lanes start in the judges' longest wait.
@@ -64,30 +90,61 @@ async function captureRun(github, ids, createdAt) {
   return undefined;
 }
 
+// The verdict's reason for a miss code, or undefined for anything else.
+export function missReason(miss) {
+  const match = MISS.exec(String(miss ?? ""));
+  if (!match) return undefined;
+  const [, bare, code, runId, ended, endedId, conclusion] = match;
+  if (bare === "not-started") return "no capture run was started for this head";
+  if (bare === "malformed") return "the upstream run, pull request or head is malformed";
+  if (bare === "unreadable") return "the capture run or its artifact could not be read";
+  if (code === "running") return `capture run ${runId} was still running after ${Math.round(WAIT_MS / MINUTE)} minutes`;
+  if (code === "no-artifact") return `capture run ${runId} left no capture artifact for this head`;
+  if (code === "mismatch") return `capture run ${runId}'s record no longer names this upstream run and head`;
+  return ended && `capture run ${endedId} ended ${conclusion}`;
+}
+
+const miss = (code) => ({ miss: code, reason: missReason(code) });
+
+// A completed run's outcome: its artifact when it succeeded, else a miss. A
+// run that ended other than success may still have uploaded a summary (the
+// capture's collect and upload steps run always()), but it is not taken.
+async function completed(github, { repository, pr, headSha }, run) {
+  if (run.conclusion !== "success") {
+    return miss(typeof run.conclusion === "string" && CONCLUSION.test(run.conclusion) ?`ended:${run.id}:${run.conclusion}` : "unreadable");
+  }
+  const name = artifactName(pr, headSha);
+  const artifacts = await github("GET", `/repos/${repository}/actions/runs/${run.id}/artifacts?name=${name}&per_page=10`);
+  const artifact = (Array.isArray(artifacts?.artifacts) ? artifacts.artifacts : [])
+    .filter((candidate) => candidate?.name === name && candidate.expired === false && RUN_ID.test(String(candidate.id)))
+    .sort((a, b) => b.id - a.id)[0];
+  return artifact ? { artifactId: String(artifact.id), runId: String(run.id) } : miss(`no-artifact:${run.id}`);
+}
+
 // { artifactId, runId } once the capture run completed with its artifact,
-// else { reason }.
-export async function findCapture(github, { repository, upstreamRunId, pr, headSha, createdAt }, { sleep, now, waitMs = WAIT_MS, appearMs = APPEAR_MS, pollMs = POLL_MS } = {}) {
+// else { miss, reason }: the runs are listed until the capture run shows up,
+// then its own record is read until it completes or the bound passes.
+export async function findCapture(github, { repository, upstreamRunId, pr, headSha, createdAt }, { sleep, now, waitMs = WAIT_MS, appearMs = APPEAR_MS, pollMs = POLL_MS, runPollMs = RUN_POLL_MS } = {}) {
   if (!RUN_ID.test(String(upstreamRunId)) || !PR.test(String(pr)) || !SHA.test(String(headSha))) {
-    return { reason: "the upstream run, pull request or head is malformed" };
+    return miss("malformed");
   }
   const ids = { repository, upstreamRunId, headSha };
   const started = now();
+  let run;
   for (;;) {
-    const run = await captureRun(github, ids, createdAt);
-    const waited = now() - started;
-    if (!run) {
-      if (waited >= appearMs) return { reason: "no capture run was started for this head" };
-    } else if (run.status === "completed") {
-      const name = artifactName(pr, headSha);
-      const artifacts = await github("GET", `/repos/${repository}/actions/runs/${run.id}/artifacts?name=${name}&per_page=10`);
-      const artifact = (Array.isArray(artifacts?.artifacts) ? artifacts.artifacts : [])
-        .filter((candidate) => candidate?.name === name && candidate.expired === false && RUN_ID.test(String(candidate.id)))
-        .sort((a, b) => b.id - a.id)[0];
-      return artifact ? { artifactId: String(artifact.id), runId: String(run.id) } : { reason: `capture run ${run.id} left no ${name} artifact` };
-    } else if (waited >= waitMs) {
-      return { reason: `capture run ${run.id} was still running after ${Math.round(waitMs / MINUTE)} minutes` };
-    }
+    run = await captureRun(github, ids, createdAt);
+    if (run) break;
+    if (now() - started >= appearMs) return miss("not-started");
     await sleep(pollMs);
+  }
+  for (;;) {
+    if (run.status === "completed") return completed(github, { repository, pr, headSha }, run);
+    const waited = now() - started;
+    if (waited >= waitMs) return miss(`running:${run.id}`);
+    await sleep(Math.min(runPollMs, waitMs - waited));
+    const record = await github("GET", `/repos/${repository}/actions/runs/${run.id}`);
+    if (!isCaptureRun(record, ids) || String(record.id) !== String(run.id)) return miss(`mismatch:${run.id}`);
+    run = record;
   }
 }
 
@@ -102,6 +159,9 @@ export async function main(env = process.env, { github, fetchImpl, sleep = (ms) 
   if (carried) {
     found = { runId: carried[1], artifactId: carried[2] };
     console.log("find-capture: the capture the earlier judge job found");
+  } else if (PERMANENT.test(env.FOUND_CAPTURE ?? "")) {
+    found = miss(env.FOUND_CAPTURE);
+    console.log("find-capture: the miss the earlier judge job found");
   } else {
     try {
       for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "UPSTREAM_RUN_ID", "PR_NUMBER", "HEAD_SHA"]) {
@@ -114,16 +174,22 @@ export async function main(env = process.env, { github, fetchImpl, sleep = (ms) 
         { sleep, now },
       );
     } catch (error) {
-      found = { reason: `the capture could not be read: ${error.message}${detailSuffix(error)}` };
+      // The detail goes to the log alone; the verdict gets the fixed reason.
+      console.log(`::notice::the capture could not be read: ${error.message}${detailSuffix(error)}`);
+      found = miss("unreadable");
     }
   }
   if (found.artifactId) {
     write(`artifact-id=${found.artifactId}`);
     write(`run-id=${found.runId}`);
     write(`carry=${found.runId}:${found.artifactId}`);
+    // Recorded only when the download leaves no summary to read instead.
+    write(`blocked-reason=capture run ${found.runId}'s artifact ${found.artifactId} did not download a summary`);
     console.log(`find-capture: capture run ${found.runId}, artifact ${found.artifactId}`);
   } else {
-    console.log(`::notice::no capture for this head (${found.reason}); the judgment goes on without one`);
+    if (PERMANENT.test(found.miss)) write(`carry=${found.miss}`);
+    write(`blocked-reason=${found.reason}`);
+    console.log(`::notice::no capture for this head (${found.reason}); the verdict records it blocked and the judgment goes on`);
   }
 }
 

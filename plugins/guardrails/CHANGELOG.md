@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.4] - 2026-11-05
+
+### Changed
+
+- `block-root-delete-target` judges a delete with fewer processes. Every host now bounds `realpath`, `cygpath` and `git` inside the shell, so the 3 `timeout` processes are gone. On Windows Git Bash, a path that has no symlink, short name or network drive on it is resolved in the shell, so an ordinary `rm -rf ./build` starts 1 process (`git`) instead of 8. Every verdict is unchanged.
+
 ## [1.3.3] - 2026-11-04
 
 ### Changed

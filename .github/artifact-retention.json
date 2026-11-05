@@ -39,7 +39,7 @@
         ".github/scripts/pr-verify/find-capture.mjs reads it by exact name from the pr-verify-capture.yml run its judge jobs wait for, at most 35 minutes after the capture starts",
         "docs/conventions/pr-pipeline.yaml merge.verify-capture.retention-days sets how long a reviewer can open it"
       ],
-      "reason": "The judges read it within the hour; the rest is the review round's window, which merge.verify-capture.retention-days sets (30, its default, judgment). computed-by: the capture workflow's Read the capture config step; a config value over 30 needs this row raised with it.",
+      "reason": "The judges read it within the hour; the rest is the review round's window, which merge.verify-capture.retention-days sets (30, its default, judgment). computed-by: the capture workflow's Read the capture config step, which accepts 1 to 30, so 30 is the most any capture lasts.",
       "scan": "upload",
       "computed-by": ".github/workflows/pr-verify-capture.yml"
     },
