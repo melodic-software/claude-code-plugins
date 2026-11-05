@@ -4396,7 +4396,9 @@ jobs:
   # escalation comment uses carries no statuses permission. actions: read and
   # checks: read let status mode read this run's jobs and the reply job's
   # annotations: a feedback-publish-failed whose lane token a retry takes the
-  # head on (refire-refused.mjs tokenRefusal) posts no status.
+  # head on (refire-refused.mjs tokenRefusal) posts no status, and its
+  # status-withheld output keeps report-escalation from posting the
+  # lane-stopped comment for it.
   report-stop-status:
     needs:
       - resolve-conflicts-select
@@ -4452,6 +4454,10 @@ jobs:
       checks: read # the reply job's annotations
       contents: read
       statuses: write
+    outputs:
+      # `true` when status mode withheld the failing status for a refusal the
+      # feedback sweep sends again (report-escalation.sh retried_refusal).
+      status-withheld: ${{ steps.post.outputs.status-withheld }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -4487,6 +4493,7 @@ jobs:
       # reply and verdict jobs can stop after that push, and a status on the
       # head before it leaves the PR's head with no failing status.
       - name: Post the stop status
+        id: post
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
@@ -4543,8 +4550,13 @@ jobs:
       - apply-patch-rung-up
       - sync-shared-copies-select
       - apply-shared-copies
+      - report-stop-status
     # A reply job that failed with no reason (its lane token, a script error)
-    # stops as feedback-publish-failed, derived here from its result.
+    # stops as feedback-publish-failed, derived here from its result. When
+    # report-stop-status withheld that stop's status, because the feedback
+    # sweep sends a workflow-modified refusal again, no comment posts either;
+    # a skipped or failed report-stop-status leaves the output empty, so the
+    # comment posts.
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and the base scripts of
     # resolve-conflicts-select, conflict-scan-refusal, address-feedback-select,
@@ -4557,7 +4569,8 @@ jobs:
     # always() branch fires, but the write workflow's run job skips, so no
     # label is applied and ci-status stays red.
     if: >-
-      ${{ (!cancelled() && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
+      ${{ (!cancelled() && needs.report-stop-status.outputs.status-withheld != 'true'
+      && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
       || needs.apply-conflict-patch.outputs.escalation-reason != ''
       || needs.conflict-scan-refusal.outputs.escalation-reason != ''
       || needs.address-feedback-select.outputs.escalation-reason != ''
