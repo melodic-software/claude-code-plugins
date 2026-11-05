@@ -41,6 +41,14 @@
     {
       "answer": "| Check | Result |\n|---|---|\n| jq entry gate | FAIL: jq not found |\n| Schedule is valid | INFO: both rows use the id `dependency-review` |",
       "why": "both-rows wording on an INFO row; FAIL is another probe's"
+    },
+    {
+      "answer": "Schedule valid: PASS, the same id dependency-review is not reused. jq gate: FAIL.",
+      "why": "negated same-id on a PASS line; FAIL is another probe"
+    },
+    {
+      "answer": "Schedule valid: FAIL? No: the same id dependency-review is not reused, so it passes.",
+      "why": "FAIL first but the same-id claim is negated"
     }
   ]
 }
