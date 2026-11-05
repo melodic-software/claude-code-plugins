@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_DONE, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import {
@@ -23,7 +23,9 @@ import {
   failedComment,
   heldText,
   lapsedReason,
+  failedFor,
   main as runMain,
+  markReads,
   RECURRENCE_PREFIX,
   recurrenceComment,
   refireComment,
@@ -1112,6 +1114,122 @@ test("a failed listing of the deferred, open or agent-ready issues holds with a 
     const next = sweptDependent();
     assert.equal((await sweepAfter(lines, next)).minutes, 75, what);
   }
+});
+
+// Numbers 20 and 21 are each blocked by number 10 alone, which a merge closed
+// in the window, and decided in that order; `fault(method, path, body)` is
+// what a read or write throws, or null.
+function twoDependents(fault) {
+  const base = world({
+    closedList: [closedAt(10, "2026-10-16T11:30:00Z")],
+    blocking: [issue(20), issue(21)],
+    issues: { 20: issue(20), 21: issue(21) },
+    blockedBy: { 20: [issue(10, { state: "closed" })], 21: [issue(10, { state: "closed" })] },
+    comments: { 20: [note()], 21: [note()] },
+  });
+  const github = async (method, path, body, ...rest) => {
+    const error = fault(method, path, body);
+    if (error) {
+      base.calls.push(`${method} ${path}`);
+      throw error;
+    }
+    return base.github(method, path, body, ...rest);
+  };
+  return { github, calls: base.calls };
+}
+const ISSUE_20 = `/repos/${REPO}/issues/20`;
+const readOf20 = (error) => (method, path) => (method === "GET" && path === ISSUE_20 ? error : null);
+
+// A 5xx or 429, a rate-guard stop or no answer on one issue's read is no
+// verdict on that issue (outage posture element 2): it is held with a notice,
+// the run stays green, and the other issues are still decided.
+test("a GitHub fault on one issue's read holds that issue with a notice, labels the others and exits 0", async (t) => {
+  const faults = [
+    new GitHubError(503, `GET ${ISSUE_20}`),
+    new GitHubError(429, `GET ${ISSUE_20}`),
+    Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } }),
+  ];
+  for (const fault of faults) {
+    const { github, calls } = twoDependents(readOf20(fault));
+    const { code, lines } = await printedBy(t, () => sweep({ github, actions: lastSweepActions }));
+    assert.equal(code, 0, fault.message);
+    assert.ok(calls.includes(`GET ${ISSUE_20}`), fault.message);
+    assert.deepEqual(writes(calls), [labeled(21)], fault.message);
+    const notices = lines.filter((line) => line.startsWith("::notice title=label-unblocked::#20: ") && line.endsWith("holding, and the next sweep reads it again"));
+    assert.equal(notices.length, 1, fault.message);
+    assert.deepEqual(lines.filter((line) => line.startsWith("::error")), [], fault.message);
+  }
+});
+
+test("a non-fault error on one issue's read still fails the run, and the others are still labeled", async (t) => {
+  for (const error of [new GitHubError(404, `GET ${ISSUE_20}`), new GitHubError(403, `GET ${ISSUE_20}`), new Error("the issue has an unexpected shape")]) {
+    const { github, calls } = twoDependents(readOf20(error));
+    const { code, lines } = await printedBy(t, () => sweep({ github, actions: lastSweepActions }));
+    assert.equal(code, 1, error.message);
+    assert.deepEqual(writes(calls), [labeled(21)], error.message);
+    assert.equal(lines.filter((line) => line.startsWith("::error title=label-unblocked::#20: ")).length, 1, error.message);
+    assert.deepEqual(lines.filter((line) => line.includes("holding")), [], error.message);
+  }
+});
+
+test("a GitHub fault on one issue's write still fails the run", async (t) => {
+  const labelWrite = (method, path) => (method === "POST" && path === `${ISSUE_20}/labels` ? new GitHubError(503, `POST ${ISSUE_20}/labels`) : null);
+  const { github, calls } = twoDependents(labelWrite);
+  const { code, lines } = await printedBy(t, () => sweep({ github, actions: lastSweepActions }));
+  assert.equal(code, 1);
+  assert.ok(calls.includes(`POST ${ISSUE_20}/labels`));
+  assert.ok(calls.includes(labeled(21)));
+  assert.equal(lines.filter((line) => line.startsWith("::error title=label-unblocked::#20: ")).length, 1);
+  assert.deepEqual(lines.filter((line) => line.includes("holding")), []);
+});
+
+// A GraphQL query is a read (retryServerErrors' graphqlQuery): a fault on
+// check-trusted-trigger.mjs's closer query for the closed issue holds it.
+test("a GitHub fault on one issue's GraphQL closer query holds that issue with a notice and exits 0", async (t) => {
+  const closerOf10 = (method, path, body) =>
+    method === "POST" && path === "/graphql" && String(body?.query).includes("timelineItems(itemTypes: CLOSED_EVENT") && body?.variables?.number === 10
+      ? new GitHubError(503, "POST /graphql")
+      : null;
+  const { github, calls } = twoDependents(closerOf10);
+  const { code, lines } = await printedBy(t, () => sweep({ github, actions: lastSweepActions }));
+  assert.equal(code, 0);
+  // The faulted query is logged without its body.
+  assert.deepEqual(writes(calls), ["POST /graphql"]);
+  // The labeling pass and the split-parent pass each read the close, and a
+  // failed read is not cached, so each holds #10.
+  const notices = lines.filter((line) => line.startsWith("::notice title=label-unblocked::#10: ") && line.endsWith("holding, and the next sweep reads it again"));
+  assert.equal(notices.length, 2);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error")), []);
+});
+
+// A GraphQL mutation is a write, whatever its path, so its fault is no hold.
+// No mutation goes through the sweep's injected client (the status mirror
+// takes its own), so the client is wrapped here as main wraps it.
+test("a GitHub fault on a GraphQL mutation is a failed write, not a hold", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const github = markReads(async () => {
+    throw new GitHubError(503, "POST /graphql");
+  });
+  const mutation = { query: "mutation($id: ID!) { updateProjectV2ItemFieldValue(input: { itemId: $id }) { clientMutationId } }", variables: { id: "x" } };
+  const error = await github("POST", "/graphql", mutation).catch((thrown) => thrown);
+  assert.equal(failedFor(github, 20, error), 1);
+  assert.equal(github.held, 0);
+  // The same fault on a query is a hold, so the client tells the two apart.
+  const read = await github("POST", "/graphql", { query: "query { viewer { login } }" }).catch((thrown) => thrown);
+  assert.equal(failedFor(github, 20, read), 0);
+  assert.equal(github.held, 1);
+});
+
+// The held issue was in this sweep's closed window, so the next sweep must
+// read that window again: a sweep that held one issue does not advance it.
+test("a sweep that held an issue on a faulted read does not advance the window", async (t) => {
+  const { github } = twoDependents(readOf20(new GitHubError(502, `GET ${ISSUE_20}`)));
+  const { code, lines } = await printedBy(t, () => sweep({ github, actions: lastSweepActions }));
+  assert.equal(code, 0);
+  const next = sweptDependent();
+  const after = await sweepAfter(lines, next);
+  assert.equal(after.minutes, 180);
+  assert.deepEqual(writes(next.calls), [labeled(20)]);
 });
 
 test("a last sweep older than the 3-hour window is capped at 3 hours without reading its jobs", async () => {
