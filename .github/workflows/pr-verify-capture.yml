@@ -288,6 +288,7 @@ jobs:
             Read(./head/**)
             Read(./capture-run/**)
             Read(./.base/plugins/**)
+            Read(./.base/.claude/skills/**)
           disallowed-tools: |
             Read(//proc/**)
             Read(//sys/**)
@@ -438,6 +439,7 @@ jobs:
             Read(./head/**)
             Read(./capture-run/**)
             Read(./.base/plugins/**)
+            Read(./.base/.claude/skills/**)
             Edit(./head/**)
             Edit(./capture-run/**)
           disallowed-tools: |
