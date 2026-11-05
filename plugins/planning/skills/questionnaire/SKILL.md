@@ -47,7 +47,7 @@ skill. Never invent a recipient to justify the artifact. Invoke it, never just m
    a fact no lookup settles for the person.
 
 3. **Write the questionnaire.** Draft questions aimed at the gap from steps 1–2, per
-   [`templates/questionnaire.md`](templates/questionnaire.md). Derive `<topic-slug>` from
+   [`${CLAUDE_PLUGIN_ROOT}/skills/questionnaire/templates/questionnaire.md`](templates/questionnaire.md). Derive `<topic-slug>` from
    `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars, shared with the sibling planning
    skills) and write the document to the topic's **memory slice** as
    `<memory_dir>/<topic-slug>/questionnaire-<recipient-role-slug>.md` (default `.work/`; the role
