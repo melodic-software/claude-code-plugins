@@ -775,6 +775,24 @@ assert_eq "case 30: --check --ref with a committed live_workers exits 0" "0" "$?
 assert_contains "case 30: the committed live_workers is read, not the working tree's" "$out" "PASS live_workers: 4"
 assert_contains "case 30: proof_level is unset in the committed file" "$out" "PASS proof_level: (unset)"
 
+# --- Case 31: --check reports verification and verification_skills -------------
+# The schema lists off, light, standard and strict for both keys
+# (docs/conventions/verification-level/README.md).
+R31="$(new_root c31)"
+printf 'proof_level: live\nverification: light\nverification_skills:\n  confirm: strict\n' >"$(yaml_of "$R31")"
+out="$(run --root "$R31" --check)"
+assert_eq "case 31: --check on a valid verification exits 0" "0" "$?"
+assert_contains "case 31: --check reports verification: light" "$out" "PASS verification: light"
+assert_contains "case 31: --check reports the skill entry" "$out" "PASS verification_skills: confirm=strict"
+R31B="$(new_root c31b)"
+printf 'proof_level: live\nverification: lite\nverification_skills:\n  confirm: max\n' >"$(yaml_of "$R31B")"
+out="$(run --root "$R31B" --check)"
+assert_eq "case 31: --check on an invalid verification exits 1" "1" "$?"
+assert_contains "case 31: the WARN names verification=lite" "$out" "verification=lite"
+assert_contains "case 31: the WARN names the skill entry's value" "$out" "max"
+assert_eq "case 31: no PASS line for either invalid key" "0" "$(printf '%s\n' "$out" | grep -c '^PASS verification')"
+assert_contains "case 31: proof_level keeps its PASS line" "$out" "PASS proof_level: live"
+
 # --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 R="$(new_root record-chosen)"

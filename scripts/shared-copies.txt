@@ -680,3 +680,9 @@ lib/node-or-skip.sh plugins/session-flow/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/session-flow/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/speech/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/speech/lib/node-or-skip.ps1
+lib/read-verification.sh plugins/verification/lib/read-verification.sh
+lib/config-root.sh plugins/verification/lib/config-root.sh
+lib/read-verification.sh plugins/implementation/lib/read-verification.sh
+lib/config-root.sh plugins/implementation/lib/config-root.sh
+lib/parse-concern-value.sh plugins/implementation/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/implementation/lib/yaml-subset.awk
