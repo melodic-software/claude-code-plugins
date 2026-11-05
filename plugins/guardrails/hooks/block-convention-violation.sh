@@ -7,10 +7,10 @@
 # tracked: the commit subject (first line of the canonical stdin-form message)
 # and the `gh pr create --title` value are validated against the POSIX-ERE
 # pattern resolved from the consumer's tracked
-# `docs/conventions/source-control.yaml` (for one release, else the legacy
-# `.claude/source-control.md` surfaces) by the vendored enforcement resolver
-# (resolve-convention-pattern.sh — the commit-convention seam,
-# docs/contracts/commit-convention/). The sibling
+# `docs/conventions/source-control.yaml`, else the folder-form
+# `docs/conventions/source-control/commit-convention.yml`, by the vendored
+# enforcement resolver (resolve-convention-pattern.sh — the commit-convention
+# seam, docs/contracts/commit-convention/). The sibling
 # block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
 # gate reads the CONTENT that mechanic carries.
 #
@@ -27,7 +27,7 @@
 # A BROKEN CONVENTION IS NOT AN UNRESOLVED ONE, AND THE GUARD FAILS OPEN ON IT.
 # The resolver's exit code and stderr tell them apart, with no change to its
 # contract: exit 0 enforces; exit 1 with empty stderr is "no convention tracked"
-# and stays quiet; exit 1 with a diagnostic (an unreadable pointer, a non-ERE
+# and stays quiet; exit 1 with a diagnostic (an unreadable file, a non-ERE
 # pattern) or exit 2 means that key's check did not run. That is the chosen fail
 # mode, per key: a key that resolved still enforces, the failed key's check is
 # skipped, and a once-per-session notice on both channels names the check and
@@ -142,7 +142,7 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 # `stat` process. Equal mtimes read as NOT newer, so a same-timestamp write
 # re-resolves rather than serving a stale pattern. That test alone is blind to a
 # dependency that DISAPPEARS: `-nt` against a missing file is true, so a cache
-# warmed while `docs/conventions/source-control.yaml` (or a legacy file) existed
+# warmed while `docs/conventions/source-control.yaml` (or the folder-form file) existed
 # would keep enforcing a policy the team has since deleted, where the resolver now
 # answers no enforcement. So the entry also records every dependency with its
 # existence at warm time, and any recorded-as-existing dependency now missing,
@@ -169,46 +169,15 @@ SUBJECT_DIAG=""
 TITLE_DIAG=""
 CONV_LOADED=0
 
-# An explicit `## convention_source` H2 names one more file the resolver reads.
-# Scanned with bash builtins, never a process: the whole point here is that the
-# hit path spawns nothing. Reading the pointer wrong can only DELAY an
-# invalidation until the team file itself changes, never enforce a pattern the
-# resolver did not produce.
-conv_pointer() {
-  local f="$REPO_ROOT/.claude/source-control.md" line t in_sec=0
-  CONV_POINTER=""
-  [[ -f "$f" ]] || return 0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    if [[ "$line" == '##'[[:space:]]* ]]; then
-      t="${line#\#\#}"
-      t="${t#"${t%%[![:space:]]*}"}"
-      t="${t%"${t##*[![:space:]]}"}"
-      [[ "$t" == "convention_source" ]] && in_sec=1 || in_sec=0
-      continue
-    fi
-    ((in_sec)) || continue
-    t="${line#"${line%%[![:space:]]*}"}"
-    t="${t%"${t##*[![:space:]]}"}"
-    [[ -n "$t" ]] || continue
-    CONV_POINTER="$t"
-    return 0
-  done <"$f"
-  return 0
-}
-
 ensure_convention_patterns() {
   ((CONV_LOADED)) && return 0
   CONV_LOADED=1
   REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
   CONV_DEPS=(
     "$REPO_ROOT/docs/conventions/source-control.yaml"
-    "$REPO_ROOT/.claude/source-control.md"
     "$REPO_ROOT/docs/conventions/source-control/commit-convention.yml"
     "$REPO_ROOT/docs/conventions/source-control.local.yaml"
   )
-  conv_pointer
-  [[ -n "$CONV_POINTER" ]] && CONV_DEPS+=("$REPO_ROOT/$CONV_POINTER")
 
   CONV_CACHE=""
   [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] &&
@@ -236,8 +205,8 @@ ensure_convention_patterns() {
           conv_end="END"
           break
         fi
-        # Recorded set must be the current set, in order: a pointer that changed
-        # already moved the team file's mtime, but this keeps the read honest.
+        # Recorded set must be the current set, in order: an entry written by a
+        # release with another dependency list reads as a miss.
         [[ "$conv_line" == "DEP "[01]" "* && "${conv_line:6}" == "${CONV_DEPS[conv_i]:-}" ]] || {
           conv_fresh=0
           break
