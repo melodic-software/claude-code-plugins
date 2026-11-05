@@ -51,6 +51,20 @@ if [[ "$(cat "$f/$first")" == $'---\nbump: minor\n---' ]]; then
 else
   fail "unexpected content: $(cat "$f/$first")"
 fi
+# 30 draws: with no redraw, a suffix holds two hex letters in a row more often than not.
+paired=""
+for _ in $(seq 30); do
+  name="$(run_new "$f" alpha patch)" || {
+    paired="run failed (rc=$?)"
+    break
+  }
+  [[ "${name##*-}" =~ [a-f]{2} ]] && paired="$name"
+done
+if [[ -z "$paired" ]]; then
+  ok "no suffix holds two hex letters in a row, which the typos check can read as a word"
+else
+  fail "suffix with two letters in a row: $paired"
+fi
 printf '### Added\n\n- New thing.\n' >>"$f/$first"
 # shellcheck source=lib/changelog-fragments.sh
 if (cd "$f" && . scripts/lib/changelog-fragments.sh && changelog_fragments::validate "$first"); then

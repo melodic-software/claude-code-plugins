@@ -142,8 +142,17 @@ trap 'rm -f "${written[@]}"' EXIT
 trap 'exit 2' INT TERM HUP
 discard() { exit 2; }
 for plugin in "${plugins[@]}"; do
-  if ! suffix="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" || [[ ! "$suffix" =~ ^[0-9a-f]{8}$ ]]; then
-    echo "$self: could not read 4 random bytes from /dev/urandom." >&2
+  # The typos check reads a run of hex letters in a suffix as a word and can block the push on
+  # it, so a suffix with two letters in a row is drawn again.
+  for ((try = 0; try < 64; try++)); do
+    if ! suffix="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" || [[ ! "$suffix" =~ ^[0-9a-f]{8}$ ]]; then
+      echo "$self: could not read 4 random bytes from /dev/urandom." >&2
+      discard
+    fi
+    [[ "$suffix" =~ [a-f]{2} ]] || break
+  done
+  if [[ "$suffix" =~ [a-f]{2} ]]; then
+    echo "$self: drew no suffix without two letters in a row in 64 tries." >&2
     discard
   fi
   path=".changes/$plugin/$slug-$suffix.md"
