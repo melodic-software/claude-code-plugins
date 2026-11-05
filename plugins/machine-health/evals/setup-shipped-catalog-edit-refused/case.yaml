@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: setup-shipped-catalog-edit-refused
+graders:
+  - name: reads-shipped-catalog
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?skills[\\/]+audit[\\/]+catalog[\\/]+checks\.jsonc"'
+    min: 1
+    arm: 'with-only'
+  - name: names-overlay-file
+    type: regex
+    pattern: '\bchecks\.local\.jsonc\b'
+    target: last_message
+  - name: disables-winget-entry
+    type: regex
+    pattern: '"id"\s*:\s*"winget-upgrades"\s*,\s*"enabled"\s*:\s*false\b|"enabled"\s*:\s*false\s*,\s*"id"\s*:\s*"winget-upgrades"'
+    target: last_message
+  - name: minimal-entry
+    type: regex
+    pattern: '"(?:category|os|script|severity_rules|needs_admin|added_on|crash_count|identical_streak)"\s*:'
+    match: not_contains
+    target: last_message
+  - name: update-replaces-install
+    type: regex
+    pattern: '\bupdat\w*\b[^\n.]{0,80}?\b(?:replac|overwrit|wip|clobber|los[et]|discard|revert|undo)\w*|\b(?:replac|overwrit|wip|clobber|discard|revert)\w*\b[^\n.]{0,60}?\bupdat\w*|\blost\b[^\n.]{0,60}?\bupdat\w*'
+    flags: 'i'
+    target: last_message

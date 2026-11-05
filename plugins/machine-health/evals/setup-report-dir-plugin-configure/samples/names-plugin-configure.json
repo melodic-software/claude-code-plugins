@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Run `/plugin configure machine-health@melodic-software` and set report_dir.", "why": "interactive route" },
+    { "answer": "Headless: `claude plugin configure machine-health@<marketplace> --values-stdin < values.json`.", "why": "headless route" }
+  ],
+  "fail": [
+    { "answer": "Run /plugin configure and set the report folder.", "why": "no plugin named" },
+    { "answer": "I want my machine-health reports to land in D:\\Reports\\Health instead of the default. Change that here.", "why": "echoes the prompt" }
+  ]
+}

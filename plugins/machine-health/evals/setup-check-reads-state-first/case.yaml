@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: setup-check-reads-state-first
+graders:
+  - name: reads-shipped-catalog
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?skills[\\/]+audit[\\/]+catalog[\\/]+checks\.jsonc"'
+    min: 1
+    arm: 'with-only'
+  - name: counts-shipped-checks
+    type: regex
+    pattern: '\b27\b[^\n]{0,40}\bchecks?\b|\bchecks?\b[^\n]{0,40}\b27\b'
+    flags: 'i'
+    target: last_message
+  - name: names-unapproved-remediation
+    type: regex
+    pattern: '\brestart-stopped-service\b'
+    target: last_message
+  - name: reports-before-changing
+    type: llm
+    criteria: "PASS only if the reply reports the current configuration (how many checks ship, the overlay's patch turning off battery, which remediations are approved and which are not, and the two pending proposals) before it offers any change, writes or replaces nothing, and presents setup as safe to re-run or as offering updates rather than overwriting. FAIL if it says it wrote, reset or replaced the overlay, approvals or proposals file, proposes overwriting one of them wholesale, or offers changes with no report of the current state first."
