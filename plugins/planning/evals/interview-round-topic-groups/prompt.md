@@ -1,6 +1,6 @@
 ---
 description: "Round 2 of a webhook-sender interview whose frontier spans two topics, retry policy and failure alerting. Why hard: the round must keep every question in its full layout and add topic headers; the easy failures are one flat numbered list, or a closing summary table of the questions."
-tags: [interview, round-layout, topic-groups]
+tags: [interview, round-layout, topic-groups, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
