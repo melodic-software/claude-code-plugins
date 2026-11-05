@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.1] - 2026-11-05
+
+### Fixed
+
+- `lib/check-retirements.sh` skips `kind: file` records, and refuses `--clean` of one, when the root is `$HOME` or not inside a git work tree ([#13504](https://github.com/melodic-software/claude-code-plugins/issues/13504)). There a `.claude/<name>.json` path is the live user-global layer, not a retired team file; stderr reports `<id>: skipped: root is not a repository`.
+
 ## [0.17.0] - 2026-11-05
 
 ### Changed
