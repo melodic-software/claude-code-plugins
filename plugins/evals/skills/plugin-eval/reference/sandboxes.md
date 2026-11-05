@@ -139,7 +139,7 @@ target holds a `tls/` directory (the Windows contexts store's TLS keys; `docker-
 with exit 2 and names it). Say in the run report that the swap ran. `run` passes the command's exit
 code through, so a refused swap is told apart by its stderr line `docker-links: refused:`. The
 owner decided on 2026-11-05 to run the swap without asking when all three conditions hold. When
-any condition fails, refuse and name the links. The Docker behaviour behind the decision is in
+any condition fails, refuse and name the links. The Docker behavior behind the decision is in
 [Record](#record).
 
 Wrap the run step's CLI command, unchanged:
@@ -184,7 +184,7 @@ as well. Why every link and not a list of names: [records.md](records.md#sandbox
   `tracePath` with no `claude-eval-*` directory on it, the docs name the sandbox directory, or a
   release note says runs remove their sandboxes.
 
-- **Pointer:** the Docker link swap's no-ask rule rests on two Docker Desktop behaviours. First,
+- **Pointer:** the Docker link swap's no-ask rule rests on two Docker Desktop behaviors. First,
   its WSL integration writes the `~/.docker` links into `/mnt/c` again at startup, over whatever
   is there ([docker/for-win#11668](https://github.com/docker/for-win/issues/11668)), so a
   one-time host fix does not last. Second, the WSL-side CLI uses the `default` context on the
