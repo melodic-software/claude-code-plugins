@@ -1146,6 +1146,12 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       "push-branches": ["lanes-app", "lanes-app github-token"],
       publish: ["lanes-app", "lanes-app github-token"],
     },
+    "maintenance-measure-skill-edit.yml": {
+      gate: "github-token",
+      propose: "github-token",
+      "push-branch": ["lanes-app", "lanes-app github-token"],
+      publish: ["lanes-app", "lanes-app github-token"],
+    },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");

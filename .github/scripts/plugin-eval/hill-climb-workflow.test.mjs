@@ -1,6 +1,7 @@
-// eval-hill-climb.yml and its pass workflow measure an edit and hold no write:
-// no job has a write permission, id-token or a lane token; the one model step
-// is read-only and frames what it reads as data; every pass runs the same
+// maintenance-measure-skill-edit.yml and its pass workflow measure an edit, and
+// only the two jobs after a win write, under the owner's grant (AL-Q11): each
+// holds id-token for one lanes App token and nothing else writes; the one model
+// step is read-only and frames what it reads as data; every pass runs the same
 // bounded eval; and the only artifact kept past the run is a win's, for 3 days.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -12,8 +13,10 @@ import { test } from "node:test";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const code = (text) => text.replace(/^\s*#.*$/gm, "");
-const main = read("eval-hill-climb.yml");
+const main = read("maintenance-measure-skill-edit.yml");
 const pass = read("eval-hill-climb-pass.yml");
+// The jobs that mint a lanes App token, each its one effect (AL-Q11).
+const WRITERS = { "push-branch": "apply-skill-edit-branch", publish: "publish-skill-edit-pr" };
 const jobs = (text) =>
   Object.fromEntries(
     text
@@ -28,15 +31,49 @@ const step = (block, name) => {
   return block.slice(start).split("\n      - name:")[0];
 };
 
-test("no job holds a write permission, id-token or a lane token", () => {
-  for (const [file, text] of [["eval-hill-climb.yml", main], ["eval-hill-climb-pass.yml", pass]]) {
+test("only push-branch and publish hold id-token, each for its one lane token; every other job reads only", () => {
+  for (const [file, text] of [["maintenance-measure-skill-edit.yml", main], ["eval-hill-climb-pass.yml", pass]]) {
     assert.match(text, /^permissions: \{\}$/m, file);
-    assert.doesNotMatch(code(text), /:\s*write\b/, file);
-    assert.doesNotMatch(code(text), /id-token|request-lane-token|LANES_BROKER|lane-rules/, file);
+    assert.doesNotMatch(code(text), /\b(checks|statuses|actions|workflows|pull-requests|issues|contents): write\b|write-all/, file);
     for (const [name, block] of Object.entries(jobs(text))) {
-      assert.match(block, /\n {4}permissions:\n {6}contents: read/, `${file} ${name}`);
+      const writer = file === "maintenance-measure-skill-edit.yml" && Object.hasOwn(WRITERS, name);
+      const permissions = block.match(/\n {4}permissions:\n((?: {6}.+\n)+)/)?.[1] ?? "";
+      const keys = [...permissions.matchAll(/^ {6}([a-z-]+): (\w+)/gm)].map(([, key, level]) => `${key}: ${level}`);
+      // The gate also reads this run's re-runner (check-trusted-trigger).
+      const reads = name === "gate" ? ["contents: read", "actions: read"] : ["contents: read"];
+      assert.deepEqual(keys, writer ? ["contents: read", "id-token: write"] : reads, `${file} ${name}`);
+      const mints = [...code(block).matchAll(/request-lane-token[^]*?\n {10}activity: ([a-z-]+)\n/g)].map(([, activity]) => activity);
+      assert.deepEqual(mints, writer ? [WRITERS[name]] : [], `${file} ${name} mints`);
+      if (!writer) assert.doesNotMatch(code(block), /id-token|request-lane-token|LANES_BROKER/, `${file} ${name}`);
     }
   }
+  // The model step's job holds no write token and no OIDC token.
+  assert.doesNotMatch(jobs(main).propose, /id-token|lane-token|GH_TOKEN/);
+});
+
+test("the writes run only after a verified win, check what they carry before the mint, and run no model", () => {
+  const { "push-branch": push, publish } = jobs(main);
+  assert.match(push, /\n {4}needs: \[gate, scan, verdict\]\n {4}if: \$\{\{ !cancelled\(\) && needs\.verdict\.outputs\.win == 'true' && needs\.verdict\.outputs\.artifact-id != '' \}\}\n/);
+  assert.match(publish, /needs\.push-branch\.result == 'success'\n\s+&& needs\.push-branch\.outputs\.skip-reason == ''/);
+  for (const block of [push, publish]) {
+    assert.doesNotMatch(block, /run-claude-cli|claude plugin eval|claude -p|secrets\./);
+    assert.match(block, /kill-switch-ok: true\n/);
+    assert.match(step(block, "Revoke the lane token"), /DELETE/);
+  }
+  assert.ok(push.indexOf("- name: Check the edit") < push.indexOf("- name: Request the lane token"));
+  assert.match(step(push, "Check the edit"), /\[ "\$\{sum%% \*\}" != "\$WANT" \]/);
+  assert.match(step(push, "Check the edit"), /WANT: \$\{\{ needs\.scan\.outputs\.sha256 \}\}/);
+  assert.match(step(push, "Push the branch"), /hill-climb-publish\.mjs push\n/);
+  assert.match(step(push, "Push the branch"), /EDIT_DIR: \$\{\{ github\.workspace \}\}\/\.edit\n/);
+  assert.ok(publish.indexOf("- name: Scan the pull request text") < publish.indexOf("- name: Request the lane token"));
+  assert.match(step(publish, "Write the pull request text"), /WANT: \$\{\{ needs\.verdict\.outputs\.manifest-sha256 \}\}/);
+  assert.match(step(publish, "Write the pull request text"), /sha256sum --check --strict --quiet manifest\.sha256/);
+  assert.match(step(publish, "Request the lane token"), /if: steps\.scan-text\.outputs\.clean == 'true'\n/);
+  assert.match(step(publish, "Open the draft pull request"), /hill-climb-publish\.mjs publish\n/);
+  // The workflow names no merge, ready flip or auto-merge.
+  assert.doesNotMatch(code(main), /gh pr (merge|ready)|enable-auto-merge|markPullRequestReadyForReview|draft: false/);
+  assert.match(main, /^on:\n {2}workflow_dispatch:\n/m);
+  assert.doesNotMatch(main, /^ {2}(schedule|push|pull_request\w*|workflow_run):/m);
 });
 
 test("pass a, a2 and b run the one pass workflow, and only pass b gets the scanned edit", () => {
@@ -128,7 +165,7 @@ test("the verdict names the stopping gate, and only a win is kept, for 3 days", 
       assert.ok(["retention-days: 1", "retention-days: 3"].includes(days), days);
     }
   }
-  assert.match(main, /# Owner question Q11 \(#6405 comment, https:\/\/github\.com\/melodic-software\/claude-code-plugins\/issues\/6405#issuecomment-6625292188\)/);
+  assert.match(main, /# The owner's grant \(AL-Q11,\n# https:\/\/github\.com\/melodic-software\/claude-code-plugins\/issues\/12035#issuecomment-6650791111\)/);
 });
 
 // The Decide step's closing branch, run in bash: a gate stop (status 1) is

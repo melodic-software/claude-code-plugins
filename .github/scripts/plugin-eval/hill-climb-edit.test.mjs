@@ -21,7 +21,7 @@ test("a path outside the skill directory is refused", () => {
     "plugins/testing/skills/SKILL.md",
     "plugins/testing/.claude-plugin/plugin.json",
     "plugins/other/skills/write/SKILL.md",
-    ".github/workflows/eval-hill-climb.yml",
+    ".github/workflows/maintenance-measure-skill-edit.yml",
   ]) {
     assert.match(refusal(path), /^outside plugins\/testing\/skills\/write\/$/, path);
   }

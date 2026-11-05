@@ -84,5 +84,10 @@
     "stage": "maintenance",
     "forbidden-effects": ["mutate-tracker", "merge"],
     "never": "Merges, or writes to main or a branch outside chore/tidy-adhoc-<slug>-<date>"
+  },
+  "maintenance-measure-skill-edit": {
+    "stage": "maintenance",
+    "forbidden-effects": ["mutate-tracker", "merge"],
+    "never": "Merges, marks a pull request ready, or writes to main or a branch outside chore/hill-climb-<plugin>-<skill>-<run id>, which holds only the skill's markdown and one .changes/<plugin>/ fragment"
   }
 }

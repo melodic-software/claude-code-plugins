@@ -1,10 +1,10 @@
 name: eval-hill-climb-pass
 
-# One measuring pass of eval-hill-climb.yml: `claude plugin eval` on one
+# One measuring pass of maintenance-measure-skill-edit.yml: `claude plugin eval` on one
 # plugin's deterministic-only suite (deterministic-suite.mjs), filtered to one
 # skill's cases, 3 runs per case per arm under --max-cost-usd 5, on a fresh
 # runner. Pass a and a2 run the skill as merged; pass b first applies the edit
-# eval-hill-climb.yml's scan job approved, verified by its SHA-256.
+# maintenance-measure-skill-edit.yml's scan job approved, verified by its SHA-256.
 #
 # Every pass runs the same way, so the a/a pair measures the noise pass b
 # faces. Pass b runs model-written skill text beside the eval credential, so

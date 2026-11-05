@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// hill-climb-edit.mjs: apply and check the one skill edit eval-hill-climb.yml's
+// hill-climb-edit.mjs: apply and check the one skill edit maintenance-measure-skill-edit.yml's
 // model proposes.
 //
 //   hill-climb-edit.mjs apply --root <repo> --plugin <p> --skill <s> --proposal <file>
