@@ -2,11 +2,3 @@ schema_version: "1.1"
 name: code-review-preexisting-called-advisory
 context:
   scaffold_script: scaffold.sh
----
-description: "CI code review of a PR that adds a caller of an unchanged helper whose missing-last-name bug already reproduces on main reports that bug as advisory in the summary, not as a blocking or inline finding"
-tags: [review, code-review, pre-existing]
-runs: 3
-max_turns: 40
-timeout_seconds: 900
-allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports that src/names.js formatName renders 'Ada undefined' for a user with no last name, says the defect predates this change (src/profile.js already calls it on main), and reports it as an advisory summary finding with no inline comment, never as blocking"
