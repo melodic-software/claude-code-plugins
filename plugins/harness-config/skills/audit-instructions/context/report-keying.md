@@ -25,7 +25,8 @@ command of your own, against the plugin data directory.
 The key is
 `<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh` that
 the script runs and `audit-prompting-postures` also uses. To read the prior report, run the
-`state-key.sh` command Phase D names and use its result.
+`state-key.sh` command Phase D names and open the report at that key with the Read tool; a
+not-found result is the first case below. Check for the legacy file the same way.
 
 Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set": in `SKILL.md` the placeholder is substituted before the body reaches you, and in this
 file, read with the Read tool, it arrives as literal text, so in neither place is the condition

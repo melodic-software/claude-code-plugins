@@ -45,7 +45,6 @@ plugins/corrections/skills/codify/actions/group.md 2 # pending: the steps run bu
 plugins/corrections/skills/codify/actions/note.md 1 # pending: the step runs a bundled tool through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
 plugins/docs-hygiene/skills/audit-noise/context/persist-findings.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
 plugins/docs-naming/skills/realign-file-names/context/apply-recipe.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
-plugins/harness-config/skills/audit-instructions/context/persist-findings.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
 plugins/playbooks/skills/repo-sweep/reference/next.md 2 # pending: the shorthands S and C name bundled paths through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/... instead
 plugins/playbooks/skills/repo-sweep/reference/plan.md 2 # pending: the shorthands S and C name bundled paths through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/... instead
 plugins/playwright/skills/playwright/actions/update.md 2 # pending: the commands run a bundled script through ${CLAUDE_PLUGIN_ROOT}; cite <skill-dir>/scripts/... instead
