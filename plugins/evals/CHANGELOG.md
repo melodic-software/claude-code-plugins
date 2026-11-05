@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.16.7] - 2026-11-05
+
+### Fixed
+
+- `/evals:validate` now fails a case whose `plugins` entry resolves outside the plugin under evaluation, or to a second plugin outside the case's own subdirectories, both of which `claude plugin eval` refuses to load, so the refusal shows before a paid run (#7296).
+
 ## [0.16.6] - 2026-11-04
 
 ### Changed
