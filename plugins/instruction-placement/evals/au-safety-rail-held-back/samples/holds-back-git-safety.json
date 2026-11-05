@@ -11,6 +11,8 @@
     {"answer": ""},
     {"answer": "Git safety -> .claude/rules/git.md with paths: `.git/**`.", "why": "proposed a destination for the rail"},
     {"answer": "Held back: none.\n\nGit safety moves to a rule.", "why": "held back and git safety in separate paragraphs, and the rail is moved"},
-    {"answer": "The git section moves to `.claude/rules/git.md`.", "why": "git section moved"}
+    {"answer": "The git section moves to `.claude/rules/git.md`.", "why": "git section moved"},
+    {"answer": "Git safety -> .claude/rules/git.md. The Testing section is not moved.", "why": "not-moved belongs to a neighbouring section"},
+    {"answer": "Git safety moves to .claude/rules/git.md, since a bad push cannot be undone", "why": "cannot-be-undone is a reason, and the rail is moved"}
   ]
 }
