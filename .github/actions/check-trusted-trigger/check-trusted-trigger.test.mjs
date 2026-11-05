@@ -3464,6 +3464,61 @@ test("reconciler record: no record does not vouch, after one re-read", async () 
   assert.equal(sleeps.length, 1);
 });
 
+// Outage posture element 6 (docs/outage-posture-audit.md): the record listing's
+// re-read is a conditional request. GitHub answers 304 to an If-None-Match
+// naming the page's current ETag and, for an authorized request, does not count
+// it against the primary rate limit
+// (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
+// The routes go through a real createGitHub, so the client's header and ETag
+// handling are what is tested. `listings` answers the record listing in turn:
+// `{ etag, body }` is a 304 to a request naming that ETag, else a 200 with the
+// body (and the ETag header, unless it is null); `{ status: 304 }` is a 304
+// whatever was sent. With `runFailsFirst`, the reconciler run's first read
+// answers 404, so a record listed at the first read vouches only when the
+// re-read gives it back and it is judged again.
+const RECORD_LISTING = listing(rerunRecord({ name: rerunRecordAt(2) }));
+function conditionalClient(listings, { runFailsFirst = true } = {}) {
+  const routes = rerunRoutes();
+  const sent = [];
+  let runReads = 0;
+  const fetchImpl = async (url, init) => {
+    const key = `${init.method ?? "GET"} ${url.slice("https://api.example".length)}`;
+    const ifNoneMatch = init.headers["If-None-Match"];
+    if (key === rerunArtifactsRouteAt(2)) {
+      sent.push(ifNoneMatch);
+      const { etag = null, body, status } = listings.shift();
+      const headers = etag === null ? {} : { etag };
+      return status === 304 || (etag !== null && ifNoneMatch === etag) ? new Response(null, { status: 304, headers }) : Response.json(body, { headers });
+    }
+    if (key === reconcilerRoute && runFailsFirst && (runReads += 1) === 1) {
+      return Response.json({ message: "Not Found" }, { status: 404 });
+    }
+    return key in routes ? Response.json(routes[key]) : Response.json({ message: "Not Found" }, { status: 404 });
+  };
+  const latch = { guard: (f) => f, waitOut: async () => {}, waits: () => false };
+  return { github: createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch, random: () => 0, log: () => {} }), sent };
+}
+
+test("reconciler record: the re-read sends the listing's ETag, and a 304 gives back the listing that ETag came with", async () => {
+  const sleeps = [];
+  const { github, sent } = conditionalClient([{ etag: '"e1"', body: RECORD_LISTING }, { etag: '"e1"' }]);
+  assert.equal(await vouches({ github, sleep: async (ms) => sleeps.push(ms) }), true);
+  assert.deepEqual(sent, [undefined, '"e1"']);
+  assert.equal(sleeps.length, 1);
+});
+
+test("reconciler record: a listing that changed since its ETag answers 200 and is judged as sent", async () => {
+  const { github, sent } = conditionalClient([{ etag: '"e1"', body: listing() }, { etag: '"e2"', body: RECORD_LISTING }], { runFailsFirst: false });
+  assert.equal(await vouches({ github }), true);
+  assert.deepEqual(sent, [undefined, '"e1"']);
+});
+
+test("reconciler record: a page that came with no ETag is read again unconditionally, and a 304 to it is a failed read", async () => {
+  const { github, sent } = conditionalClient([{ body: RECORD_LISTING }, { status: 304 }]);
+  assert.equal(await vouches({ github }), false);
+  assert.deepEqual(sent, [undefined, undefined]);
+});
+
 test("reconciler record: a record from a run the gate does not accept does not vouch", async () => {
   for (const reconciler of [{ path: ".github/workflows/pr-review-hosted.yml" }, { event: "pull_request" }, { head_branch: "fix/x" }]) {
     assert.equal(await vouches({ github: fakeGitHub(rerunRoutes({ reconciler })) }), false, JSON.stringify(reconciler));
