@@ -137,11 +137,10 @@ On WSL2, for every eval that grants `Bash`, run the swap without asking when all
 `DOCKER_CONFIG` is unset, every link (or `~/.docker` itself) points under `/mnt/`, and no link
 target holds a `tls/` directory (the Windows contexts store's TLS keys; `docker-links.py` refuses
 with exit 2 and names it). Say in the run report that the swap ran. `run` passes the command's exit
-code through, so a refused swap is told apart by its stderr line `docker-links: refused:`. The owner decided this on
-2026-11-05: Docker Desktop's WSL integration recreates the links at every start
-([docker/for-win#11668](https://github.com/docker/for-win/issues/11668)), so no host fix lasts,
-and the WSL CLI uses the `default` context on the unix socket, never the Windows npipe contexts
-behind the link. When any condition fails, refuse and name the links.
+code through, so a refused swap is told apart by its stderr line `docker-links: refused:`. The
+owner decided on 2026-11-05 to run the swap without asking when all three conditions hold. When
+any condition fails, refuse and name the links. The Docker behaviour behind the decision is in
+[Record](#record).
 
 Wrap the run step's CLI command, unchanged:
 
@@ -184,3 +183,15 @@ as well. Why every link and not a list of names: [records.md](records.md#sandbox
 - **Recheck when:** a `--keep-temp` run prints a sandbox path outside `<tmp>/claude-eval-*` or a
   `tracePath` with no `claude-eval-*` directory on it, the docs name the sandbox directory, or a
   release note says runs remove their sandboxes.
+
+- **Pointer:** the Docker link swap's no-ask rule rests on two Docker Desktop behaviours. First,
+  its WSL integration writes the `~/.docker` links into `/mnt/c` again at startup, over whatever
+  is there ([docker/for-win#11668](https://github.com/docker/for-win/issues/11668)), so a
+  one-time host fix does not last. Second, the WSL-side CLI uses the `default` context on the
+  integration's unix socket, and the Windows contexts behind the link are npipe endpoints it
+  cannot dial (`docker context ls` on a WSL2 host). Docker's
+  [WSL 2 backend](https://docs.docker.com/desktop/features/wsl/) page covers the integration but
+  not the links.
+- **As of:** 2026-11-05.
+- **Recheck when:** Docker Desktop's WSL integration changes how it writes `~/.docker`, or the
+  WSL CLI's default context changes.
