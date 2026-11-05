@@ -174,8 +174,8 @@ export const reachedIntake = (jobs) =>
 // returns a check run's annotation list): `-` when it never reached intake,
 // `~` when it stopped on a transient answer, `+` otherwise, so whatever cannot
 // be told apart counts. Transient is either:
-// - apply-verdict failed or succeeded, and every failure annotation and every
-//   "not written" warning it left names a GitHub 5xx, a timeout or a network
+// - apply-verdict failed or succeeded, and every failure annotation, every
+//   "not written" warning and every `held: ` notice it left names a GitHub 5xx, a timeout or a network
 //   failure (runs 41814429466 and 41814435576: "failed with status 500",
 //   "GitHub answered 500"); or
 // - apply-verdict was skipped because the reusable's apply job deferred an
@@ -195,6 +195,9 @@ const transientNote = (message) => {
   return statuses.length > 0 ? statuses.every((code) => code.startsWith("5")) : TRANSIENT.test(message);
 };
 const DEFERRED = "permission denial(s) on an otherwise clean triage";
+// apply-verdict's notice when a fault held it green (its closing), read as a
+// failure annotation is.
+const HELD = /^held: /;
 const EXIT_LINE = /^Process completed with exit code \d+\.$/;
 const checkRunPath = (job) => {
   const id = /\/check-runs\/([0-9]+)$/.exec(String(job?.check_run_url ?? ""))?.[1];
@@ -213,7 +216,12 @@ export async function classifyRun(jobs, annotations) {
   const path = ["failure", "success"].includes(apply?.conclusion) ? checkRunPath(apply) : null;
   if (!path) return "+";
   const notes = ((await annotations(path)) ?? [])
-    .filter((a) => a?.annotation_level === "failure" || (a?.annotation_level === "warning" && /not written/.test(String(a.message ?? ""))))
+    .filter(
+      (a) =>
+        a?.annotation_level === "failure" ||
+        (a?.annotation_level === "warning" && /not written/.test(String(a.message ?? ""))) ||
+        (a?.annotation_level === "notice" && HELD.test(String(a.message ?? ""))),
+    )
     .filter((a) => !EXIT_LINE.test(String(a.message ?? "")));
   return notes.length > 0 && notes.every((a) => transientNote(String(a.message ?? ""))) ? "~" : "+";
 }
