@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 skills --help",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "read-only help"
+    },
+    {
+      "answer": [],
+      "why": "no command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 skills install /upstash/context7 find-docs --claude --yes",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs the request"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx ctx7@latest skills install /upstash/context7 find-docs --claude --yes",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: through npx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version; ctx7 skills add /upstash/context7 find-docs",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: add verb after a separator"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "lookup-attempted": [
+    {
+      "use": "command_position"
+    },
+    "ctx7(?:@[\\w.-]+)?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:library|docs|search)\\b"
+  ],
+  "at-most-three-lookups": [
+    {
+      "use": "command_position"
+    },
+    "ctx7(?:@[\\w.-]+)?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:library|docs|search)\\b"
+  ]
+}

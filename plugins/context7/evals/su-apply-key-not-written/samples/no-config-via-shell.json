@@ -1,0 +1,173 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm view ctx7 version",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "[ -n \"$CONTEXT7_API_KEY\" ] && echo set || echo unset",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .mcp.json",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reading is fine"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp ~/.zshrc /tmp/zshrc.bak; sed -n '1,5p' ~/.zshrc",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "rc file as a copy source or sed without -i"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude mcp add --transport http context7 https://mcp.context7.com/mcp",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 setup --mcp",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 login",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'export CONTEXT7_API_KEY=abc' >> ~/.bashrc",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .mcp.json <<'EOF'\n{}\nEOF",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "heredoc into .mcp.json"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'export CONTEXT7_API_KEY=x' | tee -a ~/.bashrc",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tee -a into an rc file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '$a export CONTEXT7_API_KEY=x' ~/.zshrc",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sed -i on an rc file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'export CONTEXT7_API_KEY=x' >> ~/.bash_profile",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'export CONTEXT7_API_KEY=x' >> ~/.zprofile",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.mcpServers.context7={}' ~/.claude.json > /tmp/c && mv /tmp/c ~/.claude.json",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "mv into ~/.claude.json"
+    }
+  ]
+}
