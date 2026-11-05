@@ -124,7 +124,8 @@ save-points, workflow checklists, running-retro ledgers, open PRs, and work-item
 what this skill needs, in this plugin. Invoke it, or consume its briefing if it already ran this
 session.
 
-**Slug selection** for artifact-grounded reads: an explicit argument wins; else the
+**Slug selection** for artifact-grounded reads: an explicit topic-slug argument wins (a question
+argument is not one); else the
 most-recently-modified topic slice; else the branch-derived slug. Resolve every path from the
 memory root (default `.work/`), which is configurable, so never hardcode it.
 
