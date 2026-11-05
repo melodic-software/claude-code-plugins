@@ -88,6 +88,12 @@ name: pr-feedback-dispatch
 # The token's rate-limit readings, from the script's own responses, are logged
 # at the end of the job (.github/actions/log-api-budget).
 
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it: feedback-dispatch.mjs is not yet
+# shown to hold green on every refused read.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]

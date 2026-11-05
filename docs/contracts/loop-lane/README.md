@@ -449,7 +449,10 @@ run's own `patch-protected-path` stop adds (`stop-routes.json`); `needs-session`
 for pull requests pr-unblock stops on. It maps a
 refinement's `External state: manual (...)` line to `attended`; a resolve-issue run that reaches
 such a step stops with the `manual-external` code, which routes to `attended`
-([Attended work](../../conventions/pr-pipeline/README.md#attended-work)).
+([Attended work](../../conventions/pr-pipeline/README.md#attended-work)). An issue that mixes
+such items with items the lane can do also parks at `status: confirmed`, with no `host-run`, for
+refine.mjs to split: no person answers a split. Every intake hold for a person
+(`status: needs-decision`) names its owner reason in a `stop-reason lane=intake-triage` marker.
 
 A session does not hold a pull request that a lane already judges (a Dependabot tier, the security
 review lane's verdict), or ask the owner about it, on its own concern. It routes the concern to that lane's owner as an issue,
