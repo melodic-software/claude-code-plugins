@@ -22,6 +22,8 @@ Avoid: bill, payment request
   unless it has a distinct project-domain meaning.
 - **Purity:** the glossary contains vocabulary, not specifications, decisions, tasks, examples of
   implementation, or unresolved brainstorming.
+- **Grouping:** when the terms fall into clear clusters, put each cluster under its own subheading;
+  a small or uniform set stays one list.
 
 Use scenarios to test whether the definition is precise enough for domain experts and developers to
 use consistently. Update the language as understanding changes; do not preserve a stale entry merely

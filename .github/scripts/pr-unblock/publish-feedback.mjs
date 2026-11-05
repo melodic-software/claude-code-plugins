@@ -189,7 +189,7 @@ export function parseRun(text) {
     run?.version === 1 &&
       SHA.test(run.head_sha ?? "") &&
       Array.isArray(run.threads) &&
-      (run.pr_paths === undefined || (Array.isArray(run.pr_paths) && run.pr_paths.every((path) => typeof path === "string"))),
+      [run.pr_paths, run.copy_paths].every((paths) => paths === undefined || (Array.isArray(paths) && paths.every((path) => typeof path === "string"))),
     "run.json is malformed",
   );
   check(
@@ -308,12 +308,13 @@ export function lineChanged(patch, line) {
 
 // The files whose line the reply's `evidence` cites inside a hunk of the fix
 // (`patches`, by filename), among the pull request's files (`prPaths`) and
-// those inThreadScope allows for that one thread.
-function citedFiles(evidence, patches, thread, prPaths = new Set()) {
+// those inThreadScope allows for that one thread, under the same scope the
+// fix itself was checked against (`prPaths`, `copyPaths`).
+function citedFiles(evidence, patches, thread, prPaths = new Set(), copyPaths = new Set()) {
   return new Set(
     evidence
       .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
-      .filter(([path, line]) => (prPaths.has(path) || inThreadScope(path, new Set([thread.path]), [thread])) && lineChanged(patches.get(path), line))
+      .filter(([path, line]) => (prPaths.has(path) || inThreadScope(path, new Set([thread.path]), [thread], { prPaths, copyPaths })) && lineChanged(patches.get(path), line))
       .map(([path]) => path),
   );
 }
@@ -393,7 +394,7 @@ const claimedFixes = (reviewComments, appId) =>
 
 // Whenever the PR branch moved since the select job's head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
-// threads' paths and the PR's own files (run.json, whose SHA-256 the select
+// threads' paths, the PR's own files and their shared copies (run.json, whose SHA-256 the select
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
 // exactly one fix commit (isLaneFix), whose Lane-Thread trailer must name
@@ -421,6 +422,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   const threadOf = new Map(run.threads.map((thread) => [thread.id, thread]));
   const paths = new Set(run.threads.map((thread) => thread.path));
   const prPaths = new Set(run.pr_paths ?? []);
+  const copyPaths = new Set(run.copy_paths ?? []);
   const files = comparison.files ?? [];
   const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
@@ -432,6 +434,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
           path === undefined ||
           inThreadScope(path, paths, run.threads, {
             prPaths,
+            copyPaths,
             added: path === file.filename && ["added", "renamed", "copied"].includes(file.status),
           }),
       ),
@@ -444,7 +447,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const changed = commitFiles.map((file) => file.filename);
     const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
     const named = threadsNamed(fixes[0].commit.message);
-    const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths));
+    const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths, copyPaths));
     if (!valid.every((reply) => named.has(reply.thread) && touches(threadOf.get(reply.thread), reply))) {
       return null;
     }

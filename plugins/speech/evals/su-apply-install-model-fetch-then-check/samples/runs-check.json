@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/assets.py\" fetch --data-dir \"/tmp/run-1/data\""
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/check.py\" --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "fetch, then check in a later call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/assets.py\" fetch --data-dir \"/tmp/run-1/data\"; python3 \"/tmp/run-1/plugin/scripts/check.py\" --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "fetch and check in one call, check second (the failed-download case still reaches check)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/assets.py\" fetch --data-dir \"/tmp/run-1/data\" && python3 \"/tmp/run-1/plugin/scripts/check.py\" --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "fetch && check in one call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/assets.py\" fetch --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "fetch only: the run stopped after the download and never ran check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"next: run check.py\""
+          }
+        }
+      ],
+      "why": "names check.py in an echo but never runs it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/check.py\""
+          }
+        }
+      ],
+      "why": "check without --data-dir reads a different install"
+    }
+  ]
+}

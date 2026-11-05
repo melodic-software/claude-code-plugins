@@ -1,0 +1,49 @@
+{
+  "passes-bm-voice": [
+    {
+      "use": "command_anywhere"
+    },
+    "narrate\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    "(?=",
+    {
+      "use": "token_argument"
+    },
+    "--voice(?:\\s|=)+(?:\\\\\\\"|')?bm_(?:daniel|fable|george|lewis)\\b)"
+  ],
+  "passes-slower-speed": [
+    {
+      "use": "command_anywhere"
+    },
+    "narrate\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    "(?=",
+    {
+      "use": "token_argument"
+    },
+    "--speed(?:\\s|=)+(?:\\\\\\\"|')?0?\\.[5-9]\\d*(?:\\\\\\\"|')?(?![\\d.]))"
+  ],
+  "outputs-beside-script": [
+    {
+      "use": "command_anywhere"
+    },
+    "narrate\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    "(?:(?!",
+    {
+      "use": "token_argument"
+    },
+    "--out\\b)|(?=",
+    {
+      "use": "token_argument"
+    },
+    "--out(?:\\s|=)+(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\]*/)?docs/?(?:\\\\\\\"|')?(?=\\s|\\\\|\")))"
+  ],
+  "no-fetch": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?assets\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "(?<![\\w-])fetch\\b"
+  ]
+}

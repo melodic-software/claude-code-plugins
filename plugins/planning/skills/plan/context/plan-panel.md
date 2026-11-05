@@ -32,18 +32,25 @@ in one line that the panel was unavailable and why. For the switches that turn w
    JSON it prints. When it does not resolve, omit `roles` and say once that enabling the
    multi-agent plugin makes this routing configurable; the workflow's built-in fallbacks then
    apply.
-2. **Launch** `Workflow({ name: "planning:plan-panel", args: { task, context, angles, roles, maxConcurrent } })`:
+2. **Launch** `Workflow({ name: "planning:plan-panel", args: { task, context, angles, rubric, roles, maxConcurrent } })`:
    - `task`: the task as Step 1 scoped it (required; a missing `task` returns
      `{ error: "missing-task" }` and runs nothing).
    - `context`: what the planners need that the code does not show: the Brief, the design
      resolution, the standards sections loaded above, and the exploration and research findings.
    - `angles`: optional, 2 to 6 strings or `{ name, focus }` objects; the defaults are
      MVP-first, risk-first, reuse-first and testability-first.
+   - `rubric`: the `plan_panel_rubric` key resolved per
+     [`../../../reference/config.md`](../../../reference/config.md); omit it when the key is unset,
+     and the workflow uses the default rubric.
    - `judges`: optional judge count, 1 to 5 (default 3).
    - `maxConcurrent`: optional wave size (default 4).
-3. **Read the result.** It returns `plan` (the synthesized plan, or the winning draft when
-   `synthesized` is false), `winner`, `scores` (per draft: mean per rubric criterion and the
-   total), `grafted` (idea and source draft), `dissent`, `nulls` and `roles`. An `error` return
+3. **Read the result.** Before reading `scores`, score each returned draft yourself on `rubric`
+   and record your pick, so the judges' totals do not anchor it. It returns `plan` (the synthesized
+   plan, or the winning draft when `synthesized` is false), `winner`, `rubric` (the criteria used),
+   `scores` (per draft: mean per rubric criterion and the total), `judge_winners` (each judge's own
+   pick), `judges_split` (true when the judges picked different drafts), `grafted` (idea and
+   source draft), `left_behind` (runner-up ideas not grafted, each with why), `dissent`, `nulls`
+   and `roles`. An `error` return
    (`missing-task`, `no-drafts`, `no-judges`) means no synthesized plan exists: take the
    main-thread fallback, and on `no-judges` start from the returned drafts.
 

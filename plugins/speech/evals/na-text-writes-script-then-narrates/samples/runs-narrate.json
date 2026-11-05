@@ -1,0 +1,105 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script \"/tmp/run-1/work/media/script.txt\" --out \"/tmp/run-1/work/media\""
+          }
+        }
+      ],
+      "why": "the SKILL.md command, quoted absolute paths"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" --model-dir '${user_config.model_dir}' --out ./media --script ./media/script.txt"
+          }
+        }
+      ],
+      "why": "one line, --out first"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \"/tmp/run-1/plugin/scripts/narrate.py\" --script media/script.txt --out media/"
+          }
+        }
+      ],
+      "why": "python in place of python3"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/narrate.py\" --script media/script.txt --out media"
+          }
+        }
+      ],
+      "why": "near miss: narrate.py without pydeps.py run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run -- \"/tmp/run-1/plugin/scripts/narrate.py\" --script media/script.txt --out media"
+          }
+        }
+      ],
+      "why": "near miss: no --data-dir on pydeps.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script media/script.txt"
+          }
+        }
+      ],
+      "why": "near miss: no --out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script media/script.txt --out media2"
+          }
+        }
+      ],
+      "why": "near miss: the wrong folder"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --out media"
+          }
+        }
+      ],
+      "why": "near miss: no --script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" check --data-dir \"/tmp/run-1/data\"; \"/tmp/run-1/plugin/scripts/narrate.py\" --script s.txt --out media"
+          }
+        }
+      ],
+      "why": "near miss: narrate.py after a separate pydeps.py check"
+    }
+  ]
+}

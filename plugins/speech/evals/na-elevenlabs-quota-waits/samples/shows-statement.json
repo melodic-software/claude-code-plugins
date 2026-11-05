@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "This run would send 1840 characters to api.elevenlabs.io. Your plan has 8160 of 10000 characters left. Proceed?",
+      "why": "all three"
+    },
+    {
+      "answer": "ElevenLabs (api.elevenlabs.io) would bill 1,840 characters; 8,160 remain this period.",
+      "why": "thousands separators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This sends 1840 characters to ElevenLabs. Proceed?",
+      "why": "near miss: no host, no quota"
+    },
+    {
+      "answer": "api.elevenlabs.io would receive the script; 8160 characters are left.",
+      "why": "near miss: no character count"
+    },
+    {
+      "answer": "It would send 1840 characters to api.elevenlabs.io. Shall I go ahead?",
+      "why": "near miss: remaining quota left out"
+    }
+  ]
+}
