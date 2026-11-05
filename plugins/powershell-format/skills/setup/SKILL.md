@@ -49,7 +49,7 @@ INFO. The hooks exit through their enabled-gate before probing anything, so a de
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the floor, Bash 3.2 or newer (`lib/git-hooks/check-lib.sh`).
+1. **Bash version.** Check against the floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/check-lib.sh`).
 2. **`node`.** Probe via Bash: `command -v node`, then `node --version` when it resolves. FAIL if
    absent: every handler in `hooks/hooks.json` launches through `node hooks/exec-bash.mjs`, so
    without `node` the hook never starts and says nothing (README Requirements). The hook process
