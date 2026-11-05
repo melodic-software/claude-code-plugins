@@ -408,12 +408,12 @@ when it is empty (`.github/workflows/intake-triage.yml`), so no refinement acts 
 result is unknown.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
-`retry-spent` fault hold, work-unblock's held listings, pr-refine's held `fix-docs` reads and
-intake-triage's held verdicts (`held:`, read as an admission or verdict fault). A
+`retry-spent` fault hold, work-unblock's held listings and pr-refine's held `fix-docs` reads. A
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
 (`.github/scripts/maintenance-monitor-signals/signals.mjs` `laneHoldFindings`). It adds no stop
-and no cap.
+and no cap. intake-triage's hold is not among them: its green runs exceed the monitor's per-lane
+read cap (`collect.mjs` `LIMITS.holdRuns`), which would turn the whole source into a gap.
 
 The shared element 2 opt-in is set step by step where the script holds green on a refused call:
 work-unblock's label-unblocked step, the pr-unblock-dispatch dispatch step, pr-merge's candidate
