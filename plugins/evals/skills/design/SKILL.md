@@ -119,6 +119,10 @@ case.
 - Every skill-eval case carries its difficulty as a `hard` or `routine` tag, and its source (where
   it came from: an observed failure, a rewritten transcript, a documentation example, the
   consumer's own writing) and, for a `hard` case, why it is hard, in its `description`.
+- When the suite will gate a cut or rewrite of the skill, ask the consumer which rules the cut
+  touches and include cases whose expected outcome depends on each of them, so the detection
+  control in [plugin-eval reading-results.md, Detection control](../plugin-eval/reference/reading-results.md#detection-control)
+  can score lower without the rule. A suite with no such case cannot vouch for that cut.
 
 - **Pointer**: for task design checks on a case set, see
   [eval-audit.md section 1](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md#1-task-design).

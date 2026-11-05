@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "why": "P-canonical: asks for a detection control (old text with the two rules removed, same cases and model, must score clearly lower) and says not to ship until it does.",
+      "answer": "Not yet. Non-inferior only means the suite saw no loss; it doesn't show the suite could see one. If none of your 6 cases depends on the two rules you cut, the compare would read the same for any cut.\n\nRun a detection control first: take the old version, delete just those two rules, and run it on the same 6 cases and model, launched together with a fresh run of the old version. The suite can detect a loss if that degraded copy shows a case drop or its mean falls by 0.15 or more. If it does, your non-inferior result means something and you can ship. If it doesn't, the suite can't vouch for this cut: keep the old text, or add cases that depend on those rules and measure again."
+    },
+    {
+      "why": "P-alt: different words: a broken copy without the rules must score worse first; until then the trimmed version stays out.",
+      "answer": "Don't ship it on this result alone. A compare that finds nothing is only as good as the suite's ability to notice a problem, and you haven't checked that.\n\nMake a broken copy: the original skill with those two rules removed. Score it on the same cases. If it comes out clearly worse than the original, the suite is sensitive to those rules, and your trimmed version passing is real evidence. If the broken copy scores about the same, the suite simply doesn't exercise those rules, so the non-inferior verdict says nothing about the trim. In that case, write cases that need the rules, or keep them."
+    }
+  ],
+  "fail": [
+    {
+      "why": "F-wrong: ships on the compare alone.",
+      "answer": "Yes. Both runs are VALID, the compare says non-inferior, and there are no case drops, so the trimmed version performs as well as the old one on your suite. That's exactly the evidence you need for a cut like this. Ship it and keep the old results as your baseline for the next change."
+    },
+    {
+      "why": "F-partial: says to ship now and mentions a control only as optional follow-up.",
+      "answer": "You can ship it: VALID runs and a non-inferior compare with no case drops is a solid result for a token trim. If you want extra confidence later, you could run a control with the rules removed from the old version to check the suite notices them, but that's optional and doesn't need to block this change."
+    },
+    {
+      "why": "F-near: asks for more runs and a second model but never for a control that shows the suite can detect a loss.",
+      "answer": "Not quite yet. Six cases at three runs is a small sample, so non-inferior could hide a small loss. Rerun at more runs and add a second model; if the compare still reads non-inferior with no case drops on both, you can ship the trimmed version with confidence."
+    }
+  ]
+}

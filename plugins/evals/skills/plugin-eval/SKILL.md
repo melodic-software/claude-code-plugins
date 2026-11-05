@@ -385,6 +385,10 @@ noise report's verdict is that the interval excludes 0 with the with-arm ahead, 
 no verdict it disagrees with, every counted run did the task, and a gap claimed beyond one model has
 its second-model run; otherwise `do not promote`, followed by the first condition that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes).
 
+A no-loss two-version compare ships a cut only after a detection control, the before text with the
+changed rule removed, scores clearly lower on the same cases and model; otherwise report it as
+unable to detect a loss: [reading-results.md, Detection control](reference/reading-results.md#detection-control).
+
 ## Calibrating a judge
 
 Trust an `llm` grader's scores only after its judge, the model the suite uses, agrees with labeled
