@@ -3,6 +3,15 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.6] - 2026-11-05
+
+### Changed
+
+- shape drops the first-line and last-line re-read from its pre-send check
+
+  Rules 1, 3 and 5 already state what the first and last lines carry, and
+  Opus 5 checks its own reply without being told to.
+
 ## [0.10.5] - 2026-11-04
 
 ### Changed

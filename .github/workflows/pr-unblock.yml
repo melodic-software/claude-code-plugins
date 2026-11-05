@@ -1842,6 +1842,51 @@ jobs:
       patch-human-gate: ${{ needs.address-feedback-select.outputs.human-gate }}
       reply-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
+  # The adjudicator's key-credit gate (ci-workflows check-key-credit,
+  # gate.cjs: one artifact-list call for the marker adjudicate-feedback
+  # uploads after a key leg's credit stop). A credit stop inside
+  # vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset) starts every slot on the
+  # subscription, with no refused key attempt first. No secret, no model, no
+  # checkout; every failure runs the key (skip-key empty). Probing is off.
+  adjudicate-key-credit:
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
+    # adjudicate-feedback's own condition: a round with a disputed reply.
+    if: >-
+      ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # list this repository's credit-stop markers
+    outputs:
+      skip-key: ${{ steps.credit.outputs.skip-key }}
+      marker: ${{ steps.credit.outputs.marker }}
+    steps:
+      - name: Read the key's credit history
+        id: credit
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          key-job: adjudicate-feedback
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: PR_UNBLOCK_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
   # The adjudicator, after the model job and before the reply job, only when
   # the answering leg's scan job read a reply that leaves its thread open
   # (INCORRECT, UNCERTAIN or VALID-defer: feedback-disputed); skipping it
@@ -1858,9 +1903,10 @@ jobs:
   # models.routes). Its verdicts leave as one artifact whose SHA-256 the reply
   # job checks, so an artifact the model job's head code uploaded under that
   # name fails this upload and reads as none. No verdict for a thread, a
-  # skipped job or an empty key escalates it as feedback-unadjudicated.
+  # skipped job or no usable credential escalates it as
+  # feedback-unadjudicated.
   adjudicate-feedback:
-    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-key-credit]
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
@@ -1955,33 +2001,66 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/adjudicate-models.json
 
-      # Only whether the secret is set leaves this step, never its value.
+      # Which legs can run, never a secret's value. The key runs unless it
+      # is empty or adjudicate-key-credit skipped it; key-reason says why a
+      # slot starts on the subscription.
       - name: Check the API key
         id: key
         if: steps.models.outcome == 'success'
         env:
-          PRESENT: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY != '' }}
+          KEY: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY != '' }}
+          SKIP_KEY: ${{ needs.adjudicate-key-credit.outputs.skip-key }}
         run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::warning::PR_UNBLOCK_CLAUDE_API_KEY is empty; no disputed thread is adjudicated"
+          key=$KEY
+          reason=""
+          if [ "$SKIP_KEY" = true ]; then
+            key=false
+            reason=credit-stop
+          elif [ "$KEY" != true ]; then
+            echo "::warning::PR_UNBLOCK_CLAUDE_API_KEY is empty; the subscription leg adjudicates"
+            reason=no-key
           fi
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+          { echo "key=$key"; echo "key-reason=$reason"; } >>"$GITHUB_OUTPUT"
+
+      # The subscription and fallback tokens' presence, and whether any leg
+      # can start a slot.
+      - name: Check the subscription tokens
+        id: token
+        if: steps.models.outcome == 'success'
+        env:
+          KEY_USABLE: ${{ steps.key.outputs.key }}
+          TOKEN: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          FALLBACK: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          any=false
+          if [ "$KEY_USABLE" = true ] || [ "$TOKEN" = true ] || [ "$FALLBACK" = true ]; then any=true; fi
+          if [ "$any" != true ]; then
+            echo "::warning::no Claude credential is usable; no disputed thread is adjudicated"
+          elif [ "$TOKEN" != true ]; then
+            echo "::warning::PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN is empty; the fallback leg adjudicates in its place"
+          fi
+          { echo "token=$TOKEN"; echo "fallback=$FALLBACK"; echo "any=$any"; } >>"$GITHUB_OUTPUT"
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.key.outputs.present == 'true'
+        if: steps.token.outputs.any == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
-        if: steps.key.outputs.present == 'true'
+        if: steps.token.outputs.any == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
-      # One fresh model call per thread: each sees only its own slot, copied
-      # into the workspace, the one tree run-claude-cli reads. The judge has
+      # One fresh model call per thread and leg: each sees only its own slot,
+      # copied into the workspace, the one tree run-claude-cli reads. A slot
+      # runs the key leg, then the subscription leg when the key leg handed
+      # off (a credit stop, or a 401 or 402) or did not run, then the fallback
+      # leg when the subscription leg handed off (a limit stop, a credit stop,
+      # or a 401 or 402) or its token is empty. The steps hold one credential each and stay in one
+      # job: the judge has Read alone, no Bash (run-claude-cli's one-job rule). The judge has
       # Read alone, as pr-verify's verifier does: evidence.json names every
       # file it needs, so Glob and Grep are denied rather than trusted to
       # honor Read denials. The Read denials keep the base checkout and the
@@ -1992,7 +2071,7 @@ jobs:
       # (workflow-gates.test.mjs pins the count and their grants).
 
       - name: Stage disputed thread 0
-        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+        if: steps.token.outputs.any == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         env:
           SLOT_DIR: ${{ runner.temp }}/adjudicate/0
         run: |
@@ -2001,7 +2080,7 @@ jobs:
 
       - name: Adjudicate disputed thread 0
         id: judge-0
-        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+        if: steps.key.outputs.key == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2049,22 +2128,181 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-0
 
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 0's leg
+        if: always() && steps.judge-0.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-0.outcome }}
+          execution-file: ${{ steps.judge-0.outputs.execution-file }}
+          log-file: ${{ steps.judge-0.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-0.outputs.credential }}
+          handoff: ${{ steps.judge-0.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-0.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ""
+
+      - name: Adjudicate disputed thread 0 on the subscription
+        id: judge-0-subscription
+        if: steps.token.outputs.token == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && (steps.judge-0.outcome == 'skipped' || steps.judge-0.outputs.handoff == 'true')
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: pr-unblock
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.token.outputs.fallback }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 0's sealed transcript on the subscription
+        if: always() && steps.judge-0-subscription.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-0-subscription.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-0-subscription
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 0's leg on the subscription
+        if: always() && steps.judge-0-subscription.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-0-subscription.outcome }}
+          execution-file: ${{ steps.judge-0-subscription.outputs.execution-file }}
+          log-file: ${{ steps.judge-0-subscription.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-0-subscription.outputs.credential }}
+          handoff: ${{ steps.judge-0-subscription.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-0-subscription.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.judge-0.outputs.handoff-reason || steps.key.outputs.key-reason }}
+
+      - name: Adjudicate disputed thread 0 on the fallback token
+        id: judge-0-fallback
+        if: >-
+          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+          && (steps.judge-0-subscription.outputs.handoff == 'true'
+          || steps.token.outputs.token != 'true' && (steps.judge-0.outcome == 'skipped' || steps.judge-0.outputs.handoff == 'true'))
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: pr-unblock
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 0's sealed transcript on the fallback token
+        if: always() && steps.judge-0-fallback.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-0-fallback.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-0-fallback
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 0's leg on the fallback token
+        if: always() && steps.judge-0-fallback.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-0-fallback.outcome }}
+          execution-file: ${{ steps.judge-0-fallback.outputs.execution-file }}
+          log-file: ${{ steps.judge-0-fallback.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-0-fallback.outputs.credential }}
+          handoff: ${{ steps.judge-0-fallback.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-0-fallback.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.judge-0-subscription.outputs.handoff-reason || 'no-key' }}
+
+      # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 0's verdict
-        if: always() && steps.judge-0.outputs.structured-output-file != ''
+        if: always() && (steps.judge-0.outputs.structured-output-file != '' || steps.judge-0-subscription.outputs.structured-output-file != '' || steps.judge-0-fallback.outputs.structured-output-file != '')
         continue-on-error: true
         env:
-          EXECUTION_FILE: ${{ steps.judge-0.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.judge-0-fallback.outputs.structured-output-file != '' && steps.judge-0-fallback.outputs.execution-file || steps.judge-0-subscription.outputs.structured-output-file != '' && steps.judge-0-subscription.outputs.execution-file || steps.judge-0.outputs.execution-file }}
           MODE: dontAsk
-          OUTPUT_FILE: ${{ steps.judge-0.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.judge-0-fallback.outputs.structured-output-file != '' && steps.judge-0-fallback.outputs.structured-output-file || steps.judge-0-subscription.outputs.structured-output-file != '' && steps.judge-0-subscription.outputs.structured-output-file || steps.judge-0.outputs.structured-output-file }}
           SLOT_DIR: ${{ runner.temp }}/adjudicate/0
         run: |
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
 
       - name: Stage disputed thread 1
-        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+        if: steps.token.outputs.any == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         env:
           SLOT_DIR: ${{ runner.temp }}/adjudicate/1
         run: |
@@ -2073,7 +2311,7 @@ jobs:
 
       - name: Adjudicate disputed thread 1
         id: judge-1
-        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+        if: steps.key.outputs.key == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2121,22 +2359,181 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-1
 
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 1's leg
+        if: always() && steps.judge-1.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-1.outcome }}
+          execution-file: ${{ steps.judge-1.outputs.execution-file }}
+          log-file: ${{ steps.judge-1.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-1.outputs.credential }}
+          handoff: ${{ steps.judge-1.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-1.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ""
+
+      - name: Adjudicate disputed thread 1 on the subscription
+        id: judge-1-subscription
+        if: steps.token.outputs.token == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && (steps.judge-1.outcome == 'skipped' || steps.judge-1.outputs.handoff == 'true')
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: pr-unblock
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.token.outputs.fallback }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 1's sealed transcript on the subscription
+        if: always() && steps.judge-1-subscription.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-1-subscription.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-1-subscription
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 1's leg on the subscription
+        if: always() && steps.judge-1-subscription.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-1-subscription.outcome }}
+          execution-file: ${{ steps.judge-1-subscription.outputs.execution-file }}
+          log-file: ${{ steps.judge-1-subscription.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-1-subscription.outputs.credential }}
+          handoff: ${{ steps.judge-1-subscription.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-1-subscription.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.judge-1.outputs.handoff-reason || steps.key.outputs.key-reason }}
+
+      - name: Adjudicate disputed thread 1 on the fallback token
+        id: judge-1-fallback
+        if: >-
+          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+          && (steps.judge-1-subscription.outputs.handoff == 'true'
+          || steps.token.outputs.token != 'true' && (steps.judge-1.outcome == 'skipped' || steps.judge-1.outputs.handoff == 'true'))
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: pr-unblock
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 1's sealed transcript on the fallback token
+        if: always() && steps.judge-1-fallback.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-1-fallback.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-1-fallback
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 1's leg on the fallback token
+        if: always() && steps.judge-1-fallback.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-1-fallback.outcome }}
+          execution-file: ${{ steps.judge-1-fallback.outputs.execution-file }}
+          log-file: ${{ steps.judge-1-fallback.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-1-fallback.outputs.credential }}
+          handoff: ${{ steps.judge-1-fallback.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-1-fallback.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.judge-1-subscription.outputs.handoff-reason || 'no-key' }}
+
+      # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 1's verdict
-        if: always() && steps.judge-1.outputs.structured-output-file != ''
+        if: always() && (steps.judge-1.outputs.structured-output-file != '' || steps.judge-1-subscription.outputs.structured-output-file != '' || steps.judge-1-fallback.outputs.structured-output-file != '')
         continue-on-error: true
         env:
-          EXECUTION_FILE: ${{ steps.judge-1.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.judge-1-fallback.outputs.structured-output-file != '' && steps.judge-1-fallback.outputs.execution-file || steps.judge-1-subscription.outputs.structured-output-file != '' && steps.judge-1-subscription.outputs.execution-file || steps.judge-1.outputs.execution-file }}
           MODE: dontAsk
-          OUTPUT_FILE: ${{ steps.judge-1.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.judge-1-fallback.outputs.structured-output-file != '' && steps.judge-1-fallback.outputs.structured-output-file || steps.judge-1-subscription.outputs.structured-output-file != '' && steps.judge-1-subscription.outputs.structured-output-file || steps.judge-1.outputs.structured-output-file }}
           SLOT_DIR: ${{ runner.temp }}/adjudicate/1
         run: |
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
 
       - name: Stage disputed thread 2
-        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+        if: steps.token.outputs.any == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         env:
           SLOT_DIR: ${{ runner.temp }}/adjudicate/2
         run: |
@@ -2145,7 +2542,7 @@ jobs:
 
       - name: Adjudicate disputed thread 2
         id: judge-2
-        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+        if: steps.key.outputs.key == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2193,19 +2590,212 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-2
 
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 2's leg
+        if: always() && steps.judge-2.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-2.outcome }}
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          log-file: ${{ steps.judge-2.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-2.outputs.credential }}
+          handoff: ${{ steps.judge-2.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ""
+
+      - name: Adjudicate disputed thread 2 on the subscription
+        id: judge-2-subscription
+        if: steps.token.outputs.token == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && (steps.judge-2.outcome == 'skipped' || steps.judge-2.outputs.handoff == 'true')
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: pr-unblock
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.token.outputs.fallback }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 2's sealed transcript on the subscription
+        if: always() && steps.judge-2-subscription.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2-subscription.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2-subscription
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 2's leg on the subscription
+        if: always() && steps.judge-2-subscription.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-2-subscription.outcome }}
+          execution-file: ${{ steps.judge-2-subscription.outputs.execution-file }}
+          log-file: ${{ steps.judge-2-subscription.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-2-subscription.outputs.credential }}
+          handoff: ${{ steps.judge-2-subscription.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-2-subscription.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.judge-2.outputs.handoff-reason || steps.key.outputs.key-reason }}
+
+      - name: Adjudicate disputed thread 2 on the fallback token
+        id: judge-2-fallback
+        if: >-
+          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+          && (steps.judge-2-subscription.outputs.handoff == 'true'
+          || steps.token.outputs.token != 'true' && (steps.judge-2.outcome == 'skipped' || steps.judge-2.outputs.handoff == 'true'))
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: pr-unblock
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 2's sealed transcript on the fallback token
+        if: always() && steps.judge-2-fallback.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2-fallback.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2-fallback
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record disputed thread 2's leg on the fallback token
+        if: always() && steps.judge-2-fallback.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge-2-fallback.outcome }}
+          execution-file: ${{ steps.judge-2-fallback.outputs.execution-file }}
+          log-file: ${{ steps.judge-2-fallback.outputs.log-file }}
+          lane: adjudicate-feedback
+          lane-id: adjudicate-feedback
+          credential: ${{ steps.judge-2-fallback.outputs.credential }}
+          handoff: ${{ steps.judge-2-fallback.outputs.handoff }}
+          known-failure-class: ${{ steps.judge-2-fallback.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.judge-2-subscription.outputs.handoff-reason || 'no-key' }}
+
+      # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 2's verdict
-        if: always() && steps.judge-2.outputs.structured-output-file != ''
+        if: always() && (steps.judge-2.outputs.structured-output-file != '' || steps.judge-2-subscription.outputs.structured-output-file != '' || steps.judge-2-fallback.outputs.structured-output-file != '')
         continue-on-error: true
         env:
-          EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.judge-2-fallback.outputs.structured-output-file != '' && steps.judge-2-fallback.outputs.execution-file || steps.judge-2-subscription.outputs.structured-output-file != '' && steps.judge-2-subscription.outputs.execution-file || steps.judge-2.outputs.execution-file }}
           MODE: dontAsk
-          OUTPUT_FILE: ${{ steps.judge-2.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.judge-2-fallback.outputs.structured-output-file != '' && steps.judge-2-fallback.outputs.structured-output-file || steps.judge-2-subscription.outputs.structured-output-file != '' && steps.judge-2-subscription.outputs.structured-output-file || steps.judge-2.outputs.structured-output-file }}
           SLOT_DIR: ${{ runner.temp }}/adjudicate/2
         run: |
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
+
+      # Read by the next runs' credit gate (adjudicate-key-credit): the
+      # artifact its `marker` output names (check-key-credit gate.cjs
+      # markerName), uploaded only after a key leg's credit-stop handoff. The
+      # name is written out so its retention row claims it.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: always() && needs.adjudicate-key-credit.outputs.marker == 'key-credit-stop-pr-unblock.yml-adjudicate-feedback' && (steps.judge-0.outputs.handoff-reason == 'credit-stop' || steps.judge-1.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop')
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Scan the key's credit-stop marker for credentials
+        id: credit-marker-scan
+        if: always() && steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+
+      - name: Upload the key's credit-stop marker
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-adjudicate-feedback
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Collect the verdicts
         id: collect

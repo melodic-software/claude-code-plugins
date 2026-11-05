@@ -399,8 +399,10 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "intake-triage": { contents: "read", issues: "write" },
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
+    "refine-key-credit": { actions: "read" },
     "refine-issue": { contents: "read" },
     "refine-issue-subscription": { contents: "read" },
+    "refine-issue-fallback": { contents: "read" },
     "apply-refinement": { contents: "read", "id-token": "write" },
     "redispatch-refined": { actions: "write" },
     "triage-split-children": { actions: "write" },
@@ -494,13 +496,16 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
 });
 
 // The refine-issue legs as the parity check compares them: every step, in
-// order, with every field, except the four places the legs may differ: the
+// order, with every field, except the places the legs may differ: the
 // credential check's env and run (which secret it tests, and whether an empty
-// one warns or fails), the launcher's credential input, the key leg's handoff
-// report (the subscription leg never hands off), and the last step's `if`.
+// one warns or fails), the launcher's credential and fallback-ready inputs,
+// the handoff report (the fallback leg never hands off), the key leg's
+// credit-stop marker, the leg record's fallback reason, and the last step's
+// `if`.
+const KEY_ONLY_STEPS = new Set(["handoff", "credit-marker", "credit-marker-scan", "credit-marker-upload"]);
 function refineLegShape(job) {
   return job.steps
-    .filter((step) => step.id !== "handoff")
+    .filter((step) => !KEY_ONLY_STEPS.has(step.id))
     .map((step) => {
       const shape = structuredClone(step);
       if (step.id === "credential") {
@@ -510,7 +515,10 @@ function refineLegShape(job) {
       if (step.id === "run") {
         delete shape.with["api-key"];
         delete shape.with["subscription-token"];
+        delete shape.with["fallback-token"];
+        delete shape.with["fallback-ready"];
       }
+      if (step.name === "Record the leg") delete shape.with["fallback-reason"];
       if (step.name === "Fail without a refinement") delete shape.if;
       return shape;
     });
@@ -521,6 +529,7 @@ test("intake-triage.yml: the refine legs' parity check fails on any other differ
   const key = jobs["refine-issue"];
   const sub = jobs["refine-issue-subscription"];
   assert.deepEqual(refineLegShape(key), refineLegShape(sub));
+  assert.deepEqual(refineLegShape(key), refineLegShape(jobs["refine-issue-fallback"]));
   const differs = (mutate) => {
     const copy = structuredClone(sub);
     mutate(copy);
@@ -547,24 +556,30 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   const select = jobs["refine-select"];
   const model = jobs["refine-issue"];
   const sub = jobs["refine-issue-subscription"];
+  const fallback = jobs["refine-issue-fallback"];
+  const credit = jobs["refine-key-credit"];
   const apply = jobs["apply-refinement"];
   const again = jobs["redispatch-refined"];
   assert.deepEqual(select.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
   assert.deepEqual(model.permissions, { contents: "read" }, "the model job holds no write grant");
   assert.deepEqual(sub.permissions, { contents: "read" }, "the subscription leg holds no write grant");
+  assert.deepEqual(fallback.permissions, { contents: "read" }, "the fallback leg holds no write grant");
+  assert.deepEqual(credit.permissions, { actions: "read" }, "the credit gate only lists artifacts");
+  assert.deepEqual(stepSecrets(credit), [], "the credit gate holds no secret");
   assert.deepEqual(apply.permissions, { contents: "read", "id-token": "write" });
   assert.deepEqual(again.permissions, { actions: "write" }, "the dispatch grant is not on the job with the App token");
   assert.deepEqual(select.needs, ["born-triaged", "apply-verdict"]);
-  assert.deepEqual(model.needs, ["refine-select"]);
-  assert.deepEqual(sub.needs, ["refine-select", "refine-issue"]);
-  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue", "refine-issue-subscription"]);
+  assert.deepEqual(model.needs, ["refine-select", "refine-key-credit"]);
+  assert.deepEqual(sub.needs, ["refine-select", "refine-key-credit", "refine-issue"]);
+  assert.deepEqual(fallback.needs, ["refine-select", "refine-issue-subscription"]);
+  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue", "refine-issue-subscription", "refine-issue-fallback"]);
   assert.deepEqual(again.needs, ["apply-refinement"]);
 
   const groups = Object.values(jobs)
     .map((job) => job.concurrency?.group)
     .filter(Boolean);
   assert.equal(new Set(groups).size, groups.length, "each job has its own concurrency group");
-  for (const job of [select, model, sub, apply]) {
+  for (const job of [select, model, sub, fallback, apply]) {
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
@@ -577,17 +592,55 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(jobs["apply-verdict"].outputs.held, "${{ steps.verdict.outputs.held }}");
   assert.equal(jobs["apply-verdict"].steps.find((s) => s.id === "verdict")?.run, 'node ".base/$SCRIPT"');
   assert.equal(jobs["apply-verdict"].steps.find((s) => s.id === "verdict")?.env?.API_BUDGET_HOLD, "1", "a rate-guard stop holds the verdict green");
-  const picked = (refine, mode = "refine") => ({ "needs.refine-select.outputs.refine": refine, "needs.refine-select.outputs.mode": mode });
+  const picked = (refine, mode = "refine") => ({
+    "needs.refine-select.outputs.refine": refine,
+    "needs.refine-select.outputs.mode": mode,
+    "needs.refine-key-credit.outputs.skip-key": "",
+  });
   assert.equal(evaluate(model.if, picked("true")), true);
   assert.equal(evaluate(model.if, picked("true", "size-split")), true);
   assert.equal(evaluate(model.if, picked("false")), false);
   assert.equal(evaluate(model.if, picked("true", "size-decline")), false, "a size-split decline runs no model");
-  // The subscription leg runs only after the key leg handed off or found no key.
-  const leg = (refine, handoff, present, mode = "refine") => ({
+  assert.equal(evaluate(model.if, { ...picked("true"), "needs.refine-key-credit.outputs.skip-key": "true" }), false, "a credit-stopped key is skipped");
+  assert.equal(evaluate(model.if, { ...picked("true"), "needs.refine-key-credit.outputs.skip-key": "false" }), true);
+  // The subscription leg runs only after the key leg handed off, found no key, or was skipped by the credit gate.
+  const leg = (refine, handoff, present, mode = "refine", skip = "") => ({
     ...picked(refine, mode),
     "needs.refine-issue.outputs.handoff": handoff,
     "needs.refine-issue.outputs.credential-present": present,
+    "needs.refine-key-credit.outputs.skip-key": skip,
   });
+  assert.equal(evaluate(sub.if, leg("true", "", "", "refine", "true")), true, "a skipped key goes straight to the subscription");
+  assert.equal(evaluate(sub.if, leg("true", "", "", "size-decline", "true")), false);
+  // The fallback leg runs after the subscription leg handed off or found its token empty.
+  const third = (refine, handoff, present = "true", ready = "true") => ({
+    ...picked(refine),
+    "needs.refine-issue-subscription.outputs.handoff": handoff,
+    "needs.refine-issue-subscription.outputs.credential-present": present,
+    "needs.refine-issue-subscription.outputs.fallback-ready": ready,
+  });
+  assert.equal(evaluate(fallback.if, third("true", "true")), true);
+  assert.equal(evaluate(fallback.if, third("true", "", "false")), true, "an empty subscription token hands to the fallback leg");
+  assert.equal(evaluate(fallback.if, third("true", "false")), false);
+  assert.equal(evaluate(fallback.if, third("true", "")), false);
+  assert.equal(evaluate(fallback.if, third("true", "", "")), false, "a subscription leg that never checked its token hands nothing on");
+  assert.equal(evaluate(fallback.if, third("false", "true")), false);
+  assert.equal(evaluate(fallback.if, third("true", "", "false", "false")), false, "with every token empty no fallback leg starts");
+  // An empty subscription token ends the subscription leg green: the fallback leg refines, or with no fallback token the leg ends with a notice.
+  const failStep = sub.steps.find((s) => s.name === "Fail without a refinement");
+  const fails = (present, ready) =>
+    evaluate(failStep.if, {
+      "steps.context.outcome": "success",
+      "steps.upload.outcome": "skipped",
+      "steps.run.outputs.handoff": "",
+      "steps.credential.outputs.present": present,
+      "steps.credential.outputs.fallback-ready": ready,
+    });
+  assert.equal(fails("false", "true"), false);
+  assert.equal(fails("false", "false"), false, "every token empty ends with a notice");
+  assert.equal(fails("true", "true"), true, "a leg that ran and left nothing fails");
+  const credential = sub.steps.find((s) => s.id === "credential").run;
+  assert.match(credential, /::notice::INTAKE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs/);
   assert.equal(evaluate(sub.if, leg("true", "true", "true")), true);
   assert.equal(evaluate(sub.if, leg("true", "", "false")), true);
   assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);
@@ -595,11 +648,13 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(sub.if, leg("false", "true", "true")), false);
   assert.equal(evaluate(sub.if, leg("true", "", "false", "size-decline")), false);
   // apply-refinement reads whichever leg uploaded the refinement.
-  const refined = (key, subscription, mode = "refine") => ({
+  const refined = (key, subscription, mode = "refine", third = "") => ({
     ...picked("true", mode),
     "needs.refine-issue.outputs.refined": key,
     "needs.refine-issue-subscription.outputs.refined": subscription,
+    "needs.refine-issue-fallback.outputs.refined": third,
   });
+  assert.equal(evaluate(apply.if, refined("", "false", "refine", "true")), true);
   assert.equal(evaluate(apply.if, refined("true", "")), true);
   assert.equal(evaluate(apply.if, refined("false", "true")), true);
   assert.equal(evaluate(apply.if, refined("false", "")), false);
@@ -612,7 +667,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "" }), false);
 
   // Every checkout is the default branch without credentials.
-  for (const job of [select, model, sub, apply]) {
+  for (const job of [select, model, sub, fallback, apply]) {
     const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
     assertMainTip(job.steps, checkout);
     assert.equal(checkout.with["persist-credentials"], false);
@@ -625,7 +680,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   const prompt = model.steps.find((s) => s.id === "prompt").run;
   const domains = prompt.match(/domains="([^"]+)"/)[1].split(" ");
   const launcher = (job) => job.steps.find((s) => s.id === "run");
-  for (const job of [model, sub]) {
+  for (const job of [model, sub, fallback]) {
     const run = launcher(job);
     assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/);
     assert.equal(run.with.role, "intake");
@@ -637,7 +692,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(run.with["json-schema-file"], "${{ runner.temp }}/refine-schema.json");
     assert.doesNotMatch(JSON.stringify(job), /bypassPermissions|dangerously|--bare|setting-sources/);
     assert.ok(!job.steps.some((s) => s.uses?.startsWith("anthropics/claude-code-action@")));
-    assert.equal(job.steps.find((s) => s.id === "prompt").run, prompt, "both legs build the same prompt");
+    assert.equal(job.steps.find((s) => s.id === "prompt").run, prompt, "every leg builds the same prompt");
     const collect = job.steps.find((s) => s.id === "collect");
     assert.equal(collect.env.MODE, "dontAsk");
     assert.match(collect.run, /check-permission-mode\.sh/);
@@ -651,6 +706,9 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(subLegKey, undefined);
   assert.deepEqual(stepSecrets(launcher(model)), ["INTAKE_CLAUDE_API_KEY"]);
   assert.deepEqual(stepSecrets(launcher(sub)), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
+  assert.equal(launcher(sub).with["fallback-ready"], "${{ steps.credential.outputs.fallback-ready }}");
+  assert.deepEqual(stepSecrets(launcher(fallback)), ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"]);
+  assert.equal(launcher(fallback).with["fallback-token"], "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}");
   for (const job of [select, apply, again]) {
     assert.deepEqual(stepSecrets(job), []);
   }
@@ -2988,6 +3046,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
+    "pr-verify-capture.yml capture-fallback: Resolve the pull request",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
     "pr-verify.yml check-intent-fallback: Resolve the pull request",
@@ -5487,6 +5546,8 @@ const MODEL_CALL_READS = {
   "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
   // The scanned replies' attempt, SHA-256 and INCORRECT flag, never a run job output.
   "adjudicate-feedback": ["feedback-attempt", "feedback-disputed", "feedback-sha256"],
+  // The adjudicator's credit gate starts on the adjudicator's own condition.
+  "adjudicate-key-credit": ["feedback-attempt", "feedback-disputed"],
 };
 
 // One leg answers the round: the fallback call when it ran, else the first.
@@ -8510,7 +8571,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
     "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
-    "maintenance-tidy-code-upkeep.yml": ["model", "scan", "push-branches", "publish"],
+    "maintenance-tidy-code-upkeep.yml": ["model", "model-subscription", "model-fallback", "scan", "push-branches", "publish"],
   };
   for (const [file, names] of Object.entries(readOnly)) {
     const { jobs } = workflow(file);
@@ -8842,4 +8903,73 @@ test("the tip step outputs the exact ref's SHA from this repository and fails on
   assert.equal(missing.status, 1);
   assert.equal(missing.outputs.sha, undefined, "no sha output for the checkout to take");
   assert.match(missing.stdout, /^::error::the tip of main did not resolve$/m);
+});
+
+// The tidy lane's three legs: model on the automations API key, then
+// model-subscription on its subscription token, then model-fallback on the
+// central fallback token, one credential per job, each the key leg's steps
+// but for the credential, the marker, the handoff report, the leg record's
+// fallback reason and the seal's job id.
+test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fallback legs, each with one credential", () => {
+  const { jobs } = workflow("maintenance-tidy-code-upkeep.yml");
+  const legs = ["model", "model-subscription", "model-fallback"];
+  const run = (id) => jobs[id].steps.find((s) => s.id === "run");
+  assert.equal(run("model").with["api-key"], "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}");
+  assert.equal(run("model-subscription").with["subscription-token"], "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}");
+  assert.equal(run("model-subscription").with["fallback-ready"], "${{ steps.credential.outputs.fallback-ready }}");
+  assert.equal(run("model-fallback").with["fallback-token"], "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}");
+  for (const id of legs) {
+    assert.deepEqual(jobs[id].permissions, { contents: "read" }, `${id} holds no write grant`);
+    assert.equal(jobs[id]["cache-mode"], "read", id);
+    const seal = jobs[id].steps.find((s) => s.id === "seal");
+    assert.equal(seal.env.JOB_ID, id, `${id} seals under its own job id`);
+    const record = jobs[id].steps.find((s) => s.name === "Record the leg");
+    assert.equal(record.with["lane-id"], "maintenance-tidy-code-upkeep", id);
+    assert.equal(record.with.credential, "${{ steps.run.outputs.credential }}", id);
+  }
+  const shape = (id) =>
+    jobs[id].steps
+      .filter((s) => !["credit-marker", "credit-marker-scan", "credit-marker-upload", "credential"].includes(s.id) && !/handoff$/.test(s.name))
+      .map((s) => {
+        const copy = structuredClone(s);
+        if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
+        if (copy.id === "seal") delete copy.env.JOB_ID;
+        if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
+        return copy;
+      });
+  assert.deepEqual(shape("model-subscription"), shape("model"));
+  assert.deepEqual(shape("model-fallback"), shape("model"));
+
+  const ctx = (over) => ({ "needs.gate.outputs.proceed": "true", "github.run_attempt": "1", ...over });
+  assert.equal(evaluate(jobs.model.if, ctx({ "needs.gate.outputs.skip-key": "true" })), false, "a credit-stopped key is skipped");
+  assert.equal(evaluate(jobs.model.if, ctx({ "needs.gate.outputs.skip-key": "" })), true);
+  const sub = (over) =>
+    evaluate(jobs["model-subscription"].if, ctx({ "needs.model.outputs.handoff": "", "needs.model.outputs.credential-present": "", "needs.gate.outputs.skip-key": "", ...over }));
+  assert.equal(sub({ "needs.model.outputs.handoff": "true" }), true);
+  assert.equal(sub({ "needs.model.outputs.credential-present": "false" }), true);
+  assert.equal(sub({ "needs.gate.outputs.skip-key": "true" }), true);
+  assert.equal(sub({ "needs.model.outputs.handoff": "false" }), false);
+  const fb = (handoff, present = "true") =>
+    evaluate(jobs["model-fallback"].if, ctx({ "needs.model-subscription.outputs.handoff": handoff, "needs.model-subscription.outputs.credential-present": present }));
+  assert.equal(fb("true"), true);
+  assert.equal(fb("", "false"), true, "an empty subscription token hands to the fallback leg");
+  assert.equal(fb("false"), false);
+  assert.equal(fb("", ""), false, "a subscription leg that never checked its token hands nothing on");
+  assert.equal(
+    jobs["model-fallback"].steps.find((s) => s.name === "Record the leg").with["fallback-reason"],
+    "${{ needs.model-subscription.outputs.handoff-reason || needs.model-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}",
+  );
+
+  // The scan opens the leg that ran: the fallback leg, else the subscription leg, else the key leg.
+  const open = jobs.scan.steps.find((s) => s.id === "open");
+  const pick = (fbResult, subResult) =>
+    evaluate(open.with["job-id"], { "needs.model-fallback.result": fbResult, "needs.model-subscription.result": subResult });
+  assert.equal(pick("success", "success"), "model-fallback");
+  assert.equal(pick("skipped", "success"), "model-subscription");
+  assert.equal(pick("skipped", "skipped"), "model");
+  assert.deepEqual(jobs.scan.needs, ["gate", "model", "model-subscription", "model-fallback"]);
+  // Only the key leg uploads the credit gate's marker, and the gate reads it.
+  const credit = jobs.gate.steps.find((s) => s.id === "credit");
+  assert.equal(credit.with["key-job"], "model");
+  for (const id of ["model-subscription", "model-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
 });

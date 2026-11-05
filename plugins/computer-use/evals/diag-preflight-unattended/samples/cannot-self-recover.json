@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "# Before you leave\n\nOnce the screensaver is up, computer use cannot recover by itself: input to the screensaver desktop is refused, and only a human touching the mouse clears it.",
+      "why": "# heading reply, reference wording"
+    },
+    {
+      "answer": "**If the screensaver fires, the run is over until you're back.** Claude can't dismiss it; someone has to move the mouse.",
+      "why": "**bold** reply, can't dismiss"
+    },
+    {
+      "answer": "| Hazard | Effect |\n|---|---|\n| Screensaver or lock | Claude cannot get past it; it needs a human to wake the machine |",
+      "why": "table reply"
+    },
+    {
+      "answer": "Only you can clear the lock screen once it appears.",
+      "why": "only you can clear"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "If the screensaver comes on, Claude will just move the mouse and carry on.",
+      "why": "the opposite claim"
+    },
+    {
+      "answer": "The screensaver may fire during the run; raise its timeout first.",
+      "why": "near miss: warns of the screensaver, never says the run cannot recover"
+    },
+    {
+      "answer": "It will be clicking the whole time, so the machine won't go idle.",
+      "why": "echoes the prompt"
+    },
+    {
+      "answer": "Claude will keep clicking until you get back.",
+      "why": "optimistic: until you, with no recovery limit"
+    }
+  ]
+}

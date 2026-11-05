@@ -55,9 +55,10 @@
 //   read once for the run, and run cache. An event run (a person's
 //   unlabel) never arms and reads no verdict: it only disarms on a
 //   hold, so a pull request waits up to one scheduled interval to be armed.
-//   An arm survives a push to its head (disarming needs contents: write, which
-//   the arming lanes App token holds and ci-status's GITHUB_TOKEN lacks), so
-//   in the merge queue ci-status checks the pass again at the head it merges
+//   An arm survives a push to its head until this job turns it off (pinMoved;
+//   disarming needs contents: write, which the arming lanes App token holds
+//   and ci-status's GITHUB_TOKEN lacks), so in the merge queue ci-status holds
+//   a head no pin names (merge-holds.mjs pinHold), checks the pass again at the head it merges
 //   (merge-holds.mjs verdictHold) and runs this reader again there on a
 //   listing of its own (merge-holds.mjs evidenceHold), which holds a FAIL
 //   uploaded after the run's one listing.
@@ -150,7 +151,14 @@
 // newest pin already names it unedited, and a pin that fails to post leaves
 // the pull request unarmed: an arm GitHub enqueues at once records no
 // auto-merge event, so the post-merge check reads that head back against the
-// pin. An armed pull request
+// pin. GitHub checks expectedHeadOid only then, and turns auto-merge off only
+// on a push by someone without write access
+// (https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request),
+// so a lane push leaves the arm on. In the merge queue ci-status holds a head
+// the lanes App's newest pin does not name (merge-holds.mjs pinHold), and here
+// an armed one whose head moved off that pin is disarmed (pinMoved), so the
+// next reader run judges and pins the new head before it arms again. An armed
+// pull request
 // that fails any rule is disarmed. Each request opens its own connection, and
 // an arm or disarm that fails on the network is sent up to twice more
 // (withRetry); a read is left to createGitHub's own retry. A resent arm or disarm that errors is read back once, and
@@ -246,6 +254,7 @@ import {
   pathHoldKind,
   pathLifters,
   personWrote,
+  PIN_RE,
   readPathHolds,
   readStatuses,
   unblockStops,
@@ -968,22 +977,44 @@ function renderRefusal(fence, person, reason, head, label, since, partial, recor
 // The pin names the lane room's rung, C2 or C3, which the promotion-evidence
 // publisher credits, also when the merge lands as a native auto-merge that
 // owes the read-back no pin; any other rung leaves it unnamed (babysit_merge.py).
-export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
+// PIN_RE is merge-holds.mjs's, whose pinHold holds a queued head no pin names.
+export { PIN_RE };
 export const pinBody = (sha, rung) =>
-  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`.`;
+  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`, the head its arming checks judged.`;
+
+const pinLine = (comment) => String(comment?.body ?? "").split("\n", 1)[0].replace(/\r$/, "");
+// The lanes App's newest pin in `comments` (DETAIL_QUERY's), or undefined.
+const newestPin = (comments, bot) =>
+  (comments ?? [])
+    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && PIN_RE.test(pinLine(c)))
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .at(-1);
 
 // Whether the read-back would already read `head` from `comments`
 // (DETAIL_QUERY's) with `rung`: the lanes App's newest pin names both and is
 // unedited. The publisher credits the rung the newest pin names, so a pin at
 // another rung, or with none where one is due, is posted again.
 export function pinned(comments, bot, head, rung) {
-  const pin = (comments ?? [])
-    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && PIN_RE.test(String(c.body ?? "").split("\n", 1)[0].replace(/\r$/, "")))
-    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
-    .at(-1);
+  const pin = newestPin(comments, bot);
   if (pin === undefined || pin.lastEditedAt) return false;
-  const [, sha, pinRung = null] = PIN_RE.exec(String(pin.body).split("\n", 1)[0].replace(/\r$/, ""));
+  const [, sha, pinRung = null] = PIN_RE.exec(pinLine(pin));
   return sha === head && pinRung === (rung === "C2" || rung === "C3" ? rung : null);
+}
+
+// Why an armed pull request's arm no longer stands for `head`, or null. GitHub
+// checks expectedHeadOid only when the arm is made, and a push by an account
+// with write access leaves the arm on, so a head that moved since carries an
+// arm whose checks judged another head. Every arm this job makes posts its pin
+// first, so the lanes App's newest pin names the head the arm judged: one
+// naming another head, or edited, no longer stands. No pin at all means this
+// job never armed it, and this rule leaves it alone; a person's arm made after
+// an earlier pin of another head is disarmed too.
+export function pinMoved(comments, bot, head) {
+  const pin = newestPin(comments, bot);
+  if (pin === undefined) return null;
+  if (pin.lastEditedAt) return "its newest pin comment was edited, so the head its arm judged does not read";
+  const [, sha] = PIN_RE.exec(pinLine(pin));
+  return sha === head ? null : `its head moved from ${sha}, the head its arm judged, to ${head}`;
 }
 
 // The lanes App's newest comment in `comments` (DETAIL_QUERY's) whose first
@@ -1488,6 +1519,12 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   }
   if (detail === null) {
     return { action: "none", reason: "its discussion did not read" };
+  }
+  // Off at once, before any verifier read: the next reader run judges the new
+  // head and pins it before it arms again.
+  const moved = armed ? pinMoved(detail.comments?.nodes, bot, pull.headRefOid) : null;
+  if (moved !== null) {
+    return { action: "disarm", reason: moved };
   }
   // An unread config labels nothing: the next run reads it again.
   if (holdPaths === null) {

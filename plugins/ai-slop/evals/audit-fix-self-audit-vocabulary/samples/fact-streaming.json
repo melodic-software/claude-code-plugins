@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The exporter now uses a streaming writer that sends each row as soon as it is read, so a 2 GB table no longer has to fit in memory.",
+      "why": "keeps the streaming fact"
+    },
+    {
+      "answer": "The exporter now writes row by row, so a 2 GB table no longer has to fit in memory.",
+      "why": "keeps the streaming fact in other words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The exporter is faster, so a 2 GB table no longer has to fit in memory.",
+      "why": "drops the streaming fact"
+    }
+  ]
+}
