@@ -381,7 +381,7 @@ export function parsePlan(record) {
     goal: firstParagraph(text(BRIEF_HEADING, /^Goal$/)) || (goalLine ? GOAL_LINE.exec(goalLine.line)[1].trim() : ""),
     blast: blastOf(entries),
     brief: { problem: listed(/^Problem$/), constraints: listed(/^Constraints$/), outOfScope: listed(/^Out[- ]of[- ]scope$/i) },
-    behaviors: text(PLAN_HEADING, /^Behaviou?rs?$/)
+    behaviors: text(PLAN_HEADING, /^Behav(?:ior|iour)s?$/)
       .map((line) => BEHAVIOR.exec(line))
       .filter(Boolean)
       .map(([, id, claim, cites]) => ({ id, text: claim, cites: cites?.trim() ?? "" })),
