@@ -221,6 +221,14 @@ test("the retry count and delay are injectable", () => {
   assert.deepEqual(deps.sleeps, [5]);
 });
 
+test("a zip fetch keeps the short schedule: five tries, about 30 s, while a listing page gets the long one", () => {
+  const { publicLine, privateText } = generate();
+  const deps = fakeDeps([[artifact(42, { record: sealed(publicLine) })]], { failures: { "artifacts/42/zip": FOREVER } });
+  run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(zipCalls(deps, 42), 5);
+  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000]);
+});
+
 for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }], ["run-read", { "actions/runs/51": FOREVER }]]) {
   test(`a fetch failure (${kind}) past its retries is counted, the pull goes on, and the next pull fetches the artifact though it is behind the failed pull's overlap`, () => {
     const { publicLine, privateText } = generate();
@@ -294,8 +302,8 @@ test("a listing page that fails past its retries fails the pull and keeps the la
   assert.equal(result.code, 1);
   assert.match(result.err, /pull failed: artifact-list: gh exited 1/);
   assert.ok(!result.err.includes(MARKER));
-  assert.equal(deps.calls.filter((c) => c.endsWith("page=2")).length, 5);
-  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000], "the wait doubles, about 30 s before giving up");
+  assert.equal(deps.calls.filter((c) => c.endsWith("page=2")).length, 10);
+  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 300000], "the wait doubles to a 5 min cap, about 13.5 min before giving up");
   assert.equal(stateOf(sink).last_success_at, last);
 });
 
