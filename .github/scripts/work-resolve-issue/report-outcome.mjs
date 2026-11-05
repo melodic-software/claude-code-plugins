@@ -7,7 +7,9 @@
 //             section when the run's `remaining` names the parts of the
 //             issue it leaves for later work (a malformed list counts as
 //             none); the merge lane reads a plain `Refs:` issue as it reads
-//             a closing one. The title is the run's Conventional
+//             a closing one. Under that line go the `Refs:` and `Siblings:`
+//             lines the trusted issue's done-when asks the body to carry
+//             (linkageLines). The title is the run's Conventional
 //             Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
@@ -188,7 +190,7 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
-import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { OUTSIDE_ACTOR_LABEL, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
@@ -566,6 +568,35 @@ const quoted = (value) =>
     .split("\n")
     .map((line) => (line.trim() ? `> ${line.trimEnd()}` : ">"))
     .join("\n");
+
+// The linkage lines the issue's done-when asks the PR body to carry: each
+// task-list item that names the PR body and quotes, in a code span, a
+// `Refs: #<n>` or `Siblings: #<a>, #<b>` line in the form pr-verify and the
+// merge lane read (merge-holds.mjs refsIssue, resolve-pr.mjs siblingNumbers).
+// Built from the issue's text, never the run's, so the line keeps the ASCII
+// `#` that neutral() breaks in model text; main passes a body only when a
+// listed human or the lanes App wrote the issue. A Refs line naming the issue
+// itself is left out, since the body's first line already names it.
+const TASK_ITEM = /^ {0,3}[-*+] \[[ xX]\] (.*)$/;
+const PR_BODY = /\b(?:PR|pull request)(?:'s)? body\b/i;
+const LINKAGE = /`(Refs:[ \t]*#[1-9][0-9]{0,8}|Siblings:[ \t]*#[1-9][0-9]{0,8}(?:[ \t]*,[ \t]*#[1-9][0-9]{0,8}){0,9})[ \t]*`/g;
+export const MAX_LINKAGE = 10;
+export function linkageLines(body, issueNumber) {
+  const lines = new Set();
+  for (const line of visibleLines(body)) {
+    const item = TASK_ITEM.exec(line);
+    if (!item || !PR_BODY.test(item[1])) {
+      continue;
+    }
+    for (const [, quote] of item[1].matchAll(LINKAGE)) {
+      const text = quote.replace(/:[ \t]*/, ": ").replaceAll(/[ \t]*,[ \t]*/g, ", ");
+      if (text !== `Refs: #${issueNumber}`) {
+        lines.add(text);
+      }
+    }
+  }
+  return [...lines].slice(0, MAX_LINKAGE);
+}
 
 // One line per item, so an item cannot open a section of its own.
 const bullets = (items) =>
@@ -1298,6 +1329,7 @@ export function reusePlan({
   holdPaths = null,
   humanMerge = false,
   checks = null,
+  linkage = [],
 }) {
   const hold = mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused: true });
   const opened = `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report.`;
@@ -1316,6 +1348,7 @@ export function reusePlan({
       ];
   const body = [
     `Closes #${issueNumber}`,
+    ...linkage,
     "",
     ...(hold ? [HOLD_LINE, ""] : []),
     "## Summary",
@@ -1353,7 +1386,7 @@ export function reusePlan({
 // `turnCapRestarts` the restarts already made since a person last added
 // agent-ready. `checks` is readChecks' record for the branch's current tip;
 // null stops a done run. `unmarked` is the comment a pushback links
-// (unmarkedAnswer).
+// (unmarkedAnswer). `linkage` is linkageLines' list for the issue.
 export function decide({
   outcome,
   issueNumber,
@@ -1379,6 +1412,7 @@ export function decide({
   escalation = "",
   unmarked = null,
   collectRefused = false,
+  linkage = [],
 }) {
   outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
   // A run that never started left no outcome; its record names why.
@@ -1462,6 +1496,7 @@ export function decide({
       now,
       runId,
       checks,
+      linkage,
     });
     return plan.action === "open-pr" ? { ...plan, tip: checks.tip } : plan;
   }
@@ -1556,6 +1591,8 @@ export function decide({
   const gaps = outcome.notDone.map(({ what }) => what);
   const body = [
     refs ? `Refs: #${issueNumber}` : `Closes #${issueNumber}`,
+    // A second Refs number would make a Refs PR name no issue (refsIssue).
+    ...linkage.filter((line) => !(refs && line.startsWith("Refs:"))),
     ...(hold ? ["", HOLD_LINE] : []),
     "",
     "## Summary",
@@ -2466,6 +2503,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }), () => null)
         .catch(() => true));
     const listedHumans = () => readHumansOrNone(env.TRUSTED_ACTORS);
+    // Only an issue a listed human or the lanes App wrote supplies linkage
+    // lines; an unreadable trusted list supplies none.
+    const author = issue.user ?? {};
+    const trustedIssue = (author.type === "User" && listedHumans().has(author.id)) || (author.type === "Bot" && author.login === bot);
+    const linkage = trustedIssue ? linkageLines(issue.body, issueNumber) : [];
     const limits = readLimits(resolvedPath);
     // Only a turn cap with no outcome of the run's own reads the issue's history.
     const capped = !unreported && funding === null && turnCap !== null && outcome?.unread === true;
@@ -2500,6 +2542,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           holdPaths,
           humanMerge,
           checks,
+          linkage,
         })
       : decide({
           outcome,
@@ -2526,6 +2569,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           escalation,
           unmarked,
           collectRefused: env.COLLECT_REFUSED === "true",
+          linkage,
         });
     const lane = readLaneCredential(dir);
     plan = withCredential(plan, lane);
