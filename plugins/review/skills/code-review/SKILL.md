@@ -224,7 +224,8 @@ A `manifest <field>: flag` line is exempt from this bar: it counts as a finding 
 **Pre-existing defects.** A defect on an unchanged line that a changed line
 calls is reported when it already reproduces on the base branch, through a
 caller or input that existed before this change. Report it as an advisory
-finding in the summary comment: its `file:line` as a commit-blob permalink,
+finding in the summary comment, on a line starting with exactly
+`Pre-existing (advisory):`, then its `file:line` as a commit-blob permalink,
 the changed line that calls it, and that it predates this change. Post no
 inline comment for it, even where a hunk's context line could carry one, so
 it opens no thread and does not hold the merge; the PR author places it.

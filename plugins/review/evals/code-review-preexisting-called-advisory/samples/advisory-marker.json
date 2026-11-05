@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No blocking findings.\n\nPre-existing (advisory): src/names.js:2 formatName renders \"Ada undefined\" for a customer with no last name; called by src/report.js:5; predates this PR (src/profile.js already called it on main).",
+      "why": "the advisory line starts with the fixed marker a later sweep searches for"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No blocking findings.\n\nAdvisory (summary, no inline comment): src/names.js:2 formatName renders \"Ada undefined\" for a customer with no last name; it predates this PR.",
+      "why": "reports the advisory without the fixed marker, so the sweep cannot find it"
+    }
+  ]
+}
