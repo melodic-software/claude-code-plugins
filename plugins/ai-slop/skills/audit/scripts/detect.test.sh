@@ -787,10 +787,9 @@ assert_not_contains "threshold injection: a forged row reaches no path" "$out" "
 # the threshold scalar (cascade::scalar). The list, slug-map and phrase cases
 # reproduce on both platforms; the scalar case at the end discriminates on Linux
 # only, for the reason recorded there.
-CRLF_BIN="$TEST_TMPDIR/bin-crlf-jq"
-mkdir -p "$CRLF_BIN"
-REAL_JQ="$(command -v jq)"
-cat >"$CRLF_BIN/jq" <<EOF
+make_crlf_jq() { # make_crlf_jq <dir> <real jq>
+  mkdir -p "$1"
+  cat >"$1/jq" <<EOF
 #!/usr/bin/env bash
 # pipefail so a jq failure stays a failure: awk's exit status would otherwise
 # mask it, and the readers skip a refused layer only on jq's nonzero status.
@@ -798,14 +797,30 @@ set -o pipefail
 # A wrapper jq, such as a mise shim that cannot run its own jq, falls back to the
 # next jq on PATH, which is this shim: each level would start a bash and an awk
 # without end. Refuse the second entry instead.
-[[ -z "\${CRLF_JQ_SHIM:-}" ]] || { echo "crlf jq shim: re-entered through $REAL_JQ" >&2; exit 97; }
+[[ -z "\${CRLF_JQ_SHIM:-}" ]] || { echo "crlf jq shim: re-entered through $2" >&2; exit 97; }
 export CRLF_JQ_SHIM=1
-"$REAL_JQ" "\$@" | awk '{ printf "%s\r\n", \$0 }'
+"$2" "\$@" | awk '{ printf "%s\r\n", \$0 }'
 EOF
-chmod +x "$CRLF_BIN/jq"
-CRLF_JQ_SHIM=1 "$CRLF_BIN/jq" -n 1 >/dev/null 2>&1
+  chmod +x "$1/jq"
+}
+CRLF_BIN="$TEST_TMPDIR/bin-crlf-jq"
+make_crlf_jq "$CRLF_BIN" "$(command -v jq)"
+
+# A real jq that resolves jq through PATH, as a falling-back wrapper does, must
+# meet the refusal. Its own depth cap (exit 99) keeps a missing refusal bounded.
+LOOP_BIN="$TEST_TMPDIR/bin-loop-jq"
+mkdir -p "$LOOP_BIN"
+cat >"$LOOP_BIN/fallback-jq" <<'EOF'
+#!/usr/bin/env bash
+d=$((${FALLBACK_DEPTH:-0} + 1))
+[[ "$d" -lt 4 ]] || exit 99
+FALLBACK_DEPTH="$d" exec jq "$@"
+EOF
+chmod +x "$LOOP_BIN/fallback-jq"
+make_crlf_jq "$LOOP_BIN" "$LOOP_BIN/fallback-jq"
+PATH="$LOOP_BIN:$PATH" jq -n 1 >/dev/null 2>&1
 rc=$?
-assert_exit "crlf jq: the shim refuses to re-enter itself" 97 "$rc"
+assert_exit "crlf jq: a jq that resolves back to the shim is refused, not recursed into" 97 "$rc"
 
 # Pin the shim itself. Without this every case below is green on a Linux
 # runner whether or not the shim is ever selected — an unset exec bit or a
