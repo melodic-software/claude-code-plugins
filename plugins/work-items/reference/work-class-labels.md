@@ -22,6 +22,12 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 
 Transition: readers hold both `provenance: untrusted` and its legacy name `work-class: untrusted-provenance` until the label source drops the legacy one, and writers apply only `provenance: untrusted`.
 
+The legacy name, which is not a canonical member:
+
+| Label | Class | Description |
+|-------|-------|-------------|
+| `work-class: untrusted-provenance` | C5 | The legacy name of `provenance: untrusted`, with the same meaning. |
+
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -iE 'work-class|provenance:'`). An item carries **at most one**
 `work-class:` label; the frontier floor reads the label only, never a
