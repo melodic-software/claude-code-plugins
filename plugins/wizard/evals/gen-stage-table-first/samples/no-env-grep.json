@@ -49,6 +49,18 @@
         }
       ],
       "why": "-n, not -o"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\ngrep SMS_ .env",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ]
 }

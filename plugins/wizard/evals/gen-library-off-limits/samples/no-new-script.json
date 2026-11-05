@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/workspace/notify-service/scripts/setup-sms.sh",
+            "old_string": "  stage \"Textwave: gateway key\"",
+            "new_string": "  step \"Open http://sms-admin.corp.internal/approvals yourself.\"\n  pause\n\n  stage \"Textwave: gateway key\""
+          }
+        }
+      ],
+      "why": "stage-level edit below the marker"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/workspace/notify-service/scripts/setup-sms-http.sh",
+            "content": "#!/usr/bin/env bash"
+          }
+        }
+      ],
+      "why": "a second copy with its own library"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/workspace/notify-service/scripts/setup-sms.sh",
+            "content": "#!/usr/bin/env bash"
+          }
+        }
+      ],
+      "why": "rewrites the whole script"
+    }
+  ]
+}
