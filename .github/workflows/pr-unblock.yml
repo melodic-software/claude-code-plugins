@@ -87,6 +87,11 @@ on:
         required: false
         type: string
         default: ""
+      upstream-relay:
+        description: address-feedback from pr-feedback-dispatch.yml only; true when its upstream is a review-comment relay (a person's reply), so resolve-feedback-threads, with no thread to resolve, starts no job. Setting it can only skip that job.
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -1321,6 +1326,9 @@ jobs:
       # true when no hold and no unresolved thread is left on the head, so
       # report-stop-status clears a failing pr-unblock/address-feedback.
       stop-resolved: ${{ steps.select.outputs.stop-resolved }}
+      # true when a listed person opened the PR (resolve-threads.mjs
+      # ownerPull), for resolve-feedback-threads' gate.
+      person-opened: ${{ steps.select.outputs.person-opened }}
       threads-sha256: ${{ steps.select.outputs.threads-sha256 }}
       run-sha256: ${{ steps.select.outputs.run-sha256 }}
       # The artifact name's attempt, so a re-run of a later job alone still
@@ -2903,9 +2911,14 @@ jobs:
     # other threads may still hold its answers: an escalation (lane-stopped,
     # awaiting-human), finding-stands or no-model-turn. Never on any other
     # skip: a kill-switch stop ends publish-feedback green with no token, and
-    # nothing may run after it.
+    # nothing may run after it. Never on a PR no listed person opened, where
+    # the script resolves nothing (publish-feedback resolves a lanes App PR's
+    # threads itself), nor on a relayed person's reply, whose thread holds a
+    # person's comment the script leaves open: no runner, no mint.
     if: >-
       ${{ !cancelled() && needs.publish-feedback.result == 'success'
+      && needs.address-feedback-select.outputs.person-opened == 'true'
+      && inputs.upstream-relay != 'true'
       && (needs.publish-feedback.outputs.skip-reason == ''
       || needs.publish-feedback.outputs.skip-reason == 'lane-stopped'
       || needs.publish-feedback.outputs.skip-reason == 'awaiting-human'

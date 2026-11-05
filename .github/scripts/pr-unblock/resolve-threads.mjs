@@ -48,6 +48,7 @@ import {
   isVerifierRoot,
   laneOf,
   need,
+  ownerPull,
   positive,
   reviewerIdFrom,
   reviewerIdsFrom,
@@ -61,9 +62,6 @@ import { isResolvingAnswer } from "./publish-feedback.mjs";
 // The most comments one thread read holds (address-feedback.mjs THREADS_QUERY).
 const THREAD_COMMENT_CAP = 100;
 export const RESOLVES = Object.freeze(["answered", "outdated"]);
-
-// An owner PR: opened by a person on the base's trusted-actors list.
-export const ownerPull = (pull, trustedHumans) => pull?.user?.type === "User" && trustedHumans.has(pull.user.id);
 
 // One thread's verdict: `answered` or `outdated` (resolve it), else why it
 // stays open. `thread` is a listThreads node, `rows` its comments' REST rows

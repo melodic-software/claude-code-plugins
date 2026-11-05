@@ -8337,7 +8337,7 @@ test(`every caller of ${READ} runs no model, write token, push, comment or label
     }
     // Every upstream job succeeds and its gates proceed; a downstream helper
     // job (a handoff check) reports nothing, since no call ran.
-    const proceed = new Proxy({}, { get: (_, key) => (key === "proceed" ? "true" : key === "capped" ? "false" : "") });
+    const proceed = new Proxy({}, { get: (_, key) => (key === "proceed" || key === "person-opened" ? "true" : key === "capped" ? "false" : "") });
     const upstream = Object.keys(jobs).filter((id) => !downstream.has(id));
     // The first leg of each read chain is the one the stop hits. A later leg
     // that still starts (pr-unblock's subscription leg starts on its handoff
@@ -8791,8 +8791,15 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   assert.deepEqual(crossed.sort(), ["address-feedback-select.head-sha", "apply-feedback-patch.pushed-commit"]);
   // It runs on an acted round and on the reply script's own stops, which may
   // still have answered other threads; never on a kill-switch or gate skip.
+  // On a person's PR with no relayed upstream; workflow-gates.test.mjs holds
+  // those two skips.
   const runs = (result, skip) =>
-    evaluate(job.if.replace("!cancelled() && ", ""), { "needs.publish-feedback.result": result, "needs.publish-feedback.outputs.skip-reason": skip });
+    evaluate(job.if.replace("!cancelled() && ", ""), {
+      "needs.publish-feedback.result": result,
+      "needs.publish-feedback.outputs.skip-reason": skip,
+      "needs.address-feedback-select.outputs.person-opened": "true",
+      "inputs.upstream-relay": "",
+    });
   for (const skip of ["", "lane-stopped", "awaiting-human", "finding-stands", "no-model-turn"]) {
     assert.equal(runs("success", skip), true, `runs on skip ${JSON.stringify(skip)}`);
     assert.equal(runs("failure", skip), false, `not on a failed publish-feedback, skip ${JSON.stringify(skip)}`);
