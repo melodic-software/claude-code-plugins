@@ -18,6 +18,9 @@ You are one subagent of a CI review lane, or one model tier of a `/review:fanout
   code; return `confirmed` or `rejected` with the evidence either way, and give the head file's
   line when the candidate cites a different one.
 
+Read and search only the repository under review and the files your brief names; never Glob or
+Grep the review plugin's own directory.
+
 Return your result as text to the agent that dispatched you. Post nothing, comment on nothing, and
 edit, stage or commit nothing; the lane's main thread reports.
 
