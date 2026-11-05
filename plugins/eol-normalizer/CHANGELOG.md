@@ -3,6 +3,13 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.5] - 2026-11-05
+
+### Fixed
+
+- `setup check` tells the model to read each option value from the skill text, without restating how Claude Code renders it. Its Bash step cites the 3.2 floor from `hooks/hook-utils.sh` instead of the README.
+- `setup check` opens plugin files by the paths it names and never searches the plugin directory.
+
 ## [1.0.4] - 2026-11-04
 
 ### Fixed
