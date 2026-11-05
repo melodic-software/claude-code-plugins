@@ -47,8 +47,8 @@ than resolve. Carry the resolved mode and every rule that fired into the Phase 4
 ### Phase 2: Survey
 
 Run all patterns from [patterns.md](patterns.md) in parallel through the Grep tool with
-the patterns.md regexes, over the tracked tree: one Grep call per form in patterns.md,
-never one alternation or one token grep for all of them. The sweep is those Grep calls; reading files one by one is
+the patterns.md regexes, over the tracked tree, running every form's regex; one Grep may combine forms as long as
+every form's regex is in it, never one token grep for all of them. The sweep is those Grep calls; reading files one by one is
 not a sweep. Use Read only to confirm a Grep hit in context before classifying it. For each pattern:
 
 - Substitute `<old>` with actual old token (escape regex metacharacters)

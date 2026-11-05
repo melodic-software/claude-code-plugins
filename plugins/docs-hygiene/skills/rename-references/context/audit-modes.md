@@ -36,7 +36,7 @@ Override flags `--include-historical`, `--include-memory`, `--include-plan-docs`
 | `/docs-hygiene:rename-references audit blast <old>` | Single-token reverse mode: sweep without `<new>`; report still useful for pre-rename radius |
 | `/docs-hygiene:rename-references audit blast <old> to <new>` | Explicit pair |
 
-**Algorithm:** run the full pattern library from [patterns.md](patterns.md) via the Grep tool for match facts, one Grep call per form in patterns.md, then apply triage from [triage.md](triage.md). Phases 1–3 (Detect → Survey → Triage) follow [audit.md](audit.md). NO Edit phase. NO file artifact.
+**Algorithm:** run the full pattern library from [patterns.md](patterns.md) via the Grep tool for match facts, running every form's regex (one Grep may combine forms as long as every form's regex is in it), then apply triage from [triage.md](triage.md). Phases 1–3 (Detect → Survey → Triage) follow [audit.md](audit.md). NO Edit phase. NO file artifact.
 
 **Output format:** identical to audit.md "Phase 4: Report". Counts table + top-5 affected files + pattern-form breakdown. Inline only.
 
