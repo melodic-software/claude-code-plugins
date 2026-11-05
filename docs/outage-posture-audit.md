@@ -74,7 +74,7 @@ element 1, but only pr-merge uses it.
 |---|---|---|---|
 | 1 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2204`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201` | The shared client sends up to 3 attempts with full jitter, and a rate limit within 60 s is waited out, while a longer one fails the step (a notice under the hold opt-in). |
 | 2 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2245`, `.github/scripts/work-unblock/label-unblocked.mjs:2255` | A failed listing increments `failed`, and the run exits 1. |
-| 3 | gap | `.github/workflows/work-unblock.yml:33`, `.github/scripts/work-unblock/label-unblocked.mjs:195` | The workflow half is met: nothing re-arms the sweep, so the next cron or `workflow_run` sweep is the probe (see below). Breaker-trip records are still stored for each issue. |
+| 3 | gap | `.github/workflows/work-unblock.yml:33`, `.github/scripts/work-unblock/label-unblocked.mjs:195` | The workflow half is met: nothing re-arms the sweep, so the next cron or `workflow_run` sweep is the probe (see below). Breaker-trip records are kept for each issue: they bound model re-runs and gate no tick (still-open table, kept). |
 | 4 | met | `.github/scripts/work-unblock/label-unblocked.mjs:194`, `.github/scripts/work-unblock/label-unblocked.mjs:82` | The lane lifts its own refs-hold `needs-human` once the PR merges or closes, and infrastructure re-fires never file `needs-human`. |
 | 5 | met | `.github/workflows/work-unblock.yml:170` | The kill switch is the only pre-gate. No status-page step runs. |
 | 6 | met | `.github/workflows/work-unblock.yml:134`, `.github/scripts/work-unblock/label-unblocked.mjs:635` | `label-unblocked` keeps the default single pending run (see below). An `etag` is not applicable: no job state carries one between runs, and the closed listing's URL changes every run with its `since`. The cron at minute 47 is fine. |
@@ -455,9 +455,12 @@ babysit counts neutral as passing. A broker failure on pr-refine does not reach 
 `pull_request` the report job posts no check on it (`.github/workflows/pr-run-activity-read.yml`,
 `Choose the head the check is posted on`).
 
-One part of the work-unblock rows stays open, for the reason in the table:
+work-unblock's element 3 script row is kept on evidence:
 
-- **Element 3.** The breaker records are not redundant state. The sweep counts them to back a
+- **Element 3.** The breaker records are not redundant state, and they are no breaker that gates
+  the probe: they are the lane's own comments, read from GitHub on every sweep, and no tick waits
+  on them. Replacing them with another count read each run (refused run logs, or the App's
+  agent-ready re-adds) costs more calls or merges causes into one bound. The sweep counts them to back a
   kill-switch re-fire off past `limit-stops-per-issue`, which bounds re-fires that start a lane run
   and, at a mint, run the model again. `isRestart` reads them so the App's removal counts as a
   restart, and `backoff` uses them to keep a trip from raising another cause's wait.
@@ -501,7 +504,7 @@ The other script rows below are still open.
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
 | work-unblock | 2 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (a failed read for one issue still ends the run red); part 2 fixed the failed listings |
-| work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |
+| work-unblock | 3 | kept | `.github/scripts/work-unblock/label-unblocked.mjs` keeps its breaker-trip records: they are the lane's own comments, read from GitHub each run, and bound kill-switch re-fires that start a lane run or a model turn (see above); they gate no cron tick, so the next sweep is still the probe |
 | pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:180-186` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs` |
 | pr-refine | 1, 2, 4 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
 | pr-review, pr-review-security, pr-verify | 3 | kept | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` keeps its one-time re-run record, the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`), and its status-page idle, a stop element 5 allows |
