@@ -613,10 +613,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(sub.if, leg("true", "", "", "refine", "true")), true, "a skipped key goes straight to the subscription");
   assert.equal(evaluate(sub.if, leg("true", "", "", "size-decline", "true")), false);
   // The fallback leg runs after the subscription leg handed off or found its token empty.
-  const third = (refine, handoff, present = "true") => ({
+  const third = (refine, handoff, present = "true", ready = "true") => ({
     ...picked(refine),
     "needs.refine-issue-subscription.outputs.handoff": handoff,
     "needs.refine-issue-subscription.outputs.credential-present": present,
+    "needs.refine-issue-subscription.outputs.fallback-ready": ready,
   });
   assert.equal(evaluate(fallback.if, third("true", "true")), true);
   assert.equal(evaluate(fallback.if, third("true", "", "false")), true, "an empty subscription token hands to the fallback leg");
@@ -624,7 +625,8 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(fallback.if, third("true", "")), false);
   assert.equal(evaluate(fallback.if, third("true", "", "")), false, "a subscription leg that never checked its token hands nothing on");
   assert.equal(evaluate(fallback.if, third("false", "true")), false);
-  // An empty subscription token with the fallback token set ends the subscription leg green.
+  assert.equal(evaluate(fallback.if, third("true", "", "false", "false")), false, "with every token empty no fallback leg starts");
+  // An empty subscription token ends the subscription leg green: the fallback leg refines, or with no fallback token the leg ends with a notice.
   const failStep = sub.steps.find((s) => s.name === "Fail without a refinement");
   const fails = (present, ready) =>
     evaluate(failStep.if, {
@@ -635,7 +637,10 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
       "steps.credential.outputs.fallback-ready": ready,
     });
   assert.equal(fails("false", "true"), false);
-  assert.equal(fails("false", "false"), true, "no token at all fails");
+  assert.equal(fails("false", "false"), false, "every token empty ends with a notice");
+  assert.equal(fails("true", "true"), true, "a leg that ran and left nothing fails");
+  const credential = sub.steps.find((s) => s.id === "credential").run;
+  assert.match(credential, /::notice::INTAKE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs/);
   assert.equal(evaluate(sub.if, leg("true", "true", "true")), true);
   assert.equal(evaluate(sub.if, leg("true", "", "false")), true);
   assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);

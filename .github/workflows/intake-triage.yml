@@ -1241,6 +1241,7 @@ jobs:
       handoff: ${{ steps.run.outputs.handoff }}
       handoff-reason: ${{ steps.run.outputs.handoff-reason }}
       credential-present: ${{ steps.credential.outputs.present }}
+      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
       refined: ${{ steps.upload.outcome == 'success' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
@@ -1313,7 +1314,11 @@ jobs:
           FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           if [ "$PRESENT" != true ]; then
-            echo "::warning::INTAKE_CLAUDE_CODE_OAUTH_TOKEN is empty; refine-issue-fallback refines on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+            if [ "$FALLBACK_PRESENT" = true ]; then
+              echo "::warning::INTAKE_CLAUDE_CODE_OAUTH_TOKEN is empty; refine-issue-fallback refines on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+            else
+              echo "::notice::INTAKE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs"
+            fi
           fi
           echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
           echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
@@ -1562,13 +1567,14 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # A handoff, or an empty token with the fallback token set, hands the
-      # refinement on; any other run that passed the context check and
-      # uploaded nothing fails here.
+      # A handoff hands the refinement on, and an empty token either hands it
+      # to the fallback leg or, with no fallback token, ends with the notice
+      # above; any other run that passed the context check and uploaded
+      # nothing fails here.
       - name: Fail without a refinement
         if: >-
           always() && steps.context.outcome == 'success' && steps.upload.outcome != 'success' && steps.run.outputs.handoff != 'true'
-          && !(steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true')
+          && steps.credential.outputs.present != 'false'
         run: |
           echo "::error::the refinement left no output for this issue"
           exit 1
@@ -1593,6 +1599,7 @@ jobs:
     needs: [refine-select, refine-issue-subscription]
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
+      && needs.refine-issue-subscription.outputs.fallback-ready == 'true'
       && (needs.refine-issue-subscription.outputs.handoff == 'true' || needs.refine-issue-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30

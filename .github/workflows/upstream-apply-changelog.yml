@@ -620,6 +620,7 @@ jobs:
       handoff: ${{ steps.run.outputs.handoff }}
       handoff-reason: ${{ steps.run.outputs.handoff-reason }}
       credential-present: ${{ steps.credential.outputs.present }}
+      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
       lane-class: ${{ steps.run.outputs.lane-class }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
@@ -673,7 +674,11 @@ jobs:
           FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           if [ "$PRESENT" != true ]; then
-            echo "::warning::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN is empty; model-fallback runs the release on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+            if [ "$FALLBACK_PRESENT" = true ]; then
+              echo "::warning::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN is empty; model-fallback runs the release on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+            else
+              echo "::notice::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs"
+            fi
           fi
           echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
           echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
@@ -931,6 +936,7 @@ jobs:
     # its token empty.
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+      && needs.model-subscription.outputs.fallback-ready == 'true'
       && (needs.model-subscription.outputs.handoff == 'true' || needs.model-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -1441,6 +1447,7 @@ jobs:
     outputs:
       handoff: ${{ steps.probe.outputs.handoff }}
       credential-present: ${{ steps.credential.outputs.present }}
+      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1623,6 +1630,7 @@ jobs:
     needs: [gate, scrub-probe-subscription]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+      && needs.scrub-probe-subscription.outputs.fallback-ready == 'true'
       && (needs.scrub-probe-subscription.outputs.handoff == 'true' || needs.scrub-probe-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15

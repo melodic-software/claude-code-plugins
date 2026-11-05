@@ -568,15 +568,19 @@ test("the subscription leg runs after a key handoff, an empty key or a credit-ga
   assert.equal(runsSub({ "needs.model.outputs.handoff": "false" }), false);
   assert.equal(runsSub({ "needs.gate.outputs.proceed": "", "needs.gate.outputs.skip-key": "true" }), false);
   const fb = folded("model-fallback").replace("!cancelled() && ", "").replace("github.run_attempt == '1'", "true");
-  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.handoff": "true" }), true);
-  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.credential-present": "false" }), true, "an empty subscription token hands to the fallback leg");
+  const ready = { ...base, "needs.model-subscription.outputs.fallback-ready": "true" };
+  assert.equal(evalIf(fb, { ...ready, "needs.model-subscription.outputs.handoff": "true" }), true);
+  assert.equal(evalIf(fb, { ...ready, "needs.model-subscription.outputs.credential-present": "false" }), true, "an empty subscription token hands to the fallback leg");
+  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.credential-present": "false", "needs.model-subscription.outputs.fallback-ready": "false" }), false, "with every token empty no fallback leg starts");
+  assert.match(stepIn("model-subscription", "Check the credential"), /::notice::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs/);
   assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.handoff": "false" }), false);
   assert.equal(evalIf(fb, { ...base }), false, "a subscription leg that never checked its token hands nothing on");
   // The empty-token run counts toward the cap once, on the fallback leg.
   assert.equal(evalIf(startWrite("model-subscription"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
   assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.run.outcome": "success" })), true);
   const probeFb = folded("scrub-probe-fallback").replace("!cancelled() && ", "").replace("github.run_attempt == '1'", "true");
-  assert.equal(evalIf(probeFb, { ...base, "needs.scrub-probe-subscription.outputs.credential-present": "false" }), true, "the probe follows the same rule");
+  assert.equal(evalIf(probeFb, { ...base, "needs.scrub-probe-subscription.outputs.credential-present": "false", "needs.scrub-probe-subscription.outputs.fallback-ready": "true" }), true, "the probe follows the same rule");
+  assert.equal(evalIf(probeFb, { ...base, "needs.scrub-probe-subscription.outputs.credential-present": "false", "needs.scrub-probe-subscription.outputs.fallback-ready": "false" }), false);
   assert.match(jobOf("model-subscription"), /^ {4}needs: \[gate, model\]$/m);
   assert.match(jobOf("model-fallback"), /^ {4}needs: \[gate, model-subscription\]$/m);
   // One credential per leg, each passed to run-claude-cli alone.
