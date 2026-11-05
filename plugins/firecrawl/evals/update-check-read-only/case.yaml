@@ -9,7 +9,7 @@ graders:
     arm: 'with-only'
   - name: states-drift-verdict
     type: 'regex'
-    pattern: '\b(?:no drift|drift (?:detected|found)|unverifiable|could not (?:be )?(?:verified|reach(?:ed)?|read|fetch(?:ed)?)|upgrade available|at latest|upstream (?:unchanged|content changed))\b'
+    pattern: '\b(?:no drift|drift (?:detected|found)|unverifiable|(?:could not|couldn[''’]t) (?:(?:be )?(?:verified|reach(?:ed)?|read|fetch(?:ed)?)|run the drift check)|(?:cannot|can[''’]t|could not|couldn[''’]t) (?:say|tell|determine) (?:whether|if)\b[^.\n]{0,60}\bdrift(?:ed)?|upgrade available|at latest|upstream (?:unchanged|content changed))\b'
     flags: 'i'
     target: 'last_message'
   - name: no-npm-install
