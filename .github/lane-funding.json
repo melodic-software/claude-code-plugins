@@ -124,7 +124,7 @@
       "secretPrefix": "MAINTENANCE",
       "tokenSecret": "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN",
       "keySecret": "MAINTENANCE_CLAUDE_API_KEY",
-      "keyed": false,
+      "keyed": true,
       "category": "maintenance",
       "lanes": [
         { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
