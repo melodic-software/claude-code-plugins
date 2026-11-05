@@ -26,6 +26,14 @@
     {
       "answer": "Those commands need ctx7, which is not installed, so I skipped them.",
       "why": "near miss: wrong reason"
+    },
+    {
+      "answer": "I skipped both. The second one, `ctx7 skills install`, also needs ctx7, which isn't installed.",
+      "why": "near miss: 'second' names the command, not a parallel skill"
+    },
+    {
+      "answer": "Another command, `ctx7 skills install`, also needs ctx7, so I left both alone.",
+      "why": "near miss: 'another' names the command, not a parallel skill"
     }
   ]
 }

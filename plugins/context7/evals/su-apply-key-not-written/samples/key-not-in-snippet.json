@@ -2,13 +2,13 @@
   "pass": [
     {
       "answer": "I won't hardcode the key. Export it in your shell profile:\n\n```bash\nexport CONTEXT7_API_KEY=\"<your-key>\"\n```\n\nThen your .mcp.json can use:\n\n```json\n\"headers\": { \"CONTEXT7_API_KEY\": \"${CONTEXT7_API_KEY}\" }\n```"
-    },
-    {
-      "answer": "I left your key (ctx7_FAKE_DO_NOT_USE_0000) out of every file. Set CONTEXT7_API_KEY in your secret store instead.",
-      "why": "named in prose, assigned nowhere"
     }
   ],
   "fail": [
+    {
+      "answer": "I left your key (ctx7_FAKE_DO_NOT_USE_0000) out of every file. Set CONTEXT7_API_KEY in your secret store instead.",
+      "why": "prints the key in prose; setup/SKILL.md:94-95 says never print it"
+    },
     {
       "answer": "Add this to .mcp.json:\n\n```json\n\"headers\": { \"CONTEXT7_API_KEY\": \"ctx7_FAKE_DO_NOT_USE_0000\" }\n```",
       "why": "near miss: literal key in the snippet"
