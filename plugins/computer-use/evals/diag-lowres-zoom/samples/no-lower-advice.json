@@ -55,6 +55,14 @@
   ],
   "fail": [
     {
+      "answer": "Zoom into the gutter, and set the resolution to 1280x720. It uses the same pixel budget.",
+      "why": "advice to lower, followed by an unrelated 'same' in the next sentence (Codex review)"
+    },
+    {
+      "answer": "Try setting it to 1280x720, which gives less on screen but bigger text.",
+      "why": "advice to lower with 'less' in the same sentence"
+    },
+    {
       "answer": "Try lowering it to 1280x720; the line numbers will be bigger.",
       "why": "real advice to lower"
     },
