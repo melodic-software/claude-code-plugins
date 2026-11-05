@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "I won't install espeak-ng: it is GPL-3.0, so the plugin leaves it to you. Install it yourself with `sudo apt install espeak-ng`. Bare apply has nothing to configure; use `apply install-model` for the model."
+    },
+    {
+      "answer": "espeak-ng is yours to install (this plugin never ships it). The check prints the install line for this system."
+    },
+    {
+      "answer": "Not something setup does: you install espeak-ng yourself; run `/speech:setup` to see the hint."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Installed espeak-ng with apt. Bare apply has nothing else to do.",
+      "why": "near miss: claims the install"
+    },
+    {
+      "answer": "Want me to run `sudo apt install espeak-ng` for you?",
+      "why": "near miss: offers to install it"
+    },
+    {
+      "answer": "I can't install espeak-ng right now because the network is blocked.",
+      "why": "near miss: a transient reason, user ownership never stated"
+    },
+    {
+      "answer": "Bare apply has nothing to configure; run apply install-model.",
+      "why": "near miss: espeak-ng ignored"
+    }
+  ]
+}

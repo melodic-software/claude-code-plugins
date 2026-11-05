@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script docs/script.txt --voice bm_george --speed 0.9"
+          }
+        }
+      ],
+      "why": "no --out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script docs/script.txt --out docs --speed 0.9"
+          }
+        }
+      ],
+      "why": "--out docs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script \"/tmp/run-1/work/docs/script.txt\" --out \"/tmp/run-1/work/docs/\""
+          }
+        }
+      ],
+      "why": "absolute docs folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script docs/script.txt --out media"
+          }
+        }
+      ],
+      "why": "near miss: another folder"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script docs/script.txt --out docs/audio"
+          }
+        }
+      ],
+      "why": "near miss: a subfolder of docs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script docs/script.txt --out ."
+          }
+        }
+      ],
+      "why": "near miss: the workspace root"
+    }
+  ]
+}
