@@ -101,6 +101,18 @@
         }
       ],
       "why": "bare script argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\npwsh -File ./cycle-build-host.ps1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ]
 }

@@ -73,6 +73,18 @@
         }
       ],
       "why": "sourced"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\ncat .env",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ]
 }

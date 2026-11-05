@@ -15,7 +15,7 @@ graders:
   - name: no-shell-script
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:cp|install|mv)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\.sh\\?["\x27]?(?=\s*(?:[;&|)]|\\n|"))|>>?\s*\\?["\x27]?[^\s"\\]*\.sh\b|\btee\s+(?:-\S+\s+)*\\?["\x27]?[^\s"\\]*\.sh\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cp|install|mv)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\.sh\\?["\x27]?(?=\s*(?:[;&|)]|\\n|"))|>>?\s*\\?["\x27]?[^\s"\\]*\.sh\b|\btee\s+(?:-\S+\s+)*\\?["\x27]?[^\s"\\]*\.sh\b)'
     min: 0
     max: 0
     arm: 'both'
@@ -26,3 +26,14 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: gives-library-reason
+    type: regex
+    pattern: '\b(?:same|identical|unchanged)\b(?:[^.\n]|\.(?=\w)){0,60}\b(?:every|each|all)\b(?:[^.\n]|\.(?=\w)){0,20}\bwizards?\b|\bshared (?:library|helpers?)\b|\bfile://|\bUNC\b|\bfails? closed\b|/dev/tty\b|\bterminal[- ]only\b|\bhttps[- ]only\b(?:[^.\n]|\.(?=\w)){0,80}\b(?:on purpose|by design|protects?|guards?|blocks?|prevents?)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-library-edit-offer
+    type: regex
+    pattern: '\b(?:I(?:[''’]ll| will| can| could)|let me)\s+(?:\w+\s+){0,2}?(?:make|apply|do)\s+(?:the|those|these|both|that)\s+(?:\w+\s+)?(?:edits?|changes?|tweaks?)\b(?!(?:[^.\n]|\.(?=\w))*\b(?:stages?|below the (?:STAGES )?marker|STAGES block)\b)|\b(?:I(?:[''’]d| would) (?:suggest|recommend)|you could|we could|I(?:[''’]ll| will| can| could))\s+(?:\w+\s+){0,2}?(?:allow|allowing|allowlist|permit|permitting)\b(?:[^.\n]|\.(?=\w)){0,60}\bhttp\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message

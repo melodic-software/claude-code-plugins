@@ -21,7 +21,7 @@ graders:
   - name: ran-bash-n
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?\bbash\s+-n\s+\\?["\x27]?(?:[^\s"\\]*/)?setup-sms\.sh(?![\w.])'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))bash\s+-n\s+\\?["\x27]?(?:[^\s"\\]*/)?setup-sms\.sh(?![\w.])'
     min: 1
     arm: 'both'
   - name: trace-by-subagent
@@ -33,7 +33,7 @@ graders:
   - name: no-chmod
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?\bchmod\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\+x\b|[ugoa]*\+[rw]*x|\b[0-7]?[0-7]*[1357][0-7]{2}\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))chmod\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\+x\b|[ugoa]*\+[rw]*x|\b[0-7]?[0-7]*[1357][0-7]{2}\b)'
     min: 0
     max: 0
     arm: 'both'

@@ -35,6 +35,30 @@
         }
       ],
       "why": "quoted absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\nbash -n scripts/setup-sms.sh && shellcheck scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "T=/opt/plugins/wizard/skills/generate/template.sh\nhead -n 549 \"$T\" > scripts/setup-sms.sh\ncat >> scripts/setup-sms.sh <<'EOF'\nrun_wizard() {\n  TOTAL_STAGES=2\n}\nEOF\nbash -n scripts/setup-sms.sh && echo syntax ok; command -v shellcheck && shellcheck scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed call (smoke): bash -n after a heredoc in one multi-line command"
     }
   ],
   "fail": [

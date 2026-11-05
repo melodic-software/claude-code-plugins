@@ -23,6 +23,18 @@
         }
       ],
       "why": "cd chain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\npwsh -File ./retire-distro.ps1 -Test",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ],
   "fail": [

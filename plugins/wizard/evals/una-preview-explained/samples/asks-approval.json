@@ -27,6 +27,10 @@
     {
       "answer": "Confirm the STAGES block and I'll do the dry run.",
       "why": "confirm ... and I'll"
+    },
+    {
+      "answer": "## For you to do\n\n- **Approve the stages above.** Then I can run `pwsh -File retire-oldubuntu.ps1 -Test`, which changes nothing, and fix whatever it reports.",
+      "why": "observed reply (smoke): imperative bullet, period before 'Then I can'"
     }
   ],
   "fail": [
@@ -53,6 +57,14 @@
     {
       "answer": "Confirm-Irreversible makes you type the name; I read the result afterwards.",
       "why": "describes the script's own consent prompt"
+    },
+    {
+      "answer": "Approval is not needed for -WhatIf; run it yourself.",
+      "why": "noun at line start, no ask"
+    },
+    {
+      "answer": "**How you launch it**\n- Run `pwsh -File .\\configure-agent-host.ps1 -WhatIf` first.\n- Then run it for real, without `-WhatIf`.",
+      "why": "observed reply (smoke): launch steps with no approval request"
     }
   ]
 }

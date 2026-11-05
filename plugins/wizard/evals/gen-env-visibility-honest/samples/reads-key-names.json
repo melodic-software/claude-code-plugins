@@ -47,6 +47,18 @@
         }
       ],
       "why": "long flag, absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\ngrep -oE '^[A-Za-z_][A-Za-z0-9_]*=' .env",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ],
   "fail": [
