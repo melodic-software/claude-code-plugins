@@ -29,8 +29,8 @@
 //   parent's newest refinement asks questions no later `**Decision
 //   recorded.**` answers;
 // - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
-//   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
-//   work; no other work class gates admission (owner Q85, #9668);
+//   `uncertainty`, and the issue is not untrusted-provenance work
+//   (UNTRUSTED_LABELS); no other work class gates admission (owner Q85, #9668);
 // - 7: a `task-list` line outside a code fence, the criteria the lane
 //   checks, in text pr-verify will read (resolve-pr.mjs linkedIssues): the
 //   body or a comment written,
@@ -123,7 +123,7 @@ import { fileURLToPath } from "node:url";
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
-import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
@@ -212,8 +212,9 @@ export const EXTERNAL_STATE = "External state: ";
 // Refuse-labels that hold for a person; any other listed label is mechanical.
 const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
-// The one work class that holds an issue for a person (owner Q85, #9668).
-export const UNTRUSTED = "work-class: untrusted-provenance";
+// The one work class that holds an issue for a person (owner Q85, #9668);
+// any of UNTRUSTED_LABELS on an issue holds it the same way.
+export const UNTRUSTED = UNTRUSTED_LABEL;
 // Marks a standing item linked to a .github/recurring-schedule.json row.
 const RECURRING = "recurring";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
@@ -1195,14 +1196,18 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// Whether UNTRUSTED holds the issue: the label is on it, or its newest add or
-// removal of the label is a removal by neither a listed human (`humans`, ids)
-// nor the lanes App (`isApp(actor)`). Admission and the issue lane's gate
-// both judge provenance here. Pure.
+// Whether untrusted provenance holds the issue: one of UNTRUSTED_LABELS is on
+// it, or, for one of them, its newest add or removal is a removal by neither
+// a listed human (`humans`, ids) nor the lanes App (`isApp(actor)`). Each name
+// is judged on its own events, so a person's later change to one never lifts
+// a stranger's removal of the other. Admission and the issue lane's gate both
+// judge provenance here. Pure.
 export function untrustedHold({ labels, events, humans, isApp }) {
-  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
-  const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
-  return names(labels).includes(UNTRUSTED) || removedByOther;
+  const removedByOther = UNTRUSTED_LABELS.some((label) => {
+    const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === label).at(-1);
+    return newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
+  });
+  return names(labels).some((name) => UNTRUSTED_LABELS.includes(name)) || removedByOther;
 }
 
 // Whether the issue's author (`issue.user`) is one intake admits: a listed
@@ -2510,11 +2515,11 @@ export async function admissionFacts({ github, repository, number, issue, rules,
 export const DEFERRED_AHEAD_READS = 10;
 
 // Whether an older deferred issue waits only for room: it keeps status: ready
-// and carries no person's hold (DEFERRAL_HOLDS) or UNTRUSTED, the issues the
-// sweep keeps deferred for something other than room or drops. Pure.
+// and carries no person's hold (DEFERRAL_HOLDS) or UNTRUSTED_LABELS, the
+// issues the sweep keeps deferred for something other than room or drops. Pure.
 export const roomDeferred = (labels) => {
   const lower = names(labels).map((name) => String(name).toLowerCase());
-  return lower.includes(READY) && !lower.includes(UNTRUSTED) && !DEFERRAL_HOLDS.some((name) => lower.includes(name));
+  return lower.includes(READY) && !UNTRUSTED_LABELS.some((name) => lower.includes(name)) && !DEFERRAL_HOLDS.some((name) => lower.includes(name));
 };
 
 // Whether an open issue created before `issue` is deferred for room alone: it

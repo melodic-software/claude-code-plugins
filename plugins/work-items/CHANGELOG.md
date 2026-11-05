@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.3.1] - 2026-11-05
+
+### Fixed
+
+- break equal-priority ties oldest-first in /work-items:work
+
+  Tier 3 now picks the first candidate in priority-then-oldest order and
+  never one chosen over it on a judgment of impact, scope or type. The
+  "Select based on" hints let runs override oldest-first; a preregistered
+  pair on #9966 moved the equal-priority case from 0.6 to 1.0 with no
+  loss on the other three cases. Adds those four cases to the suite.
+
 ## [11.3.0] - 2026-11-05
 
 ### Changed
