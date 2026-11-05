@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Now\n1. /session-flow:orient: grounds where this repo stands.\n## Spotlight\n/session-flow:recall",
+      "why": "menu only"
+    },
+    {
+      "answer": "Now: /session-flow:workflow, skip it when the next stage is already clear.",
+      "why": "skip note, no labeled check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Skill: /session-flow:orient\nGoal: see where things stand\nPass/fail check: the briefing names the branch",
+      "why": "question-mode answer"
+    },
+    {
+      "answer": "- **Pass/fail check:** the menu renders",
+      "why": "bold bullet label"
+    }
+  ]
+}

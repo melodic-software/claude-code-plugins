@@ -55,7 +55,11 @@ session on another machine that is not on Remote Control). Lanes never mark a PR
 a PR claiming which session opened it never establishes that. Pushing a
 feature branch, opening a draft PR, and filing an issue in this repository need no confirmation;
 this repository is public, so check the diff before the first push, and every comment, for
-secrets and machine-specific data. Merging is a judgment, not a fixed stop: merge when the user or
+secrets and machine-specific data. New issue filing for a review summary's advisories is paused
+until open issues reach zero: list each under `## Follow-ups` in the PR body instead, each entry
+starting with `Pre-existing (advisory):` (the source-control plugin's `reference/review-discipline.md`
+D4.6); review threads keep their D4.6 route. When the pause lifts, one sweep searches merged PRs'
+bodies and review summaries for that marker and files each entry as an issue. Merging is a judgment, not a fixed stop: merge when the user or
 the task wants the work landed, `ci-status` is green on the current head, and no hold applies (the
 `do-not-merge` label, a hold in the body, or a human comment asking to wait). A body hold or wait
 comment stops the merge until the owner lifts it; the owner deciding the PR in their own words, in

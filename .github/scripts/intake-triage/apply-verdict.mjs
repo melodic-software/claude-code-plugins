@@ -26,8 +26,12 @@
 // verdict and is taken off only when the App's earlier verdict comment lists
 // no flag. One that listed a flag, or no App verdict comment at all (an issue
 // held before these comments), holds, and the new comment carries the flag or
-// the missing record forward. A held verdict writes that comment before its
-// labels and, when the comment write fails, adds no label and takes off only
+// the missing record forward, except that a listed human's `**Decision
+// recorded.**` written after that comment last changed answers its intent flag
+// (flagsAfterDecision); a security, cost or unrecorded flag stays. A
+// held verdict's comment names its owner reason as the stop-reason marker and
+// line (../lib/stop-reason.mjs), the strongest of its causes. A held verdict
+// writes that comment before its labels and, when the comment write fails, adds no label and takes off only
 // `status: ready`, so no hold lands without its record; needs-human, and
 // a hold the triage run (github-actions[bot], the reusable's escalation), a
 // person, or an unread setter set, holds. One exception: a needs-human or
@@ -94,7 +98,9 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { FIELD_API, statusMirror } from "../../actions/resolve-config/write-status.mjs";
@@ -133,6 +139,7 @@ const COST_CANONICAL = /^(\*\*)?cost( decided)?:\1 (.+)$/i;
 const NO_CHARGE = /^(?:none|n\/a|no charge|no cost)\.?$/i;
 const COST_LABEL = /^\W*costs?(?!-(?:benefit|effective)\b)\s*[:\u2014\u2013(-]/i;
 const COST_LABEL_TEXT = /^\W*costs?\s*(?:\([^)]*\))?\s*[:\u2014\u2013-]?\s*/i;
+const COST_PROBLEM = "a Cost line is not in the `Cost: ` / `Cost decided: ` form";
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 export const NEW_BASIS = "Basis: automated intake triage; the lanes App applied this class.";
@@ -243,7 +250,7 @@ export function parseVerdict(body, dimensionsConfig, classes) {
     }
   }
   if (costProblem) {
-    problems.push("a Cost line is not in the `Cost: ` / `Cost decided: ` form");
+    problems.push(COST_PROBLEM);
   }
   return { escalated, workClass, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
@@ -255,13 +262,22 @@ export function planWrites(
   { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {}, earlierFlags = [], triageLabels = [] },
 ) {
   const reasons = [...verdict.problems];
+  // The owner reason each hold cause is for (../lib/stop-reason.mjs); the
+  // strongest (admit.mjs HOLD_ORDER) names a held verdict's stop. A cause no
+  // owner reason names (an unreadable line, a field's setter, a person's
+  // hold label, an unrecorded earlier flag) fails closed as intent.
+  const codes = new Set(verdict.problems.map((problem) => (problem === COST_PROBLEM ? "cost" : "intent")));
   const add = [];
   const remove = [];
   if (verdict.escalated) {
+    // The reusable escalates only on text addressed to the run or a HIGH or
+    // CRITICAL security report (intake-triage.yml ESCALATION).
     reasons.push("the triage run escalated");
+    codes.add("security");
   }
   if (verdict.untrusted || labels.includes(UNTRUSTED)) {
     reasons.push(`${UNTRUSTED} work needs a person`);
+    codes.add("security");
   }
 
   let classApplied = false;
@@ -297,13 +313,16 @@ export function planWrites(
         dimensions[key] = options[String(current.option)] ?? null;
         if (dimensions[key] === null) {
           reasons.push(`${DIMENSIONS[key]} holds an option models.issue-dimensions does not map`);
+          codes.add("intent");
         }
       } else if (current && String(current.option) !== optionId && !isApp(current.setter, appId)) {
         reasons.push(`${DIMENSIONS[key]} was set to another value by someone other than a listed human or the lanes App`);
+        codes.add("intent");
       } else if (current && !isApp(current.setter, appId) && !humans.has(Number(current.setter))) {
         // The value matches, but the work lanes count it only when a listed
         // human or the lanes App set it (resolve-config dimensions.mjs).
         reasons.push(`${DIMENSIONS[key]} holds the verdict's value, but from a setter the work lanes do not count`);
+        codes.add("intent");
       } else if (!current || String(current.option) !== optionId) {
         fieldWrites.push({
           key,
@@ -316,6 +335,11 @@ export function planWrites(
   }
   if (verdict.flags?.length) {
     reasons.push(`flagged: ${verdict.flags.join(", ")}`);
+    verdict.flags.forEach((flag) => codes.add(flag));
+  }
+  // A `Cost: ` line names a charge an owner decides, whatever Flags reads.
+  if (verdict.cost) {
+    codes.add("cost");
   }
   // A status hold the lanes App set on an earlier run gives way to this
   // verdict only when the App's earlier verdict comment lists no flag
@@ -328,17 +352,21 @@ export function planWrites(
       earlierFlags === null || earlierFlags.length > 0
         ? []
         : holds.filter((label) => !PERSON_HOLDS.has(label) && isApp(holdSetters[label], appId));
-    const found = holds.filter((label) => !appHolds.includes(label)).map((label) => `held by ${label}`);
+    const kept = holds.filter((label) => !appHolds.includes(label));
+    const found = kept.map((label) => `held by ${label}`);
+    const holdCodes = kept.map((label) => (label === OUTSIDE_ACTOR_LABEL ? "security" : "intent"));
     // Carried into the comment, so a later clean verdict still reads the flag,
     // or still reads that no record says.
     const carried = holds.length > 0 ? (earlierFlags ?? []).filter((flag) => !verdict.flags?.includes(flag)) : [];
     if (carried.length > 0) {
       found.push(`flagged: ${carried.join(", ")} ${EARLIER}`);
+      holdCodes.push(...carried);
     }
     if (holds.length > 0 && earlierFlags === null) {
       found.push(UNRECORDED);
+      holdCodes.push("intent");
     }
-    return { appHolds, found };
+    return { appHolds, found, holdCodes };
   };
   const isReady = (found) => reasons.length + found.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
   // needs-human or status: needs-decision this run's triage applied on a
@@ -371,6 +399,7 @@ export function planWrites(
   }
   const { appHolds } = held;
   reasons.push(...held.found);
+  held.holdCodes.forEach((code) => codes.add(code));
 
   const ready = isReady([]);
   if (ready) {
@@ -389,10 +418,45 @@ export function planWrites(
   // The verdict is the triage, so the floor label goes after it, and a held
   // verdict's hold replaces a parked status: confirmed: one status stands.
   const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter((name) => labels.includes(name));
-  return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, dimensions, refused };
+  const reason = ready ? null : (strongestReason(codes) ?? "intent");
+  return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, reason, dimensions, refused };
 }
 
 export { earlierFlags, ownVerdict, UNRECORDED, VERDICT_MARKER };
+
+// The earlier verdict's flags (earlierFlags: a list, or null when unrecorded)
+// once a recorded decision is read. A listed human's `**Decision recorded.**`
+// comment (select-trusted-text isDecisionComment over `kept`, its
+// selectTrustedIssueComments items) written after the lanes App's verdict
+// comment (`own`) last changed answers the questions that verdict held for:
+// its carried intent flag no longer holds, and this run's own verdict says
+// what the decision leaves open. A carried security or cost flag stays (owner
+// Q4: a security flag reaches the owner; a charge clears only through a
+// `Cost decided: ` line), and so does an unrecorded one (null), which may have
+// been either. Pure.
+// The time is the newest intent raise the comment records (RAISED, written by
+// sayReasons, since an identical body is never re-written and so keeps an
+// older updated_at), else the comment's own updated_at.
+export function flagsAfterDecision(flags, own, kept, humans) {
+  const since = Date.parse(raisedAt(own?.body) ?? own?.updated_at);
+  const decided = Number.isFinite(since) && kept.some((item) => Date.parse(item.comment?.created_at) > since && isDecisionComment(item, humans));
+  return decided && flags !== null ? flags.filter((flag) => flag !== "intent") : flags;
+}
+
+// The hidden line recording when a verdict last raised the intent flag, and
+// its reader: the ISO time, or null when the body has none.
+const RAISED = "<!-- intake-triage intent-raised-at ";
+export function raisedAt(body) {
+  const line = String(body ?? "").split("\n").find((l) => l.startsWith(RAISED) && l.endsWith(" -->"));
+  return line ? line.slice(RAISED.length, -" -->".length) : null;
+}
+
+// The RAISED line for a held comment: this run's verdict time when its own
+// verdict flags intent, else the line the earlier comment carried, else none.
+export function raisedLine(verdictFlags, writtenAt, earlierBody) {
+  const at = verdictFlags?.includes("intent") ? writtenAt : raisedAt(earlierBody);
+  return Number.isFinite(Date.parse(at)) ? [`${RAISED}${at} -->`] : [];
+}
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
 // it has none.
@@ -521,6 +585,19 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
   const fields = await readFields(github, repository, number, fieldSetters);
   const { setters, triage } = await labelSetters(github, base, labels, startedAt);
+  // A carried flag holds only beside a hold label, and a decision answers only
+  // an intent flag, so the trusted comments are read only then. A failed read
+  // answers nothing: the earlier flags hold.
+  let flagsBefore = earlierFlags(comments, appId);
+  const own = ownVerdict(comments, appId);
+  if (own && labels.some((label) => HOLDS.has(label)) && flagsBefore?.includes("intent")) {
+    try {
+      const { kept } = await selectTrustedIssueComments({ github, repository, issueNumber: number, ids: humans });
+      flagsBefore = flagsAfterDecision(flagsBefore, own, kept, humans);
+    } catch (error) {
+      log(`apply-verdict: the recorded decisions on #${number} were not read (${String(error?.message ?? error)}); the earlier verdict's flags hold`);
+    }
+  }
   const planFor = (current) =>
     planWrites(verdict, {
       labels: current,
@@ -530,7 +607,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       humans,
       classSetters: setters,
       holdSetters: setters,
-      earlierFlags: earlierFlags(comments, appId),
+      earlierFlags: flagsBefore,
       triageLabels: triage,
     });
   let plan = planFor(labels);
@@ -603,7 +680,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const edgeForbidden = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
     try {
-      await sayReasons(github, repository, base, comments, appId, plan, admission, edgeForbidden);
+      await sayReasons(github, repository, base, comments, appId, plan, admission, edgeForbidden, raisedLine(verdict.flags, comment.updated_at, own?.body));
     } catch (error) {
       reasonsError = String(error?.message ?? error);
     }
@@ -822,7 +899,7 @@ const settled = (admission) =>
 // one admission moved or did not finish gets the record a later run reads.
 // A missing edge GitHub answered 403 for names the permission (refused); a
 // 429 or 5xx does not, since the sweep's re-run writes it.
-async function sayReasons(github, repository, base, comments, appId, plan, admission, refused) {
+async function sayReasons(github, repository, base, comments, appId, plan, admission, refused, raised = []) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
   if (plan.ready && !own && after === null && plan.refused.length === 0) {
@@ -845,6 +922,10 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
         `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`,
         "",
         ...plan.reasons.map((reason) => `- ${reason}`),
+        "",
+        // After the reason list, which earlierFlags reads line by line.
+        ...raised,
+        ...personReasonLines(INTAKE_LANE, plan.reason).toReversed(),
       ].join("\n");
   if (own?.body === body) {
     return;

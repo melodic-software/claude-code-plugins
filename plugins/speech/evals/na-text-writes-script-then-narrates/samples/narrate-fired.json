@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "speech:narrate"
+          }
+        }
+      ],
+      "why": "qualified"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "narrate"
+          }
+        }
+      ],
+      "why": "bare"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "speech:setup"
+          }
+        }
+      ],
+      "why": "near miss: the setup skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "explainer-video:produce"
+          }
+        }
+      ],
+      "why": "near miss: another plugin"
+    },
+    {
+      "answer": [],
+      "why": "no skill call"
+    }
+  ]
+}

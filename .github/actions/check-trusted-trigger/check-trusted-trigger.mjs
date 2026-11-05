@@ -47,14 +47,18 @@ const RECORD_MAX_PAGES = 10;
 // predictable name, so each forged one costs a run read (judgment).
 const RECORD_MAX_CANDIDATES = 20;
 const RECORD_MAX_SLEEPS = 24;
-// The lost-run reconciler re-runs a lane run once, on its first attempt, so
-// the attempt it starts is always the second.
+// The first re-run attempt. The lost-run reconciler re-runs most runs once,
+// on their first attempt, so the attempt it starts is the second.
 const RERUN_ATTEMPT = 2;
+// The highest attempt the reconciler records: it re-runs a passed checks run
+// whose spec changed again after its last recorded re-run (owner decision
+// Q-RERUN3), so it may record attempts 2 to this one.
+export const RECONCILER_ATTEMPT_CAP = 3;
 const RECONCILER_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 
-// The artifact the reconciler run uploads before it re-runs a lane run: the
-// run, the attempt the re-run starts, and the run's head SHA.
-export const rerunRecordName = (runId, headSha) => `reconcile-rerun-${runId}-${RERUN_ATTEMPT}-${headSha}`;
+// The artifact the reconciler run uploads before it re-runs a run: the run,
+// the attempt the re-run starts, and the run's head SHA.
+export const rerunRecordName = (runId, attempt, headSha) => `reconcile-rerun-${runId}-${attempt}-${headSha}`;
 
 // The artifact pr-feedback-dispatch.yml's rerun-ci-status job uploads just
 // before it re-runs a ci-status job: the run, the attempt the re-run starts,
@@ -67,8 +71,8 @@ export const ciStatusRerunRecordName = (runId, attempt, headSha) => `rerun-ci-st
 // may poll for minutes first, so its window runs from the record's upload.
 const reconcilerRecorder = (workflow) => ({
   workflow,
-  attempts: (attempt) => attempt === RERUN_ATTEMPT,
-  name: (runId, _attempt, headSha) => rerunRecordName(runId, headSha),
+  attempts: (attempt) => attempt >= RERUN_ATTEMPT && attempt <= RECONCILER_ATTEMPT_CAP,
+  name: rerunRecordName,
   started: (run, isListedHuman) => RECONCILER_EVENTS.has(run.event) && (run.event === "schedule" || isListedHuman(run.actor)),
   fromRecord: false,
 });
@@ -978,14 +982,15 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
 
 // A re-run github-actions[bot] started names no human, so it is trusted only
 // as the lost-run reconciler's re-run of runId, this run or the upstream run a
-// workflow_run event names: its attempt RERUN_ATTEMPT, started by
-// github-actions[bot], and an unexpired
-// rerunRecordName artifact, created no later than that attempt started, of a
+// workflow_run event names: its attempt RERUN_ATTEMPT to
+// RECONCILER_ATTEMPT_CAP, started by github-actions[bot], and an unexpired
+// rerunRecordName artifact naming that attempt, created no later than that attempt started, of a
 // reconcilerWorkflow run in this repository on the default branch, started by
 // its schedule or a listed human's dispatch, any re-run of it by a listed
 // human, its head SHA the default branch tip or behind it, and this attempt
 // started between that run's start and WINDOW_MS after it. A run id names one
-// run and its second attempt starts once, so a record vouches for one attempt.
+// run, each of its attempts starts once, and the record names the attempt, so
+// a record vouches for one attempt.
 // The reconciler uploads the record before it re-runs; one more read follows
 // RECORD_WAIT_MS for any lag in the artifact list. Every refusal is refuse:
 // untrusted-rerunner for this run, as for an unlisted re-runner, and
@@ -1106,8 +1111,10 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
 
 // Whether the lost-run reconciler's record vouches for its re-run of runId,
 // read at attempt RERUN_ATTEMPT by verifyRecordedRerun with the reconciler as
-// the only recorder: the rules the trigger check applies, unchanged. For a
-// workflow that records an attempt the reconciler's re-run causes
+// the only recorder: the rules the trigger check applies, unchanged. Only
+// attempt 2: the reconciler re-runs a hosted review once, as the merge gate
+// binds only that attempt. For a workflow that records an attempt the
+// reconciler's re-run causes
 // (pr-feedback-dispatch.yml rerun-ci-status, through reconciler-record.mjs).
 // Any refusal is false; an unexpected error throws.
 export async function reconcilerRecordVouches({ github, repository, defaultBranch, list, deniedIds, reconcilerWorkflow, runId, sleep = defaultSleep }) {

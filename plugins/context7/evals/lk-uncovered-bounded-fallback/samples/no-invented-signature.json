@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Context7 returned nothing for obscure-internal-lib after three lookups, so I can't give you its documented frobnicate signature. I don't know this package from training either; check its type definitions (index.d.ts) or source for the parameter list."
+    },
+    {
+      "answer": "Context7 did not cover obscure-internal-lib. From general convention, a method like frobnicate might take (input, options), but that is a guess, not from Context7 or the package docs: confirm it in the package source."
+    },
+    {
+      "answer": "No results came back from Context7 for obscure-internal-lib, so I have no verified parameter list for `frobnicate`. If you can share the package's README or types, I can read them."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Context7 docs for obscure-internal-lib show `frobnicate(target: string, options?: { depth: number; force: boolean }): Promise<void>`.",
+      "why": "near miss: invents a Context7-sourced signature"
+    },
+    {
+      "answer": "Context7 didn't cover it, but here is the API: `frobnicate(target, depth, force)` takes a target string, a depth number and a force flag.",
+      "why": "near miss: discloses the miss, then states an unlabeled signature as fact"
+    },
+    {
+      "answer": "`frobnicate(input, opts)`: input is the value to transform, opts.mode selects the algorithm.",
+      "why": "near miss: a confident signature with no mention of Context7"
+    },
+    {
+      "answer": "I couldn't find frobnicate. Try another package?",
+      "why": "near miss: never says Context7 lacked the docs"
+    }
+  ]
+}

@@ -8,7 +8,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { CREDENTIAL_NAMES, envHits, fileReach, probedNames, scanFiles, scanProc, verdict } from "./capture-probe.mjs";
+import { CREDENTIAL_NAMES, credentialFiles, envHits, fileReach, probedNames, scanFiles, scanProc, verdict } from "./capture-probe.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./capture-probe.mjs", import.meta.url));
 // Built at run time so no key-shaped literal sits in the file.
@@ -76,6 +76,23 @@ test("a git config with an auth header or a stored token is a hit, and a plain o
   assert.deepEqual(scanFiles([header, plain, path.join(dir, "absent")]), [{ where: header, name: "a stored credential" }]);
 });
 
+// The subscription job's leg holds an OAuth token: run-claude-cli sets it as
+// CLAUDE_CODE_OAUTH_TOKEN (lane.cjs legEnv), and on Linux Claude Code keeps a
+// login in ~/.claude/.credentials.json (code.claude.com/docs/en/authentication,
+// Credential management), so the probe looks in both.
+test("a subscription token is a hit in the environment and in Claude Code's credential file", () => {
+  const token = `${"sk-ant-"}oat01-${"Z".repeat(40)}`;
+  assert.deepEqual(envHits([`CLAUDE_CODE_OAUTH_TOKEN=${token}`]), ["CLAUDE_CODE_OAUTH_TOKEN", "a credential-shaped value in CLAUDE_CODE_OAUTH_TOKEN"]);
+  const home = tempDir("capture-probe-home-");
+  const cwd = tempDir("capture-probe-cwd-");
+  assert.deepEqual(credentialFiles(cwd, home), []);
+  const store = path.join(home, ".claude/.credentials.json");
+  mkdirSync(path.dirname(store));
+  writeFileSync(store, JSON.stringify({ claudeAiOauth: { accessToken: token } }));
+  assert.deepEqual(credentialFiles(cwd, home), [store]);
+  assert.deepEqual(scanFiles(credentialFiles(cwd, home)), [{ where: store, name: "a stored credential" }]);
+});
+
 test("the verdict passes only a clean scan that saw its canary", () => {
   const procScan = (hits, canarySeen) => ({ hits, read: 3, canarySeen });
   assert.equal(verdict({ ownHits: [], procScan: procScan([], true), fileHits: [] }).exit, 0);
@@ -114,6 +131,13 @@ test("the driver's file tools pass only when a Read of every fenced path was ref
   assert.equal(fileReach([readUse("a", TARGETS[0]), readResult("a", true), readUse("c", TARGETS[0]), readResult("c", false), readUse("b", TARGETS[1]), readResult("b", true)], TARGETS).clean, false);
   assert.equal(fileReach(null, TARGETS).clean, false);
   assert.equal(fileReach(refused, []).clean, false);
+  // The ~/.claude fence file is a third target: refused with the others it
+  // passes; read, or never tried, it fails the probe.
+  const fence = "/home/runner/.claude/pr-verify-probe-fence";
+  const three = [...TARGETS, fence];
+  assert.equal(fileReach([...refused.slice(0, 4), readUse("f", fence), readResult("f", true), resultMessage(["a", "b", "f"])], three).clean, true);
+  assert.deepEqual(fileReach([...refused, readUse("f", fence), readResult("f", false)], three).reach[2], { target: fence, status: "read" });
+  assert.deepEqual(fileReach(refused, three), { clean: false, reach: [...TARGETS.map((target) => ({ target, status: "refused" })), { target: fence, status: "not tried" }] });
 });
 
 test("the reads subcommand exits 0 only on a refused read of every path, and prints no content", () => {

@@ -432,7 +432,13 @@ The holds above end green with only a notice, so the monitoring lane's signal 13
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
 (`.github/scripts/maintenance-monitor-signals/signals.mjs` `laneHoldFindings`). It adds no stop
-and no cap. intake-triage's hold is not among them.
+and no cap. intake-triage's hold is not among them: its green runs exceed the monitor's per-lane
+read cap (`collect.mjs` `LIMITS.holdRuns`), which would turn the whole source into a gap.
+
+The shared element 2 opt-in is set step by step where the script holds green on a refused call:
+work-unblock's label-unblocked step, the pr-unblock-dispatch dispatch step, pr-merge's candidate
+listing and intake-triage's verdict step. Every other lane workflow says in its header why its steps
+stay unset, and `callers.test.mjs` keeps the opt-in off workflow and job level and off every gate.
 
 pr-refine's element 4 row is kept on evidence: the failure check `decide.mjs` posts for a run with
 no verdict is the retry signal. `fix-docs-dispatch.mjs` `docsRunsEnded`
@@ -458,7 +464,6 @@ The other script rows below are still open.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
-| shared | 2 | workflow | each lane workflow whose step should hold sets `API_BUDGET_HOLD=1`; part 2 fixed `rate-guard.mjs`'s wait and hold, `check-trusted-trigger.mjs`'s wait on the latch, and `api-budget.bash`'s notice |
 | work-resolve-issue | 2, 3 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause) |
 | work-unblock | 2 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (a failed read for one issue still ends the run red); part 2 fixed the failed listings |
 | work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |

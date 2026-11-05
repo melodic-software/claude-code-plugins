@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Now\na\n## Next\nb\n## Skipped upstream\ncannot ground upstream stages here\n## Later (4)\nc\n## Spotlight\nd",
+      "why": "headings"
+    },
+    {
+      "answer": "**Now**\na\n**Next**\nb\n**Skipped upstream**: empty\n**Later** (2): c\n**Spotlight**\nd",
+      "why": "bold labels"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Now\na\n## Next\nb\n## Skipped upstream\nc\n## Spotlight\nd",
+      "why": "Later missing"
+    },
+    {
+      "answer": "## Now\na\n## Next\nb\nI left out Skipped upstream and Later.\n## Spotlight\nd",
+      "why": "named only in a sentence"
+    },
+    {
+      "answer": "Now / Next / Skipped upstream / Later / Spotlight",
+      "why": "one line"
+    }
+  ]
+}

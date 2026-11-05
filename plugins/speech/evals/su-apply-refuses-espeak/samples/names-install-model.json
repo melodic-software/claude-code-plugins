@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Bare `apply` has nothing to configure; the one subaction is `apply install-model`.",
+      "why": "named"
+    },
+    {
+      "answer": "Run /speech:setup apply install-model to download the model.",
+      "why": "slash form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bare apply has nothing to configure. Run install-model to get the model.",
+      "why": "near miss: install-model without apply"
+    },
+    {
+      "answer": "apply has nothing to do here.",
+      "why": "near miss: no subaction named"
+    }
+  ]
+}

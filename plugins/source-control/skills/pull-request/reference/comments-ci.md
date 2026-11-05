@@ -30,17 +30,19 @@ The preamble names the tool's path. It is the only shell command this mode runs,
 - `check-paths <path>...` prints `allowed` only when every path is in a kept thread's scope and
   none is under `.github/workflows/`. Every path must be plain ASCII letters, digits and `_@+.-` in
   `/`-separated segments. A thread's scope is its path; a file in the `plugins/<p>/` directory its
-  path sits in, except an instruction path (listed below) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
-  `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`,
+  path or a `pr_paths` file sits in, or under any plugin's or skill's `evals/`, except an
+  instruction path (listed below); a test file (`test_*.py`,
   `*_test.py`, `*.test.*`, `*.spec.*`) in its path's directory; and each file in its
   `named_paths`: a file a trusted person
   with write access named in a fix request, in the same `plugins/<p>/` directory, existing at the
   gated head, and not an instruction path (`.gitmodules`, `CODEOWNERS`, a `settings*.json`,
   `package.json`, `package-lock.json` or `requirements*.txt`, at any depth). Every kept thread's
   scope also holds each file in the thread file's `pr_paths`, the files the pull request already
-  changes outside `.github/` and the agent-instruction surfaces, while the gated head holds it as
-  a regular file: a finding on one of the PR's files may be fixed in another. A file the fix would
-  create is never in `pr_paths`' part of the scope.
+  changes outside `.github/` and the agent-instruction surfaces outside `plugins/<p>/`, and each
+  file in its `copy_paths`, the registered shared copies of a canonical the pull request changes,
+  while the gated head holds it as a regular file: a finding on one of the PR's files may be fixed
+  in another, and a canonical's fix may regenerate its copies. A file the fix would create is never
+  in that part of the scope.
 - `notes` prints the pr-verify notes of an earlier FAIL, when the round is for one: `id`
   (`VNOTE_<n>`), `head` (the FAILed head), `path` and `body`, the verifier's summary and notes
   quoted as data. It prints `[]` in any other round. See [Earlier-FAIL notes](#earlier-fail-notes).

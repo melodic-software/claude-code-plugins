@@ -63,14 +63,16 @@ name: maintenance-reconcile-lost-runs
 #
 # pr-verify's and pr-review-main's trigger checks trust a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
-# reconcile-rerun-<run id>-2-<head sha> for each pr-verify or pr-review-main run it will re-run,
-# for each pr-require-checks run whose re-run makes its attempt 2 (pr-verify
-# runs after it), and for each hosted review run a kill switch or the
+# reconcile-rerun-<run id>-<attempt>-<head sha>, naming the attempt the re-run starts, for each
+# pr-verify or pr-review-main run it will re-run, for each pr-require-checks run whose
+# re-run makes its attempt 2, or attempt 3 when a spec changed again after a
+# recorded re-run's pass (pr-verify runs after it; the cap is
+# RECONCILER_ATTEMPT_CAP in check-trusted-trigger.mjs), and for each hosted review run a kill switch or the
 # upstream-status gate stopped, the upload steps below write them, and only then
 # does the act step re-run those runs. That no other run can upload into this run's artifacts is
 # UNVERIFIED: GitHub does not document that it scopes the runtime upload token
 # to its own run, and the REST API has no endpoint that creates an artifact.
-# A forged record still needs a github-actions[bot] attempt-2 re-run of the
+# A forged record still needs a github-actions[bot] re-run, at the attempt it names, of the
 # lane, and the check's actor checks still apply
 # (.github/actions/check-trusted-trigger/README.md).
 #

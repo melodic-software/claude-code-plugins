@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Use /session-flow:find-handoff with no arguments.",
+      "why": "names one skill"
+    },
+    {
+      "answer": "Skill: `/session-flow:orient`\nArguments: none",
+      "why": "in code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Find the handoff file and read it.",
+      "why": "no skill named"
+    },
+    {
+      "answer": "Use session-flow to find it.",
+      "why": "plugin name only"
+    }
+  ]
+}
