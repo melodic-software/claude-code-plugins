@@ -120,7 +120,7 @@ IDS="$(frontier_ids false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
 assert_eq "explicit container label excludes the remap, not the stale default" \
   "github:o/r#1,github:o/r#10" "$IDS"
 
-# The autonomous frontier drops only the untrusted-provenance work class, EVEN WHEN
+# The autonomous frontier drops the legacy untrusted-provenance work class, EVEN WHEN
 # the item also carries the autonomous-eligible role label. A structural item and
 # an item with no class stay listed: work class is not an admission gate.
 WORK_CLASS='{
@@ -143,6 +143,18 @@ assert_eq "autonomous frontier lists structural and unclassified agent-ready ite
 IDS="$(frontier_ids false <<<"$WORK_CLASS")"
 assert_eq "default frontier still surfaces untrusted-provenance for the attended lane" \
   "github:o/r#1,github:o/r#2,github:o/r#3,github:o/r#4,github:o/r#5,github:o/r#12" "$IDS"
+
+# provenance: untrusted floors an item the same way, EVEN WHEN it carries the
+# autonomous-eligible role label, and the attended lane still sees it.
+UNTRUSTED='{"schema_version":"1.0","items":[
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
+  {"id":"github:o/r#13","state":"open","assignees":[],"labels":["agent-ready","provenance: untrusted"],"blocked_by_count":0}]}'
+IDS="$(frontier_ids true <<<"$UNTRUSTED")"
+assert_eq "autonomous frontier drops provenance: untrusted even when agent-ready" \
+  "github:o/r#1" "$IDS"
+IDS="$(frontier_ids false <<<"$UNTRUSTED")"
+assert_eq "default frontier still surfaces a provenance: untrusted item" \
+  "github:o/r#1,github:o/r#13" "$IDS"
 
 # A signal-filed item is C5 by rule: the provenance label floors it whatever its
 # work-class label says, and the attended lane still sees it.
@@ -179,7 +191,7 @@ assert_eq "C3 scoped is not floored by the frontier" "1" "$COUNT"
 # Exact-match, not substring: a label that merely CONTAINS a floor member's text
 # is a different label and must not be floored.
 NEARMISS='{"schema_version":"1.0","items":[
-  {"id":"github:o/r#8","state":"open","assignees":[],"labels":["work-class: untrusted-provenance-lite"],"blocked_by_count":0}]}'
+  {"id":"github:o/r#8","state":"open","assignees":[],"labels":["provenance: untrusted-lite"],"blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$NEARMISS")"
 assert_eq "floor matching is exact, not substring" "1" "$COUNT"
 

@@ -80,7 +80,7 @@
     {
       "name": "attend-queue-flip-needs-no-work-class",
       "prompt": "/work-items:attend-queue\n\nTwo [escalated] issues carry needs-human and status:ready, each with an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #4400 has no work-class: label. #4401 carries work-class: structural. This session's standing direction forbids writing work-class: labels. For each, the operator's answer removes the human blocker.",
-      "expected_output": "Works the rows one at a time. For each, after the claim, the restatement and the operator's answer, it applies the autonomous-eligible role label and removes the human-gated role label in one edit, while the claim is held. The missing class on #4400 and work-class: structural on #4401 do not block the flip: it neither stamps nor asks for a work-class: label first, and it does not ask to reclassify #4401. It writes no work-class: label. Only work-class: untrusted-provenance or provenance: signal would have blocked the plain flip.",
+      "expected_output": "Works the rows one at a time. For each, after the claim, the restatement and the operator's answer, it applies the autonomous-eligible role label and removes the human-gated role label in one edit, while the claim is held. The missing class on #4400 and work-class: structural on #4401 do not block the flip: it neither stamps nor asks for a work-class: label first, and it does not ask to reclassify #4401. It writes no work-class: label. Only provenance: untrusted or provenance: signal would have blocked the plain flip.",
       "files": [],
       "expectations": [
         "Flips #4400 to the autonomous-eligible role without a work-class: label",

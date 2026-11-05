@@ -47,8 +47,8 @@ transition_gap() {
     printf 'transition still names work-class: structural'
     return
   fi
-  if ! grep -qF 'work-class: untrusted-provenance' <<<"$region"; then
-    printf 'transition does not name work-class: untrusted-provenance'
+  if ! grep -qF 'provenance: untrusted' <<<"$region"; then
+    printf 'transition does not name provenance: untrusted'
     return
   fi
   if ! grep -qiE 'reclassif' <<<"$region"; then
@@ -105,23 +105,23 @@ assert_flags 'floor classes named outside the transition' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label and remove the human-gated
   role label in the same edit.
 
-`work-class: untrusted-provenance` is human-gated; reclassify it.'
+`provenance: untrusted` is human-gated; reclassify it.'
 
 assert_flags 'a transition naming untrusted provenance with no reclassify branch' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label unless the item carries
-  `work-class: untrusted-provenance`, in which case leave the human-gated role label in place.'
+  `provenance: untrusted`, in which case leave the human-gated role label in place.'
 
 assert_flags 'a transition that still gates on work-class: structural' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label and remove the human-gated
   role label in the same edit.
-- **Human-floor work class.** `work-class: structural` (C4) and `work-class: untrusted-provenance`
+- **Human-floor work class.** `work-class: structural` (C4) and `provenance: untrusted`
   (C5) stay human-gated: reclassify to C1-C3 in the same edit as the flip, or leave the
   human-gated role label in place so the attended view keeps listing the item.'
 
 assert_accepts 'a floor-aware two-branch transition' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label and remove the human-gated
   role label in the same edit. Only untrusted provenance blocks it.
-- **Untrusted provenance.** `work-class: untrusted-provenance` (C5) stays human-gated: reclassify
+- **Untrusted provenance.** `provenance: untrusted` (C5) stays human-gated: reclassify
   it in the same edit as the flip, or leave the human-gated role label in place so the attended
   view keeps listing the item.'
 

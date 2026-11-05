@@ -3,8 +3,9 @@
 Canonical `work-class:` axis members, which triage stamps as a record of an item's risk class.
 Admission, the merge step and the issue lane's stop routing decide nothing by `read-only`,
 `mechanical`, `scoped` or `structural`, or by a missing class. Of the class and provenance labels,
-only `work-class: untrusted-provenance` and `provenance: signal` hold an item for a person, as a
+only `provenance: untrusted` and `provenance: signal` hold an item for a person, as a
 provenance hold.
+Readers hold both `provenance: untrusted` and its legacy name `work-class: untrusted-provenance` until the label source drops the legacy one; writers apply only `provenance: untrusted`.
 Classification criteria (the risk-property bundles behind C1–C5) live in the `autonomy`
 plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md);
 this leaf owns the **label strings** triage stamps and setup migrates.
@@ -17,7 +18,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 | `work-class: mechanical` | C2 | Deterministic, trivially reversible maintenance: dependency bumps, lint/format, sync. |
 | `work-class: scoped` | C3 | A briefed fix or small feature; blast radius bounded by the brief, tests exist. |
 | `work-class: structural` | C4 | Refactors, migrations, contract changes; cross-cutting and hard to reverse. |
-| `work-class: untrusted-provenance` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labeled `provenance: signal`); isolated, human-merged. |
+| `provenance: untrusted` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labeled `provenance: signal`); isolated, human-merged. |
 
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -i work-class`). An item carries **at most one**
@@ -48,7 +49,7 @@ only when the lane's launch prompt explicitly opts the sweep into writing it.
 
 ## The human-floor class excludes the autonomous-eligible role label
 
-`work-class: untrusted-provenance` (C5), and the `provenance: signal` label, are human-gated
+`provenance: untrusted` (C5), and the `provenance: signal` label, are human-gated
 **regardless of any other signal** ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md)
 "Admission gate", which binds whether or not the `autonomy` plugin is enabled). No other class
 floors an item, and neither does a missing class. The autonomous-eligible role label
@@ -63,7 +64,7 @@ Enforcement, so the rule is not merely written down:
   the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` and
   `WIT_HUMAN_FLOOR_PROVENANCE_LABELS` in
   [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh), so a
-  `provenance: signal` item is dropped whatever its `work-class:` label).
+  `provenance: untrusted` or `provenance: signal` item is dropped whatever its `work-class:` label).
   Without that exclusion the contradictory item stays frontier-available, so each lane
   instance in turn claims it, hits the admission gate's provenance hold, and escalates, burning a
   worker every pass while the item never moves.
@@ -92,7 +93,7 @@ attended lane carrying the autonomous-eligible role label alone.
 ## Migration
 
 Triage applies `agent-ready` with or without a `work-class:` label, so a missing member does not
-stop an autonomous-eligible outcome. Triage needs `work-class: untrusted-provenance` before it
+stop an autonomous-eligible outcome. Triage needs `provenance: untrusted` before it
 labels a signal-marked item, and a member before it stamps that member.
 
 1. **Label-as-code owner declared.** Route provisioning to that system; `/work-items:setup`

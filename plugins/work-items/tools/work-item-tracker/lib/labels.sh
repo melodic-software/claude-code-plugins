@@ -25,16 +25,17 @@ readonly WIT_WAYFIND_LABEL_PREFIX="wayfind:"
 
 # Human-floor work class: human-gated even beside the autonomous-eligible label
 # (reference/work-class-labels.md). Fixed string; the work-class axis has no binding key.
-# Only untrusted provenance floors an item; every other class, and no class, is admissible.
+# No work class floors an item any more; this array holds only the legacy name of the
+# untrusted-provenance marker, read until the label source drops it.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_WORK_CLASS_LABELS=(
-  "work-class: untrusted-provenance"
+  "work-class: untrusted-provenance" # legacy name of provenance: untrusted
 )
 
-# The human floor holds provenance labels as well as work classes: an item filed
-# from a signal is C5 whatever its work-class label says.
+# The human floor holds provenance labels as well as work classes: an item marked
+# untrusted, or filed from a signal, is C5 whatever its work-class label says.
 # shellcheck disable=SC2034
-readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=("provenance: signal")
+readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=("provenance: untrusted" "provenance: signal")
 
 # An item waiting on an owner decision, on information or on a spec is not
 # workable by an autonomous lane, whatever else it carries. Fixed strings, no

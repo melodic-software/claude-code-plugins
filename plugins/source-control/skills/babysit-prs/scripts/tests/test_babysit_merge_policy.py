@@ -2604,6 +2604,7 @@ class Eligibility(unittest.TestCase):
         # The trust hold stays (owner decision, option a), in any case or
         # whitespace, beside any other label.
         for label in (
+            "provenance: untrusted",
             "work-class: untrusted-provenance",
             "Work-Class: Untrusted-Provenance",
             " work-class: untrusted-provenance ",
@@ -2833,7 +2834,7 @@ class EligibilityAgentSignals(unittest.TestCase):
         gh = eligibility_fake(self)
         gh.rest[self.TIMELINE].append(
             self.unlabeled(
-                "work-class: untrusted-provenance", {"login": OPERATOR, "type": "User"}
+                "provenance: untrusted", {"login": OPERATOR, "type": "User"}
             )
         )
         self.assertTrue(eligibility().eligible)
@@ -4412,7 +4413,7 @@ class Assess(unittest.TestCase):
                 ([], None),
                 (["work-class: structural"], None),
                 (
-                    ["work-class: untrusted-provenance"],
+                    ["provenance: untrusted"],
                     "ineligible:untrusted-provenance",
                 ),
             ):
@@ -4444,7 +4445,7 @@ class Assess(unittest.TestCase):
             "repository": {"nameWithOwner": REPO},
             "labels": {
                 "totalCount": 1,
-                "nodes": [{"name": "work-class: untrusted-provenance"}],
+                "nodes": [{"name": "provenance: untrusted"}],
             },
         }
         gh.graphql["PolicyEligibility"] = {
@@ -5212,7 +5213,7 @@ class LaneEligibility(unittest.TestCase):
 
     def test_an_issue_labeled_untrusted_refuses_in_any_spelling(self) -> None:
         for label in (
-            "work-class: untrusted-provenance",
+            "provenance: untrusted",
             "Work-Class: Untrusted_Provenance",
             "untrusted",
         ):
@@ -5240,7 +5241,7 @@ class LaneEligibility(unittest.TestCase):
         def unlabeled(actor: dict[str, str], via: Any = None) -> dict[str, Any]:
             return {
                 "event": "unlabeled",
-                "label": {"name": "work-class: untrusted-provenance"},
+                "label": {"name": "provenance: untrusted"},
                 "actor": actor,
                 "performed_via_github_app": via,
             }
@@ -5690,7 +5691,7 @@ class RefsIssueEligibility(unittest.TestCase):
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.issue, ISSUE)
         gh.graphql["PolicyRefsIssue"] = refs_answer(
-            refs_issue("work-class: untrusted-provenance")
+            refs_issue("provenance: untrusted")
         )
         self.assertEqual(eligibility().reason, "untrusted-provenance")
 

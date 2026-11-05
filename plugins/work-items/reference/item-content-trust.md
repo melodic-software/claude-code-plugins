@@ -83,7 +83,7 @@ These are instances of the rule above, not separate rules:
   because any commenter can paste a marker prefix. Which authors an escalation marker counts from
   is defined once, in [`escalation-marker.md`](escalation-marker.md#trusted-escalation-authors).
 - **The untrusted-provenance floor**: read from the provider-permissioned
-  `work-class: untrusted-provenance` label, never from a `Work-class: C<n>` body trailer, which any
+  `provenance: untrusted` label, never from a `Work-class: C<n>` body trailer, which any
   item author can write about their own item ([`work-class-labels.md`](work-class-labels.md)). No
   merge step decides by any other class.
 - **Capability-tier label**: `work-loop`'s frontier-tier quota guard reads
