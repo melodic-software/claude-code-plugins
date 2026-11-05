@@ -54,6 +54,8 @@ they require and how they resolve things.
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 The format pass (the batch row and the pre-commit rewrite) and the lint pass (the pre-commit
 ShellCheck findings) are independent; report each separately.
@@ -63,10 +65,10 @@ INFO. The hook exits through its enabled-gate before probing anything, so a deli
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
 2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
    `node hooks/exec-bash.mjs`, so without `node` the hook does not launch and no shell edit is
-   formatted in the session (README Requirements).
+   formatted in the session (`${CLAUDE_PLUGIN_ROOT}/README.md` Requirements).
 3. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch row does nothing, since it
    reads the file paths with `jq`, and the pre-commit rewrite is skipped.
 4. **`shellcheck`** (lint pass). The pre-computed `shellcheck` row. FAIL if absent: the pre-commit
@@ -78,7 +80,7 @@ restores the FAIL semantics.
    - not opted in → INFO regardless of `shfmt`: the format pass stays quiet by design (the
      repo chose not to format), so a missing `shfmt` is not a defect here.
 6. **`.editorconfig` shell opt-in.** Mirror the hook's opt-in logic
-   (`shfmt_governed` / `section_applies_to_shell` in `git-hooks/shfmt-rewrite.sh`), not merely "does an
+   (`shfmt_governed` / `section_applies_to_shell` in `${CLAUDE_PLUGIN_ROOT}/git-hooks/shfmt-rewrite.sh`), not merely "does an
    `.editorconfig` exist". The opt-in is an EditorConfig **section that names shell files**:
    a shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]` (including path-prefixed
    forms like `[**/*.sh]`), discovered by walking up from the file's directory to the repo
@@ -116,14 +118,14 @@ restores the FAIL semantics.
     repository gitignores (`git check-ignore`) is silently skipped: no lint, no format, no
     notice. A tracked file that matches an ignore pattern stays in scope, and when git cannot
     decide (git absent, no repository, an error) the hook acts as before
-    (`hook::gitignored_out_of_scope` in `hooks/hook-utils.sh`). Report the item 8 value
+    (`hook::gitignored_out_of_scope` in `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`). Report the item 8 value
     beside this.
 12. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
     from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
     INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
     FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
     installed entry cannot run here: list every such tool with its install method from the
-    plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
     auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 When every probe passes, report the result **with the scope caveats** (items 10 and 11).
@@ -234,8 +236,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - **`ENAMETOOLONG` when grepping the plugin cache.** Installed plugins run from a
   deeply nested, cache-isolated path. Piping a `grep`/`rg` over the long absolute
   path to `hooks/hook-utils.sh` (or another bundled file) can spawn-fail with
-  `ENAMETOOLONG` on some hosts. Read the file directly (or `cd` into the plugin
-  hooks dir first and grep a short relative path) rather than passing the full
+  `ENAMETOOLONG` on some hosts. Read the file directly rather than passing the full
   cache path on the command line.
 - **`check` PASS ≠ every shell edit is covered.** When `CLAUDE_PROJECT_DIR` is set
   the hook is project-scoped (probe 10): shell files written outside it are silently
