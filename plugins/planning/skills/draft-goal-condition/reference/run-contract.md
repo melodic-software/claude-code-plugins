@@ -21,5 +21,6 @@ Emitted beside the condition when Step 0.5 ran. One line each:
 - **Pre-granted permissions**: what the run would otherwise stop to ask for, each granted in
   settings or the permission mode before launch, never by a line in the prompt. For how goal turns
   get permission, see the SKILL.md gotcha on a goal whose check is a shell command.
-- **Dead end**: the write-up from Step 2's stall rule, with what was tried and what blocked it.
+- **Dead end**: where the run writes up a dead end under Step 2's stall rule (what was tried and
+  what blocked each attempt) before handing the decision to the user.
 - **Readiness**: each condition with its evidence, and any "no" left open.
