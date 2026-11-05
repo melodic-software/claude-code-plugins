@@ -1,7 +1,8 @@
-name: eval-hill-climb
+name: maintenance-measure-skill-edit
 
 # Measures one proposed edit to one skill against the skill as merged, on a
-# listed human's dispatch (#12035; plan: the #6405 comment
+# listed human's dispatch, and opens a draft pull request when it wins (#12035;
+# plan: the #6405 comment
 # https://github.com/melodic-software/claude-code-plugins/issues/6405#issuecomment-6625292188):
 #
 #   gate      no spend: a listed human on the default branch, the kill switch,
@@ -19,16 +20,30 @@ name: eval-hill-climb
 #   verdict   win-test.py over all three passes; the job summary names the gate
 #             that stopped the run, with its numbers. On a win it uploads the
 #             edit as a patch with each pass's with-versus-without results.
+#   push-branch  on a win only (mutate-branch: contents write): the scanned
+#             patch and a fixed changelog fragment as one lanes App commit on
+#             chore/hill-climb-<plugin>-<skill>-<run id> (hill-climb-publish.mjs).
+#   publish   (publish-artifact: pull-requests write, contents read) opens that
+#             branch's pull request as a draft, its body written by the script
+#             from the win's results.
 #
 # A skill's cases are its suite's cases tagged with the skill's name, unless
 # the tag or case input selects others. Every pass grants no tool beyond the
 # read-only set, so only a suite whose cases score with Read, Glob, Grep and
 # Skill measures here.
 #
-# No job holds a write permission, id-token, or the lanes App. The credential
-# is the maintenance role's subscription token, as in eval-browser-dispatch.yml.
-# How to stop it: set the organization or repository lanes kill-switch variable
-# to anything but "false"; every job that spends checks it first.
+# The owner's grant (AL-Q11,
+# https://github.com/melodic-software/claude-code-plugins/issues/12035#issuecomment-6650791111):
+# chore/hill-climb-* branches only, a listed human's dispatch only, draft pull
+# requests only, and no write token in the model step. Only push-branch and
+# publish hold id-token, each to mint one lanes App token from the broker,
+# which refuses this caller on any event but workflow_dispatch and any actor
+# or re-runner but a listed human. No job holds a merge right, checks or
+# statuses write, or workflows. The credential is the maintenance role's
+# subscription token, as in eval-browser-dispatch.yml. How to stop it: set the
+# organization or repository lanes kill-switch variable to anything but
+# "false"; every job that spends or writes checks it first, and the broker
+# reads it live.
 
 on:
   workflow_dispatch:
@@ -55,7 +70,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: eval-hill-climb-${{ inputs.plugin }}-${{ inputs.skill }}
+  group: maintenance-measure-skill-edit-${{ inputs.plugin }}-${{ inputs.skill }}
   cancel-in-progress: false
 
 jobs:
@@ -146,9 +161,10 @@ jobs:
             echo "::error::$1"
             exit 1
           }
-          name='^[A-Za-z0-9][A-Za-z0-9._-]*$'
-          [[ $PLUGIN =~ $name ]] || stop "plugin must be a plugin directory name"
-          [[ $SKILL =~ $name ]] || stop "skill must be a skill directory name"
+          # Lowercase kebab-case, as the chore/hill-climb-* branch name needs.
+          name='^[a-z0-9]+(-[a-z0-9]+)*$'
+          [[ $PLUGIN =~ $name ]] || stop "plugin must be a lowercase kebab-case plugin directory name"
+          [[ $SKILL =~ $name ]] || stop "skill must be a lowercase kebab-case skill directory name"
           [ -f ".base/plugins/$PLUGIN/skills/$SKILL/SKILL.md" ] || stop "plugins/$PLUGIN/skills/$SKILL/SKILL.md does not exist"
           tags=$TAG
           if [ -z "$tags" ] && [ -z "$CASE" ]; then tags=$SKILL; fi
@@ -388,7 +404,7 @@ jobs:
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
-          lane: eval-hill-climb
+          lane: maintenance-measure-skill-edit
           role: maintenance
           prompt-file: ${{ runner.temp }}/hill-climb-prompt.md
           preamble: You run unattended as the eval hill-climb CI lane. No one can answer a question during this run, and you change nothing.
@@ -586,6 +602,10 @@ jobs:
     cache-mode: read
     permissions:
       contents: read # check out the default branch
+    outputs:
+      win: ${{ steps.decide.outputs.win }}
+      artifact-id: ${{ steps.upload-win.outputs.artifact-id }}
+      manifest-sha256: ${{ steps.stage.outputs.manifest-sha256 }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -677,8 +697,10 @@ jobs:
           fi
 
       # A win's evidence: the edit, and pass a's and pass b's with-versus-without
-      # results and summaries. No traces.
+      # results and summaries. No traces. The publish job checks it against the
+      # manifest's SHA-256.
       - name: Stage the win
+        id: stage
         if: steps.decide.outputs.win == 'true'
         env:
           WIN: ${{ runner.temp }}/win
@@ -689,6 +711,10 @@ jobs:
           for pass in a b; do
             cp "$WIN/$pass/results.json" "$WIN/$pass/summary.md" "$WIN/$pass/validity.txt" "$OUT/$pass/"
           done
+          sums=$(cd "$OUT" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
+          printf '%s\n' "$sums" >"$OUT/manifest.sha256"
+          sum=$(sha256sum <"$OUT/manifest.sha256")
+          echo "manifest-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
 
       - name: Scan the win for credentials
         id: scan-upload
@@ -698,6 +724,7 @@ jobs:
           path: ${{ runner.temp }}/win-out/
 
       - name: Upload the win
+        id: upload-win
         if: (steps.decide.outputs.win == 'true') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -706,4 +733,305 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
-  # Owner question Q11 (#6405 comment, https://github.com/melodic-software/claude-code-plugins/issues/6405#issuecomment-6625292188): a lanes App grant for chore/hill-climb-* branches would add the mutate-branch and publish jobs here.
+      - name: Report a win that was not kept
+        if: always() && steps.decide.outputs.win == 'true' && steps.upload-win.outcome != 'success'
+        env:
+          CLEAN: ${{ steps.scan-upload.outputs.clean }}
+        run: |
+          echo "gate: win-upload: the win was not uploaded (credential scan clean=${CLEAN:-unread}), so no branch or pull request follows" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # mutate-branch: contents write only, on a win only (AL-Q11). No model, and
+  # nothing of the model's proposal: the patch is the one the scan job checked
+  # and pass b measured, applied to a second checkout of the base so the
+  # scripts in .base stay main's. hill-climb-publish.mjs checks the result
+  # changes only the skill's markdown and one fixed changelog fragment, and no
+  # hold path, before it writes chore/hill-climb-<plugin>-<skill>-<run id>.
+  push-branch:
+    needs: [gate, scan, verdict]
+    if: ${{ !cancelled() && needs.verdict.outputs.win == 'true' && needs.verdict.outputs.artifact-id != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    cache-mode: read
+    permissions:
+      contents: read # check out the default branch
+      id-token: write # prove to the token broker which workflow this is
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    outputs:
+      skip-reason: ${{ steps.lane-token.outputs.skip-reason }}
+      branch: ${{ steps.push.outputs.branch }}
+      head: ${{ steps.push.outputs.head }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the config
+        id: config
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: maintenance-measure-skill-edit
+          activity: apply-skill-edit-branch
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      # Before the mint: the scan job's artifact, by id, and the SHA-256 it
+      # recorded. A missing or altered patch fails the job.
+      - name: Download the edit
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.scan.outputs.artifact-id }}
+          path: ${{ runner.temp }}/edit
+
+      - name: Check the edit
+        id: verify
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        env:
+          PATCH: ${{ runner.temp }}/edit/edit.patch
+          WANT: ${{ needs.scan.outputs.sha256 }}
+        run: |
+          if [ -L "$PATCH" ] || [ ! -f "$PATCH" ] || [ "$(stat -c %s "$PATCH")" -gt 1048576 ]; then
+            echo "::error::the edit artifact holds no edit.patch of at most 1 MiB"
+            exit 1
+          fi
+          sum=$(sha256sum <"$PATCH")
+          if ! [[ $WANT =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$WANT" ]; then
+            echo "::error::edit.patch does not match the SHA-256 the scan job recorded"
+            exit 1
+          fi
+
+      - name: Check out the base for the edit
+        if: steps.verify.outcome == 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .edit
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      # A kill switch turned on since the step above is a designed stop.
+      - name: Request the lane token
+        id: lane-token
+        if: steps.verify.outcome == 'success'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: maintenance-measure-skill-edit
+          activity: apply-skill-edit-branch
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
+
+      - name: Push the branch
+        id: push
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          PLUGIN: ${{ needs.gate.outputs.plugin }}
+          SKILL: ${{ needs.gate.outputs.skill }}
+          RUN_ID: ${{ github.run_id }}
+          BASE_SHA: ${{ needs.gate.outputs.base-sha }}
+          PATCH_FILE: ${{ runner.temp }}/edit/edit.patch
+          EDIT_DIR: ${{ github.workspace }}/.edit
+        run: node .base/.github/scripts/plugin-eval/hill-climb-publish.mjs push
+
+      # A stop before the push step leaves no line of its own; the script
+      # writes its refusals itself.
+      - name: Report a stop before the push
+        if: always() && steps.push.outcome == 'skipped'
+        env:
+          KILL: ${{ steps.kill.outputs.proceed }}
+          KILL_REASON: ${{ steps.kill.outputs.reason }}
+          APPLIES: ${{ steps.config.outputs.applies }}
+          SKIP: ${{ steps.lane-token.outputs.skip-reason }}
+          VERIFY: ${{ steps.verify.outcome }}
+        run: |
+          echo "gate: push-branch: no branch pushed (kill switch proceed=${KILL:-unread} ${KILL_REASON}; config applies=${APPLIES:-unread}; edit check ${VERIFY}; lane token skip-reason=${SKIP:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          [ "$status" = 204 ] || echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token
+
+  # publish-artifact: pull-requests write, contents read. The title and body
+  # are written and scanned before the mint, from the verdict job's win
+  # artifact checked against its manifest's SHA-256; the pull request opens as
+  # a draft, and nothing here or in any lane marks it ready or merges it.
+  publish:
+    needs: [gate, verdict, push-branch]
+    if: >-
+      ${{ !cancelled() && needs.push-branch.result == 'success'
+      && needs.push-branch.outputs.skip-reason == '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    cache-mode: read
+    permissions:
+      contents: read # check out the default branch
+      id-token: write # prove to the token broker which workflow this is
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the config
+        id: config
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: maintenance-measure-skill-edit
+          activity: publish-skill-edit-pr
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      - name: Download the win
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verdict.outputs.artifact-id }}
+          path: ${{ runner.temp }}/win
+
+      - name: Write the pull request text
+        id: text
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        env:
+          WIN_DIR: ${{ runner.temp }}/win
+          WANT: ${{ needs.verdict.outputs.manifest-sha256 }}
+          PLUGIN: ${{ needs.gate.outputs.plugin }}
+          SKILL: ${{ needs.gate.outputs.skill }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OUT: ${{ runner.temp }}/pr-text
+        run: |
+          sum=$(sha256sum <"$WIN_DIR/manifest.sha256" 2>/dev/null) || sum=""
+          if ! [[ $WANT =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$WANT" ]; then
+            echo "::error::the win's manifest does not match the SHA-256 the verdict job recorded"
+            exit 1
+          fi
+          (cd "$WIN_DIR" && sha256sum --check --strict --quiet manifest.sha256)
+          node .base/.github/scripts/plugin-eval/hill-climb-publish.mjs body
+
+      - name: Scan the pull request text for credentials
+        id: scan-text
+        if: steps.text.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-text/
+
+      - name: Request the lane token
+        id: lane-token
+        if: steps.scan-text.outputs.clean == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: maintenance-measure-skill-edit
+          activity: publish-skill-edit-pr
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
+
+      - name: Open the draft pull request
+        id: open
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          PLUGIN: ${{ needs.gate.outputs.plugin }}
+          SKILL: ${{ needs.gate.outputs.skill }}
+          RUN_ID: ${{ github.run_id }}
+          HEAD: ${{ needs.push-branch.outputs.head }}
+          OUT: ${{ runner.temp }}/pr-text
+        run: node .base/.github/scripts/plugin-eval/hill-climb-publish.mjs publish
+
+      - name: Report a stop before the pull request
+        if: always() && steps.open.outcome == 'skipped'
+        env:
+          KILL: ${{ steps.kill.outputs.proceed }}
+          KILL_REASON: ${{ steps.kill.outputs.reason }}
+          APPLIES: ${{ steps.config.outputs.applies }}
+          TEXT: ${{ steps.text.outcome }}
+          CLEAN: ${{ steps.scan-text.outputs.clean }}
+          SKIP: ${{ steps.lane-token.outputs.skip-reason }}
+        run: |
+          echo "gate: publish: no pull request opened (kill switch proceed=${KILL:-unread} ${KILL_REASON}; config applies=${APPLIES:-unread}; text ${TEXT}, scan clean=${CLEAN:-unread}; lane token skip-reason=${SKIP:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          [ "$status" = 204 ] || echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token

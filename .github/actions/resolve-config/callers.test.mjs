@@ -7982,6 +7982,8 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "upstream-apply-changelog.yml:publish",
     "maintenance-tidy-code-upkeep.yml:push-branches",
     "maintenance-tidy-code-upkeep.yml:publish",
+    "maintenance-measure-skill-edit.yml:push-branch",
+    "maintenance-measure-skill-edit.yml:publish",
   ].sort());
 });
 
@@ -8415,7 +8417,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
     "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
     "eval-browser-dispatch.yml": ["eval"],
-    "eval-hill-climb.yml": ["propose", "scan", "verdict"],
+    "maintenance-measure-skill-edit.yml": ["propose", "scan", "verdict", "push-branch", "publish"],
     "eval-hill-climb-pass.yml": ["pass"],
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],

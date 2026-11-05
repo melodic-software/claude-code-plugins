@@ -9,7 +9,8 @@
       "work-unblock": { "label-unblocked": "mutate-tracker", "sync-status": "mutate-tracker" },
       "intake-triage": { "apply-verdict": "mutate-tracker", "apply-refinement": "mutate-tracker" },
       "upstream-apply-changelog": { "apply-changelog": "read", "apply-changelog-branches": "mutate-branch", "publish-changelog-intake": "publish-artifact" },
-      "maintenance-tidy-code-upkeep": { "apply-upkeep-branches": "mutate-branch", "publish-upkeep-prs": "publish-artifact" }
+      "maintenance-tidy-code-upkeep": { "apply-upkeep-branches": "mutate-branch", "publish-upkeep-prs": "publish-artifact" },
+      "maintenance-measure-skill-edit": { "apply-skill-edit-branch": "mutate-branch", "publish-skill-edit-pr": "publish-artifact" }
     },
     "trusted-actors": [],
     "ci-workflows-commits": []

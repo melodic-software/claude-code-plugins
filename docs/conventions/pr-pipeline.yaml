@@ -744,6 +744,27 @@ activities:
     # Posts the plan's titles and bodies, which the model wrote, each body after a
     # `Refs: #<upkeep_spec_issue>` line (docs/conventions/code-tidying.yaml).
     reads-untrusted: true
+  apply-skill-edit-branch:
+    # Pushes chore/hill-climb-<plugin>-<skill>-<run id>: the skill edit the scan
+    # job checked and pass b measured, and a fixed changelog fragment, as one
+    # lanes App commit through the Git Data API. A script, no model.
+    # .github/workflows/maintenance-measure-skill-edit.yml runs it on a win.
+    script: .github/scripts/plugin-eval/hill-climb-publish.mjs
+    args: push
+    effect: mutate-branch
+    gating: advisory
+    # Applies the patch the model's proposal became.
+    reads-untrusted: true
+  publish-skill-edit-pr:
+    # Opens that branch's pull request as a draft, its title and body written by
+    # the script from the run's scripted results. A script, no model.
+    # .github/workflows/maintenance-measure-skill-edit.yml runs it.
+    script: .github/scripts/plugin-eval/hill-climb-publish.mjs
+    args: publish
+    effect: publish-artifact
+    gating: advisory
+    # Quotes eval summaries, which can carry a run's error text, inside a fence.
+    reads-untrusted: true
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -860,6 +881,16 @@ lanes:
       - activity: apply-upkeep-branches
       - activity: publish-upkeep-prs
         needs: [apply-upkeep-branches]
+  # Started only by a listed human's dispatch
+  # (.github/workflows/maintenance-measure-skill-edit.yml); on a win, push and
+  # draft pull request open are separate jobs, as above (owner decision AL-Q11,
+  # #12035).
+  maintenance-measure-skill-edit:
+    stage: maintenance
+    slots:
+      - activity: apply-skill-edit-branch
+      - activity: publish-skill-edit-pr
+        needs: [apply-skill-edit-branch]
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. A profile with no effort keeps its
@@ -1646,13 +1677,13 @@ merge:
         class: gate
       - glob: ".github/workflows/eval-hill-climb-pass.yml"
         class: gate
-      - glob: ".github/workflows/eval-hill-climb.yml"
-        class: gate
       - glob: ".github/workflows/intake-reenter.yml"
         class: gate
       - glob: ".github/workflows/intake-triage.yml"
         class: gate
       - glob: ".github/workflows/maintenance-audit-lane-runs.yml"
+        class: gate
+      - glob: ".github/workflows/maintenance-measure-skill-edit.yml"
         class: gate
       - glob: ".github/workflows/maintenance-reconcile-lost-runs.yml"
         class: gate

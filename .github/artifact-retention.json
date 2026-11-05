@@ -516,7 +516,7 @@
     "eval-hill-climb-pass-*": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/eval-hill-climb.yml same run"
+        ".github/workflows/maintenance-measure-skill-edit.yml same run"
       ],
       "reason": "Read by its own run; 1 day is the minimum.",
       "scan": "upload"
@@ -524,7 +524,7 @@
     "eval-hill-climb-proposal-*": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/eval-hill-climb.yml same run"
+        ".github/workflows/maintenance-measure-skill-edit.yml same run"
       ],
       "reason": "Read by its own run; 1 day is the minimum.",
       "scan": "upload"
@@ -532,7 +532,8 @@
     "eval-hill-climb-edit-*": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/eval-hill-climb-pass.yml same run"
+        ".github/workflows/eval-hill-climb-pass.yml same run",
+        ".github/workflows/maintenance-measure-skill-edit.yml push-branch, same run"
       ],
       "reason": "Read by its own run; 1 day is the minimum.",
       "scan": "upload"
@@ -540,9 +541,10 @@
     "eval-hill-climb-win-*": {
       "retention-days": 3,
       "readers": [
-        ".github/workflows/eval-hill-climb.yml a person reading a winning edit and its with-versus-without results"
+        ".github/workflows/maintenance-measure-skill-edit.yml publish, same run, writes the draft pull request's body from it",
+        ".github/workflows/maintenance-measure-skill-edit.yml a person reading a winning edit and its with-versus-without results"
       ],
-      "reason": "Manual inspection only; no workflow reads it after the run. A person opens a winning edit soon after the run, and 3 days covers a weekend.",
+      "reason": "The publish job reads it in its own run; past that, manual inspection only. The draft pull request links the run, a person opens it soon after, and 3 days covers a weekend.",
       "scan": "upload"
     },
     "tidy-code-upkeep-sweeps": {

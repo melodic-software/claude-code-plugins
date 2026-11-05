@@ -686,6 +686,21 @@ test("live config: upstream-apply-changelog pushes with contents write only and 
   });
 });
 
+test("live config: the skill-edit lane pushes with contents write only, publishes without it, and may not merge or label (AL-Q11)", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "maintenance-measure-skill-edit", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("apply-skill-edit-branch"), {
+    effect: "mutate-branch",
+    grant: { contents: "write", "pull-requests": "read", issues: "read" },
+  });
+  assert.deepEqual(grant("publish-skill-edit-pr"), {
+    effect: "publish-artifact",
+    grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+  const rules = JSON.parse(readFileSync(new URL("./lane-rules.json", import.meta.url), "utf8"))["maintenance-measure-skill-edit"];
+  assert.deepEqual(rules["forbidden-effects"], ["mutate-tracker", "merge"]);
+  assert.match(rules.never, /chore\/hill-climb-<plugin>-<skill>-<run id>/);
+});
+
 test("live config: the code-tidying upkeep lane pushes with contents write only and publishes without it", () => {
   const grant = (activity) => resolveGrant(FILES, { lane: "maintenance-tidy-code-upkeep", activity, configPath: CONFIG_PATH });
   assert.deepEqual(grant("apply-upkeep-branches"), {
