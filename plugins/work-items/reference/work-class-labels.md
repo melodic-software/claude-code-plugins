@@ -21,7 +21,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 | `provenance: untrusted` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labeled `provenance: signal`); isolated, human-merged. |
 
 Discover live members through the bound adapter's label listing (GitHub:
-`gh label list --limit 200 | grep -i work-class`). An item carries **at most one**
+`gh label list --limit 200 | grep -iE 'work-class|provenance: untrusted'`). An item carries **at most one**
 `work-class:` label; the frontier floor reads the label only, never a
 `Work-class: C<n>` body trailer.
 
