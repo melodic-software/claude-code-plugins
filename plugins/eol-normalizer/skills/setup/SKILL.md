@@ -57,7 +57,7 @@ restores the FAIL semantics. A missing `node` stays FAIL whatever the toggle say
 launches `node` before `exec-bash.mjs` can evaluate the gate, so every tool-call batch still tries an
 unavailable command until `node` is installed or the plugin registration is disabled.
 
-1. **Bash version.** Check against the floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
+1. **Bash version.** Check against the floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row runs through
    `node hooks/exec-bash.mjs`, so the hook never launches and emits no notice. This probe is the
    only visibility, and it runs through the Bash tool, so it works without the launcher.
