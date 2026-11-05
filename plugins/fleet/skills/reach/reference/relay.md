@@ -56,14 +56,9 @@ wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude -p "<prompt>" < /dev/nu
 Use `--exec`, not `--`: with `--` the distro's login shell re-parses the tail first. A
 native-Windows Claude runs this through its Bash tool, which is Git Bash, so bash quoting applies
 (`'\''` for an apostrophe). From PowerShell (its PowerShell tool or a PowerShell window, 5.1 or
-pwsh 7), never `-p "<prompt>"`: put the prompt in doubled single quotes and write an apostrophe as
-`''\''''`.
-
-```console
-wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude -p ''<prompt>'' < /dev/null'
-```
-
-The probe behind the PowerShell form is in the hub's apostrophe gotcha.
+pwsh 7), never `-p "<prompt>"`: in the command above, write `-p ''<prompt>''` in its place, and an
+apostrophe in the prompt as `''\''''`. The probe behind that form is in the hub's apostrophe
+gotcha.
 
 **Either lane to another machine (R2, R3, R5, R6).** The hop is always the target's WSL sshd
 (`<wsl-alias>`, port 2222), through the Windows OpenSSH client. For the target's WSL lane, run
