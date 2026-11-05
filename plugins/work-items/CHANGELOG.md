@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.2.0] - 2026-11-05
+
+### Changed
+
+- `/work-items:decompose` cuts a plan with a `### Behavior` list into one draft slice per behavior. Each slice carries the criterion ids its behavior cites and the phases whose `**Delivers:**` line names it, and every slice also carries the plan's `Process criteria:` ids. A plan without the list, and a phase with no `**Delivers:**` line, is still cut by phase.
+
 ## [11.1.4] - 2026-11-04
 
 ### Changed
