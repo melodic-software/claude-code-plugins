@@ -18,10 +18,12 @@
 // the check alerts; over the WIP cap or the held cap, on or after
 // wip.pause-from, it pauses the lane (work-resolve-issue starts no run,
 // work-unblock re-fires none) and logs one `admission paused: reason=...`
-// line. When a read fails (the open listing, the base config) the lane keeps
-// the last known pause, the status work-unblock's hourly sweep last saved in
-// WIP_STATE; with none it fails open. A base config that cannot be read also
-// closes admissions, whatever wip.pause-from says.
+// line. When a read the pause depends on fails (the open listing, the base
+// config) the pause is unknown and the run holds: `capped` is
+// `true`,`pause_basis` is `unknown`, and one `::notice` names the hold. No
+// earlier state decides it; work-unblock's next sweep re-fires the run, which
+// reads again. A base config that cannot be read also closes admissions,
+// whatever wip.pause-from says.
 //
 // Queued work is the agent-ready issues no open lane PR names, on its first
 // body line or else by its lane branch, and no blocker still blocks (at most
@@ -39,10 +41,9 @@
 // admission fields unread (`admission_basis` `not-read`, admissions open, unless
 // a search answered incomplete or the base config could not be read).
 //
-// As the action's step it writes `capped` (the run pause), `admission-open`,
-// `wip` (the status as one flat JSON object) and `state-saved` (`true` when a
-// read that succeeded wrote its status to WIP_STATE), and the status to the
-// step summary and log.
+// As the action's step it writes `capped` (the run pause, or a hold on an
+// unknown pause), `admission-open` and `wip` (the status as one flat JSON
+// object), and the status to the step summary and log.
 // Environment:
 //   GITHUB_TOKEN        the job's own token (pull-requests: read, issues: read)
 //   GITHUB_REPOSITORY   owner/repo
@@ -50,10 +51,9 @@
 //   BASE_PATH           the default-branch checkout whose pr-pipeline.yaml
 //                       sets limits and wip (resolve-config's wipFromBase)
 //   LANES_BOT_LOGIN     the lanes App bot login (default melodic-automation-lanes[bot])
-//   WIP_STATE           the last known state file (optional), read then rewritten
 //   WIP_READS           `pause` for the pause reads alone; anything else reads all
 //   GITHUB_OUTPUT, GITHUB_STEP_SUMMARY
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -347,35 +347,6 @@ export function searchRateLimit() {
   };
 }
 
-const PAUSE_REASONS = new Set(["wip", "held-cap", "wip,held-cap"]);
-
-// The last known state: a previous run's status, or null when there is none
-// or it names a pause reason wipStatus never writes.
-function lastState(path) {
-  try {
-    const prior = JSON.parse(readFileSync(path, "utf8"));
-    const valid = prior?.paused === false || (prior?.paused === true && PAUSE_REASONS.has(prior.pause_reason));
-    return valid ? prior : null;
-  } catch {
-    return null;
-  }
-}
-
-// The status with `pause_basis`: `read`, or on a failed read the last known
-// pause (`last-state`), or with none the open lane (`fail-open`). A config
-// that was read and no longer pauses (`pausing` false) ends a kept pause.
-export function keepLastState(status, { readError, prior, pausing = true }) {
-  if (!readError) {
-    return { ...status, pause_basis: "read" };
-  }
-  if (prior === null) {
-    return { ...status, pause_basis: "fail-open" };
-  }
-  const paused = prior.paused && pausing;
-  const reason = paused ? prior.pause_reason : null;
-  return { ...status, paused, pause_reason: reason, pause_basis: "last-state" };
-}
-
 // The machine-readable line for paused admissions.
 export const admissionLine = (s) =>
   `admission paused: reason=${s.admission_reason} queued=${s.queued_issues} held=${s.held_lane_prs} cap=${s.queued_cap}`;
@@ -413,22 +384,27 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
     ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause", configError, statusOf })
     : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now, configError });
-  const readError = configError || read.countable_lane_prs === null;
-  const pausing = configError || (wip["pause-from"] !== "" && now >= Date.parse(wip["pause-from"]));
-  const status = keepLastState(read, { readError, prior: readError && env.WIP_STATE ? lastState(env.WIP_STATE) : null, pausing });
+  // What the pause could not read, first one only; none when every read it
+  // depends on succeeded. A merged count that cannot be read is no hold: the
+  // cap is then the configured limits.wip-cap.
+  const unread = configError
+    ? "the base config could not be read"
+    : read.countable_lane_prs === null
+      ? "the open lane PRs could not be listed"
+      : null;
+  const held = unread !== null;
+  const status = { ...read, pause_basis: held ? "unknown" : "read" };
   const json = JSON.stringify(status);
-  const saved = !readError && Boolean(env.WIP_STATE);
-  if (saved) {
-    writeFileSync(env.WIP_STATE, json);
-  }
-  writeOutputs({ capped: String(status.paused), "admission-open": String(status.admission_open), wip: json, "state-saved": String(saved) }, env.GITHUB_OUTPUT);
+  writeOutputs({ capped: String(held || status.paused), held: String(held), "admission-open": String(status.admission_open), wip: json }, env.GITHUB_OUTPUT);
   if (env.GITHUB_STEP_SUMMARY) {
     appendFileSync(env.GITHUB_STEP_SUMMARY, `### Issue-lane WIP cap\n\n\`\`\`json\n${json}\n\`\`\`\n`);
   }
-  if (readError) {
-    log(
-      `::warning title=check-wip-cap::${read.countable_lane_prs === null ? "the open lane PRs could not be listed" : "the base config could not be read"}, so ${status.pause_basis === "last-state" ? `the last known state applies (paused ${status.paused})` : "with no last known state the run starts"}`,
-    );
+  if (held) {
+    const line = `WIP cap hold: ${unread}, so the pause is unknown and this run starts no work; work-unblock's next sweep re-fires it and the check reads again`;
+    log(`::notice title=WIP cap hold::${escape(line)}`);
+    if (env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `\n${line}\n`);
+    }
   }
   if (status.admission_basis === "search-incomplete") {
     log(
@@ -442,14 +418,11 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   }
   if (status.alert) {
     log(
-      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${!(status.wip_over || status.held_over) ? "only the WIP and held caps pause runs" : configError ? "the base config could not be read, so the defaults apply" : wip["pause-from"] === "" ? "pause-from is not set" : "pause-from not reached"})`}`,
+      `::warning title=check-wip-cap::${escape(alertText(status))}; ${held ? "this run holds on the unknown pause" : status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${!(status.wip_over || status.held_over) ? "only the WIP and held caps pause runs" : wip["pause-from"] === "" ? "pause-from is not set" : "pause-from not reached"})`}`,
     );
   }
-  if (status.paused) {
-    const line =
-      status.pause_basis === "last-state"
-        ? `admission paused: reason=${status.pause_reason} (read-error, kept last state)`
-        : `admission paused: reason=${status.pause_reason} countable=${status.countable_lane_prs} wip_cap=${status.wip_cap} held=${status.held_lane_prs} held_cap=${status.held_cap}`;
+  if (status.paused && !held) {
+    const line = `admission paused: reason=${status.pause_reason} countable=${status.countable_lane_prs} wip_cap=${status.wip_cap} held=${status.held_lane_prs} held_cap=${status.held_cap}`;
     log(`::notice title=admission paused::${escape(line)}`);
     if (env.GITHUB_STEP_SUMMARY) {
       appendFileSync(env.GITHUB_STEP_SUMMARY, `\n${line}\n`);

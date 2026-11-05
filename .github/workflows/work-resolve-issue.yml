@@ -182,8 +182,7 @@ jobs:
     if: github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # An issues run can only restore a default-branch cache; it reads the
-    # WIP cap's last known state and never saves one (work-unblock does).
+    # No step here uses a cache; read keeps an issues run from saving one.
     cache-mode: read
     permissions:
       contents: read # check out the default branch for the WIP cap
@@ -217,8 +216,12 @@ jobs:
       # When the WIP cap check pauses the lane (over the WIP cap or the held
       # cap on or after wip.pause-from), resolve-issue is skipped: no
       # slot, no token. work-unblock's sweep re-fires the issue once under the
-      # cap. The check publishes its status as the `wip` output; one that fails
-      # starts the run. A read that fails keeps the last known pause. Its
+      # cap. The check publishes its status as the `wip` output. A read the
+      # pause depends on that fails, or a check that sets no `capped`, holds
+      # (outage posture element 2): resolve-issue starts only on
+      # `capped == 'false'`, the job ends green with a notice, and
+      # work-unblock's sweep re-fires the issue as a WIP cap skip, so its next
+      # run reads again (element 3). No stored state decides the pause. Its
       # queued cap (`admission-open`) gates only new agent-ready labels in
       # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Check out the default branch tip
@@ -238,15 +241,24 @@ jobs:
           # Only capped leaves this job, so the admission reads are skipped.
           reads: pause
 
+      # The check names its own hold; this names one it could not, when it
+      # failed or never ran.
+      - name: Hold on an unknown WIP cap
+        if: steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'
+        run: echo "::notice title=WIP cap hold::the WIP cap check did not finish, so the pause is unknown and this run starts no work; work-unblock's next sweep re-fires it and the check reads again"
+
       # A job's timeout is fixed before it starts, so the run job's comes from
       # here: the issue's Size, Complexity and Uncertainty fields read through
       # the base config (models.issue-dimensions). The run job takes the same
       # dimensions for its turn cap rather than reading the fields again, so a
       # field set while it waits in its slot cannot outgrow the timeout.
       # Without issue-dimensions the timeout is 40 minutes, a 25-minute leg. A config that
-      # cannot be resolved, or an option it does not map, fails this job.
+      # cannot be resolved, or an option it does not map, fails this job. A run
+      # held on an unknown pause skips this read, so it ends green; a paused
+      # run still reads it, since report-skip runs at the WIP cap too.
       - name: Resolve the issue dimensions' timeout
         id: dimensions
+        if: steps.wip.outputs.held == 'false'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: work-resolve-issue
@@ -280,7 +292,7 @@ jobs:
     needs: [admit, pick-slot]
     if: >-
       github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
-      && needs.pick-slot.outputs.capped != 'true'
+      && needs.pick-slot.outputs.capped == 'false'
     # One run per slot at a time; the rest wait in line, holding no runner,
     # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
     # per slot and cancels any more. report-outcome takes no slot, so it never
@@ -397,7 +409,7 @@ jobs:
     needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff]
     if: >-
       ${{ !cancelled() && github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
-      && needs.pick-slot.outputs.capped != 'true' && needs.resolve-issue-handoff.outputs.handed-off == 'true' }}
+      && needs.pick-slot.outputs.capped == 'false' && needs.resolve-issue-handoff.outputs.handed-off == 'true' }}
     concurrency:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
@@ -488,7 +500,7 @@ jobs:
     needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff, resolve-issue-subscription, resolve-issue-subscription-handoff]
     if: >-
       ${{ !cancelled() && github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
-      && needs.pick-slot.outputs.capped != 'true' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true'
+      && needs.pick-slot.outputs.capped == 'false' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true'
       && needs.resolve-issue-subscription-handoff.outputs.handed-off == 'true' }}
     concurrency:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
