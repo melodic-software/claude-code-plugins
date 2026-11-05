@@ -29,7 +29,7 @@
 //   taken again, so a FAIL the write or upload then lost is held for a person,
 //   with the reason in the summary. Its trigger check trusts a re-run
 //   github-actions[bot] starts only through this workflow's record of it, the
-//   artifact rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
+//   artifact rerunRecordName(run id, attempt, head SHA) (check-trusted-trigger's README). The
 //   plan step names each record, the workflow uploads them, and only then does
 //   the act step re-run the run, so the record exists before the re-run. The
 //   same holds for each CI re-run that carries a record.
@@ -42,8 +42,11 @@
 //   their comments' times (`prefilterSpec`) keeps that full read off heads
 //   whose spec nobody touched since the pass; the same read, run first against
 //   the head's earliest checks run, keeps the pass reads off heads whose spec
-//   nobody touched since then. Once per passed checks run, as attempt 2 is never
-//   touched again; an edit or label later starts a new attempt-1 run.
+//   nobody touched since then. A spec can change again after the re-run's
+//   pass, so a passed run is re-run at each attempt below
+//   RECONCILER_ATTEMPT_CAP, each re-run recorded at the attempt it starts;
+//   one at the cap is named for a person. An edit or label later starts a new
+//   attempt-1 run.
 // - Too old: the same passed run, inside GitHub's re-run window, on a pull
 //   request created more than TOO_OLD_DAYS ago whose head has no counted
 //   verdict (its pass expired: resolve-pr's `ok`). The gate refuses it
@@ -57,7 +60,7 @@
 //   This script reads nothing while the switch is on, so the first run after
 //   it is lifted re-runs that ci-status, recorded as a CI re-run, with no
 //   lookback: the switch may have been on for days. A run at attempt 2 or
-//   later is left to a person, since pr-verify trusts only a recorded attempt 2.
+//   later is left to a person: this kind re-runs only a first attempt.
 // - Pending: any PR whose newest pr-require-checks run failed, at attempt 1,
 //   only in ci-status, and only on its notes that a review lane had not
 //   finished or had no run yet (PENDING_REVIEW_NOTE, MISSING_REVIEW_NOTE),
@@ -183,7 +186,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList, paginate, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
@@ -208,7 +211,12 @@ export const NPM_STATUS_URL = "https://status.npmjs.org/api/v2/status.json";
 export const GITHUB_STATUS_URL = "https://www.githubstatus.com/api/v2/status.json";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
-const RECORD = /^reconcile-rerun-[1-9][0-9]{0,19}-2-[0-9a-f]{40}$/;
+const RECORD = /^reconcile-rerun-[1-9][0-9]{0,19}-([1-9][0-9]{0,4})-[0-9a-f]{40}$/;
+// A record name check-trusted-trigger takes: attempt 2 to RECONCILER_ATTEMPT_CAP.
+const isRecordName = (name) => {
+  const attempt = Number(RECORD.exec(name)?.[1]);
+  return attempt >= 2 && attempt <= RECONCILER_ATTEMPT_CAP;
+};
 
 export { LOST };
 
@@ -468,9 +476,20 @@ const isLostLane = (r, since) =>
   r.run_attempt === 1 &&
   Date.parse(r.created_at) >= since;
 // The checks run whose re-run starts pr-verify again: a pr-require-checks
-// pull_request run that passed on its first attempt.
+// pull_request run that passed, at any attempt up to RECONCILER_ATTEMPT_CAP.
+// Only one below the cap is re-run (`belowCap`), so the attempt its re-run
+// starts is one pr-verify's gate takes; one at the cap is named for a person.
 const isPassedChecks = (r) =>
-  RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
+  RECORDED_UPSTREAMS.has(r?.path) &&
+  r.event === "pull_request" &&
+  r.status === "completed" &&
+  r.conclusion === "success" &&
+  Number.isInteger(r.run_attempt) &&
+  r.run_attempt >= 1 &&
+  r.run_attempt <= RECONCILER_ATTEMPT_CAP;
+const belowCap = (r) => r.run_attempt < RECONCILER_ATTEMPT_CAP;
+const atCap = (pull, checks, why) =>
+  `#${pull.number}: run ${checks.id} (${checks.path}) is at attempt ${checks.run_attempt}, the most this workflow records, and ${why}; a person re-runs it`;
 // The error ci-status's lanes-hold step writes for a lanes App PR while the
 // kill switch is on (pr-require-checks.yml; reconcile.test.mjs pins it there).
 export const KILL_SWITCH_NOTE = "the lanes kill switch is on";
@@ -545,7 +564,7 @@ const lostNow = (item, r, since) => {
     return isStoppedVerdict(r, since);
   }
   if (item.kind === "spec" || item.kind === "too-old") {
-    return isPassedChecks(r);
+    return isPassedChecks(r) && belowCap(r) && r.run_attempt === item.attempt;
   }
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
 };
@@ -570,9 +589,13 @@ export function classify(runs, since) {
 // (pr-feedback-dispatch.yml rerun-ci-status). One PR holds one run per
 // workflow, so a place holds at most three records: pr-require-checks' and
 // both hosted reviews'.
+// The attempt an item's re-run starts: the one after the attempt it read (a
+// lane or CI item, read at attempt 1, names none).
+const nextAttempt = (item) => (item.attempt ?? 1) + 1;
 const withRecord = (item) =>
-  item.kind === "upstream" || (RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1))
-    ? { ...item, record: rerunRecordName(item.id, item.head) }
+  item.kind === "upstream" ||
+  (RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.kind === "spec" || item.kind === "too-old" || item.attempt === 1))
+    ? { ...item, record: rerunRecordName(item.id, nextAttempt(item), item.head) }
     : item;
 // The items the record uploads cover: every lane re-run, and each recorded CI re-run.
 const recorded = (item) => item.kind === "lane" || item.record !== undefined;
@@ -975,7 +998,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
             say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by a kill switch; waiting, ${hold}`);
             continue;
           }
-          return { kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion: "success (kill switch stop)", attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, pull.head.sha) };
+          return { kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion: "success (kill switch stop)", attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) };
         }
         return undefined;
       };
@@ -1013,8 +1036,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       }
       // A pass the spec has since changed under: re-running the head's
       // passed checks starts pr-verify, which judges it again (resolve-pr's
-      // `spec-changed`). Attempt 1 only, so each passed checks run is re-run
-      // at most once; a later edit or label starts a new attempt-1 run.
+      // `spec-changed`). Below RECONCILER_ATTEMPT_CAP only, so each passed
+      // checks run is re-run at most RECONCILER_ATTEMPT_CAP - 1 times; a
+      // later edit or label starts a new attempt-1 run.
       // Every pass at this head came from a pr-verify run that a checks run
       // at this head started on completing, so it started after the earliest
       // checks run here was created: a spec untouched since then is untouched
@@ -1081,7 +1105,11 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   for (const { pull, checks } of [...moved.filter((c) => !c.carried), ...(await prefilterSpec(call, repo, reread))]) {
     try {
       if ((await judgeSpec(checks.id)).reason === "spec-changed") {
-        ready.push([withRecord({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
+        if (!belowCap(checks)) {
+          say(atCap(pull, checks, "its spec changed after the pass"));
+          continue;
+        }
+        ready.push([withRecord({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: checks.run_attempt, head: pull.head.sha })]);
       }
     } catch (error) {
       if (error instanceof RateLimited) {
@@ -1092,14 +1120,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   }
   // A pull request past TOO_OLD_DAYS whose head has no counted verdict (an
   // expired pass): the gate refuses it `verify:too-old` until a fresh pass at
-  // the head, so its passed checks run is re-run once, recorded, and
+  // the head, so its passed checks run is re-run, recorded, below the cap, and
   // pr-verify judges the head (resolve-pr's `ok`). A head a spec re-run
   // already takes is skipped.
   const specPrs = new Set(ready.flat().filter((item) => item.kind === "spec").map((item) => item.pr));
   for (const { pull, checks } of tooOld.filter(({ pull }) => !specPrs.has(pull.number))) {
     try {
       if ((await judgeSpec(checks.id)).reason === "ok") {
-        ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
+        if (!belowCap(checks)) {
+          say(atCap(pull, checks, `it is past ${TOO_OLD_DAYS} days and its head has no verdict`));
+          continue;
+        }
+        ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: checks.run_attempt, head: pull.head.sha })]);
       }
     } catch (error) {
       if (error instanceof RateLimited) {
@@ -1207,7 +1239,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       // the pull request's head: the PR binding is the live gate's job
       // (check-trusted-trigger and resolve-pr), never this record's.
       lanes.push(
-        ...unpublished.map((r) => ({ kind: "lane", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, r.head_sha) })),
+        ...unpublished.map((r) => ({ kind: "lane", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) })),
       );
     } catch (error) {
       noteFailure(lanePath, error);
@@ -1336,7 +1368,7 @@ async function act({ repo, call, say, since, sleep, items }) {
   for (const item of items) {
     const where = item.kind === "lane" || item.kind === "intake" || item.kind === "verdict" ? item.kind : `#${item.pr}`;
     try {
-      if (recorded(item) && item.record !== rerunRecordName(item.id, item.head)) {
+      if (recorded(item) && item.record !== rerunRecordName(item.id, nextAttempt(item), item.head)) {
         throw new Error("the plan names no record for it");
       }
       const r = await call("GET", `/repos/${repo}/actions/runs/${item.id}`);
@@ -1413,7 +1445,7 @@ async function act({ repo, call, say, since, sleep, items }) {
 // The plan's record-N outputs, each a record name or empty.
 function recordOutputs(items) {
   const names = items.filter(recorded).map((item) => item.record);
-  if (names.length > MAX_IN_FLIGHT || !names.every((name) => RECORD.test(name))) {
+  if (names.length > MAX_IN_FLIGHT || !names.every(isRecordName)) {
     throw new Error("the plan's record names are malformed");
   }
   return Object.fromEntries(Array.from({ length: MAX_IN_FLIGHT }, (_, i) => [`record-${i + 1}`, names[i] ?? ""]));

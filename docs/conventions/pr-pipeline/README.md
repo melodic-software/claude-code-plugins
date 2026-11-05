@@ -2602,12 +2602,15 @@ makes the gate refuse that pass `verify:spec-changed`. The resolver then judges 
 when every counted pass at the head started before the spec's last change, it proceeds with the
 reason `spec-changed` instead of skipping. Nothing re-runs pr-verify on an issue event, so the
 lost-run reconciler does it: for an open pull request whose head's `pr-require-checks` run passed
-at attempt 1 and holds such a pass, it re-runs that run with a record, and pr-verify judges the
-head against the spec as it is now. The gate and the resolver both weigh the passes of the
-pr-verify run that started last, so the new verdict replaces the old one. Each passed checks run
-is re-run this way once (attempt 2 is never re-run; a later edit or label starts a new attempt-1
-run), and a changed closing set or a removed spec comment leaves no time to
-compare, so those heads still wait for a person.
+and holds such a pass, it re-runs that run with a record naming the attempt the re-run starts, and
+pr-verify judges the head against the spec as it is now. The gate and the resolver both weigh the
+passes of the pr-verify run that started last, so the new verdict replaces the old one. The spec can
+change again after that re-run's pass, so the reconciler re-runs a passed checks run at attempt 1
+or 2 and records attempts 2 and 3; pr-verify's trigger check accepts a reconciler-recorded attempt
+up to 3 (`RECONCILER_ATTEMPT_CAP` in `check-trusted-trigger.mjs`, owner decision Q-RERUN3,
+2026-11-05). A run at attempt 3 is named in the reconciler's summary for a person, and a later edit
+or label starts a new attempt-1 run. A changed closing set or a removed spec comment leaves no time
+to compare, so those heads still wait for a person.
 
 Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
 its own reads every run it would not judge: a head already judged or moved past, a draft or a run

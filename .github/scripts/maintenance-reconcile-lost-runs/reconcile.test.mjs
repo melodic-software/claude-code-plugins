@@ -1550,7 +1550,36 @@ test("a pass the spec changed under re-runs the head's passed checks once, with 
   });
 });
 
-test("a pass judged after the spec's last change, a second attempt, or no pass re-runs nothing", async () => {
+// A spec that changed again after the recorded re-run's pass: the checks run
+// at attempt 2 is re-run once more, recorded at attempt 3, and one at attempt
+// 3, the cap, is named for a person instead.
+test("a pass the spec changed under at attempt 2 re-runs the checks again, recorded at attempt 3", async () => {
+  await withTrustedList(async (env) => {
+    const { code, outputs, reruns } = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z", attempt: 2 }).setup, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+    assert.equal(outputs["record-1"], `reconcile-rerun-601-3-${sha(1)}`);
+  });
+});
+
+test("a pass the spec changed under at attempt 3, the cap, re-runs nothing and is named for a person", async () => {
+  await withTrustedList(async (env) => {
+    const dir = tempDir("reconcile-summary-");
+    try {
+      const summary = path.join(dir, "summary.md");
+      writeFileSync(summary, "");
+      const { code, outputs, reruns } = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z", attempt: 3 }).setup, env: { ...env, GITHUB_STEP_SUMMARY: summary } });
+      assert.equal(code, 0);
+      assert.deepEqual(reruns, []);
+      assert.equal(outputs["record-1"] ?? "", "");
+      assert.match(readFileSync(summary, "utf8"), /#1: run 601 \(\.github\/workflows\/pr-require-checks\.yml\) is at attempt 3, the most this workflow records, and its spec changed after the pass; a person re-runs it/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test("a pass judged after the spec's last change, or no pass, re-runs nothing", async () => {
   await withTrustedList(async (env) => {
     // The checks run was created at 18:59:43 and the pass started at 19:30.
     // [options, full reads, pre-filter reads, pass artifact reads: pass and
@@ -1565,7 +1594,7 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
       // label change might leave it): the full read runs, and specChanged
       // still says no.
       "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 2, 2],
-      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0, 0],
+      "past the cap at attempt 4": [{ edited: "2026-10-19T19:45:00Z", attempt: 4 }, [], 0, 0],
       "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 1, 2],
     };
     for (const [label, [options, read, prefiltered, artifacts]] of Object.entries(cases)) {
