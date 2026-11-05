@@ -21,7 +21,7 @@ graders:
     arm: both
   - name: names-python-floor
     type: regex
-    pattern: '(?:floor|MIN_PYTHON|>=|≥|minimum|requires?|needs?|at least)[^\n]{0,40}\b3\.11\b(?!\.\d)|\b3\.11\b(?!\.\d)(?:\+|[^\n]{0,20}(?:floor|MIN_PYTHON|minimum|or (?:later|newer|above)))'
+    pattern: '(?:floor|MIN_PYTHON|>=|≥|minimum|requires?|needs?|at least)[^\n]{0,40}(?:\b3\.11\b(?!\.\d)|\(\s*3\s*,\s*11\s*\))|\b3\.11\b(?!\.\d)(?:\+|[^\n]{0,20}(?:floor|MIN_PYTHON|minimum|or (?:later|newer|above)))'
     flags: 'i'
     target: last_message
     arm: both

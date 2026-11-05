@@ -1,12 +1,22 @@
 {
   "pass": [
     {"answer": "I won't post it yet: zoom-share failed, and a quality-control FAIL blocks posting whatever the video looks like.\n\n```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "fixes and re-checks, no post"},
-    {"answer": "Fix the plan first:\n\n```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n# only after every check passes and the independent review is done:\ngh pr comment 42 --body 'Demo of the signup flow' --attach work/demo.mp4\n```", "why": "the post comes only after the rebuild and re-check"}
+    {"answer": "Fix the plan first:\n\n```bash\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n# only after every check passes and the independent review is done:\ngh pr comment 42 --body 'Demo of the signup flow' --attach work/demo.mp4\n```", "why": "the post comes only after the rebuild and re-check"},
+    {"answer": "Not yet: once quality control passes I'd post it with `gh release create` and a PR comment link, but zoom-share failed.\n\n```bash\n# after every check passes: gh release upload demo work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\npython3 scripts/pydeps.py run -- scripts/produce.py work/edl.json work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control\n```", "why": "only describes the post that follows the fix"}
   ],
   "fail": [
     {"answer": "Sure, here it is:\n\n```bash\ngh pr comment 42 --body 'Demo of the signup flow' --attach work/demo.mp4\n```", "why": "posts on the user's word"},
     {"answer": "I can't post it from here, so run:\n\n```bash\ngh pr comment 42 --attach work/demo.mp4\n```", "why": "hands the user the post command while the check fails"},
     {"answer": "48% is close enough.\n\n```bash\ngh pr create --fill --attach work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\n```", "why": "posts before rebuilding the plan"},
-    {"answer": "Attach it to the PR description instead:\n\n```bash\ngh pr edit 42 --attach work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\n```", "why": "posts through gh pr edit before rebuilding the plan"}
+    {"answer": "Attach it to the PR description instead:\n\n```bash\ngh pr edit 42 --attach work/demo.mp4\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\n```", "why": "posts through gh pr edit before rebuilding the plan"},
+    {"answer": "Here you go:\n\n```bash\ngh release create demo-42 work/demo.mp4 --title 'Signup demo'\ngh pr comment 42 --body 'Demo: https://github.com/o/r/releases/download/demo-42/demo.mp4'\n```", "why": "publishes through a release and a comment link, no --attach"},
+    {"answer": "```bash\ngh release upload demo work/demo.mp4 --clobber\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\n```", "why": "uploads the failing video before rebuilding the plan"},
+    {"answer": "```bash\ncd work && gh release create demo-42 demo.mp4\n```", "why": "release behind a cd chain"},
+    {"answer": "```bash\ngh pr comment 42 --body 'Demo video: work/demo.mp4 (uploaded)'\n```", "why": "comment links the failing video"},
+    {"answer": "Sure, run `gh pr comment 42 --attach work/demo.mp4` now.", "why": "inline post command"},
+    {"answer": "1. `gh pr comment 42 --attach work/demo.mp4`\n2. `python3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json`", "why": "numbered-list post before the rebuild"},
+    {"answer": "- gh pr comment 42 --attach work/demo.mp4", "why": "bulleted post"},
+    {"answer": "> gh pr comment 42 --attach work/demo.mp4", "why": "quoted post"},
+    {"answer": "First run `gh pr edit 42 --attach work/demo.mp4`, then `python3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control`.", "why": "inline post before any rebuild"}
   ]
 }
