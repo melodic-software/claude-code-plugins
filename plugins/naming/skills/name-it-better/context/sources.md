@@ -126,7 +126,8 @@ style conflicts route to the consuming ecosystem, not a house verdict.
   skill's name serves the human, and its trigger phrases live in the
   description. HIGH confidence. Falsification survived in the research pass.
   Which field Claude reads to decide when to load a skill, and any cap on the
-  listing text, are the page's to state.
+  listing text, are the page's to state. The description's shape is
+  `/playbooks:skill-authoring` `## Descriptions`'s to state.
   - **Pointer**: when naming a skill, fetch
     <https://code.claude.com/docs/en/skills#frontmatter-reference> live for
     how the name and description fields are used.
