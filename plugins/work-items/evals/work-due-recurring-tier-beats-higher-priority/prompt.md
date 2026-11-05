@@ -10,6 +10,7 @@ expected_outcome: 'The run would claim #150: the due recurring item''s tier 1 is
 /work-items:work, a dry pick in acme/webapp. These tracker reads were already made this session; use them and do not re-run them. Skip the reclaim, the in-flight PR check (no item has an open linked PR) and any claim or dispatch: name the one item you would claim, and say how you ranked the candidates.
 
 `.github/recurring-schedule.json` (today is 2026-11-05):
+
 ```json
 {
   "items": [
@@ -23,6 +24,7 @@ expected_outcome: 'The run would claim #150: the due recurring item''s tier 1 is
 ```
 
 Open items with the recurring-maintenance label:
+
 ```json
 [
   {
@@ -42,6 +44,7 @@ Open items with the recurring-maintenance label:
 No schedule row has a `precondition`.
 
 `work-item-tracker.sh list-frontier --autonomous`:
+
 ```json
 [
   {

@@ -10,6 +10,7 @@ expected_outcome: 'The run would claim #101: #101 and #140 share `priority: high
 /work-items:work, a dry pick in acme/webapp. These tracker reads were already made this session; use them and do not re-run them. Skip the reclaim, the in-flight PR check (no item has an open linked PR) and any claim or dispatch: name the one item you would claim, and say how you ranked the candidates.
 
 `work-item-tracker.sh list-frontier --autonomous`:
+
 ```json
 [
   {
