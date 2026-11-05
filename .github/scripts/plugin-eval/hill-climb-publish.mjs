@@ -215,8 +215,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     .then(() => run(process.env))
     .catch((error) => {
       // A failed command's message quotes its stderr, which can hold file text.
-      const message = String(error.message).startsWith("Command failed") ? "a command failed" : String(error.message);
-      console.log(`::error::${message.replace(/[\r\n]+/g, " ")}`);
+      const message = (String(error.message).startsWith("Command failed") ? "a command failed" : String(error.message)).replace(/[\r\n]+/g, " ");
+      console.log(`::error::${message}`);
+      // The win is in the summary already, so the stop that kept it from a pull request is too.
+      if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `gate: ${process.argv[2]}: ${message}\n`);
       process.exit(1);
     });
 }

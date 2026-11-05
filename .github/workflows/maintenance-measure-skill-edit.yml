@@ -733,6 +733,13 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+      - name: Report a win that was not kept
+        if: always() && steps.decide.outputs.win == 'true' && steps.upload-win.outcome != 'success'
+        env:
+          CLEAN: ${{ steps.scan-upload.outputs.clean }}
+        run: |
+          echo "gate: win-upload: the win was not uploaded (credential scan clean=${CLEAN:-unread}), so no branch or pull request follows" | tee -a "$GITHUB_STEP_SUMMARY"
+
   # mutate-branch: contents write only, on a win only (AL-Q11). No model, and
   # nothing of the model's proposal: the patch is the one the scan job checked
   # and pass b measured, applied to a second checkout of the base so the
@@ -852,6 +859,19 @@ jobs:
           PATCH_FILE: ${{ runner.temp }}/edit/edit.patch
           EDIT_DIR: ${{ github.workspace }}/.edit
         run: node .base/.github/scripts/plugin-eval/hill-climb-publish.mjs push
+
+      # A stop before the push step leaves no line of its own; the script
+      # writes its refusals itself.
+      - name: Report a stop before the push
+        if: always() && steps.push.outcome == 'skipped'
+        env:
+          KILL: ${{ steps.kill.outputs.proceed }}
+          KILL_REASON: ${{ steps.kill.outputs.reason }}
+          APPLIES: ${{ steps.config.outputs.applies }}
+          SKIP: ${{ steps.lane-token.outputs.skip-reason }}
+          VERIFY: ${{ steps.verify.outcome }}
+        run: |
+          echo "gate: push-branch: no branch pushed (kill switch proceed=${KILL:-unread} ${KILL_REASON}; config applies=${APPLIES:-unread}; edit check ${VERIFY}; lane token skip-reason=${SKIP:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
@@ -973,6 +993,7 @@ jobs:
           kill-switch-ok: true
 
       - name: Open the draft pull request
+        id: open
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -983,6 +1004,18 @@ jobs:
           HEAD: ${{ needs.push-branch.outputs.head }}
           OUT: ${{ runner.temp }}/pr-text
         run: node .base/.github/scripts/plugin-eval/hill-climb-publish.mjs publish
+
+      - name: Report a stop before the pull request
+        if: always() && steps.open.outcome == 'skipped'
+        env:
+          KILL: ${{ steps.kill.outputs.proceed }}
+          KILL_REASON: ${{ steps.kill.outputs.reason }}
+          APPLIES: ${{ steps.config.outputs.applies }}
+          TEXT: ${{ steps.text.outcome }}
+          CLEAN: ${{ steps.scan-text.outputs.clean }}
+          SKIP: ${{ steps.lane-token.outputs.skip-reason }}
+        run: |
+          echo "gate: publish: no pull request opened (kill switch proceed=${KILL:-unread} ${KILL_REASON}; config applies=${APPLIES:-unread}; text ${TEXT}, scan clean=${CLEAN:-unread}; lane token skip-reason=${SKIP:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''

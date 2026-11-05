@@ -3,10 +3,11 @@
 // pushed diff is the skill's markdown and one fixed fragment, and the body quotes run text only
 // inside a fence.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import process from "node:process";
 import { test } from "node:test";
 
 import { netRawDiff } from "../upstream-apply-changelog/upstream-apply-changelog.mjs";
@@ -166,6 +167,21 @@ test("no pull request opens for a branch that has one, is not at the pushed head
   await assert.rejects(openDraft(other.read, "o/r", { branch: "main", head: SHA_A, title: "t", body: "b" }), /malformed/);
   await assert.rejects(openDraft(other.read, "o/r", { branch: "chore/tidy-adhoc-x", head: SHA_A, title: "t", body: "b" }), /malformed/);
   assert.deepEqual(other.calls, []);
+});
+
+test("a refused command names its stop in the job summary, as every gate before it does", () => {
+  const dir = mkdtempSync(join(tmpdir(), "hill-climb-publish-summary-"));
+  try {
+    const summary = join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const script = new URL("./hill-climb-publish.mjs", import.meta.url).pathname;
+    const proc = spawnSync(process.execPath, [script, "push"], { env: { PATH: process.env.PATH, PLUGIN: "Bad", SKILL: "write", RUN_ID: "7", GITHUB_STEP_SUMMARY: summary }, encoding: "utf8" });
+    assert.equal(proc.status, 1);
+    assert.match(proc.stdout, /^::error::the plugin, the skill or the run id is not/m);
+    assert.equal(readFileSync(summary, "utf8"), "gate: push: the plugin, the skill or the run id is not a lowercase kebab-case name and a run id\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a re-run reuses a branch at the built tree and stops on one holding another", async () => {

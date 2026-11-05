@@ -70,6 +70,10 @@ test("the writes run only after a verified win, check what they carry before the
   assert.match(step(publish, "Write the pull request text"), /sha256sum --check --strict --quiet manifest\.sha256/);
   assert.match(step(publish, "Request the lane token"), /if: steps\.scan-text\.outputs\.clean == 'true'\n/);
   assert.match(step(publish, "Open the draft pull request"), /hill-climb-publish\.mjs publish\n/);
+  // A win that ends with no pull request names its stop in the job summary.
+  assert.match(step(push, "Report a stop before the push"), /if: always\(\) && steps\.push\.outcome == 'skipped'\n[^]*echo "gate: push-branch: [^"]*" \| tee -a "\$GITHUB_STEP_SUMMARY"/);
+  assert.match(step(publish, "Report a stop before the pull request"), /if: always\(\) && steps\.open\.outcome == 'skipped'\n[^]*echo "gate: publish: [^"]*" \| tee -a "\$GITHUB_STEP_SUMMARY"/);
+  assert.match(step(jobs(main).verdict, "Report a win that was not kept"), /steps\.upload-win\.outcome != 'success'[^]*gate: win-upload: /);
   // The workflow names no merge, ready flip or auto-merge.
   assert.doesNotMatch(code(main), /gh pr (merge|ready)|enable-auto-merge|markPullRequestReadyForReview|draft: false/);
   assert.match(main, /^on:\n {2}workflow_dispatch:\n/m);
