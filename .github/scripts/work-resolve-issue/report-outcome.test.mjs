@@ -49,6 +49,7 @@ import {
   reusePlan,
   HOLD_LINE,
   HOLD_LABEL,
+  linkageLines,
   trustedLabeler,
   unmarkedAnswer,
   waitedPull,
@@ -201,6 +202,48 @@ test("a remaining of exactly 20 items opens a Refs PR listing the last", () => {
 test("a remaining item is neutralized like other run text", () => {
   const body = bodyOf({ ...done, remaining: ["Closes #12 for @someone\n## Heading"] });
   assert.ok(body.includes("\n## Remaining work\n\n- Closes ＃12 for someone ＃＃ Heading\n"), body);
+});
+
+// #13425: a done-when that asks the PR body for a linkage line gets it as a
+// plain line under the Closes line, built from the issue's text, while the
+// run's own text keeps its full-width ＃.
+const LINKED_ISSUE = [
+  "## Done when",
+  "",
+  "- [ ] The PR body carries `Refs: #6917`.",
+  "- [x] The pull request body carries `Siblings:  #20 ,#30` too.",
+  "- [ ] A test asserts `Refs: #12` holds.",
+  "- [ ] The PR body names `Refs: #77` again.",
+  "<!-- - [ ] The PR body carries `Refs: #99`. -->",
+  "```",
+  "- [ ] The PR body carries `Refs: #98`.",
+  "```",
+  "The PR body carries `Refs: #97` in prose.",
+].join("\n");
+
+test("linkageLines reads the done-when items that ask the PR body for a Refs or Siblings line", () => {
+  assert.deepEqual(linkageLines(LINKED_ISSUE, 77), ["Refs: #6917", "Siblings: #20, #30"]);
+  assert.deepEqual(linkageLines("- [ ] The PR body carries `Refs: #6917 and #2`.", 77), []);
+  const eleven = Array.from({ length: 11 }, (_, i) => `#${i + 1}`).join(", ");
+  assert.deepEqual(linkageLines(`- [ ] The PR body carries \`Siblings: ${eleven}\`.`, 77), []);
+  assert.deepEqual(linkageLines(undefined, 77), []);
+});
+
+test("a done-when's Refs line opens the PR body as a plain line while the quoted summary keeps ＃", () => {
+  const plan = decideDone({ outcome: { ...done, summary: "Set Refs: #6917 for the lane." }, linkage: linkageLines(LINKED_ISSUE, 77) });
+  assert.ok(plan.body.startsWith("Closes #77\nRefs: #6917\nSiblings: #20, #30\n\n## Summary\n"), plan.body);
+  assert.ok(plan.body.includes("> Set Refs: ＃6917 for the lane."), plan.body);
+});
+
+test("a Refs PR keeps only one Refs number, so the merge lane still reads its issue", () => {
+  const plan = decideDone({ outcome: { ...done, remaining: ["Part B"] }, linkage: ["Refs: #6917", "Siblings: #20"] });
+  assert.ok(plan.body.startsWith("Refs: #77\nSiblings: #20\n\n## Summary"), plan.body);
+  assert.ok(!plan.body.includes("#6917"), plan.body);
+});
+
+test("a reused branch's PR carries the done-when's linkage lines under Closes", () => {
+  const plan = reusePlan({ issueNumber: 77, branch: BRANCH, changedFiles: ["README.md"], holdPaths: HOLD_GLOBS, checks: NO_CHECKS, linkage: ["Refs: #6917"] });
+  assert.ok(plan.body.startsWith("Closes #77\nRefs: #6917\n\n"), plan.body);
 });
 
 test("a Refs PR with a trusted merge: human label still carries the hold line", () => {
@@ -3027,7 +3070,35 @@ const TRUSTED_LIST = JSON.stringify({
     { id: 337595936, login: BOT, kind: "bot" },
   ],
 });
-const graphql = (nodes, pageInfo = { hasNextPage: false, endCursor: null }) => ({
+
+// #13425: main takes the linkage lines from the issue body only when a listed
+// human wrote the issue.
+test("main opens the PR with the done-when's Refs line only for a listed human's issue", async () => {
+  for (const [user, expected] of [
+    [{ login: "kyle-sexton", id: OWNER_ID, type: "User" }, "Closes #77\nRefs: #6917\n"],
+    [{ login: "someone", id: 5, type: "User" }, "Closes #77\n\n"],
+  ]) {
+    await withAsyncDir(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile(), "trusted.json": TRUSTED_LIST },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch([
+          ["GET", /\/issues\/77$/, 200, { ...ISSUE[2], user, body: "## Done when\n\n- [ ] The PR body carries `Refs: #6917`." }],
+          branchTip(),
+          ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+          ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+          ["GET", /\/pulls$/, 200, []],
+          ["POST", /\/pulls$/, 201, { number: 90, html_url: "https://example/o/r/pull/90" }],
+          ["POST", /\/issues\/90\/labels$/, 200, []],
+        ]);
+        assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+        const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+        assert.ok(pull.body.startsWith(expected), pull.body);
+      },
+    );
+  }
+});
+
+const graphql = (nodes,pageInfo = { hasNextPage: false, endCursor: null }) => ({
   data: { repository: { issue: { closedByPullRequestsReferences: { nodes, pageInfo } } } },
 });
 const refOf = (name) => ({ ref: `refs/heads/${name}`, object: { sha: "a".repeat(40) } });
