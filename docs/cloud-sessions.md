@@ -257,9 +257,11 @@ from the two together (see
   `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`, 23% spare at
   180,000). A 200k-window session, including a subagent whose listing is sized to its own window,
   still sheds descriptions at any fraction anyone would want to pay for. Re-measure with the
-  command above rather than trusting this table on a later `main`; a scheduled report-only CI
-  step measures this repository's skills at the configured fraction on a 750,000-token,
-  4-bytes-per-token basis.
+  command above rather than trusting this table on a later `main`: the installed fleet also
+  depends on each host's user-scope plugins, and this one was measured on a single WSL host. A
+  scheduled report-only CI step measures this repository's skills at the configured fraction on
+  a 750,000-token, 4-bytes-per-token basis. It does not cover a 3-bytes-per-token model, whose
+  135,000-character budget at 750,000 tokens all of this repository's skills already exceed.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
   [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
   groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,
