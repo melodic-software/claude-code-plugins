@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: reply
+focus: last_message
 ---
 
 PASS if the final reply proposes one cheap signal meant to stay on in production (a log line, a metric or an assertion) that would have shown, on the first failing run, the deciding fact: that the key passed to the lookup did not match the table's keys (for example, a warning or counter on a missing price or rate key that logs the key and the known keys, or an assertion that the key is in the table).
