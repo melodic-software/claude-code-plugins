@@ -74,10 +74,10 @@ element 1, but only pr-merge uses it.
 |---|---|---|---|
 | 1 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2204`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201` | The shared client sends up to 3 attempts with full jitter, and a rate limit within 60 s is waited out, while a longer one fails the step (a notice under the hold opt-in). |
 | 2 | met | `.github/scripts/work-unblock/label-unblocked.mjs:487`, `.github/scripts/work-unblock/label-unblocked.mjs:674` (lines at this change, after `222d8023`) | A failed listing, or a GitHub fault on one issue's read, holds with a notice and the run exits 0. A sweep that held an issue keeps the next window back. A failed write, or a read that fails for another reason (another 4xx, an answer of the wrong shape), still ends the run red. |
-| 3 | gap | `.github/workflows/work-unblock.yml:33`, `.github/scripts/work-unblock/label-unblocked.mjs:195` | The workflow half is met: nothing re-arms the sweep, so the next cron or `workflow_run` sweep is the probe (see below). Breaker-trip records are kept for each issue: they bound model re-runs and gate no tick (still-open table, kept). |
+| 3 | gap | `.github/workflows/work-unblock.yml:33`, `.github/scripts/work-unblock/label-unblocked.mjs:1350` | The workflow half is met: nothing re-arms the sweep, so the next cron or `workflow_run` sweep is the probe (see below). Breaker-trip records are kept for each issue: they bound model re-runs and gate no tick (still-open table, kept). |
 | 4 | met | `.github/scripts/work-unblock/label-unblocked.mjs:194`, `.github/scripts/work-unblock/label-unblocked.mjs:82` | The lane lifts its own refs-hold `needs-human` once the PR merges or closes, and infrastructure re-fires never file `needs-human`. |
 | 5 | met | `.github/workflows/work-unblock.yml:170` | The kill switch is the only pre-gate. No status-page step runs. |
-| 6 | met | `.github/workflows/work-unblock.yml:134`, `.github/scripts/work-unblock/label-unblocked.mjs:635` | `label-unblocked` keeps the default single pending run (see below). An `etag` is not applicable: no job state carries one between runs, and the closed listing's URL changes every run with its `since`. The cron at minute 47 is fine. |
+| 6 | met | `.github/workflows/work-unblock.yml:134`, `.github/scripts/work-unblock/label-unblocked.mjs:674` | `label-unblocked` keeps the default single pending run (see below). An `etag` is not applicable: no job state carries one between runs, and the closed listing's URL changes every run with its `since`. The cron at minute 47 is fine. |
 
 ## pr-refine
 
@@ -473,20 +473,20 @@ head, not `222d8023`.
 
 - **work-unblock, element 3.** The marker-issue sweep-kick is gone: closing the issue labeled
   `work-unblock-sweep` now runs the close path like any close, and the sweep runs only on the cron
-  and on `workflow_run` (`.github/scripts/work-unblock/label-unblocked.mjs:2341`). Nothing was
+  and on `workflow_run` (`.github/scripts/work-unblock/label-unblocked.mjs:2367`). Nothing was
   stranded. The sweep's window counts only successful scheduled runs
-  (`label-unblocked.mjs:594`), so a kick never moved it, and a broker-check trip re-fires on the
-  next sweep with no wait (`label-unblocked.mjs:1851`), while a mint trip waited
+  (`label-unblocked.mjs:626-632`), so a kick never moved it, and a broker-check trip re-fires on the
+  next sweep with no wait (`label-unblocked.mjs:1879`), while a mint trip waited
   `limits.reset-clamp-min` with or without a kick.
 - **work-unblock, element 6.** `queue: max` is gone from `label-unblocked`
   (`.github/workflows/work-unblock.yml:134`), so a newer run replaces the waiting one. No waiting
   run carries work only it does: a sweep reads the whole state, and a close run's work
   (`labelUnblocked`, `closeSplitParents`, `stripClosed`) is repeated by the next sweep for every
-  issue its closed-issue window lists (`label-unblocked.mjs:1234-1243`, `:2186`). A replaced sweep's
+  issue its closed-issue window lists (`label-unblocked.mjs:1267-1276`, `:2197`). A replaced sweep's
   admissions and re-fires wait for the next one, and a replaced scheduled sweep only widens the next
   window, up to `LOOKBACK_HOURS`. An `etag` is not applicable: nothing in the job keeps one between
   runs, a cache must not reach a job that mints, and the closed listing's URL changes every run
-  with its `since` (`label-unblocked.mjs:635`).
+  with its `since` (`label-unblocked.mjs:674`).
 
 A later change fixed work-resolve-issue's workflow gaps, with tests. Its rows cite that change's
 head, not `222d8023`.
