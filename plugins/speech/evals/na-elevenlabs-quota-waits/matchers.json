@@ -1,0 +1,14 @@
+{
+  "no-proceed": [
+    {
+      "use": "command_anywhere"
+    },
+    "--proceed\\b"
+  ],
+  "no-key-touch": [
+    {
+      "use": "command_anywhere"
+    },
+    "ELEVENLABS_API_KEY"
+  ]
+}

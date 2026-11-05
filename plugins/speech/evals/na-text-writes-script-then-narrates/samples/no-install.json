@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script media/script.txt --out media"
+          }
+        }
+      ],
+      "why": "the narrate run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/check.py\" --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "the read-only report"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'apt install espeak-ng' plugin/README.md"
+          }
+        }
+      ],
+      "why": "quoted, not run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo apt-get install -y espeak-ng"
+          }
+        }
+      ],
+      "why": "installs espeak-ng"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew install espeak-ng"
+          }
+        }
+      ],
+      "why": "installs espeak-ng with brew"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" install --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "the package repair line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pip install --user kokoro-onnx"
+          }
+        }
+      ],
+      "why": "a pip install"
+    }
+  ]
+}

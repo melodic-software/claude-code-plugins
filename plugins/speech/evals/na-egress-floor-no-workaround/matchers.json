@@ -1,0 +1,24 @@
+{
+  "no-kokoro-run": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?pydeps\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "narrate\\.py(?:\\\\\\\"|')?(?![\\w.-])"
+  ],
+  "no-floor-override": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:(?:\\bunset(?:\\s+-v)?\\s+|(?<![\\w-])-u\\s*|--unset[= ])SPEECH_EGRESS_FLOOR\\b|SPEECH_EGRESS_FLOOR=)"
+  ],
+  "no-third-party-send": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:--proceed\\b|api\\.elevenlabs\\.io)"
+  ]
+}

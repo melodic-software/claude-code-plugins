@@ -1,0 +1,17 @@
+{
+  "runs-fetch": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?assets\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "(?<![\\w-])fetch\\b",
+    "(?=",
+    {
+      "use": "token_argument"
+    },
+    "--data-dir\\b)"
+  ]
+}
