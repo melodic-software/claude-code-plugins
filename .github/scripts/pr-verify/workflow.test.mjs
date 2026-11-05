@@ -1517,13 +1517,13 @@ const FILE_TOOL = /^(?:Read|Edit|Write|Glob|Grep|NotebookEdit)$/;
 test("the driver's file tools are fenced to the head and the run directory, and the probe tries the fence", () => {
   const driver = capStep(DRIVER);
   const allowed = list(driver, "allowed-tools");
-  // No file tool is allowed whole, and every path rule names the head, the run directory or main's plugins.
+  // No file tool is allowed whole, and every path rule names the head, the run directory, or main's plugins and repository skills (drive reads main's control-<app> skill).
   for (const rule of allowed) assert.doesNotMatch(rule, FILE_TOOL, rule);
   // Only main's named skills: a head skill's frontmatter hooks would run beside the key.
   assert.deepEqual(allowed.filter((rule) => rule.startsWith("Skill")), ["Skill(testing:run-e2e *)", "Skill(app-control:drive *)"]);
   // The default settings allow managed hooks only; no override.
   assert.doesNotMatch(capStep("Apply the Claude managed settings"), /^ {8}with:$/m);
-  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
+  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Read(./.base/.claude/skills/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");
   for (const rule of FENCE) assert.ok(denied.includes(rule), rule);
