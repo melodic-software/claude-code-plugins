@@ -938,6 +938,9 @@ test("a listed human's relayed reply dispatches with the relay run as the upstre
   assert.deepEqual(api.reads, [77]);
   assert.equal(api.calls.dispatch.length, 1);
   assert.equal(api.calls.dispatch[0].inputs["dispatcher-run-id"], RUN_ID);
+  // pr-unblock.yml starts no resolve-feedback-threads job on a relayed reply;
+  // a review run's round sends no such input (the exact inputs below).
+  assert.equal(api.calls.dispatch[0].inputs["upstream-relay"], "true");
   assert.equal(output, "run-id=38779200001\nupstream-run-id=77\n");
 });
 

@@ -3,14 +3,18 @@
 // day, held over 24 hours, 0 merges for 3 hours); annotation and status-page
 // shapes are copied from real pr-merge, broker and githubstatus.com output.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { closing } from "../intake-triage/apply-verdict.mjs";
 import {
   auditFindings,
   ceilingFindings,
   detect,
   ejectionFindings,
   heldFindings,
+  HOLD_LANES,
   holdRule,
   laneHoldFindings,
   mainRedFindings,
@@ -564,6 +568,56 @@ test("signal 13: each lane's hold notice parses, and other notices do not", () =
   assert.equal(parseHold(undefined, "handoff evidence for fix-docs still missing after 3 reads: x; the outputs stay empty"), null);
 });
 
+// label-unblocked.mjs failedFor's notice for one issue's faulted read.
+test("signal 13: work-unblock's held issue read parses to the issue and the status", () => {
+  const issueHold = (message) => parseHold("label-unblocked", message);
+  assert.deepEqual(issueHold("#20: GET /repos/o/r/issues/20 failed with status 503; holding, and the next sweep reads it again"), { item: "#20", reason: "read fault HTTP 503" });
+  // A network fault names no status.
+  assert.deepEqual(issueHold("#7: fetch failed; holding, and the next sweep reads it again"), { item: "#7", reason: "read fault" });
+  // The run-ending error for the same issue, and another title, are no hold.
+  assert.equal(issueHold("#20: GET /repos/o/r/issues/20 failed with status 404"), null);
+  assert.equal(parseHold("report-outcome", "#20: fetch failed; holding, and the next sweep reads it again"), null);
+});
+
+// apply-verdict.mjs closing's own annotation line, split as the runner splits
+// `::notice title=<title>::<message>`, so producer and parser are one contract.
+const annotation = (line) => /^::notice title=([^:]+)::(.*)$/.exec(line).slice(1);
+const verdictHold = (closed) => parseHold(...annotation(closed.lines[0]));
+
+test("signal 13: intake-triage's held verdict parses to a fixed reason with no item", () => {
+  assert.deepEqual(verdictHold(closing({ error: new GitHubError(502, "GET /repos/o/r/issues/7") })), { item: null, reason: "fault HTTP 502" });
+  const admission = { admission: { outcome: "error", fault: true, reasons: ["GET /repos/o/r/issues/7/timeline failed with status 503"] } };
+  assert.deepEqual(verdictHold(closing({ result: admission })), { item: null, reason: "admission fault HTTP 503" });
+  // A network fault names no status.
+  assert.deepEqual(verdictHold(closing({ error: new TypeError("fetch failed") })), { item: null, reason: "fault" });
+  // Its error line and another title's held: text are no hold.
+  const red = closing({ error: new Error("models.issue-dimensions maps no option 7") }).lines[0];
+  assert.equal(parseHold("apply-verdict", /::(.*)$/.exec(red)[1]), null);
+  assert.equal(parseHold("pr-verify", "held: pr-verify could not resolve the pull request: x failed with status 502"), null);
+  assert.equal(parseHold("apply-verdict", "apply-verdict does not apply (off); nothing written"), null);
+});
+
+test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per cause with no item", () => {
+  // check-wip-cap.mjs's notice template and its causes, read from the script,
+  // so producer and parser are one contract.
+  const script = readFileSync(new URL("../../actions/check-wip-cap/check-wip-cap.mjs", import.meta.url), "utf8");
+  const template = /const line = `(WIP cap hold: \$\{unread\}[^`]*)`/.exec(script)[1];
+  for (const [unread, reason] of [
+    ["the base config could not be read", "WIP cap base config unread"],
+    ["the open lane PRs could not be listed", "WIP cap open listing failed"],
+  ]) {
+    assert.ok(script.includes(`"${unread}"`), unread);
+    assert.deepEqual(parseHold("WIP cap hold", template.replace("${unread}", unread)), { item: null, reason });
+  }
+  // pick-slot's step names a check that did not finish, read from the workflow itself.
+  const workflow = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8");
+  const step = /run: echo "(::notice title=WIP cap hold::[^"]*)"/.exec(workflow)[1];
+  assert.deepEqual(parseHold(...annotation(step)), { item: null, reason: "WIP cap check unfinished" });
+  // A pause that was read is no hold.
+  assert.equal(parseHold("admission paused", "admission paused: reason=wip countable=13 wip_cap=12 held=0 held_cap=10"), null);
+  assert.ok(HOLD_LANES.find((l) => l.lane === "work-resolve-issue").jobs.includes("pick-slot"));
+});
+
 const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({
   lane,
   runId,
@@ -604,6 +658,17 @@ test("signal 13: the default threshold counts each lane on its own, and no rule 
   assert.deepEqual(laneHoldFindings({ laneHolds: four }), []);
   assert.throws(() => holdRule({ threshold: 1 }), /threshold of 2 to 100/);
   assert.throws(() => holdRule({ "window-hours": 1.5 }), /window-hours of 1 to 168/);
+});
+
+test("signal 13: intake-triage's held verdicts raise its own finding at the threshold", () => {
+  const rule = holdRule({});
+  const three = [1, 2, 3].map((id) => held("intake-triage", id, { reason: "fault HTTP 502", hour: 9 + id }));
+  assert.deepEqual(laneHoldFindings({ laneHolds: three, holdRule: rule }), []);
+  const [f, ...rest] = laneHoldFindings({ laneHolds: [...three, held("intake-triage", 4, { reason: "admission fault HTTP 503", hour: 14 })], holdRule: rule });
+  assert.deepEqual(rest, []);
+  assert.equal(f.key, "lane-hold:intake-triage");
+  assert.equal(f.area, "Intake lane (intake-triage apply-verdict)");
+  assert.match(f.summary, /^4 green intake-triage runs held on a fault in the last 24 hours/);
 });
 
 test("signal 13: the fingerprint holds while the reasons hold, through new runs", () => {

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The CLI also has a new `--dry-run` flag that prints the row count without writing a file.",
+      "why": "no chat closer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The future looks bright for the exporter. I hope this helps!",
+      "why": "both closers left in place"
+    }
+  ]
+}

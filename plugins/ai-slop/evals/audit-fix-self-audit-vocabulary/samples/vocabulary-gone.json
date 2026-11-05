@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "This release speeds up export. The exporter now uses a streaming writer.",
+      "why": "no model vocabulary left"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This pivotal release delves into export speed. The exporter now leverages a streaming writer.",
+      "why": "model vocabulary left in place"
+    }
+  ]
+}

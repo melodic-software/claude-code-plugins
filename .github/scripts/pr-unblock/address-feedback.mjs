@@ -1681,6 +1681,10 @@ export function trustedHumansFrom(trustedActorsPath) {
   );
 }
 
+// A PR a person on the base's trusted-actors list opened, the only kind
+// resolve-threads.mjs resolves threads on.
+export const ownerPull = (pull, trustedHumans) => pull?.user?.type === "User" && trustedHumans.has(pull.user.id);
+
 // No owner is adopted unless the base config's `adoption` section sets
 // idle-hours (pr-pipeline.yaml).
 export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), idleHours: undefined });
@@ -1866,6 +1870,9 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     // The neutral checks' summary line when the PR stopped at the round cap.
     output("not-run-detail", result.decision === "escalate" && result.maxRounds ? roundLine(result.rounds, result.maxRounds) : "");
     output("stop-resolved", String(result.resolved === true));
+    // resolve-feedback-threads' gate: that job serves only such a PR.
+    const pull = pullFromFile(env.PULL_FILE, pr, env.HEAD_SHA);
+    output("person-opened", String(pull !== undefined && ownerPull(pull, trustedHumansFrom(env.TRUSTED_ACTORS))));
     log(`${result.decision}: ${result.threads.length} kept thread(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`);
     return 0;
   }
