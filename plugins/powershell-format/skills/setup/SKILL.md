@@ -41,14 +41,15 @@ resolves things.
 
 **Read them first.** Probe what they actually do, don't recite this file. Then run the
 probes via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
-Option values are rendered into this text at load: read them here, and never put a `${user_config.*}` string in a shell command.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hooks exit through their enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the floor, Bash 3.2 or newer (README Requirements).
+1. **Bash version.** Check against the floor, Bash 3.2 or newer (`lib/git-hooks/check-lib.sh`).
 2. **`node`.** Probe via Bash: `command -v node`, then `node --version` when it resolves. FAIL if
    absent: every handler in `hooks/hooks.json` launches through `node hooks/exec-bash.mjs`, so
    without `node` the hook never starts and says nothing (README Requirements). The hook process
@@ -92,7 +93,7 @@ restores the FAIL semantics.
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
-   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 ## `apply install-git-hooks [scope=local|shared]`
