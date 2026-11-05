@@ -55,7 +55,10 @@ wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude -p "<prompt>" < /dev/nu
 
 Use `--exec`, not `--`: with `--` the distro's login shell re-parses the tail first. A
 native-Windows Claude runs this through its Bash tool, which is Git Bash, so bash quoting applies
-(`'\''` for an apostrophe); through its PowerShell tool, pwsh quoting applies (`''`).
+(`'\''` for an apostrophe). From PowerShell (its PowerShell tool or a PowerShell window, 5.1 or
+pwsh 7), never `-p "<prompt>"`: in the command above, write `-p ''<prompt>''` in its place, and an
+apostrophe in the prompt as `''\''''`. The probe behind that form is in the hub's apostrophe
+gotcha.
 
 **Either lane to another machine (R2, R3, R5, R6).** The hop is always the target's WSL sshd
 (`<wsl-alias>`, port 2222), through the Windows OpenSSH client. For the target's WSL lane, run
@@ -90,14 +93,18 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
   - **As of**: 2026-10-18
   - **Recheck trigger**: either section changes the default for a held message, the `dialogExpiry`
     default, or what `crossSessionInbound` accepts.
-- The receiver lives as long as its turn. Its standing instructions say what to do with each
-  message and when to stop.
+- Its standing instructions say what to do with each message and when to stop.
 - Inside an outer single-quoted remote command, the JSON's single quotes would close the outer
   quote. Double-quote it with escaped inner quotes instead:
   `<ssh> <wsl-alias> 'claude -p -n <name> --settings "{\"crossSessionInbound\":\"accept\"}" "<instructions>" < /dev/null'`.
-- It ends when its turn ends. The tested receiver kept its turn open (a standing instruction to
-  wait, then print what arrived) and ran under `nohup ... &` on the target. For a session that must
-  stay up, use a [background session](#background-sessions) instead.
+- The tested receiver kept its turn open (a standing instruction to wait, then print what arrived)
+  and ran under `nohup ... &` on the target. For a session that must stay up, use a
+  [background session](#background-sessions) instead.
+  - **Pointer**: for when a `-p` run ends after its turn, fetch
+    [Run Claude Code programmatically: Background tasks at exit](https://code.claude.com/docs/en/headless#background-tasks-at-exit)
+    live.
+  - **As of**: 2026-11-04
+  - **Recheck trigger**: that section changes what keeps a `-p` run open after its turn.
 - Do not start it with `--bare`: a bare session binds no inbox socket and receives nothing.
 
 ## Multi-turn and the open pipe
