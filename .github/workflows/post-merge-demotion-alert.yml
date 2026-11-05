@@ -33,9 +33,8 @@ name: post-merge-demotion-alert
 # babysit_merge_policy.py `_recovered_at` applies. This workflow merges,
 # reverts and dequeues nothing.
 #
-# Only a full-run or canary failure whose merges include one the lanes App put
-# in the merge queue demotes; a revert record (below) demotes whoever queued
-# the reverted pull request. When every merge in the failing range was enqueued by someone else
+# Only a failure whose merges include one the lanes App put in the merge queue
+# demotes. When every merge in the failing range was enqueued by someone else
 # (a person, a release App), the issue's first line is `<!-- post-merge-failure
 # sha=<S> signal=<name> -->` instead, and no reader treats it as a demotion. A
 # full-run one is labeled as a full-run record above, and the close-cleared
@@ -43,16 +42,17 @@ name: post-merge-demotion-alert
 # no fix issue, and lifts as a canary demotion record does. Anything the
 # lookup cannot prove demotes.
 #
-# A push to main that reverts a merged pull request, whoever put it in the
-# merge queue, files a `revert` record. Every canary push run, whatever it concluded
+# A push to main that reverts a pull request the lanes App put in the merge
+# queue files a `revert` record. Every canary push run, whatever it concluded
 # and on every attempt, reads the commits the push brought, a merge-queue
 # batch included: main's first-parent range since the previous canary push
 # run's head, at most 20 commits, and the newest 20 when that head cannot be
 # read or is not an ancestor, read from main's full history. A revert commit
 # any revert record already lists is skipped, so overlapping runs and re-runs
 # file it once and never again after a person closes its record. A failed
-# canary still files its canary record too. A reverted commit whose pull
-# request cannot be read files too. The alert job finds the revert and hands
+# canary still files its canary record too. A revert of a pull request someone
+# else enqueued files nothing; an unproven one demotes, a reverted commit whose
+# pull request cannot be read included. The alert job finds the revert and hands
 # the record to the file-revert job, whose token holds issues: write alone,
 # through its outputs; that job re-reads the records first and files nothing
 # when one already lists every revert commit. A revert record is labeled
@@ -681,13 +681,18 @@ jobs:
           # of a human's PR does not carry). Anything unproven demotes: a canary
           # or an unknown range, a commit with no (#N) subject, an unreadable
           # identity, or a failed lookup. One GraphQL call covers the range,
-          # made only when a new issue is filed (classify, below). A revert
-          # record demotes whoever enqueued the reverted pull request.
+          # or the pull requests a revert names (`reverted`), made only when a
+          # new issue is filed (classify, below).
           lane=1
+          reverted=()
           classify() {
           declare -A numbers=()
           missing=''
-          if [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
+          if [[ "${#reverted[@]}" -gt 0 ]]; then
+            for n in "${reverted[@]}"; do
+              numbers[$n]=1
+            done
+          elif [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
             for c in "${range[@]}"; do
               s="${entry[$c]#*$'\t'}"
               if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
@@ -810,8 +815,7 @@ jobs:
           # - `This reverts commit <sha>` (git revert) or the red-main bot's
           #   `<!-- red-main-revert culprit=<sha> -->`, through the subject of
           #   that commit, `... (#N)`; a commit whose subject cannot be read
-          #   still files, naming the commit.
-          # Any reverted pull request files, whoever enqueued it.
+          #   is an unproven revert, which demotes.
           # Anchored at a line's start, never a substring, so prose, a quoted
           # line or another repository's pull request names nothing.
           # push_range: the canary push run's commits into `pushed`, read once;
@@ -856,7 +860,7 @@ jobs:
             python3 "$tool" "$1" --repo-dir .base "${@:2}"
           }
           revert_pass() {
-            local c n t repo line message rest lines names revert_block
+            local c n t repo line message rest lines names unproven='' revert_block
             local -a cs fresh=()
             local -A named=() listed=() prs=() unread=()
             push_range
@@ -922,13 +926,25 @@ jobs:
               for n in ${prs[$c]:-}; do
                 named[$n]=1
               done
+              if [[ -n "${unread[$c]:-}" ]]; then
+                unproven=1
+              fi
             done
             if ((${#fresh[@]} == 0)); then
               echo "no new commit among the ${#pushed[@]} pushed up to ${RUN_SHA:0:12} names a pull request it reverts: no revert record"
               return
             fi
+            reverted=("${!named[@]}")
+            if [[ -z "$unproven" ]]; then
+              classify
+            fi
+            if [[ -z "$lane" ]]; then
+              echo "no pull request ${RUN_SHA:0:12}'s push reverts was put in the merge queue by the lanes App: no revert record"
+              lane=1 reverted=()
+              return
+            fi
             lines='' names=''
-            for n in "${!named[@]}"; do
+            for n in "${reverted[@]}"; do
               names="${names:+$names, }#$n"
               lines="$lines- Reverted pull request: ${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/$n"$'\n'
             done
@@ -959,7 +975,7 @@ jobs:
               echo "revert-body<<$delim"
               echo "<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
 
-          A push to main reverted a pull request. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lift\`); a lane then closes it. A person's direct close also clears it.
+          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lift\`); a lane then closes it. A person's direct close also clears it.
 
           $lines- Main at the push: \`$RUN_SHA\`
           - Canary run: $sighting
@@ -970,6 +986,7 @@ jobs:
               echo "$delim"
             } >>"$GITHUB_OUTPUT"
             echo "handed the revert demotion issue for ${RUN_SHA:0:12} to the file-revert job"
+            lane=1 reverted=()
           }
           if [[ "$signal" == canary ]]; then
             revert_pass

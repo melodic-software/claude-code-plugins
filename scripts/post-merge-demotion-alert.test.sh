@@ -17,8 +17,8 @@
 # attempt is re-run instead, and a later one files only for checks green on
 # main's previous run of the same event; the gitleaks gate files nothing. A
 # canary push run, whatever it concluded, files a `revert` record when a commit
-# the push brought, and no record lists, reverts a pull request, whoever
-# enqueued it: the step hands the record through its outputs to the
+# the push brought, and no record lists, reverts a pull request the lanes App
+# enqueued: the step hands the record through its outputs to the
 # `File the revert demotion issue` step of the file-revert job, which run_step
 # runs next against the same stub.
 # test-scope: .github/workflows/post-merge-demotion-alert.yml
@@ -427,6 +427,7 @@ PY
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
     bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "${STEP_BODY:-$TMP_ROOT/body.sh}" 2>&1)" && RC=0 || RC=$?
   # The file-revert job, when the step handed it a record (ALERT_ONLY skips it).
+  FILER_OUT='' FILER_RC=''
   if [[ -z "${STEP_BODY:-}${ALERT_ONLY:-}" && -n "$(out_value revert-title)" ]]; then
     run_filer "$6" "$(out_value revert-title)" "$(out_value revert-body)" "$(out_value revert-commits)" "$(out_value revert-filer)"
     OUT+=$'\n'"$FILER_OUT"
@@ -997,7 +998,8 @@ reverts() {
       "$body" == *"It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main"* &&
       "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
     grep -qx 'labels\[\]=needs-human' <<<"$fields" &&
-    ! grep -qE 'rerun-failed-jobs|/compare/|status=success|^GET graphql$' <<<"$LOG" &&
+    ! grep -qE 'rerun-failed-jobs|/compare/|status=success' <<<"$LOG" &&
+    grep -q "p$n: pullRequest(number: $n)" "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)" &&
     [[ "$FILER_OUT" == *"filed the revert demotion issue for ${HEAD_SHA:0:12}"* ]]; then
     ok "$label"
   else
@@ -1021,9 +1023,12 @@ if ! grep -q 'actions/workflows/77/runs?event=push&branch=main&created=' <<<"$LO
   fail "the previous canary push run was not read: log='$LOG'"
 fi
 
-# Trip on any revert: who enqueued the reverted pull request is not read.
 GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_push
-reverts "a revert of a pull request a person enqueued files a revert demotion record"
+no_revert "a revert of a pull request a person enqueued files nothing"
+if ! grep -qx 'GET graphql' <<<"$LOG" || [[ "$OUT" != *"was put in the merge queue by the lanes App: no revert record"* ]] ||
+  ! grep -q 'p1234: pullRequest(number: 1234)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
+  fail "the person-merged revert was not looked up for #1234 and judged: log='$LOG' out='$OUT'"
+fi
 
 # The alert job files no revert record itself: it hands it over.
 ALERT_ONLY=1 GRAPHQL="$LANE" run_push
@@ -1078,7 +1083,11 @@ for bad in "title:Post-merge revert of #1234 at ${HEAD_SHA:0:12}: anything" "com
 done
 
 FAIL_GRAPHQL=1 run_push
-reverts "a revert files with no merge-queue lookup to fail"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"signal=revert -->"* ]]; then
+  ok "a revert whose merge-queue lookup fails demotes"
+else
+  fail "unproven revert: rc=$RC log='$LOG' out='$OUT'"
+fi
 
 push_repo $'Revert "feat: a join prompt"\n\nReverts o/r#1234\n'
 GRAPHQL="$(gq "$(enq 1234 octocat User melodic-automation-lanes Bot)")" run_push
@@ -1174,8 +1183,8 @@ fields="$(post_fields 2>/dev/null)"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$fields" == *"signal=revert -->"* &&
   "$fields" == *"- Reverted pull request: https://github.com/o/r/pull/1234"* &&
   "$fields" == *"- Reverted pull request: https://github.com/o/r/pull/1235"* ]] &&
-  ! grep -qx 'GET graphql' <<<"$LOG"; then
-  ok "Reverts #A, #B files one record naming both"
+  grep -q 'p1235: pullRequest(number: 1235)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
+  ok "Reverts #A, #B files when the lanes App enqueued B though a person enqueued A"
 else
   fail "two reverted pull requests: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
 fi
@@ -1239,13 +1248,9 @@ fi
 
 COMMIT_MESSAGE="$REVERTS" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" ATTEMPT=1 \
   run_step "$CANARY" push failure main o/r "$SHA" '[]'
-issues_posted="$(grep -nx 'POST repos/o/r/issues' <<<"$LOG" | cut -d: -f1)"
-bodies="$(for n in $issues_posted; do grep '^body=<!--' "$TMP_ROOT/stub/post.$n"; done)"
-if [[ "$RC" -eq 0 && "$(wc -l <<<"$issues_posted")" -eq 2 &&
-  "$bodies" == *"sha=$SHA signal=revert -->"* && "$bodies" == *"sha=$SHA signal=canary -->"* ]]; then
-  ok "a failed canary run on a person-enqueued revert files both the canary and the revert record"
-else
-  fail "failed canary on a person-enqueued revert: rc=$RC log='$LOG' out='$OUT' bodies='$bodies'"
+demotes "a failed canary run on a person-enqueued revert files only the canary record"
+if [[ "$(post_fields)" != *"signal=canary -->"* ]]; then
+  fail "the failed canary on a revert filed another signal: fields='$(post_fields)'"
 fi
 
 PIPELINE="$PIPE" FAIL_GRAPHQL=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" \

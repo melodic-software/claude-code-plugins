@@ -1217,10 +1217,11 @@ the rules that only tighten in
   from and closes as completed each open canary, revert or read-back record either filer opened
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
-  of its commits names a pull request it reverts, whoever enqueued that pull request. The alert
-  job finds the revert and hands the record, through its job outputs, to the `file-revert` job,
-  whose token holds `issues: write` alone; that job re-reads the revert records and files nothing
-  when one already lists every revert commit. A commit names it
+  of its commits names a pull request it reverts and the lanes App enqueued that pull request or
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
+  token holds `issues: write` alone; that job re-reads the revert records and files nothing when
+  one already lists every revert commit. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
   or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
   `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
@@ -1230,7 +1231,7 @@ the rules that only tighten in
   at most 20 commits, and the newest 20 when that head cannot be read or is not on the push's
   history, read from main's full history. A revert commit any revert record already lists, in any
   state, is skipped, so a commit is filed once and never again after a person closes its record. A
-  reverted commit whose pull request cannot be read files the record too, naming the commit. The wrapper finds these issues by author (the agent identity
+  reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,

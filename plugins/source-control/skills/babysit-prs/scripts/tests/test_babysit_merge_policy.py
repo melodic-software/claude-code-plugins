@@ -1501,7 +1501,7 @@ class AutoClearOnGreen(unittest.TestCase):
 
 class RevertRecord(unittest.TestCase):
     """A `revert` record, which post-merge-demotion-alert.yml files when a
-    push to main reverts a merged pull request, holds the
+    push to main reverts a pull request the lanes App enqueued, holds the
     rung off until a person closes it directly or it lifts (`RecordLift`)."""
 
     def test_open_holds_the_rung_off(self) -> None:
