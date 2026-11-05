@@ -90,7 +90,10 @@ name, answer it directly first, then offer the surrounding list.
 
 ## Report structure
 
-Lead with the shape of the answer, then the rows.
+Lead with the shape of the answer, then the rows. Each `<n>` below takes its lane's integrity
+status ([table](#staying-current-as-claude-code-ships)): a total when `ok`, `at least <n>` when
+`degraded`. A `broken` lane gets no number anywhere, the Summary and its heading included: write
+`withheld (lane broken: <cause>)` and list none of its rows.
 
 ```
 # Claude Code inventory — <host>, <date>
@@ -386,7 +389,7 @@ changes the integrity status or the self-check exit code:
 |---|---|---|
 | `ok` | Build matches the last validated release, every check passed | Report that lane's counts as totals |
 | `degraded` | Extraction worked, but something is unaccounted for | Report that lane's counts as **floors**, and say what is unaccounted for |
-| `broken` | A canary is missing or nothing resolved in that lane | Do not report that lane's counts at all; name the lane and its cause; the other lanes' counts stand |
+| `broken` | A canary is missing or nothing resolved in that lane | Do not report that lane's counts at all, not even caveated or as the number of entries the file lists; name the lane and its cause; the other lanes' counts stand |
 
 A single broken lane makes the top level `degraded`, not `broken`, so the other lanes' counts are
 never withheld. Top-level `broken` means every lane is broken or the binary could not be read.
