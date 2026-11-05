@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.7] - 2026-11-05
+
+### Changed
+
+- the hold-floor pins follow the eval hill-climb workflow's rename to `maintenance-measure-skill-edit.yml`, which stays a gate path
+
 ## [8.1.6] - 2026-11-05
 
 ### Removed
