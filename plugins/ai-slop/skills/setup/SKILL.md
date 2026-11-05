@@ -25,9 +25,9 @@ where `<home>` is the convention home the repository binds in its instruction fi
 (`docs/conventions` by default). The file is validated by the plugin's
 `schemas/ai-slop.schema.json`. Later layers refine earlier ones per key.
 
-A repository that still keeps the older JSON files (the same names with a `.json` extension, in
-`.claude/`) is read from them only while the YAML beside them is absent. `apply` writes the YAML:
-when the repository has the JSON team file and no YAML, offer to carry its values into
+The audit does not read the older JSON files (the same names with a `.json` extension, in
+`.claude/`) that a repository may still keep. `apply` writes the YAML: when the repository has the
+JSON team file and no YAML, offer to carry its values into
 `<home>/ai-slop.yaml` (the JSON `_comment` text becomes YAML comments) and leave the JSON file
 for the repository to delete.
 

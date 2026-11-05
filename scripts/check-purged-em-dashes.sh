@@ -42,10 +42,11 @@
 # clean run.
 #
 # THE TRACKED DETECTOR CONFIG IS NOT MODIFIED, and must not be. This gate does
-# not touch .claude/ai-slop.json, and running it changes nothing about what
-# /ai-slop:audit reports. It instead builds a THROWAWAY config layer for its own
-# detector invocation: the tracked config copied, with every switch that can
-# quiet rule-em-dash removed, and with every other detector rule disabled. The
+# not touch docs/conventions/ai-slop.yaml, and running it changes nothing about
+# what /ai-slop:audit reports. It instead builds a THROWAWAY config for its own
+# detector invocation: the tracked config copied unchanged as the team layer,
+# under a personal layer that clears every switch that can quiet rule-em-dash
+# and disables every other detector rule. The
 # tracked config runs rule-em-dash at its shipped zero-tolerance default, so the
 # removal is a no-op today; it stays because the gate's verdict must never
 # depend on a config edit, in either direction. Copying rather than synthesizing
@@ -112,8 +113,11 @@ ROOT="$(pwd)"
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 ALLOWLIST="${EM_DASH_PURGED_PATHS:-scripts/em-dash-purged-paths.txt}"
-SLOP_CONFIG="${EM_DASH_SLOP_CONFIG:-.claude/ai-slop.json}"
+SLOP_CONFIG="${EM_DASH_SLOP_CONFIG:-docs/conventions/ai-slop.yaml}"
 DETECT="${EM_DASH_DETECT:-plugins/ai-slop/skills/audit/scripts/detect.sh}"
+# The detector's own YAML reader, so the gate refuses a tracked config the
+# detector would skip whole.
+PARSE_YAML="$(dirname "$DETECT")/../../../lib/parse-concern-value.sh"
 
 MODE=check
 case "${1-}" in
@@ -127,7 +131,7 @@ esac
 
 # --- Prerequisites ----------------------------------------------------------
 # Each is fail-closed at exit 2: this gate cannot report a trustworthy "clean"
-# without all four, and reporting an untrustworthy one is the failure mode the
+# without all of them, and reporting an untrustworthy one is the failure mode the
 # whole design is arranged against.
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -140,6 +144,10 @@ if [[ ! -r "$SLOP_CONFIG" ]]; then
 fi
 if [[ ! -r "$DETECT" ]]; then
   echo "check-purged-em-dashes: detector not readable: $DETECT" >&2
+  exit 2
+fi
+if [[ ! -r "$PARSE_YAML" ]]; then
+  echo "check-purged-em-dashes: detector YAML reader not readable: $PARSE_YAML" >&2
   exit 2
 fi
 
@@ -280,7 +288,7 @@ fi
 # --- Throwaway detector config ----------------------------------------------
 # The tracked config with every switch that can quiet rule-em-dash removed, and
 # with every other detector rule disabled. An empty HOME keeps the user-global
-# layer out: detect.sh cascades $HOME/.claude/ai-slop.json under the repo layer,
+# layer out: detect.sh cascades $HOME/.claude/ai-slop.json under the repo layers,
 # and a contributor who happens to carry one must not be able to change this
 # gate's verdict.
 #
@@ -302,8 +310,15 @@ fi
 # rule-em-dash. Merging with the tracked list would keep the rest of the roster
 # enabled (this repo only disables three rules corpus-wide) and the one-rule
 # claim would be a comment, not a property of the run.
+#
+# The tracked YAML is copied unchanged as the team layer, and the overrides are
+# a personal layer (ai-slop.local.yaml) above it. In detect.sh's cascade a later
+# layer's list replaces an earlier one, `key: []` clears it, and a slug entry
+# replaces that slug alone, so `em_dash_allowed_paths: []` and
+# `rule-em-dash: []` clear those switches and every other rule_allowed_paths
+# slug stays as tracked.
 
-mkdir -p "$TMP/root/.claude" "$TMP/home" || exit 2
+mkdir -p "$TMP/root/docs/conventions" "$TMP/home" || exit 2
 # The detector reads a team layer only under a git working tree. GIT_DIR and its
 # siblings are unset for this call: a hook that exports one would otherwise make
 # `git init` reinitialize the repository they name.
@@ -324,17 +339,20 @@ if ((have_em_dash == 0)); then
   echo "check-purged-em-dashes: detector roster from $DETECT does not include rule-em-dash" >&2
   exit 2
 fi
-other_rules="$(printf '%s\n' "${DETECT_SLUGS[@]}" | grep -vx 'rule-em-dash' | jq -R . | jq -s .)"
-if [[ -z "$other_rules" || "$other_rules" == '[]' ]]; then
+# One `  - "<slug>"` YAML sequence item per rule; jq quotes each slug.
+other_rules="$(printf '%s\n' "${DETECT_SLUGS[@]}" | grep -vx 'rule-em-dash' | jq -rR '"  - " + tojson')"
+if [[ -z "$other_rules" ]]; then
   echo "check-purged-em-dashes: detector roster from $DETECT has no rules to disable besides rule-em-dash" >&2
   exit 2
 fi
 
-if ! jq --argjson disabled "$other_rules" \
-  '.disabled_rules = $disabled
-  | del(.em_dash_allowed_paths)
-  | .rule_allowed_paths |= ((. // {}) | del(."rule-em-dash"))' \
-  "$SLOP_CONFIG" >"$TMP/root/.claude/ai-slop.json"; then
+# The detector skips a layer its parser refuses, which would drop the tracked
+# excluded_paths and thresholds without a word, so a refused file stops here.
+if ! bash "$PARSE_YAML" --strict "$SLOP_CONFIG" disabled_rules >/dev/null ||
+  ! cp "$SLOP_CONFIG" "$TMP/root/docs/conventions/ai-slop.yaml" ||
+  ! printf '%s\n' 'disabled_rules:' "$other_rules" 'em_dash_allowed_paths: []' \
+    'rule_allowed_paths:' '  rule-em-dash: []' \
+    >"$TMP/root/docs/conventions/ai-slop.local.yaml"; then
   echo "check-purged-em-dashes: could not derive the detector config from $SLOP_CONFIG" >&2
   exit 2
 fi
