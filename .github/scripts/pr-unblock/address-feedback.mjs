@@ -20,7 +20,8 @@
 //           writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
 //           a write-access fix request names (namedPaths) and the files the
-//           PR already changes (pr_paths, prPathsOf), and run.json, the
+//           PR already changes (pr_paths, prPathsOf) and the shared copies
+//           of the canonicals it changes (copy_paths, copyPathsFor), and run.json, the
 //           record the reply job checks the replies against, with the
 //           reviewed heads the threads were kept on (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
@@ -46,7 +47,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
-import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
+import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
@@ -88,6 +89,11 @@ const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "")
 
 // The checkout this script runs from: the select job's base copy.
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+
+// The shared copies the base copy's scripts/shared-copies.txt registers for
+// the canonicals the PR's `files` change, the thread file's copy_paths.
+export const copyPathsFor = (files, root = ROOT) =>
+  copyPathsOf(files, sharedCopyPairs(readFileSync(join(root, "scripts/shared-copies.txt"), "utf8")));
 
 // scripts/plan-test-lanes.sh over `paths`, the selection pr-require-checks.yml's
 // select-tests job makes, as its key=value lines.
@@ -1036,7 +1042,7 @@ async function earlierFailRound({ api, pr, headSha, repository, appId, files, is
     // A gated PR returned awaiting-human before any thread was kept.
     humanGate: labeled ? "lane-escalation" : "",
     threads: [],
-    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: [], verify_notes: notes },
+    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), copy_paths: copyPathsFor(files), threads: [], verify_notes: notes },
     reviewedHeads: [...heads].sort(),
     ci: await ci({ headSha, files }),
   };
@@ -1233,7 +1239,7 @@ export async function select({
     // escalation that lets this activity work put the label on.
     humanGate: labeled ? (gated ? "fix-request" : "lane-escalation") : "",
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked, ...(retry ? { retry } : {}) },
+    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), copy_paths: copyPathsFor(files), threads: worked, ...(retry ? { retry } : {}) },
     reviewedHeads: [...heads].sort(),
     ci: await ci({ headSha, files }),
   };
@@ -1250,6 +1256,7 @@ export function runRecord(file, reviewedHeads, ci) {
     version: 1,
     head_sha: file.head_sha,
     pr_paths: file.pr_paths,
+    copy_paths: file.copy_paths,
     threads: file.threads.map((t) => ({
       id: t.id,
       path: t.path,

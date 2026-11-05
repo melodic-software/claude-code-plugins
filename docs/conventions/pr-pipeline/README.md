@@ -904,7 +904,7 @@ each row to these keys:
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `markdown` (a path ending in `.md`, in that case), `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
+| `allow` | What every other changed path must also meet: `any`, `markdown` (a path ending in `.md`, in that case), `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, a file the pull request already changes or a shared copy of a canonical it changes that the patch does not add, its `pr_paths` and `copy_paths`, read from that job's thread file, or any non-instruction file under a plugin's or skill's `evals/` or in a plugin a kept thread or `pr_paths` file sits in), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
@@ -1218,7 +1218,10 @@ the rules that only tighten in
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
-  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
+  token holds `issues: write` alone; that job re-reads the revert records and files nothing when
+  one already lists every revert commit. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
   or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
   `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's

@@ -49,6 +49,12 @@ const ALLOWED = new Map([
     "post-merge-demotion-alert.yml:close-cleared",
     `${NO_LOG}; step "Close the records main cleared" calls gh without api_budget_wrap_gh`,
   ],
+  // issues: write alone, so no checkout to load the action from: two record
+  // listings and one POST per revert.
+  [
+    "post-merge-demotion-alert.yml:file-revert",
+    `${NO_LOG}; step "File the revert demotion issue" calls gh without api_budget_wrap_gh`,
+  ],
   [
     "pr-review-main.yml:record",
     `${NO_LOG}; step "Record the stops" calls gh without api_budget_wrap_gh; step "Record the counts" calls gh without api_budget_wrap_gh`,

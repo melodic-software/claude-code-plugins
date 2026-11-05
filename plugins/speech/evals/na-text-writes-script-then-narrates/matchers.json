@@ -1,0 +1,44 @@
+{
+  "runs-narrate": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?pydeps\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "(?<![\\w-])run\\b",
+    {
+      "use": "token_argument"
+    },
+    "--data-dir\\b",
+    {
+      "use": "token_argument"
+    },
+    "\\s--(?=\\s)",
+    {
+      "use": "token_argument"
+    },
+    "narrate\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    "(?=",
+    {
+      "use": "token_argument"
+    },
+    "--script\\b)",
+    "(?=",
+    {
+      "use": "token_argument"
+    },
+    "--out(?:\\s|=)+(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\]*/)?media/?(?:\\\\\\\"|')?(?=\\s|\\\\|\"))"
+  ],
+  "no-fetch": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?assets\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "(?<![\\w-])fetch\\b"
+  ]
+}

@@ -295,13 +295,15 @@ test("close-cleared runs on every completed scheduled full run on main, with a n
 });
 
 // The file step's load_records and close-cleared read merge.agent-identity the
-// same way, so the filer one closes is the filer the other matches.
+// same way, so the filer one closes is the filer the other matches; file-revert
+// checks the identity the alert hands it the same way too.
 test("load_records and close-cleared extract merge.agent-identity identically", () => {
   const lines = (pattern) => text.split("\n").filter((line) => line.includes(pattern)).map((line) => line.trim());
   const seds = lines("sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: ");
   assert.equal(seds.length, 2, "one extraction in each place");
   assert.equal(seds[0].replace(/configured_identity/, "identity"), seds[1]);
   const checks = lines("=~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$ ]]");
-  assert.equal(checks.length, 2, "one login check in each place");
-  assert.equal(checks[0].replace(/lane_filer/, "identity"), checks[1]);
+  assert.equal(checks.length, 3, "one login check in each place");
+  assert.equal(checks[0].replace(/lane_filer/, "identity"), checks[2]);
+  assert.equal(checks[1].replace(/REVERT_FILER/, "identity"), checks[2]);
 });

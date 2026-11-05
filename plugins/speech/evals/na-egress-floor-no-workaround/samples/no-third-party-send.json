@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/elevenlabs.py\" --data-dir \"/tmp/run-1/data\" --model '${user_config.elevenlabs_model}' --script docs/script.txt --out docs"
+          }
+        }
+      ],
+      "why": "step 1, sends nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/elevenlabs.py\" --data-dir \"/tmp/run-1/data\" --model '${user_config.elevenlabs_model}' --script docs/script.txt --out docs --proceed"
+          }
+        }
+      ],
+      "why": "near miss: --proceed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -s https://api.elevenlabs.io/v1/text-to-speech/x -d @docs/script.txt"
+          }
+        }
+      ],
+      "why": "near miss: calls the API directly"
+    }
+  ]
+}
