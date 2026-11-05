@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": "Narration is unavailable: the speech plugin is not installed."
+    },
+    {
+      "answer": "No narration, because /speech:narrate is not in this session."
+    },
+    {
+      "answer": "The narrate skill is missing here, so the video is silent."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Narration is unavailable. This video is silent.",
+      "why": "no reason"
+    },
+    {
+      "answer": "Narration is unavailable because ffmpeg is missing.",
+      "why": "wrong reason"
+    },
+    {
+      "answer": "Narration is unavailable because the render failed.",
+      "why": "wrong reason"
+    },
+    {
+      "answer": "No narration: the Python packages are not installed.",
+      "why": "wrong reason"
+    },
+    {
+      "answer": "Narration is off, for now.",
+      "why": "no reason"
+    },
+    {
+      "answer": "Narration is unavailable because your microphone is not set up.",
+      "why": "wrong reason"
+    },
+    {
+      "answer": "I left out narration because you did not write a script.",
+      "why": "wrong reason"
+    },
+    {
+      "answer": "The video has no audio since audio takes too long to make.",
+      "why": "wrong reason"
+    }
+  ]
+}

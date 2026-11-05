@@ -36,7 +36,7 @@ Resolve each ecosystem independently, in order; stop at the first rung that yiel
    consuming repo. Layer additively, **per key**, in this order. A later layer overrides earlier
    layers key-by-key and never replaces the base wholesale:
    `~/.claude/ecosystems/<ecosystem>.yaml` (user-global) → `.claude/ecosystems/<ecosystem>.yaml`
-   (team) → `.claude/ecosystems/<ecosystem>.local.yaml` (personal overlay). Use the resolved values.
+   (team) → `.claude/ecosystems/<ecosystem>.local.yaml` (personal override). Use the resolved values.
 2. **Absent → infer, then offer to persist.** Infer the command surface from the repo's build files
    (solution files, `pyproject.toml`, `package.json`, …) and **offer to write** the inferred
    `.claude/ecosystems/<ecosystem>.yaml` via `/toolchain:setup` so the next run reads rung 1.
@@ -48,7 +48,7 @@ Resolve each ecosystem independently, in order; stop at the first rung that yiel
 
 **`enabled: false` → skip the ecosystem.** After resolution, an ecosystem whose resolved `enabled` is
 `false` is not run. Detection skips it and it is excluded even from `all`. This is the consumer's
-opt-out; bundled defaults never set it. (A consumer overlay can also flip `enabled` back to `true`
+opt-out; bundled defaults never set it. (A later layer can also flip `enabled` back to `true`
 per-key.)
 
 **Malformed consumer file → warn and degrade to rung 2**, never a hard stop: surface the parse/schema

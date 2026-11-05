@@ -3,6 +3,20 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.5] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [0.10.4] - 2026-11-04
+
+### Changed
+
+- The consumer-config reference and the findings-artifact context now call the config cascade's
+  gitignored `overengineering.local.md` layer the personal override, the marketplace's name for it
+  (#13192). Behavior is unchanged.
+
 ## [0.10.3] - 2026-11-04
 
 ### Changed

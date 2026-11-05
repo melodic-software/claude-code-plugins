@@ -126,7 +126,7 @@ two runs agree on the identity.
 The same identity keys the consumer's suppression record, layered per the config-cascade
 convention. The engine reads the team layer (the `suppressions` mapping of
 `<home>/harness-config.yaml`, `<home>` being the convention home the repository binds, default
-`docs/conventions`), the user-global layer, and the local overlay, and lists each in
+`docs/conventions`), the user-global layer, and the personal override, and lists each in
 `suppressions.layers` with the file read and its state; every applied entry names its layer and
 file. Only the team layer suppresses, a personal-only entry is reported as `personal-only, not
 applied`, and an entry whose constituents do not hash to its key, or that lacks a required key, is

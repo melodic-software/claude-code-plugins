@@ -69,7 +69,8 @@ restores the FAIL semantics.
    `[tool.ruff.lint]`. Read the hook for the exact names and the section test; its test is
    the authority. Report the governing config the walk discovers, or INFO that none exists.
    Absence is the opt-out by design, so the plugin is inert (INFO, not FAIL), matching the
-   README's "ships no rules of its own" stance.
+   README's "ships no rules of its own" stance. Do not offer to create a config; say the user
+   can add a `[tool.ruff]` section, `ruff.toml` or `.ruff.toml` to opt in.
 5. **Hook toggle.** Report the effective `ruff_format_enabled` value:
    `${user_config.ruff_format_enabled}` (unexpanded or empty means default `true`). Also report
    `ruff_format_end_of_turn`: `${user_config.ruff_format_end_of_turn}` (unexpanded or empty means

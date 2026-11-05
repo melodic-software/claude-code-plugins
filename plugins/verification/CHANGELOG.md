@@ -3,6 +3,13 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.2] - 2026-11-04
+
+### Changed
+
+- The config reference and the `setup` skill now call the config cascade's gitignored `*.local.*`
+  layer the personal override, the marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [0.19.1] - 2026-11-04
 
 ### Changed

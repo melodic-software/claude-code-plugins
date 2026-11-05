@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.load(open('video/strings.json'))\n        for s in strings:\n            self.play(FadeIn(Text(s)))\n",
+      "why": "json.load"
+    },
+    {
+      "answer": "import json\nfrom pathlib import Path\nfrom manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        strings = json.loads(Path('strings.json').read_text())\n        for s in strings:\n            self.play(FadeIn(Text(s)))\n",
+      "why": "json.loads"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        for s in ['Retry webhook delivery after a 429', 'Drop the legacy cache key']:\n            self.play(FadeIn(Text(s)))\n",
+      "why": "pasted"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Timeline(Scene):\n    def construct(self):\n        for s in open('pr-commits.txt'):\n            self.play(FadeIn(Text(s.strip())))\n",
+      "why": "reads the fixture raw"
+    },
+    {
+      "answer": "import json\nx = json.load(open('other.json'))\n",
+      "why": "another file"
+    }
+  ]
+}

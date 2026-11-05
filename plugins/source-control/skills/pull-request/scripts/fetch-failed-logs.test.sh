@@ -281,6 +281,27 @@ else
   fail "an inherited value naming source-control holds the scratch directory" "$OWN/scratch" "absent"
 fi
 
+# Case: a mktemp scratch is removed on exit, unless a message names a file in it.
+# run_mktemp_scratch <root> <args...>: runs with no scratch setting, so the
+# script falls back to mktemp -d under <root>.
+run_mktemp_scratch() {
+  local root="$1"
+  shift
+  mkdir -p "$root"
+  PATH="$STUB_DIR:$PATH" FETCH_LOGS_REPO="example-org/example-repo" FETCH_LOGS_SCRATCH="" \
+    TMPDIR="$root" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" "$@" >/dev/null 2>&1
+}
+for c in "ok:12345" "gh-fail:FAIL" "not-a-zip:TINY" "job:--job 777" "job-fail:--job FAIL"; do
+  root="$TEST_TMPDIR/mktemp-${c%%:*}"
+  # shellcheck disable=SC2086  # the case's arguments are split on purpose
+  run_mktemp_scratch "$root" ${c#*:}
+  assert_eq "mktemp scratch leaves nothing behind (${c%%:*})" "" "$(find "$root" -mindepth 1)"
+done
+run_mktemp_scratch "$TEST_TMPDIR/mktemp-cap" 33333 --max-bytes 10
+assert_exit "mktemp scratch: size cap returns exit 3" 3 "$?"
+assert_eq "mktemp scratch: an exit 3 keeps the file its message names" "1" \
+  "$(find "$TEST_TMPDIR/mktemp-cap" -name 'run-33333-logs.zip' | wc -l | tr -d ' ')"
+
 if [[ "${INTEGRATION:-0}" == "1" ]]; then
   if ! command -v gh >/dev/null 2>&1; then
     skip_case "INTEGRATION mode but gh CLI not available"

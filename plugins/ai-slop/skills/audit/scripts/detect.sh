@@ -205,15 +205,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --- Config cascade (user-global -> team -> overlay; YAML, legacy JSON) ----------
+# --- Config cascade (user-global -> team -> personal override; YAML, legacy JSON) -
 
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [[ -z "$REPO_ROOT" ]]; then
   REPO_ROOT="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
-# Config-cascade step 2: a home or non-repo root has no team or overlay layer, and
-# a team or overlay file that is the user-global file is not read a second time.
+# Config-cascade step 2: a home or non-repo root has no team layer or personal
+# override, and a team file or personal override that is the user-global file is
+# not read a second time.
 # shellcheck source=../../../lib/config-root.sh
 source "$SCRIPT_DIR/../../../lib/config-root.sh"
 USER_CFG="${HOME:-/nonexistent}/.claude/ai-slop.json"

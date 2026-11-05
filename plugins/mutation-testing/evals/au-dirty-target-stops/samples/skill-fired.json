@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "mutation-testing:audit"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "mutation-testing:audit", "args": "--max 5"}}], "why": "with args"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Skill call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "testing:audit"}}], "why": "the test-suite audit"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "mutation-testing:setup"}}], "why": "the setup skill"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 -m unittest", "description": "d"}}], "why": "ran tests, no skill"}
+  ]
+}

@@ -20,7 +20,7 @@ detector's `--show-config` via Bash or read the three layers directly.
 
 The ai-slop detector ships neutral defaults. A consumer repo declares its own exemptions and
 tuning in `<home>/ai-slop.yaml`, resolved per the config-cascade convention: team
-(`<home>/ai-slop.yaml`, tracked) and personal overlay (`<home>/ai-slop.local.yaml`, gitignored),
+(`<home>/ai-slop.yaml`, tracked) and personal override (`<home>/ai-slop.local.yaml`, gitignored),
 where `<home>` is the convention home the repository binds in its instruction file
 (`docs/conventions` by default). The file is validated by the plugin's
 `schemas/ai-slop.schema.json`. Later layers refine earlier ones per key.
@@ -70,7 +70,7 @@ Everything `check` does, then the confirmed write:
 1. Interview the user for what they want changed. For em-dash exemptions, ask for the documents
    that genuinely require em dashes; the default posture is that most work does not.
 2. Write ONLY the team layer (`<home>/ai-slop.yaml`), showing the diff and getting explicit
-   confirmation before writing. Never write the personal overlay on the user's behalf; name it
+   confirmation before writing. Never write the personal override on the user's behalf; name it
    as an option the user edits themselves.
 3. Re-run `--show-config` via Bash (the pre-computed output predates the write) and report the
    new effective state. Then run the tracked-file pair on

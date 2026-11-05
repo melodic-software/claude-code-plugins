@@ -11,6 +11,10 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **A plugin's config is named by its file, not called a surface; a cascade level is a scope.**
+  The contract and its consumer gotchas say config file, plugin or scope where they said config
+  surface or tier (#13193), and `### Root rule by surface` is `### Root rule by plugin`. Wording
+  only: the layer set, precedence and every behavior are unchanged, so `contract_version` stays.
 - **The personal layer is called the personal override.** The contract, its consumer gotchas,
   `docs/conventions/config-cascade` and the shared lib (`config-cascade.mjs`, `view-settings.mjs`,
   `setup-apply.mjs`, `config-root.sh`, `resolve-convention-pattern.sh`) say personal override where

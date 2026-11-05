@@ -46,20 +46,26 @@ accuracy:
   more; that separation is deliberate.
 - **`accuracy`**: the verification-depth dials. `judge_samples` is not one of them (`SKILL.md`, "The keys").
 
-## The eval-fixture exclusion
+## The test-fixture exclusion
 
-A repository that runs this plugin's own eval harness lists the fixture tree in
-`excluded_paths`:
+With no layer setting `excluded_paths`, its bundled default declines test-fixture trees:
 
 ```yaml
 excluded_paths:
-  - "**/attribution/skills/audit/evals/fixtures/**"
+  - "**/fixtures/**"
+  - "**/__fixtures__/**"
+  - "**/testdata/**"
 ```
 
+The default is matched below the scan target and never declines a named file, so a run aimed at
+a fixture tree, or given a fixture file, reads it. A layer that sets `excluded_paths` replaces
+the default whole: keep these globs in its list to keep declining the trees, or set `[]` to scan
+them.
+
 **This belongs in config and nowhere else.** An unconditional exclusion inside `list-corpus.sh`
-would decline the fixtures under the eval harness's own config isolation, leaving the eval
-author reading prose instead of results. As a config entry, a normal run declines the tree and
-says so, while the harness lifts the config layer and the fixtures report their real findings.
+would decline the fixtures under the eval harness, leaving the eval author reading prose instead
+of results. As a default value, a normal run declines the trees and says so, while the harness
+lifts it and the fixtures report their real findings.
 
 ## Enabling the trigger-less-stamp check
 

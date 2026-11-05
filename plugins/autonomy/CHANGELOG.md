@@ -3,6 +3,22 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.4] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [4.1.3] - 2026-11-04
+
+### Changed
+
+- The README, the binding-seam reference, `setup` and its evals now call the binding ladder's
+  untracked `binding.local.json` layer the personal override, the marketplace's name for it
+  (#13192). The skill's behavior is unchanged. The setup check eval case is renamed
+  `su-check-reports-personal-override`, and its layer grader now accepts "personal override" in
+  place of the old word, beside "local" and `binding.local.json`.
+
 ## [4.1.2] - 2026-11-04
 
 ### Added

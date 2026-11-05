@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.21] - 2026-11-04
+
+### Fixed
+
+- `manage` declines books the user does not own and says the workflow only processes books in the user's own `My Kindle Content/` folder.
+
 ## [0.8.20] - 2026-11-04
 
 ### Changed

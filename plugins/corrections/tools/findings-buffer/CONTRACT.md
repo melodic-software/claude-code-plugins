@@ -112,7 +112,7 @@ Callers use `buffer.sh`, not an adapter:
   `local-file`, the `local-file` rows too, and prints the first row per `obs_id`. Either read failing
   fails the call.
 
-The binding is `<home>/findings-buffer.yaml`, personal overlay `<home>/findings-buffer.local.yaml`,
+The binding is `<home>/findings-buffer.yaml`, personal override `<home>/findings-buffer.local.yaml`,
 read through the config cascade (`<home>` from the convention-home pointer line, default
 `docs/conventions`). Its one key, `adapter`, is `local-file` (the default) or the bare name of an
 adapter the plugin ships under `tools/findings-buffer/adapters/`. That directory must resolve

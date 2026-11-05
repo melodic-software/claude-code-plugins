@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Read remove-comments' settings from the repository's file layers: the team file
-# <home>/code-tidying.yaml and the personal overlay <home>/code-tidying.local.yaml,
-# the overlay winning key by key. <home> is the bound convention home
+# <home>/code-tidying.yaml and the personal override <home>/code-tidying.local.yaml,
+# the personal override winning key by key. <home> is the bound convention home
 # (reference/config.md), docs/conventions when none is bound or it was declined.
 #
 # Usage: settings.sh [<dir>]

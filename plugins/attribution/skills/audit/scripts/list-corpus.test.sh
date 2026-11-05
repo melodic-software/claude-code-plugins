@@ -4,10 +4,10 @@
 # convention, the assertion helpers are local to this suite rather than shared
 # across plugins.
 #
-# The load-bearing case here is "fixture tree is included without config":
-# an unconditional exclusion inside the script would
-# blind the eval harness to its own fixtures, so the exclusion has to arrive
-# through the config layer and this suite proves the script ships without it.
+# The load-bearing cases are the fixture-tree ones: `excluded_paths` declines
+# test-fixture trees by default, and every way the eval harness lifts that
+# default (a layer setting the key, a target inside the tree, a named file)
+# still lists the fixtures, so no run is blind to them unconditionally.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -161,8 +161,20 @@ assert_not_contains "a linguist-vendored path is not listed" \
 assert_contains "the linguist-vendored decline names the attribute" \
   "$(echo "$ATTR_OUT" | jq -r '.declined[].reason')" "linguist-vendored"
 
-assert_contains "the eval-fixture tree is included when no config excludes it" \
-  "$FILES" "evals/fixtures/golden/case-1/case.md"
+FIXTURE="plugins/demo/skills/audit/evals/fixtures/golden/case-1/case.md"
+assert_not_contains "a fixture file is declined by default" "$FILES" "$FIXTURE"
+assert_eq "the default decline names its glob and the bundled default" \
+  "$(echo "$OUT" | jq -r '.declined[] | select(.path_pattern == "**/fixtures/**") | "\(.count) \(.reason)"')" \
+  "1 excluded_paths (bundled default: test-fixture tree)"
+assert_contains "a directory target inside the fixture tree lists it" \
+  "$(run_default plugins/demo/skills/audit/evals/fixtures 2>/dev/null | jq -r '.files[]')" "$FIXTURE"
+assert_contains "a directory target above the fixture tree declines it" \
+  "$(run_default plugins/demo 2>/dev/null | jq -r '.declined[].path_pattern')" "**/fixtures/**"
+assert_eq "a named fixture file is listed" \
+  "$(run_default "$FIXTURE" 2>/dev/null | jq -r '.files[0]')" "$FIXTURE"
+printf '%s\n' "$FIXTURE" >"$TEST_TMPDIR/fixture-paths.txt"
+assert_eq "a --paths-file fixture entry is listed" \
+  "$(run_default --paths-file "$TEST_TMPDIR/fixture-paths.txt" 2>/dev/null | jq -r '.files[0]')" "$FIXTURE"
 
 # --- Counts ----------------------------------------------------------------------
 
@@ -206,6 +218,8 @@ assert_contains "an explicit empty personal override clears an inherited exclusi
   "$(echo "$CLEAR_OUT" | jq -r '.files[]')" "docs/guide.md"
 assert_eq "clearing leaves only the built-in carve-outs declined" \
   "$(echo "$CLEAR_OUT" | jq -r '[.declined[] | select(.reason | test("excluded_paths"))] | length')" "0"
+assert_contains "an explicit empty list lifts the default, so the fixtures report" \
+  "$(echo "$CLEAR_OUT" | jq -r '.files[]')" "$FIXTURE"
 rm -f "$CFG_DIR/attribution.local.json" "$CFG_DIR/attribution.json"
 
 # The YAML layers (ADR 0075) replace the JSON ones per file: with both present

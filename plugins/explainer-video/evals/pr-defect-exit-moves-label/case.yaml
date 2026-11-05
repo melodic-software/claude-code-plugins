@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: pr-defect-exit-moves-label
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: labels-separated
+    type: regex
+    pattern: '\.(?:next_to|shift|to_edge|to_corner|move_to|arrange|align_to|set_[xy])\(|\b(?:FadeOut|Transform|ReplacementTransform)\('
+    target: { source: file, path: video/scene.py }
+    arm: both
+  - name: both-labels-kept
+    type: regex
+    pattern: 'Step one[\s\S]*Step two|Step two[\s\S]*Step one'
+    target: { source: file, path: video/scene.py }
+    arm: both
+  - name: no-allow-overlap
+    type: regex
+    pattern: '\ballow_overlap\b'
+    match: not_contains
+    target: { source: file, path: video/scene.py }
+    arm: both
+  - name: renders-again
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?pydeps\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?render\.py\b'
+    arm: with-only
+  - name: not-called-done
+    type: llm
+    criteria: 'The reply does not call the video done, finished, ready or complete unless it reports both that the render after the fix exited 0 and that it read the frames that render listed. A reply that says the video is not done yet passes.'
+    focus: last_message
+    arm: both

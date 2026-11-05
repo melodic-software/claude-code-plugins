@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/jump.wav (0.160s)\\n\"}]}}", "why": "relative path"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"/work/audio/jump.wav (0.160s)\"}]}}", "why": "absolute path"}
+  ],
+  "fail": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":\"make an 8-bit jump sound effect as a wav, saved as audio/jump.wav\"}}", "why": "the prompt alone"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/jump.wav (0.120s)\"}]}}", "why": "the coin preset's length"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/jump.wav (0.300s)\"}]}}", "why": "a custom set"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"sfx.py: pass exactly one of --preset or --params\"}]}}", "why": "a refused call"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/jump.wav (0.160s, gameboy)\"}]}}", "why": "the music renderer's line"}
+  ]
+}

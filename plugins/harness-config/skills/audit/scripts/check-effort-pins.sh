@@ -155,7 +155,8 @@ adjust_section() {
 # D<TAB>line (the defaults item), or one E<TAB>reason when a part is missing.
 # The defaults item is found by content: every numbered item of the section that
 # says "default", so the list renumbering cannot point the hash at another item,
-# and a second such item is hashed rather than skipped.
+# and a second such item is hashed rather than skipped. The item is hashed
+# without its list number, so a renumber alone leaves the hash as it was.
 # Headings inside fenced code are ignored; trailing whitespace is trimmed.
 parse_page() {
   awk '
@@ -189,7 +190,7 @@ parse_page() {
       }
       if (tbl == 1) tbl = 2
       if (line ~ /^[0-9]+\.[ \t]/) {
-        if (tolower(line) ~ /default/) { item = 1; nD++; D[nD] = line; next }
+        if (tolower(line) ~ /default/) { item = 1; nD++; D[nD] = line; sub(/^[0-9]+\.[ \t]+/, "", D[nD]); next }
         item = 0; next
       }
       if (item && line ~ /^[ \t]+[^ \t]/) { nD++; D[nD] = line; next }

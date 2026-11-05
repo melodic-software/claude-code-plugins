@@ -25,7 +25,7 @@ STEPS = """# Workflow Stages
 ## 1. Explore
 ## 2. Research
 ## 3. PRD (conditional: lock product intent)
-## 4. Contract (optional: lock the brief)
+## 4. Interview (optional: lock the Brief)
 ## 5. Design
 ## 6. Plan
 ## 7. Decompose (conditional: split the plan)
@@ -75,7 +75,7 @@ class NextGraphTest(unittest.TestCase):
         self.addCleanup(self.fx.clean)
         # A clean chain: interview -> design -> plan -> implement, with plan also
         # skipping the conditional decompose stage to implement.
-        self.fx.skill("p:interview", "contract", "/p:design")
+        self.fx.skill("p:interview", "interview", "/p:design")
         self.fx.skill("p:design", "design", "/p:plan reads the design.")
         self.fx.skill(
             "p:plan",
@@ -99,12 +99,14 @@ class NextGraphTest(unittest.TestCase):
         self.assertEqual(err, "")
 
     def test_skip_over_conditional_stage_passes(self) -> None:
-        # prd is conditional and contract optional: a brainstorm-like contract
+        # prd is conditional and interview optional: a brainstorm-like interview
         # skill routing back to prd, and prd routing to design over the
-        # optional contract stage, are both legal.
+        # optional interview stage, are both legal.
         self.fx.skill("p:prd", "prd", "/p:design")
         self.fx.skill(
-            "p:interview", "contract", "- Locked: /p:design.\n- Product intent: /p:prd."
+            "p:interview",
+            "interview",
+            "- Locked: /p:design.\n- Product intent: /p:prd.",
         )
         self.fx.roster(
             "p:interview | entry: start",
@@ -120,22 +122,22 @@ class NextGraphTest(unittest.TestCase):
     def test_stage_skip_over_required_stage_fails(self) -> None:
         self.fx.skill(
             "p:interview",
-            "contract",
+            "interview",
             "- Locked: /p:design.\n- No design question: /p:plan.",
         )
         rc, out, err = self.fx.run()
         self.assertEqual(rc, 1)
         self.assertIn(
-            "stage-skip: /p:interview (contract) routes to /p:plan (plan), skipping the design stage",
+            "stage-skip: /p:interview (interview) routes to /p:plan (plan), skipping the design stage",
             err,
         )
         self.assertEqual(out, "")
 
     def test_declared_skip_to_passes_only_its_own_edge(self) -> None:
-        self.fx.skill("p:start", "contract", "/p:interview")
+        self.fx.skill("p:start", "interview", "/p:interview")
         self.fx.skill(
             "p:interview",
-            "contract",
+            "interview",
             "- Locked: /p:design.\n- Build items: /p:decompose.",
         )
         self.fx.roster(
@@ -151,14 +153,14 @@ class NextGraphTest(unittest.TestCase):
 
         self.fx.skill(
             "p:interview",
-            "contract",
+            "interview",
             "- Locked: /p:design.\n- Build items: /p:decompose.\n- No design question: /p:plan.",
         )
         rc, _, err = self.fx.run()
         self.assertEqual(rc, 1)
         self.assertNotIn("/p:decompose (decompose)", err)
         self.assertIn(
-            "stage-skip: /p:interview (contract) routes to /p:plan (plan), skipping the design stage",
+            "stage-skip: /p:interview (interview) routes to /p:plan (plan), skipping the design stage",
             err,
         )
 
@@ -192,7 +194,7 @@ class NextGraphTest(unittest.TestCase):
         self.fx.skill("p:track", "anytime", None)
         self.fx.skill(
             "p:interview",
-            "contract",
+            "interview",
             "- Locked: /p:design.\n- One unit for later: /p:track add.",
         )
         rc, _, err = self.fx.run()
@@ -224,7 +226,7 @@ class NextGraphTest(unittest.TestCase):
         for stage in ("dsign", "anytime"):
             with self.subTest(stage=stage):
                 self.fx.skill("p:design", stage, "/p:plan")
-                self.fx.skill("p:interview", "contract", "/p:design and /p:plan")
+                self.fx.skill("p:interview", "interview", "/p:design and /p:plan")
                 rc, _, err = self.fx.run()
                 self.assertEqual(rc, 1)
                 self.assertIn(f"unstaged: /p:design has workflow-stage '{stage}'", err)
@@ -262,7 +264,7 @@ class NextGraphTest(unittest.TestCase):
         self.assertIn("no-next: /p:design has no '## Next' section", err)
 
     def test_orphan_fails_and_entry_declaration_clears_it(self) -> None:
-        self.fx.skill("p:questionnaire", "contract", "/p:interview")
+        self.fx.skill("p:questionnaire", "interview", "/p:interview")
         self.fx.roster(
             "p:interview | entry: start",
             "p:questionnaire",
@@ -277,7 +279,7 @@ class NextGraphTest(unittest.TestCase):
 
         self.fx.skill(
             "p:interview",
-            "contract",
+            "interview",
             "- Locked: /p:design.\n- A person holds it: /p:questionnaire.",
         )
         rc, _, err = self.fx.run()
@@ -285,7 +287,9 @@ class NextGraphTest(unittest.TestCase):
 
     def test_self_edge_does_not_count_as_inbound(self) -> None:
         self.fx.skill(
-            "p:wayfind", "contract", "- Charted: /p:wayfind work.\n- Closed: /p:design."
+            "p:wayfind",
+            "interview",
+            "- Charted: /p:wayfind work.\n- Closed: /p:design.",
         )
         self.fx.roster(
             "p:interview | entry: start",
@@ -302,7 +306,7 @@ class NextGraphTest(unittest.TestCase):
     def test_token_outside_next_and_inside_fence_is_ignored(self) -> None:
         self.fx.skill(
             "p:interview",
-            "contract",
+            "interview",
             "/p:design",
             extra="\nSee /p:nowhere in prose.\n\n```text\n## Next\n/p:also-nowhere\n```\n",
         )

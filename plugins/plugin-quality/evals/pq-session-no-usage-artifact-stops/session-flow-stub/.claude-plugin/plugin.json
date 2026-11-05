@@ -1,0 +1,5 @@
+{
+  "name": "session-flow",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the session-flow plugin: the running-retro skill and its ledger contract, with no scripts."
+}

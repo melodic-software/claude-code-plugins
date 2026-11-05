@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": ["scripts/check-file-names.sh", "scripts/check-file-names.test.sh"], "why": "the emitted pair"}
+  ],
+  "fail": [
+    {"answer": [".claude/rules/file-names.md"], "why": "the rule alone"},
+    {"answer": [], "why": "nothing created"}
+  ]
+}

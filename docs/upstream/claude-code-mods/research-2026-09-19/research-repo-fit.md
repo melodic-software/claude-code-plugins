@@ -28,8 +28,8 @@ Test 2, verbatim (lines 234–235):
 > is stable and works cleanly, so **experimental or immature features wait for
 > maturity** and are re-verified against current docs before each fleet audit
 
-`OBSERVED` · HIGH. Mods are explicitly early access in Anthropic's own words
-(*"may change between releases without notice"*) and carry **no documentation at
+`OBSERVED` · HIGH. Anthropic itself labels mods early access (the README warns of
+unannounced changes in any release) and they carry **no documentation at
 all** to re-verify against. On the gate as written, mods do not clear test 2.
 
 Precedent verdicts for exactly this shape, each recorded with a **recheck
@@ -172,8 +172,8 @@ the stated reason does not.
 
 ## `npm ci` placement, and committed build output
 
-> Claude Code runs `npm ci` in the cached copy whenever the plugin **ROOT** holds
-> both a `package.json` and a lockfile, and that install cannot be turned off.
+When the **root** of a plugin's cached copy holds both a `package.json` and a
+lockfile, Claude Code runs `npm ci` there, and nothing can switch that install off.
 
 `OBSERVED` · HIGH (`plugins-reference`, verified 2026-09-11, recorded in
 `plugins/miro/server/build.mjs`'s header). `plugins/miro`'s Node project lives at
@@ -228,8 +228,8 @@ pin.
 **This is a genuine structural misfit, not a preference.**
 
 - Mods: plugin options are read from user settings, `--settings`, or managed
-  settings: *"a project's `.claude/settings.json` is **not** read for plugin
-  options."* `SOURCE` · HIGH
+  settings; the README says a project's `.claude/settings.json` is **never**
+  consulted for them. `SOURCE` · HIGH
 - This repo: org-agnosticism (philosophy line 26) and the two-lane convention
   posture (286) require shipped defaults not to impose a convention, and the
   migration gate requires proving repo-agnosticism by testing `--plugin-dir` in a

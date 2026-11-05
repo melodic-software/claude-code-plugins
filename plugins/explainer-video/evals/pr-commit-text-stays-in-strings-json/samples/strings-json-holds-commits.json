@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "[\"Retry webhook delivery after a 429\", \"Drop the legacy cache key\"]"
+    },
+    {
+      "answer": "{\"commits\": [\"Retry webhook delivery after a 429\"]}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "[\"Drop the legacy cache key\"]",
+      "why": "another subject only"
+    },
+    {
+      "answer": "[\"Webhook retries\"]",
+      "why": "a paraphrase is not the text"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "session-flow",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the session-flow plugin: the audit-sessions skill and its excerpts-only contract, in a sandbox with no session store, with no scripts."
+}

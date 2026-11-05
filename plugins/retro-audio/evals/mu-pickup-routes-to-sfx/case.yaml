@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: mu-pickup-routes-to-sfx
+graders:
+  - name: sfx-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:retro-audio:)?sfx"'
+  - name: music-not-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:retro-audio:)?music"'
+    min: 0
+    max: 0
+    arm: both
+  - name: wav-written
+    type: file_exists
+    path: 'audio/pickup.wav'
+    arm: both

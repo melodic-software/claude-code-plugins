@@ -94,7 +94,8 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    checked. Never create the approval marker yourself: approval is the user's. For a path no config governs, report the plugin as **INFO,
    inactive, not PASS**: nothing is broken, the repository simply never opted in, and that is
    the whole reason formatting is not happening. Name the remediation in the same line rather
-   than leaving the reader to infer it. Never report markdownlint's own default rules as the
+   than leaving the reader to infer it: the user can add a markdownlint config to opt in. Do not
+   offer to create one. Never report markdownlint's own default rules as the
    fallback. An unconfigured repo gets no rules, not the defaults.
 6. **Path scope, the repository's `.gitignore`.** INFO: the batch hook leaves a gitignored
    file alone, because a path the repository excludes is not part of the reviewable artifact.

@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Two configuration surfaces. The **detached observer** (see
+Two kinds of configuration. The **detached observer** (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
 runtime prerequisites (Node.js, Python 3.10+, `jq`) and native `userConfig` tunables; setup reports
 both and writes neither (writing `pluginConfigs` is what the setup contract forbids). The plugin
@@ -113,7 +113,7 @@ and note that re-enabling restores the FAIL semantics.
 5. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
    convention home, the script prints an offer: with the operator's confirmation it adds a
    convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
-   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   exists or `CLAUDE.md` only imports it) and the personal override ignore line
    `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
    `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
    exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the

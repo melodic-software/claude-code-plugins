@@ -14,7 +14,7 @@ Resolved lowest first; a later layer wins:
 | 1 | team | `<home>/knowledge.yaml`, tracked, validated by [`schemas/knowledge.schema.json`](../schemas/knowledge.schema.json); `<home>` is the convention home bound in the pointer region of `AGENTS.md` or `CLAUDE.md`, else `docs/conventions` |
 | 2 | argument | the reading skill's own argument for one run, named in the Keys table |
 
-No `userConfig` option, `~/.claude` file or local overlay sets these keys: a key here places tracked
+No `userConfig` option, `~/.claude` file or personal override sets these keys: a key here places tracked
 files, so its value is the repository's. A missing file or key leaves that layer unset, and the
 team layer does not apply outside a git working tree or when the root `scripts/work-root.mjs`
 prints (the working directory's git top-level, [`work-root.md`](work-root.md)) is `$HOME` or an

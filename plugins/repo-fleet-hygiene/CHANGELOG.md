@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.18] - 2026-11-04
+
+### Changed
+
+- audit-fleet starts fewer processes per repository: Git probe output and lowercase keys no longer go through `tr`, which cuts its run time on Windows Git Bash.
+
 ## [0.28.17] - 2026-11-04
 
 ### Changed

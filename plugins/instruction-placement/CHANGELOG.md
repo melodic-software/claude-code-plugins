@@ -3,6 +3,30 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.7] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [1.0.6] - 2026-11-04
+
+### Changed
+
+- The consumer-config reference, the `realign` skill and the `delta` and `realign` evals now call
+  the config cascade's gitignored `instruction-placement.local.md` layer the personal override,
+  the marketplace's name for it (#13192). Behavior is unchanged.
+
+## [1.0.5] - 2026-11-04
+
+### Fixed
+
+- `fetch-docs.sh --profile generic`: a `text/plain` answer to a URL whose path ends in `.md` is
+  read as markdown on the first request, so a host that serves `.md` files as `text/plain` no
+  longer leaves the page unread `unexpected-content-type`
+  ([#13354](https://github.com/melodic-software/claude-code-plugins/issues/13354)). A `text/plain`
+  answer for any other path is still refused.
+
 ## [1.0.4] - 2026-11-04
 
 ### Fixed

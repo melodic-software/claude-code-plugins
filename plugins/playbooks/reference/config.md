@@ -7,7 +7,7 @@ The playbooks plugin's settings. Each key has two layers above its default:
 2. the same key in the repository's `docs/conventions/playbooks.yaml`, which wins when set. Its
    schema is [`schemas/playbooks.schema.json`](../schemas/playbooks.schema.json).
 
-No `~/.claude` file, `.claude/` file or local overlay sets these keys. The reading skill resolves
+No `~/.claude` file, `.claude/` file or personal override sets these keys. The reading skill resolves
 each key in its own text, with no reader script, and reports one line naming the value and the
 layer that supplied it.
 

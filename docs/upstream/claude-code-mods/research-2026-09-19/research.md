@@ -11,7 +11,7 @@ implementers) and the human maintainer reads this as ground truth.
 | Claude Code under test | **2.1.278** (GitHub release `v2.1.278` published 2026-09-19T03:10:40Z; npm publish 2026-09-19T01:48:59Z; `latest` on npm and the newest repo tag) |
 | `anthropics/claude-code` `mods/` | commit **`92ec78f2`**, `mods` subtree `c37231235cb1194d509d8c0b211f187ef93272fb` |
 | Repo `main` at read time | **`bf7d404e`**; `mods/` is **unchanged** between the two; the one commit ahead touches `CHANGELOG.md` and `feed.xml` only |
-| Declarations read | `mods/types/claude-code.d.ts`, 12,990 lines, first line `// Written by Claude Code 2.1.277.` |
+| Declarations read | `mods/types/claude-code.d.ts`, 12,990 lines, its first-line comment naming 2.1.277 as the writing version |
 | This repo's CLI pin | **2.1.276** on `origin/main` (2.1.268 on local `main`) |
 | First `mods/` commit | `d9c456d7`, 2026-09-09T22:30:08Z; 83 commits at `92ec78f2`; proposal issue #91870 opened 2026-09-03 |
 
@@ -26,7 +26,7 @@ verifier lowered has been raised here.
 
 ## What mods are, what is supported now, what is planned
 
-1. A **mod** is an ordinary Claude Code plugin whose behavior lives in one
+1. A **mod** is an ordinary Claude Code plugin that keeps its behavior in one
    *hooks module*: a `register(on, options)` export registering hooks
    `($, e, next)` against engine events. `SOURCE`
 2. Hooks nest as Express/Koa middleware over five tiers, outermost first:
@@ -73,7 +73,7 @@ Every sidecar sits beside this file. Read the hub, then one sidecar.
 
 | Sidecar | One-line abstract | Read this when |
 |---|---|---|
-| [`research-what-mods-are.md`](research-what-mods-are.md) | Definition, the fold/chain model, the five tiers and seating, and exactly what a third-party (`user`-tier) mod may and may not do. | You need the mental model before anything else. |
+| [`research-what-mods-are.md`](research-what-mods-are.md) | Definition, the fold/chain model, the five tiers and seating, and exactly what a third-party (`user`-tier) mod can and cannot do. | You need the mental model before anything else. |
 | [`research-api-surface.md`](research-api-surface.md) | Event and noun counts, matcher forms, UI primitives per `RenderSurface`, options, limits, the static source scan, the one-module rule. | You are designing against the API and need to know what exists. |
 | [`research-enablement-and-distribution.md`](research-enablement-and-distribution.md) | The two gates, silent-inert and silent-active, install path, marketplace absence, docs and changelog silence. | You are deciding whether a consumer could ever run this. |
 | [`research-authoring-and-testing.md`](research-authoring-and-testing.md) | File layout, `claude plugin test`, the testing kit, `/plugin-types`, `--plugin-dir`, the patterns in `diff` and `agents-md`, Windows notes. | You are about to write or test a mod. |
@@ -102,7 +102,7 @@ Every sidecar sits beside this file. Read the hub, then one sidecar.
    `Agent(isolation: "worktree")`; a passthrough `next(e)` is enough. OPEN,
    unacknowledged, independent Windows repro at 2.1.272. This repo uses worktree
    isolation. `COMMUNITY`
-5. **Pre-contract API.** "May change between releases without notice"; a `$`
+5. **Pre-contract API.** The README warns of unannounced changes in any release; a `$`
    affordance was renamed mid-thread and a public return type was loosened on
    day 9. Anything built now is pinned to a moving surface. `SOURCE` `STAFF`
 6. **No distribution story.** Not marketplace-listed, no signing change, and no
@@ -120,10 +120,10 @@ Every sidecar sits beside this file. Read the hub, then one sidecar.
   reads no surface, host, or client type, but that is not an answer.
 - Whether both layers of a `hooks.json` carrying `hooks` **and** `modules`
   reliably fire (issue #92675, OPEN, 0 comments).
-- Performance. 50 µs p99 is a vendor claim about the dispatch primitive; 1.4 s
+- Performance. The 50 µs p99 comes from the vendor and concerns the dispatch primitive; 1.4 s
   is one community cold render. No independent benchmark exists.
 - Whether a mod's in-process handler inherits the classic-hook restriction that
-  hook scripts do not see `CLAUDE.md`.
+  classic hook scripts get no view of `CLAUDE.md`.
 
 ## Decision inputs
 

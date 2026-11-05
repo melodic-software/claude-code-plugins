@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": ["audio/village.wav"]},
+    {"answer": ["audio/village.mml", "audio/village.wav"], "why": "a score file beside it"}
+  ],
+  "fail": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": ["village.wav"], "why": "outside audio/"},
+    {"answer": ["audio/village.mml"], "why": "the score only"}
+  ]
+}

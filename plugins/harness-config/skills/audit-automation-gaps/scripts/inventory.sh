@@ -36,6 +36,20 @@
 # harness-ops:inventory and harness-ops:audit-native-overlap already take, and the
 # Enablement section names where the verdict lives.
 #
+# WHICH PROJECT SETTINGS FILES. With the root taken from git, the project-settings
+# rows read .claude/settings.json in the directory the run starts in, and the
+# local-settings rows read .claude/settings.local.json at the repository root, or
+# at the main checkout's root in a linked worktree: the files a session started
+# there reads. On Windows the local-settings rows read the file beside the
+# shared one instead, as the docs say. The tree counts still cover the whole
+# repository root. With INVENTORY_PROJECT_DIR set, both files are read from that
+# directory.
+# Source: https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
+# As of: 2026-11-04.
+# Recheck trigger: that section moves either file, or adds a case (it already
+#   names a home-directory repository root and foreign ownership, where the
+#   local file stays beside the shared one; this script does not model those two).
+#
 # STATUS, NEVER A SILENT ZERO. A location that could not be read reports
 # unreadable, invalid-json, skipped or not-probed. A count is printed only for a
 # location that was actually read.
@@ -101,7 +115,8 @@ are pruned from every walk so a sample hook or a vendored tree cannot inflate a
 component count.
 
 Test seams, unset in normal use:
-  INVENTORY_PROJECT_DIR    project root, instead of the git toplevel
+  INVENTORY_PROJECT_DIR    project root, instead of the git toplevel; both
+                           project settings files are then read from it
   INVENTORY_USER_SETTINGS  user settings file, instead of the documented path
   INVENTORY_MANAGED_PATH   managed-settings.json, instead of the per-OS path
   INVENTORY_JQ             the jq command name, so a test can take jq away
@@ -145,11 +160,18 @@ if [[ -r "$managed_lib" ]]; then
   source "$managed_lib" && have_managed_lib=1
 fi
 
+start_dir="$(pwd -P)"
+git_root=""
+main_root=""
 if [[ -n "${INVENTORY_PROJECT_DIR:-}" ]]; then
   project_root="$INVENTORY_PROJECT_DIR"
 else
-  project_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$project_root" ]] || project_root="${CLAUDE_PROJECT_DIR:-$PWD}"
+  git_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  project_root="${git_root:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+  common_dir=""
+  [[ -z "$git_root" ]] || common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+  # A bare repository's common dir is not a .git inside a checkout: no main checkout.
+  [[ "${common_dir##*/}" != .git ]] || main_root="$(cd -- "${common_dir%/*}" 2>/dev/null && pwd -P)"
 fi
 
 # A cd that fails is FATAL. The header prints the requested root, so a run that
@@ -166,6 +188,21 @@ project_root="$PWD"
 user_settings="${INVENTORY_USER_SETTINGS:-${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json}"
 project_settings=".claude/settings.json"
 local_settings=".claude/settings.local.json"
+if [[ -n "$git_root" ]]; then
+  root_real="$(pwd -P)"
+  [[ "$start_dir" == "$root_real" ]] || project_settings="$start_dir/.claude/settings.json"
+  # On Windows the local file stays beside the shared one, so a linked worktree
+  # is never swapped to the main checkout there. The OSTYPE test is the idiom
+  # lib/managed-scope.sh and permission-state.sh already use for the platform.
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32*)
+    local_settings="${project_settings%settings.json}settings.local.json"
+    ;;
+  *)
+    [[ -z "$main_root" || "$main_root" == "$root_real" ]] || local_settings="$main_root/.claude/settings.local.json"
+    ;;
+  esac
+fi
 
 managed_file=""
 managed_dropin=""

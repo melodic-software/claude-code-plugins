@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": ".github/workflows/ci.yml"}}], "why": "read only"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "notes/gate.md", "content": "x"}}], "why": "a write elsewhere"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".github/workflows/file-names.yml", "content": "name: file-names\n"}}], "why": "wrote a new workflow"}
+  ]
+}

@@ -3,6 +3,14 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.18] - 2026-11-04
+
+### Changed
+
+- The README, the schema, the glossary contract and the glossary-settings script's comments and
+  test name now call the config cascade's gitignored `domain-driven-design.local.yaml` layer the
+  personal override, the marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [0.4.17] - 2026-11-04
 
 ### Changed

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: sx-longer-explosion-noise
+graders:
+  - name: music-not-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:retro-audio:)?music"'
+    min: 0
+    max: 0
+    arm: both
+  - name: noise-params-to-sfx
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?sfx\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--params(?:\s|=)+(?:\\\"|'')?\{(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?:\\\\)*\\"wave(?:\\\\)*\\"\s*:\s*(?:\\\\)*\\"noise(?:\\\\)*\\"'
+    arm: with-only
+  - name: reports-longer-render
+    type: regex
+    pattern: 'boom\.wav \((?:[1-9]\d*\.\d{3}|0\.(?:[5-9]\d{2}|49\d|48[1-9]))s\)'
+    target: trace
+    arm: with-only
+  - name: wav-written
+    type: file_exists
+    path: 'audio/boom.wav'
+    arm: both

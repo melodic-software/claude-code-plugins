@@ -117,7 +117,7 @@ Then verify prerequisites with `/playwright:setup check` or
 ## Configuration
 
 This plugin has no `userConfig`. Behavior tuning happens through
-`@playwright/cli`'s own flags and config surface (documented in the upstream
+`@playwright/cli`'s own flags and config file (documented in the upstream
 README inside the npm package); the skill deliberately recommends upstream
 defaults.
 

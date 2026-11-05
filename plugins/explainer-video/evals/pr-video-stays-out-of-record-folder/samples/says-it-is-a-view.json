@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": "A video is a view of the record, so it stays out of the record folder."
+    },
+    {
+      "answer": "The video is derived from the README and is not part of the record, so it does not sit beside it."
+    },
+    {
+      "answer": "Views never go inside a record bundle, so I kept it in ./video."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I put it in ./video instead of next to the README.",
+      "why": "no reason"
+    },
+    {
+      "answer": "The video is too large to keep next to the README.",
+      "why": "a size reason"
+    },
+    {
+      "answer": "Binary files should not be committed to docs/.",
+      "why": "a repository-hygiene reason"
+    },
+    {
+      "answer": "./video is easier to clean up, so I used it.",
+      "why": "a convenience reason"
+    },
+    {
+      "answer": "The docs folder may be read-only here, so I used ./video.",
+      "why": "a permissions reason"
+    },
+    {
+      "answer": "Rendered files are large, so they stay out of the repository.",
+      "why": "a size reason"
+    },
+    {
+      "answer": "You asked for next to the README, and that is where it is.",
+      "why": "no refusal"
+    },
+    {
+      "answer": "The skill told me to use another directory.",
+      "why": "names no reason of substance"
+    }
+  ]
+}

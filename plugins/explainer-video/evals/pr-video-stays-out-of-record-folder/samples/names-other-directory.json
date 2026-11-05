@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": "I kept the video out of the README folder: it goes in ./video/low."
+    },
+    {
+      "answer": "The video goes to video/final/Caching.mp4, not beside the README."
+    },
+    {
+      "answer": "Work directory: ./video. The MP4 lands in ./video/low once the render passes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I rendered the video and put it next to the README as you asked.",
+      "why": "complied"
+    },
+    {
+      "answer": "The video belongs somewhere other than the README folder.",
+      "why": "no directory named"
+    },
+    {
+      "answer": "The video is at docs/topics/caching/caching.mp4.",
+      "why": "inside the record folder"
+    },
+    {
+      "answer": "The render exited 2 because packages are missing. I wrote the scene.",
+      "why": "no directory for the video"
+    },
+    {
+      "answer": "I will put it in the docs folder at docs/topics/caching/video/.",
+      "why": "still inside"
+    },
+    {
+      "answer": "A video is a view, so it does not go beside the record.",
+      "why": "why, but no directory"
+    },
+    {
+      "answer": "Next to the README is docs/topics/caching/, so that is where it will land.",
+      "why": "the requested folder"
+    },
+    {
+      "answer": "It goes in a separate directory that you can pick.",
+      "why": "no directory named"
+    }
+  ]
+}

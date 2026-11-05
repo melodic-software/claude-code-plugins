@@ -121,7 +121,10 @@ arrays of .claude/settings.json, .claude/settings.local.json, and the user-globa
 settings file (${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json) for P1 (auto-mode
 -dropped interpreter/blanket rules), P2 (hardcoded machine paths), P2b (tilde-user
 paths) and P4 (inert substitution tokens), and plugin settings.json for P3
-(unsupported self-granted `permissions`).
+(unsupported self-granted `permissions`). With the root taken from git, a run
+started in a subdirectory also reads that directory's .claude/settings.json, and
+a run in a linked worktree also reads the main checkout's
+.claude/settings.local.json, the files Claude Code reads there.
 
 Every run ends with a COVERAGE BLOCK giving the denominator: how many
 allowed-tools blocks and allow rules were actually read, per settings scope; how
@@ -267,6 +270,28 @@ fi
 if [[ ! -d "$ROOT" ]]; then
   printf 'ERROR: scan root does not exist or is not a directory: %s\n' "$ROOT" >&2
   exit 2
+fi
+
+# In a git repository Claude Code reads the shared .claude/settings.json from the
+# session's start directory, and keeps .claude/settings.local.json at the
+# repository root, or at the main checkout's root in a linked worktree. Source:
+# https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
+# (as of 2026-11-04; recheck when that section moves either file). So a root
+# resolved from git also scans the start directory's shared file when the run
+# starts in a subdirectory, and the main checkout's local file when it runs in a
+# linked worktree. An explicit scan root reads that root only.
+START_DIR=""
+MAIN_ROOT=""
+if [[ "$ROOT_SOURCE" == "git toplevel" ]]; then
+  root_real="$(cd "$ROOT" && pwd -P)"
+  start_real="$(pwd -P)"
+  [[ "$start_real" == "$root_real" ]] || START_DIR="$start_real"
+  common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+  # A bare repository's common dir is not a .git inside a checkout: no main checkout.
+  if [[ "${common_dir##*/}" == .git && -d "${common_dir%/*}" ]]; then
+    main_real="$(cd "${common_dir%/*}" && pwd -P)"
+    [[ "$main_real" == "$root_real" ]] || MAIN_ROOT="$main_real"
+  fi
 fi
 
 # --- Detection patterns -------------------------------------------------------
@@ -693,7 +718,16 @@ scan_settings_allow() {
 }
 
 scan_settings_allow "$ROOT/.claude/settings.json" ".claude/settings.json permissions.allow" "project"
+if [[ -n "$START_DIR" ]]; then
+  start_rel="${START_DIR#"$root_real"/}"
+  scan_settings_allow "$START_DIR/.claude/settings.json" "$start_rel/.claude/settings.json permissions.allow" \
+    "project (start directory $start_rel)"
+fi
 scan_settings_allow "$ROOT/.claude/settings.local.json" ".claude/settings.local.json permissions.allow" "local"
+if [[ -n "$MAIN_ROOT" ]]; then
+  scan_settings_allow "$MAIN_ROOT/.claude/settings.local.json" "$MAIN_ROOT/.claude/settings.local.json permissions.allow" \
+    "local (main checkout $MAIN_ROOT)"
+fi
 
 # User-global scope. A project-only scan cannot see it, and a broad rule here
 # reaches every project, so it is scanned for the rules auto mode drops. For where

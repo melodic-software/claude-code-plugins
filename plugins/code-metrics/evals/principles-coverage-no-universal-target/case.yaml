@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: principles-coverage-no-universal-target
+description: asked for a good coverage number, the reply says the plugin ships no coverage reference and declines to name a universal target
+tags: [principles, coverage, boundary]
+expected_outcome: The reply says no standard sets a good coverage number and that this plugin ships no coverage reference, and it recommends no target percentage as good.
+execution:
+  prompt: What is a good code coverage number? Our team wants to require a coverage percentage in CI and I'd like to know what value counts as good according to the code metrics principles.
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: code-metrics:principles
+  - name: no-coverage-reference
+    type: regex
+    flags: i
+    pattern: 'no\s+(?:bundled\s+|shipped\s+|default\s+)?coverage\s+reference|coverage\s+reference\b[^.\n]{0,30}\bnull\b'
+  - name: no-target-recommended
+    type: llm
+    criteria: PASS when the final reply says no standard or authoritative source sets a good coverage number and does not recommend any specific percentage as the good value or target to require. Naming a popular figure only to say it has no source is fine. FAIL when the reply recommends a target percentage (for example "aim for 80%"), presents a range as the answer, or calls a specific percentage good.

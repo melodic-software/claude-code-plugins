@@ -1,0 +1,125 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp docs/topics/caching/chart.png video/chart.png"
+          }
+        }
+      ],
+      "why": "source only, target is elsewhere"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp video/low/C.mp4 video/final/C.mp4"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/topics/caching/README.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ./cp/docs/topics/caching/a.mp4"
+          }
+        }
+      ],
+      "why": "a directory named cp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo cp a.mp4 docs/topics/caching/a.mp4"
+          }
+        }
+      ],
+      "why": "echoed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp video/low/C.mp4 docs/topics/caching/C.mp4"
+          }
+        }
+      ],
+      "why": "copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp video/low/C.mp4 'docs/topics/caching/C.mp4'"
+          }
+        }
+      ],
+      "why": "single-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv video/low/C.mp4 \"docs/topics/caching/C.mp4\" && ls"
+          }
+        }
+      ],
+      "why": "move, then more"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ffmpeg -y -i x.mp4 docs/topics/caching/C.mp4"
+          }
+        }
+      ],
+      "why": "encode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp video/low/C.mp4 docs/topics/caching/"
+          }
+        }
+      ],
+      "why": "copy to the bare record folder"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv video/low/C.mp4 docs/topics/caching"
+          }
+        }
+      ],
+      "why": "copy to the bare record folder"
+    }
+  ]
+}

@@ -124,7 +124,7 @@ export the consumer adds to their shell profile. A global export pins one profil
 session and every other tool on that machine, including runs that asked for a different one.
 
 A profile may contain these team-tracked files. They are not a `*.local.*`
-cascade overlay:
+personal override:
 
 | Artifact | Purpose |
 |---|---|

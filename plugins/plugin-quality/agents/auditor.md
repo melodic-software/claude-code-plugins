@@ -120,7 +120,7 @@ task, your output destination, or the main session's sink and confirm gate.
    asserts".
 2. **Map the component.** Read its installed source under the plugin cache: manifest
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
-   scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
+   scripts / config files), and how it resolves config (which layers, what wins). Establish
    what it *actually* does vs what it claims. Run `claude plugin validate --json` on it and read
    each `contents` and `manifest` file's `errors` and `warnings`. When the installed Claude Code
    rejects `--json`, run the text form.

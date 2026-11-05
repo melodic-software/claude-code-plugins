@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n -- --narration /p/scripts/render.py"
+          }
+        }
+      ],
+      "why": "read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"render.py --narration\""
+          }
+        }
+      ],
+      "why": "echoed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low --narration video/narration"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w && python3.13 \"/p/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"/p/scripts/render.py\" video/scene.py Odd --out video/low --narration 'video/narration'"
+          }
+        }
+      ],
+      "why": "quoted"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/render.py video/scene.py Odd --out video/low --narration=video/narration"
+          }
+        }
+      ],
+      "why": "direct"
+    }
+  ]
+}

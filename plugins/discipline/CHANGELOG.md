@@ -5,6 +5,22 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.24.12] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [0.24.11] - 2026-11-04
+
+### Fixed
+
+- `fetch-docs.sh --profile generic`: a `text/plain` answer to a URL whose path ends in `.md` is
+  read as markdown on the first request, so a host that serves `.md` files as `text/plain` no
+  longer leaves the page unread `unexpected-content-type`
+  ([#13354](https://github.com/melodic-software/claude-code-plugins/issues/13354)). A `text/plain`
+  answer for any other path is still refused.
+
 ## [0.24.10] - 2026-11-04
 
 ### Changed

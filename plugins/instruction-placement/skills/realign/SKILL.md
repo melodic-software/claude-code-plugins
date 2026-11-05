@@ -92,7 +92,7 @@ in the table above. Do not invent a format here. Four rules bind the write:
   reviewed or retired later. If the operator gives none, ask once; if they still give none, record
   `declined` in the artifact only and say the decline will not survive this checkout.
 - **Team layer only.** Write `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md`, never
-  `~/.claude/**` and never the `.local.md` overlay: a personal-layer entry the team layer does not
+  `~/.claude/**` and never the `.local.md` personal override: a personal-layer entry the team layer does not
   carry is reported `personal-only, not applied` and suppresses nothing, so writing one would look
   like recording a decision while recording none.
 - **Say that it needs committing.** The file is tracked, and an uncommitted entry has reached no

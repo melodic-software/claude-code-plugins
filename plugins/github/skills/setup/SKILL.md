@@ -25,7 +25,7 @@ Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing
    a needed scope is missing, report it as the honest-degradation gate and recommend the exact
    `gh auth refresh` command **for the user to run themselves**. Never auto-run a re-consent, no
    matter what standing "fix it automatically" instructions exist.
-4. **Config layers**. Resolve both surfaces (`routing.yaml`,`conventions.md`) per
+4. **Config layers**. Resolve both files (`routing.yaml`,`conventions.md`) per
    `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` and
    `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md`, anchored at the repo root, and report a
    PASS/FAIL/INFO row per layer, with one remediation line per FAIL:
@@ -34,12 +34,12 @@ Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing
    |---|---|
    | user-global | INFO exists or INFO absent. No git verdict applies outside the worktree |
    | team | PASS when the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0) holds. Present but ignored: FAIL, report the matching rule and say to unignore it. Present but untracked: FAIL, "commit it to share with the team" |
-   | local overlay | PASS when present, gitignored, and never staged. Tracked or staged: FAIL, remediation is `git rm --cached <path>` plus rotating any credential that was committed (adding a gitignore line does not untrack it). Present but unignored: FAIL, recommend `.claude/**/*.local.*` for the user to add themselves. Tracked outranks unignored: when both hold, name the tracked finding |
+   | personal override | PASS when present, gitignored, and never staged. Tracked or staged: FAIL, remediation is `git rm --cached <path>` plus rotating any credential that was committed (adding a gitignore line does not untrack it). Present but unignored: FAIL, recommend `.claude/**/*.local.*` for the user to add themselves. Tracked outranks unignored: when both hold, name the tracked finding |
 
    All three layers absent is INFO: "unconfigured: routing resolves to propose-only", not FAIL.
    A malformed layer is named and skipped, per the contract.
 5. **Report** the effective routing per scope block with the layer that supplied each value
-   (policy-floor provenance included), and the recursive overlay gitignore line
+   (policy-floor provenance included), and the recursive personal override gitignore line
    (`.claude/**/*.local.*`) when it is missing from the consumer's `.gitignore`. Recommend it;
    **never edit the consumer's `.gitignore`**.
 
@@ -62,10 +62,10 @@ Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing
    Unanswered postures fall back to `propose`. When the invocation already supplies complete
    answers, skip the interview and run non-interactively.
 3. **Write** to the team layer (`${CLAUDE_PROJECT_DIR}/.claude/github/`), or the layer the user
-   explicitly chooses. Local-layer precondition: before writing any `*.local.*` overlay, verify
+   explicitly chooses. Local-layer precondition: before writing any `*.local.*` personal override, verify
    the target path is ignored (`git check-ignore -q <path>`); when it is not, surface the
    recommended gitignore line first and wait for the user to either add it themselves or
-   explicitly accept writing an unignored overlay. Never write silently, never stage it, and
+   explicitly accept writing an unignored personal override. Never write silently, never stage it, and
    never edit their `.gitignore`.
    - `routing.yaml` conforming to the schema in
      `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md`. `default: propose` unless the user

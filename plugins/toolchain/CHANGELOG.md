@@ -3,6 +3,20 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.3] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [1.1.2] - 2026-11-04
+
+### Changed
+
+- The resolution-ladder reference, the `check` and `setup` skills and the setup evals now call
+  `.claude/ecosystems/<ecosystem>.local.yaml` the personal override, the marketplace's name for
+  the config cascade's gitignored layer (#13192). Behavior is unchanged.
+
 ## [1.1.1] - 2026-11-03
 
 ### Fixed

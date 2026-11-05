@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Confirm how `/education:quiz-me` offers comprehension checks, where generated quiz reports are
 stored, where `/education:teach` roots its learning workspaces, and where `/education:explain`
-starts. The plugin has two configuration surfaces:
+starts. The plugin has two kinds of configuration:
 
 - **Native `userConfig`**: `quiz_policy`, `report_library_dir`, `workspace_root`,
   `explain_starting_rung` and `medium`. Claude Code prompts for them when the plugin is enabled and
@@ -147,7 +147,7 @@ Report a PASS/INFO/WARN table. Write nothing.
 5. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
    convention home, the script prints an offer: with the operator's confirmation it adds a
    convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
-   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   exists or `CLAUDE.md` only imports it) and the personal override ignore line
    `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
    `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
    exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the

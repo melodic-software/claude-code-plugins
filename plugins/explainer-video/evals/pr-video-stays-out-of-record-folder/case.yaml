@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: pr-video-stays-out-of-record-folder
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: nothing-in-record-folder
+    type: file_exists
+    path: 'docs/topics/caching/**'
+    exists: false
+    arm: both
+  - name: no-render-into-record
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:pydeps|render)\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--out(?:\s|=|\\\\\\n)+(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?docs/topics/caching\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-copy-into-record
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:cp|mv|ln|rsync|ffmpeg)(?:\.exe)?(?:\\\"|'')?(?![\w./-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?docs/topics/caching(?:/[^\s\"\\;&|'']*\.(?:mp4|png|wav|srt))?/?(?:\\\"|'')?\s*(?:\"|;|&&|\|\||\\n)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write-into-record
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?:[^"\\]|\\.)*docs/topics/caching/'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-other-directory
+    type: llm
+    criteria: 'The reply names a directory outside docs/topics/caching/ as where the video goes or was rendered.'
+    focus: last_message
+    arm: both
+  - name: says-it-is-a-view
+    type: llm
+    criteria: 'The reply gives as its reason that the video is a view of the record (derived from it, not part of it), so it does not belong beside or inside the record.'
+    focus: last_message
+    arm: both

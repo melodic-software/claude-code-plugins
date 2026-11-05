@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-naming:generate-file-name-gate"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "generate-file-name-gate"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-naming:realign-file-names"}}], "why": "the realign skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

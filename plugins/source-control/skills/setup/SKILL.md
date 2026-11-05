@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 Inspect and configure the source-control plugin per the uniform setup contract
 (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository):
-`check` reports the effective configuration, `apply` writes it. Two configuration surfaces:
+`check` reports the effective configuration, `apply` writes it. Two kinds of configuration:
 
 1. The commit-subject / PR-title convention config, layered across a user-global file, the tracked
    team file (`docs/conventions/source-control.yaml`), and a gitignored personal override and merged per key by

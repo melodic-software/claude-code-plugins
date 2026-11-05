@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/calm-loop.wav (3.200s, gameboy)\\n\"}]}}", "why": "relative path"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"/work/audio/calm-loop.wav (12.000s, gameboy)\"}]}}", "why": "absolute path, longer loop"}
+  ],
+  "fail": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":\"compose a short gameboy chiptune loop, calm. Save the wav as audio/calm-loop.wav\"}}", "why": "the prompt alone"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/calm-loop.wav (3.200s, nes)\"}]}}", "why": "another chip"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"mml.py: gameboy allows 4 channels, score has 5\"}]}}", "why": "a refused score"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/loop.wav (3.200s, gameboy)\"}]}}", "why": "another file"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"wrote audio/calm-loop.wav\"}]}}", "why": "a script of the run's own"}
+  ]
+}

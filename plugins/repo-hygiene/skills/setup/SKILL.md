@@ -24,7 +24,7 @@ shell invocation, and a worktree-isolated session refuses a compound command tha
 ## Purpose
 
 Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
-and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+and repeatable" in the marketplace repository): this plugin's configuration contains no
 writable artifact, so `check` inspects, reports, and points at each remediation, and no `apply` is
 offered because there is nothing it could conformingly write. The warrant is the carve-out's
 external-prerequisites class: `git`, which every git-touching tier of `/repo-hygiene:clean` and
@@ -97,7 +97,7 @@ Install nothing, and run no mutating tier.
 ## Remediation guidance (printed by `check`; the operator applies it)
 
 The prerequisites are system tools and the one option lives in Claude Code's native
-configuration surface (Check-only carve-out, external-prerequisites and native-`userConfig`
+plugin configuration (Check-only carve-out, external-prerequisites and native-`userConfig`
 classes), so `check` closes by pointing at each resolution rather than writing. Re-running it
 after everything passes changes nothing and reports "already configured":
 
@@ -138,4 +138,4 @@ after everything passes changes nothing and reports "already configured":
   dry-run-first and confirmation contract.
 - Install `git`, `ghq`, or any tool. Guidance only.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any other Claude Code
-  settings surface.
+  settings file.

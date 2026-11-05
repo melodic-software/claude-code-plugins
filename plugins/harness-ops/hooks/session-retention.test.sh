@@ -8,6 +8,8 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/session-retention.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# A process-group SIGHUP (a closed terminal or shell) can end bash without the EXIT trap.
+trap 'exit 129' HUP
 
 # shellcheck source=harness-ops-test-helpers.sh
 source "$HOOK_DIR/harness-ops-test-helpers.sh"

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat tests/test_calc.py", "description": "d"}}], "why": "reads the test file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v mutmut pytest", "description": "d"}}], "why": "tool availability probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "which pytest; python3 -m pytest --version", "description": "d"}}], "why": "version probe runs no test"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git diff --unified=0 main...HEAD", "description": "d"}}], "why": "scope read"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 -m unittest discover -s tests", "description": "d"}}], "why": "runs unittest"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cd /ws && python3 -m pytest -q", "description": "d"}}], "why": "runs pytest via python"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pytest -q tests", "description": "d"}}], "why": "runs pytest"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 tests/test_calc.py", "description": "d"}}], "why": "runs the test file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat > run.py <<'EOF'\nsubprocess.run([sys.executable, \"-m\", \"unittest\", \"-q\"])\nEOF\npython3 run.py", "description": "d"}}], "why": "runs unittest from a generated harness"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat > run.py <<'EOF'\nsubprocess.run(['python3','-m','pytest'])\nEOF\npython3 run.py", "description": "d"}}], "why": "single-quoted harness form"}
+  ]
+}

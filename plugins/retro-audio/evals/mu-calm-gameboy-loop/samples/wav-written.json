@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": ["audio/calm-loop.wav"]},
+    {"answer": ["audio/calm.mml", "audio/calm-loop.wav"], "why": "a score file beside it"}
+  ],
+  "fail": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": ["calm-loop.wav"], "why": "outside audio/"},
+    {"answer": ["audio/calm-loop.mp3"], "why": "another format"},
+    {"answer": ["audio/calm.mml"], "why": "the score only"}
+  ]
+}

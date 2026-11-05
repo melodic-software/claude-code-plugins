@@ -3,6 +3,20 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [0.5.1] - 2026-11-04
+
+### Changed
+
+- The README, the routing and conventions references, the billing and security-posture recipes,
+  `setup` and its evals now call the config cascade's gitignored `*.local.*` layer the personal
+  override, the marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [0.5.0] - 2026-11-01
 
 ### Added
