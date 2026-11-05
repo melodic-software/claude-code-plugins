@@ -221,6 +221,14 @@ test("the retry count and delay are injectable", () => {
   assert.deepEqual(deps.sleeps, [5]);
 });
 
+test("a zip fetch keeps the short schedule: five tries, about 30 s, while a listing page gets the long one", () => {
+  const { publicLine, privateText } = generate();
+  const deps = fakeDeps([[artifact(42, { record: sealed(publicLine) })]], { failures: { "artifacts/42/zip": FOREVER } });
+  run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(zipCalls(deps, 42), 5);
+  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000]);
+});
+
 for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }], ["run-read", { "actions/runs/51": FOREVER }]]) {
   test(`a fetch failure (${kind}) past its retries is counted, the pull goes on, and the next pull fetches the artifact though it is behind the failed pull's overlap`, () => {
     const { publicLine, privateText } = generate();

@@ -42,7 +42,8 @@ const PER_PAGE = 100;
 export const MAX_PAGES = 400;
 const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
-export const GH_ATTEMPTS = 10;
+export const GH_ATTEMPTS = 5;
+export const GH_LIST_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
 export const GH_MAX_DELAY_MS = 300_000;
 
@@ -84,13 +85,14 @@ function defaultDeps(env) {
 }
 
 // GitHub answers these calls with a passing 5xx, on some days for most calls
-// to the artifact listing at any page, so each gets ten tries, doubling the
-// wait before each one up to 5 min (about 13.5 min in all), so a call rides
-// out a bad spell of several minutes. A rate limit stops
-// the pull at once: every further call while limited spends the user's shared
-// budget.
-function ghRetried(deps, args) {
-  const attempts = deps.ghAttempts ?? GH_ATTEMPTS;
+// to the artifact listing at any page. A listing page the pull cannot skip
+// gets ten tries, the wait doubling up to 5 min (about 13.5 min in all), so it
+// rides out a bad spell of several minutes. A zip or run read, whose failure
+// the pull already tolerates (fetch_failed), keeps five tries (about 30 s). A
+// rate limit stops the pull at once: every further call while limited spends
+// the user's shared budget.
+function ghRetried(deps, args, list = false) {
+  const attempts = deps.ghAttempts ?? (list ? GH_LIST_ATTEMPTS : GH_ATTEMPTS);
   for (let attempt = 1; ; attempt++) {
     try {
       return deps.gh(args);
@@ -145,7 +147,7 @@ export function pull({ sink, repo, recipient, deps, log }) {
     // Paging past the cap without reaching the cutoff would record a success
     // that skipped the oldest artifacts, so it fails and the window stays.
     if (++page > (deps.maxPages ?? MAX_PAGES)) throw new PullError(`page-cap: ${deps.maxPages ?? MAX_PAGES} pages did not reach the last pull's cutoff`);
-    const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?per_page=${PER_PAGE}&page=${page}`]));
+    const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?per_page=${PER_PAGE}&page=${page}`], true));
     if (artifacts.length < PER_PAGE) done = true;
     for (const artifact of artifacts) {
       if (Date.parse(artifact.created_at) < cutoff) {
