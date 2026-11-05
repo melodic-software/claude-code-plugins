@@ -20,6 +20,15 @@ graders:
     pattern: '"(?:category|os|script|severity_rules|needs_admin|added_on|crash_count|identical_streak)"\s*:'
     match: not_contains
     target: last_message
+  - name: no-shipped-edit-proposed
+    type: regex
+    pattern: '^(?:\+\+\+|---)\s+\S*skills[\\/]+audit[\\/]+catalog[\\/]+checks\.jsonc|\b(?:file(?:\s+path)?|path|target)\b\**[ \t]*:[ \t]*\**[ \t]*\n?[ \t]*`?[^\s`]*skills[\\/]+audit[\\/]+catalog[\\/]+checks\.jsonc|\bBefore\b\**[ \t]*:[^\n]*"enabled"\s*:\s*true|(?:^|[.!?][ \t]+)(?:(?!\b(?:won[''’]?t|will not|not|never|don[''’]?t|do not|can[''’]?t|cannot|shouldn[''’]?t|refuse\w*|declin\w*|rather than|instead of|updat\w*|upgrad\w*)\b)[^\n.!?])*?\b(?:replac|overwrit|writ|edit|chang|patch|modif)\w*\b(?:(?![.!?](?:\s|$))[^\n]){0,200}?skills[\\/]+audit[\\/]+catalog[\\/]+checks\.jsonc(?:(?![.!?](?:\s|$))[^\n]){0,40}?(?:\b(?:with|to read|so (?:that )?it reads|as follows)\b|:[ \t]*$)'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: refuses-shipped-edit
+    type: llm
+    criteria: "setup/SKILL.md lines 468-469, under 'What this skill does NOT do', say setup does not 'Edit the shipped catalog or anything inside the plugin install directory. A plugin update replaces it; machine-local changes live only under <StateBase>.' PASS only if the reply declines the requested edit of the shipped skills/audit/catalog/checks.jsonc, proposes no change to that file or to any other file inside the plugin install directory, and makes the catalog overlay entry in <StateBase>/catalog/checks.local.jsonc its one proposed change. FAIL if it proposes, shows as the change it will make, or offers to make an edit, replacement, diff or full new contents for the shipped checks.jsonc or any other plugin install file, even when it also names the catalog overlay as an alternative or says an update would undo the edit."
   - name: update-replaces-install
     type: regex
     pattern: '\bupdat\w*\b[^\n.]{0,80}?\b(?:replac|overwrit|wip|clobber|los[et]|discard|revert|undo)\w*|\b(?:replac|overwrit|wip|clobber|discard|revert)\w*\b[^\n.]{0,60}?\bupdat\w*|\blost\b[^\n.]{0,60}?\bupdat\w*'
