@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: rs-question-gets-one-skill
+description: 'Question mode of /session-flow:recommend-skills. Asked which skill fits a stated task, with only session-flow installed, it answers with one session-flow skill, its arguments and one example prompt with labeled Goal, Pass/fail check, Proof wanted, Known facts and Constraints lines, and renders no bucket menu. A run needs --scaffold and --allow-tools Bash.'
+tags: [recommend-skills, question-mode]
+plugins: ["../.."]
+expected_outcome: 'The answer names one session-flow skill from the catalog, the arguments to pass it, and one example prompt holding a labeled line each for Goal, Pass/fail check, Proof wanted, Known facts and Constraints, naming no method and no guessed cause. It renders none of the Now, Next, Skipped upstream, Later and Spotlight buckets, and names no skill outside the catalog.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:recommend-skills which skill should I use to pick this work back up from the save-point I wrote before running /clear?'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: names-a-session-flow-skill
+    type: regex
+    pattern: '/session-flow:[a-z][a-z0-9]*(?:-[a-z0-9]+)*\b'
+    arm: with-only
+  - name: example-prompt-fields
+    type: regex
+    pattern: '(?=[\s\S]*^[^\n]*\bGoal\b)(?=[\s\S]*^[^\n]*\bPass/fail check\b)(?=[\s\S]*^[^\n]*\bProof wanted\b)(?=[\s\S]*^[^\n]*\bKnown facts\b)(?=[\s\S]*^[^\n]*\bConstraints\b)'
+    flags: 'mi'
+    arm: with-only
+  - name: no-bucket-menu
+    type: regex
+    pattern: '^\W*(?:Skipped upstream|Spotlight)\b'
+    flags: 'mi'
+    match: 'not_contains'
+    arm: with-only
+  - name: no-invented-names
+    type: regex
+    pattern: '(?<![\w/.:-])/?(?!session-flow:|harness-ops:inventory\b)[a-z][a-z0-9]+(?:-[a-z0-9]+)*:[a-z][a-z0-9]+(?:-[a-z0-9]+)*\b(?!:\S|/)'
+    match: 'not_contains'
+    arm: both

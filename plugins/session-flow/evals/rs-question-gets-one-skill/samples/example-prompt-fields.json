@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Skill: /session-flow:find-handoff\nExample prompt:\n- Goal: resume the invoice export work\n- Pass/fail check: the session names the handoff file and its next step\n- Proof wanted: the handoff path and its quoted next step\n- Known facts: a save-point was written before /clear\n- Constraints: change nothing",
+      "why": "all five labels"
+    },
+    {
+      "answer": "**Goal:** a\n**Pass/fail check:** b\n**Proof wanted:** c\n**Known facts:** d\n**Constraints:** e",
+      "why": "bold labels"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Goal: resume\nProof wanted: the path\nConstraints: none",
+      "why": "pass/fail check and known facts missing"
+    },
+    {
+      "answer": "Run /session-flow:find-handoff to resume your work.",
+      "why": "no example prompt"
+    }
+  ]
+}
