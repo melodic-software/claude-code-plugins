@@ -1,6 +1,7 @@
 // Whether an existing pr-unblock check run already handles a head, shared by
 // dispatch.mjs and feedback-dispatch.mjs. A check run handles the head unless
-// it is the gate's completed neutral skip for an untrusted trigger, or a run
+// it is the gate's completed neutral skip for an untrusted trigger, a fault
+// stop whose model never started, or a run
 // the usage limit stopped whose limit has reset: the lane's next trigger then
 // dispatches it again, at most `limits.limit-stops-per-head` times on one head.
 // A run whose credential was refused (class `auth`, a 401) is a limit stop
@@ -19,7 +20,7 @@
 // ended: the shortest plan limit is a five-hour session window
 // (https://support.claude.com/en/articles/11145838). After
 // `limit-stops-per-head` stops the dispatchers stop re-dispatching the head;
-// the next push makes a new one.
+// the next push makes a new one. A fault stop (FAULT_CLASSES) is not counted.
 import { LIMIT_DEFAULTS, clampReset } from "../work-resolve-issue/limits.mjs";
 import { readRecord } from "../lib/lane-outcome.mjs";
 import { laneStop } from "./escalation-routes.mjs";
@@ -98,10 +99,23 @@ export function pendingStop(runs, { now, limits = LIMIT_DEFAULTS }) {
   return pending;
 }
 
+// The lane record classes of a run whose model never started
+// (ci-workflows docs/lane-outcome.md, Failure classes): the CLI install failed,
+// the sandbox probe kept the run from starting, or the leg had no credential.
+// Such a failure says nothing about the head, so it holds: it neither handles
+// the head nor counts toward `limit-stops-per-head`, and the next tick
+// dispatches again. Every other failure, a red run with no record included,
+// still counts, since a model turn may have run.
+const FAULT_CLASSES = new Set(["install-failed", "sandbox-unavailable", "no-credential"]);
+const faultStop = (run) => run?.status === "completed" && run.conclusion === "failure" && FAULT_CLASSES.has(laneRecord(run)?.failureClass);
+
 const untrustedSkip = (run) =>
   run.status === "completed" &&
   run.conclusion === "neutral" &&
   String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger");
+
+// A run that neither handles the head nor counts toward its cap.
+const ignored = (run) => untrustedSkip(run) || faultStop(run);
 
 // The neutral check a run skipped on a held PR posts (report-check-run's
 // `Skipped: <reason>` title).
@@ -144,12 +158,12 @@ export const killSwitchStop = (run) => run?.status === "completed" && run.conclu
 export const releasesHead = (run) => laneStop(run) || killSwitchStop(run);
 
 // Whether `runs` handle the head: any run that is not an untrusted skip, a
-// kill-switch stop or a reset limit stop does, and so do
-// `limit-stops-per-head` such stops.
+// fault stop, a kill-switch stop or a reset limit stop does, and so do
+// `limit-stops-per-head` such stops (fault stops aside).
 export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry = false, ...opt }) {
   let stops = 0;
   for (const run of runs) {
-    if (untrustedSkip(run)) {
+    if (ignored(run)) {
       continue;
     }
     if (released(run, opt)) {
@@ -182,7 +196,7 @@ export function permanentlyHandles(runs, options = {}) {
 }
 
 function completedRuns(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, ...opt }) {
-  const done = runs.filter((run) => run.status === "completed" && !untrustedSkip(run));
+  const done = runs.filter((run) => run.status === "completed" && !ignored(run));
   const retryable = (run) => released(run, opt) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run, limits) !== null);
   return { done, retryable };
 }
