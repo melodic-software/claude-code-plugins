@@ -8510,7 +8510,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
     "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
-    "maintenance-tidy-code-upkeep.yml": ["model", "scan", "push-branches", "publish"],
+    "maintenance-tidy-code-upkeep.yml": ["model", "model-subscription", "model-fallback", "scan", "push-branches", "publish"],
   };
   for (const [file, names] of Object.entries(readOnly)) {
     const { jobs } = workflow(file);
@@ -8842,4 +8842,66 @@ test("the tip step outputs the exact ref's SHA from this repository and fails on
   assert.equal(missing.status, 1);
   assert.equal(missing.outputs.sha, undefined, "no sha output for the checkout to take");
   assert.match(missing.stdout, /^::error::the tip of main did not resolve$/m);
+});
+
+// The tidy lane's three legs: model on the automations API key, then
+// model-subscription on its subscription token, then model-fallback on the
+// central fallback token, one credential per job, each the key leg's steps
+// but for the credential, the marker, the handoff report, the leg record's
+// fallback reason and the seal's job id.
+test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fallback legs, each with one credential", () => {
+  const { jobs } = workflow("maintenance-tidy-code-upkeep.yml");
+  const legs = ["model", "model-subscription", "model-fallback"];
+  const run = (id) => jobs[id].steps.find((s) => s.id === "run");
+  assert.equal(run("model").with["api-key"], "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}");
+  assert.equal(run("model-subscription").with["subscription-token"], "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}");
+  assert.equal(run("model-subscription").with["fallback-ready"], "${{ steps.credential.outputs.fallback-ready }}");
+  assert.equal(run("model-fallback").with["fallback-token"], "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}");
+  for (const id of legs) {
+    assert.deepEqual(jobs[id].permissions, { contents: "read" }, `${id} holds no write grant`);
+    assert.equal(jobs[id]["cache-mode"], "read", id);
+    const seal = jobs[id].steps.find((s) => s.id === "seal");
+    assert.equal(seal.env.JOB_ID, id, `${id} seals under its own job id`);
+    const record = jobs[id].steps.find((s) => s.name === "Record the leg");
+    assert.equal(record.with["lane-id"], "maintenance-tidy-code-upkeep", id);
+    assert.equal(record.with.credential, "${{ steps.run.outputs.credential }}", id);
+  }
+  const shape = (id) =>
+    jobs[id].steps
+      .filter((s) => !["credit-marker", "credit-marker-scan", "credit-marker-upload", "credential"].includes(s.id) && !/handoff$/.test(s.name))
+      .map((s) => {
+        const copy = structuredClone(s);
+        if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
+        if (copy.id === "seal") delete copy.env.JOB_ID;
+        if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
+        return copy;
+      });
+  assert.deepEqual(shape("model-subscription"), shape("model"));
+  assert.deepEqual(shape("model-fallback"), shape("model"));
+
+  const ctx = (over) => ({ "needs.gate.outputs.proceed": "true", "github.run_attempt": "1", ...over });
+  assert.equal(evaluate(jobs.model.if, ctx({ "needs.gate.outputs.skip-key": "true" })), false, "a credit-stopped key is skipped");
+  assert.equal(evaluate(jobs.model.if, ctx({ "needs.gate.outputs.skip-key": "" })), true);
+  const sub = (over) =>
+    evaluate(jobs["model-subscription"].if, ctx({ "needs.model.outputs.handoff": "", "needs.model.outputs.credential-present": "", "needs.gate.outputs.skip-key": "", ...over }));
+  assert.equal(sub({ "needs.model.outputs.handoff": "true" }), true);
+  assert.equal(sub({ "needs.model.outputs.credential-present": "false" }), true);
+  assert.equal(sub({ "needs.gate.outputs.skip-key": "true" }), true);
+  assert.equal(sub({ "needs.model.outputs.handoff": "false" }), false);
+  const fb = (handoff) => evaluate(jobs["model-fallback"].if, ctx({ "needs.model-subscription.outputs.handoff": handoff }));
+  assert.equal(fb("true"), true);
+  assert.equal(fb("false"), false);
+
+  // The scan opens the leg that ran: the fallback leg, else the subscription leg, else the key leg.
+  const open = jobs.scan.steps.find((s) => s.id === "open");
+  const pick = (fbResult, subResult) =>
+    evaluate(open.with["job-id"], { "needs.model-fallback.result": fbResult, "needs.model-subscription.result": subResult });
+  assert.equal(pick("success", "success"), "model-fallback");
+  assert.equal(pick("skipped", "success"), "model-subscription");
+  assert.equal(pick("skipped", "skipped"), "model");
+  assert.deepEqual(jobs.scan.needs, ["gate", "model", "model-subscription", "model-fallback"]);
+  // Only the key leg uploads the credit gate's marker, and the gate reads it.
+  const credit = jobs.gate.steps.find((s) => s.id === "credit");
+  assert.equal(credit.with["key-job"], "model");
+  for (const id of ["model-subscription", "model-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
 });
