@@ -178,13 +178,15 @@ test("a merged pull request blocker costs no trust read, so a read that would fa
   assert.ok(!calls.includes("GET /repos/o/r/issues/9"));
 });
 
-test("an untrusted-provenance label on the issue stops the run for good, with a notice, before any blocker read", async () => {
-  const { code, calls, lines, outputs } = await run([], { subject: { labels: ["agent-ready", UNTRUSTED] } });
-  assert.equal(code, 0);
-  assert.deepEqual(outputs, FINAL);
-  assert.ok(!calls.some((call) => call.includes("/dependencies/")));
-  assert.match(lines.find((line) => line.startsWith("::notice")), /untrusted-provenance/);
-});
+for (const label of [UNTRUSTED, "provenance: untrusted"]) {
+  test(`a ${label} label on the issue stops the run for good, with a notice, before any blocker read`, async () => {
+    const { code, calls, lines, outputs } = await run([], { subject: { labels: ["agent-ready", label] } });
+    assert.equal(code, 0);
+    assert.deepEqual(outputs, FINAL);
+    assert.ok(!calls.some((call) => call.includes("/dependencies/")));
+    assert.match(lines.find((line) => line.startsWith("::notice")), /untrusted-provenance/);
+  });
+}
 
 test("the label removed by someone neither a listed human nor the App still stops the run; their removal does not", async () => {
   const added = labelEvent("labeled", APP);

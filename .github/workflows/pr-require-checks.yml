@@ -1,5 +1,11 @@
 name: pr-require-checks
 
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it: ci-status is a gate, and a
+# hold would pass a check it could not read.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   # A dispatch runs the full contract corpus. pr-merge.yml starts one on main
   # for the merges since the last, whoever merged, each of the newest tip, at

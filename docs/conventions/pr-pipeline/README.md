@@ -809,7 +809,10 @@ other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
 no human-gated label (an entry naming `"label": "needs-session"` adds that label first, the
 session-builder queue, which no merge gate reads), a failing commit status on the head the activity gated (`pr-unblock/conflict` for
-`resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one
+`resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it, except for a
+`feedback-publish-failed` whose lane token was refused as workflow-modified, which the feedback
+sweep sends again; a transient broker refusal still posts it, since pr-merge's re-fire skips some
+PRs), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
 naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
 `workflow-staged` routes `fail` as a capability limit: the merge carries the PR's own
