@@ -817,7 +817,9 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   assert.equal(reason({ rungUp: "true", rungUpResult: "success" }), "");
   assert.equal(post.env.ACTIVITY, "${{ inputs.activity }}");
   assert.match(post.run, /report-escalation\.sh "\$\(\[ -n "\$ESCALATION_REASON" \] && echo status \|\| echo clear\)"$/);
-  assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
+  // Status mode reads this run's jobs and the reply job's annotations
+  // (report-escalation.sh retried_refusal); its only write is the status.
+  assert.deepEqual(job.permissions, { actions: "read", checks: "read", contents: "read", statuses: "write" });
   assert.equal(job.uses, undefined, "a script job, never the write runner");
 });
 

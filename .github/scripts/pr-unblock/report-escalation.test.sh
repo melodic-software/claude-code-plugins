@@ -7,6 +7,9 @@ set -euo pipefail
 # On a runner the script would wrap its gh calls and record into the job's
 # RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
+# A case that needs this run's jobs sets its own run id; on a runner the
+# inherited one would send status mode reading them.
+unset GITHUB_RUN_ID
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/report-escalation.sh"
@@ -108,6 +111,15 @@ case "$method $endpoint" in
 "POST repos/o/r/statuses/"*)
   [[ -f $STUB/fail_status ]] && { echo 'stub gh: status POST failed' >&2; exit 1; }
   echo '{}'
+  ;;
+# This run's jobs and a job's annotations (status mode, feedback-publish-failed).
+"GET repos/o/r/actions/runs/777/jobs?filter=latest&per_page=100")
+  [[ -f $STUB/fail_jobs ]] && { echo 'stub gh: HTTP 502' >&2; exit 1; }
+  cat "$STUB/jobs.json"
+  ;;
+"GET repos/o/r/check-runs/"*"/annotations?per_page=100")
+  id=${endpoint#repos/o/r/check-runs/}
+  cat "$STUB/annotations-${id%%/*}.json"
   ;;
 *) echo "stub gh: unexpected $method $endpoint" >&2; exit 1 ;;
 esac
@@ -475,6 +487,47 @@ setup '[]' '[]'
 MODE=bogus run unresolved-conflict
 check "unknown mode: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "unknown mode: no gh call" '' "$(cat "$STUB/calls")"
+
+# feedback-publish-failed in status mode: no status when the reply job's lane
+# token was refused in a way a retry takes the head on, the annotation texts
+# request-lane-token prints (refire-refused.mjs REFUSED and TRANSIENT).
+# publish_case <annotation message|-> [job conclusion] [token step conclusion]:
+# run 777's reply job, id 9001, failed at its token step with that annotation.
+publish_case() {
+  setup '[]' '[]'
+  printf '{"jobs":[{"id":9000,"name":"address-feedback-select","conclusion":"success","steps":[]},{"id":9001,"name":"publish-feedback / run","conclusion":"%s","steps":[{"name":"Request the lane token","conclusion":"%s"}]}]}' \
+    "${2:-failure}" "${3:-failure}" >"$STUB/jobs.json"
+  if [[ $1 == - ]]; then echo '[]'; else jq -n --arg m "$1" '[{annotation_level:"failure",message:$m}]'; fi >"$STUB/annotations-9001.json"
+  GITHUB_RUN_ID=777 MODE=status run feedback-publish-failed
+}
+MODIFIED='lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-unblock.yml differs from refs/heads/main'
+publish_case "$MODIFIED"
+check "publish-failed, workflow-modified: exit 0" 0 "$RC"
+check "publish-failed, workflow-modified: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
+has "publish-failed, workflow-modified: a notice names the refusal" 'workflow-modified, .github/workflows/pr-unblock.yml' "$STUB/out"
+publish_case 'broker-unreachable: the lanes token broker gave no response'
+check "publish-failed, broker unreachable: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
+has "publish-failed, broker unreachable: a notice names it" 'transient, broker-unreachable' "$STUB/out"
+publish_case 'lane-token-denied: the broker answered 503 with reason github-unavailable'
+check "publish-failed, broker 503: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
+# A 403 other than workflow-modified is no retry, so the status goes on.
+publish_case 'lane-token-denied: the broker answered 403 with reason actor-not-trusted'
+check "publish-failed, other 403: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+# A reply job that got its token and failed later (a script error) has no retry.
+publish_case "$MODIFIED" failure success
+check "publish-failed, failed after the token step: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+publish_case -
+check "publish-failed, no annotation: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+# A jobs read that fails is no evidence: the status goes on.
+publish_case "$MODIFIED"
+touch "$STUB/fail_jobs"
+GITHUB_RUN_ID=777 MODE=status run feedback-publish-failed
+check "publish-failed, jobs read fails: exit 0" 0 "$RC"
+check "publish-failed, jobs read fails: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests" | tail -1)"
+# Another fail-routed reason never reads the jobs.
+setup '[]' '[]'
+GITHUB_RUN_ID=777 MODE=status run feedback-incomplete
+check "status, another reason: no jobs read" "POST repos/o/r/statuses/$HEAD_A" "$(cat "$STUB/requests")"
 
 # The role label resolves from the base tracker config, not from the workspace root.
 setup '[]' '[]' '{"config":{"role_labels":{"human-gated":"status: blocked-human"}}}'
