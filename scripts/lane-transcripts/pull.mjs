@@ -44,7 +44,7 @@ const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
 export const GH_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
-export const GH_MAX_DELAY_MS = 30_000;
+export const GH_MAX_DELAY_MS = 300_000;
 
 const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
@@ -85,7 +85,8 @@ function defaultDeps(env) {
 
 // GitHub answers these calls with a passing 5xx, on some days for most calls
 // to the artifact listing at any page, so each gets ten tries, doubling the
-// wait before each one up to 30 s (about 3.5 min in all). A rate limit stops
+// wait before each one up to 5 min (about 13.5 min in all), so a call rides
+// out a bad spell of several minutes. A rate limit stops
 // the pull at once: every further call while limited spends the user's shared
 // budget.
 function ghRetried(deps, args) {
