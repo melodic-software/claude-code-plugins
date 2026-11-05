@@ -350,7 +350,7 @@ test("the gate reads the key's credit history at the pinned check-key-credit onc
   assert.match(jobOf("gate"), /^ {6}actions: read\b/m);
 });
 
-test("a skipped key starts no model, records no start, and says which run and when the window ends", () => {
+test("a skipped key runs no key leg, records no start in the gate, and says which run and when the window ends", () => {
   assert.ok(!jobOf("gate").includes("upstream-apply-changelog-started"));
   assert.match(jobOf("gate"), /^ {6}skip-key: \$\{\{ steps\.credit\.outputs\.skip-key \}\}$/m);
   assert.match(jobOf("gate"), /^ {6}credit-marker: \$\{\{ steps\.credit\.outputs\.marker \}\}$/m);
@@ -424,106 +424,161 @@ const evalIf = (expr, values) =>
       .replace(/\b(?:steps|needs)\.[\w.-]+/g, (ref) => JSON.stringify(values[ref] ?? ""))
       .replace(/([!=])=/g, "$1==")});`,
   )();
-// The step that writes the start record, wherever it sits: the cap counts
-// one record per such write.
-const startWrite = () => {
+// The steps that write the start record, one per leg: the cap counts one
+// record per such write, and only one leg of a run writes it.
+const LEGS = ["model", "model-subscription", "model-fallback"];
+const startWrite = (job) => ifOf(stepIn(job, "Record the start"));
+test("only the three model legs write a start record", () => {
   const found = WORKFLOW.split(/\n(?= {6}- name: )/).filter((s) => /\/started\b/.test(s) && /printf '%s\\n' "\$RELEASE" >"[^"]*\/release\.txt"$/m.test(s));
-  assert.equal(found.length, 1);
-  return ifOf(found[0]);
-};
+  assert.equal(found.length, LEGS.length);
+  for (const job of LEGS) assert.match(stepIn(job, "Record the start"), /printf '%s\\n' "\$RELEASE"/, job);
+});
 const leg = (over) => ({
   "steps.gate.outputs.proceed": "true",
   "steps.models.outcome": "success",
+  "steps.credential.outputs.present": "true",
   "steps.run.outcome": "failure",
-  "steps.credit-marker-upload.outcome": "success",
   ...over,
 });
 
-test("a credit-stopped leg whose marker uploaded writes no start record, so it does not count toward the cap", () => {
-  // The run after the window probes the key (skip-key empty) and credit-stops again.
-  assert.equal(evalIf(startWrite(), leg({ "steps.run.outputs.handoff-reason": "credit-stop" })), false);
+test("a leg that hands off writes no start record, so only the leg that runs the release counts toward the cap", () => {
+  for (const job of ["model", "model-subscription"]) {
+    for (const reason of ["credit-stop", "auth", "limit-stop"]) {
+      assert.equal(evalIf(startWrite(job), leg({ "steps.run.outputs.handoff": "true", "steps.run.outputs.handoff-reason": reason })), false, `${job} ${reason}`);
+    }
+    // An empty credential hands the release on too.
+    assert.equal(evalIf(startWrite(job), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false, `${job} empty credential`);
+  }
+  // The last leg never hands off, so a set token always counts.
+  assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.run.outputs.handoff": "true" })), true);
+  assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
 });
 
-test("a leg that ran writes a start record on success, on any other failure, and on a credit stop with no marker", () => {
-  const write = startWrite();
-  assert.equal(evalIf(write, leg({ "steps.run.outcome": "success" })), true, "success");
-  for (const cls of ["other", "timeout", "max-turns", "auth"]) {
-    assert.equal(evalIf(write, leg({ "steps.run.outputs.lane-class": cls })), true, cls);
-  }
-  for (const marker of ["failure", "skipped"]) {
-    const ctx = leg({ "steps.run.outputs.handoff-reason": "credit-stop", "steps.credit-marker-upload.outcome": marker });
-    assert.equal(evalIf(write, ctx), true, `credit stop, marker upload ${marker}`);
+test("a leg that ran writes a start record on success and on any failure it does not hand off", () => {
+  for (const job of LEGS) {
+    const write = startWrite(job);
+    assert.equal(evalIf(write, leg({ "steps.run.outcome": "success", "steps.run.outputs.handoff": "false" })), true, `${job} success`);
+    for (const cls of ["other", "timeout", "max-turns", "auth"]) {
+      assert.equal(evalIf(write, leg({ "steps.run.outputs.lane-class": cls, "steps.run.outputs.handoff": "false" })), true, `${job} ${cls}`);
+    }
   }
 });
 
 test("a setup failure before the leg still writes a start record, so the cap bounds a persistent setup fault", () => {
-  const write = startWrite();
-  const noLeg = { "steps.run.outcome": "skipped", "steps.credit-marker-upload.outcome": "skipped" };
-  for (const models of ["success", "failure"]) {
-    assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": models })), true, `resolve ${models}, no leg`);
-  }
-  // The kill switch skips Resolve the model: that run is not counted.
-  assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": "skipped" })), false, "kill switch");
-  // The scan the record needs comes from the trusted checkout, which runs on the same condition.
-  for (const step of ["Clear the trusted checkout path", "Check out the base for the sealer"]) {
-    assert.equal(ifOf(stepIn("model", step)), "always() && steps.models.outcome != 'skipped'", step);
+  for (const job of LEGS) {
+    const write = startWrite(job);
+    const noLeg = { "steps.run.outcome": "skipped", "steps.credential.outputs.present": "" };
+    for (const models of ["success", "failure"]) {
+      assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": models })), true, `${job} resolve ${models}, no leg`);
+    }
+    // The kill switch skips Resolve the model: that run is not counted.
+    assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": "skipped" })), false, `${job} kill switch`);
+    // The scan the record needs comes from the trusted checkout, which runs on the same condition.
+    for (const step of ["Clear the trusted checkout path", "Check out the base for the sealer"]) {
+      assert.equal(ifOf(stepIn(job, step)), "always() && steps.models.outcome != 'skipped'", `${job} ${step}`);
+    }
   }
 });
 
-test("the model step times out before the job does, so a timed-out leg still writes its start record", () => {
+test("each leg's model step times out before the job does, so a timed-out leg still writes its start record", () => {
   const minutes = (text, indent) => Number(new RegExp(`^ {${indent}}timeout-minutes: (\\d+)$`, "m").exec(text)?.[1]);
-  const job = minutes(jobOf("model").split(/\n {4}steps:\n/)[0], 4);
-  const run = stepIn("model", "Run the changelog apply");
-  const step = minutes(run, 8);
-  const legMinutes = Number(/^ {10}leg-timeout-minutes: "(\d+)"$/m.exec(run)?.[1]);
-  assert.ok(legMinutes < step && step <= job - 5, `leg ${legMinutes}, step ${step}, job ${job}`);
-  assert.match(run, /^ {8}continue-on-error: true$/m);
-  // A step past its timeout-minutes concludes failure, which the record step runs after.
-  assert.equal(evalIf(startWrite(), leg({ "steps.run.outcome": "failure", "steps.run.outputs.lane-class": "timeout", "steps.credit-marker-upload.outcome": "skipped" })), true);
+  for (const job of LEGS) {
+    const jobMinutes = minutes(jobOf(job).split(/\n {4}steps:\n/)[0], 4);
+    const run = stepIn(job, "Run the changelog apply");
+    const step = minutes(run, 8);
+    const legMinutes = Number(/^ {10}leg-timeout-minutes: "(\d+)"$/m.exec(run)?.[1]);
+    assert.ok(legMinutes < step && step <= jobMinutes - 5, `${job}: leg ${legMinutes}, step ${step}, job ${jobMinutes}`);
+    assert.match(run, /^ {8}continue-on-error: true$/m);
+    assert.equal(evalIf(startWrite(job), leg({ "steps.run.outcome": "failure", "steps.run.outputs.lane-class": "timeout" })), true, job);
+  }
 });
 
-test("the model job writes, scans and uploads the start record after the leg and the marker upload", () => {
-  const record = stepIn("model", "Record the start");
-  assert.match(record, /^ {8}id: start$/m);
-  assert.match(record, /rm -rf "\$\{RUNNER_TEMP:\?\}\/started"/);
-  assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.gate\.outputs\.release \}\}$/m);
-  const scan = stepIn("model", "Scan the start record for credentials");
-  assert.equal(ifOf(scan), "always() && steps.start.outcome == 'success'");
-  assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
-  const upload = stepIn("model", "Upload the start record");
-  assert.equal(ifOf(upload), "(always() && steps.start.outcome == 'success') && steps.start-scan.outputs.clean == 'true'");
-  assert.match(upload, /^ {10}name: upstream-apply-changelog-started$/m);
-  assert.doesNotMatch(upload, /continue-on-error/);
-  for (const before of ["Run the changelog apply", "Check out the base for the sealer", "Upload the key's credit-stop marker"]) {
-    assert.ok(indexIn("model", before) < indexIn("model", "Record the start"), before);
+test("each leg writes, scans and uploads the start record after the leg", () => {
+  for (const job of LEGS) {
+    const record = stepIn(job, "Record the start");
+    assert.match(record, /^ {8}id: start$/m);
+    assert.match(record, /rm -rf "\$\{RUNNER_TEMP:\?\}\/started"/);
+    assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.gate\.outputs\.release \}\}$/m);
+    const scan = stepIn(job, "Scan the start record for credentials");
+    assert.equal(ifOf(scan), "always() && steps.start.outcome == 'success'");
+    assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
+    const upload = stepIn(job, "Upload the start record");
+    assert.equal(ifOf(upload), "(always() && steps.start.outcome == 'success') && steps.start-scan.outputs.clean == 'true'");
+    assert.match(upload, /^ {10}name: upstream-apply-changelog-started$/m);
+    assert.doesNotMatch(upload, /continue-on-error/);
+    for (const before of ["Run the changelog apply", "Check out the base for the sealer"]) {
+      assert.ok(indexIn(job, before) < indexIn(job, "Record the start"), `${job} ${before}`);
+    }
+    assert.ok(indexIn(job, "Record the start") < indexIn(job, "Scan the start record for credentials"));
+    assert.ok(indexIn(job, "Scan the start record for credentials") < indexIn(job, "Upload the start record"));
   }
-  assert.match(stepIn("model", "Upload the key's credit-stop marker"), /^ {8}id: credit-marker-upload$/m);
-  assert.ok(indexIn("model", "Record the start") < indexIn("model", "Scan the start record for credentials"));
-  assert.ok(indexIn("model", "Scan the start record for credentials") < indexIn("model", "Upload the start record"));
+  assert.ok(indexIn("model", "Upload the key's credit-stop marker") < indexIn("model", "Record the start"));
   const row = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families[STARTED_ARTIFACT];
   assert.equal(row.scan, "upload");
 });
 
-test("a credit stop writes a job summary line that says whether the run counts toward the cap", (t) => {
-  const step = stepIn("model", "Report the credit stop");
-  assert.equal(ifOf(step), "always() && steps.run.outputs.handoff-reason == 'credit-stop'");
-  assert.match(step, /^ {10}COUNTED: \$\{\{ steps\.start-upload\.outcome == 'success' \}\}$/m);
-  assert.ok(indexIn("model", "Upload the start record") < indexIn("model", "Report the credit stop"));
+test("a key handoff writes a job summary line naming the subscription leg that takes the release", (t) => {
+  const step = stepIn("model", "Report the key's handoff");
+  assert.equal(ifOf(step), "always() && steps.run.outputs.handoff == 'true'");
   const run = step.split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(join(tmpdir(), "credit-stop-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const summary = join(dir, "summary.md");
-  const report = (counted) => {
+  const report = (laneClass) => {
     rmSync(summary, { force: true });
     const out = execFileSync("bash", ["-e", "-c", run], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH, RELEASE: "2.1.318", COUNTED: counted, GITHUB_STEP_SUMMARY: summary },
+      env: { PATH: process.env.PATH, RELEASE: "2.1.318", LANE_CLASS: laneClass, GITHUB_STEP_SUMMARY: summary },
     });
     assert.equal(readFileSync(summary, "utf8"), out.replace(/^::warning::/, ""));
     return out;
   };
-  assert.match(report("false"), /^::warning::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop \(class credit-stop\); release 2\.1\.318 .*does not count toward the per-day cap$/m);
-  assert.match(report("true"), /this run counts toward the per-day cap, since no credit-stop marker was uploaded$/m);
+  assert.match(report("credit-stop"), /^::warning::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop \(class credit-stop\); model-subscription runs release 2\.1\.318 on the subscription token$/m);
+  assert.match(report("auth"), /^::warning::the API refused ISSUE_LANE_CLAUDE_API_KEY \(class auth\);.*model-subscription runs release 2\.1\.318/m);
+});
+
+test("the subscription leg runs after a key handoff, an empty key or a credit-gate skip, and the fallback leg after a subscription handoff", () => {
+  const folded = (job) => (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobOf(job))?.[1] ?? "").replace(/\s+/g, " ").trim().replace(/^\$\{\{ (.*) \}\}$/, "$1");
+  const sub = folded("model-subscription").replace("!cancelled() && ", "");
+  const base = { "needs.gate.outputs.proceed": "true" };
+  const runsSub = (over) => evalIf(sub.replace("github.run_attempt == '1'", "true"), { ...base, ...over });
+  assert.equal(runsSub({ "needs.model.outputs.handoff": "true" }), true);
+  assert.equal(runsSub({ "needs.model.outputs.credential-present": "false" }), true);
+  assert.equal(runsSub({ "needs.gate.outputs.skip-key": "true" }), true, "a credit-stopped key goes straight to the subscription");
+  assert.equal(runsSub({ "needs.model.outputs.handoff": "false" }), false);
+  assert.equal(runsSub({ "needs.gate.outputs.proceed": "", "needs.gate.outputs.skip-key": "true" }), false);
+  const fb = folded("model-fallback").replace("!cancelled() && ", "").replace("github.run_attempt == '1'", "true");
+  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.handoff": "true" }), true);
+  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.handoff": "false" }), false);
+  assert.match(jobOf("model-subscription"), /^ {4}needs: \[gate, model\]$/m);
+  assert.match(jobOf("model-fallback"), /^ {4}needs: \[gate, model-subscription\]$/m);
+  // One credential per leg, each passed to run-claude-cli alone.
+  const run = (job) => stepIn(job, "Run the changelog apply");
+  assert.match(run("model"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
+  assert.match(run("model-subscription"), /^ {10}subscription-token: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}$/m);
+  assert.match(run("model-fallback"), /^ {10}fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}$/m);
+  // Each leg seals under its own job id, and the scan opens the leg that ran.
+  for (const job of LEGS) assert.match(stepIn(job, "Seal the plan and the branches"), new RegExp(`^ {10}JOB_ID: ${job}$`, "m"), job);
+  assert.match(stepIn("scan", "Open the model job's sealed payloads"), /job-id: \$\{\{ needs\.model-fallback\.result != 'skipped' && 'model-fallback' \|\| needs\.model-subscription\.result != 'skipped' && 'model-subscription' \|\| 'model' \}\}/);
+  // Only the key leg writes the credit gate's marker.
+  for (const job of ["model-subscription", "model-fallback"]) assert.doesNotMatch(jobOf(job), /key-credit-stop/, job);
+});
+
+// The legs are the key leg's steps but for the credential, the marker, the
+// handoff report, the leg record's fallback reason and the seal's job id.
+test("the subscription and fallback legs repeat the key leg's steps", () => {
+  const shape = (job) =>
+    stepsOf(job)
+      .filter((s) => !/^ {6}- name: (?:Write the key's credit-stop marker|Scan the key's credit-stop marker for credentials|Upload the key's credit-stop marker|Report the key's handoff|Report the subscription's handoff|Check the credential)\n/.test(s))
+      .map((s) =>
+        s
+          .replace(/^ *#.*(?:\n|$)/gm, "")
+          .trimEnd()
+          .replace(/^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|JOB_ID): .*(?:\n|$)/gm, "")
+          .replace(/ && steps\.run\.outputs\.handoff != 'true'/, ""),
+      );
+  assert.deepEqual(shape("model-subscription"), shape("model"));
+  assert.deepEqual(shape("model-fallback"), shape("model"));
 });
 
 test("the gate stops a fourth real run inside 24 hours and lets a third through", async (t) => {

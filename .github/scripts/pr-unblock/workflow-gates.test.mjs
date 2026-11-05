@@ -561,8 +561,9 @@ test("pr-unblock.yml: adjudicate-feedback logs the API budget its prepare step s
 });
 
 // adjudicate-feedback.mjs stages up to MAX_THREADS slots, and the job has one
-// stage, judge and keep step per slot; a slot with no steps would read as
-// unadjudicated with no error.
+// stage step, three judge legs (key, subscription, fallback) and one keep
+// step per slot; a slot with no steps would read as unadjudicated with no
+// error.
 test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each with the same grants", () => {
   const steps = [];
   for (const line of jobBlock(UNBLOCK, "adjudicate-feedback")) {
@@ -575,21 +576,37 @@ test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each
   const slotOf = (step) => /\/adjudicate\/(\d+)$/.exec(step.find((line) => line.includes("SLOT_DIR:")) ?? "")?.[1];
   const judges = steps.filter((step) => /run-claude-cli@/.test(field(step, "uses") ?? ""));
   const slots = Array.from({ length: MAX_THREADS }, (_, n) => n);
-  assert.deepEqual(judges.map((step) => field(step, "id")), slots.map((n) => `judge-${n}`));
+  const legIds = (n) => [`judge-${n}`, `judge-${n}-subscription`, `judge-${n}-fallback`];
+  assert.deepEqual(judges.map((step) => field(step, "id")), slots.flatMap(legIds));
   for (const n of slots) {
     const stage = steps.find((step) => nameOf(step) === `Stage disputed thread ${n}`);
-    const judge = judges[n];
+    const [key, sub, fb] = legIds(n).map((id) => judges.find((step) => field(step, "id") === id));
     const keep = steps.find((step) => nameOf(step) === `Keep disputed thread ${n}'s verdict`);
-    const counted = `steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
-    assert.equal(gateOf(stage), counted, `stage ${n}`);
-    assert.equal(gateOf(judge), counted, `judge ${n}`);
-    assert.equal(gateOf(keep), `always() && steps.judge-${n}.outputs.structured-output-file != ''`, `keep ${n}`);
+    const counted = `fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
+    assert.equal(gateOf(stage), `steps.token.outputs.any == 'true' && ${counted}`, `stage ${n}`);
+    assert.equal(gateOf(key), `steps.key.outputs.key == 'true' && ${counted}`, `key leg ${n}`);
+    assert.equal(gateOf(sub), `steps.token.outputs.token == 'true' && ${counted} && (steps.judge-${n}.outcome == 'skipped' || steps.judge-${n}.outputs.handoff == 'true')`, `subscription leg ${n}`);
+    assert.equal(gateOf(fb), `steps.token.outputs.fallback == 'true' && ${counted} && steps.judge-${n}-subscription.outputs.handoff == 'true'`, `fallback leg ${n}`);
+    assert.match(gateOf(keep), new RegExp(`^always\\(\\) && \\(steps\\.judge-${n}\\.outputs\\.structured-output-file != ''`), `keep ${n}`);
     assert.equal(slotOf(stage), String(n), `stage ${n} copies its own slot`);
     assert.equal(slotOf(keep), String(n), `keep ${n} writes its own slot`);
+    // Each leg passes exactly one credential, the fallback-ready only on the subscription leg.
+    const credentials = (step) => step.filter((line) => /^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready): /.test(line)).map((line) => line.trim());
+    assert.deepEqual(credentials(key), ["api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}"], `key leg ${n}`);
+    assert.deepEqual(credentials(sub), ["subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}", "fallback-ready: ${{ steps.token.outputs.fallback }}"], `subscription leg ${n}`);
+    assert.deepEqual(credentials(fb), ["fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"], `fallback leg ${n}`);
+    // Every leg writes its own lane record.
+    for (const leg of [key, sub, fb]) {
+      const id = field(leg, "id");
+      const record = steps.find((step) => /report-lane-outcome@/.test(field(step, "uses") ?? "") && gateOf(step) === `always() && steps.${id}.outcome != 'skipped'`);
+      assert.ok(record, `${id} has a lane record`);
+      assert.ok(record.some((line) => line === "          lane-id: adjudicate-feedback"), `${id} record lane-id`);
+    }
   }
+  const credentialLines = /^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready): .*\n/gm;
   const withOf = (step) => step.slice(step.indexOf("        with:")).join("\n");
   for (const judge of judges.slice(1)) {
-    assert.equal(withOf(judge), withOf(judges[0]), "every slot's model call has the same inputs and grants");
+    assert.equal(withOf(judge).replace(credentialLines, ""), withOf(judges[0]).replace(credentialLines, ""), "every slot's model call has the same inputs and grants");
   }
   assert.match(withOf(judges[0]), /\n {10}allowed-tools: Read\(\.\/adjudicate\/\*\*\)\n/, "Read is allowed in the slot alone");
   assert.match(withOf(judges[0]), /\n {10}tools: Read\n/, "the judge's one tool is Read");
