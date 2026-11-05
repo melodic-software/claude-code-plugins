@@ -307,7 +307,7 @@ Read in this order. Stopping early at any step is the finding.
    for a plugin file it could not read, so the fact belongs in the hub. So is a with-arm Bash call
    whose result reports a sandbox network denial (Sources: sandbox network denial report), whose
    hosts the summary names: the score measured a blocked request. Only an invocation probe, a
-   control, or a case whose `prompt.md` tags include `no-network` turns it into a warning; a
+   control, or a case whose `prompt.md` or `case.yaml` tags include `no-network` turns it into a warning; a
    without-arm one is not read. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
