@@ -58,7 +58,7 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
 3. The printed home is repo-relative: join it to the root, then pass
    `<root>/<home>/authoring-formats/README.md` to the resolver.
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
-   There is no personal overlay.
+   There is no personal override.
 5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
    is unset, write `containers.json` and `containers.md` with the tables, and draw no diagram block.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid

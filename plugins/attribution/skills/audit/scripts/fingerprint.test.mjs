@@ -432,6 +432,30 @@ const SOURCE_TEXT = [
   );
 }
 
+// --- case: url_tokens_count_zero_words ---------------------------------------
+// A URL split on its punctuation reads as several words; a cited link is not prose.
+{
+  const urlOnly = tokenize("https://example.com/docs/en/flowlite/configuration-reference.md");
+  check(
+    "url_tokens_count_zero_words: a URL-only line counts zero words",
+    urlOnly.length === 0,
+    JSON.stringify(urlOnly),
+  );
+  const around = tokenize("See <https://example.com/docs/flowlite>, or [the page](https://example.com/a/b).");
+  check(
+    "url_tokens_count_zero_words: the words around a URL still count",
+    around.map((t) => t.word).join(" ") === "see or the page",
+    JSON.stringify(around),
+  );
+  const citation = "- https://example.com/docs/en/build-with-flowlite/configuring-the-cache-and-the-runner";
+  const r = compare(citation, `${SOURCE_TEXT}\n\n${citation}`);
+  check(
+    "url_tokens_count_zero_words: a URL shared with the source is no matched span",
+    r.matched_spans.length === 0 && r.local_shingles === 0 && r.separation.fired === false,
+    JSON.stringify(r),
+  );
+}
+
 // --- case: shingle_and_set_metrics ------------------------------------------
 {
   const a = shingles(tokenize("one two three four five six"), 5);

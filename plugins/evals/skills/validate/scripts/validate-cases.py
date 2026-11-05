@@ -870,6 +870,64 @@ def skills_named(prompt, tags):
     return [name for name in dict.fromkeys(names) if SKILL_NAME.match(name)]
 
 
+def containment_root(eval_dir):
+    """The nearest directory at or above the suite holding a plugin manifest,
+    else the suite's parent, which is the plugin directory in the usual layout."""
+    here = eval_dir
+    while True:
+        if os.path.isfile(
+            os.path.join(here, ".claude-plugin", "plugin.json")
+        ) or os.path.isfile(os.path.join(here, "plugin.json")):
+            return here
+        parent = os.path.dirname(here)
+        if parent == here:
+            return os.path.dirname(eval_dir)
+        here = parent
+
+
+def check_plugins(case_dir, root, value, case, path, findings):
+    """FAIL a `plugins` entry the binary refuses at load: one outside the
+    containment root, or one inside it that is neither the root itself nor a
+    subdirectory of the case. Containment rule source: the "Run the plugin eval" step log of
+    https://github.com/melodic-software/claude-code-plugins/actions/runs/41894661524
+    (as of 2026-11-04); recheck when the CLI's containment-root message changes."""
+    if not isinstance(value, list):
+        return
+    real_root = os.path.realpath(root)
+    real_case = os.path.realpath(case_dir)
+    for entry in value:
+        if not isinstance(entry, str):
+            continue
+        target = os.path.realpath(os.path.join(case_dir, entry))
+        if os.path.commonpath([real_root, target]) != real_root:
+            message = (
+                "it resolves outside the plugin under evaluation, and only "
+                "plugins under it load from a case"
+            )
+        elif target == real_root or (
+            target != real_case and os.path.commonpath([real_case, target]) == real_case
+        ):
+            continue
+        else:
+            # The CLI refuses a second plugin anywhere else, such as a stub
+            # shared under evals/fixtures/: "a plugin shipped with a case must
+            # sit in its own subdirectory". Pointer: the Fix section of
+            # https://github.com/melodic-software/claude-code-plugins/pull/13376
+            # (as of 2026-11-04); recheck when that refusal message changes.
+            message = (
+                "a second plugin must sit in a subdirectory of the case's own "
+                "directory; only the plugin under evaluation loads from elsewhere"
+            )
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                path,
+                'plugins entry "%s" is not loadable: %s' % (entry, message),
+            )
+        )
+
+
 def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
     """WARN when a named skill's pre-computed context line has no Bash grant."""
     value, path = fields.get("allowed_tools", ([], home))
@@ -1597,7 +1655,7 @@ def check_samples(case, graders, samples, findings):
         )
 
 
-def analyze_case(case_dir, case, findings, plugin_root=None):
+def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
     """Validate one case, appending its findings."""
     fields = {}
     tags = None
@@ -1628,8 +1686,9 @@ def analyze_case(case_dir, case, findings, plugin_root=None):
             for key in ("schema_version", "name"):
                 if key in yaml_data:
                     identity[key] = (yaml_data[key], "case.yaml")
-            if "runs" in yaml_data:
-                fields["runs"] = (yaml_data["runs"], "case.yaml")
+            for key in ("runs", "plugins"):
+                if key in yaml_data:
+                    fields[key] = (yaml_data[key], "case.yaml")
             execution = yaml_data.get("execution")
             if isinstance(execution, dict):
                 if isinstance(execution.get("prompt"), str):
@@ -1690,7 +1749,7 @@ def analyze_case(case_dir, case, findings, plugin_root=None):
                 for key in ("schema_version", "name"):
                     if key in prompt_fm:
                         identity[key] = (prompt_fm[key], "prompt.md")
-                for key in ("runs",) + EXECUTION_KEYS:
+                for key in ("runs", "plugins") + EXECUTION_KEYS:
                     if key in prompt_fm:
                         fields[key] = (prompt_fm[key], "prompt.md")
                 tags = prompt_fm.get("tags")
@@ -1703,6 +1762,9 @@ def analyze_case(case_dir, case, findings, plugin_root=None):
     if plugin_root is not None:
         home = "prompt.md" if os.path.isfile(prompt_path) else "case.yaml"
         check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings)
+    if containment is not None and "plugins" in fields:
+        value, path = fields["plugins"]
+        check_plugins(case_dir, containment, value, case, path, findings)
 
     graders = collect_graders(case_dir, case, yaml_data, findings)
     if not graders:
@@ -1781,9 +1843,10 @@ def validate(eval_dir):
         )
         return findings
 
+    root = containment_root(eval_dir)
     for case_dir in cases:
         case = os.path.relpath(case_dir, eval_dir).replace(os.sep, "/")
-        analyze_case(case_dir, case, findings, os.path.dirname(eval_dir))
+        analyze_case(case_dir, case, findings, os.path.dirname(eval_dir), root)
 
     findings.sort(key=Finding.sort_key)
     return findings

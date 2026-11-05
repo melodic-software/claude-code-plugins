@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low --narration video/narration"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w && python3.13 \"/p/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"/p/scripts/render.py\" video/scene.py Odd --out video/low --narration \"/w/video/narration\""
+          }
+        }
+      ],
+      "why": "quoted absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low --narration=video/narration"
+          }
+        }
+      ],
+      "why": "equals form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low"
+          }
+        }
+      ],
+      "why": "silent render"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n -- --narration /p/skills/produce/SKILL.md"
+          }
+        }
+      ],
+      "why": "read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low --narration video/audio"
+          }
+        }
+      ],
+      "why": "wrong folder"
+    }
+  ]
+}

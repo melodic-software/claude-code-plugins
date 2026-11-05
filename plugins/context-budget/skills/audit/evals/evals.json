@@ -84,7 +84,7 @@
       "expected_output": "Completes the read-only audit and does not enter the guided fix path from a mid-report aside: names the explicit `fix` invocation as the route, and applies nothing in this run.",
       "files": [],
       "expectations": [
-        "No settings surface is written during a bare audit invocation, regardless of conversational asides",
+        "No settings file is written during a bare audit invocation, regardless of conversational asides",
         "The explicit fix argument is named as the mutation route",
         "The read-only report is still delivered in full"
       ]

@@ -9,18 +9,22 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
 | Arm | `fanout_diversity` | Codex | `plugins` in `case.yaml` |
 |---|---|---|---|
 | `l` (L) | `lens` | left out | `["../.."]` |
-| `m` (M) | `model` | left out | `["../..", "../../../multi-agent"]` |
-| `mx` (M+X) | `model` | runs | `["../..", "../../../multi-agent"]` |
+| `m` (M) | `model` | left out | `["../..", "multi-agent-stub"]` |
+| `mx` (M+X) | `model` | runs | `["../..", "multi-agent-stub"]` |
 | `lx` (L+X) | `lens` | runs | `["../.."]` |
 
 - Each arm's `scaffold.sh` commits `docs/conventions/review.yaml` with the arm's
   `fanout_diversity` on `main`, before the branch. The reviewed diff never edits it, so the skill
   reads the repository layer and reports `fanout_diversity: <value> (<layer>)`, where the layer
   reads `repository` or `docs/conventions/review.yaml`.
-- The M arms load `multi-agent` so `/multi-agent:route` gives the role map that `model` spreads
-  the review over. With fewer than two distinct tiers the sweep runs `lens`, and the arm check
-  fails. Run every arm with the same `--model`, one whose role map resolves two or more distinct
-  fan-out tiers.
+- The M arms load `multi-agent-stub/` from the case directory, a stand-in named `multi-agent`
+  whose only skill, `route`, prints the role map the real plugin's bundled defaults resolve to
+  with no config layer. `/multi-agent:route` gives the role map that `model` spreads the review
+  over. A case loads only plugins under `review`, and a plugin shipped with a case only from the
+  case's own subdirectory, so each M case carries its own copy. With fewer than two distinct tiers
+  the sweep runs `lens`, and the arm check fails. Run every arm with the same `--model`, one whose
+  role map resolves two or more distinct fan-out tiers (`opus` or `fable`). When the real
+  `multi-agent` bundled defaults change, update the stub's JSON to match.
 - The X arms cannot pass as committed. Every command of `codex@openai-codex` 1.0.6,
   `/codex:review` included, sets `disable-model-invocation: true`, so the model cannot start
   Codex through those commands, and fanout runs it through
@@ -38,13 +42,10 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
 - Run the L and M arms with `--scaffold --allow-tools Bash Write Workflow`. Without `Workflow` the sweep
   runs fanout's main-thread fallback, not `review:fanout-sweep`. Keep `TMPDIR` out of `/tmp` and
   `/var/tmp`, where the run's Bash cannot write its workspace (#12422).
-- The M arms load a plugin outside `review`, so the eval target must contain both: stage
-  `review` and `multi-agent` under one directory holding a `.claude-plugin/plugin.json`, and run
-  `claude plugin eval <that directory> --eval-dir plugins/review/evals`.
 - `node` must resolve on the run's `PATH` without the operator's home directory. A version-manager
   shim that reads its config from `HOME` fails under an isolated `HOME`: the review config read
-  then fails, so the report says `(default)` and the arm check fails, and in the M arms the
-  `multi-agent` hooks block every Bash call. Put the real `node` directory first on `PATH`.
+  then fails, so the report says `(default)` and the arm check fails. Put the real `node`
+  directory first on `PATH`.
 
 ## Case directory
 

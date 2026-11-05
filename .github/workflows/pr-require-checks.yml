@@ -1301,11 +1301,11 @@ jobs:
   # read fixed, path-scoped inputs that a diff confined to the docs-only
   # allowlist (scripts/docs-only-paths.txt) cannot touch, so on such a diff they
   # report an honest evaluated-and-not-applicable success. Exec-bit,
-  # hook-wiring-liveness, purged-em-dashes, and next-graph are NOT gated: they
-  # scan the whole repository, and a shebang/hook file added under an otherwise
-  # docs-only prefix is real input they must still catch, as is a docs-only
-  # diff that reintroduces an em dash on a purged surface or strands a
-  # planning-chain `## Next` target.
+  # hook-wiring-liveness, purged-em-dashes, next-graph and vocabulary are NOT
+  # gated: they scan the whole repository, and a shebang/hook file added under
+  # an otherwise docs-only prefix is real input they must still catch, as is a
+  # docs-only diff that reintroduces an em dash on a purged surface, strands a
+  # planning-chain `## Next` target or brings back a retired vocabulary sense.
   # ShellCheck, ungated for the same reason, runs in `lint-shell`.
   #
   # The job skips only on a contract-only event or a draft; otherwise only
@@ -1833,6 +1833,15 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh next-graph {0}
         run: python3 scripts/check-next-graph.py
 
+      # Ungated for the same reason: a retired vocabulary sense (rung, default
+      # ladder, overlay, tier, surface, contract) comes back through prose, and
+      # the checker reads the whole tracked tree (scripts/vocabulary-senses.json).
+      - name: Check the repository for retired vocabulary senses
+        id: vocabulary
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh vocabulary {0}
+        run: python3 -I scripts/check-vocabulary.py
+
       # A plugin's prose counts its own skills by hand ("bundling fourteen
       # skills", "the other thirteen skills are zero-config") and nothing
       # recomputes those numbers when a skill lands, so adding one silently
@@ -1865,7 +1874,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_full == 'false'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, purged-em-dashes, and next-graph scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, purged-em-dashes, next-graph and vocabulary scan the whole repo and stay unconditional."
 
       # ONE DETERMINISTIC PROSE DETECTOR, AS WARNINGS. The ai-slop audit's own
       # detector reads the markdown this pull request changed and annotates
@@ -2011,6 +2020,7 @@ jobs:
             hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
             purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
             next-graph=${{ steps.next_graph.outcome }}
+            vocabulary=${{ steps.vocabulary.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
@@ -6074,21 +6084,26 @@ jobs:
           done <<<"$issues"
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
-      # ONLY A LANES APP PULL REQUEST IN THE QUEUE NEEDS PR-MERGE'S CARRIED
-      # READS: the lanes-hold step is their one reader, and it exits at its
-      # author check for every other author. This step reads the queued pull
-      # request through pr_read with the args the pr-unblock and lanes-hold
-      # steps read it with, so their reads answer from the cache and the job
-      # makes no more REST calls than before. `lanes` is `false` only when
-      # the read proves an author that is not the lanes App (the lanes-hold
-      # step's own test); an unread pull, ref or id leaves it unset, and the
-      # two carry steps run as before.
+      # ONLY A QUEUED PULL REQUEST WHOSE AUTHOR PR-VERIFY JUDGES NEEDS
+      # PR-MERGE'S CARRIED READS: the lanes-hold step's verdict reader is their
+      # one reader, and it exits at its author check for every other author.
+      # This step reads the queued pull request through pr_read with the args
+      # the pr-unblock and lanes-hold steps read it with, so their reads answer
+      # from the cache and the job makes no more REST calls than before.
+      # `lanes` is `false` only when the read proves an author that is not the
+      # lanes App (the lanes-hold step's own test). `verify_judged` is `false`
+      # only when it also proves an author pr-verify does not judge, by the
+      # lanes-hold step's predicate over merge.verify-authors in the hold
+      # config's pr-pipeline.yaml and its trusted-actor list; the three
+      # verdict-read steps below skip on it. An unread pull, ref, id or config
+      # leaves both unset, and those steps run as before.
       - name: Read whether the queued pull request is the lanes App's
         id: queued_author
         if: ${{ !cancelled() && github.event_name == 'merge_group' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
@@ -6099,10 +6114,38 @@ jobs:
           fi
           if jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
             echo "lanes=true" >>"$GITHUB_OUTPUT"
+            echo "verify_judged=true" >>"$GITHUB_OUTPUT"
             echo "#$pr is the lanes App's; the carry steps run."
+            exit 0
+          fi
+          echo "lanes=false" >>"$GITHUB_OUTPUT"
+          # Whether pr-verify judges the author: resolve-pr.mjs resolvePull's
+          # dependency-manager skip, then its merge.verify-authors test, word for
+          # word as the lanes-hold step runs it.
+          # shellcheck disable=SC2016 # jq, not shell
+          if [ ! -d "${BASE_CONFIG:-}" ] ||
+            ! authors=$(yq -er '.merge."verify-authors" // "lane"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! identity=$(yq -er '.merge."agent-identity" // ""' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! judged=$(jq -r --arg authors "$authors" --arg identity "$identity" --slurpfile list "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json" '
+              def key: tostring | gsub("^\\s+|\\s+$"; "") | ascii_downcase | sub("\\[bot\\]$"; "");
+              .user as $user
+              | ($user.type == "Bot" and ($user.login // "" | tostring | ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; "")
+                  | IN("dependabot", "dependabot-preview", "renovate", "renovate-bot"))) as $manager
+              | (($identity | key) != "" and $user.type == "Bot" and ($user.login // "" | key) == ($identity | key)) as $lane
+              | (($user.type == "User" or $user.type == "Bot") and any($list[0].actors[]; .id == $user.id)) as $owner
+              | if $manager then false
+                elif $authors == "any" then true
+                elif $authors == "lane-or-owner" then $lane or $owner
+                elif $authors == "lane" then $lane
+                else false end' <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
+            echo "#$pr is not the lanes App's, and whether pr-verify judges its author is not read here; the verdict-read steps run."
+            exit 0
+          fi
+          echo "verify_judged=$judged" >>"$GITHUB_OUTPUT"
+          if [ "$judged" = true ]; then
+            echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors); the verdict-read steps run."
           else
-            echo "lanes=false" >>"$GITHUB_OUTPUT"
-            echo "#$pr is not the lanes App's; the carry steps are skipped."
+            echo "#$pr is not the lanes App's, and pr-verify does not judge its author; the carry steps are skipped."
           fi
       # MAIN'S TIP, LISTED ONCE FOR THE CARRY READERS. carry-run-cache.mjs and
       # head-ref-map.mjs each run in their own process
@@ -6116,7 +6159,7 @@ jobs:
       # before. Each run is still compared with the tip.
       - name: List main's tip for the carry readers
         id: main_tip
-        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.verify_judged != 'false' }}
         continue-on-error: true
         run: |
           if ! refs=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY" refs/heads/main refs/tags/main); then
@@ -6136,7 +6179,7 @@ jobs:
       # The reads that never change (FAIL run records, FAIL head refs, run
       # heads on main) that pr-merge's last scheduled or hand-started run kept,
       # so the lanes-hold step's reader reads only what landed since: about 73
-      # requests for a lanes App pull request where a cold reader makes about
+      # requests for a judged pull request where a cold reader makes about
       # 860 (one run read and compare per FAIL and a download per untied
       # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs, and at
       # most the cold-read headroom check's cold_cost under the listing's
@@ -6149,11 +6192,12 @@ jobs:
       # (#9455). Every kept read still lands in a carried-* section the reader
       # uses only where it counts a FAIL, never to turn one away or allow a
       # pass. Any error leaves the cache empty, and the step holds a cold
-      # reader. Both steps skip a queued pull request the step above proved
-      # is not the lanes App's. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
+      # reader. Both steps skip a queued pull request whose author the step
+      # above proved pr-verify does not judge. Rules:
+      # .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Read the verdict reads pr-merge's last scheduled run kept
         id: verdict_reads_restore
-        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.verify_judged != 'false' }}
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -6165,7 +6209,7 @@ jobs:
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
-        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.verify_judged != 'false' }}
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -6209,8 +6253,24 @@ jobs:
       # is lifted ci-status needs a re-run. Only the lanes App's pull requests are read, by numeric id
       # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
       # it); every other pull request merges through pr-merge's gate or a
-      # person. An unreadable pull request, module, config, file list or
-      # discussion fails closed.
+      # person, but for the verifier holds below. An unreadable pull request,
+      # module, config, file list or discussion fails closed.
+      # IN THE MERGE QUEUE, ANOTHER AUTHOR PR-VERIFY JUDGES HOLDS ON A FAIL:
+      # an owner's credentials can queue a pull request pr-verify failed, so
+      # one whose author resolve-pr.mjs resolvePull judges (no dependency
+      # manager, and merge.verify-authors in the hold config's pr-pipeline.yaml
+      # with its trusted-actor list: under `lane-or-owner` a User or Bot whose
+      # id the list holds) runs the same verdict reader and holds only on
+      # verify:fail or verify:earlier-fail at the head, by the base module's
+      # evidenceHold (owner decisions 2026-11-04 "Hold on FAIL only
+      # (Recommended)" and "FAIL holds, cap not (Recommended)").
+      # verify:repeated-fail warns and does not hold, nor do no pass, a stale
+      # or untrusted-spec pass, verify:unreadable, verify:too-old and a reader
+      # that does not judge. It reads only its reviews, bodies
+      # blanked, and no file list, so the kill switch, member veto, hold paths,
+      # cost paths and trusted-actor list holds stay the lanes App's; a trusted
+      # approval of the head lifts the FAIL hold. Any other author, and every
+      # one on a pull request event, exits as before.
       # WHILE THE LANES KILL SWITCH IS ON A LANES APP PULL REQUEST FAILS, so
       # one armed before it was turned on stops in the merge queue, as the
       # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
@@ -6372,16 +6432,45 @@ jobs:
             echo "::error::the author of #$pr could not be read."
             exit 1
           fi
+          lanes=true
           if ! jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
-            echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
-            exit 0
+            lanes=false
+            judged=false
+            # In the queue, whether pr-verify judges the author: resolve-pr.mjs
+            # resolvePull's dependency-manager skip, then its
+            # merge.verify-authors test, word for word as the author step runs
+            # it. A config that does not read fails closed.
+            if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+              # shellcheck disable=SC2016 # jq, not shell
+              if ! authors=$(yq -er '.merge."verify-authors" // "lane"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+                ! judged=$(jq -r --arg authors "$authors" --arg identity "$identity" --slurpfile list "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json" '
+                  def key: tostring | gsub("^\\s+|\\s+$"; "") | ascii_downcase | sub("\\[bot\\]$"; "");
+                  .user as $user
+                  | ($user.type == "Bot" and ($user.login // "" | tostring | ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; "")
+                      | IN("dependabot", "dependabot-preview", "renovate", "renovate-bot"))) as $manager
+                  | (($identity | key) != "" and $user.type == "Bot" and ($user.login // "" | key) == ($identity | key)) as $lane
+                  | (($user.type == "User" or $user.type == "Bot") and any($list[0].actors[]; .id == $user.id)) as $owner
+                  | if $manager then false
+                    elif $authors == "any" then true
+                    elif $authors == "lane-or-owner" then $lane or $owner
+                    elif $authors == "lane" then $lane
+                    else false end' <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
+                echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors and the trusted-actor list in the hold config; re-run this run."
+                exit 1
+              fi
+            fi
+            if [ "$judged" != true ]; then
+              echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
+              exit 0
+            fi
+            echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): a pr-verify FAIL at its head holds it; the kill switch, member veto and hold paths stay the lanes App's."
           fi
           # The kill switch, by the base checkout's merge-holds.mjs switchHold:
           # it answers JSON null or the hold's reason, and anything else fails
           # closed.
           printf '%s\n' "$pull" >"$RUNNER_TEMP/lanes-pull.json"
           # shellcheck disable=SC2016 # JavaScript, not shell
-          if [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
+          if [ "$lanes" = true ] && { [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
             ! switched=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
               const { switchHold } = await import(pathToFileURL(process.argv[2]).href);
@@ -6391,11 +6480,11 @@ jobs:
                 throw new Error("no verdict");
               }
               console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") ||
-            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); then
+            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); }; then
             echo "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch for #$pr; re-run this run."
             exit 1
           fi
-          if [ -n "$reason" ]; then
+          if [ -n "${reason:-}" ]; then
             echo "::error::${reason//%/%25}"
             exit 1
           fi
@@ -6438,15 +6527,19 @@ jobs:
           # this list live in this job and left it; read it again when that
           # step could not, its pages do not parse, or the live pull's head is
           # no longer the event's (a push since). The count check below holds
-          # either way.
-          if [ "$GITHUB_EVENT_NAME" != pull_request ] || [ ! -s "$RUNNER_TEMP/pr-files.json" ] ||
+          # either way. Another judged author's pull request reads no files,
+          # so no hold path, cost path or trusted-actor change holds it here.
+          : >"$RUNNER_TEMP/files.jsonl"
+          if [ "$lanes" = false ]; then
+            :
+          elif [ "$GITHUB_EVENT_NAME" != pull_request ] || [ ! -s "$RUNNER_TEMP/pr-files.json" ] ||
             [[ ! ${PR_HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] || [ "$(jq -r '.head.sha // ""' <<<"$pull")" != "$PR_HEAD_SHA" ] ||
             ! jq -c '.[] | [.filename, .previous_filename, .status]' "$RUNNER_TEMP/pr-files.json" >"$RUNNER_TEMP/files.jsonl" 2>/dev/null; then
             read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
               --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
           fi
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
-          if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
+          if [ "$lanes" = true ] && [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
             echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
             exit 1
           fi
@@ -6455,12 +6548,65 @@ jobs:
             echo "::error::the head of #$pr could not be read."
             exit 1
           fi
+          # Another judged author's pull request reads only its reviews, each
+          # body blanked: an approval of the head still lifts its FAIL hold,
+          # and no text vetoes it.
           : >"$RUNNER_TEMP/discussion.jsonl"
-          for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
+          kinds=("issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments")
+          rows_of='.[]'
+          [ "$lanes" = true ] || { kinds=("pulls/$pr/reviews"); rows_of='.[] | .body = ""'; }
+          for kind in "${kinds[@]}"; do
             raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
-            rows=$(jq -c '.[]' <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
+            rows=$(jq -c "$rows_of" <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
+          # Another judged author's pull request holds only on a FAIL class the
+          # verdict reader reports for its head; a reader that does not judge
+          # it, or any other refusal, leaves it to merge.
+          if [ "$lanes" = false ]; then
+            node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            rm -f "$BABYSIT_VERIFY_LISTING"
+            if ! report=$(BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head"); then
+              echo "::notice::babysit_verify_evidence.py could not judge #$pr at $head."
+              report=
+            fi
+            printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
+            refusal=$(jq -r --arg head "$head" 'select(.head == $head) | .refusal | strings' "$RUNNER_TEMP/evidence.json" 2>/dev/null) || refusal=
+            case $refusal in
+            verify:fail | verify:earlier-fail) ;;
+            verify:repeated-fail)
+              echo "::warning::#$pr: pr-verify's repeated-fail cap stands at this head; owner-login PRs are not held on the cap (owner decision 2026-11-04)"
+              exit 0
+              ;;
+            *)
+              echo "#$pr: not held: pull requests of an author pr-verify judges, other than the lanes App's, hold only on a FAIL, and the reader reports ${refusal:-none} for $head."
+              exit 0
+              ;;
+            esac
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            out=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              // The module goes last: as the first argument, it would run as main.
+              const [, evidence, discussion, actors, head, number, module] = process.argv;
+              const { evidenceHold, pathLifters, humansOf, fromRest, VERIFIER_TITLE } = await import(pathToFileURL(module).href);
+              const failed = evidenceHold(JSON.parse(readFileSync(evidence, "utf8")), head);
+              if (typeof failed !== "string" || !failed) {
+                throw new Error("no FAIL verdict");
+              }
+              const items = readFileSync(discussion, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
+              const approved = pathLifters(items, humansOf(JSON.parse(readFileSync(actors, "utf8")).actors), head);
+              const text = failed.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+              console.log(approved.length
+                ? `#${number}: no pr-verify FAIL hold: ${approved.join(", ")} approved this head, which lifts '"'"'${text}'"'"'.`
+                : `::error title=${VERIFIER_TITLE}::#${number}: ${text}; push a new head for pr-verify to judge, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue.`);' \
+              "$RUNNER_TEMP/evidence.json" "$RUNNER_TEMP/discussion.jsonl" "$RUNNER_TEMP/trusted-actors.json" "$head" "$pr" "$RUNNER_TEMP/merge-holds.mjs") || {
+              echo "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL ($refusal) of #$pr; re-run this run."
+              exit 1
+            }
+            printf '%s\n' "$out"
+            grep -qE "^#$pr: no pr-verify FAIL hold: " <<<"$out" || exit 1
+            exit 0
+          fi
           verdicts=()
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             ref=$(jq -r '.head.ref // ""' <<<"$pull")

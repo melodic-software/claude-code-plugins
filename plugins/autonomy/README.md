@@ -264,9 +264,10 @@ variable a repository's env block can set). Of the enabled block path's 10 creat
 ## Configuration
 
 Setup writes tracked config to `.claude/autonomy/` in the consuming repo, named for the concern so
-the config outlives any plugin restructure. Personal overlays follow the marketplace overlay
-convention: the recursive `.claude/**/*.local.*` line keeps them gitignored; layers resolve per the
-binding-seam ladder: user-global → org binding (when pointed) → project → local overlay, additively.
+the config outlives any plugin restructure. Personal overrides follow the marketplace personal
+override convention: the recursive `.claude/**/*.local.*` line keeps them gitignored; layers resolve
+per the binding-seam ladder: user-global → org binding (when pointed) → project → personal override,
+additively.
 
 ### Option details
 

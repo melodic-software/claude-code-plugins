@@ -78,7 +78,7 @@
     /** This browser's copy, over the per-key stores pages used before preferences moved to the server. */
     function localPrefs() {
       const who = Core.me.cid || "anon", th = store.get("vf-theme", {}), t = store.get("vf-tb:" + who, {}), c = store.get("vf-claude:" + who, "");
-      const old = { theme: th.mode, accent: th.accent, sort: t.sort, filter: t.filter, round: t.round, claudeTake: c === "session" ? undefined : c || undefined };
+      const old = { theme: th.mode, sort: t.sort, filter: t.filter, round: t.round, claudeTake: c === "session" ? undefined : c || undefined };
       return { ...Object.fromEntries(Object.entries(old).filter(([, v]) => v !== undefined)), ...store.get(localKey(), {}) };
     }
     function prefs() {
@@ -123,7 +123,8 @@
     }
     function setTb(patch) { setPrefs(patch); render(); }
     const claudePref = () => pref("claudeTake", "session");
-    const myTheme = () => { const p = prefs(); return { ...(p.theme ? { mode: p.theme } : {}), ...(p.accent ? { accent: p.accent } : {}), ...(p.palette ? { palette: p.palette } : {}) }; };
+    /** My theme toggle's choice: System, Light or Dark, System until I pick another. */
+    const myMode = () => { const m = pref("theme", "system"); return m === "light" || m === "dark" ? m : "system"; };
     const openRounds = () => new Set(pref("expandedRounds", []));
     const setOpenRounds = set => { setPrefs({ expandedRounds: [...set].sort((a, b) => a - b) }); render(); };
     const following = () => !!pref("follow", false) && Core.state.settings.follow !== false;
@@ -1396,14 +1397,19 @@
     const discList = E("ul", "vf-disc-list"); discList.setAttribute("role", "list");
     const discEmpty = E("p", "vf-empty", "No comments yet.");
     const discForm = E("form", "vf-disc-form");
-    const discTa = E("textarea", "vf-ta vf-disc-ta"); discTa.rows = 2; discTa.maxLength = 2000; discTa.id = "vf-disc-ta";
-    discTa.placeholder = "Add a comment"; discTa.setAttribute("aria-label", "Add a comment");
+    // The canonical chrome's comment box (reference/html-chrome.html) is this composer: its heading, label and field.
+    const discBox = E("section", "rv-comment"); discBox.setAttribute("aria-labelledby", "rv-comment-h");
+    const discBoxH = E("h2", null, "Comment"); discBoxH.id = "rv-comment-h";
+    const discLabel = E("label", null, "Your comment for the session"); discLabel.htmlFor = "rv-comment-text";
+    const discTa = E("textarea", "vf-ta vf-disc-ta"); discTa.rows = 2; discTa.maxLength = 2000; discTa.id = "rv-comment-text";
+    discTa.dataset.rvNote = "comment"; discTa.placeholder = "Say what should change, or ask a question";
+    discBox.append(discBoxH, discLabel, discTa);
     const discHint = E("span", "vf-hint vf-disc-hint", "Type @Claude to send it to Claude."); discHint.id = "vf-disc-hint";
     discTa.setAttribute("aria-describedby", discHint.id);
     const discPost = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-disc-post", "Post"); discPost.type = "submit";
     const discK = Kit.composer(discTa, { send: () => discForm.requestSubmit(), mentions: "claude", draftKey: () => "disc:" + ui.cur, verb: "post" });
     const discRow = E("div", "vf-crow"); discRow.append(discK.count, dictBtn(discTa, "Dictate a comment"), discHint, discK.hint, discPost);
-    discForm.append(discTa, discRow);
+    discForm.append(discBox, discRow);
     discBody.append(discList, discEmpty, discForm);
     discSec.append(discH, discBody);
     ui.discOpen = new Map(); ui.discFrom = new Map(); ui.discEdit = "";
@@ -1772,38 +1778,18 @@
       settingsPop.append(b); tierRows[k] = b;
     }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
-    const ACCENTS = [["teal", "Teal"], ["indigo", "Indigo"], ["violet", "Violet"], ["amber", "Amber"]];
-    const PALETTES = [["default", "Default"], ["midnight", "Midnight"], ["slate", "Slate"], ["paper", "Paper"], ["contrast", "High contrast"]];
-    /** High contrast sets its own accent, so the accent choice waits until another palette is picked. */
-    const fixedAccent = c => c.palette === "contrast";
-    let themePickers = 0;
-    /** Theme picker: mode buttons, accent swatches and palette buttons; get() returns the current choice, set(patch) saves.
-     *  `own`: the viewer's own theme, whose accent High contrast fixes; the owner's default accent still reaches anyone on
-     *  another palette, so it stays live there. */
-    function themePicker(get, set, own = false) {
-      const wrap = E("div", "vf-theme");
-      const modes = E("div", "vf-seg vf-seg-sm"); modes.setAttribute("role", "group"); modes.setAttribute("aria-label", "Theme");
-      const sw = E("div", "vf-swatches"); sw.setAttribute("role", "group"); sw.setAttribute("aria-label", "Accent color");
-      const pals = E("div", "vf-seg vf-seg-sm vf-palettes"); pals.setAttribute("role", "group"); pals.setAttribute("aria-label", "Palette");
-      const why = E("p", "vf-theme-why", "High contrast uses its own accent."); why.id = `vf-theme-why-${++themePickers}`;
-      const mb = MODES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.onclick = () => set({ mode: k }); modes.append(b); return [k, b]; });
-      const ab = ACCENTS.map(([k, l]) => { const b = btn("vf-swatch"); b.dataset.accent = k; b.setAttribute("aria-label", `${l} accent`); b.title = l; b.onclick = () => { if (!(own && fixedAccent(get()))) set({ accent: k }); }; sw.append(b); return [k, b]; });
-      const pb = PALETTES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.dataset.palette = k; b.onclick = () => set({ palette: k }); pals.append(b); return [k, b]; });
-      wrap.append(modes, sw, pals, why);
-      wrap._paint = () => {
-        const c = get(), fixed = own && fixedAccent(c);
-        for (const [k, b] of mb) b.setAttribute("aria-pressed", String(c.mode === k));
-        for (const [k, b] of ab) { b.setAttribute("aria-pressed", String(!fixed && c.accent === k)); b.setAttribute("aria-disabled", String(fixed)); }
-        for (const [k, b] of pb) b.setAttribute("aria-pressed", String(c.palette === k));
-        why.hidden = !fixed;
-        // a hidden note that aria-describedby points at is still read, so the link exists only while the note shows
-        if (fixed) sw.setAttribute("aria-describedby", why.id); else sw.removeAttribute("aria-describedby");
-      };
-      return wrap;
+    /** The canonical chrome's theme toggle (reference/html-chrome.html), the page's only theme choice: one labeled group
+     *  of System, Light and Dark, the chosen one pressed. Each viewer picks for themselves; no session default. */
+    function themeToggle(onPick) {
+      const g = E("div", "rv-theme"); g.setAttribute("role", "group"); g.setAttribute("aria-label", "Theme");
+      for (const [k, l] of MODES) {
+        const b = btn(null, l); b.dataset.rvTheme = k; b.setAttribute("aria-pressed", String(myMode() === k));
+        b.onclick = () => { setTheme(k); onPick?.(); };
+        g.append(b);
+      }
+      return g;
     }
-    const sessionTheme = () => ({ mode: "system", accent: "teal", palette: "default", ...(st().theme || {}) });
-    const ownerTheme = themePicker(sessionTheme, patch => Core.saveSettings({ theme: patch }).catch(fail));
-    settingsPop.append(E("h3", "vf-pop-sub", "Default theme for everyone"), ownerTheme);
+    function setTheme(mode) { setPrefs({ theme: mode }); applyTheme(); render(); }
     const newGuestBtn = btn("vf-menu-item vf-menu-plain", "New guest link");
     const newOwnerBtn = btn("vf-menu-item vf-menu-plain", "New owner link");
     const endBtn = btn("vf-menu-item", "End session");
@@ -2386,10 +2372,8 @@
 
     // ---------- actions ----------
     function applyTheme() {
-      const d = sessionTheme(), t = myTheme(), mode = t.mode || d.mode, accent = t.accent || d.accent;
+      const mode = myMode();
       root.dataset.theme = mode === "system" ? (lightOS.matches ? "light" : "dark") : mode;
-      root.dataset.accent = accent;
-      root.dataset.palette = t.palette || d.palette;
     }
     /** The Host view has no tab of its own on phones: More stands for it. */
     const paintTabs = () => { for (const [t, b] of Object.entries(tabBtns)) b.setAttribute("aria-current", t === (ui.tab === "host" ? "more" : ui.tab) ? "page" : "false"); };
@@ -3103,10 +3087,9 @@
 
     // ---------- Q87: theme, one tap cycles System, Light, Dark ----------
     const THEME_NEXT = { system: "light", light: "dark", dark: "system" }, THEME_LABEL = { system: "System", light: "Light", dark: "Dark" };
-    const myMode = () => myTheme().mode || sessionTheme().mode || "system";
     function cycleTheme() {
       const next = THEME_NEXT[myMode()] || "system";
-      setPrefs({ theme: next }); applyTheme(); render();
+      setTheme(next);
       announce(`Theme: ${THEME_LABEL[next]}${next === "system" ? ", following this device" : ""}.`);
     }
     function paintTheme() {
@@ -5183,7 +5166,7 @@
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid]; // follow-up 46: for the owner only
-      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, !!prefs().readAloud, !!prefs().dictate, SPEECH.local, S.myAbout], Core.colorIdOf(pid), Core.avatarOf(pid), avatarSig(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myMode(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, !!prefs().readAloud, !!prefs().dictate, SPEECH.local, S.myAbout], Core.colorIdOf(pid), Core.avatarOf(pid), avatarSig(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -5203,8 +5186,7 @@
       const k = (b, key) => { b.dataset.k = key; return b; };
       if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x")); // F11: the one close control
       if (me) {
-        const t = themePicker(() => ({ ...sessionTheme(), ...myTheme() }), patch => { setPrefs({ ...(patch.mode ? { theme: patch.mode } : {}), ...(patch.accent ? { accent: patch.accent } : {}), ...(patch.palette ? { palette: patch.palette } : {}) }); applyTheme(); fillPcard(); }, true);
-        t._paint();
+        const t = themeToggle(fillPcard);
         t.querySelectorAll("button").forEach((b, i) => k(b, "t" + i));
         parts.push(E("h3", "vf-pop-sub", "Theme, just for you"), t);
         // C40: my color, one of ten; everyone sees it on my avatar.
@@ -7405,7 +7387,6 @@
       const nLater = laterItems().length;
       endNote.textContent = !S.ended && nLater ? `${laterLine(nLater)}.` : "";
       endNote.hidden = !endNote.textContent;
-      ownerTheme._paint();
       const url = Core.guestLink();
       if (shareField.value !== url) shareField.value = url;
       linkNote.textContent = `Anyone with this link can join. ${linkKeeps() ? "The link stays the same when the tunnel restarts." : "The link can change after the tunnel restarts."}`;

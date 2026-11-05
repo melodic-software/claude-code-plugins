@@ -57,7 +57,7 @@ test("userConfig wins over the default, and an unrendered placeholder counts as 
   assert.deepEqual(out.provenance, { glossary_file: "userConfig", glossary_map_file: "default" });
 });
 
-test("the team file wins over userConfig, and the personal overlay over the team file", () => {
+test("the team file wins over userConfig, and the personal override over the team file", () => {
   const dir = repo({ [TEAM]: "glossary_file: TEAM.md\nglossary_map_file: TEAM-MAP.md\n", [LOCAL]: "glossary_map_file: MINE-MAP.md\n" });
   const out = settings(["--project", dir], { userConfig: { glossary_file: "USER.md", glossary_map_file: "USER-MAP.md" } });
   assert.deepEqual(out.values, { glossary_file: "TEAM.md", glossary_map_file: "MINE-MAP.md" });

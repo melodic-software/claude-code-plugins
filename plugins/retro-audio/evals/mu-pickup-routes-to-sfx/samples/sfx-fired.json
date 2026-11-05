@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "retro-audio:sfx"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "sfx"}}], "why": "bare name"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Skill call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "retro-audio:music"}}], "why": "the music skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "retro-audio:sfx-other"}}], "why": "a skill whose name only starts the same"}
+  ]
+}

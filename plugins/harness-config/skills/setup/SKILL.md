@@ -34,7 +34,7 @@ the marketplace repository): `check` inspects and reports, `apply` resolves. Thi
 - the external command-line tools its bundled scripts require, where `apply` is guidance-and-verify
   with no write path: it points at platform install instructions and never installs a system package;
 - the **tracked consumer-project configuration** `audit` and `audit-pass` read, the `suppressions`
-  mapping of `<home>/harness-config.yaml`, the one surface `apply` may write. `<home>` is the
+  mapping of `<home>/harness-config.yaml`, the one file `apply` may write. `<home>` is the
   convention home the repository binds in the pointer region of its `AGENTS.md` or `CLAUDE.md`
   (`bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` prints it), else `docs/conventions`.
 
@@ -114,7 +114,7 @@ tracked/ignored question has opposite correct answers per layer, so verify each 
   uses: a non-zero exit is FAIL with the line it prints, because the engine then drops the whole team
   layer. The common cause is an unquoted `anchor/v1` key; the parser takes a plain key only of
   letters, digits, `_` and `-`, so the key is written `"anchor/v1":`.
-- **local overlay** `.claude/audit-pass.local.md`: must be gitignored and never staged. Staged or
+- **personal override** `.claude/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
 
 Parse each present layer and report as malformed any entry missing **any** of its five required
@@ -124,7 +124,7 @@ suppress anything. Report as malformed too an entry whose stored constituents do
 key: the constituents are authoritative and the key is derived from them. A malformed entry does not
 suppress, and a silent partial parse would turn a formatting slip into a lost check.
 
-Report a **user-global or overlay entry for an id the team layer does not carry** as INFO
+Report a **user-global or personal override entry for an id the team layer does not carry** as INFO
 `personal-only, not applied`, naming promotion to the team layer as what makes it take effect. The
 team layer is the only one that enacts a suppression, so a personal-only entry that looks live is a
 finding the operator believes is accepted and is not.
@@ -166,7 +166,7 @@ Then converge the one surface this plugin owns, conservatively:
   explicit request.
 - **Team layer present but untracked**: report the STOP and the exact `git add` the operator should
   run. Never stage on their behalf.
-- **Overlay present but not ignored**: recommend the recursive `.claude/**/*.local.*` line and leave
+- **Personal override present but not ignored**: recommend the recursive `.claude/**/*.local.*` line and leave
   the `.gitignore` edit to the consumer.
 - **Malformed or unrecognized entries**: report them and stop. Never rewrite, reorder, or drop an
   operator's suppression: an entry this skill cannot reconcile is a question for the operator, and a
@@ -201,8 +201,8 @@ check an edited profile, run `... wsl-profile.sh lint <file>`.
 - **Missing config is not a failure.** All three suppression layers absent means no suppressions,
   which is the normal state for a repo that has never suppressed a finding. INFO, never FAIL.
 - **Recommend the recursive gitignore line, and leave the edit to the consumer.** `.claude/**/*.local.*`
-  covers flat, folder-form, and profiled overlays alike; the narrower `.claude/*.local.*` silently
-  misses any nested overlay. The consumer's ignore file is their artifact; this skill never writes it.
+  covers flat, folder-form, and profiled personal overrides alike; the narrower `.claude/*.local.*`
+  silently misses any nested personal override. The consumer's ignore file is their artifact; this skill never writes it.
 - **An install command's exit code is not verification.** After any install, re-run the probe and
   report its actual result.
 

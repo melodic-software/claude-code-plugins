@@ -28,8 +28,8 @@ local observation:
   and the shell command did not execute).
 - A `{ deny }` returned **after** `await next(e)` cannot un-run anything.
 - `{}` or `undefined` without `next` is a **malformed** return: the hook is
-  skipped and the chain beneath runs, so the tool executes and the model is told
-  it succeeded. **This is the trap.**
+  skipped and the chain beneath runs, so the tool executes and the model hears
+  of success. **This is the trap.**
 - A throw and a 10 s overrun are **fail-open**, unless
   `on(...).catch(() => ({ deny }))` is attached.
 
@@ -70,21 +70,21 @@ Three lanes each overstated some part of this and were corrected:
 - `surfaces-desktop` said the env var "is how function hooks get enabled".
   **OVERSTATED**; corrected to "one of two enablement paths".
 
-### A4: Exactly one hooks module per plugin; `hooks.json` may carry both kinds
+### A4: A plugin gets exactly one hooks module; `hooks.json` may carry both kinds
 
 `repo-primary/RESEARCH-mod-definition.md` said *"`modules` is an array, so more
 than one module per plugin is expressible."* **WRONG.** The shipping manifest
-schema caps it at one: *"hooks.json `modules` names one hooks module per plugin;
-a second entry is refused."* The array type is a schema artifact.
+schema caps it at one: its message allows a plugin a single hooks module and
+rejects any second entry. The array type is a schema artifact.
 
 Separately (and the producing lane was silent on this), one `hooks.json` may
-carry classic settings-format `hooks`, `modules`, **or both**. Schema refine
-message: *"hooks.json must have `hooks` … or `modules` …, or both."*
+carry classic settings-format `hooks`, `modules`, **or both**. The schema's
+refine message requires at least one of the two and accepts both together.
 
 ### A5: Plugin options are never read from project settings
 
-User settings, `--settings`, or managed settings only. *"a project's
-`.claude/settings.json` is **not** read for plugin options."* A mod cannot take
+User settings, `--settings`, or managed settings only; the README says a
+project's `.claude/settings.json` is **never** consulted for them. A mod cannot take
 per-repository configuration through the options mechanism. See
 `research-repo-fit.md` for why this conflicts with this repo's agnosticity rules.
 
@@ -105,8 +105,8 @@ pool.
 | Row | Was | Now |
 |---|---|---|
 | 5.1 | `modules` array allows several modules | **WRONG**: exactly one; a second is refused. See A4 |
-| 6.5 | The GrowthBook-off providers are Bedrock / Vertex / Foundry | **OVERSTATED**: the binary says only *"a third-party provider"*; the trio is interpolated from the CHANGELOG. Mark `INFERRED` |
-| 8.8 | The AGENTS.md *"not yet on Bedrock, Vertex or Foundry"* parenthetical corroborates that mods ride the rollout gate | **OVERSTATED and internally inconsistent**: `agents-md` is a built-in and does not ride that gate. It corroborates that **a provider predicate sits inside `canLoadBuiltinHooksModules`**, partially narrowing gap G3 |
+| 6.5 | The GrowthBook-off providers are Bedrock / Vertex / Foundry | **OVERSTATED**: the binary says only *"a third-party provider"*, and those three names are interpolated from the CHANGELOG. Mark `INFERRED` |
+| 8.8 | The AGENTS.md CHANGELOG note leaving out Foundry, Bedrock and Vertex for now corroborates that mods ride the rollout gate | **OVERSTATED and internally inconsistent**: `agents-md` is a built-in and does not ride that gate. It corroborates that **a provider predicate sits inside `canLoadBuiltinHooksModules`**, partially narrowing gap G3 |
 | 9.8 | `$.ui.mount`'s drawing has five members | **OVERSTATED**; it has **thirteen**: `drawn, find, findAll, press, input, select, key, pointer, post, advance, resize, redraw, unmount`. Also, `ui.` in the header example is a **local variable**, not an API path |
 | 1.17 | `@inline` provenance at `.d.ts:L6160` | **OVERSTATED**: the JSDoc is at **L6167**; the claim itself is correct |
 | 5.4 | *(silent)* | **GAP**: `hooks` and `modules` may coexist. See A4 |
@@ -184,8 +184,8 @@ missing from this ledger, per `VERIFICATION.md` Check 2.
 
 | Correction applied where | What was missing from §B |
 |---|---|
-| `community-falsification/VERIFICATION.md` row 3 tail: the Windows repro at 2.1.272 qualifies the field-evidence sidecar's "No Windows-specific mods defect was found in the tracker." Applied at `research-authoring-and-testing.md:243-244` ("Not defect-free"). | Not listed here until now. |
-| `community-falsification/VERIFICATION.md` row 7 refinements: the davila7 tree has grown past the artifact's list, and two repos (`Charlie0113-T/claude-agent-flow`, `shcv/harness-investigations`) were correctly filtered out of the "seven". The "seven" figure is used at `research-enablement-and-distribution.md:205` and `research-roadmap-and-staff-statements.md:236` without the filtering note. | Neither repo's exclusion was recorded here. |
+| `community-falsification/VERIFICATION.md` row 3 tail: the Windows repro at 2.1.272 qualifies the field-evidence sidecar's "No Windows-specific mods defect was found in the tracker." Applied at `research-authoring-and-testing.md:244-245` ("Not defect-free"). | Not listed here until now. |
+| `community-falsification/VERIFICATION.md` row 7 refinements: the davila7 tree has grown past the artifact's list, and two repos (`Charlie0113-T/claude-agent-flow`, `shcv/harness-investigations`) were correctly filtered out of the "seven". The "seven" figure is used at `research-enablement-and-distribution.md:197` and `research-roadmap-and-staff-statements.md:217` without the filtering note. | Neither repo's exclusion was recorded here. |
 | `surfaces-desktop/VERIFICATION.md` row 1 note: "no single sentence says 'plugin hooks run in Cowork'"; the claim is a sound join of two adjacent sentences, graded CONFIRMED, not a resurrection. `research-surfaces.md:86-90` presents the joined conclusion without the caveat, which is load-bearing for anyone re-quoting it. | The join caveat was never recorded here. |
 
 ## C. Unresolved between inputs

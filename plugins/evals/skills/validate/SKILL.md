@@ -41,7 +41,9 @@ sharing a name, a non-positive `weight`, `runs` / `max_turns` / `timeout_seconds
 `schema_version` or `name` in it or in `prompt.md` frontmatter (without a `case.yaml` the binary
 supplies both), a case with no prompt (`prompt.md` body or `execution.prompt`), a grader missing an
 option its type requires, a grader or `prompt.md` whose frontmatter holds `---` on a line other
-than its two delimiter lines (the binary cannot load the file; spell it `-{3}` in a regex), and a
+than its two delimiter lines (the binary cannot load the file; spell it `-{3}` in a regex), a
+`plugins` entry that resolves outside the plugin under evaluation or, inside it, to anything but
+the plugin itself or a subdirectory of the case (see the containment record below), and a
 `schema_version` that is not a quoted version string or whose major is newer than the binary
 supports. The complete sets the script checks, so a question about a key or a type is answered
 here without opening the script:
@@ -152,6 +154,19 @@ The load-time FAIL findings match what the binary rejects when it loads a case, 
 - **Recheck trigger**: the next Claude Code release, which can add a frontmatter key, add a grader
   type, or move a bound. On a firing, re-derive both lists from the schema rather than patching
   one value.
+
+The `plugins` check takes the plugin under evaluation as the nearest directory at or above the
+suite with a plugin manifest, else the suite's parent. A case that needs a second plugin loads a
+stand-in from a subdirectory of its own directory; a stub shared between cases does not load.
+
+- **Pointer**: the CLI's load refusal for a `plugins` entry outside its containment root, in the
+  "Run the plugin eval" step log of
+  <https://github.com/melodic-software/claude-code-plugins/actions/runs/41894661524>; its refusal
+  of a stub shared between cases, in the Fix section of
+  <https://github.com/melodic-software/claude-code-plugins/pull/13376>.
+- **As of**: 2026-11-04
+- **Recheck trigger**: a Claude Code release that changes that refusal message or how the
+  containment root is chosen.
 
 This skill asserts nothing about whether `claude plugin eval` is available in your install; it
 reads files and never invokes anything. `/evals:plugin-eval` preflight owns that question.

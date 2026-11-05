@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: pr-exit-zero-reads-every-frame
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-frame-0
+    type: tool_used
+    tool: Read
+    input_match: '"file_path":"(?:[^"\\]|\\.)*frames/f0000\.png"'
+    min: 1
+    arm: both
+  - name: reads-frame-1
+    type: tool_used
+    tool: Read
+    input_match: '"file_path":"(?:[^"\\]|\\.)*frames/f0001\.png"'
+    min: 1
+    arm: both
+  - name: reads-frame-2
+    type: tool_used
+    tool: Read
+    input_match: '"file_path":"(?:[^"\\]|\\.)*frames/f0002\.png"'
+    min: 1
+    arm: both
+  - name: names-video-path
+    type: regex
+    pattern: 'video/low/OddSquares\.mp4(?![\w-]|\.\w)'
+    target: last_message
+    arm: both
+  - name: names-duration
+    type: regex
+    pattern: '\b6(?:\.0+)?\s*(?:s\b|sec)'
+    flags: 'i'
+    target: last_message
+    arm: both

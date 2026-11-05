@@ -3,7 +3,9 @@
 // cloudflared. Every dialog surface closes with one x named for what it closes, and focus goes back to what opened it;
 // the Ask Claude panel is a bottom sheet only at phone width (720 px), the one breakpoint, so at 900 px it is a side
 // drawer; Help lists the same entries as More in the same words, and a guest's desktop Help has Settings, which opens
-// their own card.
+// their own card. The canonical chrome (reference/html-chrome.html): that card carries the System/Light/Dark toggle,
+// opening on System, no accent or palette picker renders and the owner's settings set no theme for everyone, and the
+// Discussion composer is the chrome's comment box.
 //   node plugins/planning/shared/tests/ui_surfaces.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the consistency audit's F11 and F12 (one close control, an x whose name says what it closes;
@@ -68,8 +70,26 @@ async function main() {
     const help = await gus.evaluate(() => [...document.querySelectorAll(".vf-keys .vf-hitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent));
     ok("a guest's desktop Help lists Settings, the tour, Why you're here and Report a problem", ["Settings", "Show me around", "Why you're here", "Report a problem"].every(l => help.includes(l)), JSON.stringify(help));
     await gus.locator(".vf-keys .vf-hitem", { hasText: "Settings" }).click();
-    ok("  Settings opens Gus's own card: his name, theme and devices", await until(gus, () => { const c = document.querySelector(".vf-pcard"); return !!c && !c.hidden && /Gus/.test(c.getAttribute("aria-label") || "") && !!c.querySelector(".vf-swatch"); }),
+    ok("  Settings opens Gus's own card: his name, theme and devices", await until(gus, () => { const c = document.querySelector(".vf-pcard"); return !!c && !c.hidden && /Gus/.test(c.getAttribute("aria-label") || "") && !!c.querySelector(".rv-theme"); }),
       await gus.evaluate(() => document.querySelector(".vf-pcard")?.getAttribute("aria-label")));
+    // ---------- the canonical chrome (reference/html-chrome.html): one System/Light/Dark toggle, no accent or palette picker ----------
+    const toggleOf = p => p.evaluate(() => [...document.querySelectorAll('.vf-pcard .rv-theme[role="group"][aria-label="Theme"] button[data-rv-theme]')]
+      .map(b => `${b.dataset.rvTheme}:${b.getAttribute("aria-pressed")}`).join());
+    ok("  his card carries the canonical theme toggle, opening on System", (await toggleOf(gus)) === "system:true,light:false,dark:false", await toggleOf(gus));
+    ok("  and no accent or palette picker renders", await gus.evaluate(() => !document.querySelector(".vf-swatch, .vf-swatches, .vf-palettes, [data-accent], [data-palette]")));
+    await gus.click('.vf-pcard button[data-rv-theme="light"]');
+    ok("  Light pins his page light, its button pressed", await until(gus, () => document.getElementById("app").dataset.theme === "light"
+      && document.querySelector('.vf-pcard button[data-rv-theme="light"]')?.getAttribute("aria-pressed") === "true"), await toggleOf(gus));
+    await gus.click('.vf-pcard button[data-rv-theme="system"]');
+    await until(gus, () => document.querySelector('.vf-pcard button[data-rv-theme="system"]')?.getAttribute("aria-pressed") === "true");
+    await owner.click(".vf-gear");
+    await until(owner, () => !document.querySelector(".vf-settings").hidden);
+    ok("the owner's Session settings set no theme for everyone: no theme heading, accent or palette picker", await owner.evaluate(() => {
+      const p = document.querySelector(".vf-settings");
+      return !p.querySelector(".vf-swatch, .vf-palettes, [data-accent], [data-palette], .rv-theme") && ![...p.querySelectorAll(".vf-pop-sub")].some(h => /theme/i.test(h.textContent));
+    }), await owner.evaluate(() => [...document.querySelectorAll(".vf-settings .vf-pop-sub")].map(h => h.textContent).join("|")));
+    await owner.keyboard.press("Escape");
+    await until(owner, () => document.querySelector(".vf-settings").hidden);
     const pho = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(pho, "Pho");
     await pho.locator(".vf-tab", { hasText: "More" }).tap();
@@ -185,6 +205,11 @@ async function main() {
     await owner.click(".vf-chat-head .vf-icon-btn");
     await gus.waitForTimeout(1100);
     await owner.click(".vf-disc-head");
+    ok("the Discussion composer is the canonical chrome's comment box: its heading, label and field", await until(owner, () => {
+      const box = document.querySelector('.vf-disc-form > section.rv-comment[aria-labelledby="rv-comment-h"]'), ta = box?.querySelector("textarea#rv-comment-text.vf-disc-ta");
+      return !!ta && box.querySelector("h2#rv-comment-h")?.textContent === "Comment" && box.querySelector('label[for="rv-comment-text"]')?.textContent === "Your comment for the session"
+        && ta.dataset.rvNote === "comment" && ta.placeholder === "Say what should change, or ask a question" && !!ta.getClientRects().length;
+    }));
     await owner.fill(".vf-disc-ta", "A comment to open the menu on");
     await owner.click(".vf-disc-post");
     const com = owner.locator(".vf-disc-list > .vf-cm", { hasText: "A comment to open the menu on" });

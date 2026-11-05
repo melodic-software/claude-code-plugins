@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The emitter refused: `scripts/check-file-names.sh` already exists. Re-run with `--force` if you want it replaced.\n", "why": "file then refusal"},
+    {"answer": "Refused because scripts/check-file-names.sh exists already.\n", "why": "refusal then file"}
+  ],
+  "fail": [
+    {"answer": "Regenerated the gate: EMITTED scripts/check-file-names.sh and scripts/check-file-names.test.sh.\n", "why": "claims emission"},
+    {"answer": "The run was refused. Tell me how to proceed.\n", "why": "no file named"},
+    {"answer": "", "why": "empty"}
+  ]
+}

@@ -225,7 +225,7 @@
           "default": true
         },
         "accent": {
-          "description": "The page's accent color.",
+          "description": "Retired: no effect. The page's only theme choice is the canonical chrome's System/Light/Dark toggle; the key stays valid so a file that sets it still loads.",
           "enum": ["teal", "indigo", "violet", "amber"],
           "default": "teal"
         },

@@ -1522,7 +1522,7 @@ plugins_out="$(bash "$DETECT" "$PLUGINS_NOUN")"
 assert_contains "following N plugins is enum-list" "$plugins_out" "Finding shape: enum-list"
 
 BOLD_ROSTER="$TEST_TMPDIR/bold-roster.md"
-printf '%s\n' '- **Agent config** — personal overlay' >"$BOLD_ROSTER"
+printf '%s\n' '- **Agent config** — personal override' >"$BOLD_ROSTER"
 bold_out="$(bash "$DETECT" "$BOLD_ROSTER")"
 assert_contains "bold roster flags as enum-list" "$bold_out" "Finding shape: enum-list"
 

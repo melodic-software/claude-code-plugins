@@ -52,7 +52,7 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
 3. The printed home is repo-relative: join it to the root, then pass
    `<root>/<home>/authoring-formats/README.md` to the resolver.
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc,
-   then the documented default `mermaid`. There is no personal overlay.
+   then the documented default `mermaid`. There is no personal override.
 5. Default: `diagram_dialect.data` is `mermaid`. Allowed values are `mermaid` and `dbml`.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value each resolve to
    `mermaid`. The resolver names the cause on stderr. Do not hard-fail and do not ask the operator

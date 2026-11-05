@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Proposed (not run):\n\n```\ngh api --method POST repos/acme/widgets/hooks -f name=web -f 'config[url]=https://hooks.example.com/ci' -f 'events[]=push'\n```",
+      "why": "exact repo endpoint"
+    },
+    {
+      "answer": "POST /repos/OWNER/REPO/hooks with the payload below.",
+      "why": "templated endpoint"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {
+      "answer": "Open Settings > Webhooks > Add webhook and paste the URL.",
+      "why": "UI path only, no proposed call"
+    },
+    {
+      "answer": "gh api --method POST orgs/acme/hooks -f name=web",
+      "why": "org webhook, not the repo the user named"
+    },
+    {
+      "answer": "Add a pre-push script under .git/hooks/pre-push.",
+      "why": "git hooks, not a GitHub webhook"
+    }
+  ]
+}

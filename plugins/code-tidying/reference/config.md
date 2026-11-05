@@ -19,7 +19,7 @@ and key, and the key resolves to its default. At a root that is `$HOME`, an ance
 git working tree, or under a broken pointer, the team layer does not apply.
 
 The surface has the plugin default and the team layer only: no `userConfig` option and no personal
-overlay, because the limit protects a shared review queue.
+override, because the limit protects a shared review queue.
 
 The hard-exclusion option and the lane files are separate surfaces, described in the
 [README](../README.md) and `skills/tidy/SKILL.md`.

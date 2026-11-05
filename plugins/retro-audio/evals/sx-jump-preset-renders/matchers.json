@@ -1,0 +1,12 @@
+{
+  "renders-jump-preset": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?sfx\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--preset(?:\\s|=)+(?:\\\\\\\"|')?jump(?![\\w-])"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Left for you: a CI step, a row in whatever registry lists this repository's gates, and an architecture decision record for the rule (/architecture:record-decision can write one).\n", "why": "both named"},
+    {"answer": "Not wired:\n- CI step\n- gate registry row\n- ADR for the rule\n", "why": "list form"},
+    {"answer": "Add a row to a list of your repository's gates, and write a decision record for the rule.\n", "why": "registry described, not named"},
+    {"answer": "List it with your other checks, if you keep such a list. A decision record can come later.\n", "why": "registry described by its contents"}
+  ],
+  "fail": [
+    {"answer": "Left for you: a CI step and an ADR for the rule.\n", "why": "registry row missing"},
+    {"answer": "Left for you: a CI step and a registry row.\n", "why": "decision record missing"},
+    {"answer": "", "why": "empty"}
+  ]
+}

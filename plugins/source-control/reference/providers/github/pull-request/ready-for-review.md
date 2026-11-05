@@ -94,6 +94,23 @@ gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid'
 gh pr diff "$PR_NUMBER"
 ```
 
+## Read the closing claims
+
+The issues GitHub would close on merge, each with its repository, then each issue's body and open
+sub-issues read in that repository, and the body's `Siblings:` line. Unlike the Refs issue read,
+no read here swallows a failure: a non-zero exit or an empty body is a failed read, which the
+phase counts as not delivered.
+
+```bash
+CLAIMS=$(gh pr view "$PR_NUMBER" --json closingIssuesReferences \
+  -q '.closingIssuesReferences[] | "\(.repository.owner.login)/\(.repository.name) \(.number)"') || exit 1
+while read -r ISSUE_REPO ISSUE_NUM; do
+  [[ -n "$ISSUE_NUM" ]] || continue
+  gh issue view "$ISSUE_NUM" --repo "$ISSUE_REPO" --json state,body,subIssues   # a failure here is a failed read
+done <<< "$CLAIMS"
+gh pr view "$PR_NUMBER" --json body -q '.body' | grep -E '^Siblings: '
+```
+
 ## Record the skipped steps
 
 One conversation comment per run, after the hold re-check and right before the flip. One

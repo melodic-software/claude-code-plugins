@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "github:advise", "args": "webhooks"}}],
+      "why": "qualified name"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "advise"}}],
+      "why": "unqualified name"
+    }
+  ],
+  "fail": [
+    {"answer": [], "why": "no call"},
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "github:audit", "args": "webhooks"}}],
+      "why": "sibling audit skill"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "github:setup"}}],
+      "why": "sibling setup skill"
+    }
+  ]
+}

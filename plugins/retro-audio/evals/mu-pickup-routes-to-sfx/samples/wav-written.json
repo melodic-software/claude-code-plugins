@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": ["audio/pickup.wav"]}
+  ],
+  "fail": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": ["pickup.wav"], "why": "outside audio/"},
+    {"answer": ["audio/pickup-loop.wav"], "why": "another file"}
+  ]
+}

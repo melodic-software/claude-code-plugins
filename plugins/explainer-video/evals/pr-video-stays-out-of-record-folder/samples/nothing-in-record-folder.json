@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "video/scene.py",
+        "video/low/Caching.mp4"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/topics/caching/Caching.mp4"
+      ],
+      "why": "the video"
+    },
+    {
+      "answer": [
+        "docs/topics/caching/frames/f0000.png"
+      ],
+      "why": "a frame"
+    },
+    {
+      "answer": [
+        "docs/topics/caching/scene.py"
+      ],
+      "why": "the scene"
+    }
+  ]
+}

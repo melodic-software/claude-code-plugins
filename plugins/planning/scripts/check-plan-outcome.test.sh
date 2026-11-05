@@ -140,7 +140,7 @@ ided_plan() { good_plan | sed 's/ \[EXEC-SHAPE\]$/ [EXEC-SHAPE D1]/; s/^| Ignore
 ided_plan >"$TMP/ided.md"
 run "every tag id mapped to a row passes and prints mapped" 0 "$TMP/ided.md" 'criterion=decisions status=pass tagged=1 rows=1 mapped=1$'
 out="$(bash "$SUT" "$TMP/ided.md" 2>&1)"
-if grep -q '^warning=' <<<"$out"; then fail "an id-bearing plan prints no bare-tag warning"; else pass "an id-bearing plan prints no bare-tag warning"; fi
+if grep -q '^warning=bare-tag' <<<"$out"; then fail "an id-bearing plan prints no bare-tag warning"; else pass "an id-bearing plan prints no bare-tag warning"; fi
 
 ided_plan | sed 's/^- Add `.chezmoiignore`\. \[EXEC-SHAPE D1\]$/&\n- Add `.gitignore`. [FALLBACK D2]/' >"$TMP/id-norow.md"
 run "a tag id with no row fails and names the id" 1 "$TMP/id-norow.md" 'criterion=decisions status=fail tagged=2 rows=1 mapped=1 id-without-row=D2$'
@@ -326,10 +326,17 @@ traced_plan() {
 ### Acceptance criteria\
 - AC1: `chezmoi apply` manages the shell config\
 - AC2: [event-driven] WHEN chezmoi applies, the README names it' |
+    sed '/^## Plan$/a\
+\
+### Behavior\
+- B1: `chezmoi apply` writes the shell config. (AC1)\
+- B2: The README names chezmoi. (AC2)' |
     sed '/^### Phase 1:/a\
-**Satisfies:** AC1' |
+**Satisfies:** AC1\
+**Delivers:** B1' |
     sed '/^### Phase 3:/a\
-- **Satisfies:** AC2'
+- **Satisfies:** AC2\
+- **Delivers:** B2'
 }
 
 traced_plan >"$TMP/ac-traced.md"
@@ -354,11 +361,62 @@ run "the no-id warning counts the criteria" 0 "$TMP/ac-bare.md" '^warning=criter
 traced_plan | grep -v '^- \*\*Satisfies:\*\* AC2$' | sed 's/^## Blast radius$/&\n**Satisfies:** AC2/' >"$TMP/ac-outside.md"
 run "a Satisfies line outside a phase maps nothing" 1 "$TMP/ac-outside.md" 'unmapped=AC2$'
 
-traced_plan | sed 's/^- AC1: /- [ ] **AC1:** /; s/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC10, AC1/' | sed 's/^- AC2: .*$/&\n- AC10: a tenth criterion/' >"$TMP/ac-forms.md"
+traced_plan | sed 's/^- AC1: /- [ ] **AC1:** /; s/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC10, AC1/; s/(AC1)$/(AC1, AC10)/' | sed 's/^- AC2: .*$/&\n- AC10: a tenth criterion/' >"$TMP/ac-forms.md"
 run "a checkbox or bold id maps, and AC10 is not AC1" 0 "$TMP/ac-forms.md" '^criterion=criteria status=pass ids=3 mapped=3$'
 
 { traced_plan; printf '\n```markdown\n### Acceptance criteria\n- AC9: quoted\n```\n'; } >"$TMP/ac-fenced.md"
 run "a criterion inside a code fence is not graded" 0 "$TMP/ac-fenced.md" '^criterion=criteria status=pass ids=2 mapped=2$'
+
+# behaviors: `## Plan` opens with a `### Behavior` list whose items cite criterion
+# ids, and each behavior is delivered by a phase's **Delivers:** line.
+run "a valid behavior list passes" 0 "$TMP/ac-traced.md" '^criterion=behaviors status=pass behaviors=2 ids=2$'
+run "a plan with no criterion ids passes behaviors" 0 "$TMP/good.md" '^criterion=behaviors status=pass ids=0$'
+run "the no-id plan prints a behaviors warning" 0 "$TMP/good.md" '^warning=behaviors-without-criterion-ids '
+
+traced_plan | sed '/^### Behavior$/,/^- B2:/d' >"$TMP/b-missing.md"
+run "criterion ids with no behavior list fail" 1 "$TMP/b-missing.md" '^criterion=behaviors status=fail list=missing '
+
+traced_plan | sed 's/^### Behavior$/### Load-bearing assumptions\n\n### Behavior/' >"$TMP/b-notfirst.md"
+run "a behavior list that is not the first ### under Plan fails" 1 "$TMP/b-notfirst.md" '^criterion=behaviors status=fail behaviors=2 ids=2 list=not-first$'
+
+traced_plan | sed 's/(AC2)$/(AC2, AC7)/' >"$TMP/b-unknown.md"
+run "a behavior citing an undefined id fails" 1 "$TMP/b-unknown.md" '^criterion=behaviors status=fail behaviors=2 ids=2 unknown-cite=AC7$'
+
+traced_plan | sed 's/^- AC2: .*$/&\n- AC3: the shell starts with no error/; s/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC1, AC3/' >"$TMP/b-uncited.md"
+run "a criterion no behavior cites and no Process line lists fails" 1 "$TMP/b-uncited.md" '^criterion=behaviors status=fail behaviors=2 ids=3 uncited=AC3$'
+
+traced_plan | sed 's/^- B2: .*$/&\nProcess criteria: AC2/' >"$TMP/b-both.md"
+run "a criterion both cited and on the Process line fails" 1 "$TMP/b-both.md" '^criterion=behaviors status=fail behaviors=2 ids=2 cited-and-process=AC2$'
+
+traced_plan | grep -v '^- \*\*Delivers:\*\* B2$' >"$TMP/b-undelivered.md"
+run "a behavior no phase delivers fails" 1 "$TMP/b-undelivered.md" '^criterion=behaviors status=fail behaviors=2 ids=2 undelivered=B2$'
+
+traced_plan | sed 's/^\*\*Delivers:\*\* B1$/**Delivers:** B1, B5/' >"$TMP/b-unknown-deliv.md"
+run "a Delivers id no behavior defines fails" 1 "$TMP/b-unknown-deliv.md" '^criterion=behaviors status=fail behaviors=2 ids=2 unknown-delivers=B5$'
+
+traced_plan | sed 's/^- B2: .*$/&\n- B1: A second item reusing the id. (AC1)/' >"$TMP/b-dup.md"
+run "a behavior id used twice fails" 1 "$TMP/b-dup.md" '^criterion=behaviors status=fail behaviors=2 ids=2 duplicate=B1$'
+
+traced_plan | sed 's/^- B2: .*$/&\n- B3: The shell starts fast./; s/^\*\*Delivers:\*\* B1$/**Delivers:** B1, B3/' >"$TMP/b-nocite.md"
+run "a behavior citing no criterion fails" 1 "$TMP/b-nocite.md" '^criterion=behaviors status=fail behaviors=3 ids=2 no-cite=B3$'
+
+traced_plan | sed 's/^- B1: .*$/- B1: A fresh machine gets the shell config from one\n  `chezmoi apply`. (AC1)/' >"$TMP/b-wrapped.md"
+run "a behavior whose cite wraps onto a continuation line passes" 0 "$TMP/b-wrapped.md" '^criterion=behaviors status=pass behaviors=2 ids=2$'
+
+traced_plan | sed 's/^- B2: .*$/&\n- B3: The shell starts fast on a\n  fresh machine./; s/^\*\*Delivers:\*\* B1$/**Delivers:** B1, B3/' >"$TMP/b-wrapped-nocite.md"
+run "a wrapped behavior citing no criterion still fails" 1 "$TMP/b-wrapped-nocite.md" '^criterion=behaviors status=fail behaviors=3 ids=2 no-cite=B3$'
+
+traced_plan | sed 's/^- AC2: .*$/&\n- AC3: the PR body names the issue/; s/^- B2: .*$/&\nProcess criteria: AC3/; s/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC1, AC3/' >"$TMP/b-process.md"
+run "a criterion on the Process line alone passes" 0 "$TMP/b-process.md" '^criterion=behaviors status=pass behaviors=2 ids=3$'
+
+traced_plan | sed 's/^- B2: .*$/&\n- B3: The shell config survives a reapply. (AC3)\n\n### Acceptance criteria\n- AC3: a second `chezmoi apply` changes nothing/' |
+  sed 's/^\*\*Delivers:\*\* B1$/**Delivers:** B1, B3/; s/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC1, AC3/' >"$TMP/b-added.md"
+run "a plan-added criteria block after the list passes" 0 "$TMP/b-added.md" '^criterion=behaviors status=pass behaviors=3 ids=3$'
+run "the plan-added criterion maps to a phase" 0 "$TMP/b-added.md" '^criterion=criteria status=pass ids=3 mapped=3$'
+
+traced_plan | sed 's/^- B2: .*$/&\n\n```markdown\n### Phase 9: quoted [DONE]\n- B9: A quoted item. (AC9)\n**Delivers:** B7\n```/' >"$TMP/b-fenced.md"
+run "a fenced example in the list hides no later heading" 0 "$TMP/b-fenced.md" '^criterion=behaviors status=pass behaviors=2 ids=2$'
+run "the phases after the fenced example still count" 0 "$TMP/b-fenced.md" '^phases=3 status=ok$'
 
 run "the default run does not require an Approval line" 0 "$TMP/good.md" '^phases=3 status=ok$'
 run "the default run ignores an unapproved placeholder line" 0 "$TMP/ap-template.md" '^phases=3 status=ok$'

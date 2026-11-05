@@ -671,15 +671,19 @@ jobs:
             annotation="$OUT/$name/annotation.txt"
             node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" --annotation "$annotation" >"$summary" || failed=1
             # A dispatched run uploads its results, but not the traces --keep-temp
-            # keeps here, so the validity verdict is read here and only its last
-            # line is kept (its detail lines can quote a trace), as
-            # eval-hill-climb-pass.yml does. noise-report reads only results.json,
-            # which the upload already holds. A dispatched run always scaffolds.
+            # keeps here, so the validity verdict is read here and only its
+            # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
+            # lines can quote a trace), as eval-hill-climb-pass.yml does.
+            # noise-report reads only results.json, which the upload already
+            # holds. A dispatched run always scaffolds.
             if [ "$DISPATCHED" = true ]; then
               validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$results" --runs "$RUNS" --scaffolded) || true
-              printf '%s\n' "$validity" | tail -n 1 >"$OUT/$name/validity.txt"
+              bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)' || true)
+              verdict=$(printf '%s\n' "$validity" | tail -n 1)
+              printf '%s\n' ${bash_ran:+"$bash_ran"} "$verdict" >"$OUT/$name/validity.txt"
               python3 .base/plugins/evals/skills/plugin-eval/scripts/noise-report.py "$results" >"$OUT/$name/noise.txt" 2>&1 || true
-              printf '\nValidity: %s\n' "$(cat "$OUT/$name/validity.txt")" >>"$summary"
+              printf '\nValidity: %s\n' "$verdict" >>"$summary"
+              if [ -n "$bash_ran" ]; then printf '\n%s\n' "$bash_ran" >>"$summary"; fi
             fi
             cat "$summary" >>"$GITHUB_STEP_SUMMARY"
             echo >>"$GITHUB_STEP_SUMMARY"

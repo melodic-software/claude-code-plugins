@@ -45,6 +45,8 @@ plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notifi
 **Read it first.** Probe what it actually does, don't recite this file. Then read the pre-computed
 `node`, `jq` and `uname -s` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO table with
 one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately

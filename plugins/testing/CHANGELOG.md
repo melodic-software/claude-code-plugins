@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.2] - 2026-11-05
+
+### Changed
+
+- `/testing:audit`'s scanner starts fewer processes per run (one temporary directory, no redundant sort or tr stages, parameter expansion in place of `dirname`, `basename` and `tr -d '\r'`), with byte-identical output, so its test suite runs faster on Windows Git Bash.
+
+## [3.2.1] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [3.2.0] - 2026-11-04
 
 ### Changed

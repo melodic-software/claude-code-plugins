@@ -6,7 +6,7 @@ the team layer `docs/conventions/mutation-testing.yaml`, validated by the plugin
 `tool: manual` and asks for the test command when no layer exists.
 
 Layers resolve the user layer (the plugin's `userConfig`, which carries only `operators` and
-`max_mutants`) → team (`docs/conventions/mutation-testing.yaml`) → local overlay
+`max_mutants`) → team (`docs/conventions/mutation-testing.yaml`) → personal override
 (`.claude/mutation-testing.local.md`). Scalars override; lists union. The team file is
 team-shared and must be committed.
 

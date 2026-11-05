@@ -46,6 +46,22 @@
 #                   (`duplicate=`). Pass prints `ids=<n> mapped=<n>`. A plan with no
 #                   id anywhere passes `ids=0`, with a `warning=criteria-without-ids`
 #                   line when it has criteria; an item reading `none ...` is not one
+#   behaviors       `## Plan` opens with a `### Behavior` list: its first `###`
+#                   heading is that one. Each item is `- B<n>: <claim> (AC<i>, ...)`, and
+#                   its indented continuation lines count toward its cites; an
+#                   optional `Process criteria: AC<k>, ...` line in the list names the
+#                   criteria no behavior shows; a phase names the behaviors it builds on
+#                   a `**Delivers:** B1, B3` line (one outside a phase section maps
+#                   nothing). Fails on no list under `## Plan` (`list=missing`), a list that is not the
+#                   first `###` under `## Plan` (`list=not-first`), a B id used twice
+#                   (`duplicate=`), an item citing no AC id (`no-cite=`), a cited or
+#                   Process id no criterion defines (`unknown-cite=`), a criterion id
+#                   neither cited nor on the Process line (`uncited=`), one on both
+#                   (`cited-and-process=`), a behavior no phase delivers
+#                   (`undelivered=`) and a delivered id no item defines
+#                   (`unknown-delivers=`). Pass prints `behaviors=<n> ids=<n>`. A plan
+#                   with no criterion id passes `ids=0`, with a
+#                   `warning=behaviors-without-criterion-ids` line
 #
 # "No phase does Out-of-scope work, and every phase traces to a criterion" is
 # judgment and stays in the skill's prose; this gate does not claim it.
@@ -151,6 +167,22 @@ structural="$(
     function flush_phase() {
       if (in_phase && !phase_sanity) missing_sanity = missing_sanity " " phase_name
     }
+    # A behavior item stays open over its indented continuation lines, so a cite
+    # wrapped onto a later line counts; no-cite is decided when the item closes.
+    function b_scan(text,    n, cid) {
+      n = 0
+      while (match(text, /AC[0-9]+/)) {
+        cid = substr(text, RSTART, RLENGTH)
+        text = substr(text, RSTART + RLENGTH)
+        n++
+        if (!(cid in b_cited)) { bc_n++; bc_order[bc_n] = cid; b_cited[cid] = 1 }
+      }
+      return n
+    }
+    function close_b() {
+      if (b_open && !b_cites) b_nocite = b_nocite " " b_open_id
+      b_open = 0
+    }
     { sub(/\r$/, "") }
     match($0, /^[ \t]*(```+|~~~+)/) {
       fence = substr($0, RSTART, RLENGTH)
@@ -163,8 +195,20 @@ structural="$(
     in_fence { next }
     /^#+[ \t]/ {
       heading = $0
+      close_b()
       in_table = 0
       in_ac = (tolower(heading) ~ /^#+[ \t]+acceptance criteria[ \t:]*$/)
+      in_behavior = 0
+      if (heading ~ /^##[ \t]+Plan([ \t]*:.*)?[ \t]*$/) { in_plan = 1; plan_h3 = 0 }
+      else if (heading ~ /^##?[ \t]/) in_plan = 0
+      if (heading ~ /^###[ \t]/) {
+        if (in_plan && heading ~ /^###[ \t]+Behavior[ \t]*$/) {
+          behavior_heads++
+          in_behavior = 1
+          if (!plan_h3) behavior_first = 1
+        }
+        if (in_plan) plan_h3 = 1
+      }
       if (heading ~ /^###[ \t]+Phase[ \t]+([0-9]+(\.[0-9]+)?[A-Za-z]?|[IVXLC]+)[ \t]*:/) {
         flush_phase()
         phases++
@@ -216,6 +260,43 @@ structural="$(
         if (!(id in sat)) { sat_n++; sat_order[sat_n] = id; sat[id] = 1 }
       }
     }
+    in_behavior && b_open {
+      if ($0 ~ /^[ \t]+[^ \t]/ && $0 !~ /^[ \t]*([-*+][ \t]+|(\*\*)?Process criteria:)/) b_cites += b_scan($0)
+      else if ($0 ~ /[^ \t]/) close_b()
+    }
+    in_behavior && /^ ?[-*+][ \t]+/ {
+      text = $0
+      sub(/^ ?[-*+][ \t]+/, "", text)
+      sub(/^\[[ xX]\][ \t]+/, "", text)
+      sub(/^[*_]+/, "", text)
+      if (match(text, /^B[0-9]+/) && substr(text, RLENGTH + 1, 1) !~ /[A-Za-z0-9]/) {
+        id = substr(text, 1, RLENGTH)
+        text = substr(text, RLENGTH + 1)
+        if (id in b_def) b_dup = b_dup " " id
+        else { b_n++; b_order[b_n] = id; b_def[id] = 1 }
+        b_open = 1
+        b_open_id = id
+        b_cites = b_scan(text)
+      }
+    }
+    in_behavior && /^[ \t]*([-*+][ \t]+)?(\*\*)?Process criteria:/ {
+      text = $0
+      sub(/^[ \t]*([-*+][ \t]+)?(\*\*)?Process criteria:/, "", text)
+      while (match(text, /AC[0-9]+/)) {
+        id = substr(text, RSTART, RLENGTH)
+        text = substr(text, RSTART + RLENGTH)
+        if (!(id in proc)) { proc_n++; proc_order[proc_n] = id; proc[id] = 1 }
+      }
+    }
+    in_phase && /^[ \t]*([-*+][ \t]+)?\*\*Delivers:\*\*/ {
+      text = $0
+      sub(/^[ \t]*([-*+][ \t]+)?\*\*Delivers:\*\*/, "", text)
+      while (match(text, /B[0-9]+/)) {
+        id = substr(text, RSTART, RLENGTH)
+        text = substr(text, RSTART + RLENGTH)
+        if (!(id in deliv)) { deliv_n++; deliv_order[deliv_n] = id; deliv[id] = 1 }
+      }
+    }
     {
       if (in_phase && $0 ~ /Sanity Check/) phase_sanity = 1
       if ($0 ~ /^[ \t]*\|[ \t]*Decision[ \t]*\|[ \t]*What it changes/) { in_table = 1; decisions_table = 1; next }
@@ -263,6 +344,7 @@ structural="$(
     }
     END {
       flush_phase()
+      close_b()
       for (i = 1; i <= breakages; i++) {
         reason = breakage_reason(i)
         if (reason != "") breakage_invalid = breakage_invalid " " breakage_line[i] ":" reason
@@ -299,6 +381,24 @@ structural="$(
       printf "ac_unknown=%s\n", ac_unknown
       printf "ac_noid=%s\n", ac_noid
       printf "ac_dup=%s\n", ac_dup
+      for (i = 1; i <= bc_n; i++) {
+        if (!(bc_order[i] in ac_def)) b_unknown = b_unknown " " bc_order[i]
+        else if (bc_order[i] in proc) b_both = b_both " " bc_order[i]
+      }
+      for (i = 1; i <= proc_n; i++) if (!(proc_order[i] in ac_def) && !(proc_order[i] in b_cited)) b_unknown = b_unknown " " proc_order[i]
+      for (i = 1; i <= ac_n; i++) if (!(ac_order[i] in b_cited) && !(ac_order[i] in proc)) b_uncited = b_uncited " " ac_order[i]
+      for (i = 1; i <= b_n; i++) if (!(b_order[i] in deliv)) b_undelivered = b_undelivered " " b_order[i]
+      for (i = 1; i <= deliv_n; i++) if (!(deliv_order[i] in b_def)) b_unknown_deliv = b_unknown_deliv " " deliv_order[i]
+      printf "behavior_heads=%d\n", behavior_heads
+      printf "behavior_first=%d\n", behavior_first
+      printf "b_n=%d\n", b_n
+      printf "b_dup=%s\n", b_dup
+      printf "b_nocite=%s\n", b_nocite
+      printf "b_unknown=%s\n", b_unknown
+      printf "b_uncited=%s\n", b_uncited
+      printf "b_both=%s\n", b_both
+      printf "b_undelivered=%s\n", b_undelivered
+      printf "b_unknown_deliv=%s\n", b_unknown_deliv
     }
   ' "$plan"
 )" || die "could not parse: $plan"
@@ -324,6 +424,16 @@ ac_unmapped="$(field ac_unmapped)"
 ac_unknown="$(field ac_unknown)"
 ac_noid="$(field ac_noid)"
 ac_dup="$(field ac_dup)"
+behavior_heads="$(field behavior_heads)"
+behavior_first="$(field behavior_first)"
+b_n="$(field b_n)"
+b_dup="$(field b_dup)"
+b_nocite="$(field b_nocite)"
+b_unknown="$(field b_unknown)"
+b_uncited="$(field b_uncited)"
+b_both="$(field b_both)"
+b_undelivered="$(field b_undelivered)"
+b_unknown_deliv="$(field b_unknown_deliv)"
 
 failed=0
 report() {
@@ -404,6 +514,28 @@ else
     report criteria pass "$detail"
   else
     report criteria fail "$detail"
+  fi
+fi
+
+if [[ "$ac_ids" -eq 0 ]]; then
+  report behaviors pass "ids=0"
+  printf 'warning=behaviors-without-criterion-ids (no acceptance criterion carries an AC<n> id, so no behavior is traced to one)\n'
+elif [[ "$behavior_heads" -eq 0 ]]; then
+  report behaviors fail "list=missing (no '### Behavior' heading opens '## Plan')"
+else
+  detail="behaviors=$b_n ids=$ac_ids"
+  [[ "$behavior_first" -eq 1 ]] || detail+=" list=not-first"
+  [[ -z "${b_dup// /}" ]] || detail+=" duplicate=$(commas "$b_dup")"
+  [[ -z "${b_nocite// /}" ]] || detail+=" no-cite=$(commas "$b_nocite")"
+  [[ -z "${b_unknown// /}" ]] || detail+=" unknown-cite=$(commas "$b_unknown")"
+  [[ -z "${b_uncited// /}" ]] || detail+=" uncited=$(commas "$b_uncited")"
+  [[ -z "${b_both// /}" ]] || detail+=" cited-and-process=$(commas "$b_both")"
+  [[ -z "${b_undelivered// /}" ]] || detail+=" undelivered=$(commas "$b_undelivered")"
+  [[ -z "${b_unknown_deliv// /}" ]] || detail+=" unknown-delivers=$(commas "$b_unknown_deliv")"
+  if [[ "$detail" == "behaviors=$b_n ids=$ac_ids" ]]; then
+    report behaviors pass "$detail"
+  else
+    report behaviors fail "$detail"
   fi
 fi
 

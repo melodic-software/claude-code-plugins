@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "Set up mutation testing for this project.",
-      "expected_output": "Runs check first, then the apply flow: detects the ecosystem and proposes the matching tool with its install command WITHOUT installing it unprompted, resolves the diff target from origin/HEAD rather than hardcoding main, defaults the operator set to the tool's defaults with the reason stated, derives the timeout from the measured baseline suite time, proposes source roots excluding tests and generated code, writes docs/conventions/mutation-testing.yaml from the template's YAML block plus an empty .claude/mutation-testing-arid.md, then re-verifies and offers the .local.md overlay convention.",
+      "expected_output": "Runs check first, then the apply flow: detects the ecosystem and proposes the matching tool with its install command WITHOUT installing it unprompted, resolves the diff target from origin/HEAD rather than hardcoding main, defaults the operator set to the tool's defaults with the reason stated, derives the timeout from the measured baseline suite time, proposes source roots excluding tests and generated code, writes docs/conventions/mutation-testing.yaml from the template's YAML block plus an empty .claude/mutation-testing-arid.md, then re-verifies and offers the .local.md personal override convention.",
       "files": []
     },
     {
@@ -28,7 +28,7 @@
     {
       "id": 6,
       "prompt": "I added a suppression to .claude/mutation-testing-arid.local.md. Confirm it's working.",
-      "expected_output": "Reports it as `personal-only, not applied` (INFO, not FAIL -- the entry is legal, it just does not suppress) and names promotion to the team layer as the remedy. Explains that this surface inverts the cascade default: it is a policy floor, so a personal-layer entry for a finding_id the team layer does not carry does not suppress, because absence from the team layer IS the team's unsuppressed state. Does not treat it as layering like the config file.",
+      "expected_output": "Reports it as `personal-only, not applied` (INFO, not FAIL -- the entry is legal, it just does not suppress) and names promotion to the team layer as the remedy. Explains that this suppression record inverts the cascade default: it is a policy floor, so a personal-layer entry for a finding_id the team layer does not carry does not suppress, because absence from the team layer IS the team's unsuppressed state. Does not treat it as layering like the config file.",
       "files": []
     },
     {
@@ -69,7 +69,7 @@
     {
       "id": 11,
       "prompt": "/mutation-testing:setup apply user. This is a shared repository and I can't commit config to it; I want the narrow operator set and a cap of 20 mutants for myself.",
-      "expected_output": "Treats the user layer as the plugin's userConfig, not a ~/.claude/mutation-testing.md file. Settles only operators (narrow) and max_mutants (20) and names `/plugin configure mutation-testing@<marketplace>` as the way to save them, with the headless `claude plugin configure ... --values-stdin` form as the alternative. Writes no pluginConfigs value and no settings file itself, and writes no file in the repository: no docs/conventions/mutation-testing.yaml, no arid record, no .local.md overlay. Runs no test command. Says it skipped the write, tracking and commit steps, so `git status` in the repository is unchanged. States that the tool, diff target, mutate paths and test command are per repository and do not come from userConfig.",
+      "expected_output": "Treats the user layer as the plugin's userConfig, not a ~/.claude/mutation-testing.md file. Settles only operators (narrow) and max_mutants (20) and names `/plugin configure mutation-testing@<marketplace>` as the way to save them, with the headless `claude plugin configure ... --values-stdin` form as the alternative. Writes no pluginConfigs value and no settings file itself, and writes no file in the repository: no docs/conventions/mutation-testing.yaml, no arid record, no .local.md personal override. Runs no test command. Says it skipped the write, tracking and commit steps, so `git status` in the repository is unchanged. States that the tool, diff target, mutate paths and test command are per repository and do not come from userConfig.",
       "files": [],
       "narration": true
     },

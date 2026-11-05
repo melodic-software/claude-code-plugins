@@ -3,7 +3,7 @@
 The keys the verification plugin's skills read. Each is set per user through the plugin's
 `userConfig` option of the same name and per repository in `docs/conventions/verification.yaml`,
 validated by [`schemas/verification.schema.json`](../schemas/verification.schema.json). No
-`~/.claude` file, `.claude/` file or local overlay sets them. `/verification:setup apply` writes the
+`~/.claude` file, `.claude/` file or personal override sets them. `/verification:setup apply` writes the
 repository file after validating it; `/verification:setup check` validates it.
 
 | Key | Values | Default | Reader | Level rule |

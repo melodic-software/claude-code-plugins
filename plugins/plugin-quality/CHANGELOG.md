@@ -5,6 +5,31 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.15] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [0.18.14] - 2026-11-04
+
+### Changed
+
+- The config reference, the `audit` and `setup` skills and evals and the `plugin-quality-r002`
+  retirement note now call the retired `.claude/plugin-quality.local.md` file a personal override,
+  the marketplace's name for the config cascade's gitignored layer (#13192). The setup eval is
+  renamed `retirement-r002-personal-override-warns-never-silent`. Behavior is unchanged.
+
+## [0.18.13] - 2026-11-04
+
+### Fixed
+
+- `fetch-docs.sh --profile generic`: a `text/plain` answer to a URL whose path ends in `.md` is
+  read as markdown on the first request, so a host that serves `.md` files as `text/plain` no
+  longer leaves the page unread `unexpected-content-type`
+  ([#13354](https://github.com/melodic-software/claude-code-plugins/issues/13354)). A `text/plain`
+  answer for any other path is still refused.
+
 ## [0.18.12] - 2026-11-04
 
 ### Fixed

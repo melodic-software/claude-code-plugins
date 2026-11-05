@@ -157,7 +157,15 @@ one line per check, detail lines indented under it:
 
 The last line is `verdict: VALID` or `verdict: INVALID` with its reasons. A
 FAIL, or a check that could not run (UNCHECKED), makes the run INVALID; a WARN
-does not.
+does not. The line before it counts the runs that ran Bash, decides nothing,
+and names no case, command or trace text, so it may be published:
+`bash ran: with <a> of <b>, without <c> of <d>[, unknown <n>]`. A run ran Bash
+when a Bash call got a tool_result that is neither a permission denial nor a
+failed result reporting the sandbox failing to start. A run with no readable trace is counted in its arm's
+total and as unknown. A run whose init tools list leaves Bash out, with no Bash
+call, is left out of its arm; an arm of only such runs is `<arm> n/a`, and a
+suite of them `bash ran: n/a`. A case's allowed_tools cannot grant Bash, so the
+init tools list is the record read.
 
 A should-trigger case has a `tool_used` grader on the Skill tool that requires a
 call. A case is a no-trigger control, and exempt, when its prompt.md tags or
@@ -430,6 +438,7 @@ CONTEXT_FLOW = re.compile(r"context:\s*\{(.*)\}\s*(?:#.*)?")
 NO_VALUE = ("", "null", "~")
 
 PASS, WARN, FAIL, UNCHECKED = "PASS", "WARN", "FAIL", "UNCHECKED"
+RAN, NOT_RAN, UNKNOWN, EXEMPT = "ran", "not run", "unknown", "exempt"  # bash_state
 
 
 def as_list(value):
@@ -770,6 +779,64 @@ def is_denial(block):
     )
 
 
+def sandbox_failed(block):
+    """True when a failed tool_result reports the shell sandbox failing to start;
+    a call that succeeded and printed the text only quoted it."""
+    return block.get(RESULT_ERROR) is True and SANDBOX_FAILURE_TEXT in json.dumps(
+        block.get(CONTENT)
+    )
+
+
+def init_tools(run):
+    """The tools the run's init line lists, or None when it lists none."""
+    tools = next(
+        (
+            line.get(TRACE_TOOLS)
+            for line in run.trace or []
+            if (line.get(LINE_TYPE), line.get(LINE_SUBTYPE)) == TRACE_INIT
+        ),
+        None,
+    )
+    return tools if isinstance(tools, list) else None
+
+
+def bash_state(run):
+    """RAN, NOT_RAN, UNKNOWN (no readable trace) or EXEMPT (no Bash offered or called)."""
+    if run.trace is None:
+        return UNKNOWN
+    bash = set()
+    for line in run.trace:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == BASH_TOOL:
+                bash.add(block.get(USE_ID))
+            elif (
+                block.get(BLOCK_TYPE) == TOOL_RESULT
+                and block.get(RESULT_USE_ID) in bash
+                and not is_denial(block)
+                and not sandbox_failed(block)
+            ):
+                return RAN
+    tools = init_tools(run)
+    return EXEMPT if not bash and tools is not None and BASH_TOOL not in tools else NOT_RAN
+
+
+def bash_line(runs, arms):
+    """The `bash ran:` line the module docstring describes."""
+    states = [(r.arm, bash_state(r)) for r in runs if r.arm in arms]
+    parts = []
+    for arm in arms:
+        got = [s for a, s in states if a == arm]
+        counted = [s for s in got if s != EXEMPT]
+        if got and not counted:
+            parts.append("%s n/a" % arm)
+        else:
+            parts.append("%s %d of %d" % (arm, counted.count(RAN), len(counted)))
+    if all(p.endswith(" n/a") for p in parts):
+        return "bash ran: n/a"
+    unknown = sum(1 for _, s in states if s == UNKNOWN)
+    return "bash ran: %s%s" % (", ".join(parts), ", unknown %d" % unknown if unknown else "")
+
+
 def has_output(content):
     """True when a tool_result's content holds text past a leading exit-code line,
     or a block other than text."""
@@ -839,8 +906,7 @@ def shell_failure(run):
                         "a Bash call hit a read-only file system in the run's"
                         " workspace or TMPDIR"
                     )
-                text = json.dumps(block.get(CONTENT))
-                if SANDBOX_FAILURE_TEXT in text:
+                if sandbox_failed(block):
                     return "the shell sandbox failed to start"
                 if not has_output(block.get(CONTENT)):
                     failed_ids.add(block.get(RESULT_USE_ID))
@@ -2595,15 +2661,8 @@ def check_probe_tools(runs, root):
         if not is_probe(r.case, root):
             continue
         probes += 1
-        tools = next(
-            (
-                line.get(TRACE_TOOLS)
-                for line in r.trace or []
-                if (line.get(LINE_TYPE), line.get(LINE_SUBTYPE)) == TRACE_INIT
-            ),
-            None,
-        )
-        if not isinstance(tools, list):
+        tools = init_tools(r)
+        if tools is None:
             unread.append(r)
             continue
         extra = ", ".join(t for t in tools if t in PROBE_REMOVED_TOOLS)
@@ -2907,6 +2966,7 @@ def main(argv=None):
     ]
     for line in lines:
         print(line)
+    print(bash_line(runs, arms))
     if reasons:
         print("verdict: INVALID (%s)" % "; ".join(reasons))
         return 1

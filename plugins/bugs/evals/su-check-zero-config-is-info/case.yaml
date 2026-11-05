@@ -10,7 +10,7 @@ graders:
     target: 'last_message'
   - name: 'missing-config-not-a-failure'
     type: 'llm'
-    criteria: 'The final reply treats the absence of every bugs config layer (no docs/conventions/bugs.yaml, no overlay, no user-global file) as a working state, such as INFO or "nothing to fix", and does not mark that absence as a FAIL or an error. A FAIL raised for something else in the repository does not by itself fail this criterion.'
+    criteria: 'The final reply treats the absence of every bugs config layer (no docs/conventions/bugs.yaml, no personal override, no user-global file) as a working state, such as INFO or "nothing to fix", and does not mark that absence as a FAIL or an error. A FAIL raised for something else in the repository does not by itself fail this criterion.'
     focus: 'last_message'
   - name: 'file-default-destination'
     type: 'regex'

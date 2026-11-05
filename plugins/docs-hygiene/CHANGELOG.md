@@ -1,5 +1,33 @@
 # Changelog: docs-hygiene plugin
 
+## [2.5.7] - 2026-11-05
+
+### Fixed
+
+- `/docs-hygiene:rename-references` now states at the pattern-library pointer, in the audit survey and in Blast that the sweep is one Grep call per form it sweeps, never one alternation or a single token grep, so audit runs no longer skip the hidden forms (#7296).
+- `/docs-hygiene:rename-references` now treats a released changelog entry as a frozen record and reports frozen hits on one "Kept as history" line, never as a choice for the user (#7296).
+
+## [2.5.6] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [2.5.5] - 2026-11-04
+
+### Changed
+
+- The config reference and the `setup` skill now call the config cascade's gitignored `*.local.*`
+  layer the personal override, the marketplace's name for it, and an `audit-noise` test fixture
+  uses the same words (#13192). Behavior is unchanged.
+
+## [2.5.4] - 2026-11-04
+
+### Fixed
+
+- `/docs-hygiene:setup` says `--check` prints only its INFO line when `docs/conventions/docs-hygiene.yaml` is absent, as the script does; it read as if per-key lines followed.
+- The `setup-resolves-and-runs-the-binary` eval scaffold passes `--include=dev`: `claude plugin eval` runs a scaffold under `NODE_ENV=production`, which made npm skip the pinned `markdownlint-cli2` and failed the scaffold (#13279).
+
 ## [2.5.3] - 2026-11-04
 
 ### Changed

@@ -20,4 +20,4 @@ plugin_version: 0.7.6
 kind: file
 path: .claude/plugin-quality.local.md
 action: delete
-note: "retired local overlay; a convention-doc surface has no overlay channel"
+note: "retired personal override; a convention-doc surface has no personal override channel"

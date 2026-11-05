@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: principles-cyclomatic-22-answered-with-provenance
+description: asked whether 22 is the cyclomatic threshold, the reply traces each cited value to its source and names the ISO/IEC 5055 clause behind 20
+tags: [principles, provenance, threshold]
+expected_outcome: The reply says no source it knows attributes 22 to anyone, gives the cited values with their sources (20 from ISO/IEC 5055:2021 clause 8.2.117, 10 from McCabe 1976, 15 from NIST SP 500-235), and treats a reference as a value to count against rather than a pass or fail bar.
+execution:
+  prompt: Our old code review checklist says cyclomatic complexity above 22 is too high. Is 22 a real threshold? I'd like to know where each commonly cited cyclomatic complexity reference value actually comes from, and why the code metrics cyclomatic reference is 20.
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: code-metrics:principles
+  - name: cites-iso-clause
+    type: regex
+    pattern: '8\.2\.117\b'
+  - name: provenance-not-verdict
+    type: llm
+    criteria: PASS when the final reply says no source it can point to attributes 22 to anyone (scoped as no provenance found, without inventing a citation for 22), and attaches a source to each value it gives. Which source it gives for 20 does not matter here. FAIL when it endorses 22 as a standard threshold, cites a source for 22, gives values with no source attached, or tells the user to treat any value as a pass or fail gate.

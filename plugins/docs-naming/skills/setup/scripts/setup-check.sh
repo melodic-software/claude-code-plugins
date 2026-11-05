@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup-check.sh — verify the docs-naming consumer configuration surface.
+# setup-check.sh — verify the docs-naming consumer configuration.
 #
 # Read-only. Prints one row per check and changes nothing, so it is safe to run
 # against a repository nobody has reviewed.

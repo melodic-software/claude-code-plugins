@@ -4,7 +4,7 @@ The keys the implementation plugin's skills read, one row each. A key is set per
 plugin's `userConfig` option of the same name and per repository in
 `docs/conventions/implementation.yaml`, validated by
 [`schemas/implementation.schema.json`](../schemas/implementation.schema.json). No `~/.claude` file,
-`.claude/` file or local overlay sets these keys.
+`.claude/` file or personal override sets these keys.
 
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|

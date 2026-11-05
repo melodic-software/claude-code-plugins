@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "I can copy them to a backup first.", "why": "backup"},
+    {"answer": "Say \"yes, with backup\" to snapshot first.", "why": "the gate's wording"},
+    {"answer": "I can take a snapshot of the files before deleting.", "why": "snapshot"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Say yes to delete them.", "why": "no backup offered"},
+    {"answer": "This cannot be undone.", "why": "warns without offering one"}
+  ]
+}

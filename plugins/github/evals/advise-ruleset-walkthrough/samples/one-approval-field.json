@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "\"parameters\": { \"required_approving_review_count\": 1, \"dismiss_stale_reviews_on_push\": true }",
+      "why": "JSON body"
+    },
+    {
+      "answer": "-F 'rules[][parameters][required_approving_review_count]=1'",
+      "why": "field flag form"
+    },
+    {
+      "answer": "Set `required_approving_review_count: 1` on the pull_request rule.",
+      "why": "prose with YAML-style value"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {
+      "answer": "\"required_approving_review_count\": 2",
+      "why": "wrong count"
+    },
+    {
+      "answer": "\"required_approving_review_count\": 10",
+      "why": "1 as a prefix of a larger number"
+    },
+    {
+      "answer": "Require 1 approving review before merging.",
+      "why": "prose only, no field in the proposed change"
+    }
+  ]
+}

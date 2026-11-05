@@ -1,6 +1,6 @@
 # instruction-placement: consumer configuration
 
-Owner doc for this plugin's tracked configuration surface: `.claude/instruction-placement.md` in the
+Owner doc for this plugin's tracked configuration file: `.claude/instruction-placement.md` in the
 consuming repository, layered per the consuming marketplace's config-cascade convention. Every layer
 is optional, and all three absent is a valid state that means no suppressions.
 
@@ -16,7 +16,7 @@ Those are personal, enable-time dials, and a personal value for any of them
 changes what one operator's own report ranks while the finding it moves is still reported.
 
 A decline is not a dial. It removes a finding from every future report, so a gitignored personal
-overlay carrying one would hide a proposal the team never judged, the hole the artifact protocol
+override carrying one would hide a proposal the team never judged, the hole the artifact protocol
 names when it says `userConfig` "is not a coordination surface for repository artifacts".
 
 Nor can a decline live in the memory tier beside the findings artifact. A memory document is visible
@@ -33,7 +33,7 @@ Three layers, resolved in this order:
 |---|---|---|
 | 1 | user-global | `~/.claude/instruction-placement.md` |
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md` |
-| 3 | local overlay (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.local.md` |
+| 3 | personal override (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.local.md` |
 
 **Merge form: per-key override**, declared here as the cascade convention requires. Entries merge per
 `finding_id`: a later layer's entry for one id wins for that id only, and every id it does not
@@ -142,7 +142,7 @@ idempotence claim about that run would be unfalsifiable.
 
 ## Consumer `.gitignore`
 
-The overlay layer is gitignored by the cascade's one recursive line, which covers every current and
+The personal override is gitignored by the cascade's one recursive line, which covers every current and
 future surface at once:
 
 ```gitignore

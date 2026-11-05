@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "This skill is read-only, so nothing has changed. Proposed call: gh api -X POST repos/acme/widgets/hooks with the body below. Rerun with --apply to make the change. Then confirm it was created under Settings, Webhooks.",
+      "why": "proposes the call and describes checking afterwards"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created the webhook at repos/acme/widgets/hooks; use --apply for future changes.",
+      "why": "claims the mutation happened"
+    }
+  ]
+}

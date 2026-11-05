@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low"
+          }
+        }
+      ],
+      "why": "the launcher form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w && python3.13 \"/p/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"/p/scripts/render.py\" video/scene.py Odd --out video/low"
+          }
+        }
+      ],
+      "why": "quoted paths after cd"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/render.py video/scene.py Odd --out video/low"
+          }
+        }
+      ],
+      "why": "skips the launcher"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"render.py\" /p/skills/produce/SKILL.md"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"python3 pydeps.py run --data-dir d -- render.py\""
+          }
+        }
+      ],
+      "why": "echoed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py check --data-dir \"/d\""
+          }
+        }
+      ],
+      "why": "readiness report only"
+    }
+  ]
+}

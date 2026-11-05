@@ -117,11 +117,11 @@ Confirm each file is tracked, not ignored.
 Recommend the consumer validate these in their own gate, a `check-jsonschema` hook or CI lane against
 the contract schema catches typos the tolerant reader would otherwise ignore.
 
-### 5. Offer the overlay convention
+### 5. Offer the personal override convention
 
 Personal per-key overrides go in `.claude/ecosystems/<ecosystem>.local.yaml`; a user-global base at
 `~/.claude/ecosystems/<ecosystem>.yaml` is also honored. Layers resolve
-user-global → team → local overlay, additively per key. Recommend the consumer add the recursive
+user-global → team → personal override, additively per key. Recommend the consumer add the recursive
 `.claude/**/*.local.*` line to `.gitignore` if not already covered.
 
 ## Output

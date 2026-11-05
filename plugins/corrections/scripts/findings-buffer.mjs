@@ -2,7 +2,7 @@
 // Node half of tools/findings-buffer/buffer.sh. Three subcommands:
 //   adapter --project DIR   print the bound adapter: `local-file`, or the physical directory of the
 //                           adapter the user-scope binding names for this repository, else of the
-//                           plugin adapter <home>/findings-buffer.yaml (overlay .local.yaml) names,
+//                           plugin adapter <home>/findings-buffer.yaml (personal override .local.yaml) names,
 //                           both resolved through the config cascade (lib/config-cascade.mjs, ADR 0075).
 //                           The repository files are repository-writable, so they name only the
 //                           plugin's own tools/findings-buffer/adapters/. Repository code runs only

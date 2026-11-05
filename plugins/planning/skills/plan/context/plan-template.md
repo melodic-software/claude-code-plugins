@@ -7,6 +7,7 @@
 - [Choosing the Right Scale](#choosing-the-right-scale)
 - [Script Repeatable Operations (default deliverable)](#script-repeatable-operations-default-deliverable)
 - [Sanity-Check Format (per-phase)](#sanity-check-format-per-phase)
+- [Shape fences (per-phase)](#shape-fences-per-phase)
 - [Sub-Topic Promotion Trigger](#sub-topic-promotion-trigger)
 - [Execution-shape analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
@@ -28,6 +29,13 @@ These sections sit under PLAN.md's `## Plan`, before the first phase ([plan-md-a
 
 ```markdown
 Citations checked at: <the full commit SHA check-plan-citations.sh printed at Step 4.7>
+
+### Behavior
+
+- B1: <one observable claim, one sentence> (AC1)
+- B2: <...> (AC2, AC3)
+
+Process criteria: <criterion ids no behavior shows; omit when none>
 
 ### Load-bearing assumptions
 
@@ -137,6 +145,10 @@ The Brief above it still carries the Goal and the finish line (its Acceptance cr
 ```markdown
 ## Plan: <title>
 
+### Behavior
+
+- B1: <one observable claim, one sentence> (AC1)
+
 **Steps**:
 1. <step>
 2. <step>
@@ -204,6 +216,21 @@ Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be 
 - ~~"Convention applied correctly"~~
 
 When in doubt, surface the exact command a reviewer would run.
+
+## Shape fences (per-phase)
+
+A phase shows which code changes in a `shape` fence, anchored to the code it touches:
+
+````markdown
+```shape <path>[#<symbol>][ L<n>]
+<one shape>
+```
+````
+
+- **Forms.** The body is one of `/visualization:visualize`'s code-shape sketches: a call tree, a shallow file tree, or a diff-shaped delta over one of them.
+- **Anchor.** `<path>` is from the repository root. A file path takes `#<symbol>`, a token with no spaces that occurs as a whole word in the file; a directory path needs none, and a symbol it carries is searched for in that directory. `L<n>` is optional and names the line the symbol is on.
+- **Level.** The shape says where the change goes and what calls what. Types, signatures and contracts belong to `## Design`; a phase cites the Design subsection rather than restating them.
+- **Checked.** The Step 4.7 citation gate fails an anchor whose path is missing (`shape-missing-path`), whose symbol is absent (`shape-missing-symbol`), whose `L<n>` is past the file's end (`shape-past-end`), that puts `L<n>` on a directory or names a submodule (`shape-not-a-file`), or that does not parse (`shape-malformed`). It warns (`shape-line`) when line `<n>` lacks the symbol. Only an outermost fence is checked, so quote a shape example inside a longer fence.
 
 ## Sub-Topic Promotion Trigger
 
@@ -380,21 +407,32 @@ The id sits at the start of the row's first column; the table keeps its `Decisio
 
 ## Criterion ids (traced to phases)
 
-Every acceptance criterion carries an id, and every phase names the ids it satisfies, so the outcome gate's `criteria` criterion reports a criterion no phase covers:
+Every acceptance criterion carries an id, and every phase names the ids it satisfies, so the outcome gate's `criteria` criterion reports a criterion no phase covers. The behavior list maps each criterion to a behavior, and each behavior to the phases that deliver it:
 
 ```markdown
 ### Acceptance criteria
 - AC1: `chezmoi apply --dry-run` exits 0 on a fresh machine
-- AC2: the README names chezmoi as the dotfile manager
+- AC2: the PR body links the issue it closes
+
+## Plan
+
+### Behavior
+- B1: A fresh machine gets the shell config from one `chezmoi apply`. (AC1)
+Process criteria: AC2
 
 ### Phase 1: Integration slice [TODO]
-**Satisfies:** AC1
+**Satisfies:** AC1, AC2
+**Delivers:** B1
 ```
 
 - The Brief's criteria keep the ids `/planning:interview` gave them. A Brief whose criteria have none gets `AC1`, `AC2`, ... prefixed in order, with no criterion's text changed.
 - A criterion the plan adds (a minimal Brief, or one the Brief lacked) goes under an `### Acceptance criteria` heading in `## Plan` with the next unused id; an id is never reused.
 - The `**Satisfies:**` line sits in the phase section, under its heading, and lists ids only. Several phases may satisfy one id. A phase that serves something a criterion needs (a test, a migration, a dead-code removal) without satisfying one carries no line.
 - The gate fails a criterion id no phase satisfies, a satisfied id no criterion defines, a criterion without an id beside ones with ids, and an id used twice. A plan whose criteria carry no id passes with a warning.
+- `### Behavior` is the first `###` under `## Plan`, after the `Citations checked at:` line and before a plan-added `### Acceptance criteria` block. Each item is `- B<n>: <claim> (AC<i>, ...)`: one sentence naming what a user or caller sees, split by behavior, never by file, layer or order of work. B ids are unique, and each item cites at least one defined criterion id.
+- Every criterion id is cited by a behavior or listed on the `Process criteria:` line, never both. The Process line holds criteria no behavior shows, such as a PR-body rule; a phase still names each one on its `**Satisfies:**` line.
+- A phase that builds a behavior carries a `**Delivers:**` line under its heading listing B ids only. Every B id is delivered by at least one phase, and a Delivers id names a defined behavior.
+- The gate's `behaviors` criterion fails a plan that breaks any of these rules or has no list. A plan with no criterion id passes it with a warning.
 
 ## Phase Review tags (optional per phase)
 

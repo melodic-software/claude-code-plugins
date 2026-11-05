@@ -4,7 +4,7 @@
 #
 # Self-contained and cwd-independent; it changes only its own mktemp dir.
 # Expected values come from the key contract in SKILL.md "Settings": the team file
-# <home>/code-tidying.yaml, the personal overlay <home>/code-tidying.local.yaml
+# <home>/code-tidying.yaml, the personal override <home>/code-tidying.local.yaml
 # winning key by key, <home> the bound convention home (reference/config.md, default
 # docs/conventions), comment_posture in
 # auto|none|necessary|explanatory, comment_edit_scope in diff|files,
@@ -54,11 +54,11 @@ check 'the team posture is read' "comment_posture${TAB}necessary${TAB}$TEAM" "$(
 check 'the team edit scope is read' "comment_edit_scope${TAB}files${TAB}$TEAM" "$(lines_for "$repo" comment_edit_scope)"
 
 repo="$(repo_with $'comment_posture: necessary\n' $'comment_posture: explanatory\n')"
-check 'the personal overlay beats the team file' \
+check 'the personal override beats the team file' \
   "comment_posture${TAB}explanatory${TAB}$PERSONAL" "$(lines_for "$repo" comment_posture)"
 
 repo="$(repo_with $'comment_posture: necessary\n' $'comment_posture: strip\n')"
-check 'an invalid overlay is named and the team value stands' \
+check 'an invalid personal override is named and the team value stands' \
   "comment_posture${TAB}invalid${TAB}$PERSONAL: strip"$'\n'"comment_posture${TAB}necessary${TAB}$TEAM" \
   "$(lines_for "$repo" comment_posture)"
 
@@ -97,7 +97,7 @@ bound_repo() { # bound_repo <pointer line>: a repository whose root file binds a
 repo="$(bound_repo "Team conventions live in \`config/team\`.")"
 check 'a bound home supplies the team layer' \
   "comment_posture${TAB}necessary${TAB}config/team/code-tidying.yaml" "$(lines_for "$repo" comment_posture)"
-check 'a bound home supplies the personal overlay' \
+check 'a bound home supplies the personal override' \
   "comment_edit_scope${TAB}diff${TAB}config/team/code-tidying.local.yaml" "$(lines_for "$repo" comment_edit_scope)"
 
 repo="$(bound_repo "Team conventions live in \`config/missing\`.")"

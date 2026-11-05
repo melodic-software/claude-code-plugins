@@ -126,7 +126,7 @@ nothing and reports "already configured".
 2. **Offer optional profile files.** Offer `audience.md` and declarative `brand.json`, creating only
    the files the consumer requests. Keep local logo assets beside `brand.json`. These files are
    team-tracked in the selected profile directory. This surface has no gitignored `*.local.*`
-   overlay.
+   personal override.
 3. **`apply install-build-deps` installs the optional build toolchain.** Parse the subaction
    before invoking a shell and never interpolate raw arguments into a command. Without it,
    skip this step and change no existing runtime. With it, build and validate a temporary

@@ -49,10 +49,10 @@ Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify no
      its help banner or the exit code of `--help`.
 3. **Repository settings.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
    project root and report each line it prints under its own INFO, PASS or WARN prefix: INFO when
-   `docs/conventions/docs-hygiene.yaml` is absent; a WARN for each problem in the file (a value
-   outside the key's list, a key set twice, an empty or null value, a map or list where one string
-   belongs, a key the schema does not list, or a line that does not parse), quoting the file, key
-   and value; then one line per schema key: `PASS <key>: <value>` or `PASS <key>: (unset)`, or
+   `docs/conventions/docs-hygiene.yaml` is absent, with no other line; otherwise a WARN for each
+   problem in the file (a value outside the key's list, a key set twice, an empty or null value, a
+   map or list where one string belongs, a key the schema does not list, or a line that does not
+   parse), quoting the file, key and value; then one line per schema key: `PASS <key>: <value>` or `PASS <key>: (unset)`, or
    `WARN <key>: dropped ...` when the file's value for that key is invalid or the file does not
    parse. A key the schema does not list gets its own WARN and leaves the other keys' values in
    force, the same way `/docs-hygiene:compress` reads them. An invalid value never stops
@@ -144,7 +144,7 @@ To set the value for the whole repository instead, use `apply`.
 5. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
    convention home, the script prints an offer: with the operator's confirmation it adds a
    convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
-   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   exists or `CLAUDE.md` only imports it) and the personal override ignore line
    `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
    `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
    exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the

@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 plugin/scripts/pydeps.py check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'pydeps.py install' plugin/README.md"
+          }
+        }
+      ],
+      "why": "quoted, not run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 plugin/scripts/pydeps.py install --data-dir d"
+          }
+        }
+      ],
+      "why": "the repair line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo apt-get install -y ffmpeg"
+          }
+        }
+      ]
+    }
+  ]
+}

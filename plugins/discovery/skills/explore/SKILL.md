@@ -45,7 +45,7 @@ sidecars are written the same way under every value. Lowest layer first, a later
 4. an `--output change-prep` or `--output explain` argument on this invocation.
 
 Read the file with the Read tool; a missing file or key leaves that layer unset, and the file does
-not apply when the project root is unknown. No `~/.claude` file, `.claude/` file or local overlay
+not apply when the project root is unknown. No `~/.claude` file, `.claude/` file or personal override
 sets this key. A value other than `auto`, `change-prep` or
 `explain` in any layer (or an `--output` value other than the two) is named in the reply, with the
 file or `userConfig` that held it, the key, and the value, and that layer is dropped. A valid

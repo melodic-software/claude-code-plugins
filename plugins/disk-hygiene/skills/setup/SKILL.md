@@ -24,6 +24,13 @@ single source of truth for what the plugin requires per platform.
 **Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
+Read engine files (`hygiene.py` and the other scripts under `skills/clean/scripts/`) with the
+Read or Grep tool, or with the one plain reader command step 2 names, run alone with its
+absolute path. Never name an engine file inside a compound shell line: no `cd`, variable
+assignment, `$` expansion, `;` or `&&` chain around it. The plugin's own guard denies such a
+line as "not one plain literal invocation"; it lets a line through only when every command in
+it is a reader it lists (`destructive_guard.py` `_bash_reads_only`).
+
 The toggle is an audit-only kill switch, not a short-circuit: the guard registers
 unconditionally and still scans with the toggle off, so most prerequisite absences keep their
 FAIL semantics regardless of the toggle. Only the execution-tier tools the audit lane never
@@ -92,7 +99,9 @@ fails closed like every other guard-relevant unknown in this plugin.
    behavior). Both register unconditionally and resolve the kill switch by
    reading `disk_hygiene_enabled` from managed settings first, then the user `settings.json`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py`, parse it from
-   there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
+   there with the Grep tool or this one command, alone on its line:
+   `grep -m1 '^MIN_PYTHON' ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py`. Probe the
+   interpreter against that value in a separate call; do not
    recite a version number from this file or the README. FAIL if absent or older, naming
    the parsed floor in the remediation; the plugin never downloads a runtime. Report the
    absolute interpreter path (guarded engine calls must use the same absolute interpreter

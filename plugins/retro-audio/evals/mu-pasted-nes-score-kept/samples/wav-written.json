@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": ["audio/arpeggio.wav"]}
+  ],
+  "fail": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": ["arpeggio.wav"], "why": "outside audio/"},
+    {"answer": ["audio/arpeggio.mp3"], "why": "another format"},
+    {"answer": ["audio/score.mml"], "why": "the score only"}
+  ]
+}

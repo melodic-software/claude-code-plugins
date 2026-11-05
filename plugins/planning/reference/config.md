@@ -55,7 +55,7 @@ never used in its place. An invalid value never stops the run.
 | `shared_session.signoff` | `true`, `false` | `false` | same: a leader's lock needs everyone's agreement | repository file over default |
 | `shared_session.chat` | `true`, `false` | `true` | same: the side chat, never sent to Claude | repository file over default |
 | `shared_session.follow` | `true`, `false` | `true` | same: pages move to a new round when it arrives | repository file over default |
-| `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | same: the page's accent color | repository file over default |
+| `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | retired: no effect. The page offers one theme choice, the canonical chrome's System/Light/Dark toggle, so no session or team setting sets its accent; a file that still sets the key stays valid | none |
 | `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once; `[]` shows prototype questions as text | `[screenshot, snapshot]` | same: which prototype views guests get | repository file over default |
 | `shared_session_open_browser` | `true`, `false` | `true` | same: opens the owner's page in the browser at start | user config over default |
 

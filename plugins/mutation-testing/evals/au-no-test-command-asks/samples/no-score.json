@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": "No mutation score: the run stopped in Phase 0 before any mutant was applied.", "why": "says no score"},
+    {"answer": "I will report the covered-code score once the baseline is green on a confirmed test command (step 1 of 4).", "why": "promises a score, states none"},
+    {"answer": "Coverage alone is 100% here, which is why mutation testing is worth running.", "why": "coverage percent, not a score"},
+    {"answer": "A separate reviewer will classify any surviving mutant. Nothing has survived or been killed yet.", "why": "describes the process, reports no result"}
+  ],
+  "fail": [
+    {"answer": "Mutation score: 67% (2 of 3 mutants killed).", "why": "score and tally"},
+    {"answer": "Covered-code score 1/2.", "why": "fraction score"},
+    {"answer": "1 mutant survived: `>=` to `>` on line 2.", "why": "survivor count"},
+    {"answer": "| Survived | 1 |", "why": "survivor table row"},
+    {"answer": "| `> 10` | **survived** |", "why": "survivor list row with no number"},
+    {"answer": "| `>= 51` | killed |", "why": "result row with no number"}
+  ]
+}

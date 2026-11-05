@@ -5,6 +5,46 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.12] - 2026-11-05
+
+### Fixed
+
+- `audit-instructions` says where its `context/`, `reference/` and `scripts/` paths sit under the plugin root, and opens plugin files with the Read tool by those paths, never through `cat` or `sed` and never by searching the plugin directory.
+- `audit-instructions` reads the prior report by its path with the Read tool and treats not found as the no-prior case; it runs no `ls`, `touch`, `mkdir` or Glob against the plugin data directory, since `run-state.sh lease acquire` creates the run directory.
+- `audit-instructions` names `run-state.sh` and `emit-findings.sh` by their paths instead of a bare name or a placeholder a context file cannot resolve.
+
+## [3.0.11] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [3.0.10] - 2026-11-04
+
+### Fixed
+
+- `audit-permission-grants` now scans the main checkout's `.claude/settings.local.json` when run in a linked worktree, and a subdirectory's `.claude/settings.json` when run from that subdirectory.
+- `audit-automation-gaps` inventory reads the same files: the start directory's `.claude/settings.json`, and the main checkout's `.claude/settings.local.json` in a linked worktree.
+- The effort-pin drift check hashes the defaults list item without its list number, so renumbering the list no longer reports the table `changed`.
+
+## [3.0.9] - 2026-11-04
+
+### Changed
+
+- `setup`, the `audit` procedures and the `audit-pass` suppression reference now call the config
+  cascade's gitignored `*.local.*` layer the personal override, the marketplace's name for it
+  (#13192). Behavior is unchanged.
+
+## [3.0.8] - 2026-11-04
+
+### Fixed
+
+- `fetch-docs.sh --profile generic`: a `text/plain` answer to a URL whose path ends in `.md` is
+  read as markdown on the first request, so a host that serves `.md` files as `text/plain` no
+  longer leaves the page unread `unexpected-content-type`
+  ([#13354](https://github.com/melodic-software/claude-code-plugins/issues/13354)). A `text/plain`
+  answer for any other path is still refused.
+
 ## [3.0.7] - 2026-11-04
 
 ### Fixed

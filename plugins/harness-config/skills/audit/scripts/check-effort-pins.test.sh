@@ -117,7 +117,8 @@ assert_not_contains "print-baseline: no row text in the baseline" "$(cat "$BASE"
 
 # --- slice path: the hash the whole-page scan gave on the committed fixture ---------
 # The hashed lines, copied by hand from the fixture: the level rows of the Choose
-# table, the Levels table rows, then the list item that states the defaults.
+# table, the Levels table rows, then the list item that states the defaults,
+# without its list number.
 want="$(printf '%s\n' \
   '| `low` | Sorting socks by color |' \
   '| `medium` | Baking bread from a known recipe |' \
@@ -126,7 +127,7 @@ want="$(printf '%s\n' \
   '| `max` | Solving a locked-room puzzle alone |' \
   '| Model Alpha and Model Beta | `low`, `medium`, `high`, `xhigh`, `max` |' \
   '| Model Gamma | `low`, `medium`, `high`, `max` |' \
-  '3. Pretend default source: Model Alpha starts at `medium`, Model Beta at `high`, Model Gamma at `low`' |
+  'Pretend default source: Model Alpha starts at `medium`, Model Beta at `high`, Model Gamma at `low`' |
   sha256sum | cut -d' ' -f1)"
 assert_contains "slice path: same hash as the whole-page scan on the committed fixture" "$(grep -o 'sha256=[0-9a-f]*' "$BASE")" "sha256=$want"
 assert_eq "slice path: the page was read through the docs cache" 1 \
@@ -215,21 +216,16 @@ i\
 }'
 run "$(variant moved "$MOVE_DEFAULTS")" --print-baseline --root "$EMPTY"
 assert_eq "defaults moved: still parses" 0 "$RC"
-want="$(printf '%s\n' \
-  '| `low` | Sorting socks by color |' \
-  '| `medium` | Baking bread from a known recipe |' \
-  '| `high` | Tuning a piano with a friend listening |' \
-  '| `xhigh` | Charting a coastline by moonlight |' \
-  '| `max` | Solving a locked-room puzzle alone |' \
-  '| Model Alpha and Model Beta | `low`, `medium`, `high`, `xhigh`, `max` |' \
-  '| Model Gamma | `low`, `medium`, `high`, `max` |' \
-  '5. Pretend default source: Model Alpha starts at `medium`, Model Beta at `high`, Model Gamma at `low`' |
-  sha256sum | cut -d' ' -f1)"
 assert_contains "defaults moved: the hash covers the defaults line, not item 3" "$OUT" "sha256=$want"
 MOVED_BASE="$T/moved.baseline"
 printf '%s\n' "$OUT" >"$MOVED_BASE"
 run "$(variant moved-edited "$MOVE_DEFAULTS;"'s/Model Gamma at `low`/Model Gamma at `high`/')" --baseline "$MOVED_BASE" --root "$ROOT"
 assert_contains "defaults moved: an edit to the defaults line still changes the hash" "$OUT" "table status=changed"
+
+# A renumber alone, with every word the same, is not a change.
+run "$(variant renumbered 's/^3\. Pretend default source/7. Pretend default source/')" --baseline "$BASE" --root "$ROOT"
+assert_eq "renumbered defaults item: exits 0" 0 "$RC"
+assert_contains "renumbered defaults item: same" "$OUT" "table status=same"
 
 # A second item that mentions a default is hashed too, never skipped for the first.
 run "$(variant two-defaults 's/a coin toss/a default coin toss/')" --baseline "$BASE" --root "$ROOT"

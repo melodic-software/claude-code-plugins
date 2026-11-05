@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-05
+
+### Fixed
+
+- The setup skill reads engine files with the Read or Grep tool, or one plain reader command, so its probes no longer collide with the clean engine gate.
+
 ## [1.0.3] - 2026-11-04
 
 ### Fixed

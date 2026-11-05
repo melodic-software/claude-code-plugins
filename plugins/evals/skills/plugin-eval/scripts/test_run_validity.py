@@ -664,6 +664,83 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertIn("check permission denials: PASS", proc.stdout)
 
+    def tools_trace(self, name, tools, results=()):
+        """A trace whose init line lists tools, with one Bash call per (is_error, text)."""
+        uses = [{"type": "tool_use", "id": "b%d" % i, "name": "Bash", "input": {"command": "ls"}}
+                for i in range(len(results))]
+        outs = [{"type": "tool_result", "tool_use_id": "b%d" % i, "is_error": err, "content": text}
+                for i, (err, text) in enumerate(results)]
+        lines = [{"type": "system", "subtype": "init", "model": "claude-opus-5-5", "tools": tools}]
+        if results:
+            lines += [{"type": "assistant", "message": {"content": uses}},
+                      {"type": "user", "message": {"content": outs}}]
+        lines.append({"type": "result", "subtype": "success", "is_error": False, "num_turns": 4})
+        trace = self.dir / name
+        trace.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+        return str(trace)
+
+    def bash_count(self, with_traces, without_traces):
+        """The clean result's 3 runs per arm traced in order by the given paths, None
+        dropping a run's tracePath; returns the output's last two lines."""
+        result = self.clean()
+        for arm, traces in (("with", with_traces), ("without", without_traces)):
+            for case, trace in zip(result["cases"], traces):
+                run = case["arms"][arm][0]
+                run["turns"] = 4
+                if trace is None:
+                    del run["tracePath"]
+                else:
+                    run["tracePath"] = trace
+        proc = self.run_script(self.write(result, absolute_traces=False), "--runs", "1")
+        return proc, proc.stdout.strip().splitlines()[-2:]
+
+    def test_bash_ran_counts_every_run_whose_bash_call_got_a_result(self):
+        # The init line leaves Bash out, as runs offered tools allowed_tools never
+        # listed do; a Bash call that ran still counts.
+        ran = self.tools_trace("ran.jsonl", ["Skill"], [(False, "README.md")])
+        proc, tail = self.bash_count([ran] * 3, [ran] * 3)
+        self.assertEqual(tail[0], "bash ran: with 3 of 3, without 3 of 3", proc.stdout)
+        self.assertTrue(tail[1].startswith("verdict: "), proc.stdout)
+
+    def test_a_valid_run_that_never_ran_bash_shows_0_of_n(self):
+        idle = self.tools_trace("idle.jsonl", ["Skill", "Bash"])
+        proc, tail = self.bash_count([idle] * 3, [idle] * 3)
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertEqual(tail[0], "bash ran: with 0 of 3, without 0 of 3", proc.stdout)
+
+    def test_an_unreadable_trace_is_unknown_not_ran(self):
+        ran = self.tools_trace("ran.jsonl", ["Skill", "Bash"], [(False, "ok")])
+        missing = str(self.dir / "no-such-trace.jsonl")
+        proc, tail = self.bash_count([ran, None, ran], [ran, ran, missing])
+        self.assertEqual(
+            tail[0], "bash ran: with 2 of 3, without 2 of 3, unknown 2", proc.stdout
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_sandbox_start_failure_or_a_denial_is_not_a_bash_run(self):
+        ran = self.tools_trace("ran.jsonl", ["Skill", "Bash"], [(False, "ok")])
+        no_sandbox = self.tools_trace("no-sandbox.jsonl", ["Skill", "Bash"], [
+            (True, "Sandbox is required but failed to initialize: Failed to create bridge sockets."),
+        ])
+        denied = self.tools_trace("denied.jsonl", ["Skill", "Bash"], [
+            (True, "Permission to use Bash has been denied by your permission settings."),
+        ])
+        quoted = self.tools_trace("quoted.jsonl", ["Skill", "Bash"], [
+            (False, "grep found: Sandbox is required but failed to initialize"),
+        ])
+        proc, tail = self.bash_count([no_sandbox, quoted, ran], [denied, ran, ran])
+        self.assertEqual(tail[0], "bash ran: with 2 of 3, without 2 of 3", proc.stdout)
+
+    def test_runs_offered_no_bash_are_n_a(self):
+        # clean.jsonl's init line lists only Skill and it calls no Bash.
+        proc = self.run_script(self.write(self.clean()), "--runs", "1")
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertEqual(proc.stdout.strip().splitlines()[-2], "bash ran: n/a", proc.stdout)
+        ran = self.tools_trace("ran.jsonl", ["Skill", "Bash"], [(False, "ok")])
+        offered_none = str(TRACES / "clean.jsonl")
+        proc, tail = self.bash_count([offered_none] * 3, [ran, offered_none, ran])
+        self.assertEqual(tail[0], "bash ran: with n/a, without 2 of 2", proc.stdout)
+
     def test_a_bash_result_reporting_a_read_only_file_system_is_invalid(self):
         # The #12422 positive control: a run with turns whose write to its own
         # workspace or TMPDIR fails. The trace sits at <sandbox>/out/trace.jsonl.

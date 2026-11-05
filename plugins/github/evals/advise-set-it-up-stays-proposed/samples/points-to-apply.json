@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "A bare run changes nothing. To make the change, re-run with `--apply`, which routes through your declared change routing.",
+      "why": "names the flag in code"
+    },
+    {
+      "answer": "Run /github:advise webhooks --apply to apply it.",
+      "why": "full invocation"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {
+      "answer": "Done: the webhook is created and will fire on the next push.",
+      "why": "claims the write, no apply route"
+    },
+    {
+      "answer": "Run the command above yourself, then apply the patch with git apply hook.diff.",
+      "why": "the bare word apply"
+    },
+    {
+      "answer": "Pass --apply-patch to the helper.",
+      "why": "a different flag sharing the prefix"
+    }
+  ]
+}

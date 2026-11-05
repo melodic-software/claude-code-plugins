@@ -120,7 +120,7 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
    writes with no repository mutation, scoped as permitted `C1` output by the
    [work-classes leaf](../guardrails/work-classes.md).
 3. **Risk-raising axes.** No portion of the class makes a direct change, so no structural or
-   configuration surface is the target of one and the `C4` axis does not fire. Access is
+   configuration file is the target of one and the `C4` axis does not fire. Access is
    `repo` and every input is repository content the org already governs, so the
    input-provenance axis does not fire and the class is not `C5`.
 4. **Access axis → prerequisite.** Repo scope sets the `L2` unattended floor as the dispatch

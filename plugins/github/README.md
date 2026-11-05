@@ -48,7 +48,7 @@ every write.
 
 Unconfigured consumers work read-only out of the box: change routing defaults to **propose-only**
 (proposed changes are emitted as exact commands or diffs, never executed). Consumer config lives in
-`.claude/github/` and layers user-global → team → local overlay:
+`.claude/github/` and layers user-global → team → personal override:
 
 - [`reference/change-routing.md`](reference/change-routing.md). `routing.yaml`: how proposed
   changes leave the session (`propose` / `guided-apply` / `handoff`), with a team policy floor on
@@ -65,8 +65,8 @@ suppresses the offer when `false`. That is an advisory gate honored by the skill
 kill-switch; the hard gate is the per-action user confirm. Guided manual steps with a deep link
 remain the always-available fallback.
 
-`/github:setup` writes both files interactively and recommends the one-line recursive overlay
-gitignore (`.claude/**/*.local.*`); it never edits your `.gitignore`.
+`/github:setup` writes both files interactively and recommends the one-line recursive personal
+override gitignore (`.claude/**/*.local.*`); it never edits your `.gitignore`.
 
 ## Install
 

@@ -66,7 +66,7 @@
     {
       "id": 6,
       "name": "fan-out-throttles-and-checkpoints-for-crash-safety",
-      "prompt": "Recheck the whole framework config against upstream — this is a big framework with dozens of config surfaces to compare. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
+      "prompt": "Recheck the whole framework config against upstream — this is a big framework with dozens of config files to compare. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
       "expected_output": "Takes the fan-out tier. Throttles the dispatch into bounded waves with a concurrency cap rather than firing one agent per surface at once, notes the burst-overload (529) risk, retries only a failed surface once (marking a second failure unverifiable), and checkpoints the partial ledger to a durable topic-memory slice mid-run when one exists — proceeding without it when the session has no durable store rather than asserting a persistence surface.",
       "files": [],
       "expectations": [

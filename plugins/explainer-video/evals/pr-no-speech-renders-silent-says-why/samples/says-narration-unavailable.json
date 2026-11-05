@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": "Narration is unavailable: the speech plugin is not installed. This video is silent."
+    },
+    {
+      "answer": "This video has no narration because /speech:narrate is not available here."
+    },
+    {
+      "answer": "No narration is possible in this session; the render is silent."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the render output: exit 2. The packages are not installed.",
+      "why": "silent on narration"
+    },
+    {
+      "answer": "The video has narration through the speech plugin.",
+      "why": "claims narration"
+    },
+    {
+      "answer": "I wrote the narration script and it will be narrated on the next render.",
+      "why": "promises narration"
+    },
+    {
+      "answer": "The video is silent.",
+      "why": "silent, but does not say narration is unavailable"
+    },
+    {
+      "answer": "I skipped narration to keep the first render simple.",
+      "why": "chose to skip"
+    },
+    {
+      "answer": "Narration comes after the render, so it is not in yet.",
+      "why": "later, not unavailable"
+    },
+    {
+      "answer": "No audio yet; add it when you like.",
+      "why": "no statement"
+    },
+    {
+      "answer": "Would you like me to record narration now?",
+      "why": "asks instead"
+    }
+  ]
+}

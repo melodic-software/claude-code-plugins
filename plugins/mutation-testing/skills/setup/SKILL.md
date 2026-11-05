@@ -25,7 +25,7 @@ runs the check first, then the write flow. `apply` takes the target layer as its
 
 The config resolves across three layers, lowest first: the user layer (`userConfig`) → team
 (`${CLAUDE_PROJECT_DIR}/docs/conventions/mutation-testing.yaml`, a YAML file validated by
-`${CLAUDE_PLUGIN_ROOT}/schemas/mutation-testing.schema.json`) → local overlay
+`${CLAUDE_PLUGIN_ROOT}/schemas/mutation-testing.schema.json`) → personal override
 (`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists.
 
 The team file of earlier releases, .claude/mutation-testing.md, is retired and never read as a
@@ -42,7 +42,7 @@ value lives in this plugin's `userConfig`, which Claude Code prompts for and sto
 An empty value or a surviving literal `${user_config.…}` token is unset. A value outside the key's
 range (`operators` other than `default` or `narrow`, `max_mutants` not a whole number of at least 1)
 is reported with its key and value and dropped. The other keys are per repository, `test-command`
-above all, so they are never read from `userConfig`. Report explicitly when an overlay changes the
+above all, so they are never read from `userConfig`. Report explicitly when a personal override changes the
 team file's effect, and warn when a layer cannot be read, rather than silently presenting the team
 file as effective.
 
@@ -147,7 +147,7 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    (is it ignored?). Untracked → FAIL, naming the `git add` that fixes it; ignored → FAIL with the
    matching pattern. Checking only `check-ignore` is the trap: immediately after `apply` writes them
    the files are untracked but not ignored, so `check-ignore` is silent and the probe would report
-   success on two files no teammate will ever receive. The `.local.md` overlays are expected to be
+   success on two files no teammate will ever receive. The `.local.md` personal overrides are expected to be
    both untracked and ignored. INFO, not FAIL. A file that does not exist is not probed: probe 6
    already reports the missing config as INFO, and probe 8 the missing record.
 
@@ -207,9 +207,9 @@ unambiguous; ask only where the answer is genuinely the user's.
    the session open until these two files are committed and pushed. Say so when the user declines,
    so the tree they are left with is a choice rather than a surprise.
 10. **Verify after remediation.** Re-run the `check` probes on what was written, including both
-    halves of probe 9, tracked *and* not-ignored, then offer the overlay convention: personal
+    halves of probe 9, tracked *and* not-ignored, then offer the personal override convention: personal
     config overrides in `.claude/mutation-testing.local.md`, and recommend the recursive
-    `.claude/**/*.local.*` line in `.gitignore` if not already covered. State plainly that the same overlay pattern does **not**
+    `.claude/**/*.local.*` line in `.gitignore` if not already covered. State plainly that the same personal override pattern does **not**
     give personal suppressions effect: an arid entry in a `.local.md` is a draft until promoted to
     the team layer.
 
@@ -221,7 +221,7 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
 
 - **`local`** writes to `.claude/mutation-testing.local.md` only, and only the keys the user wants
   to override, without the template's team-shared header. It skips step 8, since a personal
-  suppression entry would not suppress, and step 9, since the overlay is meant to stay untracked. Before writing, run `git check-ignore -v .claude/mutation-testing.local.md`;
+  suppression entry would not suppress, and step 9, since the personal override is meant to stay untracked. Before writing, run `git check-ignore -v .claude/mutation-testing.local.md`;
   when nothing ignores it, offer the `.claude/**/*.local.*` line in `.gitignore` and write it only on
   the user's acceptance.
 - **`user`** writes no file and no setting, and of `check` it runs only probe 6, so it runs no
@@ -247,7 +247,7 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
 ## Output
 
 For the `team` layer, a tracked `docs/conventions/mutation-testing.yaml` and
-`.claude/mutation-testing-arid.md` in the consuming repo; for `local`, the untracked overlay; for `user`, no file and the
+`.claude/mutation-testing-arid.md` in the consuming repo; for `local`, the untracked personal override; for `user`, no file and the
 `/plugin configure` line. Each ends with a one-paragraph summary of what was written and how to
 re-run this setup to reconfigure; `team` and `local` also give the measured baseline suite time.
 
@@ -258,7 +258,7 @@ re-run this setup to reconfigure; `team` and `local` also give the measured base
 - Install anything without asking.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The user layer is
   `userConfig`, which Claude Code stores; `apply user` names `/plugin configure` for it.
-- Write machine-local state other than the `local` overlay `apply local` writes on request.
+- Write machine-local state other than the personal override `apply local` writes on request.
   Configuration lives in the consumer's repository files, never in the plugin directory or the
   plugin data directory.
 - Set a score threshold. The config template deliberately has no such field; see the `principles`

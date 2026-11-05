@@ -46,6 +46,8 @@ truth for what it requires and how it resolves things.
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence except Node.js (probe 7)
 downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing
@@ -53,7 +55,7 @@ anything, so a deliberately disabled plugin is not broken. Report those probes
 informationally and note that re-enabling restores the FAIL semantics. Node.js stays FAIL
 when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **Biome binary.** Resolve it exactly the way the hook's resolution code does: its
@@ -73,7 +75,8 @@ when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate 
    the hidden dotted variants are intentionally excluded. Report the governing config the
    walk discovers, or INFO that none exists. Absence is the opt-out by design, so the
    plugin is inert (INFO, not FAIL), matching the README's "ships no rules of its own"
-   stance.
+   stance. Do not offer to create a config; say the user can add a `biome.json` or
+   `biome.jsonc` to opt in.
 5. **Hook toggle and options.** Report the effective `biome_format_enabled` value:
    `${user_config.biome_format_enabled}` (unexpanded or empty means default `true`), and the
    effective `biome_format_lint_gitignored` value:
@@ -95,7 +98,7 @@ when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate 
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
-   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 ## `apply install-git-hooks [scope=local|shared]`

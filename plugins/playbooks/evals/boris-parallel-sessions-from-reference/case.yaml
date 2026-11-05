@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: boris-parallel-sessions-from-reference
+description: "boris answers a parallel-sessions question from its own tips (3-5 sessions, each on its own git worktree: the Quick Reference 'Parallel work' row and reference/foundations.md line 29) and leaves vendor/upstream-skill.md unread, since that baseline is for /playbooks:update drift checks only (SKILL.md lines 21-23). Natural-language prompt, so the Skill call is graded. no-vendor-read cannot fail in the no-plugin arm, which has no such file."
+tags: [boris, knowledge-query]
+expected_outcome: "The reply recommends running 3-5 Claude Code sessions in parallel, each on its own git worktree, from the boris tips, and the run never reads vendor/upstream-skill.md."
+execution:
+  prompt: "How does Boris Cherny recommend running parallel Claude Code sessions? Answer in a few sentences."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'playbooks:boris'
+    min: 1
+  - name: names-worktrees-and-count
+    type: regex
+    pattern: '\bworktrees?\b[\s\S]*\b(?:3\s*(?:-|–|to)\s*5|three to five)\b|\b(?:3\s*(?:-|–|to)\s*5|three to five)\b[\s\S]*\bworktrees?\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-vendor-read
+    type: tool_used
+    tool: Read
+    input_match: 'upstream-skill\.md'
+    min: 0
+    max: 0
+    arm: both

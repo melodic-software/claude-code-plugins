@@ -3,6 +3,20 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.3] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
+## [0.14.2] - 2026-11-04
+
+### Changed
+
+- The README, `setup`, its config template and the `audit` and `setup` evals now call the config
+  cascade's untracked `.claude/mutation-testing.local.md` layer the personal override, the
+  marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [0.14.1] - 2026-11-03
 
 ### Changed

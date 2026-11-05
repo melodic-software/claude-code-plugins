@@ -60,7 +60,7 @@ Parse `$ARGUMENTS` first token to determine action. Subsequent tokens are the re
 | `<old>` (single token, no separator) | **Reverse**. Find refs, ask what to replace with | [context/audit.md](context/audit.md) |
 | `blocklist` | **Print English-verb blocklist** (read-only introspection of triage-bucket safety mechanism) | inline below |
 
-**Every sweep runs off the pattern library**, the full form registry in [context/patterns.md](context/patterns.md); read it before any sweep. A sweep runs through the Grep tool with the patterns.md regexes over the tracked tree. Reading files one by one is not a sweep; use Read only to confirm a Grep hit in its surrounding context before classifying or editing it. Triage logic is in [context/triage.md](context/triage.md). Audit sub-mode detail (Blast / Half-rename / Orphans) is in [context/audit-modes.md](context/audit-modes.md).
+**Every sweep runs off the pattern library**, the full form registry in [context/patterns.md](context/patterns.md); read it before any sweep. A sweep runs through the Grep tool with the patterns.md regexes over the tracked tree, one Grep call per form the action sweeps (every form in patterns.md for apply, preview, audit and Blast; the forms [Audit Orphans](context/audit-modes.md#audit-orphans) names for Orphans), issued in parallel. Never fold the forms into one alternation or let one token grep stand in for them: each form's hits are recorded per form, and a form whose call never ran is a form the sweep missed. Reading files one by one is not a sweep; use Read only to confirm a Grep hit in its surrounding context before classifying or editing it. Triage logic is in [context/triage.md](context/triage.md). Audit sub-mode detail (Blast / Half-rename / Orphans) is in [context/audit-modes.md](context/audit-modes.md).
 
 ## Override flags (audit modes)
 
@@ -144,7 +144,7 @@ Audit mode runs phases 1-3 only and reports, no Edit calls. Preview mode runs 1-
 Paths skipped from sweeps automatically:
 
 - **Rename-documenting plan/work-notes documents**: an active plan file, migration notes, or changelog entry drafted for THIS rename names both old and new by design. Identify these from conversation context and the consuming repository's work-notes conventions (its CLAUDE.md / rules). Skipping prevents self-reference loops.
-- **Archived/historical work notes**. Completed plan documents and frozen records of past work are historical record, not stale references.
+- **Archived/historical work notes**. Completed plan documents and frozen records of past work, released changelog entries included, are historical record, not stale references: unless `--include-historical` is passed, report them only as "Kept as history" ([triage.md](context/triage.md) "Frozen historical records"), never as a choice for the user.
 - `.git/`, `node_modules/`, `bin/`, `obj/`, `.venv/`, `dist/`, `build/`
 - Claude Code auto-memory files ([Auto-memory location](#auto-memory-location)) describing past renames
 

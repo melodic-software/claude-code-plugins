@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Score:\n```\nt75 o3 l2 @0 c g | o4 l4 @2 e g a g\n```"},
+    {"answer": "The score is `t90 o4 l8 c e g e`."},
+    {"answer": "o4 l4 @2 e g a g | n8 r8 n8 r8"}
+  ],
+  "fail": [
+    {"answer": "I wrote a calm loop at 75 BPM in two parts.", "why": "prose, no score"},
+    {"answer": "The file is audio/calm-loop.wav.", "why": "path only"},
+    {"answer": "Tempo 75, octave 3, half notes.", "why": "the score described, not shown"},
+    {"answer": "It sits in the o4 range.", "why": "one score-like token"}
+  ]
+}

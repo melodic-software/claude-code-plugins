@@ -5,6 +5,7 @@
 # fragments so no contiguous machine-path literal appears in this file's source
 # bytes — the repo's own machine-specific-path scanner sees a clean test file.
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/permission-rule-check.sh"
@@ -397,6 +398,36 @@ jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D_FIXTURE/.claude/settings.js
 assert_eq "PERMISSION_HYGIENE_SCAN_ROOT wins over deprecated fixture dir" "0" \
   "$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" PERMISSION_HYGIENE_FIXTURE_DIR="$D_FIXTURE" bash "$SCRIPT" --count)"
 
+# --- Case 8g: a git-resolved root reads the files Claude Code reads there ------
+# A linked worktree's local settings file is the main checkout's, which is
+# untracked and so never in the worktree. A session started in a subdirectory
+# reads that subdirectory's shared file, not only the repository root's.
+if command -v git >/dev/null 2>&1; then
+  GMAIN="$TEST_TMPDIR/git-main"
+  mkdir -p "$GMAIN/sub/.claude" "$GMAIN/.claude"
+  git -C "$GMAIN" init -q
+  jq -n '{permissions:{allow:["Bash(npx *)"]}}' >"$GMAIN/sub/.claude/settings.json"
+  git -C "$GMAIN" add sub
+  git -C "$GMAIN" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m init
+  jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$GMAIN/.claude/settings.local.json"
+  git -C "$GMAIN" worktree add -q "$TEST_TMPDIR/git-linked" 2>/dev/null
+  git_run() {
+    (cd "$1" && env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT -u PERMISSION_HYGIENE_FIXTURE_DIR \
+      -u CLAUDE_PROJECT_DIR HOME="$ISOLATED_HOME" bash "$SCRIPT")
+  }
+  OUT=$(git_run "$TEST_TMPDIR/git-linked")
+  assert_contains "linked worktree: the main checkout's settings.local.json is scanned" "$OUT" "Bash(python*)"
+  assert_contains "linked worktree: the coverage block names the main checkout scope" "$OUT" "local (main checkout"
+  assert_not_contains "linked worktree at its root: no start-directory scope" "$OUT" "start directory"
+  OUT=$(git_run "$GMAIN/sub")
+  assert_contains "subdirectory start: its .claude/settings.json is scanned" "$OUT" "Bash(npx *)"
+  assert_contains "subdirectory start: the finding names the subdirectory file" "$OUT" "sub/.claude/settings.json permissions.allow"
+  assert_contains "subdirectory start: the root local file is still scanned" "$OUT" "Bash(python*)"
+  assert_not_contains "main checkout: no second local scope" "$OUT" "local (main checkout"
+else
+  fail "Case 8g: git-resolved roots" "git is not on PATH, so the worktree and subdirectory cases could not run"
+fi
+
 # --- Case 9b: unresolvable scan root refuses instead of sweeping -------------
 # The root ladder is $PERMISSION_HYGIENE_SCAN_ROOT (or the deprecated
 # $PERMISSION_HYGIENE_FIXTURE_DIR) -> git toplevel -> $CLAUDE_PROJECT_DIR, with
@@ -474,7 +505,7 @@ assert_contains "coverage names the project scope it read" "$OUT" "project: 2 ru
 assert_contains "coverage names an absent scope as absent" "$OUT" "local: absent"
 
 # 10bb: P3 is the third axis and counts toward the denominator. A root whose only
-# auditable surface is plugin settings.json files, all clean, IS a clean bill —
+# auditable files are plugin settings.json files, all clean, IS a clean bill —
 # the run examined two files. Folding only frontmatter and allow rules into the
 # denominator made this print "this run has no denominator" two lines above the
 # count of the files it had just examined, which is the defect the block exists

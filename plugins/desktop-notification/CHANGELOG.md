@@ -3,6 +3,13 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-05
+
+### Fixed
+
+- `setup check` tells the model to read option values from the rendered skill text and never put a `${user_config.*}` string in a shell command.
+- `setup check` opens plugin files by the paths it names and never searches the plugin directory.
+
 ## [1.0.3] - 2026-11-04
 
 ### Changed

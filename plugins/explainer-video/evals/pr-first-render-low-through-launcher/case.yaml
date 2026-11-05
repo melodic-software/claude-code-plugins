@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: pr-first-render-low-through-launcher
+graders:
+  - name: render-through-launcher
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?pydeps\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?:\s|\\\\\\n)run(?=\s|\\\\\\n)(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--data-dir\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?render\.py\b'
+    arm: with-only
+  - name: no-higher-quality
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:pydeps|render)\.py(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--quality(?:\s|=|\\\\\\n)+(?:\\\"|'')?[mh]\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?(?:\s|\\\\\\n)+)*(?:install|reinstall|add|upgrade|i)\b|pacman\s+-S|go(?:\s|\\\\\\n)+install\b|uv(?:\s|\\\\\\n)+(?:tool|pip)(?:\s|\\\\\\n)+install\b|(?:mise|asdf|rtx|aqua)(?:\s|\\\\\\n)+(?:install|use|upgrade|up|plugin\s+add)\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:curl|wget)\b(?:[^\"\\]|\\.)*?\|\s*(?:sudo(?:\s+-\S+)*\s+)?(?:bash|dash|zsh|sh)\b|(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\\"|'')?\$\(\s*(?:curl|wget)\b|python[\d.]*(?:\.exe)?(?:\\\"|'')?\s+(?:\\\"|'')?[^\s\"]*pydeps\.py(?:\\\"|'')?\s+install\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-uv-run
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?uv(?:\.exe)?(?:\\\"|'')?(?![\w./-])(?:\s|\\\\\\n)+run\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: scene-uses-math-typst
+    type: regex
+    pattern: '\bMathTypst\('
+    target: { source: file, path: video/scene.py }
+    arm: both
+  - name: scene-no-tex
+    type: regex
+    pattern: '\b(?:SingleString)?(?:Math)?Tex\('
+    match: not_contains
+    target: { source: file, path: video/scene.py }
+    arm: both

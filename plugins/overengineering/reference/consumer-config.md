@@ -1,6 +1,6 @@
 # overengineering: consumer configuration
 
-Owner doc for this plugin's configuration surface: `.claude/overengineering.md` in the consuming
+Owner doc for this plugin's configuration file: `.claude/overengineering.md` in the consuming
 repository, layered per the consuming marketplace's config-cascade convention. Every layer is
 optional. Zero config is a fully working state, and the bundled defaults in
 `context/scrutiny-method.md` (§7 protected patterns, §9 thresholds, §11 observation window) apply
@@ -29,7 +29,7 @@ Three layers, resolved in this order:
 |---|---|---|
 | 1 | user-global | `~/.claude/overengineering.md` |
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/overengineering.md` |
-| 3 | local overlay (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/overengineering.local.md` |
+| 3 | personal override (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/overengineering.local.md` |
 
 **Merge form: per-key override**, declared here as the cascade convention requires. The values are
 scalars and closed mappings, where concatenation is meaningless: a later layer replaces an earlier
@@ -38,13 +38,14 @@ replacement is forbidden.
 
 **Two key groups additionally sit in the cascade's sanctioned policy-floor precedence-inversion
 class**: `protected_categories` and `suppressions`. On a direct conflict there the **team layer
-wins**, the reverse of the default; personal layers (user-global and overlay) may extend or tighten
-only, never weaken; and whenever a personal layer materially shapes output, the run **names the
-contributing layer**. The remaining keys, `thresholds`, `observation_window`, and
+wins**, the reverse of the default; personal layers (user-global and the personal override) may
+extend or tighten only, never weaken; and whenever a personal layer materially shapes output, the
+run **names the contributing layer**. The remaining keys, `thresholds`, `observation_window`, and
 `delta_noise_budget`, take the ordinary refinement form, where a later layer's value simply wins.
 
-The split is not stylistic. A gitignored overlay that emptied the protected set, or suppressed a
-finding the team never accepted, would recreate exactly the hole that disqualified `userConfig`.
+The split is not stylistic. A gitignored personal override that emptied the protected set, or
+suppressed a finding the team never accepted, would recreate exactly the hole that disqualified
+`userConfig`.
 Thresholds, the observation window, and the delta noise budget carry no such hazard: a personal
 threshold changes what one operator's own report ranks, and the finding it moves is still reported.
 
@@ -260,7 +261,7 @@ not perturb the next run's inputs.
 
 ## Consumer `.gitignore`
 
-The overlay layer is gitignored by the cascade's one recursive line, which covers every current and
+The personal override is gitignored by the cascade's one recursive line, which covers every current and
 future surface at once:
 
 ```gitignore

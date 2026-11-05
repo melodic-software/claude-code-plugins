@@ -19,7 +19,7 @@ it cannot infer, and every landed change is reviewable per
 
 - **`check`** (read-only): resolve the effective binding across all rungs of the binding-seam
   resolution ladder. User-global (`~/.claude/autonomy/`) → project (`.claude/autonomy/`) →
-  local overlay (`.claude/autonomy/**/*.local.*`), additive, plus the org rung when the merged
+  personal override (`.claude/autonomy/**/*.local.*`), additive, plus the org rung when the merged
   layers carry an `org_policy_home` pointer: fetch the org binding via the host CLI with the
   consumer's own auth and fold it in at its ladder position. Report what is bound, what is
   missing, and which layer or rung contributes each value; an unreachable org-policy home is
@@ -82,10 +82,10 @@ ask and offer to persist; otherwise → safe free-tier default).
 
 The same file name is the shape at every layer: the user-global layer is
 `~/.claude/autonomy/binding.json`, the project layer `.claude/autonomy/binding.json`, and
-each layer's personal overlay `binding.local.json` beside it. The project file is tracked
+each layer's personal override `binding.local.json` beside it. The project file is tracked
 (team-shared); recommend the recursive consumer `.gitignore` line: `.claude/**/*.local.*`.
 Layers resolve per the binding-seam ladder, additively: user-global → org binding (when
-pointed) → project → local overlay. Capability slices (like telemetry below) add their
+pointed) → project → personal override. Capability slices (like telemetry below) add their
 sections additively under their slice name: a binding without a slice's section is valid
 (absent-section tolerance) and no schema major bump is needed for an additive section.
 

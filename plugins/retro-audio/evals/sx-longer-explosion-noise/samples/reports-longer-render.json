@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/boom.wav (0.880s)\\n\"}]}}", "why": "decay lengthened"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"/work/audio/boom.wav (1.200s)\"}]}}", "why": "over a second"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/boom.wav (0.481s)\"}]}}", "why": "just longer"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/boom.wav (0.495s)\"}]}}", "why": "the 0.49x band"}
+  ],
+  "fail": [
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/boom.wav (0.480s)\"}]}}", "why": "the preset's own length"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/boom.wav (0.300s)\"}]}}", "why": "shorter"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":\"explosion sfx, noisy and a bit longer than the default, saved as audio/boom.wav\"}}", "why": "the prompt alone"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"sfx.py: wave 'noisy' is not square, saw, sine, or noise\"}]}}", "why": "a refused call"},
+    {"answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"audio/boom.wav (0.880s, gameboy)\"}]}}", "why": "the music renderer's line"}
+  ]
+}

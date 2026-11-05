@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, passRefusalOf, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -967,10 +967,39 @@ test("in the merge queue, a reader with no FAIL hold lets a passed head through"
   assert.match(out, /^#99: no verifier hold: pr-verify passed this head\.$/m);
 });
 
-test("in the merge queue, a reader that refuses only on the pass leaves that to verdictHold", async () => {
+// Owner decision 2026-11-04, "Hold until re-judged": a stale pass holds in the
+// queue even when the pass is read; an approval of the head lifts it.
+test("in the merge queue, a pass the linked issue changed after holds until pr-verify judges the head again", async () => {
   const { code, out } = await queued(report("verify:spec-changed"));
-  assert.equal(code, 0, out);
+  assert.equal(code, 1, out);
   assert.match(out, /^#99: no pr-verify FAIL hold: the reader refuses this head only on its pass \(verify:spec-changed\)\.$/m);
+  assert.match(out, /#99: pr-verify's pass on this head is stale \(verify:spec-changed\): its linked issue changed after pr-verify judged it; wait for pr-verify to pass it/);
+  // The other pass refusals still leave a read pass standing.
+  for (const refusal of ["verify:missing", "verify:untrusted-spec"]) {
+    const read = await queued(report(refusal));
+    assert.equal(read.code, 0, `${refusal}: ${read.out}`);
+  }
+});
+
+test("in the merge queue, a pass refusal with no pass names read holds on that refusal, not on a missing pass", async () => {
+  const refused = await ci(["docs/a.md"], { queue: { verdicts: [], link: QUEUE_LINK, evidence: report("verify:untrusted-spec") } });
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /#99: pr-verify's reader refuses this head's pass \(verify:untrusted-spec\); wait for pr-verify to pass it/);
+  assert.doesNotMatch(refused.out, /pr-verify has not passed this head/);
+  const stale = await ci(["docs/a.md"], { queue: { verdicts: [], link: QUEUE_LINK, evidence: report("verify:spec-changed") } });
+  assert.match(stale.out, /pr-verify's pass on this head is stale \(verify:spec-changed\)/);
+  // No refusal, one for another head, or a FAIL class (evidenceHold's) keeps
+  // the missing-pass text and never calls a FAIL a pass refusal.
+  for (const evidence of [report(null), report("verify:spec-changed", { head: OLD }), report("verify:fail")]) {
+    const missing = await ci(["docs/a.md"], { queue: { verdicts: [], link: QUEUE_LINK, evidence } });
+    assert.equal(missing.code, 1, missing.out);
+    assert.match(missing.out, /pr-verify has not passed this head/);
+    assert.doesNotMatch(missing.out, /refuses this head's pass/);
+  }
+  assert.equal(passRefusalOf(report("verify:missing"), HEAD), "verify:missing");
+  assert.equal(passRefusalOf(report("verify:fail"), HEAD), null);
+  assert.equal(passRefusalOf(report(null), HEAD), null);
+  assert.equal(passRefusalOf(null, HEAD), null);
 });
 
 test("in the merge queue, a FAIL the reader counts holds a passed head", async () => {

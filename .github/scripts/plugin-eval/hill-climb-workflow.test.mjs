@@ -63,11 +63,13 @@ test("every pass runs 3 runs per case per arm under --max-cost-usd 5, with no to
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });
 
-test("no trace leaves a pass runner: a pass uploads its result, summary and validity verdict line only", () => {
+test("no trace leaves a pass runner: a pass uploads its result, summary and validity bash ran and verdict lines only", () => {
   const readPass = step(pass, "Read the pass");
   assert.doesNotMatch(code(readPass), /trace/i);
   assert.match(readPass, /cp "\$OUT\/results\.json" "\$STAGE\/results\.json"\n/);
-  assert.match(readPass, /printf '%s\\n' "\$validity" \| tail -n 1 >"\$STAGE\/validity\.txt"\n/);
+  assert.match(readPass, /bash_ran=\$\(printf '%s\\n' "\$validity" \| tail -n 2 \| head -n 1 \| grep -xE 'bash ran: \(n\/a\|\[a-z-\]\+ /);
+  assert.match(readPass, /printf '%s\\n' \$\{bash_ran:\+"\$bash_ran"\} "\$\(printf '%s\\n' "\$validity" \| tail -n 1\)" >"\$STAGE\/validity\.txt"\n/);
+  assert.doesNotMatch(readPass, /\$validity"? >/);
   assert.deepEqual(
     [...code(readPass).matchAll(/>"\$STAGE\/([\w.]+)"/g)].map(([, name]) => name),
     ["summary.md", "validity.txt", "manifest.sha256"],

@@ -496,7 +496,7 @@ fi
 restore="$(step_of "Read the verdict reads pr-merge's last scheduled run kept")"
 carry="$(step_of "Start the run cache from them")"
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-queue_only='if: ${{ !cancelled() && github.event_name == '"'merge_group'"' && steps.queued_author.outputs.lanes != '"'false'"' }}'
+queue_only='if: ${{ !cancelled() && github.event_name == '"'merge_group'"' && steps.queued_author.outputs.verify_judged != '"'false'"' }}'
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 if [[ "$restore" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read"* && "$restore" != *"uses:"* &&
   "$restore" == *'CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json'* && "$restore" == *'ACTIONS_TOKEN: ${{ github.token }}'* &&
@@ -533,10 +533,12 @@ else
   fail "the reader's steps are out of order: $order"
 fi
 
-# A QUEUED PULL REQUEST THAT IS NOT THE LANES APP'S SKIPS THE CARRY STEPS, AT NO
-# REST COST: the author step reads the pull through pr_read with the args the
-# pr-unblock step and this step read it with, so their reads answer from that
-# cache; an unread author leaves `lanes` unset and the carry steps run.
+# A QUEUED PULL REQUEST WHOSE AUTHOR PR-VERIFY DOES NOT JUDGE SKIPS THE CARRY
+# STEPS, AT NO REST COST: the author step reads the pull through pr_read with
+# the args the pr-unblock step and this step read it with, so their reads
+# answer from that cache; an unread author leaves `lanes` and `verify_judged`
+# unset and the carry steps run, and an unread hold config leaves
+# `verify_judged` unset.
 author_step="$(step_of "$AUTHOR_STEP")"
 awk '/^        run: \|$/ { on = 1; next }
   on && /^          / { print substr($0, 11); next }
@@ -550,48 +552,74 @@ if [[ "$author_step" == *"id: queued_author"* && "$author_step" == *"continue-on
 else
   fail "no merge_group-only, continue-on-error author step reading the pull with pr_read"
 fi
-# author_run <label> <want lanes output, or empty for none>
+# author_run <label> <want lanes output> <want verify_judged output>, each
+# empty for none.
 author_run() {
-  local label="$1" want="$2" out rc got
+  local label="$1" want="$2" want_judged="$3" out rc got judged
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/author-output"
   rm -rf "$TMP_ROOT/pr-reads"
+  [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="${REF:-$QUEUE}" GITHUB_REPOSITORY=o/r \
     GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/author-output" \
-    LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
   got="$(sed -n 's/^lanes=//p' "$TMP_ROOT/author-output")"
+  judged="$(sed -n 's/^verify_judged=//p' "$TMP_ROOT/author-output")"
   if [[ "$rc" -ne 0 ]]; then
     fail "$label: the author step failed (rc=$rc): '$out'"
-  elif [[ "$got" != "$want" ]]; then
-    fail "$label: expected lanes='$want' got '$got': '$out'"
+  elif [[ "$got" != "$want" || "$judged" != "$want_judged" ]]; then
+    fail "$label: expected lanes='$want' verify_judged='$want_judged' got '$got' '$judged': '$out'"
   else
     ok "$label"
   fi
 }
+KYLE='{"id":153232337,"login":"kyle-sexton","type":"User"}'
+# merge.verify-authors as main has it: the owner's and the lanes App's pull
+# requests are judged (owner decision Q22).
+OWNER_CONFIG=$'merge:\n  verify-authors: lane-or-owner\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(pull 'Closes #1')"
-author_run "a queued lanes App pull request runs the carry steps" true
-STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
-author_run "a queued person's pull request skips the carry steps" false
+author_run "a queued lanes App pull request runs the carry steps" true true
+STUB_PULL="$(pull 'Closes #1' "$KYLE")"
+author_run "under verify-authors lane, a queued person's pull request skips the carry steps" false false
+STUB_CONFIG="$OWNER_CONFIG" author_run "under lane-or-owner, a queued owner pull request runs the carry steps" false true
+STUB_CONFIG=$'merge:\n  verify-authors: any' author_run "under any, a queued owner pull request runs the carry steps" false true
+STUB_CONFIG=$'merge:\n  verify-authors: everyone' author_run "an unknown verify-authors value judges no one, so the carry steps skip" false false
+STUB_NO_ACTORS=1 STUB_CONFIG="$OWNER_CONFIG" author_run "an unread trusted-actor list leaves the verdict-read steps running" false ''
+STUB_BASE_CONFIG='' author_run "an unread hold config leaves the verdict-read steps running" false ''
+STUB_PULL="$(pull 'Closes #1' '{"id":2,"login":"someone","type":"User"}')"
+STUB_CONFIG="$OWNER_CONFIG" author_run "under lane-or-owner, an unlisted person's queued pull request skips the carry steps" false false
+STUB_PULL="$(pull 'Closes #1' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}')"
+STUB_CONFIG=$'merge:\n  verify-authors: any' author_run "a dependency manager's queued pull request is never judged, so the carry steps skip" false false
+STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-plugin-release[bot]","type":"Bot"}')"
+STUB_CONFIG="$OWNER_CONFIG" author_run "under lane-or-owner, a listed bot's queued pull request runs the carry steps" false true
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
-author_run "a queued user account with the lanes App's login skips the carry steps" false
-STUB_PULL='{}' author_run "an unreadable author leaves the carry steps running" ''
-STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
-REF=refs/heads/main author_run "an unparsable queue ref leaves the carry steps running" ''
-STUB_APP_ID='' author_run "an unset lanes App id leaves the carry steps running" ''
+author_run "a queued user account with the lanes App's login skips the carry steps" false false
+STUB_PULL='{}' author_run "an unreadable author leaves the carry steps running" '' ''
+STUB_PULL="$(pull 'Closes #1' "$KYLE")"
+REF=refs/heads/main author_run "an unparsable queue ref leaves the carry steps running" '' ''
+STUB_APP_ID='' author_run "an unset lanes App id leaves the carry steps running" '' ''
 # The author step's pull answers the lanes-hold step's read in the queue.
-author_run "the author step reads the queued pull" false
+author_run "the author step reads the queued pull" false false
 if [[ "$(pull_reads)" -eq 1 ]]; then ok "the author step reads the pull once"; else fail "the author step read the pull $(pull_reads) time(s)"; fi
 EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS=1 \
   expect "after the author step, the queued step answers from its read" 0 0 "not the lanes App's"
 expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-for gated in "$restore" "$carry"; do
-  if [[ "$gated" == *'steps.queued_author.outputs.lanes != '"'false'"* ]]; then
-    ok "$(sed -n 's/^      - name: //p' <<<"$gated") skips a queued pull request the author step proved is not the lanes App's"
+for gated in "$(step_of "List main's tip for the carry readers")" "$restore" "$carry"; do
+  if [[ "$gated" == *'steps.queued_author.outputs.verify_judged != '"'false'"* ]]; then
+    ok "$(sed -n 's/^      - name: //p' <<<"$gated") skips a queued pull request whose author the author step proved pr-verify does not judge"
   else
-    fail "$(sed -n 's/^      - name: //p' <<<"$gated") does not skip on the author step's lanes=false"
+    fail "$(sed -n 's/^      - name: //p' <<<"$gated") does not skip on the author step's verify_judged=false"
   fi
 done
+# Both steps judge the author by one predicate: their jq programs match line
+# for line, indentation aside.
+predicate() { awk '/judged=\$\(jq -r --arg authors/ { on = 1; next } on { print } on && /else false end/ { exit }' | sed 's/^ *//'; }
+if [[ -n "$(predicate <"$TMP_ROOT/author.sh")" && "$(predicate <"$TMP_ROOT/author.sh")" == "$(predicate <"$TMP_ROOT/body.sh")" ]]; then
+  ok "the author step and the lanes-hold step judge the author by the same predicate"
+else
+  fail "the author step's and the lanes-hold step's author predicates differ"
+fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
 expect "a Hold: line in the body does not hold: do-not-merge is the veto" 0 3 "no member veto and no hold path"
@@ -878,7 +906,9 @@ evidence() { jq -nc --arg refusal "$1" --arg head "${2:-$SHA}" '{refusal: $refus
 for refusal in verify:fail verify:earlier-fail verify:repeated-fail verify:unreadable verify:too-old; do
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
 done
-STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a refusal a pass decides is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:spec-changed)."
+# Owner decision 2026-11-04, "Hold until re-judged": a stale pass holds even when read.
+STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a stale pass holds until pr-verify judges the head again" 1 3 "#7: pr-verify's pass on this head is stale (verify:spec-changed)"
+STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:untrusted-spec)."
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
   expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
@@ -1044,6 +1074,59 @@ if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]]; then
 else
   fail "a person's pull request made $(lookups) lookups, $(readers) reader runs and $(maps) map reads"
 fi
+# AN OWNER'S PULL REQUEST HOLDS IN THE QUEUE ONLY ON A PR-VERIFY FAIL (owner
+# decision 2026-11-04, "Hold on FAIL only (Recommended)"): under lane-or-owner
+# the reader runs for it, only a FAIL class it reports for the head holds,
+# its reviews are read with no text, and no file is read.
+files_read() { grep -c '/files?' "$TMP_ROOT/log"; }
+NOT_HELD="#7: not held: pull requests of an author pr-verify judges, other than the lanes App's, hold only on a FAIL"
+export STUB_CONFIG="$OWNER_CONFIG"
+STUB_PULL="$(pull 'Closes #1' "$KYLE")" STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
+expect "in the merge queue, an owner pull request the reader allows passes" 0 1 "$NOT_HELD, and the reader reports none for $SHA."
+if [[ "$(readers)" -eq 1 && "$(files_read)" -eq 0 && "$(runs)" -eq 0 ]] && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && ! grep -qE '(issues|pulls)/7/comments\?' "$TMP_ROOT/log"; then
+  ok "an owner pull request runs the verdict reader and reads only its reviews: no files, comments or pass runs"
+else
+  fail "an owner pull request read: '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_EVIDENCE="$(evidence verify:repeated-fail)" expect "in the merge queue, the repeated-fail cap warns and does not hold an owner pull request" 0 1 \
+  "::warning::#7: pr-verify's repeated-fail cap stands at this head; owner-login PRs are not held on the cap (owner decision 2026-11-04)"
+for refusal in verify:fail verify:earlier-fail; do
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds an owner pull request" 1 1 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why); push a new head"
+done
+for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:unreadable verify:too-old; do
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports $refusal for $SHA."
+done
+STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 1 "$NOT_HELD"
+STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
+STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
+STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
+STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 1 "$NOT_HELD"
+STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 1 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:fail: why)'."
+STUB_EVIDENCE="$(evidence verify:earlier-fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
+  expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 1 "pr-verify's reader refuses this head (verify:earlier-fail: why)"
+printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-evidence-hold.mjs"
+STUB_EVIDENCE="$(evidence verify:fail)" STUB_MODULE="$TMP_ROOT/no-evidence-hold.mjs" \
+  expect "in the merge queue, a base module that cannot judge an owner FAIL fails closed" 1 1 "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL (verify:fail) of #7"
+KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 1 "$NOT_HELD"
+STUB_ISSUE="[$KYLE_VETO]" STUB_INLINE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
+  expect "in the merge queue, a member's veto does not hold an owner pull request" 0 1 "$NOT_HELD"
+STUB_FILES='[["docs/held/x.md"],[".github/standards/trusted-actors/trusted-actors.json"],["infra/main.tf"]]' \
+  expect "in the merge queue, a hold path does not hold an owner pull request" 0 1 "$NOT_HELD"
+STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-plugin-release[bot]","type":"Bot"}')"
+STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, a listed bot's pull request with a FAIL is held" 1 1 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_ARTIFACTS='{}' expect "in the merge queue, a listed bot's pull request with no pass is not held" 0 1 "$NOT_HELD"
+for user in '{"id":2,"login":"someone","type":"User"}' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}'; do
+  STUB_PULL="$(pull 'Closes #1' "$user")"
+  STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, exits as before" 0 0 "#7 is not the lanes App's; pr-merge's gate or a person reads its holds."
+  if [[ "$(readers)" -eq 0 ]]; then ok "$(jq -r .login <<<"$user")'s queued pull request runs no verdict reader"; else fail "$(jq -r .login <<<"$user")'s queued pull request ran the reader"; fi
+done
+STUB_PULL="$(pull 'Closes #1' "$KYLE")"
+STUB_CONFIG=$'merge:\n  verify-authors: everyone' expect "in the merge queue, an unknown verify-authors value judges no owner pull request" 0 0 "not the lanes App's"
+STUB_CONFIG=$'merge:\n  verify-authors: [lane]' expect "in the merge queue, a verify-authors value that is not one word judges no owner pull request" 0 0 "not the lanes App's"
+EVENT=pull_request REF=refs/pull/7/merge PR_NUMBER=7 STUB_ARTIFACTS='{}' \
+  expect "on a pull request event, an owner pull request still exits on its payload" 0 0 "not the lanes App's"
+export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(pull 'Closes #1')"
 # Each stand-in module answers the kill switch (switchHold) and prints its
 # verdict lines only when run as main, as merge-holds.mjs does.

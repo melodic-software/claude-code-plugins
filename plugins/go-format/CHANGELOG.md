@@ -3,6 +3,20 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.5] - 2026-11-05
+
+### Fixed
+
+- `setup check` cites the Bash 3.2 floor's source by its plugin-root path, matching its own rule to open plugin files only by those paths.
+
+## [1.0.4] - 2026-11-05
+
+### Fixed
+
+- `setup check` tells the model to read option values from the rendered skill text and never put a `${user_config.*}` string in a shell command. Its Bash step now states the hooks' Bash 3.2 floor from `hooks/hook-utils.sh`, instead of pointing at the README.
+- `setup check` names `prerequisites.json` by its path under the plugin root, so the model reads it instead of searching the plugin directory.
+- `setup check` opens plugin files by the paths it names and never searches the plugin directory.
+
 ## [1.0.3] - 2026-11-04
 
 ### Changed

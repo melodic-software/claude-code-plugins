@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: advise-ruleset-walkthrough
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:github:)?advise"'
+  - name: 'proposes-repo-ruleset-call'
+    type: 'regex'
+    pattern: '\brepos/[^\s/`"'']+/[^\s/`"'']+/rulesets\b'
+    target: 'last_message'
+  - name: 'one-approval-field'
+    type: 'regex'
+    pattern: '\brequired_approving_review_count\b[\]\\"''`\s:=]*1\b'
+    target: 'last_message'
+  - name: 'labels-unverified'
+    type: 'regex'
+    pattern: '\b(?:unverified|not (?:yet )?(?:been )?verified|(?:could(?:n''?t| not)|can(?:''?t|not)|unable to) (?:be )?verif(?:y|ied))\b'
+    flags: 'i'
+    target: 'last_message'

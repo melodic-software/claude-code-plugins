@@ -1,0 +1,36 @@
+{
+  "render-through-launcher": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?pydeps\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "(?:\\s|\\\\\\\\\\\\n)run(?=\\s|\\\\\\\\\\\\n)",
+    {
+      "use": "token_argument"
+    },
+    "--data-dir\\b",
+    {
+      "use": "token_argument"
+    },
+    "render\\.py\\b"
+  ],
+  "no-higher-quality": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:pydeps|render)\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "--quality(?:\\s|=|\\\\\\\\\\\\n)+(?:\\\\\\\"|')?[mh]\\b"
+  ],
+  "no-uv-run": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?uv(?:\\.exe)?(?:\\\\\\\"|')?(?![\\w./-])(?:\\s|\\\\\\\\\\\\n)+run\\b"
+  ]
+}

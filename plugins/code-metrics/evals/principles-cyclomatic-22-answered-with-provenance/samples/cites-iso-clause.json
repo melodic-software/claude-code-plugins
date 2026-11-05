@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The reference of 20 is ISO/IEC 5055:2021 §8.2.117, the normative cyclomatic detection pattern.",
+      "why": "names the clause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ISO/IEC 5055 sets 20 as the cyclomatic limit.",
+      "why": "the standard without the clause"
+    },
+    {
+      "answer": "The line-count weakness lives at ISO/IEC 5055 §8.2.115.",
+      "why": "the neighboring clause, not the cyclomatic one"
+    }
+  ]
+}

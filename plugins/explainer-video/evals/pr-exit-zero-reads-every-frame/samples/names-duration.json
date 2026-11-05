@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "It runs 6.0 s."
+    },
+    {
+      "answer": "Duration: 6 seconds"
+    },
+    {
+      "answer": "6s long"
+    },
+    {
+      "answer": "The duration is 6.00 s."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Three animations.",
+      "why": "no duration"
+    },
+    {
+      "answer": "It is 16 s long",
+      "why": "wrong"
+    },
+    {
+      "answer": "6 frames were checked",
+      "why": "not a duration"
+    }
+  ]
+}

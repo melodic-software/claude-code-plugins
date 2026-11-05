@@ -3,7 +3,7 @@ name: pres-missing-figure
 graders:
   - name: blank-marked
     type: regex
-    pattern: '^(?=[\s\S]*?\[__\][\s\S]*?\[__\])(?=[\s\S]*?(?:churn[^\n]{0,80}?(?:\n[^\n]{0,80}?){0,2}\[__\]|\[__\][^\n]{0,40}?churn))(?=[\s\S]*?(?:(?:quote|Hartwell|survey|customer)[^\n]{0,80}?(?:\n[^\n]{0,80}?){0,2}\[__\]|\[__\][^\n]{0,40}?(?:quote|Hartwell|survey|customer)))'
+    pattern: '^(?=[\s\S]*?\[__%?\][\s\S]*?\[__%?\])(?=[\s\S]*?(?:churn[^\n]{0,80}?(?:\n(?![ \t]*(?:#|(?:\*\*|__)?slide\b|\d+[.)][ \t]+(?:\*\*|__)))[^\n]{0,80}?){0,5}\[__%?\]|\[__%?\][^\n]{0,40}?churn))(?=[\s\S]*?(?:(?:quote|Hartwell|survey|customer)[^\n]{0,80}?(?:\n(?![ \t]*(?:#|(?:\*\*|__)?slide\b|\d+[.)][ \t]+(?:\*\*|__)))[^\n]{0,80}?){0,5}\[__%?\]|\[__%?\][^\n]{0,40}?(?:quote|Hartwell|survey|customer)))'
     flags: i
     target: last_message
   - name: missing-listed

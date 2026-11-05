@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "from manim import FadeIn, Scene, Text\nfrom narration import beat\n\n\nclass Search(Scene):\n    def construct(self):\n        beat(self, 0)\n        self.play(FadeIn(Text('A sorted list')))\n        beat(self, 1)\n        self.play(FadeIn(Text('Check the middle')))\n        beat(self, 2, hold=1)\n        self.play(FadeIn(Text('Half is gone')))\n        beat(self, 3, hold=1)\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\n\n\nclass Search(Scene):\n    def construct(self):\n        self.play(FadeIn(Text('A sorted list')))\n",
+      "why": "no cues"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\nfrom narration import beat\n\n\nclass Search(Scene):\n    def construct(self):\n        beat(self, 0)\n        self.play(FadeIn(Text('A sorted list')))\n        beat(self, 1)\n        self.play(FadeIn(Text('Check the middle')))\n        beat(self, 2, hold=1)\n        self.play(FadeIn(Text('Half is gone')))\n",
+      "why": "no end cue"
+    },
+    {
+      "answer": "from manim import FadeIn, Scene, Text\nfrom narration import beat\n\n\nclass Search(Scene):\n    def construct(self):\n        beat(self, 2)\n        self.play(FadeIn(Text('A sorted list')))\n        beat(self, 1)\n        self.play(FadeIn(Text('Check the middle')))\n        beat(self, 0)\n        self.play(FadeIn(Text('Half is gone')))\n        beat(self, 3, hold=1)\n",
+      "why": "out of order"
+    }
+  ]
+}

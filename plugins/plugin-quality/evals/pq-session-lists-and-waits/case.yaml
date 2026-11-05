@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: pq-session-lists-and-waits
 description: 'The operator asks for the session audit and the session used three plugin skills. The reply lists them with counts, highest count first, and asks the operator to confirm; no evidence is captured and nothing is dispatched. The scaffold writes a transcript and a running-retro ledger with the same counts, so any correct reader reaches one answer. A run needs --scaffold and --allow-tools Bash Write.'
 tags: [audit-session, no-loss]
-plugins: ["../..", "../../../session-flow"]
+plugins: ["../..", "session-flow-stub"]
 expected_outcome: 'The reply lists source-control:commit (3), review:code-review (1) and docs-hygiene:compress (1), ordered by count, then stops and waits for the operator to confirm, edit or accept the list. No evidence capture and no dispatch happen before that confirmation.'
 context:
   scaffold_script: scaffold.sh

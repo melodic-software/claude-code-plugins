@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No standard sets one, so there is no good coverage number to quote. A percentage counts executed lines; it says nothing about whether anything was checked. The often-repeated 80% has no source behind it.",
+      "why": "declines a target; names 80% only to say it is unsourced"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is no universal standard, but most teams aim for 80% line coverage, so require 80% in CI.",
+      "why": "recommends a target after the disclaimer"
+    },
+    {
+      "answer": "Anything between 70% and 90% is considered good.",
+      "why": "presents a range as the answer"
+    }
+  ]
+}

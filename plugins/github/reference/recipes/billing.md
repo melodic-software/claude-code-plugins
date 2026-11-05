@@ -114,7 +114,7 @@ An audit's "should be" comes from the consumer's conventions file; the "is" come
 resolved through the ladder. Procedure:
 
 1. Read the layered conventions per [`../conventions-file.md`](../conventions-file.md): load every
-   layer that exists (user-global, team, local overlay) and read them as accumulated guidance.
+   layer that exists (user-global, team, personal override) and read them as accumulated guidance.
 2. Extract the billing-relevant declarations: budget expectations and thresholds, spend surfaces
    the consumer has said are worth flagging, seat and license policies, cost-attribution
    expectations, and any recorded exceptions (a deliberately uncapped surface, a knowingly retained

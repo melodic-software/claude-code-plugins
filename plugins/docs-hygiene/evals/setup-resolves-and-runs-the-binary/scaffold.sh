@@ -14,5 +14,5 @@ cat >package.json <<'JSON'
   }
 }
 JSON
-npm install --no-package-lock --no-audit --no-fund --ignore-scripts --loglevel=error >/dev/null
+npm install --include=dev --no-package-lock --no-audit --no-fund --ignore-scripts --loglevel=error >/dev/null
 [[ -x node_modules/.bin/markdownlint-cli2 ]]
