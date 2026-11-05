@@ -27,3 +27,13 @@ graders:
     tool: 'Read'
     input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?screenshots-and-zoom\.md"'
     arm: 'with-only'
+  - name: pixel-budget
+    type: regex
+    pattern: '(?<!not a )\bpixel budget\b|\bmegapixels?\b|\b1\.\d\s?MP\b|\b(?:fixed|total|constant|same) (?:number of )?pixels?(?: count)?\b|\bpixel count\b|\bnot (?:a |by a )?(?:fixed )?(?:scale|scaling) (?:factor|ratio|percentage)\b|\brather than (?:a |by a )?(?:fixed )?(?:scale|scaling) (?:factor|ratio|percentage)\b'
+    flags: 'i'
+    target: last_message
+  - name: zoom-recaptures
+    type: regex
+    pattern: '\bre-?(?:captures|captured|capturing|capture)\b|\bfresh (?:capture|screenshot)\b|\bnew capture\b|\bnot (?:just )?a crop\b|\b(?:doesn''t|does not|not) (?:crop|crops|cropping)\b|\b(?:takes|captures) (?:its own|another|a new) (?:screenshot|capture)\b|\bzoom(?:ed|ing|s)?\b[^\n.]{0,60}\bfull (?:native )?resolution\b'
+    flags: 'i'
+    target: last_message

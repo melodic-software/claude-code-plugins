@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "# Idle timer\n\nThe idle-timer behavior was measured on Windows; no platform has been shown to reset it on synthesized input, so treat it as live on macOS.",
+      "why": "# heading reply, SKILL.md wording"
+    },
+    {
+      "answer": "**Idle timer:** not measured on macOS, but assume Claude's input does not hold it off.",
+      "why": "**bold** reply, not measured on macOS"
+    },
+    {
+      "answer": "| Hazard | Basis |\n|---|---|\n| Idle timer ignores Claude's input | Measured on Windows 11; assumed on macOS |",
+      "why": "table reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Claude's input does not reset the idle timer on your Mac.",
+      "why": "near miss: states the hazard with no basis"
+    },
+    {
+      "answer": "The probe commands were only verified on Windows.",
+      "why": "near miss: probe verification, not the idle-timer basis"
+    },
+    {
+      "answer": "I'm on macOS 15. Is computer use ready for a 40-minute unattended run?",
+      "why": "echoes the prompt"
+    }
+  ]
+}

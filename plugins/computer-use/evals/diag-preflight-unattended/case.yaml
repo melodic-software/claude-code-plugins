@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: diag-preflight-unattended
+graders:
+  - name: idle-timer-blind
+    type: regex
+    pattern: '\b(?:doesn''t|does[\s*_]+not|don''t|do[\s*_]+not|never|won''t|will[\s*_]+not|can''t|cannot|isn''t|is[\s*_]+not|aren''t|are[\s*_]+not)[\s*_]+(?:reset|resets)\s+(?:the\s+|your\s+)?(?:OS\s+|Windows\s+|system\s+)?idle (?:timer|clock|time)\b|\b(?:synthesized|synthetic|Claude''s|computer[- ]use|automated|injected|simulated)\b[^\n.]{0,60}\b(?:input|clicks?|typing|keystrokes?|moves?|activity)\b[^\n.]{0,60}\b(?:doesn''t|does[\s*_]+not|don''t|do[\s*_]+not|never|won''t|will[\s*_]+not|can''t|cannot|isn''t|is[\s*_]+not|aren''t|are[\s*_]+not)[^\n.]{0,30}\b(?:reset|resets|count|counts|register|registers|keep|keeps|seen|see|sees|wake|wakes)\b|\b(?:input|clicks?|typing|keystrokes?)\b[^\n.]{0,40}\b(?:from|by|of)\b[^\n.]{0,20}\b(?:computer[- ]use|Claude)\b[^\n.]{0,30}\b(?:doesn''t|does[\s*_]+not|don''t|do[\s*_]+not|never|won''t|will[\s*_]+not|can''t|cannot|isn''t|is[\s*_]+not|aren''t|are[\s*_]+not)[^\n.]{0,20}\b(?:reset|resets|count|counts|register|registers)\b|\bidle timer\b[^\n.]{0,60}\b(?:doesn''t|does not|can''t|cannot|never|won''t)\b[^\n.]{0,20}\b(?:see|sees|count|counts|notice|notices|register|registers)\b|\b(?:doesn[''’]t|does[\s*_]+not|don[''’]t|do[\s*_]+not|never|won[''’]t|will[\s*_]+not)[\s*_]+(?:count|register|see|notice)\b[^\n.]{0,20}\b(?:Claude[''’]s|computer[- ]use(?:[''’]s)?|synthesized|synthetic|automated|injected|simulated)[^\n.]{0,30}\b(?:input|clicks?|typing|keystrokes?|mouse moves?)\b'
+    flags: 'i'
+    target: last_message
+  - name: cannot-self-recover
+    type: regex
+    pattern: '\b(?:can[''’]t|cannot|can not|won[''’]t|will not|is unable to|unable to|has no way to|no way to)\b[^\n.]{0,40}\b(?:recover|dismiss|clear|wake|get past|unlock|resume|get (?:it )?back|continue|carry on)\b|\bonly (?:a human|you|a person|someone|the operator)\b[^\n.]{0,60}\b(?:touch|touching|move|moving|clear|clears|dismiss|wake|unlock|can)\b|\b(?:needs|requires|takes|until) (?:a human|you|a person|someone)\b|\bsomeone (?:has|needs) to\b[^\n.]{0,30}\b(?:touch|move|wake|unlock|dismiss)\b|\binput\b[^\n.]{0,40}\bis refused\b|\b(?:run|session) is over until\b'
+    flags: 'i'
+    target: last_message
+  - name: flags-timeouts
+    type: regex
+    pattern: '\b(?:screen ?savers?(?:[''’]s)?|display[- ]?(?:sleep|off)|monitor[- ]?(?:sleep|off)|sleep)\b[^\n]{0,60}\b(?:time-?outs?|delay|wait(?: time)?|idle (?:time|delay)|\d+ minutes?|after \d+)\b|\b(?:time-?outs?|delay|wait time)\b[^\n]{0,40}\b(?:screen ?savers?|display[- ]?sleep|display|monitor|sleep)\b'
+    flags: 'i'
+    target: last_message
+  - name: reads-failures-spoke
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?failure-diagnostics\.md"'
+    arm: 'with-only'
