@@ -226,7 +226,6 @@ When the target skill is one person's or company's corpus, its SKILL.md takes th
 ## Phase 5. Quality polish
 
 - **Cross-reference check**. Verify all markdown links across all files resolve
-- **Thin section audit**. Re-read any file that felt rushed during distillation. Expand with specifics from the PDF
 - **Routing table stress test**. Ask 10+ real developer questions and verify routing
 - **Quick decision guide completeness**. Every common "should I...?" question should be answerable without loading a file
 - **Web corpus test**. Open a fresh session with the skill loaded, and ask:

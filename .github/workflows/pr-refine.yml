@@ -21,6 +21,13 @@ name: pr-refine
 # " #" would start a YAML comment and drop the PR number.
 run-name: "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it. handoff-evidence.sh sets it itself for the
+# fix-docs reads, and fix-docs-head's reads end red, a run fix-docs-dispatch.mjs
+# counts toward limit-stops-per-head.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   workflow_dispatch:
     inputs:
@@ -158,8 +165,13 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # read_pr_fields reads a transient fault (a 5xx, a network error) once
+          # more and never a rate limit; any failure that remains ends red.
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr-number is not a PR number"; exit 1; }
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          read_pr_fields "$PR_NUMBER" .head.sha || exit 1
+          sha=$pr_fields
           [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
@@ -227,11 +239,13 @@ jobs:
   # pr-unblock.yml's fix-ci-handoff reads them for fix-ci: never from a
   # fix-docs output, since fix-docs's run job runs head code and can forge
   # handed-off, lane-class or credential-present. A listing that lags past the
-  # read budget ends as a notice and a failed read as a red job. Both leave the
-  # handoff facts empty, which starts no fallback, and fix-docs-dispatch.mjs
-  # dispatches no PR again once a run for it completed, red or green, unless that
-  # run is its only one and was lost (cancelled, timed_out or startup_failure). A
-  # failed fix-docs still reds its own jobs and the run.
+  # read budget, and a read that fails 3 times (handoff-evidence.sh's fix-docs
+  # hold, a rate limit included), each end green with one notice and the handoff
+  # facts empty, which starts no fallback. fix-docs-dispatch.mjs reads such a
+  # held run from its job conclusions (heldHandoff) and dispatches the PR again,
+  # as after a red run, until limit-stops-per-head runs went red or held, or two
+  # were lost (cancelled, timed_out or startup_failure); any other completed run
+  # ends the PR. A failed fix-docs still reds its own jobs and the run.
   fix-docs-handoff:
     needs: [fix-docs-head, fix-docs]
     if: ${{ !cancelled() && needs.fix-docs.result != 'skipped' }}

@@ -41,6 +41,7 @@ import { pathToFileURL } from "node:url";
 import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createBudget } from "./collect.mjs";
+import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
@@ -86,7 +87,7 @@ const FLOOR = "needs-triage";
 // Labels a verdict or a person leaves: an issue with one is triaged.
 const TRIAGED = /^(needs-human|needs-spec|agent-ready)$|^status: /;
 // What keeps a born-triaged `status: ready` issue out of admission on purpose.
-const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "work-class: untrusted-provenance"]);
+const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", ...UNTRUSTED_LABELS]);
 
 // An issue's lowercased label names; `labels`, when given, stands in for its
 // own (with the Work status field's say added, read-status.mjs).

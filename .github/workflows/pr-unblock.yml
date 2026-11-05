@@ -48,6 +48,12 @@ name: pr-unblock
 # Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
 run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it: the select jobs stop on a failed read
+# before any model turn, and their red result is what dispatch.mjs retries.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   workflow_dispatch:
     inputs:
@@ -3797,7 +3803,10 @@ jobs:
   # verdict job runs then. This script job, with no
   # model, is the lane's only
   # statuses: write, on its own GITHUB_TOKEN: the lanes App token the
-  # escalation comment uses carries no statuses permission.
+  # escalation comment uses carries no statuses permission. actions: read and
+  # checks: read let status mode read this run's jobs and the reply job's
+  # annotations: a feedback-publish-failed whose lane token a retry takes the
+  # head on (refire-refused.mjs tokenRefusal) posts no status.
   report-stop-status:
     needs:
       - resolve-conflicts-select
@@ -3849,6 +3858,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
+      actions: read # this run's jobs
+      checks: read # the reply job's annotations
       contents: read
       statuses: write
     env:
@@ -3870,6 +3881,13 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      # report-escalation.sh's tokenRefusal read imports the base's modules.
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
 
       # One activity runs per dispatch, so one select job's head is set; a
       # reason is a fixed enum value from a base script or this run's jobs,

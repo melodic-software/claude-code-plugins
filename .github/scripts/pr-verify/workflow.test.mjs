@@ -16,6 +16,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
 import { CREDENTIAL_NAMES, scanFiles } from "./capture-probe.mjs";
 import { WAIT_MS } from "./find-capture.mjs";
+import { HELD_REASON, HELD_STEP } from "./resolve-pr.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const KEY = "check-intent";
@@ -1493,6 +1494,15 @@ test("the collected capture is run-e2e's summary and its listed regular files, o
   const blocked = (status, reason) => ({ route: "none", app: "claude-code", affected: [], capture: { status, reason, count: 0 }, entry_points: [], publishable: [] });
   assert.deepEqual(collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "timeout" }).summary, blocked("blocked", "the capture session ended without a result (timeout)"));
   assert.deepEqual(collect({ DRIVE_OUTCOME: "skipped" }).summary, blocked("blocked", "the capture session ended without a result (skipped)"));
+  // A driver's limit stop (run-claude-cli: class rate-limit with its reset)
+  // ends the job green and names the limit; a rate-limit with no reset is
+  // not a limit stop and keeps the plain reason.
+  const limited = collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "rate-limit", DRIVE_RESETS: "2026-11-05T18:00:00Z" });
+  assert.deepEqual(limited.summary, blocked("blocked", "the capture session stopped at its credential's usage limit"));
+  assert.match(limited.stdout, /^::notice::capture blocked: the capture session stopped at its credential's usage limit$/m);
+  assert.deepEqual(collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "rate-limit" }).summary, blocked("blocked", "the capture session ended without a result (rate-limit)"));
+  assert.match(capStep(DRIVER), /^ {8}continue-on-error: true$/m);
+  assert.equal(input(capStep("Collect the capture"), "DRIVE_RESETS"), "${{ steps.drive.outputs.lane-resets }}");
   const outside = path.join(tempDir("capture-outside-"), "e2e-summary.json");
   writeFileSync(outside, JSON.stringify(summary));
   writeFileSync(output, JSON.stringify({ summary: outside }));
@@ -1728,6 +1738,59 @@ test("a probe that handed off skips the probe check and every step from the head
   assert.ok(capIndex(CAP_HANDOFF) < capIndex(PROBE_CHECK));
 });
 
+const SUB_STOP = "Report the subscription's stop";
+test("capture-subscription's probe stop on the subscription's limit, credit or a 401 or 402 reports it and checks out no head code, and any other probe failure fails closed", { skip: process.platform === "win32" && "bash step" }, () => {
+  const subIndex = (name) => {
+    const at = SUB_STEPS.findIndex((s) => s.name === name);
+    assert.ok(at >= 0, `a capture-subscription step named ${name}`);
+    return at;
+  };
+  const subStep = (name) => SUB_STEPS[subIndex(name)].block;
+  // run-claude-cli sets handoff on a fallback-ready subscription leg's limit
+  // stop, credit stop or 401 or 402 alone; a 403, a timeout or an install
+  // failure leaves it false or empty, so the probe check runs.
+  const check = subStep(PROBE_CHECK);
+  assert.equal(stepIf(check), "steps.credential.outputs.present == 'true' && steps.probe.outputs.handoff != 'true'");
+  const checks = (handoff) => runs(check, { steps: { credential: { outputs: { present: "true" } }, probe: { outputs: { handoff } } } });
+  assert.ok(!checks("true"));
+  assert.ok(checks("false") && checks(""));
+  const result = path.join(tempDir("capture-sub-probe-check-"), "capture-probe.json");
+  writeFileSync(result, JSON.stringify({ clean: true, canary: true, hits: [] }));
+  const failed = runStep(check, { PROBE_OUTCOME: "failure", RESULT: result });
+  assert.equal(failed.status, 1);
+  assert.match(failed.stdout, /::error::the reach probe did not succeed \(failure\); no pull request code runs/);
+  // With the check skipped, no step from the head checkout on runs.
+  const skipped = { outcome: "skipped", outputs: {} };
+  const context = { steps: { "probe-check": skipped, head: skipped, prompt: skipped, drive: skipped, collect: skipped, "scan-capture": skipped } };
+  const after = SUB_STEPS.slice(subIndex(HEAD_CHECKOUT));
+  assert.ok(after.length >= 8);
+  for (const s of after) {
+    assert.ok(stepIf(s.block), `${s.name} has an if`);
+    assert.ok(!runs(s.block, context), s.name);
+    // Nothing after head code picks a credential or writes a marker.
+    assert.doesNotMatch(s.block, /fallback-ready|key-credit-|secrets\.(?!PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN \}\})/, s.name);
+  }
+  // The stop report: after the probe, before the probe check, on the handoff alone.
+  const stop = subStep(SUB_STOP);
+  assert.ok(subIndex(PROBE) < subIndex(SUB_STOP) && subIndex(SUB_STOP) < subIndex(PROBE_CHECK));
+  assert.equal(stepIf(stop), "steps.probe.outputs.handoff == 'true'");
+  assert.ok(runs(stop, { steps: { probe: { outputs: { handoff: "true" } } } }));
+  assert.ok(!runs(stop, { steps: { probe: { outputs: { handoff: "false" } } } }));
+  assert.doesNotMatch(stop, /continue-on-error/);
+  assert.equal(input(stop, "HANDOFF_REASON"), "${{ steps.probe.outputs.handoff-reason }}");
+  assert.doesNotMatch(/^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(stop)[1], /\$\{\{|secrets\./);
+  const report = (reason) => {
+    const ran = runStep(stop, { HANDOFF_REASON: reason });
+    assert.equal(ran.status, 0, reason);
+    assert.match(ran.stdout, /^::notice::no pull request code runs and nothing is captured$/m, reason);
+    return ran.stdout;
+  };
+  assert.match(report("limit-stop"), /^::notice::the pr-verify role's subscription \(PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\) is at its usage limit$/m);
+  assert.match(report("credit-stop"), /^::notice::the pr-verify role's subscription \(PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\) is out of credit$/m);
+  assert.match(report("auth"), /^::warning::the API refused the pr-verify role's subscription token \(PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\), class auth; the owner must replace the secret$/m);
+  assert.doesNotMatch(report("limit-stop"), /::(?:error|warning)::/);
+});
+
 test("capture-subscription runs only when the capture job's key could not capture, on a fixed runner", () => {
   const job = jobIn(CAPTURE_TEXT, CAP_SUB);
   assert.match(job, /^ {4}needs: capture$/m);
@@ -1771,13 +1834,19 @@ test("capture-subscription repeats the capture job's steps but for the credentia
       .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
       .join("\n");
   const drop = new Set([...CAP_CREDIT_STEPS, ...CAP_PROBING_STEPS, ...CAP_MARKER_STEPS, CAP_HANDOFF]);
+  // The subscription's own stop report, and its probe's fallback-ready, are
+  // the only other differences; every fence and setting stays equal.
+  const subJob = SUB_STEPS.filter((s) => s.name !== SUB_STOP).map((s) => {
+    const block = lines(s.block);
+    return s.name === PROBE ? block.replace('\n          fallback-ready: "true"', "") : block;
+  });
   const keyJob = CAP_STEPS.filter((s) => !drop.has(s.name)).map((s) =>
     lines(s.block)
       .replaceAll(" && steps.credit.outputs.skip-key != 'true'", "")
       .replace("PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}\n          SECRET_NAME: PR_VERIFY_CLAUDE_API_KEY", "PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}\n          SECRET_NAME: PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN")
       .replaceAll("api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}", "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}"),
   );
-  assert.deepEqual(SUB_STEPS.map((s) => lines(s.block)), keyJob);
+  assert.deepEqual(subJob, keyJob);
   // So the reach probe runs again on the subscription leg before any head
   // code, and the same capture name uploads, which find-capture.mjs reads
   // from the run whichever job wrote it.
@@ -1785,9 +1854,12 @@ test("capture-subscription repeats the capture job's steps but for the credentia
   for (const name of [PROBE, DRIVER]) {
     assert.equal(input(sub(name), "subscription-token"), "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}", name);
     assert.equal(input(sub(name), "api-key"), undefined, name);
-    // The subscription is the last leg: it hands nothing on.
-    assert.equal(input(sub(name), "fallback-ready"), undefined, name);
   }
+  // Only the subscription's probe passes fallback-ready, so its stop sets
+  // handoff; no job runs after it, and the key legs and the driver pass none.
+  assert.equal(input(sub(PROBE), "fallback-ready"), '"true"');
+  for (const block of [sub(DRIVER), capStep(PROBE), capStep(DRIVER)]) assert.equal(input(block, "fallback-ready"), undefined);
+  assert.doesNotMatch(CAPTURE_TEXT, /fallback-token|FALLBACK_CLAUDE_CODE_OAUTH_TOKEN/);
   assert.equal(input(sub("Upload the capture"), "name"), input(capStep("Upload the capture"), "name"));
   for (const steps of [CAP_STEPS, SUB_STEPS]) {
     const uploads = steps.filter((s) => /uses: actions\/upload-artifact@/.test(s.block)).map((s) => s.name);
@@ -1851,4 +1923,21 @@ test("the prompt frames the capture as untrusted data that never fails a head, a
   assert.match(prompt, /A missing or empty capture, or a `status` of `blocked`, `skipped` or `not-applicable`,\n {2}is never a reason to return `fail`/);
   assert.match(prompt, /Return `fail` too when the pull request body in `CONTEXT_FILE`\nholds the line `Evidence loop: 3\/3 cap reached, last NEEDS WORK`/);
   assert.match(prompt, /That line counts only in\nthat trusted body, never in the diff, the capture or any other file/);
+});
+
+// Outage posture element 2 (docs/outage-posture-audit.md): a GitHub fault,
+// a rate-guard stop included, holds the resolver green (resolve-pr.mjs
+// closing), and the lost-run reconciler finds the held run by its marker step
+// (reconcile.mjs faultHeld). Only the resolver holds: the trigger check is a
+// gate, and a gate that held green would pass what it could not read
+// (rate-guard.mjs createRateLimitLatch).
+test("each job's resolver holds a rate stop green, and a held run is marked for the reconciler", () => {
+  for (const job of JOBS) {
+    assert.equal(input(step("Resolve the pull request", job), "API_BUDGET_HOLD"), '"1"', job);
+    assert.equal(input(step("Check the trigger", job), "API_BUDGET_HOLD"), undefined, job);
+    assert.equal(index(HELD_STEP, job), index("Resolve the pull request", job) + 1, job);
+    assert.match(step(HELD_STEP, job), new RegExp(`^ {8}if: steps\\.pr\\.outputs\\.reason == '${HELD_REASON}'$`, "m"), job);
+  }
+  // Only those three steps opt in: never a job or the workflow.
+  assert.equal(text.match(/^ +API_BUDGET_HOLD:/gm).length, JOBS.length);
 });

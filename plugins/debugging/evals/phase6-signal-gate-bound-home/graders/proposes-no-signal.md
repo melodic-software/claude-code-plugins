@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: reply
+focus: last_message
 ---
 
 PASS if the final reply proposes no always-on signal (no log line, metric, counter or assertion offered to stay on in production to show the lookup key next time), consistent with `always_on_signal: never`. Saying that the signal proposal was skipped because of that setting passes.
