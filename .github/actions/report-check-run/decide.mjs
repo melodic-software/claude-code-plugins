@@ -105,10 +105,9 @@ export function decide(verdict, inputs) {
     // For pr-refine / fix-docs a success run result means the broker-check,
     // run and scan jobs all succeeded, and the scan job uploads the verdict, so
     // only a failed download leaves none: the result is unknown and nothing is
-    // posted (outage posture element 2). An act step the runner saw fail is
-    // known, so it still fails. Every other caller keeps the failure, which
-    // some read as the run's outcome (pr-unblock's fix-ci-unreported).
-    if (lane === "pr-refine" && activity === "fix-docs" && runResult === "success" && actOutcome !== "failure") {
+    // posted (outage posture element 2). Every other caller keeps the failure,
+    // which some read as the run's outcome (pr-unblock's fix-ci-unreported).
+    if (lane === "pr-refine" && activity === "fix-docs" && runResult === "success") {
       return { kind: "hold", why: "the run succeeded and its verdict could not be read" };
     }
     return failure("The run left no verdict.");
