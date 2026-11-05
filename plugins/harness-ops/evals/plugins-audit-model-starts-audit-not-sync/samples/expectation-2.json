@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The skill runs sync-run.sh with --audit (never --journal-root, --pull-source or --only-install), pastes the rendered prediction, and tells the user that applying it is /harness-ops:plugins sync, which they run themselves. It reports a zero-update prediction as a lower bound against the unrefreshed catalog, not as proof the fleet is current.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "audit runs the same algorithm as sync but every mutating CLI call becomes a prediction: no `claude plugin install|update|uninstall|marketplace update` command is ever run, and normalize-enabled-plugins.sh is invoked with --check rather than written. The reads those calls sit beside still run. Step 1's pre-refresh fleet-state.sh snapshot is taken (into the run's throwaway scratch directory) so the catalog-regression check keeps its first interval, and only the `claude plugin marketplace update` beside it is replaced by a prediction. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

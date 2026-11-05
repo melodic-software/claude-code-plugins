@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: 'plugins-audit-audit-issues-zero-mutating-calls'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'The response issues zero `claude plugin install|update|uninstall` or `claude plugin marketplace update` invocations'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'The response still computes state from the read-only fleet-state.sh reads, which sync-run.sh --audit takes'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'The response still takes Step 1''s pre-refresh fleet-state.sh snapshot before declining the refresh: it does not treat the whole of Step 1 as skipped, and the catalog-regression check still has its pre-refresh to pre interval available'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed'
+    focus: 'trace'
+  - name: 'expectation-5'
+    type: 'llm'
+    criteria: 'If the response mentions enabledPlugins key order, it uses normalize-enabled-plugins.sh --check (or equivalent prediction) and never writes ~/.claude/settings.json or a committed project settings file'
+    focus: 'trace'
+context:
+  scaffold_script: scaffold.sh
