@@ -91,6 +91,8 @@ change nothing. State each change before making it, and re-detect before claimin
 What was already in place, what changed, what was skipped, and which lookup paths now work (CLI,
 MCP, or both). A refused `ctx7 setup` or `ctx7 skills install` is listed under skipped with its
 reason in full: this plugin keeps lookup in one skill, never fragmented across a parallel one.
+Report every command as it happened: if one ran, say so and give its result, even when it failed;
+never claim a command did not run when it did.
 
 ## Boundaries
 
