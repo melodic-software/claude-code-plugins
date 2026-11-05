@@ -4,6 +4,74 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [4.2.0] - 2026-11-05
+
+Minor under this contract's own rule: no required part, canonical name, or enforceability tier
+changes. This is the convention engagement of
+[#3465](https://github.com/melodic-software/claude-code-plugins/issues/3465), graded against 4.1.0
+and read from its [disposition sweep of 2026-11-04](https://github.com/melodic-software/claude-code-plugins/issues/3465#issuecomment-6633945050)
+(attribution 0.15.3, copy rubric v5, restated-fact rubric v1). The sweep applied zero dispositions.
+That is not evidence the repository is clean.
+
+**The adoption-gate decision of 2026-08-12 is re-derived and upheld; its detector trigger has not
+fired.** The trigger asks for a detector shown to separate an upstream restatement from an in-repo
+one without a suppression list. The sweep closed 277 files in its ledger with 0 per-instance
+suppressions and no carve-out redrawn, but zero suppressions is necessary, not sufficient, and the
+277 does not stand as 277 judged files:
+
+- 275 of the 277 closures hold candidates no panel judged; 2 rest on a panel verdict for every
+  candidate.
+- 5,495 of 5,776 included files got only the automatic scan (stamp check and fingerprint); 281
+  were model-read.
+- 1,907 of 1,958 merged nominations never reached a panel; 74 candidates did.
+- The panel counts (copy 3 upheld and 55 cleared; restated-fact 10 upheld, 9 surviving refutation)
+  carry no human adjudication, so they are not precision.
+
+The restated-fact class, whose rubric grades this separation, measures n 9, precision 1.00 and
+recall 1.00 on the golden set (`plugins/attribution/CHANGELOG.md` 0.14.12), below
+`min_n_per_class` 10, and stays report-only. The detector is model-led with deterministic
+verification, so a deterministic, suppression-free gate for the zero-part shape is still not
+available. The recorded decision keeps its text; its as-of date moves to 2026-11-05.
+
+**Enforceability: no tier changes, as of 2026-11-05.** The stamp-trigger row moves from "named but
+not built" to "built, off by default, repo override enabled": `/attribution:audit` runs the check
+when `trigger_less_stamp_check` is true, the shipped default is false, and
+`docs/conventions/attribution.yaml` sets it true here. Its build trigger fired: trigger-less stamps
+on `main` measured 87 on 2026-09-06, 49 on 2026-10-28 and 56 on 2026-11-04, all from the
+attribution plugin's `check-stamps.sh`. The observability row stays reasoning-only, and "a trigger
+has fired" is unchanged because no hash store landed. Fix eligibility is unchanged by this entry:
+near-verbatim is fix-eligible by the owner's ruling of 2026-11-02
+([#5654](https://github.com/melodic-software/claude-code-plugins/issues/5654#issuecomment-6578852154));
+the sweep's one file past every gate was a test fixture its run was fenced from editing.
+
+**The hash-store deferral trigger fired, on its second event.** The sweep's scope held 3,706
+parsed stamps across 5,776 files. It read 170 sources (199 of its 200-fetch ceiling attempted),
+chosen by citation rank (160) and by copy nominations (39), never by stamp, and checked stamps by
+date only, so it completed without re-fetching every stamped claim in its scope. The report-only
+runs of 2026-08-28 (9 fetches, 491 parsed stamps) and 2026-10-28 (200 fetches, 3,031 parsed
+stamps) met the same event and recorded no evaluation. The first event has no instance on record:
+the sweep's 4 expired stamps came from date arithmetic, not from a changed page. As the deferral
+prescribes, the hash store is its own designed issue,
+[#3567](https://github.com/melodic-software/claude-code-plugins/issues/3567), reopened; nothing is
+built here.
+
+**Not done at this firing.** Dead-pointer wiring: the weekly online link check is a sync-managed
+file from `melodic-software/standards` with a read-only token, so routing its dead links to the
+attribution demotion path needs a change to that component or a new workflow with a write
+permission, an owner decision tracked on
+[#9759](https://github.com/melodic-software/claude-code-plugins/issues/9759). The cleaned-state
+CI gate: a fix-eligible finding needs a fetched source for its tier and a judge panel for its
+class and verdict, so an offline step with no model call cannot decide one, and the stamp rules
+it could run fire on text that is no stamp to fix. Four stamp findings on lines added to `main`
+from 2026-10-24 to 2026-11-05 were measured (three expired, one trigger-less), and all four were
+false: a post's date in a link label, two eval prompts describing a stamp, and a record whose
+trigger is labeled "Recheck when". Blocking on them would need the suppression list the
+[#2273](https://github.com/melodic-software/claude-code-plugins/issues/2273) decision rules out,
+so the gate's predicate is an owner decision on #9759 too. Adopters: no row is added and
+[#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297) gets no closure
+evidence, because the sweep left 9 relay-eligible restated-fact findings with no pointer or record,
+so the repository did not end it conforming.
+
 ## [4.1.0] - 2026-11-03
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or

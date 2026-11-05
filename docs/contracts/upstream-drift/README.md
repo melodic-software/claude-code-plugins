@@ -369,7 +369,10 @@ changed hash in the cache says nothing about which stamps rest on that page. Eve
 still a manual re-fetch at trigger time. Recheck trigger for the deferral itself: a stale stamp causes a
 real defect a stored hash would have flagged, or a fleet audit completes without re-fetching every
 stamped claim in its scope, at which point a hash store becomes its own designed issue, not an
-inline addition here.
+inline addition here. The second event fired with the 2026-11-04 disposition sweep
+([CHANGELOG 4.2.0](CHANGELOG.md)); the design is
+[#3567](https://github.com/melodic-software/claude-code-plugins/issues/3567), and the deferral
+holds until it lands.
 
 ## Pinned git upstreams
 
@@ -479,7 +482,7 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 
 | Judgment | Tier |
 |---|---|
-| Every verification stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The candidate check, flagging any `Verified <date>` line or row whose surface states no trigger, is named but **not built**: per the tiers doc's routing rule, worth-mechanizing defaults to "not yet". Build trigger: a trigger-less stamp lands on `main` again after this doc. |
+| Every verification stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp whose surface states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
 | A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [a daily workflow](#daily-claude-code-release-issues) files an issue per unread release. **Reasoning-only** for every other record today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
@@ -509,7 +512,7 @@ real signal into noise with an approved silencer.
 - **Pointer**: for the reasoning-only tier and the worth-mechanizing routing rule, see
   `melodic-software/standards` `standards/engineering/enforceability-tiers.md`; the worked
   instance is above.
-- **As of**: 2026-08-12
+- **As of**: 2026-11-05, re-derived and upheld in [CHANGELOG 4.2.0](CHANGELOG.md)
 - **Recheck trigger**: a third unstamped upstream-fact carrier reaches `main` after this decision
   (two are already on the record: `plugin-quality`, corrected in its 0.4.0, and `architecture`,
   whose false claim was removed in its 0.5.1), **or** a detector is demonstrated that separates an
