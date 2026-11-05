@@ -122,6 +122,7 @@ retried_refusal() {
     notes=$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100") || return 1
     annotations=$(jq -c --arg id "$id" --argjson notes "$notes" '. + {($id): $notes}' <<<"$annotations") || return 1
   done
+  # shellcheck disable=SC2016 # a JavaScript template literal, not a shell expansion
   REFIRE_MODULE="$(dirname "${BASH_SOURCE[0]}")/../pr-merge/refire-refused.mjs" JOBS="$jobs" ANNOTATIONS="$annotations" node --input-type=module -e '
     const { pathToFileURL } = await import("node:url");
     const { tokenRefusal } = await import(pathToFileURL(process.env.REFIRE_MODULE).href);
@@ -195,6 +196,7 @@ case ${1:-} in
       echo "no status for $ESCALATION_REASON: it holds for a person"
       exit 0
     fi
+    # shellcheck disable=SC2310 # retried_refusal returns 1 itself on every failed read
     if [[ $ESCALATION_REASON == feedback-publish-failed ]] && refusal=$(retried_refusal); then
       echo "::notice title=report-stop-status::no status for $ESCALATION_REASON: the reply job's lane token was refused ($refusal), and a retry takes this head"
       exit 0
