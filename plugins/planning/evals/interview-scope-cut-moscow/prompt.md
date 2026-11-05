@@ -1,6 +1,6 @@
 ---
 description: "Eval-first case for the scope-cut round. Why hard: eight capabilities for two engineers in one quarter is plainly too big, so recommending /planning:wayfind at once looks right, but nobody has yet asked which items the effort fails without."
-tags: [interview, scope, wayfind]
+tags: [interview, scope, wayfind, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

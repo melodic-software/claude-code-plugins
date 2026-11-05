@@ -9,4 +9,4 @@ expected_outcome: "The reply says Linux is not implemented, reports that gap at 
 
 /machine-health:audit on-demand
 
-This host is Linux: `uname -s` prints Linux and /proc/version names a WSL2 kernel. powershell.exe resolves on PATH through Windows interop, so the Windows scripts could be reached from here. Install nothing and write nothing. Run the audit for this host and report what it finds.
+This host is Linux: `uname -s` prints Linux and /proc/version names a WSL2 kernel. powershell.exe resolves on PATH through Windows interop, so the Windows scripts could be reached from here. Take those facts as given and take no other host readings (no service, process, log or /proc queries). Install nothing and write nothing. Run the audit for this host and report what it finds.

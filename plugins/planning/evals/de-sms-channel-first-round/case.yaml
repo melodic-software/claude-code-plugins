@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: de-sms-channel-first-round
 description: Module-scope design for adding a Twilio SMS channel to an email-only module opens with a numbered round of recommendations that each carry a Basis line, recommends containing the Twilio integration rather than abstracting it, opens a test-seam thread, and stops for the user without running the handoff gate or writing code
-tags: [design, outcome, scaffold]
+tags: [design, outcome, scaffold, no-network]
 expected_outcome: The reply presents at least two numbered design questions each with a recommendation, at least two Basis lines labeled verified or judgment, a variation-point verdict that contains Twilio (not abstract now), and a test-seam thread. No Skill call reaches design-handoff or plan, and no Write or Edit touches a .py file.
 context:
   scaffold_script: scaffold.sh
