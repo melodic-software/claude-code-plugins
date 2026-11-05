@@ -34,7 +34,8 @@ The code is the source of truth for its own behavior. Read `${CLAUDE_PLUGIN_ROOT
 and `${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh` when a finding depends on what they do, rather
 than reciting this file. The consumer-facing constants (snapshot path pattern, staleness rule,
 default zone bands, zones.json shape) are owned by
-`${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
+`${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`. Open plugin files by the `${CLAUDE_PLUGIN_ROOT}`
+paths this skill names, with the `Read` tool; never Glob or Grep the plugin directory.
 
 ## `check` (read-only)
 
@@ -75,8 +76,8 @@ default zone bands, zones.json shape) are owned by
    - **Recheck trigger**: that table changes a message, or the minimum version changes.
 4. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. The module
    writes after every tool call, so this check's own Bash calls have each given it a chance to
-   write before you read the file. Probe
-   `~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json`:
+   write before you read the file. Read
+   `~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json` with the `Read` tool:
    - Exists and `captured_at` is within the reader contract's 10-minute staleness window → PASS
      (zone-informed consumers get real data). Also report the zone:
      `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" ${CLAUDE_SESSION_ID}`.
@@ -88,8 +89,9 @@ default zone bands, zones.json shape) are owned by
      wiring defect.
    - Absent or stale while step 3 found the mod running → FAIL: the module ran but its write did
      not land. Check step 2 (`node`), then the debug log for "context-guard: snapshot write failed"
-     or "context-guard: snapshot write did not run", then the permissions of
-     `~/.claude/context-guard/context/`.
+     or "context-guard: snapshot write did not run", then name the permissions of
+     `~/.claude/context-guard/context/` as the operator's next check; never write or touch a file
+     there to test them.
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
      Claude Code version lacks the substitution and consumers will take the conservative path;
      probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
@@ -127,7 +129,7 @@ default zone bands, zones.json shape) are owned by
 
    - Any value still showing its literal `${user_config.<name>}` token (unset key, or a Claude
      Code without the substitution) → **UNKNOWN** for that row, never the default stated as fact.
-     Say which source was read: the module gets every option with the `plugin.json` default filled
+     Say which source was read: the module gets every option with the `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` default filled
      in, and the PostCompact marker hook applies its own in-script default (on). The
      operator-inspectable source of truth is this plugin's `pluginConfigs` options block in the
      user `settings.json` (the hook-config-delivery convention,
