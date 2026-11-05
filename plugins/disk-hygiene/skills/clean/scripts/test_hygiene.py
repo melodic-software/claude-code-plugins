@@ -11883,6 +11883,8 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in (
                 f'grep foo "{engine}"',
+                # The floor read the setup skill documents.
+                f"grep -m1 '^MIN_PYTHON' {engine}",
                 f'cat "{engine}"',
                 f'git show "{engine}"',
                 f"head -n 3 '{engine}' ",
