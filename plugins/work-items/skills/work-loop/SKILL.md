@@ -406,14 +406,13 @@ Hard gates:
   and gives the human both ways to settle it. If the item is trusted, a person with `write`
   applies the label again and then removes it, which clears the hold, because the latest removal
   decides. If it really is untrusted, they apply the label again and leave it on, so the
-  provenance hold takes over. A role-label flip alone does not clear this hold: the next cycle reads the same
-  removal and escalates again. A failed or empty timeline
-  read, a removal event with no usable actor login, and a binding that cannot read removal events
-  fail closed for this cycle the way the labeler precondition does: not dispatched, no label
-  changed, reported as `provenance-removal check failed: #<item> (<reason>)`, and not progress.
-  Pass the label names to the operation as `jq --arg` values, never spliced into a command or jq
-  program. An actor login reaches the permission read's API path only after the operation's
-  login check.
+  provenance hold takes over. A role-label flip alone does not clear this hold: the next cycle reads
+  the same removal and escalates again. A failed or empty timeline read, a removal event with no
+  usable actor login, and a binding that cannot read removal events fail closed for this cycle the
+  way the labeler precondition does: not dispatched, no label changed, reported as
+  `provenance-removal check failed: #<item> (<reason>)`, and not progress. Pass the label names to
+  the operation as `jq --arg` values, never spliced into a command or jq program. An actor login
+  reaches the permission read's API path only after the operation's login check.
 - **Path/topic hard gate.** An item touching dependency SHA pins, checksum or pin recomputation,
   or any surface the consuming repository's `CLAUDE.md` declares as inviolable ground rules is
   human-gated, such items surface-read as mechanical dependency bumps but are
