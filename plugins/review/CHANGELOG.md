@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.4.1] - 2026-11-05
+
+### Changed
+
+- `/review:code-review` starts each pre-existing advisory line in the review summary with the fixed marker `Pre-existing (advisory):`, so a later sweep of merged pull requests' summaries can find each one and file it as an issue.
+
 ## [7.4.0] - 2026-11-05
 
 ### Changed
