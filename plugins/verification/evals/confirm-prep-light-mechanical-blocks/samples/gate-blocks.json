@@ -21,6 +21,14 @@
     {
       "answer": "Here is a summary of the release notes for version 2.3.",
       "why": "answer to a different question"
+    },
+    {
+      "answer": "Stage 1 fails, but under light PR creation is not blocked.",
+      "why": "negated passive phrasing"
+    },
+    {
+      "answer": "Gate: PR creation: not blocked.",
+      "why": "negated label phrasing"
     }
   ]
 }
