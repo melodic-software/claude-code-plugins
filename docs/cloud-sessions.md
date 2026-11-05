@@ -258,7 +258,11 @@ from the two together (see
   180,000). A 200k-window session, including a subagent whose listing is sized to its own window,
   still sheds descriptions at any fraction anyone would want to pay for. Re-measure with the
   command above rather than trusting this table on a later `main`: the installed fleet also
-  depends on each host's user-scope plugins, and this one was measured on a single WSL host. A
+  depends on each host's user-scope plugins, and this one was measured on a single WSL host.
+  Growth erodes the margin with no check failing: this repository's skills grew 1,620 to 1,700
+  description characters a day between July and September 2026, then fell from 146,814 on
+  2026-10-11 to 138,574 by the 2026-11-05 measurement, and 153,000 (85% of 180,000) is where
+  the 15% headroom ends. A
   scheduled report-only CI step measures this repository's skills at the configured fraction on
   a 750,000-token, 4-bytes-per-token basis. It does not cover a 3-bytes-per-token model, whose
   135,000-character budget at 750,000 tokens all of this repository's skills already exceed.
