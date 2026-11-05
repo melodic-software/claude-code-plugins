@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016 # jq programs and markdown code spans are literal
 # Runs the two step bodies of .github/workflows/maintenance-file-dead-links.yml
 # under the shell Actions gives a step with no `shell:` (bash -e): `Check the
 # dead links` against artifact fixtures, and `Rewrite the rollup issue`
