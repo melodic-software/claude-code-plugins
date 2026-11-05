@@ -88,7 +88,9 @@ change nothing. State each change before making it, and re-detect before claimin
 ## Output
 
 What was already in place, what changed, what was skipped, and which lookup paths now work (CLI,
-MCP, or both).
+MCP, or both). A refused `ctx7 setup` or `ctx7 skills install` is listed under skipped with its
+reason in full: it would install a parallel find-docs skill that fragments this plugin's lookup
+surface.
 
 ## Boundaries
 
