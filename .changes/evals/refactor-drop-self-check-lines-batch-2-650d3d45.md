@@ -1,9 +1,5 @@
 ---
-bump: patch
+bump: none
 ---
 
-### Changed
-
-- design's grading hygiene gate records its items without a confirm-before-finishing step
-
-  The items the criteria doc records are unchanged.
+No release needed (test): add the design-grading-hygiene-recorded eval case, which checks that design's criteria doc names a grader model other than the one under test and states the re-run cost
