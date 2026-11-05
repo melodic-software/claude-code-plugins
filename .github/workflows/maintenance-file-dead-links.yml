@@ -89,17 +89,21 @@ jobs:
           # Each URL a plain http(s) URL, each path free of backticks and line
           # breaks, so both sit safely in a code span; anything else is dropped.
           # The server's text is never kept: it is written outside the org and
-          # intake reads the issue body.
+          # intake reads the issue body. Each link keeps 5 locations and a count
+          # of the rest, and URLs and paths are length-capped, so 50 links stay
+          # well under the 128 KiB a single environment variable can hold when
+          # the file job reads them as LINKS.
           if ! valid="$(jq -c '
             if type != "array" then error("not an array") else . end
-            | map(select((.url | type == "string" and length <= 2000 and test("^https?://[^\\s`<>]+$"))
+            | map(select((.url | type == "string" and length <= 1000 and test("^https?://[^\\s`<>]+$"))
                 and (.locations | type == "array")))
             | map({url,
                 status: (if (.status | type) == "number" then .status else null end),
-                locations: ([.locations[]
-                  | select(type == "object" and (.path | type == "string" and test("^[^`\\r\\n]{1,300}$")))
-                  | {path, line: (if (.line | type) == "number" then .line else null end)}][:20])})
-            | map(select(.locations | length > 0))' "$DEAD_LINKS")"; then
+                all: [.locations[]
+                  | select(type == "object" and (.path | type == "string" and test("^[^`\\r\\n]{1,200}$")))
+                  | {path, line: (if (.line | type) == "number" then .line else null end)}]})
+            | map(select(.all | length > 0)
+                | {url, status, locations: .all[:5], more_locations: ((.all | length) - 5 | if . < 0 then 0 else . end)})' "$DEAD_LINKS")"; then
             echo "::error::the dead-links artifact is not a JSON array"
             exit 1
           fi
@@ -107,6 +111,14 @@ jobs:
           count="$(jq 'length' <<<"$valid")"
           if ((count < total)); then
             echo "::warning::dropped $((total - count)) of $total malformed dead-link entries"
+          fi
+          # Only an artifact that is itself empty means no dead links. One whose
+          # every entry failed the shape check (a malformed artifact or a format
+          # change upstream) hands on nothing, so the rollup is never closed as
+          # fixed on bad data.
+          if ((total > 0 && count == 0)); then
+            echo "::warning::every dead-link entry failed the shape check: the rollup is left as it is"
+            exit 0
           fi
           links="$(jq -c --argjson max "$MAX_LINKS" '.[:$max]' <<<"$valid")"
           more=$((count > MAX_LINKS ? count - MAX_LINKS : 0))
@@ -181,11 +193,17 @@ jobs:
             exit 0
           fi
 
-          body="$(jq -r --arg marker "$MARKER" --arg run "$RUN_URL" --arg demote "$DEMOTION_PATH" --argjson more "$MORE" '
+          # The body with the first $1 links, the rest counted in the +N more
+          # line. Each item shows at most 5 locations.
+          render() {
+            jq -r --arg marker "$MARKER" --arg run "$RUN_URL" --arg demote "$DEMOTION_PATH" \
+              --argjson keep "$1" --argjson more "$((MORE + count - $1))" '
             "\($marker)\n\n"
             + "The weekly online link check found these links dead in \($run). Each run rewrites this list.\n\n"
-            + ([.[] | "- [ ] `\(.url)`, status \(.status // "none"): "
-                + ([.locations[] | "`\(.path)`" + (if .line then " line \(.line)" else "" end)] | join(", "))]
+            + ([.[:$keep][] | "- [ ] `\(.url)`, status \(.status // "none"): "
+                + ([.locations[:5][] | "`\(.path)`" + (if .line then " line \(.line)" else "" end)] | join(", "))
+                + (((.more_locations // 0) + ((.locations | length) - 5 | if . < 0 then 0 else . end)) as $k
+                   | if $k > 0 then ", +\($k) more locations" else "" end)]
                | join("\n"))
             + (if $more > 0 then "\n- +\($more) more, see the run." else "" end)
             + "\n\nThe status is the code alone: the text the server sent is left out, since it is written "
@@ -197,7 +215,16 @@ jobs:
             + "Close this only once the link check no longer reports these URLs: removed, replaced, or in "
             + "`.lycheeignore`. A run that reports none closes it. A dead URL kept in a link, the marked "
             + "pointer of a demoted record included, is found again and reopens this issue on the next run.\n"
-          ' <<<"$LINKS")"
+          ' <<<"$LINKS"
+          }
+          # An issue body holds at most 65,536 characters; past 60,000, links
+          # move from the end of the list into the +N more line.
+          keep="$count"
+          body="$(render "$keep")"
+          while ((${#body} > 60000 && keep > 0)); do
+            keep=$((keep - 1))
+            body="$(render "$keep")"
+          done
           if [[ -z "$number" ]]; then
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-triage' \
               -f title="Dead links found by the online link check" -f body="$body" >/dev/null

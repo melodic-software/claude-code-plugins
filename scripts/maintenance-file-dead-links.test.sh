@@ -63,12 +63,12 @@ if [[ "$(job read | scopes)" == 'actions: read' ]]; then
 else
   fail "the read job's permissions are not exactly actions: read: '$(job read | scopes)'"
 fi
-if [[ "$(job file | scopes)" == 'issues: write' ]] && ! job file | grep -qE 'uses:|actions/checkout'; then
+if [[ "$(job file | scopes)" == 'issues: write' ]] && ! grep -qE 'uses:|actions/checkout' <<<"$(job file)"; then
   ok "the file job holds issues: write alone and checks out nothing"
 else
   fail "the file job's permissions are not exactly issues: write, or it uses an action"
 fi
-if job read | grep -q 'name: link-check-online-dead-links$'; then
+if grep -q 'name: link-check-online-dead-links$' <<<"$(job read)"; then
   ok "the read job downloads the ci-workflows link-check-online-dead-links artifact"
 else
   fail "the read job does not download link-check-online-dead-links"
@@ -110,7 +110,7 @@ if [[ "$READ_LOG" == *"::warning::dropped 3 of 5 malformed dead-link entries"* ]
 else
   fail "no warning for dropped links: $READ_LOG"
 fi
-if [[ "$(jq -c '.[0]' <<<"$READ_LINKS")" == '{"url":"https://example.com/gone","status":404,"locations":[{"path":"docs/a.md","line":3},{"path":"docs/b c.md","line":null}]}' ]]; then
+if [[ "$(jq -c '.[0]' <<<"$READ_LINKS")" == '{"url":"https://example.com/gone","status":404,"locations":[{"path":"docs/a.md","line":3},{"path":"docs/b c.md","line":null}],"more_locations":0}' ]]; then
   ok "the server's text is dropped and locations keep path and line"
 else
   fail "links are not normalized: $READ_LINKS"
@@ -128,6 +128,13 @@ if ((READ_STATUS == 0)) && [[ "$READ_LINKS" == '[]' && "$READ_OUT" == found=true
   ok "an empty list is handed on, so the rollup can close"
 else
   fail "an empty list was not handed on: $READ_STATUS $READ_OUT"
+fi
+
+run_read success failure "[$tick,$ftp,$badpath]"
+if ((READ_STATUS == 0)) && [[ -z "$READ_OUT" && "$READ_LOG" == *"::warning::every dead-link entry failed the shape check"* ]]; then
+  ok "an artifact whose every entry is malformed hands on nothing, so the rollup is not closed"
+else
+  fail "an all-malformed artifact handed on a list: $READ_STATUS $READ_OUT $READ_LOG"
 fi
 
 run_read failure success ''
@@ -233,6 +240,28 @@ if [[ "$BODY" == *$'\n- +7 more, see the run.\n'* ]]; then
   ok "links over the cap get a +N more line"
 else
   fail "no overflow line: $BODY"
+fi
+
+# 50 long URLs with 20 locations each on long paths: the read step keeps 5
+# locations a link and stays under the 128 KiB a single environment variable
+# holds, and the file step keeps the body under the 65,536-character limit.
+big="$(jq -cn '[range(53) as $i | {url: ("https://example.com/" + ("u" * 950) + "/\($i)"), status: 404,
+  locations: [range(20) as $j | {path: ("docs/" + ("p" * 185) + "/\($j).md"), line: $j}]}]')"
+run_read success failure "$big"
+if ((READ_STATUS == 0)) && [[ "$(jq -c '[length, (map(.locations | length) | unique), (map(.more_locations) | unique)]' <<<"$READ_LINKS")" == '[50,[5],[15]]' ]] &&
+  [[ "$READ_OUT" == *$'\nmore=3\n'* ]] && ((${#READ_LINKS} < 131072)); then
+  ok "the read step keeps 5 locations a link, counts the rest, and hands on under 128 KiB (${#READ_LINKS} bytes)"
+else
+  fail "the read step did not cap locations or size: status $READ_STATUS, ${#READ_LINKS} bytes, $READ_LOG"
+fi
+run_file "$READ_LINKS" MORE=3
+shown="$(grep -c '^- \[ \] ' <<<"$BODY")"
+over="$(sed -n 's/^- +\([0-9]*\) more, see the run\.$/\1/p' <<<"$BODY")"
+if ((FILE_STATUS == 0 && ${#BODY} <= 60001 && shown > 0 && shown < 50)) && [[ "$over" == "$((50 - shown + 3))" ]] &&
+  [[ "$BODY" == *", +15 more locations"* ]] && ! grep -q '/5\.md' <<<"$BODY"; then
+  ok "a body over 60,000 characters moves links into the +N more line; each item shows 5 locations and counts the rest"
+else
+  fail "the big body was not capped: status $FILE_STATUS, ${#BODY} characters, $shown shown, over '$over'"
 fi
 
 # An open rollup wins over an older closed one.
