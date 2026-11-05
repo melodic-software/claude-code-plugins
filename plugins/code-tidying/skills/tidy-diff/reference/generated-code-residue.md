@@ -14,10 +14,7 @@ below that they still carry is named in the report.
 - In tidy-diff the pass covers the listed code lines only, under tidy-diff's posture: an edit that
   would change an output, an error, an order, which inputs a check accepts, or a public signature
   is a proposal, never an edit.
-- Close with one read of the listed lines against every kind below, asking what would still make a
-  reviewer suspect a model wrote them. Fix or propose what it finds, then read once more; what the
-  second read finds is reported, and the pass ends there. Each kind still present after a proposal
-  is named beside that proposal.
+- Each kind still present after a proposal is named beside that proposal.
 
 The **In tidy-diff** column says what the pass does with each finding:
 
@@ -25,7 +22,7 @@ The **In tidy-diff** column says what the pass does with each finding:
   [triage.md](../../remove-comments/reference/triage.md) gives each comment kind below its class,
   and deleted it behind the COMMENT-ONLY proof or made it a proposal. This pass edits no comment;
   a comment pass 2 kept is named in the report beside pass 2's verdict, and a comment that an edit
-  of this pass invalidates, or that the closing read flags, is a proposal.
+  of this pass invalidates is a proposal.
 - **pass 1 rule**: applied when pass 1's rule allows it (inside the listed lines, behavior
   unchanged); otherwise a proposal.
 - **proposal**: reported with the residue kind and its fix; nothing is edited.

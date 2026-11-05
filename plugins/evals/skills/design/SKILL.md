@@ -212,7 +212,7 @@ Recheck when a Claude Code release changes `--ablation`'s default or which grade
 
 ## Phase 3: grading hygiene gate
 
-Before finishing, confirm and record in the criteria doc:
+Record in the criteria doc:
 
 - LLM-graded cases name a grader model DIFFERENT from the generator and constrain the verdict
   format. Add a reasoning-then-discard instruction only where the grader model does not already
