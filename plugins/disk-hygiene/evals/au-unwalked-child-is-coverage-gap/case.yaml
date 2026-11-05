@@ -20,7 +20,7 @@ graders:
     arm: both
   - name: unwalked-child-is-coverage-gap
     type: regex
-    pattern: 'locked-share[^\n]{0,200}(?:not walked|unwalked|walked:\s*false|coverage gap|size (?:is )?unknown|unknown size|could not be (?:read|walked|scanned))|(?:not walked|unwalked|coverage gaps?)[^\n]{0,200}locked-share|coverage gaps?\W*\n[\s\S]{0,300}locked-share'
+    pattern: 'locked-share[^\n]{0,200}(?:not (?:walked|scanned)|wasn[''’]t (?:walked|scanned)|unwalked|unscanned|walked:\s*false|coverage gap|size (?:is )?unknown|unknown size|(?:could not|couldn[''’]t) be (?:read|walked|scanned))|(?:not (?:walked|scanned)|unwalked|unscanned|coverage gaps?)[^\n]{0,200}locked-share|coverage gaps?\W*\n[\s\S]{0,300}locked-share'
     flags: 'i'
     target: last_message
     arm: both
