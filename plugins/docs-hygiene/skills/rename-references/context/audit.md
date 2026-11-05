@@ -178,6 +178,8 @@ Sweep across <N> tracked files (excluded: <K> plan-doc/historical/memory paths).
 | Ambiguous       | <Z>   | <file>:<line>   |
 | Excluded        | <W>   | (skipped)       |
 
+Kept as history: <file>:<line>[, <file>:<line>...]  (frozen records; omit the line when none)
+
 Top 5 affected files:
 - <file>:<count> matches
 - <file>:<count> matches

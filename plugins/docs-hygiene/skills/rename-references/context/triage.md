@@ -137,7 +137,9 @@ Identify these documents from conversation context and the consuming repository'
 
 ## Special case: Frozen historical records
 
-Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen.
+Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen. A released, dated or versioned entry in a live changelog is frozen too; only an entry drafted for this rename is not.
+
+A frozen hit never enters a bucket and is never a question or a suggestion: the report counts it in the Excluded row and names it on one "Kept as history: <file>:<line>" line, with no advice to edit it.
 
 ## Special case: Memory entries
 

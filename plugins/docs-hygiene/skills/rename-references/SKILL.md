@@ -144,7 +144,7 @@ Audit mode runs phases 1-3 only and reports, no Edit calls. Preview mode runs 1-
 Paths skipped from sweeps automatically:
 
 - **Rename-documenting plan/work-notes documents**: an active plan file, migration notes, or changelog entry drafted for THIS rename names both old and new by design. Identify these from conversation context and the consuming repository's work-notes conventions (its CLAUDE.md / rules). Skipping prevents self-reference loops.
-- **Archived/historical work notes**. Completed plan documents and frozen records of past work are historical record, not stale references.
+- **Archived/historical work notes**. Completed plan documents and frozen records of past work, released changelog entries included, are historical record, not stale references: report them only as "Kept as history" ([triage.md](context/triage.md) "Frozen historical records"), never as a choice for the user.
 - `.git/`, `node_modules/`, `bin/`, `obj/`, `.venv/`, `dist/`, `build/`
 - Claude Code auto-memory files ([Auto-memory location](#auto-memory-location)) describing past renames
 
