@@ -206,6 +206,7 @@ wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
 wit_case_if_unsupported label-provenance "$FAKE_ID" --label agent-ready
 wit_case_if_unsupported set-fields "$FAKE_ID" --field 1=2
 wit_case_if_unsupported get-field-options --field Size
+wit_case_if_unsupported get-statuses --field "Work status" "$FAKE_ID"
 wit_case_if_unsupported add-recurrence "$FAKE_ID" --source-link https://example.com/1 --note seen
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
@@ -331,6 +332,14 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   frontier_ids="$(jq -c '[.items[].id]' <<<"$WIT_OUT")"
   assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
   assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"
+
+  # Under field storage each candidate carries its Work status, a name or null; under
+  # labels none does. A freshly created A carries no hold either way.
+  wit_case "list-frontier --autonomous" 0 list-frontier --autonomous "${repo_args[@]+"${repo_args[@]}"}"
+  assert_schema_version "list-frontier --autonomous"
+  assert_contains "autonomous frontier holds unblocked A" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
+  assert_eq "autonomous frontier statuses are names or null" "true" \
+    "$(jq '[.items[] | select(has("status")) | .status | (type == "string" or type == "null")] | all' <<<"$WIT_OUT")"
 
   wit_case "list-items" 0 list-items "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-items"

@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-05
+
+### Fixed
+
+- `lib/check-retirements.sh` skips `kind: file` records, and refuses `--clean` of one, when the root is `$HOME` or not inside a git work tree ([#13504](https://github.com/melodic-software/claude-code-plugins/issues/13504)). There a `.claude/<name>.json` path is the live user-global layer, not a retired team file; stderr reports `<id>: skipped: root is not a repository`.
+
+## [2.0.0] - 2026-11-05
+
+### Removed
+
+- `block-convention-violation` and the `commit-msg-convention` git hook no longer read `.claude/source-control.md`: neither its `## subject_pattern` / `## pr_title_pattern` H2 nor its `## convention_source` pointer is enforced. The team pattern comes from `docs/conventions/source-control.yaml`, else from `docs/conventions/source-control/commit-convention.yml`, and each file counts only while git tracks it. A repository that set its pattern only in the markdown file gets no enforcement until it moves the pattern to one of those files. An installed `commit-msg-convention` copy carries its own resolver, so a copy installed before this release keeps reading the markdown file until `/guardrails:setup apply install-git-hooks` refreshes it.
+- A `commit-msg-convention` copy installed before 0.61.0 keeps its old resolver, which does not read `docs/conventions/source-control.yaml`. Where the pattern lives only in that file, such a copy enforces nothing until it is refreshed: run `/guardrails:setup apply install-git-hooks`.
+
 ## [1.3.5] - 2026-11-05
 
 ### Fixed

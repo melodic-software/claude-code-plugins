@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.12] - 2026-11-05
+
+### Fixed
+
+- `lib/check-retirements.sh` skips `kind: file` records, and refuses `--clean` of one, when the root is `$HOME` or not inside a git work tree ([#13504](https://github.com/melodic-software/claude-code-plugins/issues/13504)). There a `.claude/<name>.json` path is the live user-global layer, not a retired team file; stderr reports `<id>: skipped: root is not a repository`.
+
+## [8.4.11] - 2026-11-05
+
+### Added
+
+- Eval case `setup-check-reports-guard-and-hook-tools` for `/harness-ops:setup check` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)): grades the status table's node, jq and guard rows, the bundled retired-convention check, no settings read and no write.
+
+## [8.4.10] - 2026-11-05
+
+### Changed
+
+- `changelog`'s native-drift record no longer names this repository's retired `.claude/bugs.md` among the bugs team files; `docs/conventions/bugs.yaml` is the only one.
+
 ## [8.4.9] - 2026-11-04
 
 ### Changed

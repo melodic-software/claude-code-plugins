@@ -15,6 +15,7 @@
     "label-provenance": true,
     "set-fields": true,
     "get-field-options": true,
+    "get-statuses": true,
     "capabilities": true,
     "change-link": true,
     "add-recurrence": true

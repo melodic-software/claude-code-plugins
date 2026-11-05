@@ -44,6 +44,10 @@ outputs:
 runs:
   using: composite
   steps:
+    # The Work status field is read through resolve-config (read-status.mjs),
+    # which needs its dependencies; an install that fails leaves the status
+    # labels to decide. A composite step takes no timeout-minutes, so
+    # `timeout` bounds the install.
     - name: Check the issue
       id: check
       shell: bash
@@ -53,4 +57,7 @@ runs:
         LANES_APP_ID: ${{ inputs.lanes-app-id }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
-      run: node "$GITHUB_ACTION_PATH/check-born-triaged.mjs"
+      run: |
+        timeout 2m npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH/../resolve-config" ||
+          echo "::warning title=check-born-triaged::resolve-config's dependencies did not install; the status labels decide"
+        node "$GITHUB_ACTION_PATH/check-born-triaged.mjs"

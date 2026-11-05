@@ -110,6 +110,11 @@
         "purpose": "Check every Markdown link with the network on."
       },
       { "name": "file-upstream-drift-issues", "status": "in-use" },
+      {
+        "name": "measure-skill-edit",
+        "status": "reserved",
+        "purpose": "Measure one proposed skill edit against the merged skill on a person's dispatch, and open a draft pull request when it wins."
+      },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },

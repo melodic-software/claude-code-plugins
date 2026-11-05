@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "| Personal override ignore rule | FAIL | no repository .gitignore covers `.claude/**/*.local.*`; run `apply` |"
+    },
+    {
+      "answer": "FAIL: the recursive `.claude/**/*.local.*` rule is missing.",
+      "why": "FAIL first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Personal override ignore rule | PASS | `.gitignore:1:.claude/**/*.local.*` |",
+      "why": "wrong: reports the rule present"
+    },
+    {
+      "answer": "| Personal override ignore rule | INFO | not set up yet |",
+      "why": "INFO, not FAIL"
+    },
+    {
+      "answer": "| Team file | FAIL | excluded by .gitignore |",
+      "why": "a different row"
+    }
+  ]
+}

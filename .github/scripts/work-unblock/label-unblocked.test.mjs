@@ -33,6 +33,8 @@ import {
   SWEEP_LABEL,
 } from "./label-unblocked.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -490,6 +492,49 @@ test("an issue held by needs-owner-decision, status: needs-decision, status: nee
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
   }
+});
+
+// The Work status field a trusted account set (read-status.mjs): with a status
+// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
+const withStatus = (world, fields) => {
+  const github = withFields(world.github, fields);
+  return { github, statusOf: statusReader({ github, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }) };
+};
+
+test("a field that mirrors the labels changes no promotion", async () => {
+  const sets = [[], ["needs-owner-decision"], ["status: needs-decision"], ["status: needs-info"], ["needs-human"], ["work-class: untrusted-provenance"], ["attended"], ["agent-ready"], ["status: ready"], ["needs-spec"], ["Needs-Human"], ["work-class: scoped"]];
+  for (const labels of sets) {
+    const byLabels = oneDependent({ labels });
+    assert.equal(await main({ env: envFor(), github: byLabels.github }), 0);
+    const mirrored = oneDependent({ labels });
+    assert.equal(await main({ env: envFor(), github: mirrored.github, statusOf: mirroredStatusOf }), 0);
+    assert.deepEqual(writes(mirrored.calls), writes(byLabels.calls), JSON.stringify(labels));
+  }
+});
+
+test("a hold in the Work status field the labels lack stops the promotion", async () => {
+  for (const labels of [[], ["status: ready"]]) {
+    const held = oneDependent({ labels });
+    assert.equal(await main({ env: envFor(), ...withStatus(held, { 20: { state: "needs-human" } }) }), 0);
+    assert.deepEqual(writes(held.calls), [], JSON.stringify(labels));
+  }
+});
+
+test("the Work status field decides an issue with no status label", async () => {
+  const ready = oneDependent({ labels: [] });
+  assert.equal(await main({ env: envFor(), ...withStatus(ready, { 20: { state: "agent-ready" } }) }), 0);
+  assert.deepEqual(writes(ready.calls), []);
+});
+
+test("the labels decide a hold when the Work status field is unset, set by another account, or names a ready state", async () => {
+  for (const fields of [{}, { 20: { state: "ready", setter: STRANGER_ID } }, { 20: { state: "ready" } }]) {
+    const { github, calls } = oneDependent({ labels: ["needs-human"] });
+    assert.equal(await main({ env: envFor(), ...withStatus({ github }, fields) }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(fields));
+  }
+  const free = oneDependent({ labels: [] });
+  assert.equal(await main({ env: envFor(), ...withStatus(free, {}) }), 0);
+  assert.deepEqual(writes(free.calls), [labeled(20)]);
 });
 
 test("a hold or agent-ready label in another casing still counts", async () => {

@@ -1,5 +1,6 @@
 ---
 type: tool_used
 tool: Grep
-min: 3
+input_match: '"pattern":"[^"]*\\\\d'
+min: 1
 ---

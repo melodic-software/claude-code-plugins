@@ -1106,6 +1106,11 @@ jobs:
       issues: write # file, rewrite and comment on the digest issue
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1140,6 +1145,17 @@ jobs:
         with:
           pattern: findings-*
           path: ${{ runner.temp }}/lane-sweep-findings
+
+      # The Work status mirror (write-status.mjs) reads models.issue-status
+      # through resolve-config.mjs, whose packages only the resolve-config
+      # action installs; this job does not run it.
+      - name: Install resolve-config's packages
+        timeout-minutes: 5
+        # A failed install leaves only the Work status field unwritten (the
+        # mirror warns); the label writes still run.
+        continue-on-error: true
+        if: steps.download.outcome == 'success'
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: File the findings
         if: steps.download.outcome == 'success'
@@ -1184,6 +1200,11 @@ jobs:
       issues: write # write the state comment and file the needs-triage issue
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1203,6 +1224,17 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The Work status mirror (write-status.mjs) reads models.issue-status
+      # through resolve-config.mjs, whose packages only the resolve-config
+      # action installs; this job does not run it.
+      - name: Install resolve-config's packages
+        timeout-minutes: 5
+        # A failed install leaves only the Work status field unwritten (the
+        # mirror warns); the label writes still run.
+        continue-on-error: true
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: Sweep for untriaged issues
         if: steps.kill.outputs.proceed == 'true'

@@ -93,10 +93,11 @@ call and routes to its finding-suppression convention, not to a marker this plug
 ## Configuration
 
 The audit detectors read `<home>/attribution.yaml` and `<home>/attribution.local.yaml`, `<home>`
-being the bound convention home, else `docs/conventions`; each falls back to its `.claude/` JSON
-file only when the YAML is absent. In YAML, quote a glob that starts with `*` (`- "**/vendor/**"`);
-a file that does not parse is named on stderr and not read. `/attribution:setup` writes the YAML
-files. The keys, layered over the shipped defaults, with their schema in
+being the bound convention home, else `docs/conventions`, over the user-global
+`~/.claude/attribution.json`. The old JSON files of the same names under `.claude/` are not read;
+`/attribution:setup` reports them and carries their keys into the YAML, which it writes. In YAML,
+quote a glob that starts with `*` (`- "**/vendor/**"`); a file that does not parse is named on
+stderr and not read. The keys, layered over the shipped defaults, with their schema in
 `schemas/attribution.schema.json`:
 
 ```yaml

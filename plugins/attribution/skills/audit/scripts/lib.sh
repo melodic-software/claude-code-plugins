@@ -35,13 +35,13 @@ _CFG_LIB="${BASH_SOURCE[0]%/*}/../../../lib"
 # refinement order, user-global then team then personal override, skipping a layer that is
 # not present. The team layer is <home>/attribution.yaml and the personal override
 # <home>/attribution.local.yaml (ADR 0075), <home> being the bound convention
-# home, else docs/conventions. Each falls back to its .claude/attribution.json or
-# .claude/attribution.local.json only when the YAML is absent: per file, not per
-# key. The config root is a parameter because it is resolved differently per
+# home, else docs/conventions. The user-global layer is the one JSON file; the
+# repository's old JSON files under .claude/ are not read (retirements.yaml
+# reports them). The config root is a parameter because it is resolved differently per
 # script (CLAUDE_PROJECT_DIR over a corpus root that each one finds its own way).
 # Config-cascade step 2: a home or non-repo root has no team layer or personal override.
 cfg_layers_init() {
-  local config_root="$1" home="docs/conventions" resolved name layer
+  local config_root="$1" home="docs/conventions" resolved name
   CFG_LAYERS=()
   cfg_layer_add "${HOME:-/nonexistent}/.claude/attribution.json"
   [[ "$(config_root_classify "$config_root")" == repo ]] || return 0
@@ -49,15 +49,13 @@ cfg_layers_init() {
     home="$resolved"
   fi
   for name in attribution attribution.local; do
-    layer="$config_root/$home/$name.yaml"
-    [[ -f "$layer" ]] || layer="$config_root/.claude/$name.json"
-    cfg_layer_add "$layer"
+    cfg_layer_add "$config_root/$home/$name.yaml"
   done
 }
 
 # cfg_layer_add <path>: append <path> when present and not already a layer (two
 # paths naming one file are read once). A YAML file outside the parser's subset
-# is named on stderr and not a layer; the JSON it shadows stays unread.
+# is named on stderr and not a layer.
 cfg_layer_add() {
   local path="$1" layer
   [[ -f "$path" ]] || return 0
@@ -73,7 +71,7 @@ cfg_layer_add() {
 
 # The one reader every script takes its settings through. A layer is YAML (read
 # with lib/parse-concern-value.sh, --strict, so a document outside the parser's
-# subset is skipped whole) or legacy JSON (read with jq; without jq a JSON layer
+# subset is skipped whole) or the user-global JSON (read with jq; without jq it
 # is skipped). Carriage returns are stripped because the Windows build of jq
 # ends its lines with CRLF, and a CR-suffixed value silently stops matching (the
 # ai-slop #3343 finding). CFG_SOURCE is the layer that supplied the value the

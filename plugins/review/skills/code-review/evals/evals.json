@@ -27,12 +27,12 @@
     {
       "id": 3,
       "name": "excludes-linter-nits",
-      "prompt": "/review:code-review\n\nREPO: acme/app\nPR NUMBER: 3\nHEAD SHA: cccccccccccccccccccccccccccccccccccccccc\n\nThe only issues visible in the diff are missing imports a typechecker would catch and a pre-existing TODO on an untouched line.",
-      "expected_output": "Applies the high-signal bar: does not report the typechecker-catchable import issue or the pre-existing untouched-line TODO; reports no findings or says none meet the bar.",
+      "prompt": "/review:code-review\n\nREPO: acme/app\nPR NUMBER: 3\nHEAD SHA: cccccccccccccccccccccccccccccccccccccccc\n\nThe only issues visible in the diff are missing imports a typechecker would catch and a pre-existing TODO on an unchanged line that no changed line calls.",
+      "expected_output": "Applies the high-signal bar: does not report the typechecker-catchable import issue or the pre-existing TODO on an unchanged, uncalled line; reports no findings or says none meet the bar.",
       "files": [],
       "expectations": [
         "Excludes linter/typechecker-catchable issues",
-        "Excludes pre-existing issues on untouched lines"
+        "Excludes pre-existing issues on unchanged lines that no changed line calls"
       ]
     },
     {

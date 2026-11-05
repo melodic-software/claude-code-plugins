@@ -5,6 +5,18 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.1.1] - 2026-11-05
+
+### Fixed
+
+- `lib/check-retirements.sh` skips `kind: file` records, and refuses `--clean` of one, when the root is `$HOME` or not inside a git work tree ([#13504](https://github.com/melodic-software/claude-code-plugins/issues/13504)). There a `.claude/<name>.json` path is the live user-global layer, not a retired team file; stderr reports `<id>: skipped: root is not a repository`. `check-retirements.test.sh` case 23 covers a `$HOME` root that is a git repository and a plain directory.
+
+## [3.1.0] - 2026-11-05
+
+### Removed
+
+- `/harness-config:audit` detects a declared unattended-push lane only from `docs/conventions/source-control.yaml`. It no longer reads the `## babysit_loop_merge` H2 of the retired `.claude/source-control.md`. A lane declared only in that file leaves the push ask rows at `warning`.
+
 ## [3.0.13] - 2026-11-05
 
 ### Changed

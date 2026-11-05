@@ -171,6 +171,8 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   dashboard). A signal the app does not expose is listed as a capability gap. Ready also checks
   each dependency service of the selected environment (contract "Environments"): it answers, and,
   where the app exposes its target (a sign-in redirect, a health field), the app sends to its url.
+  It reports whether this session can extract a recording's frames (`## Capture` `frames`) and
+  read them as images; either one missing is a capability gap naming the narrowest tool or grant.
 - **Read-only by default.** A step that would write outside the app's own data, or needs a grant the
   run lacks, is not performed. The report names the narrowest grant that would allow it. Pass
   `--attended` only with a person present, `--yes` only after that person said yes in this
@@ -230,7 +232,7 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md). Detach from an
   attached process; never stop it. Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
-  the outcome.
+  the outcome. Record a `Budget:` value beside its config threshold, never compared with it.
 
 ## Attach
 

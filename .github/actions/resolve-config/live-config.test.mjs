@@ -665,11 +665,13 @@ test("live config: apply-issue-patch runs apply-patch.mjs and holds on the issue
   assert.equal(skipReason("work-resolve-issue", "apply-issue-patch", { ...ISSUE, labels: [] }), "not-applicable");
 });
 
-test("live config: label-unblocked may only write issues", () => {
-  assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "label-unblocked", configPath: CONFIG_PATH }), {
-    effect: "mutate-tracker",
-    grant: { contents: "read", "pull-requests": "read", issues: "write" },
-  });
+test("live config: label-unblocked and sync-status may only write issues", () => {
+  for (const activity of ["label-unblocked", "sync-status"]) {
+    assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity, configPath: CONFIG_PATH }), {
+      effect: "mutate-tracker",
+      grant: { contents: "read", "pull-requests": "read", issues: "write" },
+    }, activity);
+  }
 });
 
 test("live config: upstream-apply-changelog pushes with contents write only and publishes without it", () => {
@@ -682,6 +684,21 @@ test("live config: upstream-apply-changelog pushes with contents write only and 
     effect: "publish-artifact",
     grant: { contents: "read", "pull-requests": "write", issues: "write" },
   });
+});
+
+test("live config: the skill-edit lane pushes with contents write only, publishes without it, and may not merge or label (AL-Q11)", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "maintenance-measure-skill-edit", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("apply-skill-edit-branch"), {
+    effect: "mutate-branch",
+    grant: { contents: "write", "pull-requests": "read", issues: "read" },
+  });
+  assert.deepEqual(grant("publish-skill-edit-pr"), {
+    effect: "publish-artifact",
+    grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+  const rules = JSON.parse(readFileSync(new URL("./lane-rules.json", import.meta.url), "utf8"))["maintenance-measure-skill-edit"];
+  assert.deepEqual(rules["forbidden-effects"], ["mutate-tracker", "merge"]);
+  assert.match(rules.never, /chore\/hill-climb-<plugin>-<skill>-<run id>/);
 });
 
 test("live config: the code-tidying upkeep lane pushes with contents write only and publishes without it", () => {

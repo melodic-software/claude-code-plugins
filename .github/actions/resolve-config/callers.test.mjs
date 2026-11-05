@@ -568,11 +568,15 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
-  const selects = (result, stopped) =>
-    evaluate(select.if, { "needs.apply-verdict.result": result, "needs.apply-verdict.outputs.stopped": stopped });
+  const selects = (result, stopped, held = "") =>
+    evaluate(select.if, { "needs.apply-verdict.result": result, "needs.apply-verdict.outputs.stopped": stopped, "needs.apply-verdict.outputs.held": held });
   assert.equal(selects("success", ""), true);
   assert.equal(selects("failure", ""), false);
   assert.equal(selects("success", "kill-switch"), false, "a kill-switch stop of apply-verdict refines nothing");
+  assert.equal(selects("success", "", "true"), false, "a verdict a fault held refines nothing");
+  assert.equal(jobs["apply-verdict"].outputs.held, "${{ steps.verdict.outputs.held }}");
+  assert.equal(jobs["apply-verdict"].steps.find((s) => s.id === "verdict")?.run, 'node ".base/$SCRIPT"');
+  assert.equal(jobs["apply-verdict"].steps.find((s) => s.id === "verdict")?.env?.API_BUDGET_HOLD, "1", "a rate-guard stop holds the verdict green");
   const picked = (refine, mode = "refine") => ({ "needs.refine-select.outputs.refine": refine, "needs.refine-select.outputs.mode": mode });
   assert.equal(evaluate(model.if, picked("true")), true);
   assert.equal(evaluate(model.if, picked("true", "size-split")), true);
@@ -7982,6 +7986,8 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "upstream-apply-changelog.yml:publish",
     "maintenance-tidy-code-upkeep.yml:push-branches",
     "maintenance-tidy-code-upkeep.yml:publish",
+    "maintenance-measure-skill-edit.yml:push-branch",
+    "maintenance-measure-skill-edit.yml:publish",
   ].sort());
 });
 
@@ -8415,7 +8421,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
     "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
     "eval-browser-dispatch.yml": ["eval"],
-    "eval-hill-climb.yml": ["propose", "scan", "verdict"],
+    "maintenance-measure-skill-edit.yml": ["propose", "scan", "verdict", "push-branch", "publish"],
     "eval-hill-climb-pass.yml": ["pass"],
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
@@ -8558,11 +8564,12 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   const doc = workflow("work-unblock.yml");
   assert.deepEqual(doc.on.workflow_run, { workflows: ["work-resolve-issue"], types: ["completed"] });
   const job = doc.jobs["label-unblocked"];
-  const runs = ({ event = "workflow_run", ref = "refs/heads/main", head = "melodic-software/claude-code-plugins", conclusion = "success", sender = "Bot" } = {}) =>
+  const runs = ({ event = "workflow_run", ref = "refs/heads/main", head = "melodic-software/claude-code-plugins", conclusion = "success", sender = "Bot", action = "closed" } = {}) =>
     evaluate(job.if, {
       "github.event.workflow_run.head_repository.full_name": head,
       "github.event.workflow_run.conclusion": conclusion,
       "github.event.sender.type": sender,
+      "github.event.action": action,
       "github.event_name": event,
       "github.repository": "melodic-software/claude-code-plugins",
       "github.ref": ref,
@@ -8573,6 +8580,7 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(runs({ ref: "refs/heads/feature" }), false);
   assert.equal(runs({ event: "issues", sender: "Bot" }), false, "a bot's close still skips");
   assert.equal(runs({ event: "issues", sender: "User" }), true);
+  for (const action of ["labeled", "unlabeled"]) assert.equal(runs({ event: "issues", sender: "User", action }), false, `a ${action} event is sync-status's`);
   const config = job.steps.find((step) => step.id === "config");
   const resolves = (event, who, kill = "true") =>
     evaluate(config.if, { "steps.kill.outputs.proceed": kill, "steps.who.outputs.proceed": who, "github.event_name": event });
@@ -8580,6 +8588,39 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(resolves("issues", ""), false);
   assert.equal(resolves("issues", "true"), true);
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
+});
+
+// sync-status mirrors status labels into the Work status field with the lanes
+// App token: a person's label event on an issue, and the hourly sweep. A
+// close, a bot's label change, a pull request and a finished issue lane run
+// start no job, and only a listed human's label event reaches the broker.
+test("work-unblock.yml: sync-status runs on a person's label event and the hourly sweep, and mints only for a listed human", () => {
+  const doc = workflow("work-unblock.yml");
+  assert.deepEqual(doc.on.issues, { types: ["closed", "labeled", "unlabeled"] });
+  const job = doc.jobs["sync-status"];
+  assert.deepEqual(job.permissions, { contents: "read", "id-token": "write" });
+  const runs = ({ event = "issues", action = "labeled", sender = "User", pr = undefined, ref = "refs/heads/main" } = {}) =>
+    evaluate(job.if, {
+      "github.event.issue.pull_request": pr,
+      "github.event.sender.type": sender,
+      "github.event.action": action,
+      "github.event_name": event,
+      "github.ref": ref,
+    });
+  assert.equal(runs(), true);
+  assert.equal(runs({ action: "unlabeled" }), true);
+  assert.equal(runs({ action: "closed" }), false, "a close is label-unblocked's");
+  assert.equal(runs({ sender: "Bot" }), false, "the lanes App's scripts mirror their own writes");
+  assert.equal(runs({ pr: { url: "x" } }), false);
+  assert.equal(runs({ event: "schedule", action: undefined }), true);
+  assert.equal(runs({ event: "schedule", action: undefined, ref: "refs/heads/feature" }), false);
+  assert.equal(runs({ event: "workflow_run", action: undefined }), false);
+  const step = (id) => job.steps.find((s) => s.id === id);
+  assert.equal(step("config").with.activity, "sync-status");
+  assert.equal(step("lane-token").with.activity, "sync-status");
+  assert.equal(step("lane-token").with.lane, "work-unblock");
+  assert.equal(step("config").if, "steps.who.outputs.proceed == 'true'");
+  assert.match(step("who").run, /\.kind == "human"/);
 });
 
 // #12634: the resolve of answered bot threads on an owner PR runs in its own

@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.14] - 2026-11-05
+
+### Fixed
+
+- `visualize` passes the `medium` option to the medium resolver as the value read from the skill text, and never puts a `${user_config.*}` string in a shell command.
+
 ## [1.0.13] - 2026-11-04
 
 ### Changed

@@ -64,6 +64,7 @@ Verbs:
   label-provenance <id> --label <name> [--label <name> ...]
   set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
   get-field-options --field <name-or-id> [--repo <owner>/<repo>]
+  get-statuses --field <name> <id>...
   status-storage [--repo <owner>/<repo>]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   add-recurrence <id> --source-link <url> --note <text>
@@ -101,6 +102,96 @@ check_gh_version() {
   local raw
   raw="$(wit_gh_version_raw)"
   fail_config "gh >= ${WIT_GH_NATIVE_SURFACE_MAJOR}.${WIT_GH_NATIVE_SURFACE_MINOR} required for ${feature} (found: ${raw:-unknown})"
+}
+
+# wit_detect_status_storage <adapter-dir> <manifest> [--repo <o>/<r>]: CONTRACT.md
+# "Verbs", status-storage. Sets WIT_STATUS_STORAGE (`field` or `labels`) and
+# WIT_STATUS_REASON and returns 0; when the provider did not answer, returns 1 with
+# the adapter's exit code in WIT_STATUS_RC and its stderr in WIT_STATUS_ERR, so each
+# caller chooses whether that fails it.
+wit_detect_status_storage() {
+  local adapter_dir="$1" manifest="$2" fields_out fields_rc errfile refused
+  shift 2
+  WIT_STATUS_STORAGE="labels" WIT_STATUS_REASON="" WIT_STATUS_RC=0 WIT_STATUS_ERR=""
+  if [[ "$(jq -r '.verbs["get-field-options"] // false' "$manifest")" != "true" ]]; then
+    WIT_STATUS_REASON="adapter declares no get-field-options"
+    return 0
+  fi
+  errfile="$(mktemp)"
+  fields_out="$(bash "$adapter_dir/get-field-options.sh" --field "$WIT_STATUS_FIELD" "$@" 2>"$errfile")"
+  fields_rc=$?
+  WIT_STATUS_ERR="$(<"$errfile")"
+  rm -f "$errfile"
+  # GitHub answers a rate limit with 403 too, which the adapter maps to exit 4; only
+  # a refusal of the read itself means status is not in a field.
+  refused="false"
+  case "$fields_rc" in
+  "$EX_NOT_FOUND") refused="true" ;;
+  "$EX_AUTH")
+    [[ "$WIT_STATUS_ERR" == *"HTTP 403"* && "$WIT_STATUS_ERR" != *"rate limit"* ]] && refused="true"
+    ;;
+  *) ;;
+  esac
+  if ((fields_rc == 0)); then
+    if jq -e '.options | length > 0' <<<"$fields_out" >/dev/null 2>&1; then
+      WIT_STATUS_STORAGE="field"
+      WIT_STATUS_REASON="'$WIT_STATUS_FIELD' issue field has options"
+    else
+      WIT_STATUS_REASON="no '$WIT_STATUS_FIELD' issue field with options"
+    fi
+  elif [[ "$refused" == "true" ]]; then
+    WIT_STATUS_REASON="issue-field listing unreadable (exit $fields_rc)"
+  else
+    WIT_STATUS_RC="$fields_rc"
+    return 1
+  fi
+  return 0
+}
+
+# wit_attach_statuses <adapter-dir> <manifest> [--repo <o>/<r>]: stdin a list envelope,
+# stdout the same envelope whose frontier candidates (open, unblocked, unassigned) carry
+# `status`, their Work status value or null, when the tracker stores status in that
+# field (CONTRACT.md "Verbs", list-frontier). Labels decide instead, with one stderr
+# warning, when the adapter cannot read the field or a read fails.
+wit_attach_statuses() {
+  local adapter_dir="$1" manifest="$2" envelope ids out errfile i n id statuses='{}' chunk=()
+  shift 2
+  envelope="$(cat)"
+  if [[ "$(jq -r '.verbs["get-statuses"] // false' "$manifest")" != "true" ]]; then
+    printf '%s\n' "$envelope"
+    return 0
+  fi
+  if ! wit_detect_status_storage "$adapter_dir" "$manifest" "$@"; then
+    printf 'work-item-tracker: status storage unread (exit %s), so labels decide the frontier: %s\n' \
+      "$WIT_STATUS_RC" "$WIT_STATUS_ERR" >&2
+    printf '%s\n' "$envelope"
+    return 0
+  fi
+  if [[ "$WIT_STATUS_STORAGE" != "field" ]]; then
+    printf '%s\n' "$envelope"
+    return 0
+  fi
+  ids="$(jq -c '[.items[] | select(.state == "open" and .blocked_by_count == 0
+    and ((.assignees // []) | length == 0)) | .id]' <<<"$envelope")"
+  n="$(jq 'length' <<<"$ids")"
+  for ((i = 0; i < n; i += 100)); do
+    chunk=()
+    while IFS= read -r id; do
+      chunk+=("$id")
+    done < <(jq -r --argjson i "$i" '.[$i:$i + 100][]' <<<"$ids")
+    errfile="$(mktemp)"
+    if ! out="$(bash "$adapter_dir/get-statuses.sh" --field "$WIT_STATUS_FIELD" "${chunk[@]}" 2>"$errfile")" ||
+      ! out="$(jq -ce '.statuses | objects' <<<"$out" 2>/dev/null)"; then
+      printf 'work-item-tracker: %s values unread, so labels decide the frontier: %s\n' \
+        "$WIT_STATUS_FIELD" "$(<"$errfile")" >&2
+      rm -f "$errfile"
+      printf '%s\n' "$envelope"
+      return 0
+    fi
+    rm -f "$errfile"
+    statuses="$(jq -cn --argjson acc "$statuses" --argjson page "$out" '$acc + $page')"
+  done
+  jq -c --argjson s "$statuses" '.items |= map(.id as $id | if ($id | type) == "string" and ($s | has($id)) then .status = $s[$id] else . end)' <<<"$envelope"
 }
 
 main() {
@@ -142,7 +233,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | change-link | add-recurrence | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | get-statuses | change-link | add-recurrence | capabilities) ;;
   list-items | status-storage) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
@@ -209,7 +300,7 @@ main() {
   if [[ "$verb" == "status-storage" ]]; then
     # Core-derived, so it bypasses the capability gate: an adapter without
     # get-field-options stores status in labels, which is an answer, not exit 6.
-    local repo_args=() storage="labels" reason fields_out fields_rc fields_err errfile refused
+    local repo_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
       --repo)
@@ -220,41 +311,12 @@ main() {
       *) fail_usage ;;
       esac
     done
-    if [[ "$(jq -r '.verbs["get-field-options"] // false' "$manifest")" != "true" ]]; then
-      reason="adapter declares no get-field-options"
-    else
-      errfile="$(mktemp)"
-      fields_out="$(bash "$adapter_dir/get-field-options.sh" --field "$WIT_STATUS_FIELD" \
-        "${repo_args[@]+"${repo_args[@]}"}" 2>"$errfile")"
-      fields_rc=$?
-      fields_err="$(<"$errfile")"
-      rm -f "$errfile"
-      # GitHub answers a rate limit with 403 too, which the adapter maps to exit 4; only
-      # a refusal of the read itself means status is not in a field.
-      refused="false"
-      case "$fields_rc" in
-      "$EX_NOT_FOUND") refused="true" ;;
-      "$EX_AUTH")
-        [[ "$fields_err" == *"HTTP 403"* && "$fields_err" != *"rate limit"* ]] && refused="true"
-        ;;
-      *) ;;
-      esac
-      if ((fields_rc == 0)); then
-        if jq -e '.options | length > 0' <<<"$fields_out" >/dev/null 2>&1; then
-          storage="field"
-          reason="'$WIT_STATUS_FIELD' issue field has options"
-        else
-          reason="no '$WIT_STATUS_FIELD' issue field with options"
-        fi
-      elif [[ "$refused" == "true" ]]; then
-        reason="issue-field listing unreadable (exit $fields_rc)"
-      else
-        printf '%s\n' "$fields_err" >&2
-        exit "$fields_rc"
-      fi
+    if ! wit_detect_status_storage "$adapter_dir" "$manifest" "${repo_args[@]+"${repo_args[@]}"}"; then
+      printf '%s\n' "$WIT_STATUS_ERR" >&2
+      exit "$WIT_STATUS_RC"
     fi
-    jq -nc --arg sv "$WIT_SCHEMA_VERSION" --arg storage "$storage" --arg field "$WIT_STATUS_FIELD" \
-      --arg reason "$reason" '{schema_version: $sv, storage: $storage,
+    jq -nc --arg sv "$WIT_SCHEMA_VERSION" --arg storage "$WIT_STATUS_STORAGE" --arg field "$WIT_STATUS_FIELD" \
+      --arg reason "$WIT_STATUS_REASON" '{schema_version: $sv, storage: $storage,
         field: (if $storage == "field" then $field else null end), reason: $reason}'
     exit 0
   fi
@@ -267,7 +329,7 @@ main() {
 
   local out rc
   if [[ "$verb" == "list-frontier" || "$verb" == "list-items" ]]; then
-    local autonomous="false" parent="" state="open" label="" has_label="false" list_args=()
+    local autonomous="false" parent="" state="open" label="" has_label="false" list_args=() repo_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
       --autonomous)
@@ -288,6 +350,7 @@ main() {
       --repo)
         [[ $# -ge 2 ]] || fail_usage
         list_args+=(--repo "$2")
+        repo_args=(--repo "$2")
         shift 2
         ;;
       --label)
@@ -331,6 +394,11 @@ main() {
     if [[ "$verb" == "list-items" ]]; then
       printf '%s\n' "$out"
       exit 0
+    fi
+    # The autonomous floor reads each candidate's Work status when the tracker
+    # stores status there; the default frontier reads no status.
+    if [[ "$autonomous" == "true" ]]; then
+      out="$(printf '%s\n' "$out" | wit_attach_statuses "$adapter_dir" "$manifest" "${repo_args[@]+"${repo_args[@]}"}")"
     fi
     # wit_read_binding above guarantees both labels; no inline defaults here.
     printf '%s\n' "$out" |

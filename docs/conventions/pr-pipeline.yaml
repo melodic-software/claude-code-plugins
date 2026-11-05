@@ -601,6 +601,21 @@ activities:
     reads-untrusted: true
     # The closed issue; the hourly sweep takes none and lists recent closes.
     inputs: [issue]
+  sync-status:
+    # When a status label (models.issue-status) is added to or removed from an
+    # issue, and hourly for every open issue, writes the state the issue's
+    # labels collapse to into its Work status field, unless a listed human or
+    # the lanes App already set it to that state. The labels stay the source
+    # of truth. A script, no model.
+    # .github/workflows/work-unblock.yml runs it.
+    script: .github/scripts/work-unblock/sync-status.mjs
+    # Writes the Work status issue field; nothing else.
+    effect: mutate-tracker
+    gating: advisory
+    # Reads only label names and field values, no free text.
+    reads-untrusted: false
+    # The labeled issue; the hourly sweep takes none and lists open issues.
+    inputs: [issue]
   apply-verdict:
     # After intake triage, writes its verdict as the lanes App: the work-class
     # label, the Size, Complexity and Uncertainty issue fields, and
@@ -729,6 +744,27 @@ activities:
     # Posts the plan's titles and bodies, which the model wrote, each body after a
     # `Refs: #<upkeep_spec_issue>` line (docs/conventions/code-tidying.yaml).
     reads-untrusted: true
+  apply-skill-edit-branch:
+    # Pushes chore/hill-climb-<plugin>-<skill>-<run id>: the skill edit the scan
+    # job checked and pass b measured, and a fixed changelog fragment, as one
+    # lanes App commit through the Git Data API. A script, no model.
+    # .github/workflows/maintenance-measure-skill-edit.yml runs it on a win.
+    script: .github/scripts/plugin-eval/hill-climb-publish.mjs
+    args: push
+    effect: mutate-branch
+    gating: advisory
+    # Applies the patch the model's proposal became.
+    reads-untrusted: true
+  publish-skill-edit-pr:
+    # Opens that branch's pull request as a draft, its title and body written by
+    # the script from the run's scripted results. A script, no model.
+    # .github/workflows/maintenance-measure-skill-edit.yml runs it.
+    script: .github/scripts/plugin-eval/hill-climb-publish.mjs
+    args: publish
+    effect: publish-artifact
+    gating: advisory
+    # Quotes eval summaries, which can carry a run's error text, inside a fence.
+    reads-untrusted: true
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -812,6 +848,9 @@ lanes:
     stage: work
     slots:
       - activity: label-unblocked
+      # Started by a status label added or removed, and by the hourly sweep,
+      # in its own job of work-unblock.yml.
+      - activity: sync-status
   # Started by intake triage on an opened issue or its dispatch
   # (.github/workflows/intake-triage.yml).
   intake-triage:
@@ -842,6 +881,16 @@ lanes:
       - activity: apply-upkeep-branches
       - activity: publish-upkeep-prs
         needs: [apply-upkeep-branches]
+  # Started only by a listed human's dispatch
+  # (.github/workflows/maintenance-measure-skill-edit.yml); on a win, push and
+  # draft pull request open are separate jobs, as above (owner decision AL-Q11,
+  # #12035).
+  maintenance-measure-skill-edit:
+    stage: maintenance
+    slots:
+      - activity: apply-skill-edit-branch
+      - activity: publish-skill-edit-pr
+        needs: [apply-skill-edit-branch]
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. A profile with no effort keeps its
@@ -1628,13 +1677,13 @@ merge:
         class: gate
       - glob: ".github/workflows/eval-hill-climb-pass.yml"
         class: gate
-      - glob: ".github/workflows/eval-hill-climb.yml"
-        class: gate
       - glob: ".github/workflows/intake-reenter.yml"
         class: gate
       - glob: ".github/workflows/intake-triage.yml"
         class: gate
       - glob: ".github/workflows/maintenance-audit-lane-runs.yml"
+        class: gate
+      - glob: ".github/workflows/maintenance-measure-skill-edit.yml"
         class: gate
       - glob: ".github/workflows/maintenance-reconcile-lost-runs.yml"
         class: gate

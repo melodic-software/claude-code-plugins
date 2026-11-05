@@ -268,7 +268,7 @@ Rules R-A to R-K:
 | R-G | Any skill can open the surface; the stage is a tag; a mid-implementation pause opens a session seeded with `import-ledger` | skill, `import-ledger` |
 | R-H | Mirror terminal answers onto the page with `record-terminal`; session-recorded decisions follow R-K | skill |
 | R-I | Every question has at least two distinct alternatives (one on a yes/no question flagged `binary`); whenever a recommendation changes, revise the alternatives in the same op, or state with `keepAlternatives` that the current ones were checked against it, so no alternative repeats or contains the new recommendation (case and trailing punctuation folded) | `add`, `add-round`, `apply` (count); `reply` and `revise` ops with `rec` (alternatives or `keepAlternatives`); a `reply` op with `rec`, a `revise` op, and `add`, `add-round` on a binary question (collision) |
-| R-J | Emoji markers follow the plugin's emoji option on the page too | page, from `meta.emojiMarkers` |
+| R-J | Emoji markers follow the plugin's emoji option on the page too, on by default: only `false` hides them | page, from `meta.emojiMarkers` |
 | R-K | When the session records or revises a ledger decision, mirror it onto the page with `record-terminal` in the same wake | skill |
 
 ## Wording lint

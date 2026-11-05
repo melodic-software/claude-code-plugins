@@ -166,11 +166,11 @@ above.
 | Code | Meaning | Action |
 |---|---|---|
 | `400` | malformed or missing URL | Report. The gate should have caught it, so say so. |
-| `502` | X unreachable: private, protected, or deleted | Report and stop. Never retry in a loop. |
+| `502` | X unreachable: private, protected, or deleted | Report. This ends the invocation: every listed source would ask X for the same post. Never retry in a loop. |
 | `500` | vendor-side error | Report. At most one retry. |
-| `429` or timeout | rate-limited or hung | Report and stop. Do not hammer. |
-| `3xx` | a redirect, not followed without `-L` | Report and stop. Exit is `0`; only the code reveals it. |
-| any other non-`200` | unexpected: `401`, `403`, anything unlisted | Report and stop. Never read the spool. |
+| `429` or timeout | rate-limited or hung | Report. This ends the request; go on as SKILL.md's ladder says. Do not hammer. |
+| `3xx` | a redirect, not followed without `-L` | Report. This ends the request; go on as SKILL.md's ladder says. Exit is `0`; only the code reveals it. |
+| any other non-`200` | unexpected: `401`, `403`, anything unlisted | Report. This ends the request; go on as SKILL.md's ladder says. Never read the spool. |
 | `200` carrying no converted content | a stub or bot-challenge page | Treat as failure, not content. |
 
 **Validate against the form you requested. The two differ.** The documented step-1 call sends
@@ -213,6 +213,8 @@ Two limits, reported rather than worked around:
   same defect as presenting a truncated chain as a whole thread.
 - State which step produced the result whenever it was not step 1, so the reader knows a chain was
   assembled rather than fetched whole.
+- A step-2 result is `WebFetch`'s rendering of the Thread Reader App page, not the posts' exact
+  text. Present it that way and say so in the reply.
 
 ## Gotchas
 

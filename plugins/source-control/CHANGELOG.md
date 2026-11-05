@@ -3,6 +3,36 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.9] - 2026-11-05
+
+### Fixed
+
+- `lib/check-retirements.sh` skips `kind: file` records, and refuses `--clean` of one, when the root is `$HOME` or not inside a git work tree ([#13504](https://github.com/melodic-software/claude-code-plugins/issues/13504)). There a `.claude/<name>.json` path is the live user-global layer, not a retired team file; stderr reports `<id>: skipped: root is not a repository`.
+
+## [8.1.8] - 2026-11-05
+
+### Added
+
+- Eval case `setup-check-reports-team-layer-and-ignore-gap` for `/source-control:setup check` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)): grades that the team-layer subject_pattern wins, the missing recursive ignore rule is a FAIL, and nothing is written.
+
+## [8.1.7] - 2026-11-05
+
+### Changed
+
+- the hold-floor pins follow the eval hill-climb workflow's rename to `maintenance-measure-skill-edit.yml`, which stays a gate path
+
+## [8.1.6] - 2026-11-05
+
+### Removed
+
+- `babysit_verify_evidence.py refusal-stands` is gone, with `babysit_postmerge.py`'s `content_refusal` and `refusal_moved` and the `running` option of the idle tick's verifying-runs read: pr-merge's PR-scoped wake no longer asks whether the last sweep's refusing report still stands, since over its first 24 hours the probe never let a wake skip its fresh check. The idle tick's `judgedRuns` reading is unchanged.
+
+## [8.1.5] - 2026-11-05
+
+### Changed
+
+- `babysit_verify_evidence.py evidence` requires `--base-sha` and drops `--max-fails`: the FAIL cap and the lanes App identity come from the config at that base, and a read without it took every lanes App spec as `verify:untrusted-spec`. verify-cap.mjs no longer starts the reader without a base commit; the read counts as failed, with a warning.
+
 ## [8.1.4] - 2026-11-04
 
 ### Fixed

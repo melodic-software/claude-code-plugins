@@ -13,9 +13,8 @@ The convention's team values live in the consumer's tracked `docs/conventions/so
 the source-control plugin's team file ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)),
 validated by
 [`plugins/source-control/schemas/source-control.schema.json`](../../../plugins/source-control/schemas/source-control.schema.json).
-For one release, enforcement reads a key that file lacks from the legacy surfaces: the neutral
-file below, then the `## <key>` H2 of `.claude/source-control.md`. Drafting reads neither: the
-model resolves the YAML and the personal markdown layers in
+Enforcement reads a key that file lacks from the folder-form file below. Drafting does not read
+the folder-form file: the model resolves the YAML and the personal markdown layers in
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
 That document owns **drafting** resolution: how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title. This seam owns the **enforcement** resolution: how a
@@ -26,7 +25,7 @@ The two reads are deliberately not identical:
 | | Drafting (config-resolution.md) | Enforcement (this seam) |
 |---|---|---|
 | Reader | the model | a POSIX sh hook (`[[ =~ ]]` / `grep -E`) |
-| Layers read | user-global, team, local, per-key merge | **team-tracked**: `docs/conventions/source-control.yaml`, then for one release the neutral file and `.claude/source-control.md`; for `subject_pattern` only, and only where those set none, the git-ignored personal `docs/conventions/source-control.local.yaml`, never merged |
+| Layers read | user-global, team, local, per-key merge | **team-tracked**: `docs/conventions/source-control.yaml`, then the folder-form `docs/conventions/source-control/commit-convention.yml`; for `subject_pattern` only, and only where those set none, the git-ignored personal `docs/conventions/source-control.local.yaml`, never merged |
 | Fallthrough | CLAUDE.md/rules/hook, then bundled CC default | **none**, so unresolved means no enforcement |
 | Dialect | any (the model interprets PCRE) | POSIX ERE only (normalized/rejected) |
 
@@ -47,14 +46,11 @@ name the file to change.
       or a bare `subject_pattern:`), when its `dialect` is not `posix-ere`, when it is a symlink or
       sits under a symlinked directory that leaves the repository, or when the parser is missing.
       An untracked file at that path is not a layer.
-   2. For one release, the neutral file ([below](#the-neutral-convention-ssot-convention_source)),
-      when it carries the key.
-   3. For one release, the **first non-empty body line** under the `## <key>` H2 in
-      `.claude/source-control.md`.
-
-   4. **The personal layer**, for `subject_pattern` only: `docs/conventions/source-control.local.yaml`,
+   2. The folder-form file ([below](#the-folder-form-convention-file)), when git tracks it and it
+      carries the key.
+   3. **The personal layer**, for `subject_pattern` only: `docs/conventions/source-control.local.yaml`,
       [ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)'s
-      `<home>/<concern>.local.<ext>`, read only when rungs 1 to 3 supply no
+      `<home>/<concern>.local.<ext>`, read only when rungs 1 and 2 supply no
       `subject_pattern`. It is read only while git ignores it (`git check-ignore`: a
       `.gitignore` rule, `.git/info/exclude` or `core.excludesFile`), and git never reports a
       tracked file ignored. A file present but not ignored disables enforcement with a diagnostic. It
@@ -63,15 +59,15 @@ name the file to change.
       it: an operator who wants `/source-control:commit` to draft to the same pattern also sets
       `## subject_pattern` in the drafting personal override, `.claude/source-control.local.md`.
 
-   The legacy surfaces, and their fail-closed checks, are read only for a key the YAML lacks: a
-   broken `convention_source` pointer never disables a key the YAML supplies. Each key holds exactly
-   one value, never a list.
+   The folder-form file, and its fail-closed checks, are read only for a key the YAML lacks: a
+   broken folder-form file never disables a key the YAML supplies. Each key holds exactly one
+   value, never a list.
 2. **`Conventional Commits` keyword** expands to the one canonical ERE the resolver owns,
    `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+`, so the model's
    interpretation and every hook's regex cannot drift.
 3. **`pr_title_pattern` deferral**: the literal `` Same as `subject_pattern`. `` resolves the
-   effective subject pattern instead, itself resolved per key, so a YAML deferral may enforce a
-   legacy `subject_pattern` while the YAML lacks one.
+   effective subject pattern instead, itself resolved per key, so a YAML deferral may enforce the
+   folder-form file's `subject_pattern` while the YAML lacks one.
 4. **Regex dialect = POSIX ERE: accepted or rejected, never translated.** The enforcement value
    must already be POSIX ERE (write `[0-9]`, not `\d`). Translating PCRE→ERE by string rewriting is
    unsound, because bracket expressions, POSIX classes, and escaped backslashes all break naive
@@ -83,27 +79,12 @@ name the file to change.
    *drafting* side may still author PCRE-shaped patterns, but a team that wants a pattern *enforced*
    writes it in ERE.
 
-## The neutral convention SSOT (`convention_source`)
+## The folder-form convention file
 
-A legacy surface: enforcement reads it for one release, and only for a key
+`docs/conventions/source-control/commit-convention.yml` is a flat-scalar YAML file, the
+tool-agnostic file any consumer (this seam's resolver, a commit-msg hook, CI, another agent) reads
+with one sed. It is the path the org standards sync writes. Enforcement reads it only for a key
 `docs/conventions/source-control.yaml` lacks.
-
-Reopen of #913's "no YAML / no path rename" decision, author-directed (#1141 carries the four
-reopen grounds: author directive, an observed three-copy drift surface on a real consuming machine,
-the ecosystem's move to prose-only AGENTS.md pointers with no machine format, and the audit
-checklist's own recurring-concerns memory contradicting the decline).
-
-The team-tracked `.claude/source-control.md` MAY declare one additional H2 key:
-
-```markdown
-## convention_source
-
-docs/conventions/commits.yml
-```
-
-That value is a **repo-relative, forward-slash** path to a neutral flat-scalar YAML file, the
-tool-agnostic SSOT any consumer (this seam's resolver, a commit-msg hook, CI, another agent) reads
-with one sed:
 
 ```yaml
 # Commit-subject / PR-title convention: single source of truth.
@@ -115,37 +96,14 @@ pr_title_pattern: Same as `subject_pattern`.
 
 Contract points:
 
-- **The pointer is optional and team-only.** Absent → the well-known-default probe below, then
-  today's markdown-H2 grammar, with full back-compat and zero action for existing consumers. The pointer
-  is honored from the team-tracked file only (same policy floor: a gitignored personal override must not
-  redirect the gate).
-- **Three-rung neutral-file precedence (V2, reopening V1's "no well-known search").** The neutral
-  file is resolved by the enforcement resolver in a fixed order:
-  1. an **explicit `convention_source` pointer**, the relocation override; the path stays
-     repo-owned, so a repo that keeps its convention elsewhere is unaffected;
-  2. absent a pointer, the **well-known default path**
-     `docs/conventions/source-control/commit-convention.yml` **when that file is git-tracked**, the
-     path the org standards sync writes, so the common case reads ONE tool-agnostic file with no
-     markdown pointer-parse and no pointer to sever;
-  3. absent both, the **team markdown-H2** sections (legacy).
-
-  **Rung 2 requires the file to be git-TRACKED, a policy floor.**
-  An untracked or gitignored file at the default path is a generated/local artifact, not team
-  convention; honoring it would let a personal/local file pose as team convention and drive the gate
-  ahead of every team pattern. Enforcement checks this with
-  `git ls-files --error-unmatch` (git-absent or untracked → skip rung 2, fall through to the markdown
-  H2). Once a neutral file resolves via rung 1 or 2 it is authoritative and the
-  fail-closed broken-file contract applies; a key it omits still falls back per key to the markdown H2.
-
-  **Both V1 reasons for shipping no well-known search are engaged, not overridden by fiat** (#163434
-  is the demanding consumer; design recorded under PR #1185, per Sources). V1 recorded
-  (i) "no consumer demanding it yet", now void. And (ii) a search list "adds probe order and
-  shadowing questions" and "keeps every path choice in the consuming repo's hands." V2 answers (ii)
-  narrowly: it is a single fixed default path, **not** a search list, so probe order is the bounded
-  3-rung precedence above rather than an open question; and the pointer is retained at rung 1, so
-  path ownership is preserved for any repo that wants it. The default is a convenience for the
-  common case, never a seizure of the path decision. The default is tool-agnostic by placement
-  (`docs/conventions/`, a plain docs path a non-Claude hook or CI reads directly), not `.claude/`-scoped.
+- **Read only while git TRACKS it, a policy floor.** An untracked or gitignored file at the path
+  is a generated/local artifact, not team convention; honoring it would let a personal/local file
+  pose as team convention and drive the gate. Enforcement checks this with
+  `git ls-files --error-unmatch`: git absent, or the file untracked, means the file is not a layer.
+- **One fixed path, not a search list.** No pointer relocates the file, so the probe order is the
+  parse contract's rungs and nothing else. The path is tool-agnostic by placement
+  (`docs/conventions/`, a plain docs path a non-Claude hook or CI reads directly), not
+  `.claude/`-scoped.
 - **Value grammar (one-sed contract).** A key's value is everything after `^<key>:` on the first
   matching column-0 line: whitespace-trimmed, one pair of matching surrounding quotes removed, no
   YAML escape processing. `sed -n 's/^subject_pattern:[[:space:]]*//p'` (plus quote-strip) is the
@@ -153,20 +111,17 @@ Contract points:
   containing a single quote goes unquoted or double-quoted). Full-line `#` comments are inert;
   trailing `#` is NOT comment-stripped, because a regex may contain `#`.
 - **The `Conventional Commits` keyword and the `` Same as `subject_pattern`. `` deferral marker
-  work identically on both surfaces**: one literal each, owned here, no per-surface variants.
+  work identically in both team files**: one literal each, owned here, no per-file variants.
 - **`dialect:`** (optional, default `posix-ere`) declares the regex dialect for NON-enforcement
   consumers (a JS CI runner, a PCRE hook) so they know what they are reading instead of silently
   misreading it. Enforcement itself stays POSIX-ERE-only: a declared non-`posix-ere` dialect
   disables this seam's enforcement with a diagnostic, exactly like a PCRE-ism in the pattern.
-- **Per-key precedence, fail-closed pointer.** When the pointer is declared, the neutral file is
-  authoritative for the machine keys it carries; a key it omits falls back to the team markdown H2
-  (plugin-only keys `trailer_policy` and `pr_body_attribution` stay `.claude/`-side). A
-  declared-but-broken pointer disables enforcement with a diagnostic rather than falling back: an
-  absolute, backslash, or `..` path; a missing file; or a symlinked file or symlinked path segment
-  whose physical target leaves the repository root (the target must be a regular file physically
-  under the repo). A silent markdown fallback could enforce a stale pattern the migration retired,
-  and a symlink escape would let untracked external content steer the gate. User-global and `*.local.md` personal override layers are unchanged.
-- **Monorepo per-directory scoping is out of scope for V1** (recorded, not designed for).
+- **Fail closed.** A tracked file that is unreadable, carries a key with an empty value, or is a
+  symlink or sits under a symlinked path segment whose physical target leaves the repository root
+  (the target must be a regular file physically under the repo) disables enforcement with a
+  diagnostic. Reading an empty key as unset would let the personal layer stand in for a team key,
+  and a symlink escape would let untracked external content steer the gate.
+- **Monorepo per-directory scoping is out of scope** (recorded, not designed for).
 
 **Incumbent steelman, walked before replacing.** Markdown-H2 was chosen (#913) so the config file
 doubles as human-readable documentation: a self-describing preamble, prose beside values, one file

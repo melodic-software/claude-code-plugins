@@ -443,6 +443,68 @@ run_status_github "dial tcp: connection refused"
 assert_eq "status-storage github, provider unreachable → adapter's exit 8" "8" "$RC"
 assert_eq "status-storage github, provider unreachable → no answer" "" "$OUT"
 
+# --- list-frontier --autonomous: the Work status field adds holds to the label floor ---
+# A fake adapter whose tracker stores status in the field (FIELD_STORAGE=field) or not
+# (labels), and whose get-statuses answers FIELD_STATUSES, or fails when it is `fail`.
+FIELD_DIR="$TEST_TMPDIR/adapters/fieldfake"
+mkdir -p "$FIELD_DIR"
+printf '%s\n' '{"schema_version":"1.0","provider":"fieldfake","verbs":{"list-items":true,"get-field-options":true,"get-statuses":true,"capabilities":true}}' \
+  >"$FIELD_DIR/capabilities.json"
+cat >"$FIELD_DIR/list-items.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"schema_version":"1.0","items":[{"id":"fieldfake:o/r#1","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0},{"id":"fieldfake:o/r#2","state":"open","assignees":[],"labels":[],"blocked_by_count":0},{"id":"fieldfake:o/r#3","state":"open","assignees":[],"labels":["needs-spec"],"blocked_by_count":0},{"id":"fieldfake:o/r#4","state":"open","assignees":[],"labels":["work-class: untrusted-provenance"],"blocked_by_count":0},{"id":"fieldfake:o/r#5","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0}],"truncated":false}'
+EOF
+cat >"$FIELD_DIR/get-field-options.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "get-field-options $*" >>"$FIELD_LOG"
+case "$FIELD_STORAGE" in
+field) printf '%s\n' '{"schema_version":"1.0","field":"Work status","options":[{"id":1,"name":"agent-ready"}]}' ;;
+labels) printf '%s\n' '{"schema_version":"1.0","field":"Work status","options":[]}' ;;
+*) echo "provider unreachable" >&2; exit 8 ;;
+esac
+EOF
+cat >"$FIELD_DIR/get-statuses.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "get-statuses $*" >>"$FIELD_LOG"
+[[ "$FIELD_STATUSES" != "fail" ]] || { echo "rate limit" >&2; exit 8; }
+printf '{"schema_version":"1.0","statuses":%s}\n' "$FIELD_STATUSES"
+EOF
+FIELD_BINDING="$TEST_TMPDIR/fieldfake.json"
+printf '%s\n' '{"schema_version":"1.0","provider":"fieldfake","config":{"lease_ttl_hours":24}}' >"$FIELD_BINDING"
+FIELD_LOG="$TEST_TMPDIR/fieldfake.log"
+FIELD_ALL='{"fieldfake:o/r#1":"agent-ready","fieldfake:o/r#2":"needs-human","fieldfake:o/r#3":null,"fieldfake:o/r#4":"agent-ready","fieldfake:o/r#5":"agent-ready"}'
+
+# run_field_frontier <storage> <statuses> [args…]: list-frontier on fieldfake; OUT, ERR.
+run_field_frontier() {
+  : >"$FIELD_LOG"
+  OUT="$(FIELD_STORAGE="$1" FIELD_STATUSES="$2" FIELD_LOG="$FIELD_LOG" WORK_ITEM_TRACKER_BINDING="$FIELD_BINDING" \
+    WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" list-frontier "${@:3}" 2>"$TEST_TMPDIR/field.err")"
+  RC=$?
+  ERR="$(<"$TEST_TMPDIR/field.err")"
+}
+ids() { jq -r '[.items[].id | sub("^fieldfake:o/r"; "")] | join(",")' <<<"$OUT"; }
+
+run_field_frontier field "$FIELD_ALL" --autonomous
+assert_eq "field storage: autonomous frontier → exit 0" "0" "$RC"
+assert_eq "a field hold holds; a field ready state frees nothing the labels hold" "#5" "$(ids)"
+assert_contains "the statuses are read for the candidates" "$(cat "$FIELD_LOG")" "get-statuses --field Work status fieldfake:o/r#1"
+
+run_field_frontier labels "$FIELD_ALL" --autonomous
+assert_eq "label storage: the labels decide and no status is read" "#2,#5|0" "$(ids)|$(grep -c get-statuses "$FIELD_LOG")"
+
+run_field_frontier field fail --autonomous
+assert_eq "a failed status read leaves the labels to decide" "0|#2,#5" "$RC|$(ids)"
+assert_contains "a failed status read warns" "$ERR" "labels decide the frontier"
+
+run_field_frontier unreachable "$FIELD_ALL" --autonomous
+assert_eq "an unread status storage leaves the labels to decide" "0|#2,#5" "$RC|$(ids)"
+
+run_field_frontier field "$FIELD_ALL"
+assert_eq "the default frontier reads no status" "#1,#2,#3,#4,#5|" "$(ids)|$(cat "$FIELD_LOG")"
+
+run_field_frontier field '{"fieldfake:o/r#1":"needs-human","fieldfake:o/r#2":"needs-triage","fieldfake:o/r#3":"needs-spec","fieldfake:o/r#4":"needs-triage","fieldfake:o/r#5":"agent-ready"}' --autonomous
+assert_eq "a field that mirrors the labels changes no frontier answer" "#2,#5" "$(ids)"
+
 STATUS_LM_BINDING="$TEST_TMPDIR/status-local-markdown.json"
 jq -n --arg dir "$TEST_TMPDIR/status-lm-items" \
   '{schema_version:"1.0",provider:"local-markdown",config:{lease_ttl_hours:24,storage_dir:$dir}}' \

@@ -114,8 +114,8 @@ git init -q -b main "$REPO"
 git -C "$REPO" config user.name t
 git -C "$REPO" config user.email t@example.invalid
 git -C "$REPO" remote add origin "$WORK/consumer.git"
-mkdir -p "$REPO/.claude"
-printf '## subject_pattern\n^[A-Z]+-[0-9]+: .+\n' >"$REPO/.claude/source-control.md"
+mkdir -p "$REPO/docs/conventions"
+printf "subject_pattern: '^[A-Z]+-[0-9]+: .+'\n" >"$REPO/docs/conventions/source-control.yaml"
 node -e 'const p = JSON.parse(process.argv[1]); console.log(p.decisions.find((d) => d.kind === "lefthook-config").snippet)' \
   "$(node "$INSTALL" plan --scope remote --repo "$REPO")" >"$REPO/lefthook.yml"
 (cd "$REPO" && lefthook install >/dev/null 2>&1)

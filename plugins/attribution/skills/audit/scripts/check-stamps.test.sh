@@ -434,18 +434,19 @@ assert_eq "a bare 'recheck' with no condition still leaves the stamp flagged" \
 
 # --- Config cascade --------------------------------------------------------------
 
-mkdir -p "$CLAUDE_PROJECT_DIR/.claude"
+CONV="$CLAUDE_PROJECT_DIR/docs/conventions"
+mkdir -p "$CONV"
 git init -q "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
-printf '%s\n' '{"stamp_expiry_days": 30}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+printf '%s\n' 'stamp_expiry_days: 30' >"$CONV/attribution.yaml"
 assert_eq "config sets the expiry window" \
   "$(run "$DIR/dated.md" 2>/dev/null | jq -r '.expiry_days')" "30"
 assert_eq "--expiry-days beats config" \
   "$(run --expiry-days 1000 "$DIR/dated.md" 2>/dev/null | jq -r '.expiry_days')" "1000"
 
-printf '%s\n' '{"trigger_less_stamp_check": true}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+printf '%s\n' 'trigger_less_stamp_check: true' >"$CONV/attribution.yaml"
 assert_eq "config enables the trigger-less check" \
   "$(run "$DIR/no-trigger.md" 2>/dev/null | jq -r '.trigger_less_check')" "true"
-rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+rm -f "$CONV/attribution.yaml"
 
 OUT="$(run --show-config 2>&1)"
 assert_exit "--show-config exits 0" "$?" "0"
@@ -454,22 +455,21 @@ assert_contains "--show-config prints the trigger-less setting" "$OUT" "trigger_
 assert_contains "a value with no layer is attributed to the defaults" "$OUT" "bundled default"
 
 # The setup skill promises per-value provenance and tells the operator to read it
-# from here rather than parsing the JSON layers by hand.
-printf '%s\n' '{"stamp_expiry_days": 45}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+# from here rather than parsing the layers by hand.
+printf '%s\n' 'stamp_expiry_days: 45' >"$CONV/attribution.yaml"
 OUT="$(run --show-config 2>&1)"
 assert_contains "--show-config attributes a value to its supplying layer" \
-  "$OUT" "stamp_expiry_days=45 (from $CLAUDE_PROJECT_DIR/.claude/attribution.json)"
+  "$OUT" "stamp_expiry_days=45 (from $CONV/attribution.yaml)"
 assert_contains "an unset key is still attributed to the defaults" "$OUT" "trigger_less_stamp_check=false (bundled default)"
 
-# The YAML team layer (ADR 0075) replaces the JSON one whole when both exist: a
-# key only the JSON sets is not read.
-CONV="$CLAUDE_PROJECT_DIR/docs/conventions"
-mkdir -p "$CONV"
+# The repository's old .claude JSON team file is not read: a key only it sets
+# keeps its default while the YAML beside it is read.
+mkdir -p "$CLAUDE_PROJECT_DIR/.claude"
 printf '%s\n' '{"stamp_expiry_days": 45, "trigger_less_stamp_check": true}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 printf '%s\n' 'stamp_expiry_days: 60' >"$CONV/attribution.yaml"
 assert_eq "the YAML team layer sets the window" \
   "$(run "$DIR/dated.md" 2>/dev/null | jq -r '.expiry_days')" "60"
-assert_eq "the JSON beside the YAML is not read" \
+assert_eq "the old JSON team file is not read" \
   "$(run "$DIR/no-trigger.md" 2>/dev/null | jq -r '.trigger_less_check')" "false"
 OUT="$(run --show-config 2>&1)"
 assert_contains "--show-config attributes a YAML value to its layer" \

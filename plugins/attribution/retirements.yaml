@@ -23,3 +23,23 @@ content_match: '"(excluded_paths|budgets|separation|stamp_expiry_days|trigger_le
 action: migrate
 successor: "the personal override is now <home>/attribution.local.yaml (default docs/conventions/attribution.local.yaml) with the same keys: carry every key into it unchanged (when the current personal override, the YAML or else its .claude/ JSON fallback, already sets a key, keep its value, so the current file wins), have the operator confirm the result, then clean"
 note: "retired personal override name; the provenance plugin became attribution and never reads this file"
+---
+id: attribution-r003
+retired: 2026-11-05
+plugin_version: 0.17.0
+kind: file
+path: .claude/attribution.json
+content_match: '"(excluded_paths|budgets|separation|stamp_expiry_days|trigger_less_stamp_check|judge_samples|gates|accuracy)"'
+action: migrate
+successor: "the team layer is <home>/attribution.yaml (default docs/conventions/attribution.yaml) with the same keys: when that YAML is absent, carry every key into it unchanged; when it exists, the detectors never read this file, so show the operator each key the YAML lacks and carry only the ones they confirm. Have the operator confirm the result, then clean"
+note: "retired team config location; the detectors read only the YAML team layer and never read this file"
+---
+id: attribution-r004
+retired: 2026-11-05
+plugin_version: 0.17.0
+kind: file
+path: .claude/attribution.local.json
+content_match: '"(excluded_paths|budgets|separation|stamp_expiry_days|trigger_less_stamp_check|judge_samples|gates|accuracy)"'
+action: migrate
+successor: "the personal override is <home>/attribution.local.yaml (default docs/conventions/attribution.local.yaml) with the same keys: when that YAML is absent, carry every key into it unchanged; when it exists, the detectors never read this file, so show the operator each key the YAML lacks and carry only the ones they confirm. Have the operator confirm the result, then clean"
+note: "retired personal override location; the detectors read only the YAML personal override and never read this file"

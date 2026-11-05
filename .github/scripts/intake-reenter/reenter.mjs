@@ -31,6 +31,11 @@
 // `status: needs-decision` (owner decision on #10735). At `status: confirmed`
 // it re-enters nothing, so the decision is posted again after it;
 //
+// On a comment, a hold the Work status field holds and the labels lack counts
+// (read-status.mjs; the labels decide otherwise); unset, unreadable, or with
+// resolve-config's packages missing, the labels decide. A label removal reads
+// labels only: the field mirrors that removal in a separate run.
+//
 // then add `needs-triage` and dispatch intake-triage.yml once, only for an
 // issue whose author intake admits (a listed human or the lanes App). Anything else
 // changes nothing. It never adds `agent-ready`. Removing the status label is
@@ -58,6 +63,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
 export const NEEDS_INFO = "status: needs-info";
@@ -74,9 +80,19 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
+// The issue's label names with its Work status field's hold added, when it
+// carries a status a comment can answer: `statusOf(number, names)`
+// (read-status.mjs statusReader). Otherwise, or with no `statusOf`, its own.
+// The field can only add a hold here, so it can only turn an answer away.
+export async function answerLabels(issue, statusOf) {
+  const own = labelNames(issue);
+  return statusOf && [NEEDS_DECISION, CONFIRMED, NEEDS_INFO].some((name) => own.includes(name)) ? statusOf(Number(issue.number), own) : own;
+}
+
 // Which answer the comment is, or null: `decision`, `parked` (a decision on a
-// status: confirmed issue no admission took) or `info`.
-export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId }) {
+// status: confirmed issue no admission took) or `info`. `labels` are the
+// issue's label names, by default its own (answerLabels).
+export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId, labels = labelNames(issue) }) {
   if (issue.pull_request || issue.state !== "open") {
     return null;
   }
@@ -84,7 +100,6 @@ export async function classify({ github, repository, issue, comment, humans, ids
   if (user.type !== "User" || user.id === lanesAppId || comment.performed_via_github_app != null) {
     return null;
   }
-  const labels = labelNames(issue);
   const kept = async () => {
     const { kept: list } = await selectTrustedIssueComments({ github, repository, issueNumber: issue.number, ids });
     return list.find((item) => item.comment.id === comment.id) ?? null;
@@ -189,7 +204,7 @@ async function restore({ client, base, labels, addedTriage, log }) {
   }
 }
 
-export async function main({ env = process.env, github, log = console.log } = {}) {
+export async function main({ env = process.env, github, log = console.log, statusOf } = {}) {
   try {
     if (env.KILL_SWITCH !== "proceed") {
       log("intake-reenter: the kill switch stops this run; nothing read or labeled");
@@ -238,13 +253,14 @@ export async function main({ env = process.env, github, log = console.log } = {}
     if (comment.issue_url !== undefined && !String(comment.issue_url).endsWith(base)) {
       throw new Error("the comment is not on the issue");
     }
-    const kind = await classify({ github: client, repository, issue, comment, humans, ids, lanesAppId });
+    const labels = await answerLabels(issue, statusOf ?? statusReader({ env, github: client, repository, log }));
+    const kind = await classify({ github: client, repository, issue, comment, humans, ids, lanesAppId, labels });
     if (!kind) {
       log("intake-reenter: not an answer to a parked issue; nothing changed");
       return 0;
     }
     const had = labelNames(issue);
-    if (kind !== "info" && had.includes(NEEDS_HUMAN)) {
+    if (kind !== "info" && labels.includes(NEEDS_HUMAN)) {
       const next =
         kind === "decision"
           ? `a listed human's removal of ${NEEDS_HUMAN} sends it back to triage`

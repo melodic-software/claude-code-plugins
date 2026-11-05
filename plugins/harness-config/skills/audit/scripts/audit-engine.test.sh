@@ -1642,21 +1642,22 @@ done
 
 # --- Case 49: a declared unattended-push lane narrows the push ask-gate only ----
 # Settings lack the push ask rule and the force-push deny. The team-tracked
-# source-control file decides whether the ask row is info (the lane's signal
-# named) or warning; the deny row keeps its severity either way, and every ask
-# row says an ask rule blocks an unattended lane.
+# docs/conventions/source-control.yaml decides whether the ask row is info (the
+# lane's signal named) or warning; the deny row keeps its severity either way,
+# and every ask row says an ask rule blocks an unattended lane.
 lane_settings='{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)","Bash(git reset --hard *)"]}}'
 ask_row() { jq -r --arg f "$2" '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)") | .[$f]' <<<"$1"; }
 force_sev() { jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$1"; }
 for lane in c3-autonomous adopted human-only none; do
   m="$(make_machine "lane-$lane")"
   printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+  mkdir -p "$m/project/docs/conventions"
   case "$lane" in
   c3-autonomous | human-only)
-    printf '# source-control configuration\n\n## babysit_loop_tier\n\nworker\n\n## babysit_loop_merge\n\n%s\n' "$lane" >"$m/project/.claude/source-control.md"
+    printf 'babysit_loop_tier: worker\nbabysit_loop_merge: %s\n' "$lane" >"$m/project/docs/conventions/source-control.yaml"
     ;;
   adopted)
-    printf '# source-control configuration\n\n## babysit_loop_tier\n\nworker\n' >"$m/project/.claude/source-control.md"
+    printf 'babysit_loop_fixing: worker\n' >"$m/project/docs/conventions/source-control.yaml"
     ;;
   *) ;;
   esac
@@ -1667,7 +1668,7 @@ for lane in c3-autonomous adopted human-only none; do
   case "$lane" in
   c3-autonomous)
     assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
-    assert_contains "case 49 ($lane): the signal is named" "$(ask_row "$out" detail)" "babysit_loop_merge: c3-autonomous in the team-tracked .claude/source-control.md"
+    assert_contains "case 49 ($lane): the signal is named" "$(ask_row "$out" detail)" "babysit_loop_merge: c3-autonomous in the team-tracked docs/conventions/source-control.yaml"
     ;;
   adopted)
     assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
@@ -1679,78 +1680,22 @@ for lane in c3-autonomous adopted human-only none; do
   esac
 done
 
-# The team YAML alone: babysit_loop_merge in docs/conventions/source-control.yaml, or
-# only a non-merge loop-lane key there (the c2-mechanical baseline), with no legacy file.
-for lane in yaml-merge yaml-adopted yaml-human-only; do
-  m="$(make_machine "lane-$lane")"
-  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
-  mkdir -p "$m/project/docs/conventions"
-  case "$lane" in
-  yaml-merge) printf 'babysit_loop_tier: worker\nbabysit_loop_merge: c3-autonomous\n' ;;
-  yaml-adopted) printf 'babysit_loop_fixing: worker\n' ;;
-  *) printf 'babysit_loop_merge: human-only\n' ;;
-  esac >"$m/project/docs/conventions/source-control.yaml"
-  rc=0
-  out=$(run "$m" --json 2>&1) || rc=$?
-  case "$lane" in
-  yaml-merge)
-    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
-    assert_contains "case 49 ($lane): the YAML signal is named" "$(ask_row "$out" detail)" "babysit_loop_merge: c3-autonomous in the team-tracked docs/conventions/source-control.yaml"
-    ;;
-  yaml-adopted)
-    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
-    assert_contains "case 49 ($lane): the baseline rung is named" "$(ask_row "$out" detail)" "baseline c2-mechanical"
-    ;;
-  *)
-    assert_eq "case 49 ($lane): ask row stays warning" "warning" "$(ask_row "$out" severity)"
-    ;;
-  esac
-done
-
-# A YAML rung wins over the legacy H2 for the same key.
-m="$(make_machine "lane-yaml-over-legacy")"
+# A lane declared only in the retired .claude/source-control.md gives no signal.
+m="$(make_machine "lane-legacy-only")"
 printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
-mkdir -p "$m/project/docs/conventions"
-printf 'babysit_loop_merge: human-only\n' >"$m/project/docs/conventions/source-control.yaml"
-printf '## babysit_loop_merge\n\nc3-autonomous\n' >"$m/project/.claude/source-control.md"
+printf '## babysit_loop_tier\n\nworker\n\n## babysit_loop_merge\n\nc3-autonomous\n' >"$m/project/.claude/source-control.md"
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
-assert_eq "case 49 (yaml-over-legacy): ask row stays warning" "warning" "$(ask_row "$out" severity)"
+assert_eq "case 49 (legacy-only): ask row stays warning" "warning" "$(ask_row "$out" severity)"
 
-# A YAML the shared parser rejects (a repeated key) is not read past to the legacy H2.
+# A YAML the shared parser rejects (a repeated key) gives no signal.
 m="$(make_machine "lane-yaml-rejected")"
 printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
 mkdir -p "$m/project/docs/conventions"
 printf 'babysit_loop_tier: worker\nbabysit_loop_tier: safe\n' >"$m/project/docs/conventions/source-control.yaml"
-printf '## babysit_loop_merge\n\nc3-autonomous\n' >"$m/project/.claude/source-control.md"
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_eq "case 49 (yaml-rejected): ask row stays warning" "warning" "$(ask_row "$out" severity)"
-
-# CRLF + backticked rung (mawk-safe parse).
-m="$(make_machine "lane-crlf-bt")"
-printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
-printf '# source-control configuration\r\n\r\n## babysit_loop_merge\r\n\r\n`full-autonomy`\r\n' >"$m/project/.claude/source-control.md"
-rc=0
-out=$(run "$m" --json 2>&1) || rc=$?
-assert_eq "case 49 (crlf-bt): ask row is info" "info" "$(ask_row "$out" severity)"
-assert_contains "case 49 (crlf-bt): backticked rung is read" "$(ask_row "$out" detail)" "babysit_loop_merge: full-autonomy"
-assert_eq "case 49 (crlf-bt): force-push deny stays error" "error" "$(force_sev "$out")"
-
-# Explicit awk shim: first awk on PATH is the impl under test.
-for impl in gawk mawk; do
-  command -v "$impl" >/dev/null 2>&1 || { echo "skip case 49 ($impl): not installed"; continue; }
-  m="$(make_machine "lane-awk-$impl")"
-  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
-  printf '## babysit_loop_merge\n\n  c2-mechanical  \n' >"$m/project/.claude/source-control.md"
-  shim="$m/bin"
-  mkdir -p "$shim"
-  ln -sf "$(command -v "$impl")" "$shim/awk"
-  rc=0
-  out=$(PATH="$shim:$PATH" run "$m" --json 2>&1) || rc=$?
-  assert_eq "case 49 ($impl): ask row is info" "info" "$(ask_row "$out" severity)"
-  assert_contains "case 49 ($impl): the rung is read and trimmed" "$(ask_row "$out" detail)" "babysit_loop_merge: c2-mechanical"
-done
 
 # --- Case 50: engine defects: a key holding U+0000, and the section index ---------
 # jq -j writes U+0000 as a NUL byte, which would split the key into two rows.

@@ -47,15 +47,23 @@ expect() { # <label> <want> <got>
 }
 
 n=0
-new_repo() { # [source-control.md body]
+new_repo() { # [team yaml body], written to the tracked docs/conventions/source-control.yaml
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
   git -C "$REPO" config user.name t
   git -C "$REPO" config user.email t@example.invalid
-  mkdir -p "$REPO/.claude"
-  [[ -n "${1:-}" ]] && printf '%s\n' "$1" >"$REPO/.claude/source-control.md"
+  if [[ -n "${1:-}" ]]; then
+    mkdir -p "$REPO/docs/conventions"
+    printf '%s\n' "$1" >"$REPO/docs/conventions/source-control.yaml"
+    git -C "$REPO" add docs/conventions/source-control.yaml
+  fi
   return 0
+}
+folder() { # <repo> <body>: the tracked folder-form commit-convention.yml
+  mkdir -p "$1/docs/conventions/source-control"
+  printf '%s\n' "$2" >"$1/docs/conventions/source-control/commit-convention.yml"
+  git -C "$1" add docs/conventions/source-control/commit-convention.yml
 }
 
 msg() { # <repo> <message> <script> -> rc
@@ -65,14 +73,19 @@ msg() { # <repo> <message> <script> -> rc
   echo $?
 }
 
-TICKET=$'## subject_pattern\n^[A-Z]+-[0-9]+: .+'
-CC=$'## subject_pattern\nConventional Commits'
-PCRE=$'## subject_pattern\n^(?:feat|fix): .+'
+TICKET=$'subject_pattern: \047^[A-Z]+-[0-9]+: .+\047'
+CC='subject_pattern: Conventional Commits'
+PCRE=$'subject_pattern: \047^(?:feat|fix): .+\047'
 
 new_repo ""
 expect "no tracked pattern: any subject passes" 0 "$(msg "$REPO" "whatever subject")"
 new_repo "$PCRE"
 expect "a PCRE-only pattern is not enforced" 0 "$(msg "$REPO" "whatever subject")"
+new_repo ""
+mkdir -p "$REPO/.claude"
+printf '%s\n' $'## subject_pattern\n^[A-Z]+-[0-9]+: .+' >"$REPO/.claude/source-control.md"
+git -C "$REPO" add .claude/source-control.md
+expect "a tracked .claude/source-control.md pattern is not enforced" 0 "$(msg "$REPO" "whatever subject")"
 
 new_repo "$TICKET"
 expect "ticket pattern: a matching subject passes" 0 "$(msg "$REPO" $'ABC-123: do the thing\n\nBody.')"
@@ -100,7 +113,8 @@ git -C "$REPO" config core.commentChar ';'
 expect "core.commentChar lines are skipped" 0 "$(msg "$REPO" $'; junk comment\nABC-1: subject')"
 expect "core.commentChar: a # line is the subject" 1 "$(msg "$REPO" $'# not a comment now\nABC-1: subject')"
 
-new_repo "$CC"
+new_repo ""
+folder "$REPO" "$CC"
 expect "Conventional Commits keyword: feat: passes" 0 "$(msg "$REPO" "feat: add thing")"
 expect "Conventional Commits keyword: a plain subject fails" 1 "$(msg "$REPO" "junk subject")"
 expect "Conventional Commits keyword: a git-written Merge subject passes" 0 "$(msg "$REPO" "Merge branch 'x'")"
@@ -111,16 +125,14 @@ expect "Conventional Commits keyword: Revert without a quote still fails" 1 "$(m
 err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
 expect "the failure names the subject and how to fix it, never a skip" "yes|no" \
   "$(grep -q 'subject: junk subject' <<<"$err" && echo yes || echo no)|$(grep -qi 'no-verify' <<<"$err" && echo yes || echo no)"
-expect "the failure names the legacy file that holds the pattern" yes \
-  "$(grep -q 'subject_pattern in .claude/source-control.md' <<<"$err" && echo yes || echo no)"
+expect "the failure names the folder-form file that holds the pattern" yes \
+  "$(grep -q 'subject_pattern in docs/conventions/source-control/commit-convention.yml' <<<"$err" && echo yes || echo no)"
 
-# The team YAML, tracked, outranks the legacy markdown pattern.
-new_repo "$TICKET"
-mkdir -p "$REPO/docs/conventions"
-printf '%s\n' "subject_pattern: '^(feat|fix): .+'" >"$REPO/docs/conventions/source-control.yaml"
-git -C "$REPO" add docs/conventions/source-control.yaml
+# The team YAML, tracked, outranks the folder-form pattern.
+new_repo "subject_pattern: '^(feat|fix): .+'"
+folder "$REPO" "$TICKET"
 expect "team yaml pattern: a matching subject passes" 0 "$(msg "$REPO" "feat: add thing")"
-expect "team yaml pattern: the legacy markdown shape now fails" 1 "$(msg "$REPO" "ABC-1: legacy shape")"
+expect "team yaml pattern: the folder-form shape now fails" 1 "$(msg "$REPO" "ABC-1: folder shape")"
 err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
 expect "the failure names the team yaml as the pattern's file" yes \
   "$(grep -q 'subject_pattern in docs/conventions/source-control.yaml' <<<"$err" && echo yes || echo no)"
@@ -192,7 +204,8 @@ expect "the sentinel marker stays on line 2 of the source" yes \
   "$(grep -q 'guardrails-commit-msg-convention' < <(sed -n 2p "$CHECK") && echo yes)"
 
 # End to end through the plugin's vendored installer and a real commit.
-new_repo "$TICKET"
+new_repo ""
+folder "$REPO" "$TICKET"
 git -C "$REPO" commit -q --allow-empty -m "ABC-1: seed"
 status="$(node "$INSTALL" copy --scope local --entry commit-msg-convention --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"commit-msg-convention","status":"installed"}]' "$status"
@@ -212,8 +225,8 @@ printf '%s\n' "subject_pattern: '^feat: .+'" >"$REPO/docs/conventions/source-con
 git -C "$REPO" add docs/conventions/source-control.yaml
 git -C "$REPO" commit -q -m "feat: track the team yaml" 2>/dev/null
 expect "the installed entry accepts a subject the team yaml allows" 0 "$?"
-git -C "$REPO" commit -q --allow-empty -m "ABC-3: legacy shape" 2>/dev/null
-expect "the installed entry enforces the team yaml over the legacy markdown" 1 "$?"
+git -C "$REPO" commit -q --allow-empty -m "ABC-3: folder shape" 2>/dev/null
+expect "the installed entry enforces the team yaml over the folder form" 1 "$?"
 expect "verify reports the entry ok" "ok	commit-msg-convention" \
   "$(node "$INSTALL" verify --repo "$REPO" | grep 'commit-msg-convention')"
 # The installed copy reads the personal file where the team tracks no pattern.

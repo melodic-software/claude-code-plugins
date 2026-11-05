@@ -140,7 +140,12 @@ known; an option no entry maps fails the step (`unmapped-dimension`); an applyin
 ([README, Models](../../../docs/conventions/pr-pipeline/README.md#models)). `dimensions.mjs`
 reads them; beside it, `issue-status.mjs` collapses an issue's labels to its
 `models.issue-status` state and reads its Work status field under the same setter rule, failing on
-an option no entry maps (`unmapped-status`); no slot uses it yet. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` resolves
+an option no entry maps (`unmapped-status`); no slot uses it yet. `read-status.mjs` hands the
+status-label readers outside resolve (the WIP cap, born-triaged, intake re-entry, the triage
+sweep, work-unblock) the issue's labels with that field's say added. Labels reach the field first,
+so while an issue carries a status label the labels decide and a trusted field can only add a hold
+they lack; it decides alone only for an issue with no status label. An unset field or a failed read
+leaves the labels. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` resolves
 to the config's own list, with nothing added.
 
 The lane's slots are its leaves: each composite is replaced by its children, depth first in list

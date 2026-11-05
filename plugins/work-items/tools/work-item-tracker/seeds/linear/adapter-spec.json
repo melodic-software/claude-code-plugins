@@ -26,6 +26,7 @@
     "label-provenance": false,
     "set-fields": false,
     "get-field-options": false,
+    "get-statuses": false,
     "list-sub-items": true,
     "capabilities": true,
     "change-link": true,

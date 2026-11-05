@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nkey                        value                  won by\nsubject_pattern            ^[A-Z]+-\\d+: .+        team\npr_title_pattern           Same as subject_pattern plugin default\n```"
+    },
+    {
+      "answer": "| Key | Value | Won by |\n|---|---|---|\n| `subject_pattern` | `^[A-Z]+-\\d+: .+` | Team (`docs/conventions/source-control.yaml`) |",
+      "why": "table form"
+    },
+    {
+      "answer": "| Key | Value | Won by |\n|---|---|---|\n| `subject_pattern` | `^[A-Z]+-\\d+: .+` | `docs/conventions/source-control.yaml` |",
+      "why": "names the supplying file, as SKILL.md:103-104 says, not the word team"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Key | Value | Won by |\n|---|---|---|\n| `subject_pattern` | Conventional Commits | plugin default |",
+      "why": "wrong: the bundled default won"
+    },
+    {
+      "answer": "The team file sets `^[A-Z]+-\\d+: .+`.",
+      "why": "no subject_pattern row"
+    },
+    {
+      "answer": "| `subject_pattern` | `^[A-Z]+-\\d+: .+` | user-global |",
+      "why": "wrong layer"
+    }
+  ]
+}
