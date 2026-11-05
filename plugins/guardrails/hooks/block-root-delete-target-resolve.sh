@@ -15,8 +15,10 @@
 # spare descriptor on a process substitution, which reaches end of file only
 # when the command exits, closing its stdout or not; `read -t` on it is the
 # bound. The process substitution execs the command, so `$!` is the command
-# itself and the kill reaches it. A `wait` that cannot find the process answers
-# 127, which must not read as a missing command, so it refuses as 124.
+# itself. On expiry the command and every process under it are killed
+# (rdt_kill_tree): a child it started without exec would otherwise keep the
+# substitution open past the bound. A `wait` that cannot find the process
+# answers 127, which must not read as a missing command, so it refuses as 124.
 rdt_bounded_to() {
   local __bt_dest="$1" __bt_limit="$2" __bt_out __bt_rc=0
   shift 2
@@ -32,7 +34,7 @@ rdt_bounded_to() {
     exec 9>&-
     IFS= read -r -t "$__bt_limit" -u "$__bt_fd" _ ||
       (($? <= 128)) || {
-      kill -KILL "$__bt_pid" 2>/dev/null
+      rdt_kill_tree "$__bt_pid"
       wait "$__bt_pid" 2>/dev/null
       exit 124
     }
@@ -42,18 +44,43 @@ rdt_bounded_to() {
   return "$__bt_rc"
 }
 
+# rdt_kill_tree <pid>: stop <pid>, then kill it and every process under it,
+# found from the parent ids in /proc/<pid>/stat (Linux, and Cygwin and MSYS for
+# their own processes), read with builtins. A process that left the tree
+# (setsid, a daemon) is not found, as under GNU timeout's process-group kill.
+rdt_kill_tree() {
+  local __kt_f __kt_l __kt_pid __kt_pp __kt_i=0
+  local -a __kt_all=("$1")
+  local -A __kt_kids=()
+  kill -STOP "$1" 2>/dev/null
+  for __kt_f in /proc/[0-9]*/stat; do
+    IFS= read -r __kt_l <"$__kt_f" 2>/dev/null || continue
+    __kt_pid="${__kt_l%% *}"
+    __kt_l="${__kt_l##*) }"
+    read -r _ __kt_pp _ <<<"$__kt_l"
+    [[ "$__kt_pp" =~ ^[0-9]+$ ]] && __kt_kids[$__kt_pp]+=" $__kt_pid"
+  done
+  while ((__kt_i < ${#__kt_all[@]})); do
+    for __kt_pid in ${__kt_kids[${__kt_all[__kt_i]}]-}; do __kt_all+=("$__kt_pid"); done
+    __kt_i=$((__kt_i + 1))
+  done
+  kill -KILL "${__kt_all[@]}" 2>/dev/null
+}
+
 # On Windows the guard resolves most paths with no process: rdt_phys_to stands
 # in for `realpath -m` and rdt_win_to for `cygpath -l -m`. Each answers only
 # where its answer is the process's answer, in the spelling the guard compares
 # (rdt_canon_to), and returns 1 for everything else, which then takes the
 # process. block-root-delete-target-resolve.test.sh compares the two on Git Bash.
-# Both refuse: a backslash, a `~` (an 8.3 name the processes expand), a
-# non-ASCII byte, a component ending in `.` or a space (names Windows folds),
-# a UNC path, and a relative one.
+# Both refuse, before any disk access: a backslash, a `~` (an 8.3 name the
+# processes expand), a non-ASCII byte, a component ending in `.` or a space
+# (names Windows folds), a UNC path, a relative one, and a path not on a local
+# fixed drive (rdt_local_path).
 rdt_cdp_plain() {
   local __cp_p="$1/" __cp_c
   [[ "$1" != *\\* && "$1" != *'~'* && "$1" != *[![:ascii:]]* && "$1" != //* ]] || return 1
   [[ "$1" == /* || "$1" =~ ^[A-Za-z]:/ ]] || return 1
+  rdt_local_path "$1" || return 1
   while [[ "$__cp_p" == */* ]]; do
     __cp_c="${__cp_p%%/*}"
     __cp_p="${__cp_p#*/}"
@@ -100,23 +127,46 @@ rdt_phys_to() {
   printf -v "$1" '%s' "$__pt_top"
 }
 
-# RDT_FIXED_DRIVES: the drive letters /proc/mounts lists as local NTFS or ReFS,
-# read once. A network drive is left out, so no path on it is entered in the
-# guard's own shell, where a stall would have no bound.
-declare -A RDT_FIXED_DRIVES=()
+# RDT_FIXED_DRIVES: the drive letters /proc/mounts lists as local NTFS or ReFS;
+# RDT_MOUNT_DRIVE: each other mount point and the drive letter its source is on
+# (none for a UNC source). Read once. A path is touched in the guard's own shell
+# only on such a drive, so a network drive, where a stall would have no bound,
+# goes to the bounded process before any disk access.
+declare -A RDT_FIXED_DRIVES=() RDT_MOUNT_DRIVE=()
 RDT_FIXED_READ=0
-rdt_fixed_drive() {
-  local __fd_src __fd_mnt __fd_type __fd_rest
-  if ((! RDT_FIXED_READ)); then
-    RDT_FIXED_READ=1
-    if [[ -r /proc/mounts ]]; then
-      while read -r __fd_src __fd_mnt __fd_type __fd_rest; do
-        [[ "$__fd_type" == ntfs || "$__fd_type" == refs ]] && [[ "$__fd_mnt" =~ ^/([a-z])$ ]] &&
-          RDT_FIXED_DRIVES[${BASH_REMATCH[1]}]=1
-      done </proc/mounts
+rdt_read_mounts() {
+  local __rm_src __rm_mnt __rm_type __rm_rest
+  RDT_FIXED_READ=1
+  [[ -r /proc/mounts ]] || return 0
+  while read -r __rm_src __rm_mnt __rm_type __rm_rest; do
+    if [[ "$__rm_mnt" =~ ^/([a-z])$ ]]; then
+      [[ "$__rm_type" == ntfs || "$__rm_type" == refs ]] && RDT_FIXED_DRIVES[${BASH_REMATCH[1]}]=1
+    elif [[ "$__rm_src" =~ ^([A-Za-z]): ]]; then
+      RDT_MOUNT_DRIVE[$__rm_mnt]="${BASH_REMATCH[1],,}"
+    else
+      RDT_MOUNT_DRIVE[$__rm_mnt]=""
     fi
+  done </proc/mounts
+}
+rdt_fixed_drive() {
+  ((RDT_FIXED_READ)) || rdt_read_mounts
+  [[ -n "$1" && -n "${RDT_FIXED_DRIVES[$1]+x}" ]]
+}
+
+# rdt_local_path <absolute path>: the path's drive is a local fixed one, read
+# from its spelling (`/x/...`, `X:/...`) or from the longest mount point that
+# holds it (`/tmp`, `/`).
+rdt_local_path() {
+  local __lp_m __lp_best=""
+  if [[ "$1" =~ ^/([a-z])(/|$) || "$1" =~ ^([A-Za-z]): ]]; then
+    rdt_fixed_drive "${BASH_REMATCH[1],,}"
+    return
   fi
-  [[ -n "${RDT_FIXED_DRIVES[$1]+x}" ]]
+  ((RDT_FIXED_READ)) || rdt_read_mounts
+  for __lp_m in "${!RDT_MOUNT_DRIVE[@]}"; do
+    [[ "$1/" == "${__lp_m%/}/"* && ${#__lp_m} -gt ${#__lp_best} ]] && __lp_best="$__lp_m"
+  done
+  [[ -n "$__lp_best" ]] && rdt_fixed_drive "${RDT_MOUNT_DRIVE[$__lp_best]}"
 }
 
 # rdt_win_to <var> <absolute path>: what `cygpath -l -m` gives for the path's

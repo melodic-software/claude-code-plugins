@@ -100,6 +100,24 @@ else
   ok 'a closed stdout command is killed'
 fi
 
+# A child the command starts without exec is killed too, and does not hold the
+# bound open past its time.
+shim wraps 'sleep 60 & echo $! >"$1"; wait'
+rc=0
+start=$SECONDS
+rdt_bounded_to got 1 "$SHIMS/wraps" "$TEST_TMPDIR/wraps.pid" || rc=$?
+took=$((SECONDS - start))
+if ((rc == 124 && took <= 3)); then
+  ok 'a child started without exec does not outlast the bound'
+else
+  no 'a child started without exec does not outlast the bound' "rc=$rc after ${took}s"
+fi
+if kill -0 "$(<"$TEST_TMPDIR/wraps.pid")" 2>/dev/null; then
+  no 'a child started without exec is killed' "pid alive"
+else
+  ok 'a child started without exec is killed'
+fi
+
 # RDT_BOUND_UNSET reaches the command and not the caller.
 shim showenv 'printf "%s" "${RDT_T_VAR-unset}"'
 export RDT_T_VAR=set
@@ -251,11 +269,29 @@ else
     done
   done
   unset CDPATH
-  # Declines this suite pins: each answer would differ from the processes'.
-  for p in "$W/missing/../out/x" "$W/link/sub" "$W/leaflink" "$W8/sub" "$W/dot./x" "$W/sp " "$W/caf"$'\xc3\xa9' //server/share/x x/relative; do
+  # Declines this suite pins: each answer would differ from the processes', or
+  # the path is on a drive that is not local. A host whose `ln -s` copies
+  # instead of linking (Git Bash without native symlinks) has no link to decline.
+  free=""
+  for l in Q R S T U V W X Y Z; do [[ -e "$l:/" ]] || {
+    free="$l"
+    break
+  }; done
+  declines=("$W/missing/../out/x" "$W8/sub" "$W/dot./x" "$W/sp " "$W/caf"$'\xc3\xa9' //server/share/x x/relative)
+  wdeclines=("$W8/sub" "$W/dot./x" /usr/bin C:/ /c)
+  [[ -n "$free" ]] && declines+=("$free:/rdt-x" "/${free,,}/rdt-x") && wdeclines+=("$free:/rdt-x")
+  if [[ -L "$W/link" && -L "$W/leaflink" ]]; then
+    declines+=("$W/link/sub" "$W/leaflink")
+    wdeclines+=("$W/leaflink" "$W/link/sub" "$W/real/sub/../../link/x")
+  else
+    skips=$((skips + 1))
+    echo "SKIP - link declines: ln -s made copies here, not links (3 phys and 3 win cases)"
+  fi
+  [[ -L "$W/junc" ]] && wdeclines+=("$W/junc/sub")
+  for p in "${declines[@]}"; do
     if rdt_phys_to got "$p"; then no "phys declines: $p" "answered [$got]"; else ok "phys declines: $p"; fi
   done
-  for p in "$W/leaflink" "$W/link/sub" "$W/junc/sub" "$W/real/sub/../../link/x" "$W8/sub" "$W/dot./x" /usr/bin C:/ /c; do
+  for p in "${wdeclines[@]}"; do
     if rdt_win_to got "$p"; then no "win declines: $p" "answered [$got]"; else ok "win declines: $p"; fi
   done
   # The temp roots without their drive spellings resolve to the same set.
