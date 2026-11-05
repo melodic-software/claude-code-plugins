@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.5] - 2026-11-05
+
+### Fixed
+
+- the root-delete guard no longer prints a `/proc` "No such file or directory" error when a process exits while it scans the process tree
+
 ## [1.3.4] - 2026-11-05
 
 ### Changed
