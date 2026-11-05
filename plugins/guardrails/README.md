@@ -473,6 +473,47 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**block-root-delete-target judged deletes with fewer processes (#13276).** A judged delete,
+move or content destroyer starts fewer processes, and every verdict is unchanged.
+
+- **Every host:** `realpath`, `cygpath` and `git` run under a bound kept in the shell
+  (`block-root-delete-target-resolve.sh`), so the three `timeout` processes are gone.
+- **Windows Git Bash:** the shell answers `realpath -m` and `cygpath -l -m` itself for any path
+  with no symlink, junction, 8.3 name, non-ASCII name, trailing dot or space, or network drive.
+- **Temp roots:** read without their drive spellings, which only named candidates the guard
+  already resolves.
+
+On melo-lap-001 (Windows 11, Git Bash 5.3.15), the process census of `rm -rf ./build` from a
+repository went from 8 processes to 1 (`git`). The 8 at main were two early `cygpath` for the
+temp roots, then `git`, `realpath` and `cygpath`, each under its own `timeout`. The common call
+starts the same processes as before.
+
+Timing used the #9754 method: `hyperfine -N`, guardrails at the branch against `3bb182755`, staged
+side by side, with each payload timed in one session in 5 alternating blocks of 40 runs per arm.
+WSL load was 4 to 17 during the run. Every judged payload was faster in all 5 blocks:
+
+| Payload | Before (ms) | After (ms) | Change (ms) |
+|---|---|---|---|
+| `rm -rf ./build` | 369.9 | 221.1 | -148.8 |
+| `find ./build -type f \| xargs rm -rf` | 377.6 | 230.8 | -146.8 |
+| `mv build/x out/` | 365.5 | 219.1 | -146.4 |
+| `eval 'rm -rf build/x'` | 465.6 | 325.8 | -139.9 |
+| `watch rm -rf build/x` | 472.4 | 329.3 | -143.1 |
+| `wsl rm -rf build/x` | 464.8 | 338.4 | -126.4 |
+| `cmd //c rd //s //q build` | 384.0 | 231.7 | -152.4 |
+| `echo 'rm -rf build/x' \| sh` | 478.5 | 342.3 | -136.2 |
+| `bash <<'EOF'` running `rm -rf build/x` | 463.8 | 334.8 | -129.0 |
+| common call (`git status --short`) | 30.4 | 31.0 | +0.6, inside noise (branch lower in 2 of 5 blocks) |
+
+A judged delete still costs about 190 ms over the common call, about 9.5 S at the 20 ms S of the
+harness in the #9754 entry. That overage is the shell's own parse and the one `git`. Linux and macOS keep one
+`realpath` per judgment and lose the three `timeout` processes.
+
+`block-root-delete-target-resolve.test.sh` runs in the Windows CI lane and compares the shell's
+answers with `realpath` and `cygpath` there. That lane is informational, not a required check
+(`.github/workflows/pr-test-platforms.yml`), so a later change that alters a Windows answer shows
+there and does not block a merge.
+
 **block-root-delete-target shells and launchers from Bash (#9768).** The arm starts no process of its
 own, so its k is 0: the text `eval` joins, `watch` runs, `wsl` hands its shell, `cmd /c` runs and a
 stdin shell reads (a heredoc, a here-string, or what `echo`, `printf` or `cat` pipes into it) is

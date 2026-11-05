@@ -53,7 +53,7 @@ same_as_subst 'no trailing newline' 'printf "a"'
 same_as_subst 'several lines' 'printf "a\nb c\n\nd\n"'
 same_as_subst 'trailing newlines stripped' 'printf "a\n\n\n"'
 same_as_subst 'leading and trailing blanks kept' 'printf "  a  \n"'
-same_as_subst 'a backslash kept' 'printf "a\\\\b\n"'
+same_as_subst 'a backslash kept' 'printf "a\\\\b\n"' # portability-ok: a literal backslash in printf data, not a grep word boundary
 same_as_subst 'empty output' ':'
 same_as_subst 'a nonzero exit keeps its status' 'printf "a\n"; exit 3'
 same_as_subst 'stderr is dropped' 'echo err >&2; echo out'
