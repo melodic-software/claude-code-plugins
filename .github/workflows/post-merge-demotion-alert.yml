@@ -33,8 +33,9 @@ name: post-merge-demotion-alert
 # babysit_merge_policy.py `_recovered_at` applies. This workflow merges,
 # reverts and dequeues nothing.
 #
-# Only a failure whose merges include one the lanes App put in the merge queue
-# demotes. When every merge in the failing range was enqueued by someone else
+# Only a full-run or canary failure whose merges include one the lanes App put
+# in the merge queue demotes; a revert record (below) demotes whoever queued
+# the reverted pull request. When every merge in the failing range was enqueued by someone else
 # (a person, a release App), the issue's first line is `<!-- post-merge-failure
 # sha=<S> signal=<name> -->` instead, and no reader treats it as a demotion. A
 # full-run one is labeled as a full-run record above, and the close-cleared
