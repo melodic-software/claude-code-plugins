@@ -84,10 +84,16 @@ name: work-unblock
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed
 # until it is marked `status: ready` again.
+#
+# Its sync-status job writes an issue's Work status field after a listed human
+# adds or removes a status label, and the hourly run does so for every open
+# issue whose field the labels disagree with
+# (.github/scripts/work-unblock/sync-status.mjs).
 
 on:
   issues:
-    types: [closed]
+    # labeled and unlabeled start only the sync-status job.
+    types: [closed, labeled, unlabeled]
   # Off the top of the hour, at a minute no other schedule here uses.
   schedule:
     - cron: "47 * * * *"
@@ -162,9 +168,10 @@ jobs:
     # mints for the sweep only from main. A finished work-resolve-issue run
     # sweeps whatever its conclusion, since a failed or cancelled run can free
     # room too; a skipped one, from a label other than agent-ready, ran no job.
+    # A label event is sync-status's, never this job's.
     if: >-
       (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
-      || (github.event_name == 'issues' && github.event.sender.type != 'Bot')
+      || (github.event_name == 'issues' && github.event.action == 'closed' && github.event.sender.type != 'Bot')
       || (github.event_name == 'workflow_run' && github.ref == 'refs/heads/main'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && github.event.workflow_run.conclusion != 'skipped')
@@ -301,6 +308,166 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
+        run: node ".base/$SCRIPT"
+
+      # The token is cancelled as soon as the job is done; it would otherwise
+      # expire within the hour. This never fails the job.
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          # The header goes through stdin so the token never appears in a
+          # process listing.
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          if [ "$status" = 204 ]; then
+            echo "the lane token is revoked"
+          else
+            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+          fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token
+
+  # Mirrors an issue's status labels into its Work status field after a person
+  # adds or removes one, and hourly for every open issue
+  # (.github/scripts/work-unblock/sync-status.mjs). It writes with the lanes
+  # App token: the field's reader counts only a value a listed human or the App
+  # set. A label change by a bot (the lanes App, whose scripts mirror their own
+  # writes) starts no job; one by an account not listed as a human gets no
+  # token, which the hourly sweep makes good.
+  sync-status:
+    if: >-
+      (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
+      || (github.event_name == 'issues' && github.event.action != 'closed'
+      && github.event.sender.type != 'Bot' && !github.event.issue.pull_request)
+    # One run per issue: a later label event replaces a waiting one, and the
+    # run that goes ahead reads the labels fresh.
+    concurrency:
+      group: work-unblock-sync-status-${{ github.event.issue.number || 'sweep' }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # check out main
+      id-token: write # prove to the token broker which workflow this is
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or written"
+
+      # The broker mints on a label event only for a listed human (the
+      # trusted-actor list on main, by id), so anyone else stops here quietly,
+      # before the token request; the hourly sweep writes that issue's field.
+      # The scheduled sweep has no labeler to check.
+      - name: Check who changed the label
+        id: who
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          ACTOR_ID: ${{ github.actor_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          if [ "$EVENT_NAME" = schedule ] ||
+            jq -e --arg id "$ACTOR_ID" 'any(.actors[]; .kind == "human" and (.id | tostring) == $id)' "$TRUSTED_ACTORS_PATH" >/dev/null; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::the label was changed by an account not listed as a human; the hourly sweep writes this issue's Work status field"
+          fi
+
+      # Reads the lane's rules from main: the sync-status activity's effect
+      # and token permissions. It installs resolve-config's packages, which the
+      # script's config read needs.
+      - name: Resolve the config
+        id: config
+        if: steps.who.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: work-unblock
+          activity: sync-status
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      - name: Report a lane the config turns off
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
+        env:
+          REASON: ${{ steps.config.outputs.skip-reason }}
+        run: echo "::notice::sync-status does not apply (${REASON:-no reason}); nothing read or written"
+
+      # Swaps this job's GitHub identity proof for a short-lived lanes App
+      # token for this repository only, with the resolved grant (issues:
+      # write, contents: read, pull-requests: read).
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: work-unblock
+          activity: sync-status
+          # The sweep names no issue; a label event names its issue, which the
+          # broker needs on an issues event.
+          issue-number: ${{ github.event_name == 'issues' && format('{0}', github.event.issue.number) || '' }}
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+
+      # The script reads the issue's labels and field back from the API;
+      # nothing is taken from the event but the issue number, the label name
+      # and whether it is a pull request. The sweep makes at most CALL_BUDGET
+      # calls, a short pause apart.
+      - name: Mirror the status labels into the Work status field
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          SCRIPT: ${{ steps.config.outputs.script }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          CALL_BUDGET: "800"
         run: node ".base/$SCRIPT"
 
       # The token is cancelled as soon as the job is done; it would otherwise
