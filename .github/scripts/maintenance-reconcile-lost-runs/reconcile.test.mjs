@@ -796,7 +796,7 @@ test("a held verify run is not re-run without the resolver's held notice, at att
   const cases = {
     "no notice": { runs: [heldRun(303, {}, { notes: [{ annotation_level: "notice", message: "api calls: 12" }] })] },
     "attempt 2": { runs: [heldRun(304, { attempt: 2 })] },
-    "past the window": { runs: [heldRun(305, { created: "2026-10-19T17:30:00Z" })] },
+    "past the window": { runs: [heldRun(305, { created: "2026-10-19T13:30:00Z" })] },
     "Actions degraded": { runs: [heldRun(306)], status: statusWith("degraded_performance") },
   };
   for (const [label, options] of Object.entries(cases)) {
@@ -804,6 +804,33 @@ test("a held verify run is not re-run without the resolver's held notice, at att
     assert.equal(code, 0, label);
     assert.deepEqual(reruns, [], label);
   }
+});
+
+// A pass idle through an outage reads and carries nothing, so the held runs
+// the outage left are listed from the last pass that read, not 6 hours back.
+test("after a 10-hour outage, a run held 9 hours ago is re-run, listed from the last pass that read", async () => {
+  const lastRead = carryOf([]).replace(/}$/, `,"held_since":"2026-10-19T04:00:00.000Z"}`);
+  const { code, reruns, calls, settled } = await reconcile({ pulls: [], runs: [heldRun(307, { created: "2026-10-19T11:00:00Z" })], carry: lastRead });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [307]);
+  assert.ok(calls.some((c) => c.includes("/workflows/pr-verify.yml/runs?created=%3E%3D2026-10-19T04%3A00%3A00Z&status=success&")));
+  // Until its re-run takes a place, the next pass still lists it.
+  assert.equal(settled.held_since, "2026-10-19T11:00:00.000Z");
+});
+
+test("a pass reads at most 100 succeeded runs' jobs for a hold, oldest first, and the next pass starts at the first it left", async () => {
+  // Left from an outage: 120 runs from 05:00, a minute apart, with the last
+  // reading pass at 04:00.
+  const runs = Array.from({ length: 120 }, (_, i) =>
+    heldRun(400 + i, { created: new Date(Date.parse("2026-10-19T05:00:00Z") + i * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z") }, { marked: false }),
+  );
+  const lastRead = carryOf([]).replace(/}$/, `,"held_since":"2026-10-19T04:00:00.000Z"}`);
+  const { code, calls, settled } = await reconcile({ pulls: [], runs, carry: lastRead });
+  assert.equal(code, 0);
+  assert.equal(calls.filter((c) => /\/actions\/runs\/4[0-9]{2}\/attempts\/1\/jobs/.test(c)).length, 100);
+  assert.equal(settled.runs.length, 100);
+  // The 101st run, created 100 minutes after 05:00.
+  assert.equal(settled.held_since, "2026-10-19T06:40:00.000Z");
 });
 
 test("a verify run the kill switch stopped is re-run once the switch is off", async () => {
@@ -1080,7 +1107,8 @@ test("700 succeeded verify runs and 2 lost ones plan the 2 lost runs without hit
   assert.equal(code, 0);
   assert.deepEqual(reruns, [202, 201]);
   assert.deepEqual(records(outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, `reconcile-rerun-201-2-${MAIN_TIP}`, ""]);
-  assert.ok(calls.every((c) => !c.includes("&page=2")));
+  // The lost-run listings; the held-run listing of the last 6 hours' 175 runs is its own.
+  assert.ok(calls.filter((c) => !c.includes("&status=success&")).every((c) => !c.includes("&page=2")));
 });
 
 test("with 700 succeeded runs listed, verify re-runs already queued or in progress still take places", async () => {

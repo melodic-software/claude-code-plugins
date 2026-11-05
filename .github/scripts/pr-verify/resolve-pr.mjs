@@ -60,7 +60,6 @@ import {
   commitPulls,
   createGitHub,
   detailSuffix,
-  GitHubError,
   graphQLReader,
   isFault,
   loadTrustedList,
@@ -1087,7 +1086,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
       response = await send(location);
     }
     if (!response.ok) {
-      throw new GitHubError(response.status, `GET the log of job ${jobId}`, await responseDetail(response));
+      throw Object.assign(new Error(`the log of job ${jobId} answered ${response.status}`), { detail: await responseDetail(response) });
     }
     return response.text();
   };

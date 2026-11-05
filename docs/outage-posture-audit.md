@@ -87,7 +87,7 @@ element 1, but only pr-merge uses it.
 | 2 | gap | `.github/workflows/pr-refine.yml:142`, `.github/scripts/lib/handoff-evidence.sh:127` | A failed read exits 1 instead of holding green. |
 | 3 | gap | `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:178`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:258` | The dispatcher counts any completed run, including a red outage run, as done, so the next tick never re-dispatches it. |
 | 4 | gap | `.github/actions/report-check-run/decide.mjs:104`, `.github/workflows/pr-run-activity-read.yml:3661` | A run with no verdict, such as an outage-caused broker failure, posts a `failure` check, and nothing closes it later. |
-| 5 | met | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-unblock-dispatch.yml:184` | The lane's only automatic starter skips the whole dispatch while the status page lists an outage. That is a stop, and the next tick dispatches once the page is green. |
+| 5 | met | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-unblock-dispatch.yml:184` | The lane's only automatic starter skips the whole dispatch while the status page lists an outage. That is a stop, and the page starts nothing. |
 | 6 | gap | `.github/scripts/lib/handoff-evidence.sh:105` | The repeated job-listing poll sends no `etag`. Concurrency (`.github/workflows/pr-refine.yml:47`) is fine. |
 
 ## pr-run-checks
@@ -116,7 +116,7 @@ The lane runs from `.github/workflows/pr-review-hosted.yml`, a caller of the ext
 | 2 | gap | `.github/workflows/pr-review-main.yml:307`, `.github/workflows/pr-review-main.yml:1139` | A failed read fails the step, and "no verdict" exits 1. |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:79`, `.github/workflows/pr-review-hosted.yml:183` | Recovery is a recorded one-time re-run by the reconciler, which idles while the status page lists an outage (element 5 allows that stop). The one-time record is a re-arm the owner kept: it is the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`). |
 | 4 | gap | `.github/workflows/pr-review-main.yml:2874` | A later clean review never clears a CRITICAL check run. |
-| 5 | met | `.github/workflows/pr-review-hosted.yml:168`, `.github/workflows/pr-review-main.yml:426` | `check-upstream-status` stops the review, and the reconciler re-runs it once only when the gate lets it run. The page starts nothing. That the stop exits 1 is element 2's concern. |
+| 5 | met | `.github/workflows/pr-review-hosted.yml:168`, `.github/workflows/pr-review-main.yml:426` | `check-upstream-status` stops the review with exit 1. That is a stop, and the page starts nothing; the red exit is element 2's concern. |
 | 6 | gap | `.github/workflows/pr-review-main.yml:340`, `.github/workflows/pr-review-main.yml:457` | Matrix legs run in parallel and repeat the same PR reads with no `etag`. Concurrency per PR is fine. |
 
 ## pr-review-security
@@ -130,7 +130,7 @@ The lane runs from `.github/workflows/pr-review-security-hosted.yml` and the
 | 2 | gap | `.github/workflows/pr-review-main.yml:307`, `.github/workflows/pr-review-main.yml:1139` | A failed read or "no verdict" makes the run red. |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:79`, `.github/workflows/pr-review-security-hosted.yml:188` | Resume depends on the reconciler's one-time recorded re-run, a re-arm the owner kept as attempt 2's trust proof, as for pr-review. |
 | 4 | gap | `.github/workflows/pr-review-main.yml:2874` | A later complete read never closes a filed CRITICAL count. |
-| 5 | met | `.github/workflows/pr-review-security-hosted.yml:173`, `.github/workflows/pr-review-security-hosted.yml:193` | The status page stops the run, and only the reconciler's re-run under a green page resumes it. That the stop turns the run red is element 2's concern. |
+| 5 | met | `.github/workflows/pr-review-security-hosted.yml:173`, `.github/workflows/pr-review-security-hosted.yml:193` | The status page gates the run and turns it red. That is a stop, and the page starts nothing; the red is element 2's concern. |
 | 6 | gap | `.github/workflows/pr-review-main.yml:340`, `.github/workflows/pr-review-main.yml:457` | Matrix legs run in parallel and repeat the same reads with no `etag`. |
 
 ## pr-verify
@@ -413,17 +413,19 @@ Part 2 also fixed pr-verify's element 2 fault gap, with tests. When `resolve-pr.
 GitHub fault (the same `isFault` test as `apply-verdict.mjs`, now shared from
 `check-trusted-trigger.mjs`: a 5xx or 429, a rate-guard stop under the resolver steps'
 `API_BUDGET_HOLD` opt-in, or no answer), the step logs one `held: ` notice, writes `proceed=false`
-and `reason=held`, and ends green, so nothing is judged (`closing`). A job log read that fails now
-throws a `GitHubError`, so it counts too. Any other error, a 4xx included, still fails, and so does
-a 200 whose completeness check fails. A held run concludes success, so it is not lost. Its
-`Note the hold` step (`.github/workflows/pr-verify.yml`) marks it, and the lost-run reconciler's
-next pass reads that job's annotations for the `held: ` notice, as `triage-sweep.mjs` `classifyRun`
-does, and re-runs the run once with the same record a lost lane run gets (`reconcile.mjs`
-`faultHeld`). That happens only at attempt 1, only for runs created in the last
-`FAULT_HELD_HOURS`, and only while the status page shows Actions operational, so a held verdict is
-retried within about 30 minutes. A run held again at attempt 2 waits for the head's next checks
-run. The listing costs one read per pass, plus one jobs read for each succeeded pr-verify run, read
-once since it is carried as settled. Monitor signal 13 does not count these holds.
+and `reason=held`, and ends green, so nothing is judged (`closing`). Any other error, a 4xx
+included, still fails, and so does a 200 whose completeness check fails. A held run concludes
+success, so it is not lost. Its `Note the hold` step (`.github/workflows/pr-verify.yml`) marks it,
+and the lost-run reconciler's next pass reads that job's annotations for the `held: ` notice, as
+`triage-sweep.mjs` `classifyRun` does, and re-runs the run once with the same record a lost lane
+run gets (`reconcile.mjs` `faultHeld`). That happens only at attempt 1 and only while the status
+page shows Actions operational, so outside an outage a held verdict is retried within about 30
+minutes (the cron runs at minutes 4 and 34). A run held again at attempt 2 waits for the head's
+next checks run. The reconciler lists pr-verify's succeeded runs from `FAULT_HELD_HOURS` back, or
+from the last pass that read when that is earlier, since a pass idle through an outage reads
+nothing. Each run's jobs are read once, since a run with no hold is carried as settled, and at
+most `FAULT_HELD_READS` a pass. At about 700 succeeded runs a day that is about 30 jobs reads an
+hour, plus one or two listing reads a pass. Monitor signal 13 does not count these holds.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
 `retry-spent` fault hold, work-unblock's held listings and pr-refine's held `fix-docs` reads. A

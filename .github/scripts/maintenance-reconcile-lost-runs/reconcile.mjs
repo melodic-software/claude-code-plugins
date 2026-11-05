@@ -35,9 +35,12 @@
 //   same holds for each CI re-run that carries a record.
 // - Held: a pr-verify run whose first attempt a GitHub fault held green
 //   (resolve-pr.mjs closing): it succeeded with a `held: ` notice and no
-//   verdict. Re-run once, as a lane run is, with the same record, from runs
-//   created within FAULT_HELD_HOURS, so a hold is retried on the next pass.
-//   A run held again at attempt 2 waits for the head's next checks run.
+//   verdict. Re-run once, as a lane run is, with the same record, so a hold
+//   is retried on the next pass that reads. Its succeeded runs are listed
+//   from FAULT_HELD_HOURS back, or from the last pass that read when that is
+//   earlier (the carried `held_since`), and at most FAULT_HELD_READS of them
+//   have their jobs read a pass. A run held again at attempt 2 waits for the
+//   head's next checks run.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
 //   pr-verify pass that the spec has since changed under (an issue edit or a
 //   new spec comment after the pass: resolve-pr's `spec-changed`, the same
@@ -325,11 +328,15 @@ export const RECORDED_LANES = new Map([
 export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
 // The recorded lane whose resolver holds green on a GitHub fault
 // (resolve-pr.mjs closing), and how far back its succeeded runs are listed for
-// a hold: a held run ends minutes after it starts, so this window spans four
-// passes, and it keeps the listing to one page where the whole lookback holds
-// hundreds of succeeded runs.
+// a hold: past check-intent's 346-minute limit, so a later job's hold is still
+// listed once its run completes. The listing starts at the last pass that read
+// instead when that is earlier, since a pass idle through an outage reads
+// nothing and carries nothing, and holds cluster in exactly those outages.
 export const FAULT_HELD_LANE = ".github/workflows/pr-verify.yml";
-export const FAULT_HELD_HOURS = 2;
+export const FAULT_HELD_HOURS = 6;
+// The succeeded runs whose jobs one pass reads, oldest first; the rest wait
+// for the next pass, so a pass after a long outage adds a bounded load.
+export const FAULT_HELD_READS = 100;
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
@@ -395,7 +402,8 @@ export function parseSettled(text, repo) {
     !data.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && typeof r.reason === "string") ||
     !Array.isArray(data.jobs) ||
     !data.jobs.every(carriedJobsEntry) ||
-    (data.passes !== undefined && (!Array.isArray(data.passes) || !data.passes.every(carriedPassesEntry)))
+    (data.passes !== undefined && (!Array.isArray(data.passes) || !data.passes.every(carriedPassesEntry))) ||
+    (data.held_since !== undefined && !isTime(data.held_since))
   ) {
     throw new Error("the settled runs file has an unexpected shape");
   }
@@ -403,6 +411,8 @@ export function parseSettled(text, repo) {
     runs: new Map(data.runs.map((r) => [r.id, r.reason])),
     jobs: new Map(data.jobs.map((e) => [jobsKey(e.id, e.attempt), e])),
     passes: new Map((data.passes ?? []).map((e) => [passesKey(e.pr, e.head), e])),
+    // Where the next held-run listing starts (plan's heldSince), if carried.
+    ...(data.held_since !== undefined ? { heldSince: Date.parse(data.held_since) } : {}),
   };
 }
 
@@ -852,7 +862,7 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), carriedJobs = new Map(), carriedPasses = new Map(), env = {} }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), carriedJobs = new Map(), carriedPasses = new Map(), heldFrom, env = {} }) {
   // The runs to carry to the next pass, {id, reason}: read and settled now, or carried and still listed.
   const settle = [];
   // The job reads to carry to the next pass, by jobsKey: read whole now, or carried and still current.
@@ -1271,31 +1281,61 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
 
   // pr-verify runs a GitHub fault held green (faultHeld), each re-run once
   // like a lost lane run, and only while the status page shows Actions
-  // operational (main reads nothing otherwise). A run with no hold is settled,
-  // so each succeeded run's jobs are read once.
-  const heldSince = Math.max(since, now - FAULT_HELD_HOURS * 3_600_000);
+  // operational (main reads nothing otherwise). The listing starts at the
+  // carried `heldFrom`, or FAULT_HELD_HOURS back, whichever is earlier, inside
+  // the lookback. A run with no hold is settled, so each succeeded run's jobs
+  // are read once. `heldSince` is where the next pass starts: FAULT_HELD_HOURS
+  // back, or the oldest run this pass did not read.
+  const recent = now - FAULT_HELD_HOURS * 3_600_000;
+  const heldStart = Math.max(since, Math.min(recent, heldFrom ?? recent));
+  let heldSince = recent;
   try {
-    const heldCreated = encodeURIComponent(`>=${new Date(heldSince).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+    const heldCreated = encodeURIComponent(`>=${new Date(heldStart).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
     const file = FAULT_HELD_LANE.slice(FAULT_HELD_LANE.lastIndexOf("/") + 1);
-    const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${file}/runs?created=${heldCreated}&status=success`, LANE_RUN_PAGES);
-    for (const r of listed.filter((run) => isFaultHeld(run, heldSince))) {
+    // Newest first; past the page cap the newest runs are kept, and the
+    // older ones are named, never read.
+    const listed = [];
+    for (let page = 1; page <= LANE_RUN_PAGES; page += 1) {
+      const batch = await runsPage("GET", `/repos/${repo}/actions/workflows/${file}/runs?created=${heldCreated}&status=success&per_page=100&page=${page}`);
+      listed.push(...batch);
+      if (batch.length < 100) {
+        break;
+      }
+      if (page === LANE_RUN_PAGES) {
+        say(`${FAULT_HELD_LANE}: more than ${LANE_RUN_PAGES * 100} succeeded runs since ${new Date(heldStart).toISOString()}; only the newest are read for a hold`);
+      }
+    }
+    const unread = [];
+    for (const r of listed.filter((run) => isFaultHeld(run, heldStart)).sort(byAge)) {
       if (settled.has(r.id)) {
         settle.push({ id: r.id, reason: settled.get(r.id) });
-        continue;
+      } else {
+        unread.push(r);
+      }
+    }
+    for (const [i, r] of unread.entries()) {
+      if (i === FAULT_HELD_READS) {
+        say(`${FAULT_HELD_LANE}: ${unread.length - i} succeeded runs wait for the next pass's hold check`);
+        heldSince = Math.min(heldSince, Date.parse(r.created_at));
+        break;
       }
       try {
         const { held, final } = await faultHeld(call, repo, r);
         if (held) {
+          // Kept in the next pass's listing until its re-run takes a place.
+          heldSince = Math.min(heldSince, Date.parse(r.created_at));
           lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, r.head_sha) });
         } else if (final) {
           settle.push({ id: r.id, reason: "" });
         }
       } catch (error) {
         noteFailure(`held run ${r.id}`, error);
+        heldSince = Math.min(heldSince, Date.parse(r.created_at));
       }
     }
   } catch (error) {
     noteFailure(`${FAULT_HELD_LANE} held runs`, error);
+    heldSince = heldStart;
   }
 
   // A failed floor-label run takes no place: it is one short job, not CI.
@@ -1410,7 +1450,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed, settle, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
+  return { items, failed, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
 }
 
 // Re-runs each planned item still lost on a fresh read.
@@ -1622,7 +1662,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, jobs, passes, ...planned } = await plan({
+    const { settle, jobs, passes, heldSince, ...planned } = await plan({
       repo,
       call,
       say,
@@ -1634,6 +1674,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       settled: settled.runs,
       carriedJobs: settled.jobs,
       carriedPasses: settled.passes,
+      heldFrom: settled.heldSince,
       env,
     });
     result = planned;
@@ -1642,7 +1683,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
     write();
     if (env.SETTLED_PATH) {
-      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes }));
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString() }));
     }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");
