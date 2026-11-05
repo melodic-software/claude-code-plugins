@@ -11,6 +11,11 @@
 //   `status: confirmed`;
 // - `status: needs-info` and a comment by the issue's author or a listed
 //   human, not posted through an App: remove `status: needs-info`;
+// - no `status:` label, no `agent-ready`, `needs-human`, `needs-triage` or
+//   `admission-deferred`, and a listed human's decision comment: remove
+//   nothing. The issue's own labels decide, not the Work status field, which
+//   mirrors the removal that left the issue without a status in a later run.
+//   `needs-triage` is the claim: a second run finds it and dispatches nothing;
 // - EVENT_NAME `issues` (no comment): a listed human removed `needs-human` and
 //   the issue carries no `status:` label but `status: needs-decision`, and no
 //   `agent-ready`, `needs-human` or `needs-triage`. The newest `needs-human`
@@ -41,7 +46,8 @@
 // changes nothing. It never adds `agent-ready`. Removing the status label is
 // the claim: when GitHub answers 404 another run already took it, so a second
 // answer, or a racing run, dispatches nothing. When a later call fails, the
-// run puts the labels back and fails, so a re-run can take the claim again. Every fact is read from the API;
+// run puts the labels back and fails, so a re-run can take the claim again; a
+// statusless answer takes back only the `needs-triage` it added. Every fact is read from the API;
 // the event supplies only the issue and comment numbers and, on `issues`, the
 // removed label. A failed call on a removal puts no status back: with no
 // `status:` label a re-run sends it on, and the triage sweep dispatches it.
@@ -90,7 +96,8 @@ export async function answerLabels(issue, statusOf) {
 }
 
 // Which answer the comment is, or null: `decision`, `parked` (a decision on a
-// status: confirmed issue no admission took) or `info`. `labels` are the
+// status: confirmed issue no admission took), `info`, or `statusless` (a
+// decision on an issue with no status label). `labels` are the
 // issue's label names, by default its own (answerLabels).
 export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId, labels = labelNames(issue) }) {
   if (issue.pull_request || issue.state !== "open") {
@@ -104,6 +111,17 @@ export async function classify({ github, repository, issue, comment, humans, ids
     const { kept: list } = await selectTrustedIssueComments({ github, repository, issueNumber: issue.number, ids });
     return list.find((item) => item.comment.id === comment.id) ?? null;
   };
+  // With no status label on the issue, only a listed human's decision answers,
+  // and only where nothing else holds or moves the issue; the issue's own
+  // labels decide, since the Work status field mirrors a removal in a later run.
+  const own = labelNames(issue);
+  if (!own.some((name) => name?.startsWith("status:"))) {
+    if (!humans.has(user.id) || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY, DEFERRED].some((name) => own.includes(name))) {
+      return null;
+    }
+    const item = await kept();
+    return item && isDecisionComment(item, humans) ? "statusless" : null;
+  }
   if (labels.includes(NEEDS_DECISION) && humans.has(user.id)) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
@@ -268,11 +286,14 @@ export async function main({ env = process.env, github, log = console.log, statu
       log(`intake-reenter: ${NEEDS_HUMAN} holds the issue, so a decision changes nothing; ${next}`);
       return 0;
     }
-    const status = { decision: NEEDS_DECISION, parked: CONFIRMED, info: NEEDS_INFO }[kind];
-    if (!(await removeLabel(client, base, status))) {
+    // A statusless issue has no status label to take: `needs-triage` is the
+    // claim, and the per-issue queue makes a later run read it and stop.
+    const status = { decision: NEEDS_DECISION, parked: CONFIRMED, info: NEEDS_INFO, statusless: null }[kind];
+    if (status && !(await removeLabel(client, base, status))) {
       log(`intake-reenter: ${status} is already gone; nothing dispatched`);
       return 0;
     }
+    const removed = status ? `removed ${status}, ` : "";
     // Past the claim, a failed call puts the labels back as they were, so a
     // re-run of the job finds the issue parked and the answer is not lost.
     try {
@@ -281,7 +302,7 @@ export async function main({ env = process.env, github, log = console.log, statu
       // other issue waits in needs-triage for a person, so its author cannot
       // start a model run with each reply.
       if (!authorAdmitted(issue, humans, lanesAppId)) {
-        log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
+        log(`intake-reenter: ${removed}added ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
         return 0;
       }
       await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
@@ -289,10 +310,14 @@ export async function main({ env = process.env, github, log = console.log, statu
         inputs: { "issue-number": String(issue.number) },
       });
     } catch (error) {
-      await restore({ client, base, labels: [status], addedTriage: !had.includes(NEEDS_TRIAGE), log });
+      if (status) {
+        await restore({ client, base, labels: [status], addedTriage: !had.includes(NEEDS_TRIAGE), log });
+      } else {
+        await removeLabel(client, base, NEEDS_TRIAGE).catch(() => false);
+      }
       throw error;
     }
-    log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
+    log(`intake-reenter: ${removed}added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
     return 0;
   } catch (error) {
     const detail = error?.name === "GitHubError" ? error.message : (error?.message ?? "error");
