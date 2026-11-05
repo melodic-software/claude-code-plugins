@@ -22,9 +22,10 @@ name: pr-verify
 # pr-verify-capture.yml, its own workflow on the same trigger, so this run's
 # uploads stay this file's alone; each judge job finds that run's
 # pr-capture-<pr>-<head-sha> artifact (find-capture.mjs: check-intent waits
-# at most 35 minutes for it, the later jobs find it done) and downloads it into
-# pr-verify-data/capture as untrusted data. A missing, unfinished or blocked
-# capture never fails a verdict. The diff, the trusted PR text, the linked
+# at most 35 minutes for it, the later jobs take what it found) and downloads it
+# into pr-verify-data/capture as untrusted data. A missing, unfinished or
+# blocked capture never fails a verdict, and with the app set the verdict
+# records it blocked with find-capture's reason. The diff, the trusted PR text, the linked
 # issues and the upstream run's jobs (upstream-jobs.mjs) are data files in
 # pr-verify-data under the working directory too, and the
 # model reads them with the Read tool alone: its rules allow that directory
@@ -422,7 +423,9 @@ jobs:
       # on the same event, so check-intent waits while the capture runs, at
       # most 35 minutes; the later jobs find it done. With
       # merge.verify-capture.app unset it reads nothing and waits for
-      # nothing. Any miss leaves no artifact id, and the judgment goes on.
+      # nothing. Any miss leaves no artifact id but a blocked reason the
+      # verdict records, and the judgment goes on; only a miss that cannot
+      # change is carried to the later jobs, which otherwise search again.
       # The job's timeout holds this step's and the download's on top of the
       # judge steps' (workflow.test.mjs).
       - name: Find the capture
@@ -2003,8 +2006,10 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           # The evidence block's capture (buildEvidence): the downloaded
-          # e2e-summary.json, no-app when there is none.
+          # e2e-summary.json; with none, blocked with find-capture's reason,
+          # which it writes whenever the app is set, else no-app.
           CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CAPTURE_BLOCKED: ${{ steps.capture.outputs.blocked-reason }}
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
@@ -2371,7 +2376,9 @@ jobs:
       # on the same event, so check-intent waits while the capture runs, at
       # most 35 minutes; the later jobs find it done. With
       # merge.verify-capture.app unset it reads nothing and waits for
-      # nothing. Any miss leaves no artifact id, and the judgment goes on.
+      # nothing. Any miss leaves no artifact id but a blocked reason the
+      # verdict records, and the judgment goes on; only a miss that cannot
+      # change is carried to the later jobs, which otherwise search again.
       # The job's timeout holds this step's and the download's on top of the
       # judge steps' (workflow.test.mjs).
       - name: Find the capture
@@ -2386,7 +2393,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
-          # The ids check-intent found, so this job reads none.
+          # The ids or the miss check-intent found, so this job reads none.
           FOUND_CAPTURE: ${{ needs.check-intent.outputs.capture }}
         run: |
           CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -3929,8 +3936,10 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           # The evidence block's capture (buildEvidence): the downloaded
-          # e2e-summary.json, no-app when there is none.
+          # e2e-summary.json; with none, blocked with find-capture's reason,
+          # which it writes whenever the app is set, else no-app.
           CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CAPTURE_BLOCKED: ${{ steps.capture.outputs.blocked-reason }}
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
@@ -4250,7 +4259,9 @@ jobs:
       # on the same event, so check-intent waits while the capture runs, at
       # most 35 minutes; the later jobs find it done. With
       # merge.verify-capture.app unset it reads nothing and waits for
-      # nothing. Any miss leaves no artifact id, and the judgment goes on.
+      # nothing. Any miss leaves no artifact id but a blocked reason the
+      # verdict records, and the judgment goes on; only a miss that cannot
+      # change is carried to the later jobs, which otherwise search again.
       # The job's timeout holds this step's and the download's on top of the
       # judge steps' (workflow.test.mjs).
       - name: Find the capture
@@ -4265,7 +4276,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
-          # The ids the subscription job found, so this job reads none.
+          # The ids or the miss the subscription job found, so this job reads none.
           FOUND_CAPTURE: ${{ needs.check-intent-subscription.outputs.capture }}
         run: |
           CAPTURE_APP=$(yq '.merge."verify-capture".app // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -5551,8 +5562,10 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           # The evidence block's capture (buildEvidence): the downloaded
-          # e2e-summary.json, no-app when there is none.
+          # e2e-summary.json; with none, blocked with find-capture's reason,
+          # which it writes whenever the app is set, else no-app.
           CAPTURE_FILE: ${{ github.workspace }}/pr-verify-data/capture/e2e-summary.json
+          CAPTURE_BLOCKED: ${{ steps.capture.outputs.blocked-reason }}
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).

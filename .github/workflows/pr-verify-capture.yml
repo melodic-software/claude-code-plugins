@@ -110,7 +110,8 @@ jobs:
 
       # From main's file alone, before any API read: with no app set nothing
       # runs, so a pull request run spends no call here. retention-days is the
-      # capture artifact's (merge.verify-capture), 30 unset, at most 90.
+      # capture artifact's (merge.verify-capture), 30 unset, at most 30, the
+      # pr-capture-* row's days in .github/artifact-retention.json.
       - name: Read the capture config
         id: config
         if: steps.kill.outputs.proceed == 'true'
@@ -127,8 +128,8 @@ jobs:
             echo "::error::merge.verify-capture.app is not an app name"
             exit 1
           fi
-          if ! [[ $days =~ ^[1-9][0-9]?$ ]] || [ "$days" -gt 90 ]; then
-            echo "::error::merge.verify-capture.retention-days is not 1 to 90"
+          if ! [[ $days =~ ^[1-9][0-9]?$ ]] || [ "$days" -gt 30 ]; then
+            echo "::error::merge.verify-capture.retention-days is not 1 to 30"
             exit 1
           fi
           echo "app=$app" >>"$GITHUB_OUTPUT"
@@ -198,7 +199,7 @@ jobs:
           output-path: ${{ runner.temp }}/pr-verify-capture-models.json
 
       # Only whether the secret is set leaves this step, never its value. An
-      # empty key captures nothing; the verdict then records no-app.
+      # empty key captures nothing; the verdict then records it blocked.
       - name: Check the credential
         id: credential
         if: steps.agree.outcome == 'success'
@@ -544,7 +545,10 @@ jobs:
           path: ${{ runner.temp }}/pr-capture
 
       # Never a verdict name: find-capture.mjs reads only this exact name, and
-      # the verdict readers only pr-verify-* from pr-verify.yml runs.
+      # the verdict readers only pr-verify-* from pr-verify.yml runs. A job
+      # that ends red can still upload a blocked summary here; find-capture
+      # reads the artifact of a successful run alone and records the red one
+      # blocked by its conclusion.
       - name: Upload the capture
         if: (always() && steps.collect.outcome == 'success') && steps.scan-capture.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
