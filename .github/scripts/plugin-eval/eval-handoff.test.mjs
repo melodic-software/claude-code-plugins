@@ -4,9 +4,9 @@
 // follows, and never from the fallback leg. The rule cases take their expected
 // values from that description (ci-workflows .github/actions/run-claude-cli/
 // action.yml at b8bdd7f, the `handoff` output). The stream cases run the real
-// lane.cjs and classify.cjs when EVAL_HANDOFF_CI_WORKFLOWS names a ci-workflows
-// checkout at that pin; their messages are the observed shapes ci-workflows'
-// classify.test.cjs records (CLI 2.1.302).
+// lane.cjs and classify.cjs, fetched at the pin the eval workflows check out;
+// their messages are the observed shapes ci-workflows' classify.test.cjs
+// records (CLI 2.1.302).
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -62,14 +62,45 @@ test("the first stream that hands off decides, else the first stop class is kept
   assert.deepEqual(judgeLegStreams([], key, launcher), { handoff: false, reason: "", laneClass: "" });
 });
 
-const ROOT = process.env.EVAL_HANDOFF_CI_WORKFLOWS ?? "";
-const real = ROOT === "" ? null : (() => {
+// The classifier the legs check out, fetched at the pin the workflows name, so
+// a pin bump that reshapes judgeLeg's return (failureClass, resets, the last
+// message's api_error_status) or isCreditStop fails here. The three paths are
+// the legs' sparse checkout.
+const CLASSIFIER_FILES = [".github/actions/run-claude-cli/lane.cjs", ".github/actions/report-lane-outcome/classify.cjs", ".github/scripts/resolve-npm-tool-version.cjs"];
+const workflowPins = ["eval-hill-climb-pass.yml", "eval-browser-dispatch.yml"].flatMap((name) => [
+  ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: ([0-9a-f]{40})/g),
+].map((m) => m[1]));
+const PIN = workflowPins[0];
+const ROOT = tempDir("eval-handoff-ci-workflows-");
+for (const path of CLASSIFIER_FILES) {
+  const url = `https://raw.githubusercontent.com/melodic-software/ci-workflows/${PIN}/${path}`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  assert.ok(response.ok, `${url} answered ${response.status}`);
+  mkdirSync(join(ROOT, path, ".."), { recursive: true });
+  writeFileSync(join(ROOT, path), await response.text());
+}
+const real = (() => {
   const require = createRequire(join(ROOT, ".github/actions/run-claude-cli/lane.cjs"));
   const { judgeLeg, linesToMessages } = require("./lane.cjs");
   const { isCreditStop } = require("../report-lane-outcome/classify.cjs");
   return { judgeLeg, linesToMessages, isCreditStop };
 })();
-const skip = real === null ? "set EVAL_HANDOFF_CI_WORKFLOWS to a ci-workflows checkout at the run-claude-cli pin" : false;
+
+test("every eval leg checks out the classifier at one pin", () => {
+  assert.equal(workflowPins.length, 6, "three legs in each eval workflow");
+  assert.deepEqual([...new Set(workflowPins)], [PIN]);
+});
+
+test("the pinned judgeLeg returns the fields eval-handoff reads", () => {
+  const dir = tempDir("eval-handoff-shape-");
+  const executionFile = join(dir, "execution.json");
+  writeFileSync(executionFile, JSON.stringify(real.linesToMessages(jsonl(LIMITED))));
+  const judged = real.judgeLeg({ leg: { leg: "subscription" }, executionFile, exitCode: 1, timedOut: false, maxTurns: "" });
+  assert.equal(judged.failureClass, "rate-limit");
+  assert.equal(judged.resets, "2100-01-01T00:00:00Z");
+  assert.equal(judged.messages.at(-1).api_error_status, 429);
+  assert.equal(real.isCreditStop(SPEND_LIMIT, { exitCode: 1 }), true);
+});
 const jsonl = (messages) => messages.map((m) => JSON.stringify(m)).join("\n");
 
 const SPEND_LIMIT_TEXT = "API Error: 400 You have reached your specified workspace API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.";
@@ -90,7 +121,7 @@ const LIMITED = [
 ];
 const CLEAN = [{ type: "system", subtype: "init" }, { type: "result", subtype: "success", is_error: false, num_turns: 3 }];
 
-test("the real classifier: a key leg's observed spend-limit stop and 401 hand off, a 403 does not", { skip }, () => {
+test("the real classifier: a key leg's observed spend-limit stop and 401 hand off, a 403 does not", () => {
   const key = { leg: "api-key", fallbackReady: false };
   assert.deepEqual(judgeLegStreams([{ text: jsonl(SPEND_LIMIT), exitCode: 1 }], key, real), { handoff: true, reason: "credit-stop", laneClass: "credit-stop" });
   assert.deepEqual(judgeLegStreams([{ text: jsonl(rejected(401)), exitCode: 1 }], key, real), { handoff: true, reason: "auth", laneClass: "auth" });
@@ -98,7 +129,7 @@ test("the real classifier: a key leg's observed spend-limit stop and 401 hand of
   assert.deepEqual(judgeLegStreams([{ text: jsonl(CLEAN), exitCode: 0 }], key, real), { handoff: false, reason: "", laneClass: "" });
 });
 
-test("the real classifier: a subscription leg's limit stop and credit stop hand off to the fallback leg", { skip }, () => {
+test("the real classifier: a subscription leg's limit stop and credit stop hand off to the fallback leg", () => {
   const sub = { leg: "subscription", fallbackReady: true };
   assert.deepEqual(judgeLegStreams([{ text: jsonl(LIMITED), exitCode: 1 }], sub, real), { handoff: true, reason: "limit-stop", laneClass: "rate-limit" });
   assert.equal(judgeLegStreams([{ text: jsonl(SPEND_LIMIT), exitCode: 1 }], sub, real).reason, "credit-stop");
@@ -106,7 +137,7 @@ test("the real classifier: a subscription leg's limit stop and credit stop hand 
   assert.equal(judgeLegStreams([{ text: jsonl(LIMITED), exitCode: 1 }], { leg: "fallback", fallbackReady: true }, real).handoff, false);
 });
 
-test("the CLI reads the probe and the errored runs, and writes the leg's duration for the lane record", { skip }, async () => {
+test("the CLI reads the probe and the errored runs, and writes the leg's duration for the lane record", async () => {
   const { spawnSync } = await import("node:child_process");
   const dir = tempDir("eval-handoff-cli-");
   mkdirSync(join(dir, "t"));
