@@ -55,7 +55,7 @@ const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude
 const SUB_REASON =
   "${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}";
 const FB_REASON =
-  "${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || '' }}";
+  "${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}";
 
 test("only a schedule or a manual run starts the lane, with no default permissions", () => {
   const on = /\non:\n((?: {2}.*\n| {4}.*\n)+)/.exec(text)[1];
@@ -176,10 +176,10 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
   );
   assert.match(jobs[FB], /\n {6}matrix: \$\{\{ fromJson\(needs\.judge-subscription-handoffs\.outputs\.matrix\) \}\}\n/);
   // The key leg hands off on the launcher's handoff after a denial-free leg,
-  // or on an empty key; the subscription leg only on the launcher's handoff,
-  // and only with the fallback token set; the fallback leg never.
+  // or on an empty key; the subscription leg on the launcher's handoff, or
+  // on an empty token, and only with the fallback token set; the fallback leg never.
   assert.equal(value(step("Record the handoff", KEY), "if", 8), "steps.key-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false'");
-  assert.equal(value(step("Record the handoff", SUB), "if", 8), "steps.sub-leg.outputs.clean == 'true'");
+  assert.equal(value(step("Record the handoff", SUB), "if", 8), "steps.sub-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true'");
   assert.ok(!steps(FB).some((s) => /handoff/i.test(s.name)), "the fallback leg records no handoff");
   for (const [job, leg] of [
     [KEY, "key-leg"],
@@ -225,7 +225,7 @@ test("each unit leaves one lane record per leg, the leg that handed off marked h
   assert.equal(value(report(SUB), "fallback-reason"), SUB_REASON);
   assert.equal(value(report(FB), "fallback-reason"), FB_REASON);
   // matrix.reason reaches nothing else.
-  for (const job of LEGS) assert.equal(jobs[job].match(/matrix\.reason/g)?.length ?? 0, job === KEY ? 0 : 3, job);
+  for (const job of LEGS) assert.equal(jobs[job].match(/matrix\.reason/g)?.length ?? 0, job === KEY ? 0 : job === FB ? 4 : 3, job);
   // A handoff spares a leg its red; any other run with no findings fails last.
   for (const job of LEGS) {
     const names = steps(job).map((s) => s.name);

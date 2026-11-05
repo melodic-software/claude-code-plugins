@@ -565,7 +565,11 @@ jobs:
           if [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
           else
-            echo "::warning::$SECRET_NAME is empty; this leg does not judge."
+            if [ "$FALLBACK_PRESENT" = true ]; then
+              echo "::warning::$SECRET_NAME is empty; judge-fallback judges this unit on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN."
+            else
+              echo "::warning::$SECRET_NAME is empty; this leg does not judge."
+            fi
             echo "present=false" >>"$GITHUB_OUTPUT"
           fi
           if [ "$FALLBACK_PRESENT" = true ]; then
@@ -704,11 +708,11 @@ jobs:
       # each checked against a closed set.
       - name: Record the handoff
         id: handoff
-        if: steps.sub-leg.outputs.clean == 'true'
+        if: steps.sub-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true'
         env:
           LEG: subscription
           UNIT: ${{ matrix.unit }}
-          REASON: ${{ steps.judge.outputs.handoff-reason }}
+          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.judge.outputs.handoff-reason }}
           HANDOFF_DIR: ${{ runner.temp }}/lane-sweep-handoff
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs record
 
@@ -1048,7 +1052,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       # The structured output is untrusted model text: read from the
       # launcher's file and checked by the script, never interpolated into a

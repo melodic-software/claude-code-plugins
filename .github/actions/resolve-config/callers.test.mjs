@@ -2437,6 +2437,8 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the patch and the 
   const run = jobs.run;
   const base = {
     "inputs.issue-number": "",
+    // Before inputs.fallback, so the evaluator replaces the longer name first.
+    "inputs.fallback-ready": "",
     "inputs.fallback": "",
     "job.status": "success",
     "steps.go.outputs.run": "true",
@@ -2474,6 +2476,8 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the patch and the 
     "a credit stop": { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "failure", "steps.act-key.outputs.handoff": "true", "steps.mode-key.outcome": "skipped" },
     // With fallback-ready: a limit stop, a credit stop or a 401 or 402.
     "a subscription leg's handoff": { ...second, "steps.act-token.outcome": "failure", "steps.act-token.outputs.handoff": "true" },
+    // An empty subscription token hands to the third call when the caller runs one.
+    "an empty subscription token": { ...second, "inputs.fallback-ready": "true", "steps.token-present.outputs.present": "false", "steps.act-token.outcome": "skipped" },
   };
   // The third call: the fallback leg on the central fallback token.
   const third = {
@@ -2558,8 +2562,12 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the patch and the 
   assert.equal(handedOff(handoffs["a credit stop"]), true);
   assert.equal(handedOff(handoffs["a subscription leg's handoff"]), true);
   assert.equal(handedOff(ran), false);
-  assert.equal(handedOff({ "steps.key-present.outputs.present": "", "steps.act-key.outputs.handoff": "", "steps.act-token.outputs.handoff": "false" }), false, "a second call that ran is no handoff");
+  assert.equal(handedOff({ "inputs.fallback-ready": "true", "steps.key-present.outputs.present": "", "steps.act-key.outputs.handoff": "", "steps.act-token.outputs.handoff": "false", "steps.token-present.outputs.present": "true" }), false, "a second call that ran is no handoff");
   assert.equal(handedOff(third), false, "the third call never hands off");
+  assert.equal(handedOff(handoffs["an empty subscription token"]), true);
+  const noThird = { ...second, "inputs.fallback-ready": "false", "steps.token-present.outputs.present": "false", "steps.act-token.outcome": "skipped" };
+  assert.equal(handedOff(noThird), false, "with no fallback token an empty subscription token hands nothing on");
+  assert.equal(atStep(run.steps.find((s) => s.name === "Fail without a result").if, noThird), true, "and the call fails, as before");
   assert.equal(handedOff({ ...ran, "steps.act-key.outcome": "failure", "steps.act-key.outputs.handoff": "false" }), false, "a rate limit or a 403 is no handoff");
 
   const report = (handedOffOutput) =>

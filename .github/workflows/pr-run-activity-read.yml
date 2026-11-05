@@ -662,7 +662,10 @@ jobs:
       # files, so the leg cannot set them; the presence steps run before it.
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present || steps.fallback-present.outputs.present }}
-      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' }}
+      # An empty credential hands on as a handoff does: an empty key to the
+      # second call, an empty subscription token to the third when the caller
+      # runs one (fallback-ready).
+      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' || steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true' }}
       # The lane record's class and reset, for the report job's check run,
       # which limit-stop.mjs reads, as pr-run-activity-write.yml's lane-class.
       # A forged limit stop can only restart the lane after a reset
@@ -1609,11 +1612,16 @@ jobs:
           && inputs.fallback != '' && inputs.fallback != 'fallback'
         env:
           PRESENT: ${{ secrets.claude-code-oauth-token != '' }}
+          FALLBACK_READY: ${{ inputs.fallback-ready }}
         run: |
           if [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
           else
-            echo "::warning::the role's OAuth token is empty; the activity does not run"
+            if [ "$FALLBACK_READY" = true ]; then
+              echo "::warning::the role's OAuth token is empty; the caller's fallback call runs the activity on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+            else
+              echo "::warning::the role's OAuth token is empty; the activity does not run"
+            fi
             echo "present=false" >>"$GITHUB_OUTPUT"
           fi
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
@@ -2065,6 +2073,7 @@ jobs:
           && steps.config.outputs.kind == 'skill'
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && steps.act-token.outputs.handoff != 'true'
+          && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true')
         env:
           SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
@@ -2260,6 +2269,7 @@ jobs:
           || steps.fallback-present.outcome == 'success')
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && steps.act-token.outputs.handoff != 'true'
+          && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true')
           && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
           && steps.act-fallback.outcome != 'success'
         run: |

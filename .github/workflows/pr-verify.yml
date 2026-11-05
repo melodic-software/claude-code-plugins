@@ -2173,6 +2173,10 @@ jobs:
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
       # For check-intent-fallback: the capture this job found (find-capture.mjs).
       capture: ${{ steps.capture.outputs.carry }}
+      # For check-intent-fallback: an empty token hands the judgment on when
+      # the fallback token is set.
+      credential-present: ${{ steps.credential.outputs.present }}
+      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -4030,10 +4034,11 @@ jobs:
         with:
           tokens: github-token
 
-      # A clean handoff hands the judgment on; any other run that passed the
-      # gates and left no verdict, an empty token included, fails here.
+      # A clean handoff, or an empty token with the fallback token set, hands
+      # the judgment on; any other run that passed the gates and left no
+      # verdict fails here.
       - name: Fail without a verdict
-        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success' && steps.sub-leg.outcome != 'success' && steps.sub-leg-2.outcome != 'success' && steps.sub-leg-3.outcome != 'success' && steps.sub-leg-4.outcome != 'success' && steps.sub-leg-5.outcome != 'success' && steps.sub-leg-6.outcome != 'success' && steps.sub-leg-7.outcome != 'success' && steps.sub-leg-8.outcome != 'success' && steps.sub-leg-9.outcome != 'success' && steps.sub-leg-10.outcome != 'success' && steps.sub-leg-11.outcome != 'success' && steps.sub-leg-12.outcome != 'success' && steps.sub-leg-spec.outcome != 'success'
+        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success' && !(steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true') && steps.sub-leg.outcome != 'success' && steps.sub-leg-2.outcome != 'success' && steps.sub-leg-3.outcome != 'success' && steps.sub-leg-4.outcome != 'success' && steps.sub-leg-5.outcome != 'success' && steps.sub-leg-6.outcome != 'success' && steps.sub-leg-7.outcome != 'success' && steps.sub-leg-8.outcome != 'success' && steps.sub-leg-9.outcome != 'success' && steps.sub-leg-10.outcome != 'success' && steps.sub-leg-11.outcome != 'success' && steps.sub-leg-12.outcome != 'success' && steps.sub-leg-spec.outcome != 'success'
         run: |
           echo "::error::the judgment left no verdict for this head"
           exit 1
@@ -4058,8 +4063,10 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && needs.check-intent-subscription.outputs.handoff == 'true'
+      && (needs.check-intent-subscription.outputs.handoff == 'true'
       && needs.check-intent-subscription.outputs.leg-clean == 'true'
+      || needs.check-intent-subscription.outputs.credential-present == 'false'
+      && needs.check-intent-subscription.outputs.fallback-ready == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 346
     cache-mode: read
@@ -4454,7 +4461,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           # Why this job ran, for its lane record.
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
@@ -4550,7 +4557,7 @@ jobs:
           credential: ${{ steps.judge-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
@@ -4633,7 +4640,7 @@ jobs:
           credential: ${{ steps.judge-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.judge-3.outputs.execution-file != ''
@@ -4716,7 +4723,7 @@ jobs:
           credential: ${{ steps.judge-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.judge-4.outputs.execution-file != ''
@@ -4800,7 +4807,7 @@ jobs:
           credential: ${{ steps.judge-5.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-5.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 5's sealed transcript
         if: always() && steps.judge-5.outputs.execution-file != ''
@@ -4883,7 +4890,7 @@ jobs:
           credential: ${{ steps.judge-6.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-6.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 6's sealed transcript
         if: always() && steps.judge-6.outputs.execution-file != ''
@@ -4966,7 +4973,7 @@ jobs:
           credential: ${{ steps.judge-7.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-7.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 7's sealed transcript
         if: always() && steps.judge-7.outputs.execution-file != ''
@@ -5049,7 +5056,7 @@ jobs:
           credential: ${{ steps.judge-8.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-8.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 8's sealed transcript
         if: always() && steps.judge-8.outputs.execution-file != ''
@@ -5132,7 +5139,7 @@ jobs:
           credential: ${{ steps.judge-9.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-9.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 9's sealed transcript
         if: always() && steps.judge-9.outputs.execution-file != ''
@@ -5215,7 +5222,7 @@ jobs:
           credential: ${{ steps.judge-10.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-10.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 10's sealed transcript
         if: always() && steps.judge-10.outputs.execution-file != ''
@@ -5298,7 +5305,7 @@ jobs:
           credential: ${{ steps.judge-11.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-11.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 11's sealed transcript
         if: always() && steps.judge-11.outputs.execution-file != ''
@@ -5381,7 +5388,7 @@ jobs:
           credential: ${{ steps.judge-12.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-12.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 12's sealed transcript
         if: always() && steps.judge-12.outputs.execution-file != ''
@@ -5528,7 +5535,7 @@ jobs:
           credential: ${{ steps.judge-spec.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-spec.outputs.lane-class }}
-          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload the spec judgment's sealed transcript
         if: always() && steps.judge-spec.outputs.execution-file != ''

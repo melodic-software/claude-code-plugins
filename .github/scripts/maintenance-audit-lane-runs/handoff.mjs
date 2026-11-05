@@ -21,7 +21,7 @@ export const UNIT = /^[acd][1-8]$/;
 // the key leg an empty key as well.
 export const REASONS = {
   key: ["credit-stop", "auth", "no-key"],
-  subscription: ["limit-stop", "credit-stop", "auth"],
+  subscription: ["limit-stop", "credit-stop", "auth", "no-key"],
 };
 // The artifact and file name each leg's marker uploads under, before the
 // unit; the route job downloads by it.
