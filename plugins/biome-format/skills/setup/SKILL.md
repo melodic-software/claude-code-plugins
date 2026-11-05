@@ -55,7 +55,7 @@ anything, so a deliberately disabled plugin is not broken. Report those probes
 informationally and note that re-enabling restores the FAIL semantics. Node.js stays FAIL
 when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate.
 
-1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **Biome binary.** Resolve it exactly the way the hook's resolution code does: its

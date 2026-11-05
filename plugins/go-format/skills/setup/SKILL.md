@@ -61,7 +61,7 @@ disabled plugin is not broken. Report those probes informationally and note that
 restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
 `node` before the launcher can read the toggle, so both hook rows fail to start.
 
-1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
