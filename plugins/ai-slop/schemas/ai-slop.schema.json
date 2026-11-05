@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/ai-slop/schemas/ai-slop.schema.json",
   "title": "ai-slop team config",
-  "description": "Schema for a repository's docs/conventions/ai-slop.yaml, the team layer of the ai-slop plugin (ADR 0064, ADR 0075). The same keys are valid in docs/conventions/ai-slop.local.yaml (the personal layer) and in the legacy .claude/ai-slop.json files, which the audit reads only when the YAML beside them is absent. Every key is optional; an absent key keeps the shipped default. Reader: skills/audit/scripts/detect.sh through skills/audit/scripts/lib/cascade-read.sh.",
+  "description": "Schema for a repository's docs/conventions/ai-slop.yaml, the team layer of the ai-slop plugin (ADR 0064, ADR 0075). The same keys are valid in docs/conventions/ai-slop.local.yaml (the personal layer) and in the user-global layer, $HOME/.claude/ai-slop.json. Every key is optional; an absent key keeps the shipped default. Reader: skills/audit/scripts/detect.sh through skills/audit/scripts/lib/cascade-read.sh.",
   "type": "object",
   "additionalProperties": false,
   "$defs": {
