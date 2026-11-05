@@ -1,0 +1,25 @@
+{
+  "status-table": [
+    {
+      "use": "table_header_rule"
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b[Nn]ode(?:\\.js)?(?![\\w.\\-/])"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\bjq\\b(?![\\w.\\-/])"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b(?:[Gg]uard|[Hh]ook log)"
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "- orchestrator: single inherit: omit the model option @ high; fanout inherit: omit the model option @ high (bundled)\n- worker: single inherit: omit the model option @ medium; fanout inherit: omit the model option @ medium (bundled)\n- verifier: single inherit: omit the model option @ high; fanout inherit: omit the model option @ high (bundled)\n- retrieval: single sonnet @ medium; fanout sonnet @ medium (bundled)"
+    },
+    {
+      "answer": "| Role | Map | Source |\n|---|---|---|\n| orchestrator | single opus @ high; fanout opus @ high | user |\n| worker | single sonnet @ medium; fanout sonnet @ medium | bundled |\n| verifier | single opus @ high; fanout opus @ high | bundled |\n| retrieval | single sonnet @ low; fanout sonnet @ low | local |",
+      "why": "table form, other values"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- orchestrator: single inherit @ high; fanout inherit @ high\n- worker: single inherit @ medium; fanout inherit @ medium\n- verifier: single inherit @ high; fanout inherit @ high",
+      "why": "no retrieval line"
+    },
+    {
+      "answer": "orchestrator, worker, verifier and retrieval all use the bundled defaults.",
+      "why": "no per-role lines"
+    },
+    {
+      "answer": "- orchestrator: inherit, high\n- worker: inherit, medium\n- verifier: inherit, high\n- retrieval: sonnet, medium",
+      "why": "no single/fanout split"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| `registry_dir` | INFO | default `${CLAUDE_PLUGIN_DATA}` |\n| Hook log root guard | INFO | absent; logging is off |\n| Retired conventions | PASS | 0 active leftovers |\n| `node` | PASS | /usr/bin/node |\n| `jq` | PASS | /usr/bin/jq |"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | Guard `.observability/claude/.gitignore` | FAIL |\n| 2 | Node.js | PASS |\n| 3 | jq | FAIL |",
+      "why": "numbered rows, logging on"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node: PASS. jq: PASS. guard: INFO.",
+      "why": "no table"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| Hook log guard | INFO |",
+      "why": "no jq row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| jq | PASS |\n| registry_dir | INFO |",
+      "why": "no guard row"
+    },
+    {
+      "answer": "| Check | Detail |\n|---|---|\n| node | present |\n| jq | present |\n| guard | absent |",
+      "why": "no verdict"
+    }
+  ]
+}

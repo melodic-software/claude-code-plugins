@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: 'setup-check-reports-team-layer-and-ignore-gap'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'subject-pattern-won-by-team'
+    type: 'regex'
+    pattern: '\bsubject_pattern\b[^\n]*?\^\[A-Z\]\+-[^\n]*?(?:\b[Tt]eam\b|docs/conventions/source-control\.yaml)'
+    target: 'last_message'
+  - name: 'ignore-rule-fail'
+    type: 'regex'
+    pattern: '(?:[Pp]ersonal[ -][Oo]verride|\*\*/\*\.local\.\*)[^\n]*?\bFAIL\b|\bFAIL\b[^\n]*?(?:[Pp]ersonal[ -][Oo]verride|\*\*/\*\.local\.\*)'
+    target: 'last_message'
+  - name: 'ran-bundled-probe'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:convention-key|parse-branch-issue)\.sh\b'
+    arm: 'with-only'
+  - name: 'no-shell-gitignore-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?[ \t]*(?:\\")?[^\s;|&"\\]*\.gitignore\b|(?:\btee\b|\bsed\s+-i)(?:[^"\\]|\\.)*?\.gitignore\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

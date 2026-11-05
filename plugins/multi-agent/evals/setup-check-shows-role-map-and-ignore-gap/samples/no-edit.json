@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".gitignore"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".gitignore",
+            "old_string": "node_modules/\n",
+            "new_string": "node_modules/\n.playwright-cli/\n"
+          }
+        }
+      ],
+      "why": "edits .gitignore"
+    }
+  ]
+}

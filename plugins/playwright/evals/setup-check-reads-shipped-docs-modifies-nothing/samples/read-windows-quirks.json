@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/skills/playwright/reference/windows-quirks.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/skills/playwright/SKILL.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/skills/playwright/reference/windows-quirks.md"
+          }
+        }
+      ],
+      "why": "skill then reference"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/skills/playwright/SKILL.md"
+          }
+        }
+      ],
+      "why": "skill body alone"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/plugin/skills/playwright/reference/windows-quirks.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "Bash, not Read"
+    }
+  ]
+}
