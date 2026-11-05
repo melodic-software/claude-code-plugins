@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: update-check-runs-pack-scripts
 description: "/playbooks:update --check dispatches to the boris then the skill-authoring scripts/update.sh in check mode, runs no --apply, and reports fable-5 as self-authored with no upstream (SKILL.md How to run, steps 2-3). Needs --allow-tools Bash: the run executes both pack scripts, and runs-pack-checks-in-order is the path check that it did, boris first, while the three regex graders check the reply. No skill-fired grader: the skill sets disable-model-invocation, so only a slash command loads it, and a slash command makes no Skill call (plugins/evals/skills/plugin-eval/reference/case-authoring.md, Graders). Limits: a correct run that leaves --check off and relies on the default fails runs-both-checks and runs-pack-checks-in-order, and so does one that runs both scripts in a single Bash call, since tool_order needs the boris call before a separate skill-authoring call."
-tags: [update, drift-check]
+tags: [update, drift-check, no-network]
 expected_outcome: "The run executes the boris then the skill-authoring scripts/update.sh with --check and runs no --apply. The reply gives both commands in that order, gives no --apply command, and says fable-5 is self-authored with no upstream, so nothing runs for it."
 execution:
   prompt: "/playbooks:update --check. The plugin is a working-tree copy loaded with --plugin-dir. Run the check, then end your reply with the exact commands you ran, in one bash code block, and what each pack's result means."
