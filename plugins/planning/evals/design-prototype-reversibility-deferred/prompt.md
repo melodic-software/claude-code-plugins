@@ -1,6 +1,6 @@
 ---
 description: "Prototype-bar design for a throwaway recipe-import spike: the first round skips the one-way and two-way door calls and says reversibility is deferred, and writes no code"
-tags: [design, reversibility, quality-bar, prototype, scaffold]
+tags: [design, reversibility, quality-bar, prototype, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
