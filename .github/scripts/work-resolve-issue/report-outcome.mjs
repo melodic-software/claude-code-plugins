@@ -190,7 +190,7 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
-import { OUTSIDE_ACTOR_LABEL, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
@@ -280,11 +280,10 @@ function prTitle(runTitle, issueTitle, issueNumber) {
   }
   return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
 }
-// Work a human merges: an issue labeled untrusted-provenance, a trust hold
-// and the one label read here, and any diff that touches a path the merge
+// Work a human merges: an issue carrying one of UNTRUSTED_LABELS, a trust
+// hold and the one label read here, and any diff that touches a path the merge
 // lane refuses (merge.diff-check.denied-paths in the base pr-pipeline.yaml),
 // so the two lists cannot drift apart. No other work class holds.
-const UNTRUSTED_PROVENANCE = "work-class: untrusted-provenance";
 // An owner decision that a person merges the issue's PR. It holds only when the
 // lane's labeler check passes: the newest `labeled` event is a listed human's
 // (by id) or the lanes App's, so no one else can add the hold or stand in for it.
@@ -917,7 +916,7 @@ const STALE_CAUSE =
 // The labels the issue lane never starts or restarts on, which work-unblock
 // reads too: a person decides each but `attended`, which waits on a step the
 // owner takes present; only a person removes OUTSIDE_ACTOR_LABEL.
-export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", UNTRUSTED_PROVENANCE, ATTENDED_LABEL, OUTSIDE_ACTOR_LABEL]);
+export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, OUTSIDE_ACTOR_LABEL]);
 const BLOB = /^[0-9a-f]{40}$/;
 
 // A run that stopped on stale workflow files ran no model and is no fault in
@@ -1249,8 +1248,8 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 
 // Whether the lane's PR holds for a person. decide() and reusePlan() both ask
 // here, so a reused branch holds on exactly the main path's conditions plus
-// its own leak scan: a trusted `merge: human`, an issue labeled
-// untrusted-provenance, an unreadable denied-path list or changed-file list,
+// its own leak scan: a trusted `merge: human`, an issue carrying one of
+// UNTRUSTED_LABELS, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
 // changed path the merge lane refuses, and on a reused branch a leak scan that
 // is missing or not clean. Runner checks hold nothing, failed or unreported:
@@ -1262,7 +1261,7 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused = false }) {
   return (
     humanMerge ||
-    issueLabels.includes(UNTRUSTED_PROVENANCE) ||
+    issueLabels.some((label) => UNTRUSTED_LABELS.includes(label)) ||
     holdPaths === null ||
     changedFiles === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||

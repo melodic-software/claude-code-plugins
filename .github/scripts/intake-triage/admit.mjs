@@ -29,8 +29,8 @@
 //   parent's newest refinement asks questions no later `**Decision
 //   recorded.**` answers;
 // - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
-//   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
-//   work; no other work class gates admission (owner Q85, #9668);
+//   `uncertainty`, and the issue is not untrusted-provenance work
+//   (UNTRUSTED_LABELS); no other work class gates admission (owner Q85, #9668);
 // - 7: a `task-list` line outside a code fence, the criteria the lane
 //   checks, in text pr-verify will read (resolve-pr.mjs linkedIssues): the
 //   body or a comment written,
@@ -74,12 +74,12 @@
 //   Claude Code CLI run, a run repeated N times, a
 //   measurement over time, a comment on the issue instead of a file change,
 //   a page on a host outside resolve-issue's web-access domains, or a row of
-//   .github/actions/resolve-config/unrunnable-rules.json. When some
+//   .github/actions/resolve-config/unrunnable-rules.json. It parks at
+//   status: confirmed, never with a person but for a paid eval: when some
 //   items are left for the lane and the issue lacks `host-run`, the refusal
-//   holds at needs-decision and recommends splitting those items off, which
-//   refine.mjs records; otherwise it parks at status: confirmed, adding
-//   `host-run`, the host queue's label, when no item is left for the lane and
-//   nothing else refuses, waits or holds;
+//   recommends splitting those items off, which refine.mjs records; when no
+//   item is left for the lane and nothing else refuses, waits or holds, it
+//   adds `host-run`, the host queue's label;
 // - not already done: no pull request merged in this repository names the
 //   issue on a `Refs:` line (refsNames) after its newest decision or
 //   refinement comment, or since it opened when it has neither
@@ -103,7 +103,9 @@
 //
 // A refusal a person must settle swaps `status: ready` for
 // `status: needs-decision`; a blocker, an open pull request or an open
-// sub-issue (a size split's, owner Q93) keeps `status: ready`. Either way one App comment carrying ADMIT_MARKER says why.
+// sub-issue (a size split's, owner Q93) keeps `status: ready`. Either way one App comment carrying ADMIT_MARKER says why;
+// a hold's also names its owner reason, security, cost or intent, as the
+// stop-reason marker and line (heldRefusalText).
 // An open pull request also adds `admission-deferred`: work-unblock's sweep
 // skips the issue while such a pull request is open and admits it once none
 // is. An issue that waits only on a blocker loses `admission-deferred`, and
@@ -121,11 +123,30 @@ import { fileURLToPath } from "node:url";
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
-import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
+import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 
 export { ADMIT_MARKER, refusalText };
+
+// The lane name intake's stop-reason markers carry (../lib/stop-reason.mjs).
+export const INTAKE_LANE = "intake-triage";
+// The owner reasons a hold may name, strongest first: a hold with several
+// names the first that applies, so it never reads below security (owner Q4).
+export const HOLD_ORDER = Object.freeze(["security", "cost", "intent", "design"]);
+if (HOLD_ORDER.toSorted().join() !== PERSON_REASONS.toSorted().join()) {
+  throw new Error("HOLD_ORDER must order exactly the stop-reason person reasons");
+}
+// The strongest of `codes` (a Set) by HOLD_ORDER, or null for none.
+export const strongestReason = (codes) => HOLD_ORDER.find((code) => codes.has(code)) ?? null;
+// The admission comment's text for a refusal that holds for a person: the
+// refusal, then the visible reason line and the stop-reason marker, after it
+// so every reader of the refusal's opening line reads it unchanged.
+export function heldRefusalText(reasons, code) {
+  const [marker, line] = personReasonLines(INTAKE_LANE, code);
+  return `${refusalText(reasons)}\n\n${line}\n${marker}`;
+}
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
@@ -191,8 +212,9 @@ export const EXTERNAL_STATE = "External state: ";
 // Refuse-labels that hold for a person; any other listed label is mechanical.
 const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
-// The one work class that holds an issue for a person (owner Q85, #9668).
-export const UNTRUSTED = "work-class: untrusted-provenance";
+// The one work class that holds an issue for a person (owner Q85, #9668);
+// any of UNTRUSTED_LABELS on an issue holds it the same way.
+export const UNTRUSTED = UNTRUSTED_LABEL;
 // Marks a standing item linked to a .github/recurring-schedule.json row.
 const RECURRING = "recurring";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
@@ -1174,14 +1196,18 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// Whether UNTRUSTED holds the issue: the label is on it, or its newest add or
-// removal of the label is a removal by neither a listed human (`humans`, ids)
-// nor the lanes App (`isApp(actor)`). Admission and the issue lane's gate
-// both judge provenance here. Pure.
+// Whether untrusted provenance holds the issue: one of UNTRUSTED_LABELS is on
+// it, or, for one of them, its newest add or removal is a removal by neither
+// a listed human (`humans`, ids) nor the lanes App (`isApp(actor)`). Each name
+// is judged on its own events, so a person's later change to one never lifts
+// a stranger's removal of the other. Admission and the issue lane's gate both
+// judge provenance here. Pure.
 export function untrustedHold({ labels, events, humans, isApp }) {
-  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
-  const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
-  return names(labels).includes(UNTRUSTED) || removedByOther;
+  const removedByOther = UNTRUSTED_LABELS.some((label) => {
+    const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === label).at(-1);
+    return newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
+  });
+  return names(labels).some((name) => UNTRUSTED_LABELS.includes(name)) || removedByOther;
 }
 
 // Whether the issue's author (`issue.user`) is one intake admits: a listed
@@ -1393,6 +1419,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // run's own patch-protected-path stop to host-run the same way).
   const hostWork = new Set();
   let hold = false;
+  // The owner reason each hold is for; the strongest names the stop.
+  const holdCodes = new Set();
+  const holdFor = (code) => {
+    hold = true;
+    holdCodes.add(code);
+  };
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
   const splitChild = splitChildBody(spec, humans, rules["task-list"]) !== null;
@@ -1401,10 +1433,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (!authorAdmitted(issue, humans, appId)) {
     refuse.push("the author is neither a listed human nor the lanes App");
-    hold = true;
+    holdFor("security");
   } else if (isAppId(issue.user?.id, appId) && !splitChild) {
     refuse.push("the lanes App filed it and it is not a trusted size-split sub-issue (splitChildBody), so a listed human files it as their own");
-    hold = true;
+    holdFor("security");
   }
   const type = issue.type?.name ?? "none";
   const underParent = rules["types-under-parent"].includes(type);
@@ -1421,13 +1453,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
-    hold = true;
+    holdFor("security");
   }
   // The outside-actor check (flag.mjs) can land after apply-verdict's last
   // read; this fresh read holds the issue for the person who lifts it.
   if (labels.includes(OUTSIDE_ACTOR_LABEL)) {
     refuse.push(`it carries ${OUTSIDE_ACTOR_LABEL}, which a person lifts`);
-    hold = true;
+    holdFor("security");
   }
   // Reasons the owner already settled without a person: they park the issue
   // at status: ready (a wait with no pull request), never needs-decision.
@@ -1487,14 +1519,16 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // status: confirmed. A paid eval names a billing account and can bill the
   // owner, an owner stop reason (docs/contracts/loop-lane/README.md), so it
   // holds for a person; a model eval run spends only usage and credits that
-  // stop at a limit, so it is host work.
+  // stop at a limit, so it is host work. Some items left for the lane is a
+  // split no person answers (stop reason `none`): it parks at status:
+  // confirmed, where refine.mjs splits those items off.
   const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
   const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
   const queue = unrunnable !== null && !queued && !paid;
   const hostRun = queue && criteria.found.length === criteria.items;
   if (unrunnable) {
     refuse.push(unrunnable);
-    hold ||= paid || (queue && !hostRun);
+    if (paid) holdFor("cost");
     if (hostRun) hostWork.add(unrunnable);
   }
   // apply-patch refuses the issue lane's push of these paths
@@ -1524,15 +1558,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const charged = workCharges({ title: issue.title, body: issue.body }, charges, isPublic, rules["task-list"]);
   if (charged.length > 0) {
     refuse.push(`its title or stated work names a charge (${charged.join(", ")}), which needs an owner decision`);
-    hold = true;
+    holdFor("cost");
   }
   for (const edit of [...titleWraps(issue.title, events, charges, isPublic), ...chargeEdits]) {
     refuse.push(chargeEditReason(edit));
-    hold ||= edit.failed === undefined;
+    if (edit.failed === undefined) holdFor("cost");
   }
   if (BODY_HOLD.test(String(issue.body ?? ""))) {
     refuse.push("a line of its body opens with `Hold:`, a person's hold; removing that line lifts it");
-    hold = true;
+    holdFor("intent");
   }
   if (verdict.writtenAt !== undefined) {
     const judged = Date.parse(verdict.writtenAt);
@@ -1555,7 +1589,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
-      hold ||= PERSON_LABELS.has(label);
+      // A person's hold label names no reason of its own; intent fails closed.
+      if (PERSON_LABELS.has(label)) holdFor("intent");
     }
   }
   // The sweep re-admits a deferred issue on no fresh verdict, so what changed
@@ -1565,7 +1600,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       if (!refuse.includes(lapsed.reason)) {
         refuse.push(lapsed.reason);
       }
-      hold ||= lapsed.hold;
+      if (lapsed.hold) holdFor(lapsed.reason.startsWith(UNTRUSTED) || lapsed.reason.startsWith(SECURITY_AREA) ? "security" : "intent");
     }
   }
   const confirm = operatorConfirmation({ schedule, labels, title: issue.title });
@@ -1625,7 +1660,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return {
       verdict: "refuse",
       reasons: [...refuse, ...parked],
-      ...(hold && { hold }),
+      ...(hold && { hold, reason: strongestReason(holdCodes) }),
       ...(attended && { attended }),
       ...(!hold && refuse.every((reason) => hostWork.has(reason)) && wait.length === 0 && parked.length === 0 && { hostRun: true }),
       ...(doneBy.length > 0 && { done: doneBy }),
@@ -2480,11 +2515,11 @@ export async function admissionFacts({ github, repository, number, issue, rules,
 export const DEFERRED_AHEAD_READS = 10;
 
 // Whether an older deferred issue waits only for room: it keeps status: ready
-// and carries no person's hold (DEFERRAL_HOLDS) or UNTRUSTED, the issues the
-// sweep keeps deferred for something other than room or drops. Pure.
+// and carries no person's hold (DEFERRAL_HOLDS) or UNTRUSTED_LABELS, the
+// issues the sweep keeps deferred for something other than room or drops. Pure.
 export const roomDeferred = (labels) => {
   const lower = names(labels).map((name) => String(name).toLowerCase());
-  return lower.includes(READY) && !lower.includes(UNTRUSTED) && !DEFERRAL_HOLDS.some((name) => lower.includes(name));
+  return lower.includes(READY) && !UNTRUSTED_LABELS.some((name) => lower.includes(name)) && !DEFERRAL_HOLDS.some((name) => lower.includes(name));
 };
 
 // Whether an open issue created before `issue` is deferred for room alone: it
@@ -2633,7 +2668,9 @@ export async function admit({ github, repository, number, verdict, rules, humans
     }
     await undefer();
     await mirror([status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])], [READY, DEFERRED, ...(status !== CONFIRMED ? [CONFIRMED] : [])]);
-    await sayWhy(github, repository, base, comments, refusalText(reasons));
+    // A hold names its owner reason (../lib/stop-reason.mjs); a parked
+    // refusal hands nothing to a person, so it carries no marker.
+    await sayWhy(github, repository, base, comments, decision.hold ? heldRefusalText(reasons, decision.reason) : refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
     return { outcome: "refused", reasons: decision.reasons, status };
   }
