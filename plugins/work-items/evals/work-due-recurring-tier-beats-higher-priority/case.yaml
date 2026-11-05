@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: work-due-recurring-tier-beats-higher-priority
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: picks-150
+    type: llm
+    focus: trace
+    criteria: 'PASS if the one item the run says it would claim is #150. FAIL if it names another item, or more than one.'
