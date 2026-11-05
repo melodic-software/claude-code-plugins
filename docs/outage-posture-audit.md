@@ -51,7 +51,7 @@ element 1, but only pr-merge uses it.
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
 | 1 | gap | `.github/scripts/work-resolve-issue/retry-fetch.mjs:13`, `.github/scripts/work-resolve-issue/report-outcome.mjs:2348` | A 403 or 429 returns at once without waiting for `retry-after` or the reset, and a PR create can go out a second time after a network error. |
-| 2 | met | `.github/scripts/work-resolve-issue/report-outcome.mjs:2190`, `.github/actions/check-wip-cap/check-wip-cap.mjs:399`, `.github/workflows/work-resolve-issue.yml:292` | `--find-prior` holds green on a failed read (see Remaining). A WIP-cap read the pause depends on that fails or answers incomplete sets `capped` `true` with a `WIP cap hold` notice (`check-wip-cap.mjs:405`), and resolve-issue starts only on `capped` `false`, so a check that sets nothing holds too, with pick-slot's notice (`work-resolve-issue.yml:246`). A rate limit past the guard's budget still prints the guard's `::error::` on the green job, since the check is a gate and sets no `API_BUDGET_HOLD`. |
+| 2 | met | `.github/scripts/work-resolve-issue/report-outcome.mjs:2190`, `.github/actions/check-wip-cap/check-wip-cap.mjs:398`, `.github/workflows/work-resolve-issue.yml:292` | `--find-prior` holds green on a failed read (see Remaining). A failed or incomplete open-PR listing or base config read sets `capped` `true` with a `WIP cap hold` notice (`check-wip-cap.mjs:404`); a failed merged count takes the configured `limits.wip-cap`, and resolve-issue starts only on `capped` `false`, so a check that sets nothing holds too, with pick-slot's notice (`work-resolve-issue.yml:246`). A rate limit past the guard's budget still prints the guard's `::error::` on the green job, since the check is a gate and sets no `API_BUDGET_HOLD`. |
 | 3 | met | `.github/actions/check-wip-cap/action.yml:64`, `.github/workflows/work-unblock.yml:105` | No cache is restored or saved, so no earlier pause decides. A held run reads as a WIP cap skip, and work-unblock's sweep (cron and `workflow_run`) re-fires it, whose run reads again. |
 | 4 | gap | `.github/scripts/work-resolve-issue/report-outcome.mjs:2205`, `.github/scripts/work-resolve-issue/stop-routes.json:25` | A failed labeler read holds the PR for a person, and `retry-spent` fails the issue even when every retry was a fault. |
 | 5 | met | `.github/workflows/work-resolve-issue.yml:66`, `.github/workflows/work-resolve-issue.yml:129` | The status-page result (`degraded`) gates the admit job's `proceed` output. That is a stop, and the page starts nothing. |
@@ -465,7 +465,7 @@ A later change fixed work-resolve-issue's workflow gaps, with tests. Its rows ci
 head, not `222d8023`.
 
 - **work-resolve-issue, elements 2 and 3.** When a read the pause depends on fails or answers
-  incomplete (the open listing, the merged count, the base config), `check-wip-cap.mjs` sets
+  incomplete (the open listing, the base config), `check-wip-cap.mjs` sets
   `capped` `true` and `pause_basis` `unknown` and logs one `WIP cap hold` notice. resolve-issue and
   its later calls start only on `capped` `false`, so a check that fails or sets nothing holds too,
   and pick-slot names that hold itself. The job ends green and work-unblock's sweep re-fires the

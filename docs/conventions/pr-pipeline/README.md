@@ -3611,7 +3611,7 @@ the admission share, at or over the queued cap, or with a held PR past the alarm
 writes a warning annotation. Over the WIP cap or the held cap on or after `pause-from` it pauses runs: work-resolve-issue
 starts no run, work-unblock re-fires none, and the log and step summary carry one line
 `admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
-(a `::notice` annotation titled `admission paused`). When the open listing, the merged count or
+(a `::notice` annotation titled `admission paused`). When the open listing or
 the base config cannot be read, or a search answers `incomplete_results: true`, the pause is
 unknown and the run holds (outage posture elements 2 and 3, `docs/outage-posture-audit.md`):
 `capped` is `true`, `pause_basis` is `unknown`, and the log and step summary carry one line
@@ -3619,8 +3619,8 @@ unknown and the run holds (outage posture elements 2 and 3, `docs/outage-posture
 pick-slot starts resolve-issue only on `capped` `false`, so a check that fails or sets nothing
 holds too, with the same notice from pick-slot's `Hold on an unknown WIP cap` step. The job ends
 green, and work-unblock's sweep re-fires the issue as a WIP cap skip, whose run reads again. No
-stored state decides the pause. work-unblock's own reads of the cap take `limits.wip-cap` when the
-merged count cannot be read. A held PR's age runs from when it opened.
+stored state decides the pause. Without a merged count the cap is `limits.wip-cap`, a configured
+default, so that failure holds nothing. A held PR's age runs from when it opened.
 
 Queued work is the open `agent-ready` issues no open lane PR names, plus the held lane PRs. A lane
 PR names its issue on its first body line (`Closes #<n>` or `Refs: #<n>`, as report-outcome writes

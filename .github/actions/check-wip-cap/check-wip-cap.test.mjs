@@ -9,7 +9,7 @@
 // pauses the lane over the WIP cap or the held cap, on or after wip.pause-from,
 // and logs one `admission paused: reason=...` line (owner decision
 // 2026-10-21). A read the pause depends on that fails (the open listing, the
-// merged count, the base config) makes the pause unknown, so the run holds:
+// base config, not the merged count) makes the pause unknown, so the run holds:
 // `capped` true with one notice, and no stored state decides it (outage
 // posture elements 2 and 3, #12283).
 import assert from "node:assert/strict";
@@ -708,16 +708,16 @@ const HOLD = "::notice title=WIP cap hold::";
 // Outage posture element 2 (#12283): a read the pause depends on that fails,
 // or a search that answers incomplete, makes the pause unknown, so the run
 // holds with one notice whatever the reads that succeeded say, and the step
-// still exits 0. Thirteen open PRs are over this repository's min-cap of 12,
-// so the second case would pause on its own; the hold names the unread count
+// still exits 0. Sixty held PRs are over the default held cap of 60, so the
+// config case would pause on its own; the hold names the unread config
 // instead of a pause line.
 test("a read the pause depends on that fails holds the run with one notice", async () => {
   for (const [answers, config, unread] of [
     [{ open: failed, merged: 24 }, pastConfig(), "the open lane PRs could not be listed"],
-    [{ open: Array.from({ length: 13 }, () => pr()), merged: failed }, pastConfig(), "the merged lane PR count could not be read"],
-    [{ open: [pr()], merged: failed }, unsetConfig(), "the merged lane PR count could not be read"],
+    [{ open: failed, merged: failed }, unsetConfig(), "the open lane PRs could not be listed"],
     [{ open: [pr()], merged: 24, incomplete: true }, pastConfig(), "the open lane PRs could not be listed"],
     [{ open: [pr()], merged: 24 }, undefined, "the base config could not be read"],
+    [{ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, undefined, "the base config could not be read"],
   ]) {
     const held = await runMain(answers, {}, config);
     assert.equal(held.capped, "true", unread);
@@ -728,6 +728,21 @@ test("a read the pause depends on that fails holds the run with one notice", asy
     assert.ok(held.summary.includes(`\nWIP cap hold: ${unread}, `), held.summary);
     assert.ok(!held.logs.some((line) => /admission paused: reason=(wip|held-cap|null)/.test(line)), held.logs.join("\n"));
     assert.ok(!held.logs.some((line) => line.startsWith("::error")), held.logs.join("\n"));
+  }
+});
+
+// A merged count that cannot be read is no hold: the cap is this
+// repository's limits.wip-cap of 12, so 12 countable PRs past pause-from
+// pause and 11 run, both read.
+test("a failed merged count decides the pause from limits.wip-cap, with no hold", async () => {
+  for (const [count, capped] of [[12, "true"], [11, "false"]]) {
+    const result = await runMain({ open: Array.from({ length: count }, () => pr()), merged: failed }, {}, pastConfig());
+    assert.equal(result.capped, capped, String(count));
+    assert.equal(result.wip.wip_cap, 12);
+    assert.equal(result.wip.wip_cap_source, "config");
+    assert.equal(result.wip.merged_lane_prs_window, null);
+    assert.equal(result.wip.pause_basis, "read");
+    assert.ok(!result.logs.some((line) => line.includes("WIP cap hold")), result.logs.join("\n"));
   }
 });
 

@@ -18,9 +18,9 @@
 // the check alerts; over the WIP cap or the held cap, on or after
 // wip.pause-from, it pauses the lane (work-resolve-issue starts no run,
 // work-unblock re-fires none) and logs one `admission paused: reason=...`
-// line. When a read the pause depends on fails (the open listing, the merged
-// count, the base config) the pause is unknown and the run holds: `capped` is
-// `true`, `pause_basis` is `unknown`, and one `::notice` names the hold. No
+// line. When a read the pause depends on fails (the open listing, the base
+// config) the pause is unknown and the run holds: `capped` is
+// `true`,`pause_basis` is `unknown`, and one `::notice` names the hold. No
 // earlier state decides it; work-unblock's next sweep re-fires the run, which
 // reads again. A base config that cannot be read also closes admissions,
 // whatever wip.pause-from says.
@@ -385,14 +385,13 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
     ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause", configError, statusOf })
     : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now, configError });
   // What the pause could not read, first one only; none when every read it
-  // depends on succeeded.
+  // depends on succeeded. A merged count that cannot be read is no hold: the
+  // cap is then the configured limits.wip-cap.
   const unread = configError
     ? "the base config could not be read"
     : read.countable_lane_prs === null
       ? "the open lane PRs could not be listed"
-      : read.merged_lane_prs_window === null
-        ? "the merged lane PR count could not be read"
-        : null;
+      : null;
   const held = unread !== null;
   const status = { ...read, pause_basis: held ? "unknown" : "read" };
   const json = JSON.stringify(status);

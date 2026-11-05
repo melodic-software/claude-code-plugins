@@ -9,7 +9,7 @@ description: >
   queued work against the admission pace; and publish the status. Set
   `capped` to `true` only when runs pause (over the WIP cap or the held cap on
   or after `wip.pause-from`), and on a hold: when a read the pause depends on
-  (the open listing, the merged count, the base config) fails, the pause is
+  (the open listing, the base config) fails, the pause is
   unknown, `capped` is `true` and a notice names the hold. No stored state
   decides it. Set `admission-open` to `false` only when new
   admissions pause (queued work at or over the queued cap on or after
