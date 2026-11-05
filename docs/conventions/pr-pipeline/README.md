@@ -3686,8 +3686,9 @@ intake with the cutoff past that pull request. Each pass reads its issues in one
 most 50 issues a call); a read that fails admits as though no such pull request merged.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
-group, queued, never cancelled), so a burst of closes or finished issue runs, or a close run beside
-the hourly sweep, cannot each admit the full room. An `agent-ready` label added moments before may still be missing from
+group with one waiting run, which a newer run replaces), so a burst of closes or finished issue runs,
+or a close run beside the hourly sweep, cannot each admit the full room. The next sweep does a
+replaced run's work: it reads the whole state, and its closed-issue window repeats a close run's. An `agent-ready` label added moments before may still be missing from
 the issues listing, so a run right after another may read the room as one admission too wide.
 
 Intake's own admission (apply-verdict) runs once per issue, so runs for different issues can read

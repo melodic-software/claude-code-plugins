@@ -74,10 +74,10 @@ element 1, but only pr-merge uses it.
 |---|---|---|---|
 | 1 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2204`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201` | The shared client sends up to 3 attempts with full jitter, and a rate limit within 60 s is waited out, while a longer one fails the step (a notice under the hold opt-in). |
 | 2 | met | `.github/scripts/work-unblock/label-unblocked.mjs:487`, `.github/scripts/work-unblock/label-unblocked.mjs:674` (lines at this change, after `222d8023`) | A failed listing, or a GitHub fault on one issue's read, holds with a notice and the run exits 0. A sweep that held an issue keeps the next window back. A failed write, or a read that fails for another reason (another 4xx, an answer of the wrong shape), still ends the run red. |
-| 3 | gap | `.github/workflows/work-unblock.yml:30`, `.github/scripts/work-unblock/label-unblocked.mjs:168` | A marker-issue sweep-kick re-arms the sweep after the rate-limit breaker clears, and breaker-trip records are stored for each issue. |
+| 3 | gap | `.github/workflows/work-unblock.yml:33`, `.github/scripts/work-unblock/label-unblocked.mjs:1350` | The workflow half is met: nothing re-arms the sweep, so the next cron or `workflow_run` sweep is the probe (see below). Breaker-trip records are kept for each issue: they bound model re-runs and gate no tick (still-open table, kept). |
 | 4 | met | `.github/scripts/work-unblock/label-unblocked.mjs:194`, `.github/scripts/work-unblock/label-unblocked.mjs:82` | The lane lifts its own refs-hold `needs-human` once the PR merges or closes, and infrastructure re-fires never file `needs-human`. |
 | 5 | met | `.github/workflows/work-unblock.yml:170` | The kill switch is the only pre-gate. No status-page step runs. |
-| 6 | gap | `.github/workflows/work-unblock.yml:146` | `queue: max` keeps every pending run instead of one, and the hourly sweep sends no `etag`. The cron at minute 47 is fine. |
+| 6 | met | `.github/workflows/work-unblock.yml:134`, `.github/scripts/work-unblock/label-unblocked.mjs:674` | `label-unblocked` keeps the default single pending run (see below). An `etag` is not applicable: no job state carries one between runs, and the closed listing's URL changes every run with its `since`. The cron at minute 47 is fine. |
 
 ## pr-refine
 
@@ -459,15 +459,35 @@ babysit counts neutral as passing. A broker failure on pr-refine does not reach 
 `pull_request` the report job posts no check on it (`.github/workflows/pr-run-activity-read.yml`,
 `Choose the head the check is posted on`).
 
-Two parts of the work-unblock rows stay open, for the reasons in the table:
+work-unblock's element 3 script row is kept on evidence:
 
-- **Element 3.** The breaker records are not redundant state. The sweep counts them to back a
+- **Element 3.** The breaker records are not redundant state, and they are no breaker that gates
+  the probe: they are the lane's own comments, read from GitHub on every sweep, and no tick waits
+  on them. Replacing them with another count read each run (refused run logs, or the App's
+  agent-ready re-adds) costs more calls or merges causes into one bound. The sweep counts them to back a
   kill-switch re-fire off past `limit-stops-per-issue`, which bounds re-fires that start a lane run
   and, at a mint, run the model again. `isRestart` reads them so the App's removal counts as a
   restart, and `backoff` uses them to keep a trip from raising another cause's wait.
-- **Element 6.** Nothing in the `label-unblocked` job keeps an `etag` between runs, and a cache
-  must not reach a job that mints. The closed listing's URL also changes every run with its
-  `since`, so its `etag` could not match.
+
+A later change closed work-unblock's workflow row. Its element 3 and 6 rows cite that change's
+head, not `222d8023`.
+
+- **work-unblock, element 3.** The marker-issue sweep-kick is gone: closing the issue labeled
+  `work-unblock-sweep` now runs the close path like any close, and the sweep runs only on the cron
+  and on `workflow_run` (`.github/scripts/work-unblock/label-unblocked.mjs:2367`). Nothing was
+  stranded. The sweep's window counts only successful scheduled runs
+  (`label-unblocked.mjs:626-632`), so a kick never moved it, and a broker-check trip re-fires on the
+  next sweep with no wait (`label-unblocked.mjs:1879`), while a mint trip waited
+  `limits.reset-clamp-min` with or without a kick.
+- **work-unblock, element 6.** `queue: max` is gone from `label-unblocked`
+  (`.github/workflows/work-unblock.yml:134`), so a newer run replaces the waiting one. No waiting
+  run carries work only it does: a sweep reads the whole state, and a close run's work
+  (`labelUnblocked`, `closeSplitParents`, `stripClosed`) is repeated by the next sweep for every
+  issue its closed-issue window lists (`label-unblocked.mjs:1267-1276`, `:2197`). A replaced sweep's
+  admissions and re-fires wait for the next one, and a replaced scheduled sweep only widens the next
+  window, up to `LOOKBACK_HOURS`. An `etag` is not applicable: nothing in the job keeps one between
+  runs, a cache must not reach a job that mints, and the closed listing's URL changes every run
+  with its `since` (`label-unblocked.mjs:674`).
 
 A later change fixed work-resolve-issue's workflow gaps, with tests. Its rows cite that change's
 head, not `222d8023`.
@@ -510,9 +530,8 @@ The other script rows below are still open.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
-| work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |
-| work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`, somewhere to keep an `etag` between runs) |
-| pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:188-199` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs`, and the later change below the workflow's elements 1, 2 and 4 |
+| work-unblock | 3 | kept | `.github/scripts/work-unblock/label-unblocked.mjs` keeps its breaker-trip records: they are the lane's own comments, read from GitHub each run, and bound kill-switch re-fires that start a lane run or a model turn (see above); they gate no cron tick, so the next sweep is still the probe |
+| pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:188-199` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs`, and the later pr-refine change above the workflow's elements 1, 2 and 4 |
 | pr-refine | 2 | script | `.github/scripts/pr-unblock/lane-hold.mjs` (a failed label or timeline read ends fix-docs-head red, a run the dispatcher counts; pr-unblock's `resolve-conflicts-select` shares the script) |
 | shared | 1 | workflow | every workflow's `Resolve main's tip` step: its one `git ls-remote` is never retried, and `callers.test.mjs` pins the step's text across more than 70 jobs (`TIP_RUN`) |
 | pr-review, pr-review-security, pr-verify | 3 | kept | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` keeps its one-time re-run record, the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`), and its status-page idle, a stop element 5 allows |

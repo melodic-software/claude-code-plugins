@@ -6,9 +6,7 @@
 // repository's blocker: closed there by a listed human), no hold label, and
 // not already agent-ready. Issues it would label are taken oldest
 // opened first (owner Q95). Every fact is read from the API now, never from the event
-// payload, except the closed issue's labels: one carrying SWEEP_LABEL is the
-// marker, and a listed human closing it runs the sweep below at once, not the
-// close path. No model.
+// payload. No model.
 //
 // The close path also strips the closed issue's own queue labels
 // (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
@@ -264,11 +262,10 @@
 //   GITHUB_REPOSITORY      owner/repo
 //   GITHUB_EVENT_NAME      `issues` (a close), or `schedule` or
 //                          `workflow_run` (a finished work-resolve-issue run)
-//                          for the sweep; a close of an issue labeled
-//                          SWEEP_LABEL runs the sweep too
+//                          for the sweep
 //   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
-//                          sender and issue number, labels and close time
-//                          are read; on a sweep event it is not read
+//                          sender and issue number are read; on a sweep
+//                          event it is not read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
@@ -408,15 +405,6 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
-// The marker issue's label: a listed human closing an issue that carries it
-// runs the sweep at once instead of waiting for the schedule (the hub reopens
-// and closes it after a rate-limit breaker clears). That sweep re-fires at
-// once only issues the kill switch stopped at broker-check; one stopped at a
-// token mint still waits limits.reset-clamp-min. A second kick is one more
-// sweep: runs queue one at a time, and a re-fired issue's newer label holds it.
-// The only copy of the name; work-unblock.yml's header names it in prose and
-// reads nothing.
-export const SWEEP_LABEL = "work-unblock-sweep";
 // The one comment per issue that says it keeps being re-fired on a backoff,
 // edited in place on each re-fire; it reads as a re-fire record timed by its
 // last edit.
@@ -2376,16 +2364,16 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     }
     // A finished work-resolve-issue run sweeps as the schedule does: its
     // payload is not read, and its sender is usually the lanes App.
-    const scheduled = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
-    const event = scheduled ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
-    if (!scheduled && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
+    const sweep = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
+    const event = sweep ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+    if (!sweep && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
       throw new Error("this runs only on an issue closing, on the schedule or after a work-resolve-issue run");
     }
     if (env.KILL_SWITCH !== "proceed") {
       console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");
       return 0;
     }
-    if (!scheduled) {
+    if (!sweep) {
       // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
       // cleanly: the broker refuses it, and the hourly sweep picks it up.
       if (event.sender?.type === "Bot") {
@@ -2410,15 +2398,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const mirrorTo = mirror ?? (await statusMirror({ env, github, repository: repo }));
     const statusTo = reader === null ? statusReader({ env, github, repository: repo }) : reader;
     const queuedStatus = reader === null ? statusReader({ env, github, repository: repo, limit: STATUS_READS }) : reader;
-    // A listed human's close of the marker issue (its labels read from the
-    // payload) runs the sweep, not the close path: it blocks nothing.
-    const kick = !scheduled && labelNames(event.issue).some((name) => name.toLowerCase() === SWEEP_LABEL);
-    const sweep = scheduled || kick;
-    if (kick) {
-      const closedAt = Date.parse(event.issue.closed_at);
-      const closed = Number.isFinite(closedAt) ? ` closed=${new Date(closedAt).toISOString()}` : "";
-      console.log(`::notice title=work-unblock::sweep-kick marker=#${Number(event.issue.number)}${closed} started=${new Date(now).toISOString()}`);
-    }
     if (sweep) {
       const latch = budgetLatch("github-token");
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
@@ -2455,7 +2434,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, mirror: mirrorTo });
-    // The sweep marker carries no queue labels, so a kick skips this.
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number) });
     }
