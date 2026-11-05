@@ -2985,6 +2985,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     }
   }
   assert.deepEqual(held.sort(), [
+    "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
     "work-unblock.yml label-unblocked: Label the unblocked issues",
