@@ -17,8 +17,10 @@
 # attempt is re-run instead, and a later one files only for checks green on
 # main's previous run of the same event; the gitleaks gate files nothing. A
 # canary push run, whatever it concluded, files a `revert` record when a commit
-# the push brought, and no record lists, reverts a pull request the lanes App
-# enqueued.
+# the push brought, and no record lists, reverts a pull request, whoever
+# enqueued it: the step hands the record through its outputs to the
+# `File the revert demotion issue` step of the file-revert job, which run_step
+# runs next against the same stub.
 # test-scope: .github/workflows/post-merge-demotion-alert.yml
 # test-scope: .github/scripts/post-merge-demotion-alert/failing-checks.mjs .github/scripts/post-merge-demotion-alert/red-main.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 set -uo pipefail
@@ -35,20 +37,28 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 # The workflow step makes its own mktemp files; keep them inside the trapped root.
 export TMPDIR="$TMP_ROOT"
 
+# step_body <step name> <file>: that step's run: | body, unindented.
+step_body() {
+  awk -v name="      - name: $1" '$0 == name { on = 1; print; next }
+    on && /^(      - |  [^ ]|[^ ])/ { exit }
+    on { print }' "$WORKFLOW" 2>/dev/null |
+    awk '/^        run: \|$/ { on = 1; next }
+      on && /^          / { print substr($0, 11); next }
+      on && /^[[:blank:]]*$/ { print ""; next }
+      on { exit }' >"$2"
+}
 NAME='File or comment on the demotion issue'
-step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
-  on && /^      - / { exit }
-  on { print }' "$WORKFLOW" 2>/dev/null)"
-awk '/^        run: \|$/ { on = 1; next }
-  on && /^          / { print substr($0, 11); next }
-  on && /^[[:blank:]]*$/ { print ""; next }
-  on { exit }' <<<"$step" >"$TMP_ROOT/body.sh"
+FILER_NAME='File the revert demotion issue'
+step_body "$NAME" "$TMP_ROOT/body.sh"
+step_body "$FILER_NAME" "$TMP_ROOT/filer.sh"
 
-if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
-  fail "no '$NAME' step with a run: | body in $WORKFLOW"
-  test_harness::report
-  exit 1
-fi
+for pair in "$NAME:body.sh" "$FILER_NAME:filer.sh"; do
+  if [[ ! -s "$TMP_ROOT/${pair##*:}" ]]; then
+    fail "no '${pair%:*}' step with a run: | body in $WORKFLOW"
+    test_harness::report
+    exit 1
+  fi
+done
 
 # --- Workflow shape -----------------------------------------------------------
 # Trigger names come from the two workflows' own `name:` lines.
@@ -68,6 +78,22 @@ if [[ -n "$alert_job" ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
   ok "the alert token holds issues: write, actions: write and checks, contents and pull-requests read, nothing else"
 else
   fail "the alert job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
+fi
+# The revert record's filer: issues: write alone, no action, no checkout, and
+# it runs after the alert job whatever that job concluded, unless cancelled.
+filer_job="$(awk '/^  file-revert:$/ { on = 1; next } on && /^  [a-z-]+:$/ { exit } on' "$WORKFLOW")"
+filer_if="$(awk '/^    if: >-$/ { on = 1; next } on && /^    [a-z-]+:/ { exit } on' <<<"$filer_job" | tr -s ' \n' ' ')"
+if [[ -n "$filer_job" && "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' <<<"$filer_job" | sed 's/^ *//; s/ *$//' | paste -sd ' ')" == 'issues: write' ]] &&
+  grep -qx '    needs: \[alert\]' <<<"$filer_job" && ! grep -qE '^[[:space:]]*-?[[:space:]]*uses:' <<<"$filer_job" &&
+  [[ "$filer_if" == " !cancelled() && needs.alert.outputs.revert-title != '' " ]]; then
+  ok "the file-revert job holds issues: write alone, runs no action, and runs after any alert that handed it a record"
+else
+  fail "the file-revert job's permissions are not exactly issues: write, or it runs an action or the wrong condition: if='$filer_if'"
+fi
+if grep -qF "\${{" "$TMP_ROOT/filer.sh"; then
+  fail "the filer step body interpolates an expression; pass it through env"
+else
+  ok "the filer step body takes the alert job's outputs through env"
 fi
 # Beside the checkout, only the job-end log-api-budget action, run from that
 # checkout of main's tip. The checkout takes main's tip as the SHA the job's
@@ -400,7 +426,29 @@ PY
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
     bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "${STEP_BODY:-$TMP_ROOT/body.sh}" 2>&1)" && RC=0 || RC=$?
+  # The file-revert job, when the step handed it a record (ALERT_ONLY skips it).
+  if [[ -z "${STEP_BODY:-}${ALERT_ONLY:-}" && -n "$(out_value revert-title)" ]]; then
+    run_filer "$6" "$(out_value revert-title)" "$(out_value revert-body)" "$(out_value revert-commits)" "$(out_value revert-filer)"
+    OUT+=$'\n'"$FILER_OUT"
+    if [[ "$RC" -eq 0 ]]; then
+      RC="$FILER_RC"
+    fi
+  fi
   LOG="$(cat "$TMP_ROOT/stub/log")"
+}
+# out_value <name>: one output the step wrote to GITHUB_OUTPUT, in either form.
+out_value() {
+  awk -v n="$1" 'd != "" { if ($0 == d) exit; print; next }
+    index($0, n "<<") == 1 { d = substr($0, length(n) + 3); next }
+    index($0, n "=") == 1 { print substr($0, length(n) + 2); exit }' "$TMP_ROOT/stub/output"
+}
+# run_filer <sha> <title> <body> <commits> <filer>: the file-revert step against
+# the stub as it stands; FILER_FAIL_READ fails its record reads.
+run_filer() {
+  FILER_OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FILER_FAIL_READ:-}" \
+    STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" GH_TOKEN=x GITHUB_REPOSITORY=o/r \
+    RUN_SHA="$1" REVERT_TITLE="$2" REVERT_BODY="$3" REVERT_COMMITS="$4" REVERT_FILER="$5" \
+    bash -e "$TMP_ROOT/filer.sh" 2>&1)" && FILER_RC=0 || FILER_RC=$?
 }
 
 # Fix work (a fix issue filed, a recurrence comment on one, an intake
@@ -949,8 +997,8 @@ reverts() {
       "$body" == *"It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main"* &&
       "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
     grep -qx 'labels\[\]=needs-human' <<<"$fields" &&
-    ! grep -qE 'rerun-failed-jobs|/compare/|status=success' <<<"$LOG" &&
-    grep -q "p$n: pullRequest(number: $n)" "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
+    ! grep -qE 'rerun-failed-jobs|/compare/|status=success|^GET graphql$' <<<"$LOG" &&
+    [[ "$FILER_OUT" == *"filed the revert demotion issue for ${HEAD_SHA:0:12}"* ]]; then
     ok "$label"
   else
     fail "$label: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
@@ -973,19 +1021,64 @@ if ! grep -q 'actions/workflows/77/runs?event=push&branch=main&created=' <<<"$LO
   fail "the previous canary push run was not read: log='$LOG'"
 fi
 
+# Trip on any revert: who enqueued the reverted pull request is not read.
 GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_push
-no_revert "a revert of a pull request a person enqueued files nothing"
-if ! grep -qx 'GET graphql' <<<"$LOG" || [[ "$OUT" != *"was put in the merge queue by the lanes App: no revert record"* ]] ||
-  ! grep -q 'p1234: pullRequest(number: 1234)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
-  fail "the person-merged revert was not looked up for #1234 and judged: log='$LOG' out='$OUT'"
+reverts "a revert of a pull request a person enqueued files a revert demotion record"
+
+# The alert job files no revert record itself: it hands it over.
+ALERT_ONLY=1 GRAPHQL="$LANE" run_push
+if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG" &&
+  [[ "$(out_value revert-commits)" == "$HEAD_SHA" && "$(out_value revert-filer)" == 'melodic-automation-lanes[bot]' &&
+    "$(out_value revert-body)" == "<!-- babysit-merge-demotion sha=$HEAD_SHA signal=revert -->"$'\n'* &&
+    "$OUT" == *"handed the revert demotion issue for ${HEAD_SHA:0:12} to the file-revert job"* ]]; then
+  ok "the alert step writes nothing for a revert and hands the record to the file-revert job"
+else
+  fail "alert-only revert: rc=$RC log='$LOG' out='$OUT' output='$(cat "$TMP_ROOT/stub/output")'"
 fi
 
-FAIL_GRAPHQL=1 run_push
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"signal=revert -->"* ]]; then
-  ok "a revert whose merge-queue lookup fails demotes"
+# The filer re-reads the records: a revert record filed since the alert read
+# them, by either filer, keeps it from filing a second one.
+title="$(out_value revert-title)" rbody="$(out_value revert-body)"
+printf '[%s]\n' "$(issue 41 "$rbody")" >"$TMP_ROOT/stub/issues.json"
+: >"$TMP_ROOT/stub/log"
+run_filer "$HEAD_SHA" "$title" "$rbody" "$HEAD_SHA" 'melodic-automation-lanes[bot]'
+LOG="$(cat "$TMP_ROOT/stub/log")"
+if [[ "$FILER_RC" -eq 0 && "$FILER_OUT" == *"already listed on a revert record: nothing to file"* ]] &&
+  ! grep -q '^POST ' <<<"$LOG" && grep -q 'creator=github-actions%5Bbot%5D' <<<"$LOG" &&
+  grep -q 'creator=melodic-automation-lanes%5Bbot%5D' <<<"$LOG"; then
+  ok "the file-revert job files nothing when a revert record already lists every revert commit"
 else
-  fail "unproven revert: rc=$RC log='$LOG' out='$OUT'"
+  fail "filer re-read: rc=$FILER_RC log='$LOG' out='$FILER_OUT'"
 fi
+# A failed re-read still files: a duplicate beats a missed demotion.
+: >"$TMP_ROOT/stub/log"
+FILER_FAIL_READ=1 run_filer "$HEAD_SHA" "$title" "$rbody" "$HEAD_SHA" ''
+LOG="$(cat "$TMP_ROOT/stub/log")"
+if [[ "$FILER_RC" -eq 0 && "$FILER_OUT" == *"could not read"* && "$FILER_OUT" == *"filed the revert demotion issue"* ]] &&
+  grep -qx 'POST repos/o/r/issues' <<<"$LOG"; then
+  ok "the file-revert job files when its re-read of the records fails"
+else
+  fail "filer failed re-read: rc=$FILER_RC log='$LOG' out='$FILER_OUT'"
+fi
+# A malformed hand-off files nothing and fails the job.
+for bad in "title:Post-merge revert of #1234 at ${HEAD_SHA:0:12}: anything" "commits:${HEAD_SHA:0:12}" \
+  "body:<!-- babysit-merge-demotion sha=$OTHER signal=revert -->" "sha:${HEAD_SHA:0:12}"; do
+  t="$title" b="$rbody" c="$HEAD_SHA" s="$HEAD_SHA"
+  case "${bad%%:*}" in
+    title) t="${bad#*:}" ;; commits) c="${bad#*:}" ;; body) b="${bad#*:}" ;; *) s="${bad#*:}" ;;
+  esac
+  printf '[]\n' >"$TMP_ROOT/stub/issues.json"
+  : >"$TMP_ROOT/stub/log"
+  run_filer "$s" "$t" "$b" "$c" ''
+  if [[ "$FILER_RC" -eq 1 ]] && ! grep -q . "$TMP_ROOT/stub/log"; then
+    ok "the file-revert job refuses a hand-off with a malformed ${bad%%:*}"
+  else
+    fail "malformed ${bad%%:*}: rc=$FILER_RC log='$(cat "$TMP_ROOT/stub/log")' out='$FILER_OUT'"
+  fi
+done
+
+FAIL_GRAPHQL=1 run_push
+reverts "a revert files with no merge-queue lookup to fail"
 
 push_repo $'Revert "feat: a join prompt"\n\nReverts o/r#1234\n'
 GRAPHQL="$(gq "$(enq 1234 octocat User melodic-automation-lanes Bot)")" run_push
@@ -1081,8 +1174,8 @@ fields="$(post_fields 2>/dev/null)"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$fields" == *"signal=revert -->"* &&
   "$fields" == *"- Reverted pull request: https://github.com/o/r/pull/1234"* &&
   "$fields" == *"- Reverted pull request: https://github.com/o/r/pull/1235"* ]] &&
-  grep -q 'p1235: pullRequest(number: 1235)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
-  ok "Reverts #A, #B files when the lanes App enqueued B though a person enqueued A"
+  ! grep -qx 'GET graphql' <<<"$LOG"; then
+  ok "Reverts #A, #B files one record naming both"
 else
   fail "two reverted pull requests: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
 fi
@@ -1124,9 +1217,9 @@ reverts "a revert commit quoted only on another kind of record still files"
 BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" ATTEMPT=1 REVERT_POST_FAIL=1 \
   run_step "$CANARY" push failure main o/r "$HEAD_SHA" '[]'
 issues_posted="$(grep -nx 'POST repos/o/r/issues' <<<"$LOG" | cut -d: -f1)"
-if [[ "$RC" -eq 1 && "$(wc -l <<<"$issues_posted")" -eq 2 && "$OUT" == *"the revert demotion issue was not filed"* ]] &&
-  grep -q '^body=<!-- babysit-merge-demotion sha='"$HEAD_SHA"' signal=canary -->' "$TMP_ROOT/stub/post.$(tail -1 <<<"$issues_posted")"; then
-  ok "a failed revert record write still files the canary record, then fails the job"
+if [[ "$RC" -eq 1 && "$FILER_RC" -eq 1 && "$(wc -l <<<"$issues_posted")" -eq 2 && "$OUT" == *"the revert demotion issue was not filed"* ]] &&
+  grep -q '^body=<!-- babysit-merge-demotion sha='"$HEAD_SHA"' signal=canary -->' "$TMP_ROOT/stub/post.$(head -1 <<<"$issues_posted")"; then
+  ok "a failed revert record write still files the canary record, then fails the file-revert job"
 else
   fail "failed revert write: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -1146,9 +1239,13 @@ fi
 
 COMMIT_MESSAGE="$REVERTS" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" ATTEMPT=1 \
   run_step "$CANARY" push failure main o/r "$SHA" '[]'
-demotes "a failed canary run on a person-enqueued revert files only the canary record"
-if [[ "$(post_fields)" != *"signal=canary -->"* ]]; then
-  fail "the failed canary on a revert filed another signal: fields='$(post_fields)'"
+issues_posted="$(grep -nx 'POST repos/o/r/issues' <<<"$LOG" | cut -d: -f1)"
+bodies="$(for n in $issues_posted; do grep '^body=<!--' "$TMP_ROOT/stub/post.$n"; done)"
+if [[ "$RC" -eq 0 && "$(wc -l <<<"$issues_posted")" -eq 2 &&
+  "$bodies" == *"sha=$SHA signal=revert -->"* && "$bodies" == *"sha=$SHA signal=canary -->"* ]]; then
+  ok "a failed canary run on a person-enqueued revert files both the canary and the revert record"
+else
+  fail "failed canary on a person-enqueued revert: rc=$RC log='$LOG' out='$OUT' bodies='$bodies'"
 fi
 
 PIPELINE="$PIPE" FAIL_GRAPHQL=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" \

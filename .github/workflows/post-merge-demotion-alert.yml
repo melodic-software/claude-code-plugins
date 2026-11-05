@@ -42,17 +42,19 @@ name: post-merge-demotion-alert
 # no fix issue, and lifts as a canary demotion record does. Anything the
 # lookup cannot prove demotes.
 #
-# A push to main that reverts a pull request the lanes App put in the merge
-# queue files a `revert` record. Every canary push run, whatever it concluded
+# A push to main that reverts a merged pull request, whoever put it in the
+# merge queue, files a `revert` record. Every canary push run, whatever it concluded
 # and on every attempt, reads the commits the push brought, a merge-queue
 # batch included: main's first-parent range since the previous canary push
 # run's head, at most 20 commits, and the newest 20 when that head cannot be
 # read or is not an ancestor, read from main's full history. A revert commit
 # any revert record already lists is skipped, so overlapping runs and re-runs
 # file it once and never again after a person closes its record. A failed
-# canary still files its canary record too. A revert of a pull request someone
-# else enqueued files nothing; an unproven one demotes, a reverted commit whose
-# pull request cannot be read included. A revert record is labeled
+# canary still files its canary record too. A reverted commit whose pull
+# request cannot be read files too. The alert job finds the revert and hands
+# the record to the file-revert job, whose token holds issues: write alone,
+# through its outputs; that job re-reads the records first and files nothing
+# when one already lists every revert commit. A revert record is labeled
 # needs-human and carries a lift block of the lines its revert commits
 # deleted; it holds the rung off until those lines are back on main, a pull
 # request that references it merges into main (babysit_merge_policy.py
@@ -189,6 +191,13 @@ jobs:
       # 'true' when every newly failing suite was outside the merges'
       # affected set or quarantined: no record, and no red-main report.
       excused: ${{ steps.file.outputs.excused }}
+      # The revert record the file-revert job files, when the push reverted
+      # a pull request: its title, body, revert commits and the agent
+      # identity whose records it re-reads.
+      revert-title: ${{ steps.file.outputs.revert-title }}
+      revert-body: ${{ steps.file.outputs.revert-body }}
+      revert-commits: ${{ steps.file.outputs.revert-commits }}
+      revert-filer: ${{ steps.file.outputs.revert-filer }}
     # Each guarded API call's rate-limit reading (the gh wrapper below and
     # babysit_gh.py under the judge), for the job-end api-budget notice
     # (.github/actions/log-api-budget).
@@ -671,18 +680,13 @@ jobs:
           # of a human's PR does not carry). Anything unproven demotes: a canary
           # or an unknown range, a commit with no (#N) subject, an unreadable
           # identity, or a failed lookup. One GraphQL call covers the range,
-          # or the pull requests a revert names (`reverted`), made only when a
-          # new issue is filed (classify, below).
+          # made only when a new issue is filed (classify, below). A revert
+          # record demotes whoever enqueued the reverted pull request.
           lane=1
-          reverted=()
           classify() {
           declare -A numbers=()
           missing=''
-          if [[ "${#reverted[@]}" -gt 0 ]]; then
-            for n in "${reverted[@]}"; do
-              numbers[$n]=1
-            done
-          elif [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
+          if [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
             for c in "${range[@]}"; do
               s="${entry[$c]#*$'\t'}"
               if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
@@ -805,7 +809,8 @@ jobs:
           # - `This reverts commit <sha>` (git revert) or the red-main bot's
           #   `<!-- red-main-revert culprit=<sha> -->`, through the subject of
           #   that commit, `... (#N)`; a commit whose subject cannot be read
-          #   is an unproven revert, which demotes.
+          #   still files, naming the commit.
+          # Any reverted pull request files, whoever enqueued it.
           # Anchored at a line's start, never a substring, so prose, a quoted
           # line or another repository's pull request names nothing.
           # push_range: the canary push run's commits into `pushed`, read once;
@@ -850,7 +855,7 @@ jobs:
             python3 "$tool" "$1" --repo-dir .base "${@:2}"
           }
           revert_pass() {
-            local c n t repo line message rest lines names unproven='' revert_block
+            local c n t repo line message rest lines names revert_block
             local -a cs fresh=()
             local -A named=() listed=() prs=() unread=()
             push_range
@@ -916,25 +921,13 @@ jobs:
               for n in ${prs[$c]:-}; do
                 named[$n]=1
               done
-              if [[ -n "${unread[$c]:-}" ]]; then
-                unproven=1
-              fi
             done
             if ((${#fresh[@]} == 0)); then
               echo "no new commit among the ${#pushed[@]} pushed up to ${RUN_SHA:0:12} names a pull request it reverts: no revert record"
               return
             fi
-            reverted=("${!named[@]}")
-            if [[ -z "$unproven" ]]; then
-              classify
-            fi
-            if [[ -z "$lane" ]]; then
-              echo "no pull request ${RUN_SHA:0:12}'s push reverts was put in the merge queue by the lanes App: no revert record"
-              lane=1 reverted=()
-              return
-            fi
             lines='' names=''
-            for n in "${reverted[@]}"; do
+            for n in "${!named[@]}"; do
               names="${names:+$names, }#$n"
               lines="$lines- Reverted pull request: ${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/$n"$'\n'
             done
@@ -952,26 +945,30 @@ jobs:
             if [[ -n "$in_checkout" ]]; then
               revert_block="$(lift_block_of revert-block "${fresh[@]}")" || revert_block=''
             fi
-            # A failed write still lets a failed canary file its own record;
-            # the job fails at its end.
-            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-human' \
-              -f title="Post-merge revert${names:+ of $names} at ${RUN_SHA:0:12}: unattended merging demoted" \
-              -f body="<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
+            # The file-revert job files it, holding issues: write alone; this
+            # job hands it the record through its outputs, written before
+            # anything below can fail the step (the runner keeps a failed
+            # step's outputs).
+            local delim
+            delim="EOF_$(openssl rand -hex 16)"
+            {
+              echo "revert-title=Post-merge revert${names:+ of $names} at ${RUN_SHA:0:12}: unattended merging demoted"
+              echo "revert-commits=${fresh[*]}"
+              echo "revert-filer=$lane_filer"
+              echo "revert-body<<$delim"
+              echo "<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
 
-          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lift\`); a lane then closes it. A person's direct close also clears it.
+          A push to main reverted a pull request. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lift\`); a lane then closes it. A person's direct close also clears it.
 
           $lines- Main at the push: \`$RUN_SHA\`
           - Canary run: $sighting
 
           Find out why the pull request was reverted, then reference this record from the pull request that re-lands it or confirms the revert.${revert_block:+
 
-          $revert_block}" >/dev/null; then
-              echo "::error::could not file the revert demotion issue for ${RUN_SHA:0:12}"
-              trap 'echo "::error::the revert demotion issue was not filed"; exit 1' EXIT
-            else
-              echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
-            fi
-            lane=1 reverted=()
+          $revert_block}"
+              echo "$delim"
+            } >>"$GITHUB_OUTPUT"
+            echo "handed the revert demotion issue for ${RUN_SHA:0:12} to the file-revert job"
           }
           if [[ "$signal" == canary ]]; then
             revert_pass
@@ -1253,6 +1250,90 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+  # The revert record the alert job found for a canary push run, filed under
+  # a token that holds issues: write alone. It runs whatever the alert job
+  # concluded, since that job can fail after it handed the record over (a
+  # canary record or hand-off that did not file). It checks out nothing.
+  file-revert:
+    name: File the revert demotion issue
+    needs: [alert]
+    if: >-
+      !cancelled()
+      && needs.alert.outputs.revert-title != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write # read the records and file the revert record
+    # One group per SHA, as the alert's: a pending filer another of the same
+    # SHA replaces carries the same revert commits.
+    concurrency:
+      group: post-merge-demotion-alert-revert-${{ needs.alert.outputs.sha }}
+      cancel-in-progress: false
+    steps:
+      - name: File the revert demotion issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ needs.alert.outputs.sha }}
+          REVERT_TITLE: ${{ needs.alert.outputs.revert-title }}
+          REVERT_BODY: ${{ needs.alert.outputs.revert-body }}
+          REVERT_COMMITS: ${{ needs.alert.outputs.revert-commits }}
+          REVERT_FILER: ${{ needs.alert.outputs.revert-filer }}
+        run: |
+          # The alert job's record, checked for shape before any write.
+          if [[ ! "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
+            exit 1
+          fi
+          read -r -a commits <<<"$REVERT_COMMITS"
+          for c in "${commits[@]}"; do
+            if [[ ! "$c" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::revert commit '$c' is not a full commit SHA"
+              exit 1
+            fi
+          done
+          title_re="^Post-merge revert( of #[1-9][0-9]*(, #[1-9][0-9]*)*)? at ${RUN_SHA:0:12}: unattended merging demoted\$"
+          if ((${#commits[@]} == 0)) || [[ ! "$REVERT_TITLE" =~ $title_re ||
+              "${REVERT_BODY%%$'\n'*}" != "<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->" ]]; then
+            echo "::error::the alert job handed over no well-formed revert record for ${RUN_SHA:0:12}"
+            exit 1
+          fi
+          # Re-read the revert records of both filers, as the alert job did,
+          # so an overlapping run that filed since files no second record. A
+          # failed read files anyway: a duplicate record beats a missed one.
+          filers=(github-actions%5Bbot%5D)
+          if [[ "$REVERT_FILER" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\[bot\]$ ]]; then
+            filers+=("${REVERT_FILER%\[bot\]}%5Bbot%5D")
+          fi
+          declare -A listed=()
+          for filer in "${filers[@]}"; do
+            if got="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$filer&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | (.body // "") | sub("^\\s+"; "")
+                | select(split("\n")[0] | startswith("<!-- babysit-merge-demotion ") and contains(" signal=revert "))
+                | split("\n")[] | capture("^- Revert commit: \u0060(?<c>[0-9a-f]{40})\u0060").c')"; then
+              for c in $got; do
+                listed[$c]=1
+              done
+            else
+              echo "::warning::could not read $filer's records: filing without that re-check"
+            fi
+          done
+          fresh=''
+          for c in "${commits[@]}"; do
+            if [[ -z "${listed[$c]+x}" ]]; then
+              fresh=1
+            fi
+          done
+          if [[ -z "$fresh" ]]; then
+            echo "every revert commit at ${RUN_SHA:0:12} is already listed on a revert record: nothing to file"
+            exit 0
+          fi
+          if ! gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-human' \
+            -f title="$REVERT_TITLE" -f body="$REVERT_BODY" >/dev/null; then
+            echo "::error::the revert demotion issue was not filed"
+            exit 1
+          fi
+          echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
 
   # The red-main report. It runs after the alert job, so a re-run the alert
   # started is already under way, and only for a full run on main that
