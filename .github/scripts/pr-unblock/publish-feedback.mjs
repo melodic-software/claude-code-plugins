@@ -189,7 +189,7 @@ export function parseRun(text) {
     run?.version === 1 &&
       SHA.test(run.head_sha ?? "") &&
       Array.isArray(run.threads) &&
-      (run.pr_paths === undefined || (Array.isArray(run.pr_paths) && run.pr_paths.every((path) => typeof path === "string"))),
+      [run.pr_paths, run.copy_paths].every((paths) => paths === undefined || (Array.isArray(paths) && paths.every((path) => typeof path === "string"))),
     "run.json is malformed",
   );
   check(
@@ -393,7 +393,7 @@ const claimedFixes = (reviewComments, appId) =>
 
 // Whenever the PR branch moved since the select job's head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
-// threads' paths and the PR's own files (run.json, whose SHA-256 the select
+// threads' paths, the PR's own files and their shared copies (run.json, whose SHA-256 the select
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
 // exactly one fix commit (isLaneFix), whose Lane-Thread trailer must name
@@ -421,6 +421,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   const threadOf = new Map(run.threads.map((thread) => [thread.id, thread]));
   const paths = new Set(run.threads.map((thread) => thread.path));
   const prPaths = new Set(run.pr_paths ?? []);
+  const copyPaths = new Set(run.copy_paths ?? []);
   const files = comparison.files ?? [];
   const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
@@ -432,6 +433,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
           path === undefined ||
           inThreadScope(path, paths, run.threads, {
             prPaths,
+            copyPaths,
             added: path === file.filename && ["added", "renamed", "copied"].includes(file.status),
           }),
       ),

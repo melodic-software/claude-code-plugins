@@ -914,12 +914,13 @@ test("no earlier commit stands in when this round wrote a patch that did not lan
   assert.deepEqual(api.posted(), []);
 });
 
-test("a VALID fix that also adds a file in its thread's plugin lands; another plugin's file does not", async () => {
+test("a VALID fix that also adds a file in its thread's plugin or any plugin's evals lands; another plugin's other file does not", async () => {
   const caseRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: "plugins/p/evals/c/case.yaml" }] });
   for (const [sample, landed] of [
     ["plugins/p/evals/c/samples/new.json", true],
     ["plugins/p/evals/other/samples/new.json", true],
-    ["plugins/q/evals/c/samples/new.json", false],
+    ["plugins/q/evals/c/samples/new.json", true],
+    ["plugins/q/README.md", false],
   ]) {
     const api = fakeApi({
       compare: { status: "ahead", commits: [fixCommit()], files: [{ filename: "plugins/p/evals/c/case.yaml" }, { filename: sample }] },
@@ -933,20 +934,20 @@ test("a VALID fix that also adds a file in its thread's plugin lands; another pl
 
 // #8116's thread PRRT_kwDOTCGFQM6tojDu: the owner's fix request on
 // write-transcript.js named run-transcript.js.
-test("a VALID fix that changes a file its thread's named_paths holds lands; one not named, or a malformed list, does not", async () => {
+test("a VALID fix that changes a same-plugin file lands, named or not; another plugin's file does not, and a malformed list is invalid", async () => {
   const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
   const thread = { ...RUN.threads[0], path: `${T}/write-transcript.js` };
-  for (const [threads, landed] of [
-    [[{ ...thread, named_paths: [`${T}/run-transcript.js`] }], true],
-    [[thread], false],
-    [[{ ...thread, named_paths: ["plugins/other/run-transcript.js"] }], false],
+  for (const [threads, other, landed] of [
+    [[{ ...thread, named_paths: [`${T}/run-transcript.js`] }], `${T}/run-transcript.js`, true],
+    [[thread], `${T}/run-transcript.js`, true],
+    [[{ ...thread, named_paths: ["plugins/other/run-transcript.js"] }], "plugins/other/run-transcript.js", false],
   ]) {
     const api = fakeApi({
-      compare: { status: "ahead", commits: [fixCommit()], files: [{ filename: thread.path }, { filename: `${T}/run-transcript.js` }] },
-      commits: { [FIX]: { files: [{ filename: thread.path }, { filename: `${T}/run-transcript.js` }] } },
+      compare: { status: "ahead", commits: [fixCommit()], files: [{ filename: thread.path }, { filename: other }] },
+      commits: { [FIX]: { files: [{ filename: thread.path }, { filename: other }] } },
     });
     const result = await run(api, lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, threads }));
-    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", JSON.stringify(threads[0].named_paths));
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", other);
   }
   const malformed = await run(fakeApi(), lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, threads: [{ ...thread, named_paths: [7] }] }));
   assert.equal(malformed.escalationReason, "feedback-invalid");
@@ -976,6 +977,26 @@ test("a VALID fix in another file the PR changes, citing a line it changed, land
     assert.equal(api.posted().length, landed ? 1 : 0, label);
   }
   const malformed = await run(fakeApi(), lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, pr_paths: [7] }));
+  assert.equal(malformed.escalationReason, "feedback-invalid");
+});
+
+// #12346: the fix to lib/hook-utils.sh regenerated its copies in other
+// plugins, which run.json's copy_paths carry into the thread's scope.
+test("a VALID fix that regenerates the shared copies of a canonical the PR changes lands; a copy run.json does not list, or a workflow, does not", async () => {
+  const thread = { ...RUN.threads[0], path: "lib/hook-utils.sh" };
+  const copy = "plugins/a/hooks/hook-utils.sh";
+  for (const [label, copyPaths, file, landed] of [
+    ["a listed copy", [copy], copy, true],
+    ["no copy_paths", [], copy, false],
+    ["the copy's plugin README", [copy], "plugins/a/README.md", false],
+    ["a workflow listed as a copy", [".github/workflows/x.yml"], ".github/workflows/x.yml", false],
+  ]) {
+    const files = [{ filename: thread.path, status: "modified" }, { filename: file, status: "modified" }];
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files }, commits: { [FIX]: { files } } });
+    const result = await run(api, lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, pr_paths: [thread.path], copy_paths: copyPaths, threads: [thread] }));
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", label);
+  }
+  const malformed = await run(fakeApi(), lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, copy_paths: [7] }));
   assert.equal(malformed.escalationReason, "feedback-invalid");
 });
 
