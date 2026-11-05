@@ -33,6 +33,11 @@ Challenges a pattern: <each existing pattern this design departs from or questio
 
 Citations checked at: <the full commit SHA check-plan-citations.sh printed as `commit=` at Step 4.7; every `path:line` in this file resolves at it>
 
+### Behavior
+- B1: <one observable claim, one sentence> (AC1[, AC2...])
+- B<n>: <...>
+Process criteria: <the criterion ids no behavior shows, e.g. a PR-body rule; omit the line when there are none>
+
 ### Acceptance criteria
 <only when the plan adds criteria the Brief lacks: `- AC<n>: <criterion>`, numbered after the Brief's ids; omit otherwise>
 
@@ -53,6 +58,7 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed as `c
 
 ### Phase 1: <name> [TODO]
 **Satisfies:** <the acceptance criterion ids this phase satisfies, e.g. AC1, AC3; per ../context/plan-template.md "Criterion ids">
+**Delivers:** <the behavior ids this phase builds, e.g. B1; omit when the phase builds none>
 <file-by-file changes, rationale, per-phase sanity-check criteria>
 
 ### Phase N: <name> [TODO]
@@ -79,7 +85,7 @@ Reader depth: <guardrails, standard or step-by-step, and the layer that supplied
 <commit boundaries and verification checkpoints. Standard implementation boilerplate — rarely needs user-specific override>
 ```
 
-The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps the assumptions table whenever the Brief captured any, and the prototype evidence section whenever it consumes a prototype.
+`### Behavior` is the first `###` under `## Plan`; the outcome gate's `behaviors` criterion fails a plan with criterion ids whose `## Plan` does not open with it ([`../context/plan-template.md`](../context/plan-template.md) "Criterion ids"). The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps the assumptions table whenever the Brief captured any, and the prototype evidence section whenever it consumes a prototype.
 
 PLAN.md has no open-questions section of its own. A question the plan raises is an Open Decision settled before the plan body (plan Step 1); a deferred question stays in the Brief's `### Deferred questions`: the plan resolves an `arbiter: /planning:plan` one with a "Decisions made (gate-passed)" row, and Step 5 asks the user to resolve each open `USER-RESERVED` one.
 
@@ -101,7 +107,8 @@ in order:
 1. One line naming the depth and its reader, e.g. `Guardrails: follow these constraints; the steps are yours.` or `Standard: these constraints and the order of work; the details are yours.`
 2. `## Brief` as PLAN.md has it. A pipeline intent check reads the published plan's Brief as the acceptance criteria, so no depth drops it.
 3. `## Design` as PLAN.md has it, including `### Conventions followed` with its `Net new:` and `Challenges a pattern:` lines. With no `## Design` section: one line saying the plan has no design stage.
-4. `standard` only: `## Phase outline`, each `### Phase N:` heading copied as one line with its status tag.
-5. The `Approval:` and `Reader depth:` lines, copied unchanged.
+4. `### Behavior` as PLAN.md has it, its `Process criteria:` line included, so every depth shows what the change does.
+5. `standard` only: `## Phase outline`, each `### Phase N:` heading copied as one line with its status tag.
+6. The `Approval:` and `Reader depth:` lines, copied unchanged.
 
 Sections are copied, never reworded, so the published copy cannot drift from the approved plan.

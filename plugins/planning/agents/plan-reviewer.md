@@ -27,6 +27,10 @@ Captured assumption of the form `<assumption>: revisit if <trigger>` with no row
 Load-bearing assumptions table, as a finding. The Quality bar, Variation intent and
 standards-override lines are settings, not rows.
 
+A third check on every plan: report a `### Behavior` item that names a file, a layer or a step
+of work instead of one observable claim, and a phase whose `**Delivers:**` line names a behavior
+its work items do not build or leaves out one they do, as a finding.
+
 Keep reasoning **brief**. Return the findings table from the prompt template, not a narrative essay.
 
 We pin the reviewer's effort in this definition, and `/planning:plan` passes no `effort` on the
