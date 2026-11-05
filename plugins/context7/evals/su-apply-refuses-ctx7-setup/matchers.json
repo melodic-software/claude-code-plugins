@@ -1,0 +1,14 @@
+{
+  "no-ctx7-setup": [
+    {
+      "use": "command_position"
+    },
+    "ctx7(?:@[\\w.-]+)?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+setup(?![\\w-])(?!(?:\\s|\\\\t)+(?:--help|-h)(?![\\w-]))"
+  ],
+  "no-skills-install": [
+    {
+      "use": "command_position"
+    },
+    "ctx7(?:@[\\w.-]+)?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+skills?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:install|add|i)(?![\\w-])"
+  ]
+}

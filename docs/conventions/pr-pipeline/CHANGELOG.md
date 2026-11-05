@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## [8.54.0] - 2026-11-05
+
+### Changed
+
+- the address-feedback fix scope (`kept-threads`) also holds every non-instruction file in a plugin a kept thread or a `pr_paths` file sits in (code, `hooks/`, `monitors/`, `bin/`, `AGENTS.md` and `.claude-plugin/` included), every non-instruction file under a plugin's or skill's `evals/`, and the thread file's new `copy_paths`: the copies `scripts/shared-copies.txt` registers for a canonical the pull request changes. `.github/workflows/`, `.github/`, instruction paths and the row's refuse list stay out
+
+- **The `revert` demotion record is now filed by a new `file-revert` job whose token holds `issues: write` alone.** The alert job, which also holds `actions: write` and read scopes, still finds the revert and judges who enqueued the reverted pull request, then hands the record over through its job outputs; `file-revert` re-reads the revert records first so a revert commit is still filed once. Which reverts file a record is unchanged.
+
 ## [8.53.0] - 2026-11-05
 
 ### Added

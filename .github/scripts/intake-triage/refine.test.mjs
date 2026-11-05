@@ -778,6 +778,36 @@ describe("split", () => {
     }
   });
 
+  // g-holds-governance-1: admission parks a split at status: confirmed, never
+  // on the owner's needs-decision, and refine splits it from there.
+  describe("a split admission parked at status: confirmed", () => {
+    const PARKED = "status: confirmed";
+    const parked = () => held({ labels: [{ name: PARKED }] });
+
+    test("splitOf names the items for a parked issue, and not for a confirmed one beside another status", () => {
+      const laneBody = laneComment("none").body;
+      assert.deepEqual(splitOf({ body: BODY, laneBody, labels: [PARKED], admission: refusal(), rules, webHosts }).items.map(({ n }) => n), [2]);
+      assert.equal(splitOf({ body: BODY, laneBody, labels: [PARKED, "status: ready"], admission: refusal(), rules, webHosts }), null);
+    });
+
+    test("selects it with the split in the context, and refuses one the lanes App did not park", async () => {
+      const result = await select(fakeGitHub({ issue: parked(), comments: heldComments, events: [] }));
+      assert.equal(result.refine, true);
+      assert.deepEqual(result.context.split.items.map(({ n }) => n), [2]);
+      const foreign = await select(fakeGitHub({ issue: parked(), comments: [laneComment("none"), { ...admitted, user: { login: "someone", type: "User", id: HUMAN } }], events: [] }));
+      assert.equal(foreign.refine, false);
+    });
+
+    test("the split lifts status: confirmed and asks for re-triage", async () => {
+      const fake = fakeGitHub({ issue: parked(), comments: heldComments, events: [] });
+      assert.deepEqual(await apply(fake), { outcome: "split", redispatch: true });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed", "POST /repos/o/r/issues/7/comments"],
+      );
+    });
+  });
+
   test("a malformed model proposal never reaches the issue", async () => {
     const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP) });
     await assert.rejects(async () => apply(fake, { ...SPLIT, split: [1, 2, 3] }));

@@ -1,0 +1,117 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install -g ctx7@latest",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm i --global ctx7",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "short verb, long flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install -g ctx7@latest && ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "chained with the re-read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo npm -g install ctx7@latest 2>&1 | tail -5",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sudo and flag before the verb"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install ctx7@latest",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: local install, no -g"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm view ctx7 version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: version query only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"run: npm install -g ctx7@latest\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: only inside echoed text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install -g ctx7-mcp",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: another package"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install -g typescript; ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: -g install of another package, ctx7 in a later command"
+    }
+  ]
+}

@@ -111,7 +111,7 @@ until an operator resolves the gap is expected, not a reason to stop the lane.
 
 2. **Non-recurring guardrails items**, the frontier (open ∧ unblocked ∧ unassigned) filtered to `area: guardrails` (when the repo defines that area), non-recurring. Force multipliers: each one completed makes all future autonomous work more reliable. By priority; between equal ranks, prefer: enforcement mechanisms (CI/CD gates, architecture tests, hooks) > tool validation > research/planning.
 
-3. **Highest-impact non-recurring unassigned items**, the remaining frontier, non-recurring, by priority, then oldest-first. Select based on: items that unblock others, items in smaller categories, shorter well-scoped items over sprawling research epics.
+3. **Highest-impact non-recurring unassigned items**, the remaining frontier, non-recurring, by priority, then oldest-first. The pick is the first candidate in that order: between equal ranks the older item wins, never one chosen over it on a judgment of impact, scope or type ([context/candidate-discovery.md](context/candidate-discovery.md) "Step 1: Find candidates").
 
 4. **Recurring items not yet due** (last-resort). `recurring-schedule`, where `next_due > today`, by priority, then by `next_due`. LAST RESORT only, when tiers 1–3 are empty: picking a recurring item before its `next_due` shifts the cadence forward. Prefer items closest to `next_due` among equal ranks.
 
