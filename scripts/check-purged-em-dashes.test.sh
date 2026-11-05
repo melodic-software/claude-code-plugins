@@ -59,14 +59,14 @@ run_cfg() {
   RC=$?
 }
 
-run() { run_cfg ".claude/ai-slop.json" "$@"; }
+run() { run_cfg "docs/conventions/ai-slop.yaml" "$@"; }
 
 # --- Fixture ----------------------------------------------------------------
 # One repository, several allowlists pointed at different subsets of it, so each
 # case selects the surface it means to assert on rather than rebuilding a repo.
 
 REPO="$TMP/repo"
-mkdir -p "$REPO/.claude" "$REPO/surface" "$REPO/other"
+mkdir -p "$REPO/docs/conventions" "$REPO/surface" "$REPO/other"
 git_init_test_repo "$REPO"
 
 write() { printf '%s\n' "$2" >"$REPO/$1"; }
@@ -74,7 +74,8 @@ write() { printf '%s\n' "$2" >"$REPO/$1"; }
 # The tracked detector config, shaped like this repository's: rule-em-dash
 # disabled here, so a passing run PROVES the SUT's throwaway layer re-enabled it
 # rather than inheriting an already-permissive config.
-write ".claude/ai-slop.json" '{"excluded_paths":[],"disabled_rules":["rule-em-dash","rule-emoji-formatting"]}'
+write "docs/conventions/ai-slop.yaml" 'excluded_paths: []
+disabled_rules: ["rule-em-dash", "rule-emoji-formatting"]'
 
 write "surface/clean.md" 'A purged surface. It uses periods, and commas, instead.'
 
@@ -125,9 +126,18 @@ printf '%s\n' \
 # derives its throwaway layer and fails the run on the third, so each of these
 # is pointed at the SEEDED VIOLATION: a config that could suppress the finding
 # is the only fixture in which stripping is observable.
-write ".claude/cfg-em-dash-allowed.json" '{"excluded_paths":[],"em_dash_allowed_paths":["surface/dirty.md"],"disabled_rules":["rule-em-dash"]}'
-write ".claude/cfg-rule-allowed.json" '{"excluded_paths":[],"rule_allowed_paths":{"rule-em-dash":["surface/dirty.md"]},"disabled_rules":["rule-em-dash"]}'
-write ".claude/cfg-excluded.json" '{"excluded_paths":["surface/dirty.md"],"disabled_rules":["rule-em-dash"]}'
+write "docs/conventions/cfg-em-dash-allowed.yaml" 'excluded_paths: []
+em_dash_allowed_paths: ["surface/dirty.md"]
+disabled_rules: ["rule-em-dash"]'
+write "docs/conventions/cfg-rule-allowed.yaml" 'excluded_paths: []
+rule_allowed_paths:
+  rule-em-dash: ["surface/dirty.md"]
+disabled_rules: ["rule-em-dash"]'
+write "docs/conventions/cfg-excluded.yaml" 'excluded_paths: ["surface/dirty.md"]
+disabled_rules: ["rule-em-dash"]'
+# A JSON document is outside the YAML subset, so the detector would skip it
+# whole and drop its excluded_paths and thresholds without a word.
+write "docs/conventions/cfg-refused.yaml" '{"excluded_paths":[],"disabled_rules":["rule-em-dash"]}'
 
 # Matcher edge cases for the stale-entry and --list attribution: a leading dot,
 # a dot inside a directory name, brackets in a file name, and single-star
@@ -342,13 +352,20 @@ else
 fi
 
 OUT="$(EM_DASH_PURGED_ROOT="$REPO" EM_DASH_PURGED_PATHS="only-clean.txt" \
-  EM_DASH_SLOP_CONFIG="does-not-exist.json" EM_DASH_DETECT="$DETECT" \
+  EM_DASH_SLOP_CONFIG="does-not-exist.yaml" EM_DASH_DETECT="$DETECT" \
   bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 2)); then
   ok "an unreadable detector config is exit 2"
 else
   fail "an unreadable detector config is exit 2 (rc=$RC): $OUT"
+fi
+
+run_cfg "docs/conventions/cfg-refused.yaml" "$REPO" "only-clean.txt"
+if ((RC == 2)) && [[ "$OUT" == *"could not derive the detector config"* ]]; then
+  ok "a detector config the YAML parser refuses is exit 2"
+else
+  fail "a detector config the YAML parser refuses is exit 2 (rc=$RC): $OUT"
 fi
 
 # --- Switches that could quiet rule-em-dash on a declared path ---------------
@@ -362,7 +379,7 @@ fi
 # assertion still balances and the rule summary still says disabled=0: nothing
 # in a passing run would have said the file was never actually judged. The SUT
 # strips the key rather than trusting those counters to reveal it.
-run_cfg ".claude/cfg-em-dash-allowed.json" "$REPO" "with-dirty.txt"
+run_cfg "docs/conventions/cfg-em-dash-allowed.yaml" "$REPO" "with-dirty.txt"
 if ((RC == 1)) && [[ "$OUT" == *"surface/dirty.md"* ]]; then
   ok "em_dash_allowed_paths does not exempt a declared path"
 else
@@ -372,7 +389,7 @@ fi
 # rule_allowed_paths is the generalized form of the same switch, keyed by rule
 # slug, and reaches the detector through a different reader. Stripping one and
 # not the other would leave the identical hole under a second spelling.
-run_cfg ".claude/cfg-rule-allowed.json" "$REPO" "with-dirty.txt"
+run_cfg "docs/conventions/cfg-rule-allowed.yaml" "$REPO" "with-dirty.txt"
 if ((RC == 1)) && [[ "$OUT" == *"surface/dirty.md"* ]]; then
   ok "rule_allowed_paths[rule-em-dash] does not exempt a declared path"
 else
@@ -383,7 +400,7 @@ fi
 # the SUT cannot judge it and does not pretend to. It reports the path and
 # FAILS, because a declaration the detector never reads is not coverage, and a
 # green exit is exactly how it would be mistaken for some.
-run_cfg ".claude/cfg-excluded.json" "$REPO" "with-dirty.txt"
+run_cfg "docs/conventions/cfg-excluded.yaml" "$REPO" "with-dirty.txt"
 if ((RC == 1)) && [[ "$OUT" == *"were NOT checked"* ]] && [[ "$OUT" == *"surface/dirty.md"* ]]; then
   ok "a declared path the config excludes fails the gate and is named"
 else

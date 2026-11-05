@@ -237,6 +237,21 @@ test("a rewrite of an issue without agent-ready takes the 404 as done; a 500 lea
   );
 });
 
+test("a rewrite mirrors its agent-ready removal into the Work status field from the labels the listing read", async () => {
+  const s = store();
+  await runOnce(s, CASES[2][1]);
+  s.issues[0].labels.push("agent-ready");
+  // listFiled's read, a copy the writes below do not change.
+  const existing = structuredClone(s.issues);
+  const log = [];
+  const call = async (method, path, body) => (log.push(method), s.call(method, path, body));
+  const mirrorStatus = async (number, change) => log.push(["MIRROR", number, change]);
+  const findings = detect({ now, windowStart, ...CASES[2][2] });
+  const done = await writePlan({ plan: planIssues({ findings, existing }), call, repo: "o/r", labels: [], runUrl: url(900), existing, mirrorStatus, wait: async () => {} });
+  assert.deepEqual(done.updated, [100]);
+  assert.deepEqual(log, ["POST", "DELETE", ["MIRROR", 100, { had: ["source: factory-monitor", "agent-ready"], remove: ["agent-ready"] }], "PATCH"]);
+});
+
 test("a failed write is reported and the rest still run", async () => {
   const s = store();
   const failing = async (method, path, body) => {

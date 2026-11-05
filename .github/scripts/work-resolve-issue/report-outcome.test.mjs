@@ -1222,6 +1222,88 @@ for (const [reason, step] of [
   });
 }
 
+// Each stop's label edits reach the Work status field through mirrorStatus,
+// from the labels read before them, once the edits are done.
+test("main mirrors a park's label edits into the Work status field after they land", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const mirrored = [];
+    const mirrorStatus = async (number, change) => mirrored.push([number, change, calls.filter((c) => c.method === "DELETE").length]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch, mirrorStatus }), 0);
+    assert.deepEqual(mirrored, [[77, { had: ISSUE[2].labels, add: ["status: confirmed"], remove: ["agent-ready", "status: ready", "admission-deferred"] }, 3]]);
+  });
+});
+
+// A removal that fails other than 404 leaves its label on, so the mirror keeps
+// it; a 404 is a label already off.
+test("main mirrors only the removals that landed: a 500 keeps its label, a 404 counts as removed", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 500, {}],
+      ["DELETE", /\/issues\/77\/labels\/admission-deferred$/, 404, {}],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const mirrored = [];
+    const mirrorStatus = async (number, change) => mirrored.push([number, change]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch, sleep: async () => {}, mirrorStatus }), 0);
+    assert.deepEqual(mirrored, [[77, { had: ISSUE[2].labels, add: ["status: confirmed"], remove: ["agent-ready", "admission-deferred"] }]]);
+  });
+});
+
+// The outside-author stop reads no issue for its plan, so the mirror starts
+// from a fresh read of the issue's labels.
+test("main mirrors an outside-author stop's agent-ready removal from a fresh read of the issue's labels", async () => {
+  await withDir({}, async (dir) => {
+    const labels = [{ name: "agent-ready" }, { name: "priority: high" }];
+    const { fetch } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77$/, 200, { number: 77, labels }],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const mirrored = [];
+    const mirrorStatus = async (number, change) => mirrored.push([number, change]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, mirrorStatus }), 0);
+    assert.deepEqual(mirrored, [[77, { had: labels, add: [], remove: ["agent-ready"] }]]);
+  });
+});
+
+test("main mirrors a close's queue and state label removals into the Work status field", async () => {
+  const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
+  const labels = [{ name: "agent-ready" }, { name: "status: confirmed" }, { name: "work-class: read-only" }];
+  await withAsyncDir({ "work-outcome.json": report }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, 200, { ...ISSUE[2], labels }],
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ["PATCH", /\/issues\/77$/, 200, {}],
+    ]);
+    const mirrored = [];
+    const mirrorStatus = async (number, change) => mirrored.push([number, change]);
+    assert.equal(await main({ env: env(dir), fetch, mirrorStatus }), 0);
+    assert.ok(calls.some((c) => c.method === "PATCH" && c.body?.state === "closed"));
+    // The hand-back step of a close edits no label, so its mirror changes nothing.
+    assert.deepEqual(mirrored, [
+      [77, { had: labels, add: [], remove: [] }],
+      [77, { had: labels, remove: ["agent-ready", "status: confirmed"] }],
+    ]);
+  });
+});
+
 // The lanes App keeps one admission comment per issue, so a park edits the one
 // admission already wrote.
 test("main on a dimension skip edits the lanes App's earlier admission comment in place", async () => {
@@ -4237,7 +4319,7 @@ const DECISION_BODY = "**Decision recorded.** Change only the README.";
 const readyAdd = (id, actor, at) => ({ id, event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
 const OWNER_ADD = readyAdd(1, { id: OWNER_ID, login: "kyle-sexton" }, ADDED);
 const redispatchRecord = (id, names, at = LATE) => late(id, 337595936, `<!-- work-resolve-issue outcome=redispatch run=99 -->\n<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
-async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?", labels = ["agent-ready", "status: ready"] } = {}) {
+async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?", labels = ["agent-ready", "status: ready"], mirrorStatus } = {}) {
   const pushback = JSON.stringify({ exit: "pushback", reason, cause: "intent", title: "", summary: "" });
   let result;
   await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
@@ -4250,7 +4332,7 @@ async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which f
       ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch, mirrorStatus }), 0);
     const posted = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).map((c) => c.body.body);
     const labeled = calls.filter((c) => c.method === "POST" && c.path.endsWith("/labels")).map((c) => c.body.labels);
     const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
@@ -4264,6 +4346,14 @@ test("a listed human's decision posted after admission re-dispatches a pushback 
   assert.deepEqual(redispatches, [`<!-- work-resolve-issue outcome=redispatch run=123 -->\n<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`]);
   assert.equal(posted.length, 1, "no hand-back comment beside the redispatch record");
   assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]], "no needs-human, and status: ready lands between the agent-ready moves");
+});
+
+test("a late-record redispatch mirrors its status: ready and agent-ready adds into the Work status field", async () => {
+  const mirrored = [];
+  const mirrorStatus = async (number, change) => mirrored.push([number, change]);
+  const { redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })], { labels: ["agent-ready"], mirrorStatus });
+  assert.equal(redispatches.length, 1);
+  assert.deepEqual(mirrored, [[77, { had: [{ name: "agent-ready" }], add: ["status: ready", "agent-ready"] }]]);
 });
 
 test("intake's refinement posted after admission re-dispatches a pushback hold once", async () => {
@@ -5552,6 +5642,14 @@ test("refireStale re-fires a stale run's issue at once with work-unblock's re-fi
   assert.equal(REFIRED.exec(comment)?.[2], undefined, "no breaker tag");
   assert.equal(parseOutcomeMarker(comment), null, "a re-fire is no lane outcome, so stop-retries never counts it");
   assert.deepEqual(calls.at(-1).body, { labels: ["agent-ready"] });
+});
+
+test("refireStale mirrors its agent-ready re-add into the Work status field after the label moves", async () => {
+  const { fetch, calls } = staleFetch({ labels: ["agent-ready", "work-class: read-only"] });
+  const mirrored = [];
+  const mirror = async (number, change) => mirrored.push([number, change, writes(calls).length]);
+  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, mirror }), /^re-fired/);
+  assert.deepEqual(mirrored, [[77, { had: [{ name: "agent-ready" }, { name: "work-class: read-only" }], add: ["agent-ready"] }, 3]]);
 });
 
 test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fires since a person or a report", async () => {

@@ -26,10 +26,6 @@ pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
 }
-skip() {
-  SKIPPED=$((SKIPPED + 1))
-  printf 'SKIP (host: %s): %s\n' "$2" "$1"
-}
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   FAILED=$((FAILED + 1))
@@ -160,28 +156,21 @@ assert_contains "disagree: a file marker resets the line set" "$out" \
 
 # --- config: allowed paths and a disabled rule ---------------------------------------
 
-if command -v jq >/dev/null 2>&1; then
-  A="$TEST_TMPDIR/allowcfg"
-  mkdir -p "$A/.claude"
-  git init -q "$A" >/dev/null 2>&1
-  printf '%s\n' '{ "rule_allowed_paths": { "rule-em-dash": ["plain.*"] } }' >"$A/.claude/ai-slop.json"
-  out="$(CLAUDE_PROJECT_DIR="$A" bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
-  assert_contains "allowed: a rule_allowed_paths file is skipped" "$out" "CrossCheck: file=plain.md skipped=rule-allowed"
-  assert_not_contains "allowed: and never compared" "$out" "Disagree: file=plain.md"
+A="$TEST_TMPDIR/allowcfg"
+mkdir -p "$A/docs/conventions"
+git init -q "$A" >/dev/null 2>&1
+printf '%s\n' 'rule_allowed_paths:' '  rule-em-dash: ["plain.*"]' >"$A/docs/conventions/ai-slop.yaml"
+out="$(CLAUDE_PROJECT_DIR="$A" bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
+assert_contains "allowed: a rule_allowed_paths file is skipped" "$out" "CrossCheck: file=plain.md skipped=rule-allowed"
+assert_not_contains "allowed: and never compared" "$out" "Disagree: file=plain.md"
 
-  X="$TEST_TMPDIR/disabledcfg"
-  mkdir -p "$X/.claude"
-  git init -q "$X" >/dev/null 2>&1
-  printf '%s\n' '{ "disabled_rules": ["rule-em-dash"] }' >"$X/.claude/ai-slop.json"
-  out="$(CLAUDE_PROJECT_DIR="$X" bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
-  assert_contains "disabled: the comparison is skipped" "$out" "CrossCheck: comparison skipped: rule-em-dash disabled"
-  assert_not_contains "disabled: no file rows" "$out" "CrossCheck: file="
-else
-  for c in "allowed: a rule_allowed_paths file is skipped" "allowed: and never compared" \
-    "disabled: the comparison is skipped" "disabled: no file rows"; do
-    skip "$c" "jq not on PATH, config unread"
-  done
-fi
+X="$TEST_TMPDIR/disabledcfg"
+mkdir -p "$X/docs/conventions"
+git init -q "$X" >/dev/null 2>&1
+printf '%s\n' 'disabled_rules: ["rule-em-dash"]' >"$X/docs/conventions/ai-slop.yaml"
+out="$(CLAUDE_PROJECT_DIR="$X" bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
+assert_contains "disabled: the comparison is skipped" "$out" "CrossCheck: comparison skipped: rule-em-dash disabled"
+assert_not_contains "disabled: no file rows" "$out" "CrossCheck: file="
 
 # --- the real detector over the same fixtures ----------------------------------------
 
