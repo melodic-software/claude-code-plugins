@@ -74,7 +74,7 @@ import { pathToFileURL } from "node:url";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, installScriptPinRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
-import { NOTE_ID, THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
+import { NOTE_ID, sharedCopyPairs, THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
@@ -1247,14 +1247,14 @@ function need(env, keys) {
 
 // The kept threads of a threads.json: each a path and, when a fix request
 // named files, its named_paths; the files the PR already changes, its
-// pr_paths; and the thread ids of the select job's shape, in its order. A
+// pr_paths; the shared copies of canonicals it changes, its copy_paths; and the thread ids of the select job's shape, in its order. A
 // pr-verify note of an earlier FAIL (verify_notes) counts as a thread on its
 // path, by its note id.
 export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
   }
-  const { threads: kept, verify_notes: notes = [], pr_paths: prPaths = [] } = JSON.parse(readFileSync(file, "utf8")) ?? {};
+  const { threads: kept, verify_notes: notes = [], pr_paths: prPaths = [], copy_paths: copyPaths = [] } = JSON.parse(readFileSync(file, "utf8")) ?? {};
   const plain = (value) => typeof value === "string" && value !== "";
   if (!Array.isArray(notes) || !notes.every((note) => NOTE_ID.test(String(note?.id)) && plain(note.path))) {
     throw new Error("KEPT_THREADS_FILE holds a malformed verify_notes list");
@@ -1264,17 +1264,20 @@ export function keptThreadsFrom(file) {
     !Array.isArray(threads) ||
     !Array.isArray(prPaths) ||
     !prPaths.every(plain) ||
+    !Array.isArray(copyPaths) ||
+    !copyPaths.every(plain) ||
     !threads.every(
       (thread) =>
         plain(thread?.path) && (thread.named_paths === undefined || (Array.isArray(thread.named_paths) && thread.named_paths.every(plain))),
     )
   ) {
-    throw new Error("KEPT_THREADS_FILE is not a thread file of paths, named_paths and pr_paths");
+    throw new Error("KEPT_THREADS_FILE is not a thread file of paths, named_paths, pr_paths and copy_paths");
   }
   return {
     paths: new Set(threads.map((thread) => thread.path)),
     threads: threads.map(({ path, named_paths }) => ({ path, named_paths })),
     prPaths: new Set(prPaths),
+    copyPaths: new Set(copyPaths),
     ids: threads.map((thread) => thread.id).filter((id) => typeof id === "string" && (THREAD_ID.test(id) || NOTE_ID.test(id))),
   };
 }
@@ -1309,20 +1312,12 @@ export function fixedThreadsFrom(file, kept) {
 }
 
 // The copies the base checkout's scripts/shared-copies.txt registers: the
-// second field of each `<canonical> <copy>` line, with everything from a `#`
-// on stripped as scripts/sync-shared-copies.sh strips it, blanks skipped.
+// second field of each sharedCopyPairs pair.
 export function sharedCopiesFrom(baseDir) {
   if (!baseDir) {
     throw new Error("BASE_DIR is not set; the shared-copies allow reads the base registry");
   }
-  const copies = new Set();
-  for (const line of readFileSync(join(baseDir, "scripts/shared-copies.txt"), "utf8").split("\n")) {
-    const fields = line.split("#")[0].trim().split(/\s+/);
-    if (fields.length === 2) {
-      copies.add(fields[1]);
-    }
-  }
-  return copies;
+  return new Set(sharedCopyPairs(readFileSync(join(baseDir, "scripts/shared-copies.txt"), "utf8")).map(([, copy]) => copy));
 }
 
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the
