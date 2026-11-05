@@ -22,6 +22,7 @@ RIGHT (vertical):
 Before writing the first test, confirm the public interface design:
 
 - Which parts of the interface does this change add or alter? When the session is interactive and the change is material (a new public surface, a changed contract), confirm with the user; otherwise state the interface you assume and proceed
+- When you state the assumed interface, add one line on what a test at that seam catches and what it misses
 - Identify opportunities for deep modules: can methods be reduced, params simplified, complexity hidden behind the interface?
 - Design interfaces for testability: prefer returning results over side effects, so output-based tests are possible
 - Proceed once the interface is settled; an autonomous run states its interface assumption in the summary instead of waiting
@@ -52,7 +53,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
    | Parsers, serializers, pure transforms, collections and stateful classes | Property, beside examples | the project's property library; see [property.md](property.md) |
    | Behavior to keep through a replace, migrate or legacy refactor | Characterization, approval or differential (pins) | the project's approval or snapshot tooling; see [characterization.md](characterization.md) |
 
-3. **Write the failing test first** (Red), and run it to see it fail. The test name IS the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. Illustrative forms (.NET/xUnit), with casing and separators adapted to the target ecosystem:
+3. **Write the failing test first** (Red), and run it to see it fail. On a bug fix, the first red runs against the existing code and fails on the wrong behavior, not on a missing symbol. The test name IS the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. Illustrative forms (.NET/xUnit), with casing and separators adapted to the target ecosystem:
    - Unit: `{Method}_Should{Behavior}_When{Condition}`
    - Integration: `{Subject}_{Behavior}` or `{Subject}_{Behavior}_{Context}`
    - Architecture: `{Subject}_Should{Constraint}`

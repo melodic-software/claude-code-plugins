@@ -162,6 +162,8 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
 - Deterministic work goes in a bundled script. SKILL.md cites it as
   `${CLAUDE_SKILL_DIR}/scripts/<name>` with the verb ("Run" to execute, "See" to read), forward
   slashes only. State each dependency's install command, kept local to the project.
+- A script's usage (flags, arguments, examples) lives in its `--help`. The skill names only the
+  command, never a copy of the usage.
 - In this marketplace, a file several plugins share (a script or a reference page) stays a plain
   copy in each plugin, because an installed plugin sees only its own directory (ADR 0019).
   Register each copy in `scripts/shared-copies.txt`, the one shared-copies record, edit only the

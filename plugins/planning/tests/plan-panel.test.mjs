@@ -218,3 +218,61 @@ test('string args are parsed as JSON', async () => {
   const { result } = await run(JSON.stringify({ task: 'from a string' }))
   assert.equal(result.task, 'from a string')
 })
+
+test('judges that agree are not split; judges that pick differently are', async () => {
+  const agree = await run({ task: 't' })
+  assert.deepEqual(agree.result.judge_winners, ['B', 'B', 'B'])
+  assert.equal(agree.result.judges_split, false)
+  const split = await run({ task: 't' }, {
+    reply: (p, o) => (o.label === 'judge:2'
+      ? { scores: ['A', 'B', 'C', 'D'].map(l => score(l, l === 'C' ? 5 : 2)), dissent: '' }
+      : defaultReply(p, o)),
+  })
+  assert.deepEqual(split.result.judge_winners, ['B', 'C', 'B'])
+  assert.equal(split.result.judges_split, true)
+})
+
+test('left_behind passes through from the synthesis', async () => {
+  const lb = [{ idea: 'y', from: 'C', reason: 'contradicts the winner' }]
+  const { result, calls } = await run({ task: 't' }, {
+    reply: (p, o) => (o.label === 'synthesize' ? { plan: 'p', grafted: [], left_behind: lb, dissent: [] } : defaultReply(p, o)),
+  })
+  assert.deepEqual(result.left_behind, lb)
+  assert.ok(synth(calls).opts.schema.required.includes('left_behind'))
+})
+
+test('a caller rubric replaces the default in the judge prompt, schema and totals', async () => {
+  const rubric = [{ name: 'security', text: 'no new attack surface' }, { name: 'cost', text: 'cheap to run' }]
+  const { result, calls } = await run({ task: 't', rubric }, {
+    reply: (p, o) => (o.label.startsWith('judge:')
+      ? { scores: ['A', 'B', 'C', 'D'].map(l => ({ draft: l, security: l === 'A' ? 5 : 1, cost: 4, rationale: 'r' })), dissent: '' }
+      : defaultReply(p, o)),
+  })
+  const j = judges(calls)[0]
+  assert.ok(j.prompt.includes('security (no new attack surface)') && !j.prompt.includes('goal_fit'))
+  assert.deepEqual(j.opts.schema.properties.scores.items.required, ['draft', 'security', 'cost', 'rationale'])
+  assert.equal(result.winner.id, 'A')
+  assert.equal(result.scores.find(s => s.draft === 'A').total, 9)
+  assert.deepEqual(result.rubric, rubric)
+  assert.ok(synth(calls).prompt.includes('security (no new attack surface), cost (cheap to run)'))
+})
+
+test('an invalid rubric falls back to the default and is logged', async () => {
+  for (const bad of [{ name: 'Bad Name', text: 'x' }, { name: null, text: 'x' }]) {
+    const { result, logs } = await run({ task: 't', rubric: [bad, { name: 'ok', text: 'y' }] })
+    assert.deepEqual(result.rubric.map(c => c.name), ['goal_fit', 'blast_radius', 'test_strategy', 'reversibility'])
+    assert.ok(logs.some(l => l.includes('args.rubric')))
+  }
+})
+
+test('a criterion named like a score field is refused, so it cannot corrupt the totals', async () => {
+  const rubric = [{ name: 'judges', text: 'x' }, { name: 'quality', text: 'y' }]
+  const { result, logs } = await run({ task: 't', rubric }, {
+    reply: (p, o) => (o.label.startsWith('judge:')
+      ? { scores: ['A', 'B', 'C', 'D'].map(l => ({ draft: l, judges: l === 'A' ? 5 : 1, quality: l === 'B' ? 4 : 1, rationale: 'r' })), dissent: '' }
+      : defaultReply(p, o)),
+  })
+  assert.ok(logs.some(l => l.includes('args.rubric')))
+  assert.deepEqual(result.rubric.map(c => c.name), ['goal_fit', 'blast_radius', 'test_strategy', 'reversibility'])
+  assert.ok(result.scores.every(s => s.judges === 3))
+})
