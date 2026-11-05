@@ -1198,6 +1198,22 @@ test("lane holds: intake-triage past its own cap of 40 is a gap that stops at th
   assert.ok(!api.calls.some((c) => c.includes("runs/1040/jobs")));
 });
 
+test("lane holds: work-unblock reads past the default cap of 6 up to its own of 20", async () => {
+  const sweeps = (count) => Array.from({ length: count }, (_, i) => run(2100 + i, { event: "schedule", updated_at: `2026-10-19T16:${String(i + 10).padStart(2, "0")}:00Z` })).reverse();
+  const routesFor = (count) => [
+    [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: sweeps(count) }],
+    [/runs\/21\d{2}\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "label-unblocked", conclusion: "success" }] })],
+    [/check-runs\/21\d{3}\/annotations/, []],
+    ...holdRoutes(),
+  ];
+  const eight = fakeApi(routesFor(8));
+  const data = await collect(input(eight, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  for (let id = 2100; id < 2108; id += 1) assert.ok(eight.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
+  const over = await collect(input(fakeApi(routesFor(21)), { holds: { rule: RULE, carried: CARRIED } }));
+  assert.match(over.gaps[0], /^lane holds: over the cap of unread green runs of work-unblock \(cap 20\)/);
+});
+
 test("lane holds: a run list past one page reads the next, and past three pages is a gap", async () => {
   // 150 listed: page 1 the 100 newest-created, none completed in the window;
   // page 2 holds the held run 1000, completed in it.

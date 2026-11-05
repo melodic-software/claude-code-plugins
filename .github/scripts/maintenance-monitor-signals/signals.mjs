@@ -411,7 +411,10 @@ export function listingHeldFindings({ heldSweeps = [] }) {
 export const LANE_HOLDS = { threshold: 4, "window-hours": 24 };
 export const HOLD_LANES = [
   { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run", "pick-slot"], area: "Issue lane (work-resolve-issue)" },
-  { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)" },
+  // The 24 hours to 2026-11-05T22:00Z had 165 green runs, a mean of 6.9 an
+  // hour over the default cap of 6, and a peak of 51; 20 covers every hour
+  // but that one, whose rest later runs read, at 2 calls a run.
+  { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
   { lane: "pr-refine", workflow: "pr-refine.yml", jobs: ["fix-docs-handoff", "fix-docs-subscription-handoff"], area: "PR refine lane (pr-refine fix-docs)" },
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
