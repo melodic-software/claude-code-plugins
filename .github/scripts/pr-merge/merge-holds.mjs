@@ -57,8 +57,8 @@
 //   `_pass_refusal`), so a body edited after arming to close or name another
 //   issue does not merge on a pass for the old one. The same approval lifts it.
 // - A head the arm never judged, when a verdicts file is given: the lanes
-//   App's newest read-back pin names another head (pinHold), so a push after
-//   the arm left GitHub's auto-merge on. The same approval lifts it.
+//   App's newest read-back pin names another head, or was edited (pinHold), so
+//   a push after the arm left GitHub's auto-merge on. The same approval lifts it.
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
@@ -260,6 +260,7 @@ export const fromRest = (row) => ({
   association: row?.author_association,
   at: String(row?.submitted_at ?? row?.created_at ?? ""),
   body: String(row?.body ?? ""),
+  nodeId: row?.node_id,
 });
 
 // The read-back pin (babysit_postmerge.PIN_RE): the lanes App posts one naming
@@ -273,16 +274,50 @@ export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3
 // without write access, so a later push by the lanes App or a person with
 // write access leaves the arm on, and the queue would merge a head the
 // arming checks never judged. With no pin, no lane armed it, and nothing holds.
+// A pin not read as unedited (withPinEdit sets its lastEditedAt) holds too:
+// enable-auto-merge.mjs pinned and pinMoved, and babysit_postmerge, read an
+// edited pin as naming no head the arm judged.
 export function pinHold(items, head) {
-  const firstLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
-  const pin = items
-    .filter((item) => item.login === LANES_APP_LOGIN && PIN_RE.test(firstLine(item)))
+  const pin = newestPin(items);
+  if (pin === undefined) {
+    return null;
+  }
+  const again =
+    "enable-auto-merge judges and pins this head before it arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue";
+  if (!unedited(pin)) {
+    return `the lanes App's newest pin comment was edited, or its edit time did not read, so the head its arm judged does not read; ${again}`;
+  }
+  const sha = PIN_RE.exec(pinLine(pin))[1];
+  return sha === head ? null : `its head is not ${sha}, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head; ${again}`;
+}
+
+const pinLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
+// The lanes App's newest read-back pin among `items` (fromRest's), or undefined.
+const newestPin = (items) =>
+  items
+    .filter((item) => item.login === LANES_APP_LOGIN && PIN_RE.test(pinLine(item)))
     .sort((a, b) => a.at.localeCompare(b.at))
     .at(-1);
-  const sha = pin === undefined ? head : PIN_RE.exec(firstLine(pin))[1];
-  return sha === head
-    ? null
-    : `its head is not ${sha}, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head; enable-auto-merge judges and pins this head before it arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`;
+
+// `items` with the lanes App's newest pin's lastEditedAt, read with
+// COMMENT_EDITED_QUERY as enable-auto-merge.mjs reads it. A pin with no node
+// id, or a read that fails or answers no lastEditedAt, is left without one,
+// so pinHold holds.
+export async function withPinEdit(github, items) {
+  const pin = newestPin(items);
+  if (pin === undefined || typeof pin.nodeId !== "string" || !pin.nodeId) {
+    return items;
+  }
+  let node;
+  try {
+    node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: pin.nodeId } }))?.data?.node;
+  } catch {
+    return items;
+  }
+  if (!node || typeof node !== "object" || !("lastEditedAt" in node)) {
+    return items;
+  }
+  return items.map((item) => (item === pin ? { ...item, lastEditedAt: node.lastEditedAt } : item));
 }
 
 // Whether `path` matches the hold-path `glob`, case-folded as glob_match
@@ -1762,7 +1797,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     }
     // In the merge queue only, where a moved head would merge: an approval of
     // the head lifts it, as it lifts the verifier hold.
-    const unpinned = verdictsFile ? pinHold(items, head) : null;
+    const unpinned = verdictsFile ? pinHold(await withPinEdit(github, items), head) : null;
     if (unpinned && approved.length) {
       console.log(`#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '${escape(unpinned)}'.`);
     }

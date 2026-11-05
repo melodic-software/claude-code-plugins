@@ -1961,8 +1961,9 @@ someone without write access
 ([Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)),
 so a push by the lanes App or a person with write access leaves on an arm whose checks judged the
 head it moved off. The merge queue's `ci-status` holds a head that the lanes App's newest pin
-(`<!-- babysit-merge-pin sha=... -->`, posted just before each arm) does not name, unless a
-trusted person's approval of that head lifts it (`merge-holds.mjs` `pinHold`). The queue's failed
+(`<!-- babysit-merge-pin sha=... -->`, posted just before each arm) does not name, or that pin
+when it was edited or its edit time does not read, unless a trusted person's approval of that head
+lifts it (`merge-holds.mjs` `pinHold`). The queue's failed
 check removes the entry, and GitHub drops the arm with it. `enable-auto-merge` also disarms an armed
 one whose head that pin does not name, and its next scheduled run judges and pins the new head
 before arming it again. Turning auto-merge off needs `contents: write`, which the lanes App's

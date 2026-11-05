@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, fromRest, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, fromRest, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -963,7 +963,7 @@ test("evidenceHold holds a report it cannot read, or one for another head", () =
 // GitHub turns auto-merge off only on a push by someone without write access,
 // so a lane push after enable-auto-merge armed the pull request leaves the
 // arm on: the queue holds the pushed head, which the pin does not name.
-const pinRow = (sha, at) => ({ id: 3, user: { login: "melodic-automation-lanes[bot]", id: 9, type: "Bot" }, body: `<!-- babysit-merge-pin sha=${sha} rung=C2 -->\nArmed.`, created_at: at, author_association: "NONE" });
+const pinRow = (sha, at) => ({ id: 3, node_id: "IC_7", user: { login: "melodic-automation-lanes[bot]", id: 9, type: "Bot" }, body: `<!-- babysit-merge-pin sha=${sha} rung=C2 -->\nArmed.`, created_at: at, author_association: "NONE" });
 const PIN_HELD = /^::error::#99: its head is not fedcba9876543210fedcba9876543210fedcba98, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head;/m;
 
 test("in the merge queue, a lane push after the arm holds the pushed head the pin does not name", async () => {
@@ -989,11 +989,46 @@ test("in the merge queue, a trusted approval of the pushed head lifts the pin ho
   assert.doesNotMatch(event.out, PIN_HELD);
 });
 
-test("pinHold reads the lanes App's newest pin", () => {
-  const items = (...rows) => rows.map(fromRest);
+// enable-auto-merge's pinMoved disarms on an edited pin only on its next
+// run, so the queue holds one too, whatever head its first line names now.
+const PIN_EDITED = /^::error::#99: the lanes App's newest pin comment was edited, or its edit time did not read, so the head its arm judged does not read;/m;
+
+test("in the merge queue, an edited pin holds even when it names the head", async () => {
+  const pinned = [pinRow(HEAD, "2026-10-23T10:00:00Z")];
+  const edited = await ci(["docs/a.md"], { reviews: pinned, options: { node: { lastEditedAt: "2026-10-23T11:00:00Z" } }, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence: report(null) } });
+  assert.equal(edited.code, 1, edited.out);
+  assert.match(edited.out, PIN_EDITED);
+  // An edit time that does not read holds the same.
+  for (const options of [{ fail: "edited" }, { node: null }, { node: {} }]) {
+    const unread = await ci(["docs/a.md"], { reviews: pinned, options, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence: report(null) } });
+    assert.equal(unread.code, 1, `${JSON.stringify(options)}: ${unread.out}`);
+    assert.match(unread.out, PIN_EDITED);
+  }
+  // A trusted approval of the head lifts it.
+  const lifted = await ci(["docs/a.md"], { reviews: [...pinned, approve], options: { node: { lastEditedAt: "2026-10-23T11:00:00Z" } }, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence: report(null) } });
+  assert.equal(lifted.code, 0, lifted.out);
+});
+
+test("pinHold reads the lanes App's newest pin", async () => {
+  const items = (...rows) => rows.map((row) => ({ ...fromRest(row), lastEditedAt: null }));
   assert.equal(pinHold(items(), HEAD), null);
   assert.equal(pinHold(items(pinRow(HEAD, "2026-10-23T10:00:00Z")), HEAD), null);
   assert.match(pinHold(items(pinRow(HEAD, "2026-10-23T09:00:00Z"), pinRow(OLD, "2026-10-23T10:00:00Z")), HEAD), /^its head is not fedcba98/);
+  // An edited pin, or one whose edit time was never read, names no head.
+  const pin = fromRest(pinRow(HEAD, "2026-10-23T10:00:00Z"));
+  assert.match(pinHold([{ ...pin, lastEditedAt: "2026-10-23T11:00:00Z" }], HEAD), /^the lanes App's newest pin comment was edited/);
+  assert.match(pinHold([pin], HEAD), /^the lanes App's newest pin comment was edited/);
+  // withPinEdit reads the newest pin's edit time by its node id, and only that pin's.
+  const asked = [];
+  const github = async (method, path, body) => {
+    asked.push([method, path, body.query === COMMENT_EDITED_QUERY, body.variables]);
+    return { data: { node: { lastEditedAt: null } } };
+  };
+  const older = { ...fromRest(pinRow(OLD, "2026-10-23T09:00:00Z")), nodeId: "IC_6" };
+  const read = await withPinEdit(github, [older, pin]);
+  assert.deepEqual(asked, [["POST", "/graphql", true, { id: "IC_7" }]]);
+  assert.equal(pinHold(read, HEAD), null);
+  assert.equal("lastEditedAt" in read[0], false);
   assert.equal(PIN_RE.exec(`<!-- babysit-merge-pin sha=${HEAD} -->`)[1], HEAD);
 });
 
