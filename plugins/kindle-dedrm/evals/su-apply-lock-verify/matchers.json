@@ -1,0 +1,8 @@
+{
+  "no-lock-run-here": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:firewall\\.ps1|lock-updates\\.sh|(?:New|Set|Enable|Disable|Remove)-NetFirewallRule|\\bnetsh\\s+advfirewall\\b|\\bicacls\\b(?:[^\"\\\\]|\\\\.)*?/(?:deny|grant|remove))"
+  ]
+}
