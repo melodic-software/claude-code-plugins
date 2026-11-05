@@ -158,12 +158,13 @@ condition 1 and the actor and author parts of condition 2).
   check is replaced by a check of the lost-run reconciler's record; the event's actors and the PR
   author are still checked as above. It proceeds only when every one of these holds, and any
   failed read or condition stops with `untrusted-rerunner`:
-  - `github-actions[bot]` (41898282) is not in `denied-actor-ids`, `GITHUB_RUN_ATTEMPT` is `2`,
+  - `github-actions[bot]` (41898282) is not in `denied-actor-ids`, `GITHUB_RUN_ATTEMPT` is `2`
+    or `3` (`RECONCILER_ATTEMPT_CAP` in `check-trusted-trigger.mjs`, owner decision Q-RERUN3),
     and the payload names the repository's default branch;
-  - this run's attempt 2, read through `GET /actions/runs/{github.run_id}/attempts/2`, has that
+  - this run's attempt, read through `GET /actions/runs/{github.run_id}/attempts/{attempt}`, has that
     `id` and `run_attempt`, `triggering_actor.id` 41898282, this repository, a 40-hex `head_sha`
     and a `run_started_at`;
-  - `GET /actions/artifacts?name=reconcile-rerun-<run id>-2-<head_sha>&per_page=100`, up to ten
+  - `GET /actions/artifacts?name=reconcile-rerun-<run id>-<attempt>-<head_sha>&per_page=100`, up to ten
     pages, lists an
     artifact with exactly that name, `expired` `false`, and a `created_at` no later than the
     attempt's `run_started_at`, whose `workflow_run.id` names a run that has that `id`, this
@@ -184,12 +185,14 @@ condition 1 and the actor and author parts of condition 2).
   after 5 s and then refused.
 
   The same record vouches for the upstream run on the `workflow_run` path. When
-  `reconciler-workflow` is set, `workflow_run.run_attempt` is `2` and
+  `reconciler-workflow` is set, `workflow_run.run_attempt` is `2` or `3` and
   `workflow_run.triggering_actor.id` is 41898282, that actor need not be listed; `sender` and
   `workflow_run.actor` still must be. Every check above then runs against the upstream run,
   `workflow_run.id` in place of `github.run_id`, and any failure stops with `untrusted-actor`.
-  The reconciler records each re-run that makes attempt 2 of a CI run this lane runs after. A
-  github-actions[bot] upstream at any other attempt, or with no record, stops with
+  The reconciler records each re-run that makes attempt 2 of a CI run this lane runs after, and
+  re-runs a passed `pr-require-checks` run whose spec changed after its pass at attempt 2 too,
+  recorded as attempt 3. A github-actions[bot] upstream at any other attempt, or with no record
+  naming its attempt, stops with
   `untrusted-actor`. This run's own re-runner is then checked as above.
 
   `ci-status-rerun-workflow` adds a second recorder for the upstream run only:
@@ -197,8 +200,8 @@ condition 1 and the actor and author parts of condition 2).
   `rerun-ci-status-<run id>-<attempt>-<head_sha>` immediately before it re-runs a ci-status job,
   naming the attempt that re-run starts. Its upstream is a completed review run or a completed
   `pr-review-approved.yml` relay of an approval by a listed human. A github-actions[bot] upstream at attempt 2 or later is
-  checked as above against `GET /actions/runs/{id}/attempts/{attempt}` and that name (at attempt 2
-  the reconciler's name is read first), except that the recording run's `event` must be
+  checked as above against `GET /actions/runs/{id}/attempts/{attempt}` and that name (at attempts 2
+  and 3 the reconciler's name is read first), except that the recording run's `event` must be
   `workflow_run` and its `actor` is not checked, since such a run runs the default branch's file,
   and the window runs from the record: the run started no later than the artifact's `created_at`,
   and the attempt started at most ten minutes after it. The job can poll for ten minutes before
@@ -213,7 +216,7 @@ condition 1 and the actor and author parts of condition 2).
   still be listed. The recorder records only when the review run that started it is at attempt 1,
   was re-run by an actor listed as `kind: human` in the default branch's list, or is the lost-run
   reconciler's attempt 2 whose `reconcile-rerun-<run id>-2-<head_sha>` record passes the
-  reconciler re-run check above, unchanged (`reconcilerRecordVouches`, run through
+  reconciler re-run check above, at attempt 2 only, as the reconciler re-runs a review once (`reconcilerRecordVouches`, run through
   `reconciler-record.mjs`); another re-runner's re-run of ci-status goes ahead unrecorded and is
   refused here. A relay
   upstream is recorded only at attempt 1, whose triggering actor is the reviewer, a listed human;
