@@ -21,7 +21,7 @@ graders:
     target: 'last_message'
   - name: offers-markdown
     type: regex
-    pattern: '\bstructured[- ]markdown\b|\bmarkdown\b[^\n]{0,60}\b(?:mode|artifact|output|timeline|rendering|version|file|board|document)\b'
+    pattern: '(?:\bstructured[- ]markdown\b|\bmarkdown\b[^\n]{0,60}\b(?:mode|artifact|output|timeline|rendering|version|file|board|document)\b)(?![^.!?\n]*\b(?:will not|won[''’]t)\b)'
     flags: 'i'
     target: 'last_message'
   - name: no-write

@@ -9,6 +9,7 @@
     {"answer": "", "why": "empty"},
     {"answer": "Install the miro plugin and run this again.", "why": "only the install path"},
     {"answer": "Unknown skill: event-storming:simulation", "why": "skill missing"},
-    {"answer": "I'll render the board in Miro once you enable the plugin.", "why": "board without markdown"}
+    {"answer": "I'll render the board in Miro once you enable the plugin.", "why": "board without markdown"},
+    {"answer": "I could write a markdown file, but I will not: install Miro first.", "why": "refuses the markdown path"}
   ]
 }
