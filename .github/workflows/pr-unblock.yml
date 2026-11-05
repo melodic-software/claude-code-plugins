@@ -581,43 +581,6 @@ jobs:
           CALLS: resolve-conflicts
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether resolve-conflicts's key leg hit a credit stop, read from this run's jobs
-      # (handoff-evidence.sh credit-stop), never from a resolve-conflicts output, and
-      # only when it handed off. A read that cannot settle ends with a notice
-      # and uploads nothing.
-      - name: Read whether resolve-conflicts's key hit a credit stop
-        id: credit-stop
-        if: steps.posted.outputs.posted == 'false'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CALLS: resolve-conflicts
-          HANDOFF_EVIDENCE_LAG: notice
-        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
-
-      # Read by the next runs' key-credit gate (the read runner's broker-check,
-      # key-credit-job resolve-conflicts): uploaded only after the key leg's credit stop.
-      # It holds the run id, no model text.
-      - name: Write the key's credit-stop marker
-        id: credit-marker
-        if: steps.credit-stop.outputs.credit-stop == 'true'
-        continue-on-error: true
-        timeout-minutes: 1
-        run: |
-          mkdir -p "$RUNNER_TEMP/key-credit-stop"
-          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
-
-      - name: Upload the key's credit-stop marker
-        if: steps.credit-marker.outcome == 'success'
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: key-credit-stop-pr-unblock.yml-resolve-conflicts
-          path: ${{ runner.temp }}/key-credit-stop/run-id
-          if-no-files-found: error
-          retention-days: 1
-
       # Whether the third call can run, never the token. resolve-conflicts-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
       # stays the last; a failed read leaves it empty, which hands nothing on.
@@ -1689,43 +1652,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: address-feedback
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
-
-      # Whether address-feedback's key leg hit a credit stop, read from this run's jobs
-      # (handoff-evidence.sh credit-stop), never from a address-feedback output, and
-      # only when it handed off. A read that cannot settle ends with a notice
-      # and uploads nothing.
-      - name: Read whether address-feedback's key hit a credit stop
-        id: credit-stop
-        if: steps.posted.outputs.posted == 'false'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CALLS: address-feedback
-          HANDOFF_EVIDENCE_LAG: notice
-        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
-
-      # Read by the next runs' key-credit gate (the read runner's broker-check,
-      # key-credit-job address-feedback): uploaded only after the key leg's credit stop.
-      # It holds the run id, no model text.
-      - name: Write the key's credit-stop marker
-        id: credit-marker
-        if: steps.credit-stop.outputs.credit-stop == 'true'
-        continue-on-error: true
-        timeout-minutes: 1
-        run: |
-          mkdir -p "$RUNNER_TEMP/key-credit-stop"
-          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
-
-      - name: Upload the key's credit-stop marker
-        if: steps.credit-marker.outcome == 'success'
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: key-credit-stop-pr-unblock.yml-address-feedback
-          path: ${{ runner.temp }}/key-credit-stop/run-id
-          if-no-files-found: error
-          retention-days: 1
 
       # Whether the third call can run, never the token. address-feedback-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
@@ -3384,43 +3310,6 @@ jobs:
           CALLS: review-dependency
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether review-dependency's key leg hit a credit stop, read from this run's jobs
-      # (handoff-evidence.sh credit-stop), never from a review-dependency output, and
-      # only when it handed off. A read that cannot settle ends with a notice
-      # and uploads nothing.
-      - name: Read whether review-dependency's key hit a credit stop
-        id: credit-stop
-        if: steps.posted.outputs.posted == 'false'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CALLS: review-dependency
-          HANDOFF_EVIDENCE_LAG: notice
-        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
-
-      # Read by the next runs' key-credit gate (the read runner's broker-check,
-      # key-credit-job review-dependency): uploaded only after the key leg's credit stop.
-      # It holds the run id, no model text.
-      - name: Write the key's credit-stop marker
-        id: credit-marker
-        if: steps.credit-stop.outputs.credit-stop == 'true'
-        continue-on-error: true
-        timeout-minutes: 1
-        run: |
-          mkdir -p "$RUNNER_TEMP/key-credit-stop"
-          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
-
-      - name: Upload the key's credit-stop marker
-        if: steps.credit-marker.outcome == 'success'
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: key-credit-stop-pr-unblock.yml-review-dependency
-          path: ${{ runner.temp }}/key-credit-stop/run-id
-          if-no-files-found: error
-          retention-days: 1
-
       # Whether the third call can run, never the token. review-dependency-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
       # stays the last; a failed read leaves it empty, which hands nothing on.
@@ -3975,43 +3864,6 @@ jobs:
           CALLS: fix-ci
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether fix-ci's key leg hit a credit stop, read from this run's jobs
-      # (handoff-evidence.sh credit-stop), never from a fix-ci output, and
-      # only when it handed off. A read that cannot settle ends with a notice
-      # and uploads nothing.
-      - name: Read whether fix-ci's key hit a credit stop
-        id: credit-stop
-        if: steps.posted.outputs.posted == 'false'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CALLS: fix-ci
-          HANDOFF_EVIDENCE_LAG: notice
-        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
-
-      # Read by the next runs' key-credit gate (the read runner's broker-check,
-      # key-credit-job fix-ci): uploaded only after the key leg's credit stop.
-      # It holds the run id, no model text.
-      - name: Write the key's credit-stop marker
-        id: credit-marker
-        if: steps.credit-stop.outputs.credit-stop == 'true'
-        continue-on-error: true
-        timeout-minutes: 1
-        run: |
-          mkdir -p "$RUNNER_TEMP/key-credit-stop"
-          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
-
-      - name: Upload the key's credit-stop marker
-        if: steps.credit-marker.outcome == 'success'
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: key-credit-stop-pr-unblock.yml-fix-ci
-          path: ${{ runner.temp }}/key-credit-stop/run-id
-          if-no-files-found: error
-          retention-days: 1
-
       # Whether the third call can run, never the token. fix-ci-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
       # stays the last; a failed read leaves it empty, which hands nothing on.
@@ -4301,43 +4153,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: fix-ci-rung-up
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
-
-      # Whether fix-ci-rung-up's key leg hit a credit stop, read from this run's jobs
-      # (handoff-evidence.sh credit-stop), never from a fix-ci-rung-up output, and
-      # only when it handed off. A read that cannot settle ends with a notice
-      # and uploads nothing.
-      - name: Read whether fix-ci-rung-up's key hit a credit stop
-        id: credit-stop
-        if: steps.posted.outputs.posted == 'false'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CALLS: fix-ci-rung-up
-          HANDOFF_EVIDENCE_LAG: notice
-        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
-
-      # Read by the next runs' key-credit gate (the read runner's broker-check,
-      # key-credit-job fix-ci-rung-up): uploaded only after the key leg's credit stop.
-      # It holds the run id, no model text.
-      - name: Write the key's credit-stop marker
-        id: credit-marker
-        if: steps.credit-stop.outputs.credit-stop == 'true'
-        continue-on-error: true
-        timeout-minutes: 1
-        run: |
-          mkdir -p "$RUNNER_TEMP/key-credit-stop"
-          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
-
-      - name: Upload the key's credit-stop marker
-        if: steps.credit-marker.outcome == 'success'
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: key-credit-stop-pr-unblock.yml-fix-ci-rung-up
-          path: ${{ runner.temp }}/key-credit-stop/run-id
-          if-no-files-found: error
-          retention-days: 1
 
       # Whether the third call can run, never the token. fix-ci-rung-up-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
@@ -4846,3 +4661,200 @@ jobs:
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
         && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
       trusted-base: default-tip
+
+  # The key's credit-stop markers, read by the read runner's broker-check in
+  # later runs (each first call's key-credit-job). Each comes from a jobs-API
+  # read of the call's run job (handoff-evidence.sh credit-stop), never from a
+  # call's output. No job needs this one, so the read, which waits for the
+  # jobs listing's steps, delays no handoff.
+  key-credit-markers:
+    needs: [resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-ci-rung-up]
+    if: ${{ !cancelled() && (needs.resolve-conflicts.result != 'skipped' || needs.address-feedback.result != 'skipped' || needs.review-dependency.result != 'skipped' || needs.fix-ci.result != 'skipped' || needs.fix-ci-rung-up.result != 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether resolve-conflicts's key hit a credit stop
+        id: credit-stop-resolve-conflicts
+        if: needs.resolve-conflicts.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-conflicts
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write resolve-conflicts's credit-stop marker
+        id: credit-marker-resolve-conflicts
+        if: steps.credit-stop-resolve-conflicts.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-resolve-conflicts"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-resolve-conflicts/run-id"
+
+      - name: Upload resolve-conflicts's credit-stop marker
+        if: steps.credit-marker-resolve-conflicts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-resolve-conflicts
+          path: ${{ runner.temp }}/key-credit-stop-resolve-conflicts/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether address-feedback's key hit a credit stop
+        id: credit-stop-address-feedback
+        if: needs.address-feedback.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: address-feedback
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write address-feedback's credit-stop marker
+        id: credit-marker-address-feedback
+        if: steps.credit-stop-address-feedback.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-address-feedback"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-address-feedback/run-id"
+
+      - name: Upload address-feedback's credit-stop marker
+        if: steps.credit-marker-address-feedback.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-address-feedback
+          path: ${{ runner.temp }}/key-credit-stop-address-feedback/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether review-dependency's key hit a credit stop
+        id: credit-stop-review-dependency
+        if: needs.review-dependency.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: review-dependency
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write review-dependency's credit-stop marker
+        id: credit-marker-review-dependency
+        if: steps.credit-stop-review-dependency.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-review-dependency"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-review-dependency/run-id"
+
+      - name: Upload review-dependency's credit-stop marker
+        if: steps.credit-marker-review-dependency.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-review-dependency
+          path: ${{ runner.temp }}/key-credit-stop-review-dependency/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether fix-ci's key hit a credit stop
+        id: credit-stop-fix-ci
+        if: needs.fix-ci.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write fix-ci's credit-stop marker
+        id: credit-marker-fix-ci
+        if: steps.credit-stop-fix-ci.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-ci"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-ci/run-id"
+
+      - name: Upload fix-ci's credit-stop marker
+        if: steps.credit-marker-fix-ci.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-fix-ci
+          path: ${{ runner.temp }}/key-credit-stop-fix-ci/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether fix-ci-rung-up's key hit a credit stop
+        id: credit-stop-fix-ci-rung-up
+        if: needs.fix-ci-rung-up.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci-rung-up
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write fix-ci-rung-up's credit-stop marker
+        id: credit-marker-fix-ci-rung-up
+        if: steps.credit-stop-fix-ci-rung-up.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-ci-rung-up"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-ci-rung-up/run-id"
+
+      - name: Upload fix-ci-rung-up's credit-stop marker
+        if: steps.credit-marker-fix-ci-rung-up.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-fix-ci-rung-up
+          path: ${{ runner.temp }}/key-credit-stop-fix-ci-rung-up/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

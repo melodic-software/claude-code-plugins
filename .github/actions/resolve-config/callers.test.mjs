@@ -396,8 +396,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "born-triaged": { contents: "read", issues: "read" },
     "kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
-    // actions: read for the reusable's key-credit gate (#13586).
-    "intake-triage": { actions: "read", contents: "read", issues: "write" },
+    "intake-triage": { contents: "read", issues: "write" },
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-key-credit": { actions: "read" },
@@ -7683,8 +7682,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.resolve-issue.result": "success" }), false, "unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
-  // Tip, checkout, the handoff read, the credit-stop read and marker, the fallback presence, the budget.
-  assert.equal(handoff.steps.length, 8);
+  assert.equal(handoff.steps.length, 5);
   assert.deepEqual(handoff.steps.slice(0, 2), workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps.slice(0, 2), "the same tip and sparse checkout");
   assertFallbackPresence(handoff);
   assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
@@ -9080,33 +9078,38 @@ test("pr-run-activity-read.yml: broker-check skips a credit-stopped key on the f
   assert.equal(jobs.run.steps.find((s) => s.name === "Mark a key credit stop").if, "always() && steps.act-key.outputs.handoff-reason == 'credit-stop'");
 });
 
-test("every read-runner first call names its key job and grants the gate's actions: read, and its handoff job uploads the marker from a jobs-API read", () => {
+test("every read-runner first call names its key job and grants the gate's actions: read, and a job off the handoff path uploads its marker from a jobs-API read", () => {
   const FIRSTS = {
-    "pr-refine.yml": { "fix-docs": "fix-docs-handoff" },
-    "pr-unblock.yml": { "resolve-conflicts": "resolve-conflicts-handoff", "address-feedback": "address-feedback-handoff", "review-dependency": "review-dependency-handoff", "fix-ci": "fix-ci-handoff", "fix-ci-rung-up": "fix-ci-rung-up-handoff" },
-    "work-resolve-issue.yml": { "resolve-issue": "resolve-issue-handoff" },
+    "pr-refine.yml": ["fix-docs"],
+    "pr-unblock.yml": ["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci", "fix-ci-rung-up"],
+    "work-resolve-issue.yml": ["resolve-issue"],
   };
   for (const file of workflowFiles()) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
       if (job?.uses === READ_RUNNER) assert.equal(job.permissions.actions, "read", `${file} ${id}`);
     }
   }
-  for (const [file, firsts] of Object.entries(FIRSTS)) {
+  for (const [file, calls] of Object.entries(FIRSTS)) {
     const { jobs } = workflow(file);
-    for (const [call, handoffId] of Object.entries(firsts)) {
+    const markers = jobs["key-credit-markers"];
+    assert.deepEqual([markers.needs].flat(), calls, `${file}: the markers job needs every first call`);
+    assert.deepEqual(markers.permissions, { actions: "read", contents: "read" });
+    // No job waits on it, so its read delays no handoff.
+    for (const [id, job] of Object.entries(jobs)) assert.ok(![job?.needs ?? []].flat().includes("key-credit-markers"), `${file} ${id} waits on the markers job`);
+    assert.doesNotMatch(JSON.stringify(markers), /needs\.[\w-]+\.outputs\./, `${file}: the markers job reads no call output`);
+    for (const call of calls) {
       assert.equal(jobs[call].with["key-credit-job"], call, `${file} ${call}`);
-      const steps = jobs[handoffId].steps;
-      const read = steps.find((s) => s.id === "credit-stop");
-      assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop", handoffId);
-      assert.deepEqual(read.env, { GH_TOKEN: "${{ github.token }}", CALLS: call, HANDOFF_EVIDENCE_LAG: "notice" }, handoffId);
-      assert.equal(read["continue-on-error"], true, handoffId);
-      const write = steps.find((s) => s.id === "credit-marker");
-      assert.equal(write.if, "steps.credit-stop.outputs.credit-stop == 'true'", handoffId);
-      const upload = steps.find((s) => s.name === "Upload the key's credit-stop marker");
+      const read = markers.steps.find((s) => s.id === `credit-stop-${call}`);
+      assert.equal(read.if, `needs.${call}.result != 'skipped'`);
+      assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop", call);
+      assert.deepEqual(read.env, { GH_TOKEN: "${{ github.token }}", CALLS: call, HANDOFF_EVIDENCE_LAG: "notice" }, call);
+      assert.equal(read["continue-on-error"], true, call);
+      assert.equal(markers.steps.find((s) => s.id === `credit-marker-${call}`).if, `steps.credit-stop-${call}.outputs.credit-stop == 'true'`);
+      const upload = markers.steps.find((s) => s.name === `Upload ${call}'s credit-stop marker`);
       // check-key-credit gate.cjs markerName: key-credit-stop-<caller file>-<key job>.
-      assert.equal(upload.with.name, `key-credit-stop-${file}-${call}`, handoffId);
+      assert.equal(upload.with.name, `key-credit-stop-${file}-${call}`, call);
       assert.equal(upload.with["retention-days"], 1);
-      assert.doesNotMatch(JSON.stringify(steps), new RegExp(`needs\\.${call}\\.outputs\\.`), `${handoffId} reads no ${call} output`);
+      assert.doesNotMatch(JSON.stringify(jobs[`${call}-handoff`]), /credit-stop/, `${call}-handoff stays off the marker path`);
     }
   }
 });
@@ -9115,7 +9118,7 @@ test("every read-runner first call names its key job and grants the gate's actio
 // run-claude-cli's handoff-reason; a skipped run job, or one without that step,
 // is no credit stop.
 test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop step", (t) => {
-  const read = workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps.find((s) => s.id === "credit-stop");
+  const read = workflow("pr-unblock.yml").jobs["key-credit-markers"].steps.find((s) => s.id === "credit-stop-fix-ci");
   const listing = (steps, conclusion = "success") => ({ total_count: 1, jobs: [{ name: "fix-ci / run", conclusion, steps }] });
   const stopped = readPosted(t, read, listing([{ name: "Mark a key credit stop", conclusion: "success" }]));
   assert.equal(stopped.status, 0);
