@@ -72,12 +72,14 @@ name: pr-verify
 # self-repository advice (`$/...`) is ignored on those lines, as in
 # pr-run-activity-read.yml.
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it: resolve-pr.mjs ends red on a failed or
-# incomplete read, which the reconciler re-runs (audit element 2 is open).
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
+# API_BUDGET_HOLD (outage posture element 2): only each job's resolver step
+# sets it. resolve-pr.mjs holds green with a notice on a GitHub fault, a rate
+# stop included (closing), and the reconciler re-runs the held run once; it
+# still ends red on an incomplete read. A step opts in only once its script is
+# shown to hold green with a notice on a refused call (rate-guard.mjs
+# createRateLimitLatch); a gate never does, since a hold would pass what it
+# could not read, so the rest still end red on a rate limit past the guard's
+# budget.
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -182,6 +184,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate-guard stop holds green with the resolver's other GitHub
+          # faults (resolve-pr.mjs closing) instead of failing the step.
+          API_BUDGET_HOLD: "1"
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -195,6 +200,14 @@ jobs:
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
+
+      # A GitHub fault held the resolver green with a `held: ` notice and
+      # proceed=false (resolve-pr.mjs closing). This step marks the run so the
+      # lost-run reconciler finds it from the jobs listing and re-runs it once
+      # on its next pass (reconcile.mjs faultHeld).
+      - name: Note the hold
+        if: steps.pr.outputs.reason == 'held'
+        run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
 
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list.
@@ -2212,6 +2225,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate-guard stop holds green with the resolver's other GitHub
+          # faults (resolve-pr.mjs closing) instead of failing the step.
+          API_BUDGET_HOLD: "1"
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -2228,6 +2244,14 @@ jobs:
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
+
+      # A GitHub fault held the resolver green with a `held: ` notice and
+      # proceed=false (resolve-pr.mjs closing). This step marks the run so the
+      # lost-run reconciler finds it from the jobs listing and re-runs it once
+      # on its next pass (reconcile.mjs faultHeld).
+      - name: Note the hold
+        if: steps.pr.outputs.reason == 'held'
+        run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
 
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list. A re-run github-actions[bot] started passes
@@ -4099,6 +4123,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate-guard stop holds green with the resolver's other GitHub
+          # faults (resolve-pr.mjs closing) instead of failing the step.
+          API_BUDGET_HOLD: "1"
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -4112,6 +4139,14 @@ jobs:
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
+
+      # A GitHub fault held the resolver green with a `held: ` notice and
+      # proceed=false (resolve-pr.mjs closing). This step marks the run so the
+      # lost-run reconciler finds it from the jobs listing and re-runs it once
+      # on its next pass (reconcile.mjs faultHeld).
+      - name: Note the hold
+        if: steps.pr.outputs.reason == 'held'
+        run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
 
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list. A re-run github-actions[bot] started passes

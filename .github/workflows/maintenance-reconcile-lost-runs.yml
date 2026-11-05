@@ -109,7 +109,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: write # list runs and re-run a lost run
-      checks: read # a cut job's annotations: whether it lost its runner
+      checks: read # a cut job's annotations: whether it lost its runner; a held pr-verify run's notice
       contents: read # check out main
       pull-requests: read # list the open PRs
     # Each guarded API call's rate-limit reading, for the job-end api-budget

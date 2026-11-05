@@ -12,12 +12,16 @@
 // artifacts with that name are returned) and the closingIssuesReferences
 // GraphQL field.
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import process from "node:process";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -454,6 +458,60 @@ test("a refused upstream-run read's annotation carries the status, the rate-limi
   for (const field of ["status=403", "x-ratelimit-remaining=4321", "x-ratelimit-reset=1760767020", "x-ratelimit-resource=core", "retry-after=120", `body=${JSON.stringify(body.slice(0, 200))}`]) {
     assert.ok(annotation.includes(field), `${field} in ${annotation}`);
   }
+});
+
+// Outage posture element 2 (docs/outage-posture-audit.md): a GitHub fault (a
+// 5xx, a 429, a rate-guard stop, no answer) makes the verdict unknown, so the
+// step holds green with a `held: ` notice and judges nothing; any other error
+// is red, as before.
+test("a GitHub fault holds the resolver green with a held notice; a 404 or a short read stays red", () => {
+  const stop = Object.assign(new Error("GET /repos/x rate-limited until 12:00"), { name: "RateLimitStop" });
+  const unanswered = Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+  for (const error of [new GitHubError(502, "GET /repos/x/actions/runs/1"), new GitHubError(429, "GET /repos/x/actions/runs/1"), stop, unanswered]) {
+    const closed = closing(error);
+    assert.equal(closed.code, 0, error.message);
+    assert.equal(closed.outputs, "proceed=false\nreason=held\n", error.message);
+    assert.equal(closed.lines.length, 1);
+    assert.match(closed.lines[0], /^::notice title=pr-verify::held: pr-verify could not resolve the pull request: /);
+  }
+  for (const error of [new GitHubError(404, "GET /repos/x/actions/runs/1"), new GitHubError(403, "GET /repos/x/actions/runs/1"), new Error("#7: the closing issues could not be read")]) {
+    const closed = closing(error);
+    assert.equal(closed.code, 1, error.message);
+    assert.equal(closed.outputs, null);
+    assert.deepEqual(closed.lines, [failureAnnotation(error)]);
+  }
+});
+
+test("run as the step, a resolver that gets no answer from GitHub exits 0 with the held notice and proceed=false", async () => {
+  const dir = tempDir("pr-verify-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const output = path.join(dir, "out");
+  writeFileSync(output, "");
+  const { PATH, HOME } = process.env;
+  // Nothing listens on port 9 of the loopback, so every attempt is refused.
+  const env = {
+    PATH,
+    HOME,
+    GITHUB_TOKEN: "token",
+    GITHUB_API_URL: "http://127.0.0.1:9",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: output,
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    RUNNER_TEMP: dir,
+  };
+  const script = fileURLToPath(new URL("./resolve-pr.mjs", import.meta.url));
+  const { code, stdout } = await new Promise((resolve) => {
+    execFile(process.execPath, [script], { env, timeout: 60_000 }, (error, out) => resolve({ code: error ? error.code : 0, stdout: out }));
+  });
+  assert.equal(code, 0, stdout);
+  assert.match(stdout, /^::notice title=pr-verify::held: pr-verify could not resolve the pull request: /m);
+  assert.doesNotMatch(stdout, /^::error/m);
+  assert.equal(readFileSync(output, "utf8"), "proceed=false\nreason=held\n");
 });
 
 test("a run that is not a passing pr-require-checks pull_request run of this repository starts nothing", async () => {
