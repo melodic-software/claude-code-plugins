@@ -260,6 +260,7 @@ jobs:
       && (github.event_name == 'workflow_dispatch' || needs.born-triaged.outputs.skip != 'true')
       && needs.born-triaged.outputs.claude-args != '' }}
     permissions:
+      actions: read # the reusable's key-credit gate lists its credit-stop markers (ci-workflows intake-triage.yml)
       contents: read # check out the default branch so the lane can read AGENTS.md
       issues: write  # apply labels and post the triage comment
     concurrency:
