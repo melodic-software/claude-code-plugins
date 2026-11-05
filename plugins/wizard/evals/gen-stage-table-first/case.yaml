@@ -13,6 +13,11 @@ graders:
     pattern: '^[^\n]*SMS_SENDER_ID[^\n]*(?:\bCI\b|GitHub|\bActions\b|gh variable|\bvars\b|repo(?:sitory)? variables?)'
     flags: 'im'
     target: last_message
+  - name: secret-flags
+    type: regex
+    pattern: '^(?=[\s\S]*^[^\n]*SMS_GATEWAY_KEY[^\n]*(?:\|\s*\**(?:yes|secret)\**\s*\||\bsecret:\s*\**yes\b|\((?:secret|hidden)\)|[,:—–]\s*\**secret\b(?!\s*(?:store|manager|vault))))(?=[\s\S]*^[^\n]*SMS_SENDER_ID[^\n]*(?:\|\s*\**no\**\s*\||\bsecret:\s*\**no\b|\bpublic\b|\bnot (?:a )?secret\b|\bnon-?secret\b))'
+    flags: 'im'
+    target: last_message
   - name: asks-confirm
     type: regex
     pattern: '(?<!no need to )(?<!without )(?:\b(?:please|can you|could you) confirm\b|\bconfirm (?:the|this|these|that) (?:plan|stages?|table|rows?|order|list)\b|\b(?:does|do) (?:this|these|the (?:table|plan|stages?|rows?))\b[^\n]{0,60}?\b(?:look right|look good|look correct|match|work for you)\b|\bis (?:this|the (?:table|plan|order)) (?:right|correct|accurate|complete)\b|\b(?:shall|should|can|may) I (?:proceed|go ahead|continue|write|start|build|generate|author)\b|\b(?:once|after|when) you(?:''ve| have)? (?:\w+(?: \w+)? and )?(?:confirm(?:ed)?|approve[ds]?|sign(?:ed)? off on|ok(?:ay)?) (?:them\b|(?:the |this |these )?(?:plan|stages?|table|rows?|order|list)\b)|\b(?:wait(?:ing)? (?:for|on)|need) your (?:confirmation|approval|go-ahead|ok|sign-?off)\b|\breply (?:with )?(?:yes|ok|confirmed?|approved?)\b|\blet me know (?:if|whether|what)\b[^\n]{0,80}?\b(?:change|adjust|right|correct|wrong|missing|off)\b|\bany(?:thing)? (?:changes|to change|you(?:''d| would) change|missing)\b)'

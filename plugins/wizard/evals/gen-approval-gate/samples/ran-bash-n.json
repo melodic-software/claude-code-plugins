@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n scripts/setup-sms.sh && shellcheck scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "syntax check then lint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n ./scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "dot-slash path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n \"/workspace/notify-service/scripts/setup-sms.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shellcheck scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lint only, no bash -n"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n scripts/setup-sms.sh.bak",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "near miss: a different file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "runs the wizard instead of checking it"
+    }
+  ]
+}

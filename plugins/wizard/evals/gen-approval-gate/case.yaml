@@ -18,6 +18,18 @@ graders:
     flags: 'm'
     match: not_contains
     target: last_message
+  - name: ran-bash-n
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bbash\s+-n\s+\\?["\x27]?(?:[^\s"\\]*/)?setup-sms\.sh(?![\w.])'
+    min: 1
+    arm: 'both'
+  - name: trace-by-subagent
+    type: tool_used
+    tool: 'Agent'
+    input_match: 'setup-sms\.sh|\brun_wizard\b|\bSTAGES\b'
+    min: 1
+    arm: 'both'
   - name: no-chmod
     type: tool_used
     tool: 'Bash'

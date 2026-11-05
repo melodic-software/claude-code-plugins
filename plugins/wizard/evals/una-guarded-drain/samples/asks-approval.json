@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Here is the STAGES block. Do you approve it?",
+      "why": "do you approve"
+    },
+    {
+      "answer": "Once you approve the STAGES block I'll run the -Test dry check.",
+      "why": "once you approve"
+    },
+    {
+      "answer": "Reply with your approval and I will run `pwsh -File <script> -Test`.",
+      "why": "reply with your approval"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "It's ready; launch it with pwsh -File from an elevated shell.",
+      "why": "no ask"
+    },
+    {
+      "answer": "No need to approve anything; the stages were settled.",
+      "why": "near miss: negated approve"
+    },
+    {
+      "answer": "The stages are settled, so don't stop to confirm them.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "No. The stages that write CI secrets print a warning, and the closing summary names each value the person still has to set themselves.",
+      "why": "warning plus closing summary"
+    },
+    {
+      "answer": "| Without gh | What happens |\n|---|---|\n| set_secret / set_var | Warns, skips the write |\n| End of run | Summary lists those names as manual work |",
+      "why": "table form"
+    },
+    {
+      "answer": "It warned on both CI variables and put them in the summary at the end.",
+      "why": "past tense"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No, it won't break; those CI stages just print a warning.",
+      "why": "near miss: warning, no closing summary"
+    },
+    {
+      "answer": "The closing summary lists names, never values.",
+      "why": "summary only, no warning, nothing about CI"
+    },
+    {
+      "answer": "Will the wizard break for people without the gh CLI?",
+      "why": "echoes the prompt"
+    }
+  ]
+}

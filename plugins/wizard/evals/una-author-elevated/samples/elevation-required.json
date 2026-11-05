@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#requires -Version 7.0\nparam([switch] $Test)\nfunction Use-GuardedResource {\n    param()\n}\nfunction Confirm-Irreversible {\n    param([string] $Name)\n}\nfunction Invoke-UnattendedRun {\n    param()\n}\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm:$false | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "required below the marker"
+    },
+    {
+      "answer": "#requires -Version 7.0\nparam([switch] $Test)\nfunction Use-GuardedResource {\n    param()\n}\nfunction Confirm-Irreversible {\n    param([string] $Name)\n}\nfunction Invoke-UnattendedRun {\n    param()\n}\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode 'Required'\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm:$false | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "quoted mode"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no file"
+    },
+    {
+      "answer": "#requires -Version 7.0\nparam([switch] $Test)\nfunction Use-GuardedResource {\n    param()\n}\nfunction Confirm-Irreversible {\n    param([string] $Name)\n}\nfunction Invoke-UnattendedRun {\n    param()\n}\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Forbidden\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm:$false | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "template default left in place"
+    },
+    {
+      "answer": "function Assert-Elevation { param([string] $Mode) }\n# Assert-Elevation -Mode Required\n# STAGES\nInvoke-UnattendedRun -Stages { }\n",
+      "why": "near miss: only above the marker"
+    }
+  ]
+}

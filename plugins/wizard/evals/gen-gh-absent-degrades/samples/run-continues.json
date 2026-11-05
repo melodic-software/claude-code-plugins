@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No, it won't break. Without gh, the CI stages print a warning and the rest of the run carries on.",
+      "why": "won't break, carries on"
+    },
+    {
+      "answer": "**Short answer: no.** A missing gh is expected; the wizard keeps going and lists the CI values in its closing summary.",
+      "why": "keeps going"
+    },
+    {
+      "answer": "When we tried it on a laptop without gh, the run did not fail: the two CI stages warned and it finished.",
+      "why": "past tense"
+    },
+    {
+      "answer": "That is designed degradation, not a failure: gh matters only to the stages that write CI secrets.",
+      "why": "noun form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Yes. The wizard needs gh for the CI stages, so install it first: brew install gh.",
+      "why": "says it breaks"
+    },
+    {
+      "answer": "Some of the people who'll run the Textwave setup wizard won't have the gh CLI installed. Will the wizard break for them?",
+      "why": "echoes the prompt"
+    },
+    {
+      "answer": "It depends on how the CI stages are written; gh is used for set_secret.",
+      "why": "near miss: hedge, no answer"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            $pools.Count -gt 0 -and -not ($pools | Where-Object active)\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "Prove polls with Wait-ForState"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            $pools.Count -gt 0 -and -not ($pools | Where-Object active)\n        }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "Wait-ForState alone as the proof"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no file"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        Test-PoolDrained\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "one-shot check, no polling"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $LASTEXITCODE -eq 0\n    } -Release {\n        $null = Wait-ForState -Name 'x' -Predicate { $true }\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "near miss: Wait-ForState only in Release, Prove trusts the exit code"
+    }
+  ]
+}
