@@ -17,6 +17,7 @@ when either changes what a `--json` run prints).
 - [Per-grader fields](#per-grader-fields)
 - [What a delta does and does not say](#what-a-delta-does-and-does-not-say)
 - [Noise report](#noise-report)
+- [Detection control](#detection-control)
 
 ## Read order
 
@@ -299,3 +300,16 @@ Why score intervals stay normal while the pass count follows the setting:
 [local-decisions.md, Interval method](../../methodology/reference/local-decisions.md#interval-method).
 How many runs and cases to add when an interval is too wide:
 [local-decisions.md, Repeat count](../../methodology/reference/local-decisions.md#repeat-count).
+
+## Detection control
+
+A two-version compare that finds no loss means the cut lost nothing only if the suite can see a
+loss. Before a cut ships on such a reading, run a detection control: the before text with the
+changed rule removed, on the same cases and model, launched together with a before run. The suite
+detects a loss when the compare calls a `case drop` or the mean case score falls by 0.15 or more;
+merge each version's per-case result files into one first, since the noise report calls no
+`case drop` when fewer than 3 cases are scored in both. When it does neither, report the reading as
+unable to detect a loss: the cut does not ship on it, whatever the after version scored. Report the
+control's before and degraded scores beside the compare. For a whole-plugin rewrite, the
+`/playbooks:skill-authoring` reference `rewrite-a-plugin.md` (step 4) adds which part to degrade
+and preregistering the control before the first paid run.
