@@ -271,8 +271,8 @@ test("pr-refine / fix-docs with a green run and no verdict holds: no API call, a
   assert.ok(lines.some((line) => line.startsWith("::notice::report-check-run: posted no check run")));
 });
 
-test("no verdict still POSTs failure for another activity, or for fix-docs on a red run", async () => {
-  for (const env of [{ ACTIVITY: "simplify" }, { ACTIVITY: "fix-docs", RUN_RESULT: "failure" }]) {
+test("no verdict still POSTs failure for another activity, or for fix-docs on a red run or a failed act step", async () => {
+  for (const env of [{ ACTIVITY: "simplify" }, { ACTIVITY: "fix-docs", RUN_RESULT: "failure" }, { ACTIVITY: "fix-docs", ACT_OUTCOME: "failure" }]) {
     const { calls } = await run({ ...env, VERDICT_PATH: path.join(dir, "missing.json") });
     assert.equal(calls.length, 1, JSON.stringify(env));
     assert.equal(calls[0].body.conclusion, "failure", JSON.stringify(env));
