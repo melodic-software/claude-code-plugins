@@ -576,6 +576,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(selects("success", "", "true"), false, "a verdict a fault held refines nothing");
   assert.equal(jobs["apply-verdict"].outputs.held, "${{ steps.verdict.outputs.held }}");
   assert.equal(jobs["apply-verdict"].steps.find((s) => s.id === "verdict")?.run, 'node ".base/$SCRIPT"');
+  assert.equal(jobs["apply-verdict"].steps.find((s) => s.id === "verdict")?.env?.API_BUDGET_HOLD, "1", "a rate-guard stop holds the verdict green");
   const picked = (refine, mode = "refine") => ({ "needs.refine-select.outputs.refine": refine, "needs.refine-select.outputs.mode": mode });
   assert.equal(evaluate(model.if, picked("true")), true);
   assert.equal(evaluate(model.if, picked("true", "size-split")), true);

@@ -14,6 +14,7 @@ import {
   earlierFlags,
   finish,
   FORBIDDEN_EDGE,
+  isFault,
   MARKER,
   missedAnnotation,
   NEEDS_DECISION,
@@ -1345,6 +1346,18 @@ describe("run", () => {
       code: 1,
       held: false,
     });
+  });
+
+  test("only a 5xx, a 429, a rate-guard stop or no answer is a fault; another 4xx stays red", () => {
+    for (const status of [500, 502, 503, 429]) {
+      assert.equal(isFault(new GitHubError(status, "POST labels")), true, `status ${status}`);
+    }
+    for (const status of [403, 404, 422]) {
+      assert.equal(isFault(new GitHubError(status, "POST labels")), false, `status ${status}`);
+      assert.equal(closing({ error: new GitHubError(status, "POST labels") }).code, 1, `status ${status}`);
+    }
+    const stop = Object.assign(new Error("GET /x refused until reset"), { name: "RateLimitStop" });
+    assert.equal(isFault(stop), true);
   });
 
   test("a hold writes the held output refine-select reads; a failure writes none", () => {

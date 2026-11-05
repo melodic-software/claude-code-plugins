@@ -572,6 +572,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
+          API_BUDGET_HOLD: "1"
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           STARTED_AT: ${{ needs.born-triaged.outputs.started-at }}

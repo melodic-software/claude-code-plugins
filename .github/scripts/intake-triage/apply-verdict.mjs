@@ -58,8 +58,8 @@
 // allow. Otherwise, when a done-when item is one the lane cannot perform,
 // admit.mjs's noteUnrunnable posts the split it recommends. An option GitHub
 // keeps under another id than models.issue-dimensions maps fails the run and
-// leaves the issue's labels as they are. A GitHub fault, in admission or
-// anywhere else, holds the run green with a notice instead (closing).
+// leaves the issue's labels as they are. A GitHub fault (isFault), in admission
+// or anywhere else, holds the run green with a notice instead (closing).
 //
 // Issue text can only refuse or hold back: a line the model quotes is prefixed
 // `> ` and matches nothing, a duplicated, missing or unknown value writes no
@@ -748,9 +748,13 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
-// A GitHub call that failed, one the rate guard refused, or a request that got
-// no answer: what happened to the issue is unknown, not wrong.
-export const isFault = (error) => error?.name === "GitHubError" || error?.name === "RateLimitStop" || networkFailure(error);
+// A GitHub 5xx or 429, a call the rate guard refused, or a request that got no
+// answer: what happened to the issue is unknown, not wrong. Any other 4xx (a
+// lost permission, a missing label) stays red, since a retry meets it again.
+export const isFault = (error) =>
+  (error?.name === "GitHubError" && (error.status >= 500 || error.status === 429)) ||
+  error?.name === "RateLimitStop" ||
+  networkFailure(error);
 
 // The step's closing annotations and exit code, for run()'s result or the
 // error it threw. A fault, in admission or anywhere in the run, holds green
