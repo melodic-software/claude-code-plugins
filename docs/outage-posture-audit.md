@@ -396,11 +396,11 @@ A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
   for each green run a candidate head has, until one ends the PR. An outage past that many runs still ends the PR.
 
 Part 2 also fixed intake-triage's element 2 gap, with tests. A GitHub fault in `apply-verdict.mjs`,
-in admission or anywhere else in the run, holds green with one `held: ` notice (`closing`); any
+in admission or anywhere else in the run, holds green with one `held:` notice (`closing`); any
 other error, a forbidden missed edge and an unwritten reasons comment still fail. The lane has no
 cron, but two hourly sweeps take a held issue up again: work-unblock's `readmitReady` runs
 admission on a `status: ready` issue in no queue, and the triage sweep dispatches intake on one with
-no `status:` label. The triage sweep reads a `held: ` notice as it reads a failure annotation
+no `status:` label. The triage sweep reads a `held:` notice as it reads a failure annotation
 (`triage-sweep.mjs` `classifyRun`), so a hold on a 5xx stays forgiven and a hold on any other
 status counts. A hold also sets the apply-verdict job's `held` output, and `refine-select` runs only
 when it is empty (`.github/workflows/intake-triage.yml`), so no refinement acts on a verdict whose
