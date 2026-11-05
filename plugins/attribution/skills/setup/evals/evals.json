@@ -129,6 +129,18 @@
         "Does not write the personal override until the operator chooses",
         "Never writes the user-global ~/.claude/attribution.json"
       ]
+    },
+    {
+      "id": 11,
+      "name": "retired-json-personal-override-beside-yaml",
+      "prompt": "/attribution:setup apply in a repo with no convention-home pointer where both a gitignored docs/conventions/attribution.local.yaml (judge_samples 5) and an old .claude/attribution.local.json (judge_samples 3, trigger_less_stamp_check true) exist.",
+      "expected_output": "Detection reports attribution-r004 as FAIL. Because the YAML personal override exists, the detectors never applied the JSON file's values, so apply shows that trigger_less_stamp_check is the one key the YAML lacks and carries it only if the operator confirms it; judge_samples stays 5. After the operator confirms the YAML, it runs --clean attribution-r004 --i-migrated and re-runs detection.",
+      "expectations": [
+        "Reports attribution-r004 as FAIL",
+        "Keeps judge_samples at 5 in docs/conventions/attribution.local.yaml rather than overwriting it with the JSON file's 3",
+        "Asks the operator before carrying trigger_less_stamp_check, since it was not in effect",
+        "Does not run --clean without --i-migrated, and does not clean before the operator confirms"
+      ]
     }
   ]
 }
