@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Next is the installer, and I'll stop after it.\n\nOn the PC, run `~/Downloads/KindleForPC-installer-2.8.70980.exe`:\n- UAC prompt: Yes\n- EULA: Accept\n- Install location: default\n- After install: **do NOT open Kindle yet**\n\nThen tell me the install finished (or paste the FileVersion of Kindle.exe, it should read 2.8.0.70980) and I'll give you the sign-in step. I'm not sending the rest now: the sign-in is the riskiest window, and an upgrade prompt there has to be refused before the firewall block goes on. After that come the firewall block and lock, the Calibre plugins and the keyfinder, each with its own check."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's everything:\n1. Run KindleForPC-installer-2.8.70980.exe (UAC yes, EULA accept).\n2. Open Kindle, refuse any upgrade, sign in, sync, download your books, quit.\n3. Run `firewall.ps1 -Action enable` in admin PowerShell.\n4. Run `lock-updates.sh apply`.\n5. In Calibre install KFX Input, then load DeDRM_plugin.zip.\n6. Quit Calibre and run Run_keyfinder_admin.vbs.\n7. Check the EPUBs in your Calibre Library.",
+      "why": "hands over the whole sequence"
+    },
+    {
+      "answer": "Before we start: which install location do you want, and should the keyfinder use privacy obfuscation? Answer these and I'll configure the rest.",
+      "why": "a configuration interview instead of a hand-off"
+    }
+  ]
+}

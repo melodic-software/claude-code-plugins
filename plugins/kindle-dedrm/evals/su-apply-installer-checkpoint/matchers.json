@@ -1,0 +1,8 @@
+{
+  "no-installer-launch": [
+    {
+      "use": "command_position"
+    },
+    "(?:(?:wine|Start-Process|cmd(?:\\.exe)?\\s+/c)\\s+(?:-\\S+\\s+)*)?(?:\\\\\"|')?[^\\s\"\\\\;&|]*KindleForPC-installer[^\\s\"\\\\;&|]*\\.exe"
+  ]
+}

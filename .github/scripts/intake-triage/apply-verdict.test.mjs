@@ -8,11 +8,13 @@ import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { parseReason } from "../lib/stop-reason.mjs";
 import {
   checkActors,
   closing,
   earlierFlags,
   finish,
+  flagsAfterDecision,
   FORBIDDEN_EDGE,
   isFault,
   MARKER,
@@ -24,6 +26,8 @@ import {
   OLD_FOOTER,
   parseVerdict,
   planWrites,
+  raisedAt,
+  raisedLine,
   READY,
   run,
   UNRECORDED,
@@ -375,7 +379,7 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
-  for (const label of ["security: outside-actor", "work-class: untrusted-provenance"]) {
+  for (const label of ["security: outside-actor", "work-class: untrusted-provenance", "provenance: untrusted"]) {
     test(`needs-human this run's triage applied with no flag holds beside ${label}`, () => {
       const result = plan(laneBody(), { labels: ["needs-human", label], triageLabels: ["needs-human"] });
       assert.equal(result.ready, false);
@@ -642,6 +646,15 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, [NEEDS_DECISION]);
   });
 
+  for (const hold of ["work-class: untrusted-provenance", "provenance: untrusted"]) {
+    test(`${hold} on the issue holds it whatever class the verdict proposes`, () => {
+      const result = plan(laneBody(), { labels: [hold] });
+      assert.equal(result.ready, false);
+      assert.ok(result.reasons.includes("work-class: untrusted-provenance work needs a person"), result.reasons.join("; "));
+      assert.deepEqual(result.remove, []);
+    });
+  }
+
   test("a verdict proposing work-class: untrusted-provenance applies it and holds the issue", () => {
     const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }));
     assert.equal(result.ready, false);
@@ -901,6 +914,10 @@ function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events =
     }
     if (method === "DELETE") {
       throw new GitHubError(404, "DELETE");
+    }
+    // select-trusted-text's last-editor read: every comment unedited.
+    if (method === "POST" && path === "/graphql") {
+      return { data: { nodes: (body?.variables?.ids ?? []).map((id) => ({ id, lastEditedAt: null })) } };
     }
     return null;
   };
@@ -1633,7 +1650,7 @@ describe("run", () => {
 
   // flag.mjs can add the outside-actor label and needs-human after the first
   // read; admission never reads outside-actor, so needs-human must stay.
-  for (const late of ["security: outside-actor", "work-class: untrusted-provenance"]) {
+  for (const late of ["security: outside-actor", "work-class: untrusted-provenance", "provenance: untrusted"]) {
     test(`${late} landing after the first read keeps a refused needs-human`, async () => {
       const fake = fakeGitHub({
         issue: { labels: [{ name: "needs-human" }] },
@@ -2255,5 +2272,158 @@ describe("the triage prompt", () => {
   test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
     assert.match(PROMPT, /Write a Cost line exactly as `Cost: <what bills, where; the owner decision it lacks>` or `Cost decided: <what bills; the decision that covers it>`/);
     assert.match(PROMPT, /Work with no charge gets no Cost line/);
+  });
+});
+
+// g-holds-governance-1 (a): a held verdict names one owner reason, the
+// strongest of its causes, as the stop-reason marker and line.
+describe("held verdict reason codes", () => {
+  const plan = (body, options = {}) =>
+    planWrites(parseVerdict(body, DIMS, CLASSES), { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans, earlierFlags: [], ...options });
+  const flags = (value, extra = []) => laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", `Flags: ${value}`, ...extra] });
+
+  test("each cause maps to its code, and a ready verdict names none", () => {
+    for (const [why, body, options, code] of [
+      ["an intent flag", flags("intent"), {}, "intent"],
+      ["a security flag", flags("security"), {}, "security"],
+      ["a cost flag", flags("cost"), {}, "cost"],
+      ["a Cost line beside no flag", flags("none", ["Cost: a new paid plan; no owner decision"]), { labels: ["needs-human"] }, "cost"],
+      ["an escalated run", ESCALATED_BODY, {}, "security"],
+      ["untrusted provenance", laneBody({ cls: "work-class: untrusted-provenance" }), {}, "security"],
+      ["an unreadable Flags line", flags("maybe"), {}, "intent"],
+      ["an outside-actor hold", laneBody(), { labels: [OUTSIDE_ACTOR_LABEL] }, "security"],
+      ["a carried security flag", laneBody(), { labels: [NEEDS_DECISION], earlierFlags: ["security"] }, "security"],
+      ["an unrecorded earlier flag", laneBody(), { labels: [NEEDS_DECISION], earlierFlags: null }, "intent"],
+    ]) {
+      const result = plan(body, options);
+      assert.equal(result.ready, false, why);
+      assert.equal(result.reason, code, why);
+    }
+    assert.equal(plan(laneBody()).reason, null);
+  });
+
+  test("a hold with several flags names security over intent and cost", () => {
+    assert.equal(plan(flags("intent, cost, security")).reason, "security");
+    assert.equal(plan(flags("intent, cost")).reason, "cost");
+  });
+
+  test("the held comment carries the marker and line after the reasons, which earlierFlags still reads", async () => {
+    const fake = fakeGitHub({ comments: [laneComment(flags("security, intent"))] });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    const body = writes(fake.calls).find(({ method, path }) => method === "POST" && path.endsWith("/comments")).body.body;
+    assert.deepEqual(parseReason(body), { lane: "intake-triage", reason: "security" });
+    assert.ok(body.startsWith(`${VERDICT_MARKER}\n`));
+    assert.ok(body.endsWith("\n\n<!-- intake-triage intent-raised-at 2026-10-22T12:05:00Z -->\nReason: `security`\n<!-- stop-reason lane=intake-triage reason=security -->"), body);
+    assert.equal(raisedAt(body), "2026-10-22T12:05:00Z", "this run's intent flag records its raise time");
+    assert.deepEqual(earlierFlags([{ body, user: { id: LANES_APP } }], LANES_APP), ["security", "intent"]);
+  });
+});
+
+// g-holds-governance-1 (b): a listed human's recorded decision, newer than the
+// lanes App's verdict comment, answers its carried intent flag; a security or
+// cost flag still holds (owner Q4).
+describe("re-entry after a recorded decision", () => {
+  const VERDICT_AT = "2026-10-22T10:00:00Z";
+  const appVerdict = (lines) => ({
+    id: 51,
+    body: `${VERDICT_MARKER}\nThe triage verdict left this issue at \`${NEEDS_DECISION}\`:\n\n${lines}`,
+    user: { id: LANES_APP, type: "Bot" },
+    created_at: VERDICT_AT,
+    updated_at: VERDICT_AT,
+  });
+  const decision = (at = "2026-10-22T11:00:00Z", overrides = {}) => ({
+    id: 61,
+    node_id: "IC_decision",
+    body: "**Decision recorded.**\nShip the smaller fix.",
+    user: { id: HUMAN, login: "kyle-sexton", type: "User" },
+    created_at: at,
+    performed_via_github_app: null,
+    ...overrides,
+  });
+  const kept = (comment, lastEditedAt = null, lastEditorId = null) => [{ comment, lastEditedAt, lastEditorId }];
+  const held = (comments) =>
+    fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment(), ...comments], events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }] });
+
+  test("flagsAfterDecision drops intent after a newer decision, and keeps security, cost and an unrecorded flag", () => {
+    const own = appVerdict("- flagged: intent");
+    assert.deepEqual(flagsAfterDecision(["intent", "security", "cost"], own, kept(decision()), humans), ["security", "cost"]);
+    assert.equal(flagsAfterDecision(null, own, kept(decision()), humans), null, "an unrecorded flag may have been security");
+    assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision("2026-10-22T09:00:00Z")), humans), ["intent"], "an older decision answers nothing");
+    assert.deepEqual(flagsAfterDecision(null, own, kept(decision("2026-10-22T09:00:00Z")), humans), null);
+    assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision(undefined, { user: { id: OUTSIDER } })), humans), ["intent"], "an unlisted author decides nothing");
+    assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision(undefined, { performed_via_github_app: { slug: "x" } })), humans), ["intent"], "a decision through an App decides nothing");
+    assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision(undefined, { body: "I think we should ship it." })), humans), ["intent"], "a comment that is no decision");
+    assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision(), "2026-10-22T11:30:00Z", OUTSIDER), humans), ["intent"], "a decision another account last edited");
+    assert.deepEqual(flagsAfterDecision(["intent"], undefined, kept(decision()), humans), ["intent"], "no App verdict comment to answer");
+  });
+
+  // An identical body is never re-written, so updated_at can predate a raise
+  // made after the decision; the recorded raise time decides instead.
+  test("an intent flag raised again after a decision still holds a later clean verdict", async () => {
+    const reraised = appVerdict(`- flagged: intent\n${raisedLine(["intent"], "2026-10-22T12:00:00Z", undefined)[0]}`);
+    assert.equal(raisedAt(reraised.body), "2026-10-22T12:00:00Z");
+    assert.deepEqual(flagsAfterDecision(["intent"], reraised, kept(decision()), humans), ["intent"], "the 11:00 decision predates the 12:00 raise");
+    assert.deepEqual(flagsAfterDecision(["intent"], reraised, kept(decision("2026-10-22T13:00:00Z")), humans), [], "a decision after the raise answers it");
+    assert.equal((await go(held([reraised, decision()]))).outcome, "needs-decision");
+  });
+
+  test("raisedLine records this run's time when its verdict flags intent, else carries the earlier line", () => {
+    const earlier = appVerdict(`- flagged: intent\n${raisedLine(["intent"], "2026-10-22T12:00:00Z")[0]}`).body;
+    assert.deepEqual(raisedLine(["intent", "cost"], "2026-10-23T08:00:00Z", earlier), ["<!-- intake-triage intent-raised-at 2026-10-23T08:00:00Z -->"]);
+    assert.deepEqual(raisedLine(["cost"], "2026-10-23T08:00:00Z", earlier), ["<!-- intake-triage intent-raised-at 2026-10-22T12:00:00Z -->"]);
+    assert.deepEqual(raisedLine([], "2026-10-23T08:00:00Z", undefined), []);
+    assert.equal(raisedAt("<!-- intake-triage intent-raised-at 2026-10-22T12:00:00Z --> trailing"), null, "a line with other text is not the record");
+  });
+
+  test("a carried intent flag a newer decision answers does not re-hold a clean verdict", async () => {
+    const fake = held([appVerdict("- flagged: intent"), decision()]);
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(NEEDS_DECISION)}`));
+  });
+
+  test("an unrecorded earlier flag still holds after a decision, since it may have been security", async () => {
+    assert.equal((await go(held([appVerdict(`- ${UNRECORDED}`), decision()]))).outcome, "needs-decision");
+  });
+
+  test("a failed read of the decisions answers nothing: the carried intent flag holds", async () => {
+    const fake = held([appVerdict("- flagged: intent"), decision()]);
+    const github = async (method, path, ...rest) => {
+      if (method === "POST" && path === "/graphql") {
+        throw new GitHubError(502, path);
+      }
+      return fake.github(method, path, ...rest);
+    };
+    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+    assert.equal(result.outcome, "needs-decision");
+  });
+
+  test("with no newer decision the carried intent flag still holds", async () => {
+    const fake = held([appVerdict("- flagged: intent"), decision("2026-10-22T09:00:00Z")]);
+    assert.equal((await go(fake)).outcome, "needs-decision");
+  });
+
+  test("owner Q4: a carried security flag still holds after a decision, as security", async () => {
+    const fake = held([appVerdict("- flagged: security\n- flagged: intent (an earlier verdict)"), decision()]);
+    const result = await go(fake);
+    assert.equal(result.outcome, "needs-decision");
+    assert.equal(result.plan.reason, "security");
+    const patch = writes(fake.calls).find(({ path }) => path === "/repos/o/r/issues/comments/51");
+    assert.match(patch.body.body, /- flagged: security \(an earlier verdict\)/);
+    assert.doesNotMatch(patch.body.body, /flagged: intent/);
+    assert.deepEqual(parseReason(patch.body.body), { lane: "intake-triage", reason: "security" });
+  });
+
+  test("owner Q4: this run's own security flag holds whatever the decision says", async () => {
+    const lane = laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] }));
+    const fake = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [lane, appVerdict("- flagged: intent"), decision()], events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }] });
+    const result = await go(fake);
+    assert.equal(result.outcome, "needs-decision");
+    assert.equal(result.plan.reason, "security");
+  });
+
+  test("a carried cost flag still holds after a decision", async () => {
+    const result = await go(held([appVerdict("- flagged: cost"), decision()]));
+    assert.equal(result.outcome, "needs-decision");
+    assert.equal(result.plan.reason, "cost");
   });
 });

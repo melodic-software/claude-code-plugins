@@ -1,0 +1,88 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p ~/Downloads && cd ~/Downloads && curl -L -o KindleForPC-installer-2.8.70980.exe \"https://kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe\""
+          }
+        }
+      ],
+      "why": "the download itself"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sha256sum KindleForPC-installer-2.8.70980.exe DeDRM_tools-*.zip Kindle_Key_Finder_*.JH.zip"
+          }
+        }
+      ],
+      "why": "the hash check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la ~/Downloads",
+            "description": "before unzip"
+          }
+        }
+      ],
+      "why": "near miss: the word only in the description"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd ~/Downloads && mkdir -p DeDRM_tools-v10.0.28 && (cd DeDRM_tools-v10.0.28 && unzip -o ../DeDRM_tools-v10.0.28.zip)"
+          }
+        }
+      ],
+      "why": "step 2 extraction"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -File \"/tmp/run-1/plugin/skills/manage/scripts/firewall.ps1\" -Action enable"
+          }
+        }
+      ],
+      "why": "step 5 firewall"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/run-1/plugin/skills/manage/scripts/lock-updates.sh apply"
+          }
+        }
+      ],
+      "why": "step 6 lock"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "wine ~/Downloads/KindleForPC-installer-2.8.70980.exe"
+          }
+        }
+      ],
+      "why": "runs the installer"
+    }
+  ]
+}

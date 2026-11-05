@@ -113,6 +113,15 @@ BASIS: in the #6598 measured pass on Claude Code 2.1.316, a grader whose regex
 Parse error: Unexpected EOF`. AS OF: 2026-11-03. Recheck when the loader's
 split rule is read out of a release, and narrow the check to that rule.
 
+Drift record. CLAIM: a regex `target` or an llm `focus` must be
+`last_message`, `trace`, `files`, `mock_calls` or `{ source: file, path:
+<path> }`; any other value, such as `focus: reply`, is a FAIL naming the file
+and the field. BASIS: the "What a grader can look at" table of
+https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at, and
+Claude Code 2.1.318 refusing four debugging cases set to `focus: reply` with
+`invalid case.yaml: graders.0.focus: Invalid input`. AS OF: 2026-11-05.
+Recheck when that table adds or drops a value.
+
 Python 3.8+, standard library only: these scripts run from a consumer checkout
 where no third-party package is provisioned.
 """
@@ -175,6 +184,12 @@ GRADER_FIELDS = {
 }
 JUDGE_TYPES = frozenset(["llm", "baseline"])
 ARMS = ("with-only", "both")
+
+# What a regex `target` or an llm `focus` may read: one of these names, or a
+# `{ source: file, path: <path> }` mapping. Any other value fails at load.
+LOOK_AT_FIELD = {"regex": "target", "llm": "focus"}
+LOOK_AT_NAMES = ("last_message", "trace", "files", "mock_calls")
+LOOK_AT_MESSAGE = " | ".join(LOOK_AT_NAMES) + " | { source: file, path: <path> }"
 
 # Tools a case may list without an operator grant. Everything else is removed
 # from the session and reported on stderr as `not granted`, so the case runs
@@ -955,6 +970,14 @@ def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
             return
 
 
+def valid_look_at(value):
+    """True for a name in LOOK_AT_NAMES or a file source with a string path."""
+    if isinstance(value, dict):
+        path = value.get("path")
+        return value.get("source") == "file" and isinstance(path, str) and path != ""
+    return value in LOOK_AT_NAMES
+
+
 def check_grader(case, path, options, findings):
     """One grader's type, option set, weight, arm, and documented mistakes."""
     kind = options.get("type")
@@ -1001,7 +1024,18 @@ def check_grader(case, path, options, findings):
                 'arm "%s" must be with-only or both' % options["arm"],
             )
         )
-    looks_at = options.get("target") if kind == "regex" else options.get("focus")
+    field = LOOK_AT_FIELD.get(kind)
+    looks_at = options.get(field) if field else None
+    if field and field in options and not valid_look_at(looks_at):
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                path,
+                '%s "%s" is not a value `claude plugin eval` accepts (%s)'
+                % (field, looks_at, LOOK_AT_MESSAGE),
+            )
+        )
     if looks_at == "files":
         findings.append(
             Finding(

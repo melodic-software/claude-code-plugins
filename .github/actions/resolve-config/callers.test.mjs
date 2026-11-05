@@ -821,7 +821,9 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   assert.equal(reason({ rungUp: "true", rungUpResult: "success" }), "");
   assert.equal(post.env.ACTIVITY, "${{ inputs.activity }}");
   assert.match(post.run, /report-escalation\.sh "\$\(\[ -n "\$ESCALATION_REASON" \] && echo status \|\| echo clear\)"$/);
-  assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
+  // Status mode reads this run's jobs and the reply job's annotations
+  // (report-escalation.sh retried_refusal); its only write is the status.
+  assert.deepEqual(job.permissions, { actions: "read", checks: "read", contents: "read", statuses: "write" });
   assert.equal(job.uses, undefined, "a script job, never the write runner");
 });
 
@@ -2960,6 +2962,87 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
   const unblock = workflow("pr-unblock.yml");
   assert.ok(!unblock.on.workflow_dispatch.inputs.activity.options.includes("fix-docs"), "pr-unblock.yml no longer takes fix-docs");
   assert.deepEqual(Object.keys(unblock.jobs).filter((id) => /docs/.test(id)), []);
+});
+
+// API_BUDGET_HOLD=1 makes the rate guard refuse with a notice and leave the
+// exit to the caller (rate-guard.mjs createRateLimitLatch), so it goes only on
+// a step whose script holds green on a refused call: never at workflow or job
+// level, where a gate step would inherit it, and never on a gate's own step.
+test("API_BUDGET_HOLD is set step by step, only where the script holds, and never on a gate", () => {
+  const GATES = /check-trusted-trigger|check-wip-cap|check-kill-switch|--check-closer/;
+  const held = [];
+  for (const file of readdirSync(new URL("../../workflows/", import.meta.url)).filter((name) => /\.ya?ml$/.test(name))) {
+    const doc = workflow(file);
+    assert.equal(doc.env?.API_BUDGET_HOLD, undefined, `${file}: workflow-level API_BUDGET_HOLD`);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      assert.equal(job.env?.API_BUDGET_HOLD, undefined, `${file} ${id}: job-level API_BUDGET_HOLD`);
+      for (const step of job.steps ?? []) {
+        if (step.env?.API_BUDGET_HOLD === undefined) continue;
+        assert.equal(step.env.API_BUDGET_HOLD, "1", `${file} ${id}: ${step.name}`);
+        assert.doesNotMatch(`${step.uses ?? ""} ${step.run ?? ""}`, GATES, `${file} ${id}: ${step.name} is a gate`);
+        held.push(`${file} ${id}: ${step.name}`);
+      }
+    }
+  }
+  assert.deepEqual(held.sort(), [
+    "intake-triage.yml apply-verdict: Write the verdict",
+    "pr-merge.yml merge: List the candidate PRs",
+    "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
+    "pr-verify-capture.yml capture-subscription: Resolve the pull request",
+    "pr-verify-capture.yml capture: Resolve the pull request",
+    "pr-verify.yml check-intent-fallback: Resolve the pull request",
+    "pr-verify.yml check-intent-subscription: Resolve the pull request",
+    "pr-verify.yml check-intent: Resolve the pull request",
+    "work-unblock.yml label-unblocked: Label the unblocked issues",
+  ]);
+});
+
+// fix-docs-head's head-SHA read retries a transient fault once (outage posture
+// element 1; read-pr-head.bash): run with a stub gh that fails `failures`
+// times with `failure`, then answers the head, and a stub sleep that only
+// records each wait.
+test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault once, and never a rate limit", () => {
+  const head = "a".repeat(40);
+  const step = workflow("pr-refine.yml").jobs["fix-docs-head"].steps.find((s) => s.id === "head");
+  const readHead = (failures, { body = head, failure = "HTTP 502: Bad Gateway" } = {}) => {
+    const dir = tempDir("refine-head-");
+    try {
+      const bin = join(dir, "bin");
+      mkdirSync(bin);
+      symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
+      const stub = (name, body) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+      stub(
+        "gh",
+        `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"\n` +
+          `if [ "$n" -le ${failures} ]; then printf 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n'; echo "${failure}" >&2; exit 1; fi\n` +
+          `printf 'HTTP/2.0 200 OK\\r\\n\\r\\n%s\\n' "${body}"`,
+      );
+      stub("sleep", `echo "$1" >>"${dir}/sleeps"`);
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", step.run], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7" },
+      });
+      const lines = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8").split("\n").filter(Boolean) : []);
+      return { status: result.status, stdout: result.stdout, output: readFileSync(output, "utf8"), calls: Number(lines("calls")[0] ?? 0), sleeps: lines("sleeps").length };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const once = readHead(0);
+  assert.deepEqual([once.status, once.output, once.calls, once.sleeps], [0, `sha=${head}\n`, 1, 0], once.stdout);
+  const retried = readHead(1);
+  assert.deepEqual([retried.status, retried.output, retried.calls, retried.sleeps], [0, `sha=${head}\n`, 2, 1], retried.stdout);
+  const never = readHead(2);
+  assert.deepEqual([never.status, never.output, never.calls], [1, "", 2]);
+  assert.match(never.stdout, /::error::the PR could not be read \(transient\)/);
+  const limited = readHead(1, { failure: "HTTP 429: API rate limit exceeded" });
+  assert.deepEqual([limited.status, limited.output, limited.calls, limited.sleeps], [1, "", 1, 0]);
+  const empty = readHead(0, { body: "null" });
+  assert.deepEqual([empty.status, empty.output], [1, ""]);
+  assert.match(empty.stdout, /::error::no PR head SHA read/);
 });
 
 // The read report job posts on the run's head only when it equals a head the

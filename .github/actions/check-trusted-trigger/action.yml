@@ -120,8 +120,9 @@ inputs:
   reconciler-workflow:
     description: >
       The workflow path of the lost-run reconciler. A re-run github-actions[bot]
-      started proceeds only as that workflow's recorded re-run of this run's
-      first attempt (the README's reconciler section). Empty keeps every
+      started proceeds only as that workflow's recorded re-run, at attempt 2
+      or 3 with a record naming that attempt (the README's reconciler
+      section). Empty keeps every
       github-actions[bot] re-run stopped with untrusted-rerunner.
     required: false
     default: ""

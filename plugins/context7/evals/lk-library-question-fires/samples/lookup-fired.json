@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "context7:lookup",
+            "args": "prisma \"connection pooling\""
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "lookup"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "answers without the skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "context7:setup"
+          }
+        }
+      ],
+      "why": "near miss: the setup skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library prisma \"connection pooling\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: runs ctx7 without the skill"
+    }
+  ]
+}

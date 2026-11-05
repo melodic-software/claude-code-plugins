@@ -7,9 +7,10 @@
 // thin or splits and writes the context the model reads. Thin: the triage
 // verdict's `Flags:` line names `intent` (no exact outcome), or the body has
 // no unquoted task list line (no checkable criteria). Splits: not thin, the
-// verdict raised no flag, the lanes App's own `status: needs-decision` holds
-// it, and some of its done-when items are ones a lane run cannot perform
-// (admit.mjs unrunnableCriteria, the check that held it) while at least one
+// verdict raised no flag, the lanes App's admission parked it at `status:
+// confirmed` (or held it, before, at its own `status: needs-decision`), and
+// some of its done-when items are ones a lane run cannot perform
+// (admit.mjs unrunnableCriteria, the check that refused it) while at least one
 // item stays once they move; the context then carries those items as `split`. It refines only an open
 // issue whose author is a listed human or the lanes App, that no person holds
 // (`needs-human`), whose one intake lane comment this run wrote, and whose
@@ -58,8 +59,8 @@
 // model writes no text the lanes read. The refinement comment lists those
 // items as written, quoted, as checks a person runs that the lane does not
 // do, and records their numbers and the body they number (admit.mjs
-// splitItemsLine, bodyVersion); then the script lifts the App's `status:
-// needs-decision` and asks for triage again. The body stays as its author
+// splitItemsLine, bodyVersion); then the script lifts the parked status
+// (splitStays) and asks for triage again. The body stays as its author
 // wrote it, so pr-verify still trusts it: admission and pr-verify leave those
 // items out while that comment counts as spec and names the body as it is
 // (admit.mjs personChecks). It splits only when admission's comment refused
@@ -93,7 +94,7 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
 import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
@@ -144,15 +145,16 @@ export function isThin({ body, laneBody }) {
   return { thin: reasons.length > 0, reasons };
 }
 
-// The split a held issue gets, or null: it is at `status: needs-decision`,
-// the verdict raised no flag, some done-when items are ones a lane run cannot
+// The split a refused issue gets, or null: it is parked at `status:
+// confirmed` alone (admission parks a split there) or, as admission held one
+// before, at `status: needs-decision`, the verdict raised no flag, some done-when items are ones a lane run cannot
 // perform, every task-list line they own is one too, at least one item lies
 // outside them, and `admission`, the lanes App's admission comment, refused
 // it for those items and nothing else. {count, items:
 // [{n, kind, text}]}, each text the item's first line, whole. Who set the
 // label and wrote the comment is checked apart. Pure.
 export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) {
-  if (!labels.includes(NEEDS_DECISION) || flagsOf(laneBody)?.join() !== "none") {
+  if (!(labels.includes(NEEDS_DECISION) || confirmedOnly(labels)) || flagsOf(laneBody)?.join() !== "none") {
     return null;
   }
   const items = taskItems(body, rules["task-list"]);
@@ -167,6 +169,17 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
     return null;
   }
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
+}
+
+// Why the split may not lift the issue's status, or null: admission parks a
+// split at `status: confirmed` (admit.mjs admissionParked), and an issue it
+// held before at the lanes App's own `status: needs-decision` lifts as
+// decisionStays judges. Any other status stays.
+async function splitStays(github, base, labels, comments, appId) {
+  if (labels.includes(NEEDS_DECISION)) {
+    return decisionStays(github, base, comments, appId);
+  }
+  return admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`;
 }
 
 // Up to four plain lowercase words from the title, each 4 or more letters or
@@ -492,7 +505,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
-  const stays = split === null ? null : await decisionStays(github, base, comments, appId);
+  const stays = split === null ? null : await splitStays(github, base, labelNames(issue), comments, appId);
   if (stays !== null) {
     return no(stays);
   }
@@ -754,14 +767,15 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip("is already refined");
   }
   if (output.split.length > 0) {
-    if (!labels.includes(NEEDS_DECISION) || (await decisionStays(github, base, comments, appId)) !== null) {
-      return skip(`is no longer held by the lanes App's ${NEEDS_DECISION} alone`);
+    if ((await splitStays(github, base, labels, comments, appId)) !== null) {
+      return skip(`is no longer parked by the lanes App's admission alone`);
     }
+    const parkedAt = labels.includes(NEEDS_DECISION) ? NEEDS_DECISION : CONFIRMED;
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
-    await removeLabel(github, base, NEEDS_DECISION);
-    await mirror([NEEDS_TRIAGE], [NEEDS_DECISION]);
+    await removeLabel(github, base, parkedAt);
+    await mirror([NEEDS_TRIAGE], [parkedAt]);
     await github("POST", `${base}/comments`, { body: render(output, { body: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
-    log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${NEEDS_DECISION} lifted and triage asked again`);
+    log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${parkedAt} lifted and triage asked again`);
     return { outcome: "split", redispatch: true };
   }
   const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/run-1/plugin/skills/manage/reference/workflow.md"
+          }
+        }
+      ],
+      "why": "near miss: a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/run-1/check-report.md",
+            "content": "| Firewall rule | INFO |"
+          }
+        }
+      ],
+      "why": "writes a report file"
+    }
+  ]
+}

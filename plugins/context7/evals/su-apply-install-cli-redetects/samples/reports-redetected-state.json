@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Ran `npm install -g ctx7@latest`; it failed (registry unreachable). Re-reading `ctx7 --version`: still not installed. No lookup path is live yet: retry with network access, or use `npx ctx7@latest <command>` per call."
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| CLI | FAIL: install failed, `ctx7 --version` still reports not found |\n| MCP | INFO: not configured |\n\nSetup is not complete."
+    },
+    {
+      "answer": "Installed and re-checked: `ctx7 --version` now prints 0.6.2, so the CLI path is live."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Installed ctx7 with `npm install -g ctx7@latest`. The CLI path is ready.",
+      "why": "near miss: claims success from the install alone"
+    },
+    {
+      "answer": "Ran `npm install -g ctx7@latest` (exit 0). Setup complete.",
+      "why": "near miss: reports the exit code, declares complete"
+    },
+    {
+      "answer": "I ran the npm install for ctx7.",
+      "why": "near miss: reports only that the command ran"
+    },
+    {
+      "answer": "The install hit a network error, but ctx7 should work now. Setup complete.",
+      "why": "near miss: declares complete with no live path"
+    }
+  ]
+}

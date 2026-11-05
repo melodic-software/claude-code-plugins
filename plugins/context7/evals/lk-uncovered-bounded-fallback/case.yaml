@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: lk-uncovered-bounded-fallback
+graders:
+  - name: lookup-attempted
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?ctx7(?:@[\w.-]+)?(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:library|docs|search)\b'
+    min: 1
+    arm: with-only
+  - name: at-most-three-lookups
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?ctx7(?:@[\w.-]+)?(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:library|docs|search)\b'
+    min: 0
+    max: 3
+    arm: both
+  - name: discloses-context7-miss
+    type: regex
+    pattern: '(?:^|[.!?;:]\s+)(?![^.!?;:\n]*?\b(?:if|unless|in\s+case|whenever|when|should)\b[^.!?;:\n]*?\b(?:Context7|ctx7)\b)(?![^.!?;:\n]*?\b(?:Context7|ctx7)\b(?:\s+[\w`()*''’-]+){0,3}?\s+(?:would|might|may|will|can|could(?!\s*n))\b)[^.!?;:\n]*?(?:\b(?:Context7|ctx7)\b[^.!?;:,\n]{0,40}?(?:\b(?:did|does|could|can|was|is|were|has|had)\s*(?:n[o'']t|n’t)\s+(?:return|cover|have|find|work|respond|run|give|provide|produce|load|answer|include|reach|be\s+reached|be\s+used)\b|\b(?:failed|crashed|errored)\b|\breturned\s+(?:nothing|no\b|an?\s+error|empty)|\b(?:is|was|were|are)\s+(?:unavailable|unreachable|down)\b|\b(?:(?:is|was|were|are)\s+not|isn[''’]t|wasn[''’]t|aren[''’]t|weren[''’]t)\s+(?:available|reachable|configured|installed|working|set\s+up)\b|\bgave\s+(?:nothing|no\b))|\b(?:couldn[''’]t|could\s+not|can[''’]?not|can[''’]t|was\s+unable\s+to|unable\s+to|failed\s+to)\s+(?:reach|use|query|get|fetch|retrieve|run|load|check|verify|look(?:\s+\w+)?\s+up)\b[^.!?;:,\n]{0,40}?\b(?:Context7|ctx7)\b|\bno\s+(?:results?|docs|documentation|answer)\s+(?:came\s+back\s+)?from\s+(?:Context7|ctx7)\b)'
+    flags: mi
+    target: last_message

@@ -809,7 +809,10 @@ other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
 no human-gated label (an entry naming `"label": "needs-session"` adds that label first, the
 session-builder queue, which no merge gate reads), a failing commit status on the head the activity gated (`pr-unblock/conflict` for
-`resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one
+`resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it, except for a
+`feedback-publish-failed` whose lane token was refused as workflow-modified, which the feedback
+sweep sends again; a transient broker refusal still posts it, since pr-merge's re-fire skips some
+PRs), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
 naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
 `workflow-staged` routes `fail` as a capability limit: the merge carries the PR's own
@@ -1218,7 +1221,10 @@ the rules that only tighten in
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
-  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
+  token holds `issues: write` alone; that job re-reads the revert records and files nothing when
+  one already lists every revert commit. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
   or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
   `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
@@ -2602,12 +2608,15 @@ makes the gate refuse that pass `verify:spec-changed`. The resolver then judges 
 when every counted pass at the head started before the spec's last change, it proceeds with the
 reason `spec-changed` instead of skipping. Nothing re-runs pr-verify on an issue event, so the
 lost-run reconciler does it: for an open pull request whose head's `pr-require-checks` run passed
-at attempt 1 and holds such a pass, it re-runs that run with a record, and pr-verify judges the
-head against the spec as it is now. The gate and the resolver both weigh the passes of the
-pr-verify run that started last, so the new verdict replaces the old one. Each passed checks run
-is re-run this way once (attempt 2 is never re-run; a later edit or label starts a new attempt-1
-run), and a changed closing set or a removed spec comment leaves no time to
-compare, so those heads still wait for a person.
+and holds such a pass, it re-runs that run with a record naming the attempt the re-run starts, and
+pr-verify judges the head against the spec as it is now. The gate and the resolver both weigh the
+passes of the pr-verify run that started last, so the new verdict replaces the old one. The spec can
+change again after that re-run's pass, so the reconciler re-runs a passed checks run at attempt 1
+or 2 and records attempts 2 and 3; pr-verify's trigger check accepts a reconciler-recorded attempt
+up to 3 (`RECONCILER_ATTEMPT_CAP` in `check-trusted-trigger.mjs`, owner decision Q-RERUN3,
+2026-11-05). A run at attempt 3 is named in the reconciler's summary for a person, and a later edit
+or label starts a new attempt-1 run. A changed closing set or a removed spec comment leaves no time
+to compare, so those heads still wait for a person.
 
 Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
 its own reads every run it would not judge: a head already judged or moved past, a draft or a run

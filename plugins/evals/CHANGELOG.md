@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.16.10] - 2026-11-05
+
+### Fixed
+
+- `/evals:validate` now fails a regex `target` or an llm `focus` whose value is not `last_message`, `trace`, `files`, `mock_calls` or `{ source: file, path: <path> }`. `claude plugin eval` refuses such a case at load and skips it without a run, so a grader set to `focus: reply` dropped its case from every eval with no warning ([#13542](https://github.com/melodic-software/claude-code-plugins/issues/13542)).
+
+## [0.16.9] - 2026-11-05
+
+### Fixed
+
+- `run-validity.py` reads a case's top-level `case.yaml` tags as well as its `prompt.md` tags, so a `no-network`, `control` or `invocation-probe` tag on a case with no `prompt.md` now takes effect ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
+
 ## [0.16.8] - 2026-11-05
 
 ### Changed

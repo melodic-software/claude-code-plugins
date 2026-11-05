@@ -1078,19 +1078,23 @@ test("dispatcher: a listed human's own dispatch reads no record", async () => {
   assert.equal(artifactReads(github), 0);
 });
 
-// A lost lane run re-run by the lost-run reconciler: attempt 2, started by
-// github-actions[bot], trusted only through the reconciler run's record
-// reconcile-rerun-<run id>-2-<head sha>, uploaded before the re-run. Run and
-// artifact shapes follow the recorded fixtures above.
+// A lost lane run re-run by the lost-run reconciler: attempt 2 (or up to
+// RECONCILER_ATTEMPT_CAP), started by github-actions[bot], trusted only through
+// the reconciler run's record reconcile-rerun-<run id>-<attempt>-<head sha>,
+// uploaded before the re-run. Run and artifact shapes follow the recorded
+// fixtures above.
 
 const RECONCILER_WORKFLOW = ".github/workflows/maintenance-reconcile-lost-runs.yml";
 const RECONCILER_RUN_ID = 39320000001;
 const RECONCILER_HEAD = "7777777777777777777777777777777777777777";
 const LOST_RUN_ID = "39310000002";
 const LOST_HEAD = "6666666666666666666666666666666666666666";
-const RERUN_RECORD = `reconcile-rerun-${LOST_RUN_ID}-2-${LOST_HEAD}`;
-const attemptRoute = `GET /repos/${REPOSITORY}/actions/runs/${LOST_RUN_ID}/attempts/2`;
-const rerunArtifactsRoute = `GET /repos/${REPOSITORY}/actions/artifacts?name=${RERUN_RECORD}&per_page=100&page=1`;
+const rerunRecordAt = (n) => `reconcile-rerun-${LOST_RUN_ID}-${n}-${LOST_HEAD}`;
+const attemptRouteAt = (n) => `GET /repos/${REPOSITORY}/actions/runs/${LOST_RUN_ID}/attempts/${n}`;
+const rerunArtifactsRouteAt = (n) => `GET /repos/${REPOSITORY}/actions/artifacts?name=${rerunRecordAt(n)}&per_page=100&page=1`;
+const RERUN_RECORD = rerunRecordAt(2);
+const attemptRoute = attemptRouteAt(2);
+const rerunArtifactsRoute = rerunArtifactsRouteAt(2);
 const reconcilerRoute = `GET /repos/${REPOSITORY}/actions/runs/${RECONCILER_RUN_ID}`;
 const reconcilerCompare = `GET /repos/${REPOSITORY}/compare/${RECONCILER_HEAD}...${TIP_SHA}`;
 
@@ -1145,11 +1149,12 @@ const rerunRecord = (overrides = {}) => ({
 });
 
 // No tagRoute: the fake answers 404, so no tag shares the branch name.
-function rerunRoutes({ attempt = {}, reconciler = {}, artifacts = listing(rerunRecord()), compare = { status: "ahead" }, extra = {} } = {}) {
+// `at` is the attempt the reconciler's record names and the re-run started.
+function rerunRoutes({ at = 2, attempt = {}, reconciler = {}, artifacts = listing(rerunRecord({ name: rerunRecordAt(at) })), compare = { status: "ahead" }, extra = {} } = {}) {
   return {
     [commitPulls]: [fixture("api-pull-42.json")],
-    [attemptRoute]: { ...lostAttempt(), ...attempt },
-    [rerunArtifactsRoute]: artifacts,
+    [attemptRouteAt(at)]: { ...lostAttempt({ run_attempt: at }), ...attempt },
+    [rerunArtifactsRouteAt(at)]: artifacts,
     [reconcilerRoute]: typeof reconciler === "function" ? reconciler : reconcilerRun(reconciler),
     [tipRoute]: TIP_REF,
     [reconcilerCompare]: compare,
@@ -1275,9 +1280,33 @@ test("reconciler re-run: a record does not vouch for an unlisted upstream actor"
   assert.ok(!github.calls.includes(rerunArtifactsRoute));
 });
 
-for (const runAttempt of ["1", "3", ""]) {
+test("reconciler re-run: a valid record vouches for github-actions[bot] at attempt 3, the cap", async () => {
+  const github = fakeGitHub(rerunRoutes({ at: 3 }));
+  assert.deepEqual(await reconcilerRerun({ github, runAttempt: "3" }), PROCEED);
+  assert.ok(github.calls.includes(rerunArtifactsRouteAt(3)));
+  assert.ok(!github.calls.includes(rerunArtifactsRoute));
+});
+
+test("reconciler re-run: an attempt-2 record does not vouch for attempt 3", async () => {
+  const github = fakeGitHub(rerunRoutes({ at: 3, artifacts: listing(), extra: { [rerunArtifactsRoute]: listing(rerunRecord()) } }));
+  assert.deepEqual(await reconcilerRerun({ github, runAttempt: "3" }), STOPPED("untrusted-rerunner"));
+  assert.ok(!github.calls.includes(rerunArtifactsRoute));
+});
+
+for (const [label, reconciler] of [
+  ["is another workflow", { path: ".github/workflows/pr-merge.yml" }],
+  ["was dispatched by an unlisted user", { event: "workflow_dispatch", actor: STRANGER }],
+  ["was re-run by an unlisted user", { run_attempt: 2, triggering_actor: STRANGER }],
+]) {
+  test(`reconciler re-run: at attempt 3, refused when the recording run ${label}`, async () => {
+    const github = fakeGitHub(rerunRoutes({ at: 3, reconciler }));
+    assert.deepEqual(await reconcilerRerun({ github, runAttempt: "3" }), STOPPED("untrusted-rerunner"));
+  });
+}
+
+for (const runAttempt of ["1", "4", ""]) {
   test(`reconciler re-run: attempt ${runAttempt || "(none)"} is never vouched for and nothing is read`, async () => {
-    const github = fakeGitHub(rerunRoutes());
+    const github = fakeGitHub({ ...rerunRoutes(), ...rerunRoutes({ at: 4 }) });
     assert.deepEqual(await reconcilerRerun({ github, runAttempt }), STOPPED("untrusted-rerunner"));
     assert.deepEqual(github.calls, [commitPulls]);
   });
@@ -2971,7 +3000,48 @@ for (const [label, name] of [
   });
 }
 
-for (const runAttempt of [1, 3]) {
+// The spec re-run's second time on one head: pr-verify on the reconciler's
+// attempt 3 of pr-require-checks, recorded under that attempt.
+test("upstream re-run: a CI attempt 3 by github-actions[bot] with the reconciler's attempt-3 record proceeds", async () => {
+  const name = `reconcile-rerun-${CI_RERUN_ID}-3-${HEAD_SHA}`;
+  const attempt3 = `GET /repos/${REPOSITORY}/actions/runs/${CI_RERUN_ID}/attempts/3`;
+  const github = fakeGitHub(
+    upstreamRoutes({
+      artifacts: listing(),
+      extra: {
+        [attempt3]: lostAttempt({ id: CI_RERUN_ID, name: "pr-require-checks", path: ".github/workflows/pr-require-checks.yml", event: "pull_request", head_branch: "feat/lane-probe", head_sha: HEAD_SHA, run_attempt: 3 }),
+        [artifactsByName(name)]: listing(rerunRecord({ name })),
+      },
+    }),
+  );
+  assert.deepEqual(await upstreamRerun({ github, event: upstreamRerunEvent({ run_attempt: 3 }) }), PROCEED);
+  assert.ok(github.calls.includes(attempt3));
+  assert.ok(github.calls.includes(artifactsByName(name)));
+  assert.ok(!github.calls.includes(upstreamArtifactsRoute));
+});
+
+for (const [label, reconciler] of [
+  ["is another workflow", { path: ".github/workflows/pr-merge.yml" }],
+  ["was dispatched by an unlisted user", { event: "workflow_dispatch", actor: STRANGER }],
+]) {
+  test(`upstream re-run: at attempt 3, refused when the recording run ${label}`, async () => {
+    const name = `reconcile-rerun-${CI_RERUN_ID}-3-${HEAD_SHA}`;
+    const github = fakeGitHub(
+      upstreamRoutes({
+        artifacts: listing(),
+        extra: {
+          [`GET /repos/${REPOSITORY}/actions/runs/${CI_RERUN_ID}/attempts/3`]: lostAttempt({ id: CI_RERUN_ID, name: "pr-require-checks", path: ".github/workflows/pr-require-checks.yml", event: "pull_request", head_branch: "feat/lane-probe", head_sha: HEAD_SHA, run_attempt: 3 }),
+          [artifactsByName(name)]: listing(rerunRecord({ name })),
+          [reconcilerRoute]: reconcilerRun(reconciler),
+        },
+      }),
+    );
+    assert.deepEqual(await upstreamRerun({ github, event: upstreamRerunEvent({ run_attempt: 3 }) }), STOPPED("untrusted-actor"));
+    assert.ok(github.calls.includes(artifactsByName(name)));
+  });
+}
+
+for (const runAttempt of [1, 4]) {
   test(`upstream re-run: github-actions[bot] at attempt ${runAttempt} refuses and reads no record`, async () => {
     const github = fakeGitHub(upstreamRoutes());
     assert.deepEqual(await upstreamRerun({ github, event: upstreamRerunEvent({ run_attempt: runAttempt }) }), STOPPED("untrusted-actor"));
@@ -3060,7 +3130,9 @@ function ciStatusRoutes({ attempt = 3, upstream = {}, dispatch = {}, artifacts, 
       run_started_at: "2026-10-19T19:00:45Z",
       ...upstream,
     }),
-    [reconcilerListing]: listing(),
+    // The reconciler's record at this attempt, read first while the attempt is
+    // at most RECONCILER_ATTEMPT_CAP.
+    [artifactsByName(`reconcile-rerun-${CI_RERUN_ID}-${attempt}-${HEAD_SHA}`)]: listing(),
     [artifactsByName(ciStatusRecord(attempt))]: artifacts ?? listing(ciStatusArtifact(attempt)),
     [dispatchRoute]: dispatchRun(dispatch),
     [tipRoute]: TIP_REF,
@@ -3129,9 +3201,16 @@ test("ci-status re-run: github-actions[bot] at attempt 1 refuses and reads no re
   assert.deepEqual(github.calls, [commitPulls]);
 });
 
-test("ci-status re-run: without ci-status-rerun-workflow attempt 3 refuses and reads no record", async () => {
+test("ci-status re-run: without ci-status-rerun-workflow attempt 3 reads only the reconciler's record", async () => {
   const github = fakeGitHub(ciStatusRoutes());
   assert.deepEqual(await ciStatusRerun({ github, ciStatusRerunWorkflow: "" }), STOPPED("untrusted-actor"));
+  assert.ok(github.calls.includes(artifactsByName(`reconcile-rerun-${CI_RERUN_ID}-3-${HEAD_SHA}`)));
+  assert.ok(!github.calls.includes(artifactsByName(ciStatusRecord(3))));
+});
+
+test("ci-status re-run: without ci-status-rerun-workflow attempt 4 refuses and reads no record", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ attempt: 4 }));
+  assert.deepEqual(await ciStatusRerun({ github, attempt: 4, ciStatusRerunWorkflow: "" }), STOPPED("untrusted-actor"));
   assert.deepEqual(github.calls, [commitPulls]);
 });
 
@@ -3224,7 +3303,8 @@ test("ci-status re-run: the record vouches only for the upstream run, never this
     triggeringActor: "github-actions[bot]",
     reconcilerWorkflow: RECONCILER_WORKFLOW,
     ciStatusRerunWorkflow: CI_STATUS_RERUN_WORKFLOW,
-    runAttempt: "3",
+    // Past RECONCILER_ATTEMPT_CAP, where only rerun-ci-status records.
+    runAttempt: "4",
   });
   assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
   assert.deepEqual(github.calls, [commitPulls]);

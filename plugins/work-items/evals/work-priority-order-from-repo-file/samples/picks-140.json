@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I would claim #140. It ranks first in the tier's order, so I stopped there.",
+      "why": "names the expected item"
+    },
+    {
+      "answer": "Dry pick: **#140**. #101 is the runner-up.",
+      "why": "expected pick plus a named runner-up"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I would claim #101.",
+      "why": "another item"
+    },
+    {
+      "answer": "By the strict order the pick is #140, but I would claim #101 as a judgment call.",
+      "why": "near miss: states the rule, then claims another item"
+    },
+    {
+      "answer": "Either #140 or #101 works; I'd take both.",
+      "why": "more than one item"
+    }
+  ]
+}
