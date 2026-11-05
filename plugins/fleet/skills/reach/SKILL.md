@@ -126,10 +126,14 @@ dated measurement and how to re-measure it). When a script can do the job, run t
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
     **As of**: 2026-10-10. **Recheck trigger**: the `claude logs` or `claude attach` row changes.
-- A `-p` receiver needs `crossSessionInbound: accept` and lives only as long as its turn; for a
-  session that must stay up, use a background session. Give either one standing instructions as
-  its prompt: what to do with each message and when to stop. Delivery rules and the pointer are in
+- A `-p` receiver needs `crossSessionInbound: accept`. For a session that must stay up, use a
+  background session, not a `-p` receiver. Give either one standing instructions as its prompt:
+  what to do with each message and when to stop. Delivery rules and the pointer are in
   [reference/relay.md](reference/relay.md#a-named-receiver).
+  - **Pointer**: for when a `-p` run ends after its turn, fetch
+    [Run Claude Code programmatically: Background tasks at exit](https://code.claude.com/docs/en/headless#background-tasks-at-exit)
+    live. **As of**: 2026-11-04. **Recheck trigger**: that section changes what keeps a `-p` run
+    open after its turn.
 - `--bare` cuts per-turn cost but binds no inbox socket, so a bare session cannot receive messages
   or be listed. Use it for prompts, never for a receiver.
 - Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
@@ -223,10 +227,10 @@ on-demand tasks FLEET.md lists.
   - **bash, zsh, and Git Bash** (a native-Windows Claude's Bash tool, R4 to R6): replace each `'`
     with `'\''`, or wrap the command in `$'...'` and write `\'`. Doubling (`''`) silently drops the
     apostrophe here: `'what''s'` arrives as `whats`.
-  - **pwsh** (a native-Windows Claude's PowerShell tool, or a pwsh terminal): double it, `''`.
-  - **From a PowerShell window**, keep the prompt in doubled single quotes (`''...''`) and write an
-    apostrophe as `''\''''`, not `-p "..."`. That is the form that ran correctly on every version
-    probed.
+  - **PowerShell**, Windows PowerShell 5.1 or pwsh 7 (a native-Windows Claude's PowerShell tool,
+    or a PowerShell window): keep the prompt in doubled single quotes (`-p ''...''`) and write an
+    apostrophe as `''\''''`. Never use `-p "..."` from PowerShell, with or without a doubled `''`
+    apostrophe. This form ran correctly on every version probed.
     - **Probe**: [PowerShell quoting to wsl.exe](https://github.com/melodic-software/claude-code-plugins/issues/12908#issuecomment-6624493777).
       **As of**: 2026-11-04. **Recheck trigger**: the
       [about_Parsing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing?view=powershell-7.6#passing-arguments-that-contain-quote-characters)
