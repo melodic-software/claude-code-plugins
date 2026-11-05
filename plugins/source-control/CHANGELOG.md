@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.8] - 2026-11-05
+
+### Added
+
+- Eval case `setup-check-reports-team-layer-and-ignore-gap` for `/source-control:setup check` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)): grades that the team-layer subject_pattern wins, the missing recursive ignore rule is a FAIL, and nothing is written.
+
 ## [8.1.7] - 2026-11-05
 
 ### Changed

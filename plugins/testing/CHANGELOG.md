@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.3] - 2026-11-05
+
+### Added
+
+- Eval case `setup-check-reports-missing-lint-rule` for `/testing:setup check` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)): grades the bundled setup.sh check run, the missing ruff PT011 finding, and no write.
+
 ## [3.2.2] - 2026-11-05
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-11-05
+
+### Added
+
+- Eval case `setup-check-shows-role-map-and-ignore-gap` for `/multi-agent:setup check` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)): grades the bundled setup.sh check run, the per-role single and fan-out lines, the recommended ignore line, and no write.
+
 ## [2.0.6] - 2026-11-04
 
 ### Changed
