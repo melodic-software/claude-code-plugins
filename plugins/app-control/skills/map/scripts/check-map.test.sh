@@ -149,6 +149,15 @@ git init -q "$TEST_TMPDIR"
 out="$(bash "$CHECK" "$SKILL")"
 assert_equals "clean: default root is the project holding .claude, not the git top level" "$out" ""
 
+# A Budget: line under ## Drive and a frames row under ## Capture are contract lines, not findings.
+new_case
+replace "$SKILL/features/cart/README.md" "## Gotchas" "Budget: first_paint_ms | trace
+
+## Gotchas"
+replace "$SKILL/SKILL.md" "screenshot: the browser driver" "screenshot: the browser driver
+frames: ffmpeg -i <recording> <dir>/%04d.png"
+assert_equals "clean: a Budget line and a frames row print nothing" "$(run_check)" ""
+
 # index-dead, also: exit 0 with a finding and the tree is unchanged.
 new_case
 printf -- '- Refunds | features/refunds/README.md | entry points: 1 | sources: src/cart/**/*.py\n' >>"$SKILL/SKILL.md"
