@@ -1,4 +1,4 @@
 ---
 type: regex
-pattern: 'Pre-existing \(advisory\):'
+pattern: '(?:^|\n)(?:[-*] )?Pre-existing \(advisory\):'
 ---
