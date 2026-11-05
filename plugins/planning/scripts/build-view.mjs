@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Build a planning view (a kind the planning lane registers in lib/view-registry.mjs) from its
 // record through render(laneId, kind, record) in the shared view builder. The record is a file
-// (--record) or stdin: JSON for plan and brainstorm, a PLAN.md holding `## Design` for design.
+// (--record) or stdin: a PLAN.md for plan and design (design reads its `## Design` section), JSON
+// for brainstorm.
 // A page goes to one deterministic path under the OS temp directory, never beside the record.
 //
 //   node build-view.mjs <kind> [--record <file>]
@@ -160,7 +161,7 @@ function main(argv, env = process.env) {
     console.log(flags["--out"]);
     return 0;
   } catch (err) {
-    console.error(err instanceof SyntaxError ? "build-view: the record is not JSON" : err.message);
+    console.error(err instanceof SyntaxError ? `build-view: the ${kind} record is not JSON` : err.message);
     return err instanceof ViewBuildError ? 1 : 2;
   }
 }

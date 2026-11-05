@@ -63,25 +63,22 @@ const check = (name, cond, detail) => {
 };
 
 const hostile = "</script><img src=x onerror=alert(1)><svg onload=alert(1)>\"'`${1}";
+// A fence's info string holds no backtick, so the shape anchor drops them.
+const hostilePlan = [
+  `# ${hostile}`, "", "## Brief", "", "### Problem", "", `- ${hostile}`, "", "### Goal", "", hostile, "",
+  "### Constraints", "", `- ${hostile}`, "", "### Acceptance criteria", "", `- AC1: ${hostile}`, "", "### Out-of-scope", "", `- ${hostile}`, "",
+  "## Plan", "", "### Behavior", "", `- B1: ${hostile} (AC1)`, "", `Process criteria: ${hostile}`, "",
+  "### Decisions made (gate-passed)", "", "| Decision | What it changes in the plan | Basis (evidence) | Source |", "|---|---|---|---|",
+  `| ${hostile} | ${hostile} | ${hostile} | ${hostile} |`, "",
+  `### Phase 1: ${hostile} [TODO]`, `**Satisfies:** ${hostile}`, `**Delivers:** ${hostile}`, "", hostile, "",
+  `\`\`\`shape ${hostile.replaceAll("`", "")}`, hostile, "```", "", `- **Sanity Check:** ${hostile}`, "",
+].join("\n");
 const fixtures = {
   plan: {
     template: "../skills/plan/templates/plan-view.html",
-    data: {
-      title: "Add caching to query handlers",
-      goal: "Cache repeated query results.",
-      blast: "MEDIUM",
-      phases: [
-        { status: "TODO", name: "Phase 1: Cache layer", what: "Add the cache.", needs: "none", criteria: ["Hit rate is logged.", "Tests pass."] },
-        { status: "TODO", name: "Phase 2: Wire handlers", what: "Use the cache.", needs: "Phase 1", criteria: ["Handlers read through the cache."] },
-      ],
-    },
-    hostile: {
-      title: hostile,
-      goal: hostile,
-      blast: hostile,
-      phases: [{ status: hostile, name: hostile, what: hostile, needs: hostile, criteria: [hostile] }],
-    },
-    ids: ["phases-2", "phases-1-criteria-2"],
+    data: readFileSync(`${dir}/testdata/plan-record.md`, "utf8"),
+    hostile: hostilePlan,
+    ids: ["phases-2", "phases-1-criteria-2", "phases-1-shapes-1", "phases-2-criteria-1", "behaviors-2", "criteria-3", "decisions-2", "problem-2", "out-of-scope-1"],
   },
   brainstorm: {
     template: "../skills/brainstorm/templates/brainstorm-view.html",
@@ -102,15 +99,21 @@ const fixtures = {
   },
 };
 
-const build = (kind, data) =>
-  spawnSync("node", [`${dir}/build-view.mjs`, kind], { input: typeof data === "string" ? data : JSON.stringify(data), encoding: "utf8", env });
+const input = (data) => (typeof data === "string" ? data : JSON.stringify(data));
+const build = (kind, data) => spawnSync("node", [`${dir}/build-view.mjs`, kind], { input: input(data), encoding: "utf8", env });
+const dataOf = (page) => JSON.parse(/<script type="application\/json" id="rv-data">(.*?)<\/script>/s.exec(page)[1]);
+const keysIn = (value) =>
+  Array.isArray(value)
+    ? value.flatMap(keysIn)
+    : value !== null && typeof value === "object"
+      ? Object.entries(value).flatMap(([key, inner]) => [key, ...keysIn(inner)])
+      : [];
 const verify = (path) => spawnSync("node", [`${dir}/../lib/view-builder.mjs`, "--check", path], { encoding: "utf8" });
 const dump = (path) =>
   spawnSync(chrome, ["--headless", "--no-sandbox", "--disable-gpu", "--dump-dom", pathToFileURL(path).href], { encoding: "utf8", timeout: 60000 }).stdout ?? "";
 
 // Keys the template binds, so a typo in a template or fixture cannot pass silently.
 const keysOf = (html, attr) => [...html.matchAll(new RegExp(`${attr}="([a-z0-9-]+)"`, "g"))].map((m) => m[1]);
-const has = (scope, key) => scope !== null && typeof scope === "object" && Object.hasOwn(scope, key);
 
 for (const [kind, fixture] of Object.entries(fixtures)) {
   const html = readFileSync(`${dir}/${fixture.template}`, "utf8");
@@ -121,9 +124,9 @@ for (const [kind, fixture] of Object.entries(fixtures)) {
   check(`${kind}: the page passes the interactive profile`, verify(path).status === 0, verify(path).stdout);
   check(`${kind}: the template carries no script of its own`, !/<script/i.test(html));
 
-  const items = fixture.data[keysOf(html, "data-rv-each")[0]];
-  const bound = keysOf(html, "data-rv-text").filter((key) => key !== "item");
-  check(`${kind}: every key the template binds is in the fixture`, bound.every((key) => has(fixture.data, key) || items.every((row) => has(row, key))));
+  const keys = new Set(keysIn(dataOf(readFileSync(path, "utf8"))));
+  const bound = ["data-rv-text", "data-rv-each", "data-rv-count"].flatMap((attr) => keysOf(html, attr)).filter((key) => key !== "item");
+  check(`${kind}: every key the template binds is in the fixture's data`, bound.every((key) => keys.has(key)), bound.filter((key) => !keys.has(key)).join(", "));
 
   const bad = build(kind, fixture.hostile);
   const badPath = `${work}/${kind}-bad.html`;
@@ -140,6 +143,20 @@ for (const [kind, fixture] of Object.entries(fixtures)) {
     check(`${kind}: browser keeps hostile data as text`, shownBad.includes('class="rv-ready"') && !/<img|<svg/i.test(shownBad) && shownBad.includes("&lt;img src=x"));
   }
 }
+// The plan view reads the whole PLAN.md and links to its sections by fixed fragments.
+{
+  const built = spawnSync("node", [`${dir}/build-view.mjs`, "plan", "--record", `${dir}/testdata/plan-record.md`], { encoding: "utf8", env });
+  const lines = built.stdout.trim().split("\n");
+  check("plan --record builds and prints one HTML path", built.status === 0 && lines.length === 1 && lines[0].endsWith(".html"), built.stderr);
+  const data = dataOf(readFileSync(lines[0], "utf8"));
+  check("plan: the record's parts reach the page", data.title === "Plan: Add caching to query handlers" && data.blast === "MEDIUM" && data.process === "AC3" && data.behaviors.length === 2 && data.criteria.length === 3 && data.decisions.length === 2 && data.problem.length === 2);
+  check("plan: each phase carries its lines, checks and shapes", data.phases[0].satisfies === "AC1" && data.phases[0].delivers === "B1" && data.phases[0].criteria.length === 2 && data.phases[0].shapes[0]?.anchor === "src/orders/handler.py#get_order" && data.phases[1].criteria.length === 1 && data.phases[1].what.includes("## a heading inside a fence stays text"));
+  const html = readFileSync(`${dir}/${fixtures.plan.template}`, "utf8");
+  const sections = ["behaviors", "brief", "criteria", "decisions", "phases"];
+  check("plan: the nav links each section by a literal fragment", sections.every((id) => html.includes(`href="#${id}"`) && html.includes(`id="${id}"`)));
+  check("plan: a record with no ## Plan section exits 1", build("plan", "# Plan\n\n## Brief\n").status === 1);
+}
+
 // The design view reads a PLAN.md, not JSON: its Design section's subsections become rows.
 {
   const record = ["# Plan: Cache", "", "## Design", "", "Gate: PASS.", "", "### Module layout", "", "| Module | Owns |", "", "### Contracts", "", `get(key) ${hostile}`, "", "## Plan", ""].join("\n");
@@ -206,14 +223,14 @@ for (const kind of Object.keys(fixtures)) {
   // Claude-interactive build into a view-bridge data dir.
   const bridgedOut = `${bridgeDir(`${kind}-bridge`)}/page.html`;
   const bridged = spawnSync("node", [`${dir}/build-view.mjs`, kind, "--connect", "http://127.0.0.1:8765", "--out", bridgedOut], {
-    input: JSON.stringify(fixtures[kind].data),
+    input: input(fixtures[kind].data),
     encoding: "utf8",
     env,
   });
   check(`${kind} --connect --out writes the page there and it passes the profile`, bridged.status === 0 && bridged.stdout.trim() === bridgedOut && verify(bridgedOut).status === 0, bridged.stderr);
   check(`${kind} --connect names the origin in connect-src`, bridged.status === 0 && readFileSync(bridgedOut, "utf8").includes("connect-src http://127.0.0.1:8765\">"));
 }
-const flag = (...args) => spawnSync("node", [`${dir}/build-view.mjs`, "plan", ...args], { input: JSON.stringify(fixtures.plan.data), encoding: "utf8", env }).status;
+const flag = (...args) => spawnSync("node", [`${dir}/build-view.mjs`, "plan", ...args], { input: fixtures.plan.data, encoding: "utf8", env }).status;
 check("--connect without --out exits 2", flag("--connect", "http://127.0.0.1:8765") === 2);
 check("an unknown flag exits 2", flag("--open", "x") === 2);
 check("--connect to a non-loopback origin exits 2", flag("--connect", "https://evil.example", "--out", `${bridgeDir("evil")}/page.html`) === 2);
@@ -259,11 +276,11 @@ if (!chrome) {
 }
 
 check("an unknown view kind exits 2", build("deck", {}).status === 2);
-check("stdin that is not JSON exits 2", build("plan", "{not json").status === 2);
-check("data that is not an object exits 1", build("plan", "null").status === 1);
-check("plan data missing its fields exits 1", build("plan", {}).status === 1);
+const notJson = build("brainstorm", "{not json");
+check("brainstorm stdin that is not JSON exits 2 and says so", notJson.status === 2 && notJson.stderr.includes("the brainstorm record is not JSON"));
+check("data that is not an object exits 1", build("brainstorm", "null").status === 1);
 check("brainstorm data missing its fields exits 1", build("brainstorm", {}).status === 1);
-check("a row with a wrongly typed field exits 1", build("plan", { ...fixtures.plan.data, phases: [{ ...fixtures.plan.data.phases[0], criteria: "none" }] }).status === 1);
+check("a row with a wrongly typed field exits 1", build("brainstorm", { ...fixtures.brainstorm.data, candidates: [{ ...fixtures.brainstorm.data.candidates[0], effort: 3 }] }).status === 1);
 check("a list that is not a list exits 1", build("brainstorm", { ...fixtures.brainstorm.data, candidates: {} }).status === 1);
 
 const outDir = `${work}/planning-views`;
