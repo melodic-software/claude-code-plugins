@@ -55,7 +55,7 @@ a deliberately disabled plugin is not broken. Node.js stays FAIL: `hooks.json` s
 before the script can read the toggle. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
    since it reads the file paths with `jq`.
 3. **Ruff binary.** Resolve it exactly the way the hook's resolution code does: its
