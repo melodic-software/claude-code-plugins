@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.7.0] - 2026-11-05
+
+### Added
+
+- A plan opens with a `### Behavior` list: each item is one observable claim that cites the acceptance criteria it serves, a `Process criteria:` line holds the criteria no behavior shows, and each phase names the behaviors it builds on a `**Delivers:**` line. The PLAN.md anatomy, the plan template, `/planning:plan` Step 2, review mode and both plan-reviewer files carry it, and the reduced reader depths copy the list.
+- The outcome gate's new `behaviors` criterion fails a plan with criterion ids whose list is missing or not the first `###` under `## Plan`, or that has a duplicate behavior id, an item citing no criterion, an unknown cite, an uncited criterion, a criterion both cited and on the Process line, an undelivered behavior, or an unknown Delivers id. A plan with no criterion id passes it with a warning.
+
 ## [2.6.0] - 2026-11-04
 
 ### Added
