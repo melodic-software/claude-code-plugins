@@ -75,6 +75,30 @@
       "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
       "scan": "upload"
     },
+    "key-credit-stop-eval-browser-dispatch.yml-eval": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-browser-dispatch.yml eval-key-credit's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
+    },
+    "key-credit-stop-maintenance-measure-skill-edit.yml-pass": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/eval-hill-climb-pass.yml gate's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention); the name carries maintenance-measure-skill-edit.yml because a called workflow's github context is its caller's"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
+    },
+    "key-credit-stop-maintenance-measure-skill-edit.yml-propose": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-measure-skill-edit.yml propose-key-credit's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
+    },
     "key-credit-stop-pr-verify-capture.yml-capture": {
       "retention-days": 1,
       "readers": [
