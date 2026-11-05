@@ -630,7 +630,7 @@ async function runMain(answers, extraEnv = {}, config) {
   await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github, now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
   const value = (name) => new RegExp(`${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1`).exec(text)?.[2];
-  return { capped: value("capped"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), output: text, summary: readFileSync(summary, "utf8"), logs, paths };
+  return { capped: value("capped"), held: value("held"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), output: text, summary: readFileSync(summary, "utf8"), logs, paths };
 }
 
 
@@ -673,6 +673,8 @@ test("main writes capped=true only when paused", async () => {
   assert.equal(paused.wip.pause_from, "2026-10-01");
   assert.equal(paused.wip.wip_min_cap, 12);
   assert.equal(paused.capped, "true");
+  // A pause that was read is no hold, so pick-slot still reads the dimensions.
+  assert.equal(paused.held, "false");
   assert.ok(paused.logs.some((line) => line.includes("13 countable lane PRs are at or over the WIP cap of 12")));
   const line = "admission paused: reason=wip countable=13 wip_cap=12 held=0 held_cap=10";
   assert.ok(paused.logs.includes(`::notice title=admission paused::${line}`), paused.logs.join("\n"));
@@ -721,6 +723,7 @@ test("a read the pause depends on that fails holds the run with one notice", asy
   ]) {
     const held = await runMain(answers, {}, config);
     assert.equal(held.capped, "true", unread);
+    assert.equal(held.held, "true", unread);
     assert.equal(held.wip.pause_basis, "unknown", unread);
     const notices = held.logs.filter((line) => line.startsWith(HOLD));
     assert.equal(notices.length, 1, held.logs.join("\n"));

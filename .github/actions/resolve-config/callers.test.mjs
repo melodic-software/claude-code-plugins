@@ -1245,6 +1245,14 @@ test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green w
   }
   assert.match(hold.run, /^echo "::notice title=WIP cap hold::/);
   assert.equal(hold["continue-on-error"], undefined);
+  // A held run reads no more config, so an unreadable base config cannot fail
+  // the job after the check held it; a paused run still reads its dimensions
+  // for report-skip, which runs at the WIP cap too.
+  const dimensions = pick.steps.find((item) => item.id === "dimensions");
+  for (const [held, runs] of [["", false], ["true", false], ["false", true]]) {
+    assert.equal(evaluate(dimensions.if, { "steps.wip.outputs.held": held }), runs, `dimensions read on held ${JSON.stringify(held)}`);
+  }
+  assert.equal(parse(read("../check-wip-cap/action.yml")).outputs.held.value, "${{ steps.check.outputs.held }}");
   // No step in the job or the action restores or saves a stored pause.
   const action = parse(read("../check-wip-cap/action.yml"));
   for (const step of [...pick.steps, ...action.runs.steps]) {

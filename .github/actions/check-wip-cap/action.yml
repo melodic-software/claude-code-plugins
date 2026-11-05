@@ -40,6 +40,9 @@ outputs:
   capped:
     description: "`true` only while the lane pauses (over the WIP cap or the held cap on or after `wip.pause-from`, or a hold when a read the pause depends on failed); otherwise `false`."
     value: ${{ steps.check.outputs.capped }}
+  held:
+    description: "`true` when a read the pause depends on failed, so the pause is unknown; `false` when the pause was read."
+    value: ${{ steps.check.outputs.held }}
   admission-open:
     description: "`false` only while new admissions pause (queued work at or over the queued cap on or after `wip.pause-from`, or, whatever `wip.pause-from` says, a search answered `incomplete_results: true` or the base config could not be read, `admission_basis` `config-unreadable`); a failed queued read without that flag leaves `true`. Runs never pause on it."
     value: ${{ steps.check.outputs.admission-open }}

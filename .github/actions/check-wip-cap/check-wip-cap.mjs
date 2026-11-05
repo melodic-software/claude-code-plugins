@@ -395,7 +395,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   const held = unread !== null;
   const status = { ...read, pause_basis: held ? "unknown" : "read" };
   const json = JSON.stringify(status);
-  writeOutputs({ capped: String(held || status.paused), "admission-open": String(status.admission_open), wip: json }, env.GITHUB_OUTPUT);
+  writeOutputs({ capped: String(held || status.paused), held: String(held), "admission-open": String(status.admission_open), wip: json }, env.GITHUB_OUTPUT);
   if (env.GITHUB_STEP_SUMMARY) {
     appendFileSync(env.GITHUB_STEP_SUMMARY, `### Issue-lane WIP cap\n\n\`\`\`json\n${json}\n\`\`\`\n`);
   }
