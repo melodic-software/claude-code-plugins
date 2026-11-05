@@ -12,7 +12,7 @@ name: intake-triage
 # (.github/actions/resolve-config/admission-rules.json) and the issue lane's
 # caps allow (.github/scripts/intake-triage/admit.mjs). A thin issue (no exact
 # outcome, or no task list) then gets one read-only refinement run, posted as
-# a separate lanes App comment; an issue admission held for done-when items a
+# a separate lanes App comment; an issue admission parked for done-when items a
 # lane run cannot perform gets the same run, which may split those items out
 # of the done-when into its comment as checks a person runs
 # (.github/scripts/intake-triage/refine.mjs).
@@ -418,8 +418,13 @@ jobs:
            comment must stay under 2800 characters: when the quote would not fit, quote its opening
            lines and end with `> [quote truncated; the full decision is at the link]`.
         b. List the open questions from the issue body and earlier comments, and check each against
-           the decision. Treat any assumption, unknown or gap in intent the decision does not settle
-           as an open question too.
+           the decision. One the decision answers, calls no owner question, defers or leaves to the
+           issue lane is settled: never ask it again or flag intent for it, whatever an earlier
+           verdict flagged. Treat as open too only an intent question, as ESCALATION defines one,
+           that the decision leaves open or text written after it raises: an outcome or done-when still
+           not exact (such as a term the decision uses but does not define) or a primary-design
+           choice still unpicked. This settles intent only: COST, the security rules above and (d)
+           still flag as written.
         c. When one or more stay open, set `Flags: intent`, apply `status: needs-decision` and keep
            needs_human false.
            After the quote, ask each as a numbered new question with a `RECOMMENDED:` answer and its
@@ -611,8 +616,8 @@ jobs:
 
   # Refines a thin issue (#9215): one whose verdict flags intent (no exact
   # outcome) or whose body has no task list (no checkable criteria). It also
-  # takes an issue admission held at the lanes App's needs-decision for some,
-  # not all, of its done-when items being ones a lane run cannot perform: a
+  # takes an issue admission parked at `status: confirmed` for some, not all,
+  # of its done-when items being ones a lane run cannot perform: a
   # sound split lists those items in the refinement comment as checks a
   # person runs and leaves the issue body as written. Three
   # jobs, as the reusable and apply-verdict split it: refine-select (no model,
@@ -1596,7 +1601,7 @@ jobs:
         with:
           tokens: lanes-app
 
-  # An exact refinement lifted the lanes App's needs-decision: triage the
+  # An exact refinement or a split lifted the lanes App's status: triage the
   # issue once more, as intake-reenter.yml does, so apply-verdict and
   # admission read it with the refinement. refine-select skips the next run
   # (the body is refined), so this runs at most once per body version. An
