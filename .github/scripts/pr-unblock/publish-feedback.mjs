@@ -308,12 +308,13 @@ export function lineChanged(patch, line) {
 
 // The files whose line the reply's `evidence` cites inside a hunk of the fix
 // (`patches`, by filename), among the pull request's files (`prPaths`) and
-// those inThreadScope allows for that one thread.
-function citedFiles(evidence, patches, thread, prPaths = new Set()) {
+// those inThreadScope allows for that one thread, under the same scope the
+// fix itself was checked against (`prPaths`, `copyPaths`).
+function citedFiles(evidence, patches, thread, prPaths = new Set(), copyPaths = new Set()) {
   return new Set(
     evidence
       .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
-      .filter(([path, line]) => (prPaths.has(path) || inThreadScope(path, new Set([thread.path]), [thread])) && lineChanged(patches.get(path), line))
+      .filter(([path, line]) => (prPaths.has(path) || inThreadScope(path, new Set([thread.path]), [thread], { prPaths, copyPaths })) && lineChanged(patches.get(path), line))
       .map(([path]) => path),
   );
 }
@@ -446,7 +447,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const changed = commitFiles.map((file) => file.filename);
     const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
     const named = threadsNamed(fixes[0].commit.message);
-    const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths));
+    const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths, copyPaths));
     if (!valid.every((reply) => named.has(reply.thread) && touches(threadOf.get(reply.thread), reply))) {
       return null;
     }

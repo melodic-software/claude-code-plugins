@@ -1084,6 +1084,24 @@ test("a VALID fix in a file of the thread's scope outside the PR's files lands o
   }
 });
 
+// The evidence check uses the fix's own scope: a thread outside any plugin is
+// credited with a cited fix in a plugin only a PR file sits in.
+test("a VALID fix in a plugin only the PR's files touch is credited at a cited line for a thread outside it", async () => {
+  const helper = "plugins/p/lib/helper.mjs";
+  const fixed = [{ filename: helper, status: "modified", patch: "@@ -1,2 +1,3 @@\n x\n+y\n z" }];
+  const caseRun = JSON.stringify({
+    ...RUN,
+    pr_paths: ["docs/b.md", "plugins/p/README.md"],
+    threads: [{ ...RUN.threads[0], path: "docs/b.md" }],
+  });
+  for (const [evidence, landed] of [[[`${helper}:2`], true], [[`${helper}:9`], false]]) {
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: fixed }, commits: { [FIX]: { files: fixed } } });
+    const result = await runWith(api, lines(reply({ disposition: "VALID", evidence })), caseRun, [helper]);
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", evidence.join());
+    assert.equal(api.posted().length, landed ? 1 : 0, evidence.join());
+  }
+});
+
 // Each fix passes the branch's scope check; a thread whose evidence cites no
 // line the fix changed is not credited, and one that cites it is.
 test("a fix in a thread's scope that its evidence does not cite is not credited to it", async () => {
