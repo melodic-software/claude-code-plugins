@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.7] - 2026-11-05
+
+### Changed
+
+- Shared `view-builder.mjs` and `rendered-view.md` synced where this plugin carries them ([#13437](https://github.com/melodic-software/claude-code-plugins/issues/13437)): the planning plan view now reads PLAN.md; no other change to this plugin.
+
 ## [1.0.6] - 2026-11-04
 
 ### Changed

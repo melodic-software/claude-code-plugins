@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.9.0] - 2026-11-05
+
+### Changed
+
+- The `/planning:plan` view is built from PLAN.md itself: `scripts/build-view.mjs plan --record <PLAN.md>` (or PLAN.md on stdin) shows the Brief's problem, constraints and out-of-scope lines, the behaviors with their cited criterion ids, the acceptance criteria, the decisions table and each phase with its Delivers and Satisfies lines, Sanity Checks and `shape` fences, with a nav of links to each section. The plan JSON input is retired, and the reply section is unchanged.
+
 ## [2.8.0] - 2026-11-05
 
 ### Added
