@@ -4846,6 +4846,63 @@ test("an issue with a recent lane run or label is left alone; past 3 hours it co
   assert.deepEqual(writes(withPr.calls), []);
 });
 
+// #13483's shape: a host-run session's own pull request, on no lane branch,
+// merged with `Refs:` on its body's second line under a session marker. The
+// work moved off the lane, so a stranded or failed run is not re-fired until a
+// listed human's `**Decision recorded.**` comment after that merge says what is left.
+const SESSION_REFS = (number) => `<!-- session: lane-3 -->\nRefs: #${number}\n\n## Summary`;
+const mergedRefsNode = ({ mergedAt = "2026-10-16T08:30:00Z", body = SESSION_REFS(30), comments = [] } = {}) => ({
+  createdAt: "2026-10-01T00:00:00Z",
+  comments: { nodes: comments },
+  timelineItems: { nodes: [{ source: { number: 7960, merged: true, mergedAt, body, repository: { nameWithOwner: REPO } } }] },
+});
+const decisionAt = (createdAt) => ({ createdAt, body: "**Decision recorded.** The conformance run is left.", lastEditedAt: null, author: { __typename: "User", databaseId: OWNER.id }, editor: null });
+const mergedRefsWorld = ({ runs, node = mergedRefsNode(), failOn } = {}) => {
+  const fake = world({ openReady: [ready(30, ["status: ready"])], comments: { 30: [note()] }, events: { 30: [added("2026-10-16T08:58:57Z", OWNER)] }, runs, blobs: BLOBS, done: { 30: node }, failOn });
+  return { ...fake, actions: fake.github };
+};
+
+test("a merged Refs pull request under a session marker hands a stranded or failed issue to triage instead of a re-fire", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const handedOff = [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsMergedComment(7960) })}`,
+    `DELETE /repos/${REPO}/issues/30/labels/status%3A%20ready`,
+    `DELETE /repos/${REPO}/issues/30/labels/agent-ready`,
+  ];
+  for (const conclusion of ["success", "failure"]) {
+    const { github, actions, calls } = mergedRefsWorld({ runs: [laneRun({ at: "2026-10-16T08:59:00Z", conclusion })] });
+    assert.equal(await sweep({ github, actions }), 0, conclusion);
+    assert.deepEqual(writes(calls), handedOff, conclusion);
+  }
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes(`label-unblocked: #30 not re-fired: ${doneReason([7960])}`), lines.join("\n"));
+  // The comment went out but a label write did not: only the labels move.
+  const fake = world({
+    openReady: [ready(30, ["status: ready"])],
+    comments: { 30: [note(), { id: 61, body: refsMergedComment(7960), user: LANES_BOT, created_at: "2026-10-16T11:30:00Z" }] },
+    events: { 30: [added("2026-10-16T08:58:57Z", OWNER)] },
+    runs: [laneRun({ at: "2026-10-16T08:59:00Z", conclusion: "success" })],
+    blobs: BLOBS,
+    done: { 30: mergedRefsNode() },
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
+  assert.deepEqual(writes(fake.calls), handedOff.slice(1));
+});
+
+test("a merged Refs pull request a later decision comment answered, one naming another issue, or a failed read leaves the re-fire", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const runs = [laneRun({ at: "2026-10-16T08:59:00Z", conclusion: "success" })];
+  for (const [what, options] of [
+    ["decided", { node: mergedRefsNode({ comments: [decisionAt("2026-10-16T08:45:00Z")] }) }],
+    ["another issue", { node: mergedRefsNode({ body: SESSION_REFS(31) }) }],
+    ["read failed", { failOn: (method, path, body) => path === "/graphql" && String(body?.query).includes("fragment done on Issue") }],
+  ]) {
+    const { github, actions, calls } = mergedRefsWorld({ runs, ...options });
+    assert.equal(await sweep({ github, actions }), 0, what);
+    assert.deepEqual(writes(calls), refiredFor(30, NO_REPORT_CAUSE), what);
+  }
+});
+
 test("a stranded issue's no-report clock starts when its run ended, not when it started", async () => {
   // A run created over 3 hours ago that ended an hour ago: left alone.
   const recent = failedRun({

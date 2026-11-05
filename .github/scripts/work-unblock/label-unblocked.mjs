@@ -91,7 +91,10 @@
 // backoff (those hours doubling with each re-fire, at most
 // BACKOFF_CAP_HOURS), recorded in one comment
 // edited in place; it never gets needs-human. All share
-// limits.restarts-per-run.
+// limits.restarts-per-run. An issue a merged pull request names on a `Refs:`
+// line after its newest decision or refinement comment (admit.mjs
+// mergedRefsAfter, as admission reads it) is never re-fired: it is handed to
+// triage as a lane PR merged with `Refs:` is.
 //
 // The lane skips an issue a blocker still blocks and keeps agent-ready on
 // (check-blockers.mjs), so the close path above, which leaves an agent-ready
@@ -1340,7 +1343,7 @@ export const recurrenceComment = (id) =>
 // The hand-offs to triage once the lane PR ended, each posted once per pull
 // request before its labels move.
 export const refsMergedComment = (pr) =>
-  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage. Admission then parks it at \`${CONFIRMED}\` for a check of what that pull request left, until a \`**Decision recorded.**\` comment says what is left or someone closes it.`;
+  `${handedMarker(pr)}\nPull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage. Admission then parks it at \`${CONFIRMED}\` for a check of what that pull request left, until a \`**Decision recorded.**\` comment says what is left or someone closes it.`;
 export const refsClosedComment = (pr) =>
   `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage, which decides what work is left and admits it again.`;
 
@@ -2002,7 +2005,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"], mirror = noMirror }) {
+async function restartLimited({ github, actions, jobLog, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], mirror = noMirror }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -2034,6 +2037,10 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
     reportHold(LABEL, error);
     return 0;
   }
+  // A merged pull request that names the issue on a `Refs:` line, whoever
+  // opened it, is work done off the lane: admission's own check, read only
+  // for an issue about to be re-fired, and as none when the read fails.
+  const doneBy = mergedRefsReader({ github, repository: repo, numbers: open.map((item) => Number(item.number)), humans, appId });
   for (const issue of open) {
     const listed = {};
     const read = (kind) => (listed[kind] ??= paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
@@ -2072,6 +2079,16 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
         continue;
       }
+      const done = verdict.refire ? await doneBy(issue.number) : [];
+      if (done.length > 0) {
+        // Handed to triage as a lane PR merged with `Refs:` is: admission
+        // then parks it at `status: confirmed` for a done-check.
+        const pr = done.at(-1);
+        const explained = (await read("comments")).some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(handedMarker(pr)));
+        console.log(`label-unblocked: #${issue.number} not re-fired: ${doneReason(done)}`);
+        ready.push({ number: Number(issue.number), had: labelNames(issue), resets: verdict.resets, handOff: "merged", pr, explained });
+        continue;
+      }
       ready.push({ ...verdict, number: Number(issue.number), had: labelNames(issue) });
     } catch (error) {
       failed += 1;
@@ -2101,7 +2118,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
         }
         const removed = await stripQueueLabels(github, base, had);
         await mirror(number, change(had, [], [...removed, ...(release ? [HUMAN_LABEL] : [])]));
-        console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
+        console.log(`label-unblocked: #${number} handed to triage: PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
       } catch (error) {
         failed += 1;
         reportError(number, error);
@@ -2428,7 +2445,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, mirror: mirrorTo });
         failed += await readmitReady({ github, repo, listed, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now, mirror: mirrorTo });
       }
-      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, mirror: mirrorTo });
+      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, appId: logins.get(bot), now, limits, status, mirror: mirrorTo });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
