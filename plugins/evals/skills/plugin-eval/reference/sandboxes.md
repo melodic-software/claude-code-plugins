@@ -133,7 +133,17 @@ case's own `env` field, whose accepted keys the docs row below defines.
 
 ## Docker link swap
 
-When the user says yes to the swap, wrap the run step's CLI command, unchanged:
+On WSL2, for every eval that grants `Bash`, run the swap without asking when all three hold:
+`DOCKER_CONFIG` is unset, every link (or `~/.docker` itself) points under `/mnt/`, and no link
+target holds a `tls/` directory (the Windows contexts store's TLS keys; `docker-links.py` refuses
+with exit 2 and names it). Say in the run report that the swap ran. `run` passes the command's exit
+code through, so a refused swap is told apart by its stderr line `docker-links: refused:`. The owner decided this on
+2026-11-05: Docker Desktop's WSL integration recreates the links at every start
+([docker/for-win#11668](https://github.com/docker/for-win/issues/11668)), so no host fix lasts,
+and the WSL CLI uses the `default` context on the unix socket, never the Windows npipe contexts
+behind the link. When any condition fails, refuse and name the links.
+
+Wrap the run step's CLI command, unchanged:
 
 ```bash
 python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plugin eval …
@@ -146,7 +156,7 @@ longer one is untested, and at 63 characters no run started a shell sandbox
 `--keep-temp` sandboxes can fill, which fails every eval on the host with ENOSPC and breaks the
 session sockets stored there.
 
-It changes `~/.docker` outside the repository, so it runs only after the user agrees. It replaces
+It changes `~/.docker` outside the repository, and only for the run. It replaces
 every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of
 its target, runs the command, and puts the links back when the command exits, fails, or is
 interrupted. Anything written into the copies is discarded. A dangling link, whose target does

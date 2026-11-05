@@ -15,6 +15,10 @@
     {
       "answer": "No. The symlinks inside `~/.docker` make the CLI refuse every run that grants Bash, since the sandbox can't reliably exclude that credential store, so those runs score 0. Resolve the links or use another host, then run.",
       "why": "P-plain: terse, but verdict, cause and route are all stated."
+    },
+    {
+      "answer": "Not as it stands. The two symbolic links inside `~/.docker` make the CLI refuse every Bash-granting run, since the sandbox cannot reliably exclude that credential store, so each would score 0.\n\nOn WSL2, with `DOCKER_CONFIG` unset and both links pointing under `/mnt/`, I'll run the CLI through the plugin's link swap (`docker-links.py`) without asking, provided no link target holds a `tls/` directory: it swaps the links for copies for the run and restores them after. I'll say so in the run report.",
+      "why": "P-swap: verdict (not ready as it stands), cause, and the link-swap route, which resolves the links for the run."
     }
   ],
   "fail": [

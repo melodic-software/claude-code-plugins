@@ -100,6 +100,15 @@ class DockerLinksTest(unittest.TestCase):
         self.assertEqual(result.stdout, '{"Name": "desktop-linux"}\n{"a": 1}\n')
         self.assert_restored()
 
+    def test_tls_under_a_link_target_refuses_with_nothing_changed(self):
+        (self.desktop / "contexts" / "tls" / "abc").mkdir(parents=True)
+        result = self.wrapped('touch "$HOME/ran"')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("refused: a link target holds TLS material", result.stderr)
+        self.assertIn(str(self.store / "contexts" / "tls"), result.stderr)
+        self.assertFalse((self.home / "ran").exists())
+        self.assert_restored()
+
     def test_failed_run_keeps_its_exit_code_and_restores_the_links(self):
         result = self.wrapped(LIST_LINKS + " && exit 3")
         self.assertEqual(result.returncode, 3, result.stderr)
