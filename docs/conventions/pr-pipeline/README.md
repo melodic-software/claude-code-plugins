@@ -1218,7 +1218,10 @@ the rules that only tighten in
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
-  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
+  token holds `issues: write` alone; that job re-reads the revert records and files nothing when
+  one already lists every revert commit. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
   or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
   `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
