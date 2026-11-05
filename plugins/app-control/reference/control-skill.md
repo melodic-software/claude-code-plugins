@@ -34,7 +34,7 @@ optional `## Gotchas`, and an index:
 |---|---|
 | `## Launch` | A pointer to the launch recipe or the one command that starts the app |
 | `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
-| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `animation`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each |
+| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `animation`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each; optionally a `frames` row, per [Writing the Capture section](#writing-the-capture-section) |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Mask` | What a `screenshot` or `video` capture hides, and the values drive looks for in it afterward, per [The Mask section](#the-mask-section). Required when `## Capture` records either kind |
 | `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
@@ -156,6 +156,12 @@ canvas, an image, an iframe, a shadow DOM or a video overlay. Drive scans the si
 else, so a capture is only as safe to publish as its sidecar is complete; a capture with a missing
 or empty sidecar is never publishable.
 
+`## Capture` may also hold a `frames` row: the command that writes a screen recording's frames as
+still images, with `<recording>` and `<dir>` placeholders, so a recording, this run's or one a
+person hands over, can be read frame by frame. It is not a capture kind. Drive's `ready` reports
+whether this session can run it and read the images it writes; a hub with no `frames` row, or a
+session that cannot read images, is a capability gap.
+
 Manuals, each record a pointer, as-of date and recheck trigger:
 
 - Node.js CLI options: CPU profile <https://nodejs.org/api/cli.html#--cpu-prof>, heap profile
@@ -236,6 +242,20 @@ sections in this order:
 | `## Reset` | How to return the app's own data to a known state |
 | `## Drive` | The steps a user takes, one action per step |
 | `## Gotchas` | What has made a run lie or fail before |
+
+`## Drive` may end with performance budget lines, one per measure, in this form:
+
+```text
+Budget: <measure> | <source>
+```
+
+`<measure>` is a name of letters, digits, `-` and `_` that carries its unit, such as
+`first_paint_ms`; `<source>` is the `## Capture` kind or the `cli/` command whose output gives the
+value. The threshold is never written in the feature file: it is the config field
+`budgets.<feature id>.<measure>` ([Config](#config)). Drive records the value it measured beside
+the threshold and the layer the threshold came from, or `unset` when no layer sets it, and never
+compares them; the caller judges. A legacy `features/<id>.md` takes the same lines. A performance
+budget is not the [Size budget](#size-budget), which limits a file's length.
 
 A feature is a goal a user comes to the app to reach, such as placing an order. A sub-feature is a
 state or branch inside that goal, such as an order paid with a saved card, never a separate goal.
@@ -401,6 +421,7 @@ them:
 | `checkouts` | Per integrated app in another repository, the path of its local checkout, per [Integrated apps](#integrated-apps) |
 | `pins` | Per integrated app in another repository, the full commit id its checkout must hold, committed only, per [Integrated apps](#integrated-apps) |
 | `timeouts` | How long launch, ready and each step may take |
+| `budgets` | Per feature id, per measure a feature's `Budget:` line names, the threshold, in the unit the measure's name carries, per [Feature files](#feature-files) |
 | `credentials` | Per account, the names of the environment variables that hold its credentials |
 | `safety` | The floors below |
 | `pluginDir` | For a control skill that drives Claude Code: the plugin directory under test |
