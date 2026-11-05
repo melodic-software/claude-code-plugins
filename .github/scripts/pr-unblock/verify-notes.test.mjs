@@ -385,7 +385,7 @@ test("a fail on a person's PR already in the merge queue dequeues it after the l
   assert.equal(idle.writes.filter((w) => w.op === "dequeue").length, 0);
 });
 
-test("a refused dequeue fails the run with an error naming the PR, rather than letting the queued merge land", async () => {
+test("a refused dequeue on a person's PR warns naming the PR and the run passes; the label is the hold", async () => {
   const lines = [];
   const api = fakeApi({
     pull: { user: { id: PERSON } },
@@ -394,8 +394,9 @@ test("a refused dequeue fails the run with an error naming the PR, rather than l
       throw new Error("GraphQL: Resource not accessible by integration");
     },
   });
-  await assert.rejects(postNotes({ api, verdict: readVerdict(NAME, verdictText()), appId: APP, log: (line) => lines.push(line) }), /Resource not accessible/);
-  assert.ok(lines.some((line) => line.startsWith("::error::#42:") && line.includes("queued merge was not stopped")));
+  assert.equal(await postNotes({ api, verdict: readVerdict(NAME, verdictText()), appId: APP, log: (line) => lines.push(line) }), false);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("could not dequeue it")));
+  assert.ok(lines.some((line) => line.includes("outcome=refused:dequeue-failed")));
   assert.deepEqual(api.writes.at(-1), { op: "label", pr: 42, names: ["pr-verify-failed"] }, "the label still lands first");
 });
 
