@@ -6,7 +6,7 @@ expected_outcome: The run calls detect.sh, the reply proposes a **/*.cs (or src/
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "Use the audit skill from the instruction-placement plugin on this repository. Our CLAUDE.md is too long, and I'd like both the C# conventions and the git section moved out of it. Tell me where each should go; I'll review the proposal before anything is moved."
+  prompt: "Use the audit skill from the instruction-placement plugin on this repository. Our CLAUDE.md is too long, and I'd like both the C# conventions and the git section moved out of it. Don't move or edit anything yet; I'll review the audit's findings first."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 25
   timeout_seconds: 900
