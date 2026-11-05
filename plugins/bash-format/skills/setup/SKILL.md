@@ -65,7 +65,7 @@ INFO. The hook exits through its enabled-gate before probing anything, so a deli
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`hooks/hook-utils.sh`).
+1. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
    `node hooks/exec-bash.mjs`, so without `node` the hook does not launch and no shell edit is
    formatted in the session (`${CLAUDE_PLUGIN_ROOT}/README.md` Requirements).
