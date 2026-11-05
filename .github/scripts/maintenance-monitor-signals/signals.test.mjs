@@ -564,6 +564,14 @@ test("signal 13: each lane's hold notice parses, and other notices do not", () =
   assert.equal(parseHold(undefined, "handoff evidence for fix-docs still missing after 3 reads: x; the outputs stay empty"), null);
 });
 
+// apply-verdict.mjs closing's held() notice, `::notice title=apply-verdict::held: <why>`.
+test("signal 13: intake-triage's apply-verdict hold parses into a fixed reason", () => {
+  assert.deepEqual(parseHold("apply-verdict", "held: admission failed: GET /repos/o/r/issues/12: HTTP 502"), { item: null, reason: "admission fault" });
+  assert.deepEqual(parseHold("apply-verdict", "held: GET /repos/o/r/issues/12/comments: HTTP 503"), { item: null, reason: "verdict fault" });
+  assert.equal(parseHold("apply-verdict", "admission failed: no such label"), null);
+  assert.equal(parseHold("report-outcome", "held: GET /repos/o/r/issues/12: HTTP 502"), null);
+});
+
 const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({
   lane,
   runId,

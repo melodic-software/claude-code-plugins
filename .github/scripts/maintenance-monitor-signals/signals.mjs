@@ -411,6 +411,7 @@ export const HOLD_LANES = [
   { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run"], area: "Issue lane (work-resolve-issue)" },
   { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)" },
   { lane: "pr-refine", workflow: "pr-refine.yml", jobs: ["fix-docs-handoff", "fix-docs-subscription-handoff"], area: "PR refine lane (pr-refine fix-docs)" },
+  { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], area: "Intake lane (intake-triage apply-verdict)" },
 ];
 const NAME = "[a-z]+(?:-[a-z]+)*";
 const HOLD_NOTICES = [
@@ -420,6 +421,9 @@ const HOLD_NOTICES = [
   { title: "label-unblocked", pattern: new RegExp(`^the (${NAME}) listing failed \\(`), hold: (m) => ({ item: null, reason: `${m[1]} listing failed` }) },
   // handoff-evidence.sh: a fix-docs read that failed.
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
+  // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is
+  // a fixed class, not the error text, so the fingerprint holds while it does.
+  { title: "apply-verdict", pattern: /^held: (admission failed: )?/, hold: (m) => ({ item: null, reason: m[1] ? "admission fault" : "verdict fault" }) },
 ];
 
 // One notice annotation's hold, {item, reason}, or null.

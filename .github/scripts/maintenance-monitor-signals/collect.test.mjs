@@ -1029,11 +1029,11 @@ test("a carried job reads file of another version or repository, or a malformed 
   }
 });
 
-// Green runs of the three hold lanes: 81 a work-unblock sweep that held twice,
+// Green runs of the four hold lanes: 81 a work-unblock sweep that held twice,
 // 82 a pull_request run, never read, and 83 a hold that completed at 15:20,
 // before the window, read only when the carry stops short of it; 84 already
 // carried; 85 a fault hold; 86 a skipped report job; 87 a pr-refine run with
-// no hold notice.
+// no hold notice; 88 an intake-triage verdict an admission fault held.
 const notice = (title, message) => ({ annotation_level: "notice", title, message });
 const holdRoutes = () => [
   [/workflows\/work-resolve-issue\.yml\/runs/, { workflow_runs: [run(84, { event: "issues" }), run(85, { event: "issues" }), run(86, { event: "issues" })] }],
@@ -1052,6 +1052,9 @@ const holdRoutes = () => [
   [/runs\/86\/jobs/, { jobs: [{ id: 860, name: "report-outcome / run", conclusion: "skipped" }] }],
   [/runs\/87\/jobs/, { jobs: [{ id: 870, name: "fix-docs-handoff", conclusion: "success" }] }],
   [/check-runs\/870\/annotations/, [notice("api-budget", "end github-token core remaining=1 used=1 limit=2 reset=x")]],
+  [/workflows\/intake-triage\.yml\/runs/, { workflow_runs: [run(88, { event: "issues", updated_at: "2026-10-19T15:55:00Z" })] }],
+  [/runs\/88\/jobs/, { jobs: [{ id: 880, name: "apply-verdict", conclusion: "success" }] }],
+  [/check-runs\/880\/annotations/, [notice("apply-verdict", "held: admission failed: GET /repos/o/r/issues/9: HTTP 502")]],
   ...routes(),
 ];
 const carriedHold = (lane, runId, at) => ({ lane, runId, url: `https://github.com/o/r/actions/runs/${runId}`, item: null, reason: "closed-issue listing failed", at });
@@ -1078,6 +1081,7 @@ test("lane holds: green runs in the window add their holds to the carried ones i
     [
       ["work-resolve-issue", 85, "#812", "fault outcome-unread"],
       ["work-unblock", 81, null, "closed-issue listing failed; open listing failed"],
+      ["intake-triage", 88, null, "admission fault"],
       ["work-resolve-issue", 84, null, "closed-issue listing failed"],
       ["work-unblock", 70, null, "closed-issue listing failed"],
     ],
@@ -1096,14 +1100,15 @@ test("lane holds: no carry, a stale one or an unread rule is a gap, and the carr
   // No carry: this window starts the span, which falls short of 24 hours.
   const uncarried = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried: null } }));
   assert.deepEqual(uncarried.gaps, [SHORT]);
-  assert.deepEqual(uncarried.laneHolds.map((h) => h.runId), [85, 81]);
+  assert.deepEqual(uncarried.laneHolds.map((h) => h.runId), [85, 81, 88]);
   assert.deepEqual([uncarried.heldCarry.from, uncarried.heldCarry.through], ["2026-10-19T15:36:00Z", "2026-10-19T16:41:00Z"]);
   // A late cron: the carry read through 15:00, so runs completed since then are read and the span holds.
   const late = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried: { ...CARRIED, through: "2026-10-19T15:00:00Z" } } }));
   assert.deepEqual(late.gaps, []);
-  assert.deepEqual(late.laneHolds.map((h) => [h.runId, h.reason]).slice(0, 4), [
+  assert.deepEqual(late.laneHolds.map((h) => [h.runId, h.reason]).slice(0, 5), [
     [85, "fault outcome-unread"],
     [81, "closed-issue listing failed; open listing failed"],
+    [88, "admission fault"],
     [84, "closed-issue listing failed"],
     [83, "agent-ready listing failed"],
   ]);
@@ -1111,11 +1116,11 @@ test("lane holds: no carry, a stale one or an unread rule is a gap, and the carr
   // A carry read through 09:00, past the run list's 6-hour lookback: the span starts again.
   const stale = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried: { ...CARRIED, through: "2026-10-19T09:00:00Z" } } }));
   assert.deepEqual(stale.gaps, [SHORT]);
-  assert.deepEqual(stale.laneHolds.map((h) => h.runId), [85, 81, 84, 70]);
+  assert.deepEqual(stale.laneHolds.map((h) => h.runId), [85, 81, 88, 84, 70]);
   // An unread rule: this window is still read and carried, unpruned, over the same span.
   const unruled = await collect(input(fakeApi(holdRoutes()), { holds: { rule: new Error("the monitor.lane-holds rule was not read: yq failed"), carried: CARRIED } }));
   assert.deepEqual(unruled.gaps, ["lane holds: the monitor.lane-holds rule was not read: yq failed"]);
-  assert.deepEqual(unruled.heldCarry.runs.map((h) => h.runId), [85, 81, 84, 70, 71]);
+  assert.deepEqual(unruled.heldCarry.runs.map((h) => h.runId), [85, 81, 88, 84, 70, 71]);
   assert.equal(unruled.heldCarry.from, CARRIED.from);
   assert.equal(unruled.holdRule, undefined);
   // A failed read keeps the carried runs and marks the span unknown, so the next run starts it again.
