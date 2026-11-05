@@ -3,6 +3,12 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The plan view reads PLAN.md, 2026-11-05
+
+- **`planning:plan`'s view is built from PLAN.md, not session JSON.** The builder's plan kind parses
+  the record and the page links to its Brief, behaviors, criteria, decisions and phases; the
+  emitters list names the brainstorm view as the planning view that still takes JSON.
+
 ## Form and fallback chain replace rung and default ladder, 2026-11-04
 
 - **Choosing the rung becomes Choosing the form.** Text, diagram, page and video are forms; the

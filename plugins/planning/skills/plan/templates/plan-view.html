@@ -61,6 +61,15 @@ h2 { margin: 0; font-size: 1.1rem; }
 .chip { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .criteria { margin: 0; padding-left: 1.1rem; }
+.toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--line); }
+.toc a { color: var(--accent); font-weight: 600; }
+.part { display: grid; gap: 0.5rem; scroll-margin-top: 1rem; }
+.lines { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; }
+.cites { color: var(--muted); font-size: 0.85rem; }
+.what { white-space: pre-line; }
+.shapes { display: grid; gap: 0.5rem; }
+.shape { margin: 0; display: grid; gap: 0.25rem; }
+.shape-body { margin: 0; padding: 0.6rem 0.75rem; overflow-x: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
 .reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .reply select { justify-self: start; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
 .replies { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.25rem; }
@@ -97,6 +106,31 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 <p class="lede" data-rv-text="goal"></p>
 <p class="meta"><span data-rv-count="phases">0</span> phases. Blast radius: <span data-rv-text="blast"></span></p>
 </header>
+<nav class="toc" aria-label="Plan sections"><a href="#brief">Brief</a><a href="#behaviors">Behaviors</a><a href="#criteria">Criteria</a><a href="#decisions">Decisions</a><a href="#phases">Phases</a></nav>
+<section class="part" id="brief" aria-labelledby="brief-h">
+<h2 id="brief-h">Brief</h2>
+<p class="label">Problem</p>
+<ul class="lines" data-rv-each="problem"><li data-rv-text="item"></li></ul>
+<p class="label">Constraints</p>
+<ul class="lines" data-rv-each="constraints"><li data-rv-text="item"></li></ul>
+<p class="label">Out of scope</p>
+<ul class="lines" data-rv-each="out-of-scope"><li data-rv-text="item"></li></ul>
+</section>
+<section class="part" id="behaviors" aria-labelledby="behaviors-h">
+<h2 id="behaviors-h">Behaviors</h2>
+<ul class="lines" data-rv-each="behaviors"><li><strong data-rv-text="id"></strong> <span data-rv-text="text"></span> <span class="cites">Cites <span data-rv-text="cites"></span></span></li></ul>
+<p class="meta">Process criteria: <span data-rv-text="process"></span></p>
+</section>
+<section class="part" id="criteria" aria-labelledby="criteria-h">
+<h2 id="criteria-h">Acceptance criteria</h2>
+<ul class="lines" data-rv-each="criteria"><li><strong data-rv-text="id"></strong> <span data-rv-text="text"></span></li></ul>
+</section>
+<section class="part" id="decisions" aria-labelledby="decisions-h">
+<h2 id="decisions-h">Decisions</h2>
+<ul class="lines" data-rv-each="decisions"><li><strong data-rv-text="decision"></strong> <span data-rv-text="changes"></span><span class="meta"> Basis: <span data-rv-text="basis"></span>. Source: <span data-rv-text="source"></span>.</span></li></ul>
+</section>
+<section class="part" id="phases" aria-labelledby="phases-h">
+<h2 id="phases-h">Phases</h2>
 <div class="bar">
 <label for="find">Filter</label>
 <input id="find" type="search" placeholder="Type a word from a phase" data-rv-filter="phases">
@@ -106,13 +140,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 <label class="pick"><input type="checkbox" data-rv-pick="">Change <span class="sr" data-rv-text="name"></span></label>
 <div class="body">
 <p class="head"><span class="chip" data-rv-text="status"></span><strong data-rv-text="name"></strong></p>
-<p data-rv-text="what"></p>
-<p class="meta">Depends on: <span data-rv-text="needs"></span></p>
-<p class="label">Accept when</p>
+<p class="meta">Delivers: <span data-rv-text="delivers"></span>. Satisfies: <span data-rv-text="satisfies"></span>.</p>
+<p class="what" data-rv-text="what"></p>
+<p class="label">Sanity checks</p>
 <ul class="criteria" data-rv-each="criteria"><li data-rv-text="item"></li></ul>
+<div class="shapes" data-rv-each="shapes"><figure class="shape"><figcaption class="meta" data-rv-text="anchor"></figcaption><pre class="shape-body" data-rv-text="body"></pre></figure></div>
 </div>
 </li>
 </ol>
+</section>
 <section class="reply">
 <h2>Send your reply back</h2>
 <p class="meta">Tick the phases you want changed and say what to change. The ids name phases by their position in PLAN.md.</p>
