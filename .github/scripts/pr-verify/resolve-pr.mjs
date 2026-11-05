@@ -101,6 +101,10 @@ const MAX_PAGES = 100;
 // A 200 whose completeness check failed: a list shorter than its count, or a
 // field the answer lacks. The verdict is unknown, so closing holds on it.
 const incomplete = (message) => Object.assign(new Error(message), { incomplete: true });
+// A list read short of its count. Past `cap`, the most the query reads, every
+// re-read meets the same limit, so it stays red; at or under it, a re-read can
+// return it whole, so it holds (incomplete).
+const shortList = (message, count, cap) => (Number.isSafeInteger(count) && count > cap ? new Error(message) : incomplete(message));
 
 const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
           author { ...actor } editor { ...actor }
@@ -388,7 +392,7 @@ export async function draftRun(github, repository, runId, read) {
   const listed = await (read ?? (() => latestJobs(github, repository, runId)))();
   const jobs = listed?.jobs;
   if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
-    throw incomplete(`the jobs of run ${runId} could not be read whole`);
+    throw shortList(`the jobs of run ${runId} could not be read whole`, listed?.total_count, 100);
   }
   const ci = jobs.filter((job) => job?.name === "ci-status");
   const steps = ci.length === 1 && Array.isArray(ci[0].steps) ? ci[0].steps.filter((step) => step?.name === DRAFT_STEP) : [];
@@ -679,7 +683,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   const data = await (read ? read(variables) : github("POST", "/graphql", { query: SPEC_QUERY, variables }));
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
   if (!refs || !Array.isArray(refs.nodes) || refs.totalCount !== refs.nodes.length) {
-    throw incomplete(`#${number}: the closing issues could not be read`);
+    throw shortList(`#${number}: the closing issues could not be read`, refs?.totalCount, 10);
   }
   const trusted = (actor) => trustedHuman(actor, humans);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
@@ -702,7 +706,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   for (const issue of issues) {
     const comments = issue.comments;
     if (!Array.isArray(comments?.nodes) || comments.totalCount !== comments.nodes.length) {
-      throw incomplete(`#${issue.number}: the issue's comments could not be read`);
+      throw shortList(`#${issue.number}: the issue's comments could not be read`, comments?.totalCount, 100);
     }
   }
   // The split sub-issues' bodies that count, by issue number.
@@ -722,7 +726,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     const parent = read.parent;
     const here = parent?.repository?.nameWithOwner === repository;
     if (here && (!Array.isArray(parent.comments?.nodes) || parent.comments.totalCount !== parent.comments.nodes.length)) {
-      throw incomplete(`#${issue.number}: the split parent's comments could not be read`);
+      throw shortList(`#${issue.number}: the split parent's comments could not be read`, parent.comments?.totalCount, 100);
     }
     const body = here ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId: laneAppId } }, humans, taskList) : null;
     if (body !== null) {

@@ -490,7 +490,8 @@ test("a GitHub fault holds the resolver green with a held notice; a 404, a 403 o
 const thrown = (promise) => promise.then(() => assert.fail("resolved"), (error) => error);
 
 test("a 200 whose completeness check fails holds the resolver green with the held notice", async () => {
-  const cutComments = { ...ISSUE, comments: { totalCount: 101, nodes: [] } };
+  // A short page: fewer nodes than a count the page could hold.
+  const cutComments = { ...ISSUE, comments: { totalCount: 3, nodes: [] } };
   const cases = {
     "closing issues shorter than their count": { issues: [ISSUE], github: (base) => async (method, apiPath, body) => {
       const answer = await base(method, apiPath, body);
@@ -501,9 +502,9 @@ test("a 200 whose completeness check fails holds the resolver green with the hel
     "jobs shorter than their count": { jobs: { total_count: 2, jobs: READY_JOBS.jobs } },
     "a ci-status job with no draft step": { jobs: { total_count: 1, jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps: [] }] } },
     "a Refs answer with no node": { issues: [], body: "Refs: #7", refs: { 7: { answer: { data: { repository: null } } } } },
-    "a GraphQL pulls fallback with more pages": { restFails: true, associated: [GRAPHQL_PULL], github: (base) => async (method, apiPath, body) => {
+    "a GraphQL pulls fallback with no node list": { restFails: true, github: (base) => async (method, apiPath, body) => {
       const answer = await base(method, apiPath, body);
-      return body?.query?.includes("associatedPullRequests") ? { data: { repository: { object: { associatedPullRequests: { nodes: [GRAPHQL_PULL], pageInfo: { hasNextPage: true } } } } } } : answer;
+      return body?.query?.includes("associatedPullRequests") ? { data: { repository: { object: { associatedPullRequests: { pageInfo: { hasNextPage: false } } } } } } : answer;
     } },
   };
   for (const [name, { github: wrap, ...setup }] of Object.entries(cases)) {
@@ -523,6 +524,32 @@ test("a real defect still fails the resolver red", async () => {
   const capped = await thrown(resolve({ pulls: Array.from({ length: 100 * 100 + 1 }, (_, index) => pull({ number: 1000 + index, state: "closed" })) }));
   assert.match(capped.message, /more than 100 pages/);
   for (const error of [malformed, graphqlError, capped]) {
+    assertRed(closing(error), error);
+  }
+});
+
+// A list longer than the query reads (comments(first: 100), closing issues
+// first: 10, a jobs page of 100, another associatedPullRequests page) fails
+// every re-read the same way, so it stays red instead of holding unseen.
+test("an answer past what the query reads stays red", async () => {
+  const overComments = { ...ISSUE, comments: { totalCount: 101, nodes: [] } };
+  const identity = (base) => base;
+  const cases = {
+    "an issue with 101 comments": { issues: [overComments] },
+    "jobs past one page of 100": { jobs: { total_count: 101, jobs: READY_JOBS.jobs } },
+    "11 closing issues": { issues: [ISSUE], github: (base) => async (method, apiPath, body) => {
+      const answer = await base(method, apiPath, body);
+      const refs = answer?.data?.repository?.pullRequest?.closingIssuesReferences;
+      return refs ? { data: { repository: { pullRequest: { ...answer.data.repository.pullRequest, closingIssuesReferences: { totalCount: 11, nodes: refs.nodes } } } } } : answer;
+    } },
+    "a GraphQL pulls fallback with another page": { restFails: true, github: (base) => async (method, apiPath, body) => {
+      const answer = await base(method, apiPath, body);
+      return body?.query?.includes("associatedPullRequests") ? { data: { repository: { object: { associatedPullRequests: { nodes: [GRAPHQL_PULL], pageInfo: { hasNextPage: true } } } } } } : answer;
+    } },
+  };
+  for (const [name, { github: wrap = identity, ...setup }] of Object.entries(cases)) {
+    const error = await thrown(resolvePull({ github: wrap(fake(setup)), repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE }));
+    assert.match(error.message, /could not be read/, `${name}: ${error.message}`);
     assertRed(closing(error), error);
   }
 });

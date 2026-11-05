@@ -393,8 +393,11 @@ export function commitPullsFromGraphQL(data) {
     list.pageInfo?.hasNextPage !== false ||
     list.nodes.some((node) => !Array.isArray(node?.labels?.nodes) || node.labels.pageInfo?.hasNextPage !== false)
   ) {
-    // A 200 cut short: `incomplete` tells a lane that holds on it (resolve-pr.mjs closing).
-    throw Object.assign(new Error("the commit's pull requests could not be read through GraphQL"), { incomplete: true });
+    // A list missing from the answer is `incomplete`, which a lane may hold on
+    // (resolve-pr.mjs closing), since a re-read can return it; another page
+    // means more than the query reads, which every re-read meets again.
+    const pastPage = list?.pageInfo?.hasNextPage === true || (Array.isArray(list?.nodes) && list.nodes.some((node) => node?.labels?.pageInfo?.hasNextPage === true));
+    throw Object.assign(new Error("the commit's pull requests could not be read through GraphQL"), pastPage ? {} : { incomplete: true });
   }
   return list.nodes.map((node) => ({
     number: node.number,
