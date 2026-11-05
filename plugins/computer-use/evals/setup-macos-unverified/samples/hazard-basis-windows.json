@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "- **The hazard still applies.** Synthesized input did not reset the OS idle timer in our measurement. That measurement was on Windows 11, and no platform has been shown to behave differently.",
+      "why": "smoke run 2026-11-05: measurement was on Windows"
+    },
+    {
       "answer": "# Idle timer\n\nThe idle-timer behavior was measured on Windows; no platform has been shown to reset it on synthesized input, so treat it as live on macOS.",
       "why": "# heading reply, SKILL.md wording"
     },

@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "1. **Screensaver running?** This is the most likely cause. A screensaver is separate from screen lock and from display sleep.",
+      "why": "smoke run 2026-11-05: separate from screen lock"
+    },
+    {
       "answer": "# Not a tool bug\n\n1. **Screensaver running?** The most likely cause. A screensaver is not a lock and not display sleep; they are three separate settings.",
       "why": "# heading reply, separate settings"
     },

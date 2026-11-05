@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "- **The hazard still applies.** Synthesized input did not reset the OS idle timer in our measurement.",
+      "why": "smoke run 2026-11-05: past tense"
+    },
+    {
       "answer": "# Idle timer\n\nClaude's synthesized clicks and typing do not reset the idle timer, so a 40-minute run counts as idle time.",
       "why": "# heading reply"
     },

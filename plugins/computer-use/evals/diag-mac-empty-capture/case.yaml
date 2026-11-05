@@ -39,6 +39,6 @@ graders:
     arm: 'with-only'
   - name: separate-settings
     type: regex
-    pattern: '\b(?:separate|independent|independently|distinct)\b[^\n.]{0,40}\bsettings?\b|\bsettings?\b[^\n.]{0,40}\b(?:separate|independent|independently|distinct)\b|\bscreen ?saver\b[^\n.]{0,40}\b(?:is[\s*_]+not|isn[''’]t|not)[\s*_]+(?:a[\s*_]+lock|the same as (?:a )?(?:lock|display sleep|sleep))\b|\bscreen ?saver\b[^\n.]{0,40}\bhas its own (?:idle )?(?:timer|timeout|delay)\b|\bseparate from (?:the )?(?:lock|display sleep|sleep|screen ?saver)\b|\bsays nothing about (?:the )?screen ?saver\b|\bconfigured (?:separately|independently)\b|\bindependent(?:ly)? (?:of|from)\b'
+    pattern: '\b(?:separate|independent|independently|distinct)\b[^\n.]{0,40}\bsettings?\b|\bsettings?\b[^\n.]{0,40}\b(?:separate|independent|independently|distinct)\b|\bscreen ?saver\b[^\n.]{0,40}\b(?:is[\s*_]+not|isn[''’]t|not)[\s*_]+(?:a[\s*_]+lock|the same as (?:a )?(?:lock|display sleep|sleep))\b|\bscreen ?saver\b[^\n.]{0,40}\bhas its own (?:idle )?(?:timer|timeout|delay)\b|\bseparate from (?:the )?(?:screen lock|lock|display sleep|sleep|screen ?saver)\b|\bsays nothing about (?:the )?screen ?saver\b|\bconfigured (?:separately|independently)\b|\bindependent(?:ly)? (?:of|from)\b'
     flags: 'i'
     target: last_message
