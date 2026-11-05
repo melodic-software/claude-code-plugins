@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.2.1] - 2026-11-05
+
+### Changed
+
+- The PR-prep verify gate counts a `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, as clean, so a team that turns verification down does not stall PR creation.
+
 ## [8.2.0] - 2026-11-05
 
 ### Changed

@@ -2988,6 +2988,11 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
+    "pr-verify-capture.yml capture-subscription: Resolve the pull request",
+    "pr-verify-capture.yml capture: Resolve the pull request",
+    "pr-verify.yml check-intent-fallback: Resolve the pull request",
+    "pr-verify.yml check-intent-subscription: Resolve the pull request",
+    "pr-verify.yml check-intent: Resolve the pull request",
     "work-unblock.yml label-unblocked: Label the unblocked issues",
   ]);
 });
