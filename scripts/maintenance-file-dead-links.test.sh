@@ -234,9 +234,10 @@ first_body="$(awk '/^----$/ { exit } { print }' "$TMP_ROOT/bodies")"
 # shellcheck disable=SC2016 # a literal markdown code span
 if [[ "$first_body" == *"- URL: \`$url_open\`"* && "$first_body" == *'- `docs/a.md` line 7'* &&
   "$first_body" == *"- Run: https://github.com/o/r/actions/runs/1"* &&
-  "$first_body" == *"(https://example.com/dispositions)"* && "$first_body" == *'- Status: 404 `Not Found`'* &&
+  "$first_body" == *"(https://example.com/dispositions)"* && "$first_body" == *'- Status: 404 (the text the server sent is left out'* &&
+  "$first_body" != *"Not Found"* &&
   "$first_body" == *"Close this only once the link check no longer reports the URL"* ]]; then
-  ok "the body names the URL, status in a code span, run, each location, the demotion path and when to close"
+  ok "the body names the URL, status code without the server's text, run, each location, the demotion path and when to close"
 else
   fail "the issue body is missing a part: $first_body"
 fi

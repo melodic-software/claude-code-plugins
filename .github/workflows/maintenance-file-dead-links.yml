@@ -171,7 +171,7 @@ jobs:
               "<!-- link-check-dead-pointer url-sha256=\($hash) -->\n\n"
               + "The weekly online link check found this link dead.\n\n"
               + "- URL: `\(.url)`\n"
-              + "- Status: \(.status // "no status code")\(if .detail != "" then " `\(.detail)`" else "" end)\n"
+              + "- Status: \(.status // "no status code") (the text the server sent is left out: it is written outside the org and intake reads this body)\n"
               + "- Run: \($run)\n\n"
               + "Where it appears:\n\n"
               + ([.locations[] | "- `\(.path)`" + (if .line then " line \(.line)" else "" end)] | join("\n"))
