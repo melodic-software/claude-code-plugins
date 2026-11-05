@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { labelsAfter } from "../../actions/resolve-config/write-status.mjs";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import {
   checkActors,
+  closing,
   earlierFlags,
+  finish,
   FORBIDDEN_EDGE,
+  isFault,
   MARKER,
   missedAnnotation,
   NEEDS_DECISION,
@@ -1301,6 +1306,75 @@ describe("run", () => {
     assert.deepEqual(result.admission, { outcome: "error", reasons: ["admission-rules.json: `types` must be a list of strings"] });
     assert.ok(writes(fake.calls).some(({ method }) => method === "PATCH"));
     assert.match(result.summary, /- Admission: error \(admission-rules\.json/);
+  });
+
+  test("a GitHub fault in admission holds green with a notice; a rules error still fails", async () => {
+    const admitted = async (error) =>
+      run({
+        env: ENV,
+        github: fakeGitHub({ comments: [laneComment()] }).github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          throw error;
+        },
+        log: () => {},
+      });
+    const fault = await admitted(new GitHubError(503, "GET /repos/o/r/issues/1/timeline"));
+    assert.deepEqual(closing({ result: fault }), {
+      lines: ["::notice title=apply-verdict::held: admission failed: GET /repos/o/r/issues/1/timeline failed with status 503"],
+      code: 0,
+      held: true,
+    });
+    const rules = await admitted(new Error("admission-rules.json: `types` must be a list of strings"));
+    assert.deepEqual(closing({ result: rules }), {
+      lines: ["::error title=apply-verdict::admission failed: admission-rules.json: `types` must be a list of strings"],
+      code: 1,
+      held: false,
+    });
+  });
+
+  test("a thrown GitHub or network fault holds green; any other throw fails", () => {
+    assert.deepEqual(closing({ error: new GitHubError(500, "GET /repos/o/r/issues/1") }), {
+      lines: ["::notice title=apply-verdict::held: GET /repos/o/r/issues/1 failed with status 500"],
+      code: 0,
+      held: true,
+    });
+    assert.equal(closing({ error: new TypeError("fetch failed") }).code, 0);
+    assert.deepEqual(closing({ error: new Error("models.issue-dimensions maps no option 7") }), {
+      lines: ["::error title=apply-verdict::models.issue-dimensions maps no option 7"],
+      code: 1,
+      held: false,
+    });
+  });
+
+  test("only a 5xx, a 429, a rate-guard stop or no answer is a fault; another 4xx stays red", () => {
+    for (const status of [500, 502, 503, 429]) {
+      assert.equal(isFault(new GitHubError(status, "POST labels")), true, `status ${status}`);
+    }
+    for (const status of [403, 404, 422]) {
+      assert.equal(isFault(new GitHubError(status, "POST labels")), false, `status ${status}`);
+      assert.equal(closing({ error: new GitHubError(status, "POST labels") }).code, 1, `status ${status}`);
+    }
+    const stop = Object.assign(new Error("GET /x refused until reset"), { name: "RateLimitStop" });
+    assert.equal(isFault(stop), true);
+  });
+
+  test("a hold writes the held output refine-select reads; a failure writes none", () => {
+    const dir = tempDir("apply-verdict-held-");
+    try {
+      const output = path.join(dir, "output");
+      for (const [error, held] of [[new GitHubError(503, "GET /x"), true], [new Error("bad config"), false]]) {
+        writeFileSync(output, "");
+        const lines = [];
+        const code = finish(closing({ error }), { outputPath: output, log: (line) => lines.push(line) });
+        assert.equal(code, held ? 0 : 1);
+        assert.equal(lines.length, 1);
+        assert.equal(/^held<<ghadelimiter_[0-9a-f-]+\ntrue\n/.test(readFileSync(output, "utf8")), held, error.message);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("a needs-decision the lanes App set earlier, read from the events, is lifted by a clean verdict", async () => {
