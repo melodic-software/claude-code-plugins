@@ -9005,30 +9005,60 @@ function missingLegs(catalog, launched) {
   }
   return missing;
 }
-// Lanes that cannot take every leg yet, each with why (#13586). The test
-// fails once a lane gains every leg, so its entry goes with it.
+const EVAL_REASON = "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval runs outside run-claude-cli, so it has no handoff to a fallback leg (#13586)";
+// Lanes that cannot take every leg yet (#13586): each names the exact legs it
+// waives and why. The test fails when an exempt lane lacks a leg its entry
+// does not name, or runs a leg its entry waives, so an entry never covers
+// more than it says and goes once its lane gains the leg.
 const LEG_EXEMPTIONS = {
-  "eval-browser-dispatch.yml maintenance eval": "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval has no run-claude-cli handoff (#13586)",
-  "eval-hill-climb-pass.yml maintenance pass": "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval has no run-claude-cli handoff (#13586)",
-  "maintenance-measure-skill-edit.yml maintenance pass-a": "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval has no run-claude-cli handoff (#13586)",
-  "maintenance-measure-skill-edit.yml maintenance pass-a2": "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval has no run-claude-cli handoff (#13586)",
-  "maintenance-measure-skill-edit.yml maintenance pass-b": "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval has no run-claude-cli handoff (#13586)",
-  "maintenance-measure-skill-edit.yml maintenance propose": "the maintenance role holds no API key (no MAINTENANCE_CLAUDE_API_KEY) (#13586)",
-  "post-merge-test-mutation.yml automations audit": "it runs on claude-code-action, which takes no API key here (only run-claude-cli does); its key leg needs the audit moved to run-claude-cli first (#13586)",
+  "eval-browser-dispatch.yml maintenance eval": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "eval-hill-climb-pass.yml maintenance pass": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance pass-a": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance pass-a2": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance pass-b": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance propose": { legs: ["key"], reason: "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY) (#13586)" },
+  "post-merge-test-mutation.yml automations audit": {
+    legs: ["key", "fallback"],
+    reason: "it runs on claude-code-action, which takes no API key here (only run-claude-cli does) and has no handoff to a fallback leg; both wait on the audit's move to run-claude-cli (#13586)",
+  },
 };
+// A secret name's leg: the role's API key, its subscription token, or the
+// central fallback token.
+const legOf = (name) => (name === FALLBACK_SECRET ? "fallback" : /_CLAUDE_API_KEY$/.test(name) ? "key" : "subscription");
+// Every way the live lanes and the exemptions disagree.
+function exemptionProblems(missing, exemptions, lanes) {
+  const problems = [];
+  for (const [key, lacks] of missing) {
+    const waived = new Set(exemptions[key]?.legs ?? []);
+    for (const leg of lacks.map(legOf)) if (!waived.has(leg)) problems.push(`${key} lacks its ${leg} leg`);
+  }
+  for (const [key, { legs, reason }] of Object.entries(exemptions)) {
+    if (!lanes.has(key)) problems.push(`${key} is not a catalog lane`);
+    if (!/\(#13586\)$/.test(reason ?? "")) problems.push(`${key} names no reason and tracking issue`);
+    const lacking = new Set((missing.get(key) ?? []).map(legOf));
+    for (const leg of legs) if (!lacking.has(leg)) problems.push(`${key} now runs its ${leg} leg: drop it from the exemption`);
+  }
+  return problems;
+}
 
-test("every model lane runs the role's API key, its subscription token and the fallback token, or is exempt with a reason", () => {
+test("every model lane runs the role's API key, its subscription token and the fallback token, or is exempt for exactly the legs it lacks", () => {
   const jobs = claudeSecretJobs();
   const launched = (lane) => claudeReads(withoutPresenceChecks(jobs.get(`${lane.workflow} ${lane.id}`)?.job ?? {}));
-  const missing = missingLegs(fundingCatalog(), launched);
-  const unexempt = [...missing].filter(([key]) => !Object.hasOwn(LEG_EXEMPTIONS, key)).map(([key, lacks]) => `${key} lacks ${lacks.join(", ")}`);
-  assert.deepEqual(unexempt, []);
-  const lanes = laneLegs(fundingCatalog());
-  for (const [key, reason] of Object.entries(LEG_EXEMPTIONS)) {
-    assert.ok(lanes.has(key), `${key} is a catalog lane`);
-    assert.match(reason, /\(#13586\)$/, `${key} names its reason and the tracking issue`);
-    assert.ok(missing.has(key), `${key} now runs every leg: drop its exemption`);
-  }
+  assert.deepEqual(exemptionProblems(missingLegs(fundingCatalog(), launched), LEG_EXEMPTIONS, laneLegs(fundingCatalog())), []);
+});
+
+test("an exemption waives only the legs it names", () => {
+  const lanes = new Map([["w.yml r run", {}]]);
+  const reason = "why (#13586)";
+  const missing = (...names) => new Map([["w.yml r run", names]]);
+  const exempt = (legs) => ({ "w.yml r run": { legs, reason } });
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), exempt(["key"]), lanes), [], "the named leg is waived");
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY", FALLBACK_SECRET), exempt(["key"]), lanes), ["w.yml r run lacks its fallback leg"], "a leg the entry does not name");
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), exempt(["key", "fallback"]), lanes), ["w.yml r run now runs its fallback leg: drop it from the exemption"], "a waived leg that runs");
+  assert.deepEqual(exemptionProblems(new Map(), exempt(["key"]), lanes), ["w.yml r run now runs its key leg: drop it from the exemption"], "a lane with every leg");
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_CODE_OAUTH_TOKEN"), {}, lanes), ["w.yml r run lacks its subscription leg"], "no entry at all");
+  assert.deepEqual(exemptionProblems(new Map(), { "w.yml r gone": { legs: [], reason } }, lanes), ["w.yml r gone is not a catalog lane"]);
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), { "w.yml r run": { legs: ["key"], reason: "why" } }, lanes), ["w.yml r run names no reason and tracking issue"]);
 });
 
 test("the leg check fails a lane that lacks a leg and passes one that has all three", () => {
