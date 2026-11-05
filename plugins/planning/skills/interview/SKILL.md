@@ -50,7 +50,7 @@ The **pre-clarity** stage. Upstream of exploration, research, and `/planning:pla
 
 ## Emit checklist
 
-For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic**. Not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
+For interview sessions with ≥2 open questions OR explicit `me` mode, copy `${CLAUDE_PLUGIN_ROOT}/skills/interview/templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic**. Not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
 
 The ledger's `## Open-question register` is emitted the moment **any** round is asked, whatever that threshold says. It has to exist before the first reply arrives. The acceptance-criteria coverage prompt does not count as a round here: it writes no register row and does not by itself make the register exist or bring the register gate into scope ([`context/coverage-prompt.md`](context/coverage-prompt.md)). Register mechanics, the drift check, the unattended ladder, and the gate that grades it: [`context/loop.md`](context/loop.md) "The open-question register".
 
