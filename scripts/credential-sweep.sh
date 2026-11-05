@@ -23,7 +23,8 @@
 #                listed one UTC day at a time; a window whose total_count is
 #                over the 1,000 results a filtered run list returns is halved
 #                until it fits, and a window listed short of its total_count
-#                is a gap. A skipped run (no job ran) is counted, not fetched.
+#                is a gap. A run skipped on its only attempt (no job ran) is
+#                counted, not fetched.
 #   check-runs   output title, summary and text of each run's check runs, every
 #                attempt
 #   artifacts    every artifact created since --since, unzipped
@@ -255,7 +256,9 @@ list_runs() {
   window="$(utc "$from")..$(utc "$to")"
   MAX_TOTAL=$LIST_CAP
   ((to - from >= 1)) || MAX_TOTAL=""
-  fetch_pages "$STATE/window.jsonl" "$base/actions/runs?exclude_pull_requests=true&created=$window" '.workflow_runs[]'
+  # Only the fields the sweep reads are kept: a full run object is several KB.
+  fetch_pages "$STATE/window.jsonl" "$base/actions/runs?exclude_pull_requests=true&created=$window" \
+    '.workflow_runs[] | {id, run_attempt, check_suite_id, conclusion}'
   rc=$?
   MAX_TOTAL=""
   ((rc != 3)) || return 3
@@ -287,8 +290,9 @@ sweep_logs_and_checks() {
   while IFS=$'\t' read -r id attempt suite conclusion; do
     bump "$r" runs
     # A skipped run started no job: its log archive is empty and its check
-    # runs carry no output, so neither is fetched.
-    if [[ "$conclusion" == skipped ]]; then
+    # runs carry no output, so neither is fetched. The conclusion is the
+    # latest attempt's, so a re-run's earlier attempts are still read.
+    if [[ "$conclusion" == skipped ]] && ((attempt == 1)); then
       SKIPPED=$((SKIPPED + 1))
       continue
     fi
@@ -321,7 +325,8 @@ sweep_logs_and_checks() {
     bump "$r" check-runs "$n"
     jq -r '"check-run \(.id) \(.name)\ntitle: \(.output.title // "")\nsummary: \(.output.summary // "")\ntext: \(.output.text // "")\n"' \
       "$STATE/checks.jsonl" >"$dl/check-runs/run-$id.txt"
-  done < <(jq -rs 'unique_by(.id)[] | [.id, (.run_attempt // 1), .check_suite_id, (.conclusion // "")] | @tsv' "$STATE/runs.jsonl")
+  done < <(jq -r '[.id, (.run_attempt // 1), .check_suite_id, (.conclusion // "")] | @tsv' "$STATE/runs.jsonl" |
+    awk -F '\t' '!seen[$1]++')
   ((jobs == 0)) || by_design "$r" step-summaries "$jobs jobs: no REST endpoint serves GITHUB_STEP_SUMMARY"
   return 0
 }

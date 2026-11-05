@@ -368,6 +368,40 @@ else
   fail "skipped run fetched: $LOG"
 fi
 
+# A re-run whose latest attempt was skipped still has its earlier attempts read.
+F="$TMP/rerun"
+base_fixture "$F" r
+fix "$F" "$(day_runs r 2026-10-06)" \
+  '{"total_count":1,"workflow_runs":[{"id":11,"run_attempt":2,"check_suite_id":21,"conclusion":"skipped","created_at":"2026-10-06T10:00:00Z"}]}'
+fix "$F" "repos/o/r/check-suites/21/check-runs?filter=all&per_page=100&page=1" '{"check_runs":[]}'
+log_zip "$F" r "token $PLANTED"
+printf 'PK\005\006%018d' 0 | tr 0 '\000' >"$F/$(key "repos/o/r/actions/runs/11/attempts/2/logs")"
+STUB_LEAK_FILE=r/logs/run-11-attempt-1/build/1_step.txt STUB_SECRET="$PLANTED" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-rerun" --repo r --keep
+if grep -qF "$PLANTED" "$TMP/out-rerun/downloads/r/logs/run-11-attempt-1/build/1_step.txt" 2>/dev/null &&
+  [[ "$LOG" == *check-suites/21/check-runs* ]]; then
+  ok "a skipped re-run's earlier attempt and check runs are read"
+else
+  fail "attempt 1 of a skipped re-run not read: $LOG"
+fi
+expect_out "a skipped re-run is not counted as a skipped run" 'skipped runs (no job ran): 0;'
+if [[ "$(gitleaks version 2>/dev/null)" == 8.30.1 ]]; then
+  sweep "$TMP/no-such-dir" "$F" "$TMP/out-rerun-real" --repo r
+  expect_out "the real scanner finds the token in a skipped re-run's first attempt" \
+    '| github-pat | r/logs/run-11-attempt-1/build/1_step.txt | 3 |'
+fi
+
+# A run listed in two windows is swept once.
+F="$TMP/dupe"
+base_fixture "$F" r
+one_run "$F" r '{"check_runs":[]}'
+fix "$F" "$(day_runs r 2026-10-06)" \
+  '{"total_count":1,"workflow_runs":[{"id":11,"run_attempt":1,"check_suite_id":21,"created_at":"2026-10-05T10:00:00Z"}]}'
+log_zip "$F" r "nothing secret here"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-dupe" --repo r
+expect_out "a run listed twice is counted once" '| r | 1 | 1 |'
+if [[ "$(grep -c 'runs/11/attempts/1/logs' <<<"$LOG")" -eq 1 ]]; then ok "a run listed twice is fetched once"; else fail "run 11 fetched more than once: $LOG"; fi
+
 # Expired logs (HTTP 410) are served to nobody: listed apart, exit 0.
 F="$TMP/expired"
 base_fixture "$F" r
