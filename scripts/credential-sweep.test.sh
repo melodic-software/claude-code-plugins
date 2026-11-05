@@ -54,25 +54,43 @@ EOF
 
 mkdir -p "$TMP/bin" "$TMP/stub-gitleaks"
 # gh: logs its arguments, then serves $STUB_FIX/<key> (or <key>.err to stderr
-# with exit 1), where <key> is the API path with / ? & = : turned into _.
+# with exit 1), where <key> is the API path with / ? & = : turned into _. With
+# --include it first prints a header block in gh's shape, carrying
+# $STUB_REMAINING and $STUB_RESET. A run-list window with no fixture is empty.
 cat >"$TMP/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
-path=""
+path="" include=0
 for a in "$@"; do
-  case "$a" in repos/* | orgs/* | users/*) path="$a" ;; *) ;; esac
+  case "$a" in repos/* | orgs/* | users/*) path="$a" ;; --include) include=1 ;; *) ;; esac
 done
 key="$(printf '%s' "$path" | tr '/?&=:' '_____')"
 if [[ -f "$STUB_FIX/$key.err" ]]; then
   cat "$STUB_FIX/$key.err" >&2
   exit 1
 fi
+headers() {
+  ((include)) || return 0
+  printf 'HTTP/2.0 200 OK\r\nContent-Type: application/json\r\nX-Ratelimit-Remaining: %s\r\nX-Ratelimit-Reset: %s\r\n\r\n' \
+    "${STUB_REMAINING:-5000}" "${STUB_RESET:-0}"
+}
 if [[ -f "$STUB_FIX/$key" ]]; then
+  headers
   cat "$STUB_FIX/$key"
+  exit 0
+fi
+if [[ "$path" == */actions/runs\?*created=* ]]; then
+  headers
+  echo '{"total_count":0,"workflow_runs":[]}'
   exit 0
 fi
 echo "gh: Not Found (HTTP 404)" >&2
 exit 1
+EOF
+# sleep: logs its argument and returns at once.
+cat >"$TMP/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$1" >>"${STUB_SLEEP_LOG:-/dev/null}"
 EOF
 # gitleaks: reports $STUB_LEAK_FILE (relative to the scanned dir) as an
 # unredacted github-pat hit when set, else nothing.
@@ -96,9 +114,13 @@ printf '[{"RuleID":"github-pat","Secret":"%s","Match":"token %s","Line":"x %s","
   "$STUB_SECRET" "$STUB_SECRET" "$STUB_SECRET" "$dir" "$STUB_LEAK_FILE" >"$report"
 exit "$code"
 EOF
-chmod +x "$TMP/bin/gh" "$TMP/stub-gitleaks/gitleaks"
+chmod +x "$TMP/bin/gh" "$TMP/bin/sleep" "$TMP/stub-gitleaks/gitleaks"
 
 key() { printf '%s' "$1" | tr '/?&=:' '_____'; }
+# runs_path <repo> <from> <to>: the run-list page 1 of one created window.
+runs_path() { printf 'repos/o/%s/actions/runs?exclude_pull_requests=true&created=%s..%s&per_page=100&page=1' "$1" "$2" "$3"; }
+# day_runs <repo> <YYYY-MM-DD>: the run-list page 1 of one UTC day.
+day_runs() { runs_path "$1" "$2T00:00:00Z" "$2T23:59:59Z"; }
 # fix <fixture-dir> <api-path> <content>
 fix() { printf '%s\n' "$3" >"$1/$(key "$2")"; }
 fix_err() { printf '%s\n' "$3" >"$1/$(key "$2").err"; }
@@ -107,7 +129,6 @@ fix_err() { printf '%s\n' "$3" >"$1/$(key "$2").err"; }
 base_fixture() {
   local d="$1" b="repos/o/$2" pages='per_page=100&page=1'
   mkdir -p "$d"
-  fix "$d" "$b/actions/runs?exclude_pull_requests=true&$pages" '{"workflow_runs":[]}'
   fix "$d" "$b/actions/artifacts?$pages" '{"artifacts":[]}'
   fix "$d" "$b/releases?$pages" '[]'
   fix "$d" "$b/issues/comments?since=${SINCE}T00:00:00Z&$pages" '[]'
@@ -118,12 +139,12 @@ base_fixture() {
   printf '%s\n' "$CONFIG_FIXTURE" >"$d/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=83d9cd684c87d95d656c1458ef04895a7f1cbd8e")"
 }
 
-# one_run <dir> <repo> <check-runs-json>: run 11 (attempt 1, suite 21) since
-# --since, plus run 99 from before it, whose logs must never be requested.
+# one_run <dir> <repo> <check-runs-json>: run 11 (attempt 1, suite 21),
+# listed in the 2026-10-05 window.
 one_run() {
   local d="$1" b="repos/o/$2"
-  fix "$d" "$b/actions/runs?exclude_pull_requests=true&per_page=100&page=1" \
-    '{"workflow_runs":[{"id":11,"run_attempt":1,"check_suite_id":21,"created_at":"2026-10-05T10:00:00Z"},{"id":99,"run_attempt":1,"check_suite_id":98,"created_at":"2026-09-01T10:00:00Z"}]}'
+  fix "$d" "$(day_runs "$2" 2026-10-05)" \
+    '{"total_count":1,"workflow_runs":[{"id":11,"run_attempt":1,"check_suite_id":21,"created_at":"2026-10-05T10:00:00Z"}]}'
   fix "$d" "$b/check-suites/21/check-runs?filter=all&per_page=100&page=1" "$3"
 }
 
@@ -200,7 +221,13 @@ expect_rc "a hit exits 1" 1
 expect_out "the hit names rule, location and line" '| github-pat | r/logs/run-11-attempt-1/build/1_step.txt | 3 |'
 expect_no_value "an unredacted scanner report never reaches the output or the report" "$TMP/out-hit"
 expect_get_only "every request is a GET"
-if [[ "$LOG" != *runs/99/* ]]; then ok "a run before --since is not fetched"; else fail "run 99 was fetched: $LOG"; fi
+first_window="$(grep -m 1 -o 'created=[^&]*' <<<"$LOG")"
+if [[ "$first_window" == "created=${SINCE}T00:00:00Z..${SINCE}T23:59:59Z" ]] &&
+  ! grep -q 'created=2026-09' <<<"$LOG"; then
+  ok "runs are listed from the --since day on, one UTC day at a time"
+else
+  fail "first run window is '$first_window', or one before --since was listed: $LOG"
+fi
 if [[ ! -e "$TMP/out-hit/downloads" ]]; then ok "downloads are removed without --keep"; else fail "downloads left behind"; fi
 
 # Same tree through the real pinned scanner, when this host has it.
@@ -318,6 +345,15 @@ fix_err "$F" "repos/o/r/actions/runs/11/attempts/1/logs" $'gh: \e[2Jbad (HTTP 50
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-ctrl" --repo r
 if ! grep -q $'\e' "$TMP/out-ctrl/summary.md"; then ok "control characters are stripped from the report"; else fail "ESC in the report"; fi
 
+# A skipped run's empty log archive holds nothing to read: no gap.
+F="$TMP/empty"
+base_fixture "$F" r
+one_run "$F" r '{"check_runs":[]}'
+printf 'PK\005\006%018d' 0 | tr 0 '\000' >"$F/$(key "repos/o/r/actions/runs/11/attempts/1/logs")"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-empty" --repo r
+expect_rc "an empty log archive exits 0" 0
+expect_out "an empty log archive is no gap" $'## GAPS (0)\n\nNone'
+
 # Expired logs (HTTP 410) are served to nobody: listed apart, exit 0.
 F="$TMP/expired"
 base_fixture "$F" r
@@ -412,12 +448,63 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-cache" --repo r
 expect_rc "cache entries alone exit 0" 0
 expect_out "the caches are counted as unreadable by design" '- r: caches: 2 entries listed'
 
+# --- A run window listed short of its total_count is a gap ------------------
+F="$TMP/short"
+base_fixture "$F" r
+fix "$F" "$(day_runs r 2026-10-03)" '{"total_count":3,"workflow_runs":[]}'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-short" --repo r
+expect_rc "a short run window exits 2" 2
+expect_out "the short window is listed under GAPS" \
+  '- r: logs: run list for 2026-10-03T00:00:00Z..2026-10-03T23:59:59Z: listed 0 of total_count 3'
+
+# A window over the 1,000-result cap is halved, and each half is listed.
+F="$TMP/split"
+base_fixture "$F" r
+fix "$F" "$(day_runs r 2026-10-04)" '{"total_count":1500,"workflow_runs":[]}'
+fix "$F" "$(runs_path r 2026-10-04T00:00:00Z 2026-10-04T11:59:59Z)" \
+  '{"total_count":1,"workflow_runs":[{"id":41,"run_attempt":1,"check_suite_id":51,"created_at":"2026-10-04T01:00:00Z"}]}'
+fix "$F" "$(runs_path r 2026-10-04T12:00:00Z 2026-10-04T23:59:59Z)" \
+  '{"total_count":1,"workflow_runs":[{"id":42,"run_attempt":1,"check_suite_id":52,"created_at":"2026-10-04T13:00:00Z"}]}'
+fix "$F" "repos/o/r/check-suites/51/check-runs?filter=all&per_page=100&page=1" '{"check_runs":[]}'
+fix "$F" "repos/o/r/check-suites/52/check-runs?filter=all&per_page=100&page=1" '{"check_runs":[]}'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-split" --repo r
+expect_out "both halves of an over-cap window are swept" '| r | 2 |'
+if [[ "$LOG" == *runs/41/attempts/1/logs* && "$LOG" == *runs/42/attempts/1/logs* &&
+  "$LOG" != *2026-10-04T00:00:00Z..2026-10-04T23:59:59Z\&per_page=100\&page=2* ]]; then
+  ok "an over-cap window is not paged; its halves are"
+else
+  fail "split window requests wrong: $LOG"
+fi
+
+# --- Below the reserve, the sweep waits for the reset ------------------------
+F="$TMP/reserve"
+base_fixture "$F" r
+: >"$F.sleep"
+STUB_REMAINING=100 STUB_RESET="$(($(date +%s) + 30))" STUB_SLEEP_LOG="$F.sleep" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve" --repo r
+first_sleep="$(head -n 1 "$F.sleep")"
+if [[ "$first_sleep" =~ ^[0-9]+$ ]] && ((first_sleep > 0 && first_sleep <= 31)); then
+  ok "under the reserve, the sweep sleeps until the reset"
+else
+  fail "no sleep until the reset under the reserve: '$(cat "$F.sleep")'"
+fi
+expect_out "the report states the waits" 'Reserve: 1500; waited for the reset'
+: >"$F.sleep"
+STUB_REMAINING=1500 STUB_RESET="$(($(date +%s) + 30))" STUB_SLEEP_LOG="$F.sleep" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-at" --repo r
+if [[ ! -s "$F.sleep" ]]; then ok "at the reserve, the sweep does not wait"; else fail "slept at the reserve: $(cat "$F.sleep")"; fi
+STUB_REMAINING=100 STUB_RESET="$(($(date +%s) + 30))" STUB_SLEEP_LOG="$F.sleep" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-zero" --repo r --reserve 0
+if [[ ! -s "$F.sleep" ]]; then ok "--reserve 0 never waits"; else fail "slept with --reserve 0: $(cat "$F.sleep")"; fi
+STUB_REMAINING=100 STUB_RESET="$(($(date +%s) - 30))" STUB_SLEEP_LOG="$F.sleep" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-past" --repo r
+if [[ ! -s "$F.sleep" ]]; then ok "a reset already past is not waited for"; else fail "slept for a past reset: $(cat "$F.sleep")"; fi
+
 # --- The first rate-limit error stops every later request -------------------
 F="$TMP/limit"
 base_fixture "$F" r
 base_fixture "$F" s
-fix_err "$F" "repos/o/r/actions/runs?exclude_pull_requests=true&per_page=100&page=1" \
-  'gh: API rate limit exceeded for user ID 1. (HTTP 403)'
+fix_err "$F" "$(day_runs r "$SINCE")" 'gh: API rate limit exceeded for user ID 1. (HTTP 403)'
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-limit" --repo r --repo s
 expect_rc "a rate-limit stop exits 2" 2
 expect_out "the stop is reported as a gap" 'stopped mid-repo: rate limit on GET'
@@ -427,7 +514,10 @@ if [[ "$(tail -n 1 <<<"$LOG")" == *actions/runs* ]]; then ok "no request follows
 # --- Could not start ---------------------------------------------------------
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-bogus" --bogus
 expect_rc "an unknown option exits 3" 3
-expect_out "usage describes --keep" '--keep   keep the downloads'
+expect_out "usage describes --keep" '--keep     keep the downloads'
+expect_out "usage describes --reserve" '--reserve  REST requests left for other work'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-bad" --repo r --reserve lots
+expect_rc "a non-numeric --reserve exits 3" 3
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-usage" --since 2026-13-45
 expect_rc "a malformed --since exits 3" 3
 STUB_GITLEAKS_VERSION=8.0.0 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-version" --repo r

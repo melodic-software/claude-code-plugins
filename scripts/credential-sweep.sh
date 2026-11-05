@@ -5,18 +5,25 @@
 #
 #   scripts/credential-sweep.sh [--owner OWNER] [--repo NAME ...]
 #                               [--since YYYY-MM-DD] [--out DIR] [--keep]
+#                               [--reserve N]
 #
-#   --owner  GitHub owner (default melodic-software)
-#   --repo   sweep only NAME, which must be public; repeatable. Default: every
-#            public repo of OWNER.
-#   --since  first day of activity to sweep (default 90 days ago, GitHub's
-#            default log and artifact retention)
-#   --out    report directory (default .work/credential-sweep/<UTC stamp>)
-#   --keep   keep the downloads under DIR/downloads (they hold raw values)
+#   --owner    GitHub owner (default melodic-software)
+#   --repo     sweep only NAME, which must be public; repeatable. Default:
+#              every public repo of OWNER.
+#   --since    first day of activity to sweep (default 90 days ago, GitHub's
+#              default log and artifact retention)
+#   --out      report directory (default .work/credential-sweep/<UTC stamp>)
+#   --keep     keep the downloads under DIR/downloads (they hold raw values)
+#   --reserve  REST requests left for other work: below N remaining, wait for
+#              the hourly reset (default 1500)
 #
 # Sources per repository. --since bounds runs, artifacts and comments; releases
 # and caches are swept whole.
-#   logs         every attempt of every Actions run created since --since
+#   logs         every attempt of every Actions run created since --since,
+#                listed one UTC day at a time; a window whose total_count is
+#                over the 1,000 results a filtered run list returns is halved
+#                until it fits, and a window listed short of its total_count
+#                is a gap
 #   check-runs   output title, summary and text of each run's check runs, every
 #                attempt
 #   artifacts    every artifact created since --since, unzipped
@@ -38,8 +45,12 @@
 # under downloads/<repo>/strings/ so it never replaces a downloaded file; nested
 # archives are read by gitleaks --max-archive-depth.
 #
-# Read-only: every request is a REST GET, one at a time. The first rate-limit
-# error stops the sweep, which reports it as a gap and sends nothing more.
+# Read-only: every request is a REST GET, one at a time. Every JSON response's
+# x-ratelimit-remaining and x-ratelimit-reset headers are read (downloads
+# redirect to storage that sends none); when remaining falls below --reserve,
+# the sweep sleeps until the reset, so it never takes the budget other work on
+# the same login needs. The first rate-limit error stops the sweep, which
+# reports it as a gap and sends nothing more.
 #
 # The scanner is gitleaks at the version the lint-repo `Scan for secrets` step
 # installs (melodic-software/ci-workflows gitleaks action, pinned in
@@ -63,18 +74,29 @@ GITLEAKS_PIN="8.30.1"
 GITLEAKS_CONFIG_COMMIT="83d9cd684c87d95d656c1458ef04895a7f1cbd8e"
 PER_PAGE=100
 UNPACK_MAX=$((1024 * 1024 * 1024))
+# "This endpoint will return up to 1,000 results for each search when using the
+# following parameters: actor, branch, check_suite_id, created, ..."
+# (docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository)
+LIST_CAP=1000
 
 OWNER="melodic-software"
 REPOS=()
 SINCE=""
 OUT=""
 KEEP=0
+RESERVE=1500
 
 DL=""
 STATE=""
 API_ERR=""
 STOPPED=""
 REQUESTS=0
+REMAINING=""
+RESET=""
+PAUSES=0
+PAUSED=0
+MAX_TOTAL=""
+TOTAL=""
 declare -A COUNT=()
 
 die() {
@@ -83,7 +105,7 @@ die() {
 }
 
 usage() {
-  sed -n '6,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '6,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit 3
 }
 
@@ -99,16 +121,59 @@ by_design() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$STATE/by-design.tsv"; }
 bump() { COUNT["$1:$2"]=$((${COUNT["$1:$2"]:-0} + ${3:-1})); }
 safe_name() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
 
-# api_get <outfile> <path> [gh api args]: one GET. Returns 0 ok, 1 error (text
-# in API_ERR), 3 rate-limited or already stopped.
-api_get() {
-  local out="$1" path="$2"
-  shift 2
-  [[ -z "$STOPPED" ]] || return 3
-  REQUESTS=$((REQUESTS + 1))
-  if gh api --method GET "$@" "$path" >"$out" 2>"$STATE/err" </dev/null; then
-    return 0
+# pace: before a request, when the last remaining count read is below RESERVE,
+# sleep until its reset. The count is then unknown until the next headers.
+pace() {
+  local wait
+  [[ -n "$REMAINING" && -n "$RESET" ]] && ((REMAINING < RESERVE)) || return 0
+  wait=$((RESET - $(date +%s) + 1))
+  if ((wait > 0)); then
+    printf '%s: %s REST requests left, under the reserve of %s; waiting %ss for the reset\n' \
+      "$PROG" "$REMAINING" "$RESERVE" "$wait" >&2
+    PAUSES=$((PAUSES + 1))
+    PAUSED=$((PAUSED + wait))
+    sleep "$wait"
   fi
+  REMAINING=""
+}
+
+# read_headers <response> <body>: splits a gh api --include response at the
+# first blank line, and sets REMAINING and RESET from the headers it carries.
+read_headers() {
+  local v
+  awk -v h="$STATE/headers" -v b="$2" 'body { print > b; next } /^\r?$/ { body = 1; next } { print > h }' "$1"
+  [[ -f "$STATE/headers" ]] || return 0
+  v="$(awk -F ': *' 'tolower($1) == "x-ratelimit-remaining" { sub(/\r$/, "", $2); print $2 }' "$STATE/headers")"
+  [[ ! "$v" =~ ^[0-9]+$ ]] || REMAINING="$v"
+  v="$(awk -F ': *' 'tolower($1) == "x-ratelimit-reset" { sub(/\r$/, "", $2); print $2 }' "$STATE/headers")"
+  [[ ! "$v" =~ ^[0-9]+$ ]] || RESET="$v"
+  rm -f "$STATE/headers"
+}
+
+# api_get <outfile> <path> [gh api args]: one GET of a JSON or text response,
+# whose rate-limit headers pace the sweep. api_download: one GET of a file,
+# written as served. Each returns 0 ok, 1 error (text in API_ERR), 3
+# rate-limited or already stopped.
+api_get() { request headers "$@"; }
+api_download() { request raw "$@"; }
+
+request() {
+  local mode="$1" out="$2" path="$3" rc
+  shift 3
+  [[ -z "$STOPPED" ]] || return 3
+  pace
+  REQUESTS=$((REQUESTS + 1))
+  [[ -z "$REMAINING" ]] || REMAINING=$((REMAINING - 1))
+  if [[ "$mode" == raw ]]; then
+    gh api --method GET "$@" "$path" >"$out" 2>"$STATE/err" </dev/null
+    rc=$?
+  else
+    gh api --method GET --include "$@" "$path" >"$STATE/response" 2>"$STATE/err" </dev/null
+    rc=$?
+    : >"$out"
+    read_headers "$STATE/response" "$out"
+  fi
+  ((rc != 0)) || return 0
   API_ERR="$(tr '\n' ' ' <"$STATE/err" | cut -c1-200)"
   if grep -qiE 'rate limit|HTTP 429|abuse detection' "$STATE/err"; then
     STOPPED="rate limit on GET $path: $API_ERR"
@@ -119,12 +184,14 @@ api_get() {
 
 # fetch_pages <dest.jsonl> <path> <items-jq> [date-field]: every page of a
 # list, one JSON item per line. With a date field, stops after a page whose
-# items are all older than --since.
+# items are all older than --since. Sets TOTAL to page 1's total_count, if
+# any; when MAX_TOTAL is set and TOTAL exceeds it, returns 4 after page 1.
 fetch_pages() {
   local dest="$1" path="$2" items="$3" field="${4:-}" page=1 n rc sep='?'
   local tmp="$STATE/page.json"
   [[ "$path" != *'?'* ]] || sep='&'
   : >"$dest"
+  TOTAL=""
   while :; do
     api_get "$tmp" "$path${sep}per_page=$PER_PAGE&page=$page"
     rc=$?
@@ -132,6 +199,10 @@ fetch_pages() {
     if ! jq -c "$items" "$tmp" >>"$dest" 2>/dev/null; then
       API_ERR="unparsable response for $path page $page"
       return 1
+    fi
+    if ((page == 1)); then
+      TOTAL="$(jq -r 'if type == "object" then .total_count // "" else "" end' "$tmp")"
+      [[ -z "$MAX_TOTAL" || -z "$TOTAL" ]] || ((TOTAL <= MAX_TOTAL)) || return 4
     fi
     # The page's own length, before any select in $items, decides paging.
     n="$(jq 'if type == "array" then length else ([.[] | arrays][0] // [] | length) end' "$tmp")"
@@ -148,8 +219,15 @@ fetch_pages() {
 # archive over UNPACK_MAX bytes uncompressed is not extracted. Symlinks in the
 # archive are deleted, so no later read or write follows one out of the tree.
 unpack() {
-  local size
-  size="$(unzip -Zt "$1" 2>/dev/null | awk '{ for (i = 1; i < NF; i++) if ($(i + 1) ~ /^bytes/) { print $i; exit } }')"
+  local size totals
+  totals="$(unzip -Zt "$1" 2>/dev/null)"
+  # A run that never started a job (a skipped run) serves an empty archive.
+  if [[ "$totals" == "Empty zipfile." ]]; then
+    rm -f "$1"
+    mkdir -p "$2"
+    return 0
+  fi
+  size="$(awk '{ for (i = 1; i < NF; i++) if ($(i + 1) ~ /^bytes/) { print $i; exit } }' <<<"$totals")"
   if [[ ! "$size" =~ ^[0-9]+$ ]] || ((size > UNPACK_MAX)); then
     API_ERR="archive size unreadable or over $UNPACK_MAX bytes uncompressed (${size:-unknown})"
     rm -f "$1"
@@ -165,19 +243,50 @@ unpack() {
   return 1
 }
 
-sweep_logs_and_checks() {
-  local r="$1" base="$2" dl="$3" id attempt suite a rc jobs=0 n
-  fetch_pages "$STATE/runs.jsonl" "$base/actions/runs?exclude_pull_requests=true" '.workflow_runs[]' created_at
+utc() { jq -rn --argjson t "$1" '$t | strftime("%Y-%m-%dT%H:%M:%SZ")'; }
+
+# list_runs <repo> <base> <from> <to>: runs created in [from, to] (epoch
+# seconds, inclusive) appended to $STATE/runs.jsonl. A window whose total_count
+# is over LIST_CAP is halved until it fits; one that cannot be halved, or that
+# lists fewer runs than its total_count, is a gap. Returns 3 on a stop.
+list_runs() {
+  local r="$1" base="$2" from="$3" to="$4" window rc n mid
+  window="$(utc "$from")..$(utc "$to")"
+  MAX_TOTAL=$LIST_CAP
+  ((to - from >= 1)) || MAX_TOTAL=""
+  fetch_pages "$STATE/window.jsonl" "$base/actions/runs?exclude_pull_requests=true&created=$window" '.workflow_runs[]'
   rc=$?
+  MAX_TOTAL=""
   ((rc != 3)) || return 3
+  if ((rc == 4)); then
+    mid=$((from + (to - from) / 2))
+    list_runs "$r" "$base" "$from" "$mid" || return 3
+    list_runs "$r" "$base" "$((mid + 1))" "$to"
+    return
+  fi
   if ((rc != 0)); then
-    gap "$r" logs "run list unreadable: $API_ERR"
+    gap "$r" logs "run list for $window unreadable: $API_ERR"
     return 0
   fi
+  cat "$STATE/window.jsonl" >>"$STATE/runs.jsonl"
+  n="$(wc -l <"$STATE/window.jsonl")"
+  [[ -z "$TOTAL" ]] || ((n >= TOTAL)) ||
+    gap "$r" logs "run list for $window: listed $n of total_count $TOTAL"
+  return 0
+}
+
+sweep_logs_and_checks() {
+  local r="$1" base="$2" dl="$3" id attempt suite a rc jobs=0 n day end
+  : >"$STATE/runs.jsonl"
+  day="$(jq -rn --arg s "$SINCE" '$s | strptime("%Y-%m-%d") | mktime')"
+  end="$(date +%s)"
+  for (( ; day <= end; day += 86400)); do
+    list_runs "$r" "$base" "$day" "$((day + 86399))" || return 3
+  done
   while IFS=$'\t' read -r id attempt suite; do
     bump "$r" runs
     for ((a = 1; a <= attempt; a++)); do
-      api_get "$dl/logs/run-$id-attempt-$a.zip" "$base/actions/runs/$id/attempts/$a/logs"
+      api_download "$dl/logs/run-$id-attempt-$a.zip" "$base/actions/runs/$id/attempts/$a/logs"
       rc=$?
       ((rc != 3)) || return 3
       if ((rc != 0)); then
@@ -205,7 +314,7 @@ sweep_logs_and_checks() {
     bump "$r" check-runs "$n"
     jq -r '"check-run \(.id) \(.name)\ntitle: \(.output.title // "")\nsummary: \(.output.summary // "")\ntext: \(.output.text // "")\n"' \
       "$STATE/checks.jsonl" >"$dl/check-runs/run-$id.txt"
-  done < <(jq -r --arg s "$SINCE" 'select(.created_at >= $s) | [.id, (.run_attempt // 1), .check_suite_id] | @tsv' "$STATE/runs.jsonl")
+  done < <(jq -rs 'unique_by(.id)[] | [.id, (.run_attempt // 1), .check_suite_id] | @tsv' "$STATE/runs.jsonl")
   ((jobs == 0)) || by_design "$r" step-summaries "$jobs jobs: no REST endpoint serves GITHUB_STEP_SUMMARY"
   return 0
 }
@@ -225,7 +334,7 @@ sweep_artifacts() {
       continue
     fi
     dir="$dl/artifacts/$id-$(safe_name "$name")"
-    api_get "$dir.zip" "$base/actions/artifacts/$id/zip"
+    api_download "$dir.zip" "$base/actions/artifacts/$id/zip"
     rc=$?
     ((rc != 3)) || return 3
     if ((rc != 0)); then
@@ -256,7 +365,7 @@ sweep_releases() {
   done < <(jq -r '.id' "$STATE/releases.jsonl")
   while IFS=$'\t' read -r rid aid name; do
     file="$dl/release-assets/$rid-$aid-$(safe_name "$name")"
-    api_get "$file" "$base/releases/assets/$aid" -H 'Accept: application/octet-stream'
+    api_download "$file" "$base/releases/assets/$aid" -H 'Accept: application/octet-stream'
     rc=$?
     ((rc != 3)) || return 3
     if ((rc != 0)); then
@@ -443,7 +552,8 @@ report() {
     printf '# Credential sweep: %s since %s\n\n' "$OWNER" "$SINCE"
     printf 'Scanner: gitleaks %s, default config without its global path allowlist, redacted. Binaries: strings(1) -n 8 pass, scanned as text (<repo>/strings/). Nested archives: gitleaks --max-archive-depth 8.\n' \
       "$GITLEAKS_PIN"
-    printf 'API requests: %d (REST GET only).\n\n## Swept\n\n' "$REQUESTS"
+    printf 'API requests: %d (REST GET only). Reserve: %d; waited for the reset %d times, %ds.\n\n## Swept\n\n' \
+      "$REQUESTS" "$RESERVE" "$PAUSES" "$PAUSED"
     printf '| repo |'
     printf ' %s |' "${sources[@]}" hits
     printf '\n|---|'
@@ -494,17 +604,19 @@ main() {
         shift
         continue
         ;;
-      --owner | --repo | --since | --out) [[ -n "${2:-}" ]] || usage ;;
+      --owner | --repo | --since | --out | --reserve) [[ -n "${2:-}" ]] || usage ;;
       *) usage ;;
     esac
     case "$1" in
       --owner) OWNER="$2" ;;
       --repo) REPOS+=("$2") ;;
       --since) SINCE="$2" ;;
+      --reserve) RESERVE="$2" ;;
       *) OUT="$2" ;;
     esac
     shift 2
   done
+  [[ "$RESERVE" =~ ^[0-9]+$ ]] || die "--reserve must be a whole number, got '$RESERVE'"
   for tool in gh jq unzip strings gitleaks; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
   done
