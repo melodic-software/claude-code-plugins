@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# Session timeouts\n\nINFO-unverified. Read these three in System Settings: the screensaver idle delay, display sleep, and whether a password is required on wake.",
+      "why": "# heading reply, reference wording"
+    },
+    {
+      "answer": "**Read in System Settings:**\n- Screen saver: start after\n- Display sleep: turn display off when inactive\n- Lock Screen: require password after screen saver begins or display is turned off",
+      "why": "**bold** list with macOS labels"
+    },
+    {
+      "answer": "| Setting | Where |\n|---|---|\n| Screensaver delay | System Settings > Lock Screen |\n| Display off timeout | System Settings > Lock Screen |\n| Require password on wake | System Settings > Lock Screen |",
+      "why": "table reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Check the screensaver and display sleep in System Settings.",
+      "why": "near miss: two of three settings"
+    },
+    {
+      "answer": "Make sure display sleep is long enough and that a password is required on wake.",
+      "why": "near miss: omits the screensaver"
+    },
+    {
+      "answer": "Verdict: blocked. Enable the computer-use MCP server.",
+      "why": "skips the timeout step"
+    },
+    {
+      "answer": "I'm on macOS 15. Is computer use ready for a 40-minute unattended run?",
+      "why": "echoes the prompt"
+    }
+  ]
+}

@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.5.0] - 2026-11-05
+
+### Changed
+
+- mark untrusted provenance with the `provenance: untrusted` label
+
+  Triage now applies `provenance: untrusted` to a signal-marked item in
+  place of the legacy `work-class:` name. The autonomous frontier
+  floor, the work-loop provenance and provenance-removal holds, the
+  attend-queue flip rules and triage's pairing ban and human-gated sweep
+  hold both names. They keep the old one, now called the legacy name,
+  until the label source drops it. Setup checks for `provenance: untrusted`
+  among the canonical members.
+
 ## [11.4.0] - 2026-11-05
 
 ### Added

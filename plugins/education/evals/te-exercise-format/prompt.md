@@ -1,6 +1,6 @@
 ---
 description: "teach exercise writes a one-concept practice file in the documented format (title, Concept, Difficulty, Prerequisites, then Setup, Task, three progressive hints and Solution) tied to the workspace mission's own tables"
-tags: [education, teach, outcome, exercise, scaffold]
+tags: [education, teach, outcome, exercise, scaffold, no-network]
 max_turns: 20
 timeout_seconds: 900
 allowed_tools: [Skill, Read, Glob, Grep]

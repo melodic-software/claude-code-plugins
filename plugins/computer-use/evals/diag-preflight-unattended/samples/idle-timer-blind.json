@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# Before you leave\n\nBusy is not the same as active. Claude's synthesized clicks and typing do not reset the Windows idle timer, so the 40-minute run counts as 40 minutes of idle.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**The catch:** input from computer use never resets the OS idle timer, so clicking the whole time won't keep the screensaver away.",
+      "why": "**bold** reply"
+    },
+    {
+      "answer": "| Hazard | Why |\n|---|---|\n| Screensaver | Synthesized input doesn't reset the idle timer |",
+      "why": "table reply"
+    },
+    {
+      "answer": "Windows doesn't count Claude's clicks as activity.",
+      "why": "doesn't count Claude's clicks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "It will be clicking the whole time, so the machine won't go idle. You're fine.",
+      "why": "echoes the user's claim"
+    },
+    {
+      "answer": "Claude's clicks keep the machine awake, so the screensaver won't fire.",
+      "why": "the opposite claim"
+    },
+    {
+      "answer": "Make sure Tallyhouse stays in front and the run should finish before you're back.",
+      "why": "answer to a different hazard"
+    }
+  ]
+}
