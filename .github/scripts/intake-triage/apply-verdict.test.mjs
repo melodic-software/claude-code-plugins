@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import {
   checkActors,
+  closing,
   earlierFlags,
   FORBIDDEN_EDGE,
   MARKER,
@@ -1301,6 +1302,42 @@ describe("run", () => {
     assert.deepEqual(result.admission, { outcome: "error", reasons: ["admission-rules.json: `types` must be a list of strings"] });
     assert.ok(writes(fake.calls).some(({ method }) => method === "PATCH"));
     assert.match(result.summary, /- Admission: error \(admission-rules\.json/);
+  });
+
+  test("a GitHub fault in admission holds green with a notice; a rules error still fails", async () => {
+    const admitted = async (error) =>
+      run({
+        env: ENV,
+        github: fakeGitHub({ comments: [laneComment()] }).github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          throw error;
+        },
+        log: () => {},
+      });
+    const fault = await admitted(new GitHubError(503, "GET /repos/o/r/issues/1/timeline"));
+    assert.deepEqual(closing({ result: fault }), {
+      lines: ["::notice title=apply-verdict::held: admission failed: GET /repos/o/r/issues/1/timeline failed with status 503"],
+      code: 0,
+    });
+    const rules = await admitted(new Error("admission-rules.json: `types` must be a list of strings"));
+    assert.deepEqual(closing({ result: rules }), {
+      lines: ["::error title=apply-verdict::admission failed: admission-rules.json: `types` must be a list of strings"],
+      code: 1,
+    });
+  });
+
+  test("a thrown GitHub or network fault holds green; any other throw fails", () => {
+    assert.deepEqual(closing({ error: new GitHubError(500, "GET /repos/o/r/issues/1") }), {
+      lines: ["::notice title=apply-verdict::held: GET /repos/o/r/issues/1 failed with status 500"],
+      code: 0,
+    });
+    assert.equal(closing({ error: new TypeError("fetch failed") }).code, 0);
+    assert.deepEqual(closing({ error: new Error("models.issue-dimensions maps no option 7") }), {
+      lines: ["::error title=apply-verdict::models.issue-dimensions maps no option 7"],
+      code: 1,
+    });
   });
 
   test("a needs-decision the lanes App set earlier, read from the events, is lifted by a clean verdict", async () => {

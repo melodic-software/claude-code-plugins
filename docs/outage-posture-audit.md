@@ -404,12 +404,22 @@ Part 2 fixed pr-refine's script gaps, with tests:
   `fix-docs-dispatch.mjs` still counts that green run as done for its head (`heldHandoff` reads a
   successful scan job as no hold), so the head gets no second fix-docs run until a new push.
 
+Part 2 also fixed intake-triage's element 2 gap, with tests. A GitHub fault in `apply-verdict.mjs`,
+in admission or anywhere else in the run, holds green with one `held: ` notice (`closing`); any
+other error, a forbidden missed edge and an unwritten reasons comment still fail. The lane has no
+cron, but two hourly sweeps take a held issue up again: work-unblock's `readmitReady` runs
+admission on a `status: ready` issue in no queue, and the triage sweep dispatches intake on one with
+no `status:` label. The triage sweep reads a `held: ` notice as it reads a failure annotation
+(`triage-sweep.mjs` `classifyRun`), so a hold on a 5xx stays forgiven and a hold on any other
+status counts. A held run is green, so `refine-select`, which needs apply-verdict's success, runs
+after it.
+
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
 `retry-spent` fault hold, work-unblock's held listings and pr-refine's held `fix-docs` reads. A
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
 (`.github/scripts/maintenance-monitor-signals/signals.mjs` `laneHoldFindings`). It adds no stop
-and no cap. The element 4 report hold is not among them.
+and no cap. The pr-refine element 4 report hold and intake-triage's hold are not among them.
 
 Two parts of the work-unblock rows stay open, for the reasons in the table:
 
@@ -421,15 +431,12 @@ Two parts of the work-unblock rows stay open, for the reasons in the table:
   in the `wip-state` job, and `work-unblock.yml` says a cache must not reach a job that mints. The
   closed listing's URL also changes every run with its `since`, so its `etag` could not match.
 
-The other script rows below are still open. Part 2 also found one row that is not a script-only
-fix: holding intake-triage green on a read error (element 2) needs something to start the lane
-again, since it has no cron.
+The other script rows below are still open.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
 | shared | 2 | workflow | each lane workflow whose step should hold sets `API_BUDGET_HOLD=1`; part 2 fixed `rate-guard.mjs`'s wait and hold, `check-trusted-trigger.mjs`'s wait on the latch, and `api-budget.bash`'s notice |
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
-| intake-triage | 2 | script | `.github/scripts/intake-triage/apply-verdict.mjs` (holding green needs a re-trigger, since the lane has no cron); part 2 fixed `admit.mjs`'s visibility read |
 | intake-triage | 5 | workflow | `.github/workflows/intake-triage.yml` |
 | work-unblock | 2 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (a failed read for one issue still ends the run red); part 2 fixed the failed listings |
 | work-unblock | 3 | script | `.github/scripts/work-unblock/label-unblocked.mjs` (dropping the breaker records needs another bound on kill-switch re-fires) |
