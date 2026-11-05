@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "verification: skipped (light)\nVerdict: NOT VERIFIED",
+      "why": "skip token and NOT VERIFIED"
+    },
+    {
+      "answer": "**Verdict:** `NOT VERIFIED` (verification: skipped (light))",
+      "why": "formatted verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "verification: skipped (light)\nVerdict: CONFIRMED",
+      "why": "an unverified CONFIRMED"
+    },
+    {
+      "answer": "Verdict: NEEDS WORK",
+      "why": "a different verdict"
+    }
+  ]
+}
