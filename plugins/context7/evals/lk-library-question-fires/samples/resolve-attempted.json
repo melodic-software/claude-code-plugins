@@ -1,0 +1,81 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library prisma \"configure connection pooling\"",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y ctx7@latest library Prisma \"connection pool size\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npx form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v ctx7; ctx7 library \"prisma\" \"connection pooling\" 2>&1 | head -40",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a separator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: version only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"next: ctx7 library prisma\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: only inside echoed text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/prisma/docs\" \"connection pooling\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: docs without the resolve step"
+    }
+  ]
+}

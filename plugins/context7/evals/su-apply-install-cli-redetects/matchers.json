@@ -1,0 +1,22 @@
+{
+  "runs-global-install": [
+    {
+      "use": "command_position"
+    },
+    "npm(?:\\.exe)?(?=",
+    {
+      "use": "token_argument"
+    },
+    "(?<![\\w-])(?:-g|--global)(?![\\w-]))(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:-\\S+(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+)*(?:install|i|add)(?![\\w-])(?=",
+    {
+      "use": "token_argument"
+    },
+    "(?<![\\w/.-])ctx7(?:@[\\w.-]+)?(?![\\w/.-]))"
+  ],
+  "redetects-version": [
+    {
+      "use": "command_position"
+    },
+    "ctx7(?:@[\\w.-]+)?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:--version|-v|-V)(?![\\w-])"
+  ]
+}
