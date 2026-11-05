@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {"answer": "Start it with `subprocess.Popen([...], stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)`."},
+    {"answer": "Redirect the server's stdin, stdout and stderr to /dev/null or a log file, and detach it."},
+    {"answer": "Use `stdout=open('logs/app.log', 'a')` and `stderr=subprocess.STDOUT`, with stdin from DEVNULL."}
+  ],
+  "fail": [
+    {"answer": "Start it with `stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, start_new_session=True`.", "why": "near miss: stdin and stdout only"},
+    {"answer": "Send the server's stdout to `logs/app.log` and detach it.", "why": "near miss: stdout only"},
+    {"answer": "Capture errors with `stderr=subprocess.PIPE` so `bfk app start` can report them.", "why": "near miss: a pipe the caller reads"},
+    {"answer": "The child inherits stderr as well as stdout. Detach it with `start_new_session=True`.", "why": "near miss: names stderr, recommends no redirect"},
+    {"answer": "Redirect stdout to DEVNULL, and stdout to the log file when debugging.", "why": "near miss: repeats stdout, never stderr"},
+    {"answer": "Use `stderr=subprocess.STDOUT` so errors go wherever stdout goes; stdout stays on the terminal.", "why": "near miss: merged into a stdout that is still inherited"},
+    {"answer": "Pass `close_fds=True` so the child does not keep the caller's descriptors.", "why": "near miss: close_fds leaves the standard streams inherited"},
+    {"answer": "Run it as `nohup python3 -m bfk.server > app.log &`.", "why": "near miss: stderr left on the caller's stream"}
+  ]
+}

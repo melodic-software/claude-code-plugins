@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {"answer": "It breaks CLI contract rule 11, No inherited handles: a command that starts a long-running child must not let it inherit the caller's stdin, stdout or stderr."},
+    {"answer": "Contract gap: No inherited handles (rule 11). `bfk/app.py:9` hands the server the caller's streams."},
+    {"answer": "The CLI contract says a started child must not inherit the caller's standard streams and must be detached; this command breaks that rule."}
+  ],
+  "fail": [
+    {"answer": "It breaks CLI contract rule 1, Non-interactive: the command must never wait for input.", "why": "near miss: a different rule"},
+    {"answer": "Redirecting the child's streams is a best practice for background processes.", "why": "near miss: best practice, no contract rule"},
+    {"answer": "The conventions' CLI contract asks for `--help`, distinct exit codes, `--json` and `--dry-run`; this command has none of them.", "why": "near miss: other contract items, not this problem"},
+    {"answer": "I'd prefer the server log to a file rather than the terminal.", "why": "near miss: a preference"},
+    {"answer": "The Python subprocess docs say the default stdio means no redirection occurs, so the child shares the parent's streams.", "why": "near miss: Python docs only"},
+    {"answer": "It breaks the shared-helper rule: external processes must go through `run` in `bfk/proc.py`.", "why": "near miss: the process-helper rule"},
+    {"answer": "Generally, daemons should not hold their parent's terminal. Fix it before merging.", "why": "near miss: general advice"},
+    {"answer": "It breaks the contract's exit-code rule: it returns 0 even though the deploy step hangs.", "why": "near miss: the exit-code rule"}
+  ]
+}

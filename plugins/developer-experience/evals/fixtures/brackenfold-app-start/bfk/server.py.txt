@@ -1,0 +1,13 @@
+"""The brackenfold app server: logs a heartbeat until it is stopped."""
+
+import time
+
+
+def main():
+    while True:
+        print("brackenfold app: serving", flush=True)
+        time.sleep(5)
+
+
+if __name__ == "__main__":
+    main()

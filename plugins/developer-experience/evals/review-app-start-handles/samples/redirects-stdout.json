@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {"answer": "Start it with `subprocess.Popen([...], stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)`, where `log` is `logs/app.log` opened for append."},
+    {"answer": "Redirect the server's stdin, stdout and stderr to /dev/null or a log file, and detach it."},
+    {"answer": "Send the child's stdout to `subprocess.DEVNULL`; its logs can go to a file instead of the terminal."}
+  ],
+  "fail": [
+    {"answer": "Start it with `stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True`.", "why": "near miss: stdin and stderr only"},
+    {"answer": "Redirect stderr to a log file and detach the child.", "why": "near miss: stderr only"},
+    {"answer": "Capture the server's output with `stdout=subprocess.PIPE` and print it from `bfk app start`.", "why": "near miss: a pipe the caller reads"},
+    {"answer": "The server inherits stdout, which is the deploy pipe. Detach it with `start_new_session=True`.", "why": "near miss: names stdout as the cause, recommends no redirect"},
+    {"answer": "Redirect stdin to DEVNULL and stdin from the terminal is no longer needed either.", "why": "near miss: repeats stdin, never stdout"},
+    {"answer": "Add `flush=True` to the print so `started` reaches the collector.", "why": "near miss: flushing is not a redirect"},
+    {"answer": "Pass `close_fds=True` to Popen so the child does not hold the pipe.", "why": "near miss: close_fds leaves the standard streams inherited"},
+    {"answer": "Wrap it as `python3 -m bfk.cli app start 2>/dev/null | logger` in deploy.sh.", "why": "near miss: changes the caller's stderr, the child's stdout still inherited"}
+  ]
+}

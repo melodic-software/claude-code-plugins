@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Deploy step: start the app server and send the command's output to the log collector.
+set -euo pipefail
+python3 -m bfk.cli app start | logger -t brackenfold
