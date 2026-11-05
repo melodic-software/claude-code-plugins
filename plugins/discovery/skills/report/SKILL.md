@@ -61,9 +61,10 @@ else**. No preamble, no closing summary, no diffs, no file bodies, nothing resem
 - Never restate this schema in your report.
 - Every path is relative to the worktree root. Absolute paths cost more than they explain.
 - Five bullets is a ceiling, not a target.
-- The whole message stays under 4,096 bytes. Detail that does not fit goes in the artifact your
-  definition or brief names, and the block points at it. With no artifact, cut each `what:` and
-  `evidence:` to one line and drop bullets before you drop a `problems:` entry or a verdict.
+- Aim for 3,400 bytes; the whole message must stay under 4,096. Detail that does not fit goes
+  in the artifact your definition or brief names, and the block points at it. With no artifact,
+  cut each `what:` and `evidence:` to one line and drop bullets before you drop a `problems:`
+  entry or a verdict.
 - In text a person reads, pair every code (an issue or PR number, a decision id such as Q631, a
   check or rule id) with its plain name, or replace it with the name.
 
