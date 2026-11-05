@@ -28,6 +28,12 @@
         {
           "tool": "Grep",
           "input": {
+            "pattern": "\\|\\s*\\d+\\.\\s*review\\b"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
             "pattern": "skills/review/"
           }
         }
@@ -73,6 +79,34 @@
         }
       ],
       "why": "lists files and reads them, no Grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "/review"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        }
+      ],
+      "why": "single token-only grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "\\B/review([^\\w-]|$)|\\{[^}]*\\breview\\b[^}]*\\}|skills/review/"
+          }
+        }
+      ],
+      "why": "one combined Grep that leaves out the table-row form"
     }
   ]
 }
