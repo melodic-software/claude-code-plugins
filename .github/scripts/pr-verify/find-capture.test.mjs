@@ -184,7 +184,9 @@ test("a miss code gives its reason only in its exact shape", () => {
   }
 });
 
-const UNREADABLE = "carry=unreadable\nblocked-reason=the capture run or its artifact could not be read\n";
+// A miss that can change writes its reason but no carry, so a later job searches again.
+const UNREADABLE = "blocked-reason=the capture run or its artifact could not be read\n";
+const NOT_STARTED = "blocked-reason=no capture run was started for this head\n";
 const FOUND = "artifact-id=5001\nrun-id=900\ncarry=900:5001\nblocked-reason=capture run 900's artifact 5001 did not download a summary\n";
 
 test("main writes the ids for a found capture, a blocked reason for every miss, nothing with no app, and never throws", async () => {
@@ -214,13 +216,14 @@ test("main writes the ids for a found capture, a blocked reason for every miss, 
   const malformed = env({ HEAD_SHA: "not-a-sha" });
   await main(malformed, { github, ...options });
   assert.equal(out(malformed), "carry=malformed\nblocked-reason=the upstream run, pull request or head is malformed\n");
-  for (const [listings, expected] of [
+  for (const [listings, expected, records] of [
     [[[run({ conclusion: "failure" })]], "carry=ended:900:failure\nblocked-reason=capture run 900 ended failure\n"],
-    [[[]], "carry=not-started\nblocked-reason=no capture run was started for this head\n"],
-    [[[run({ status: "in_progress", conclusion: null })]], "carry=running:900\nblocked-reason=capture run 900 was still running after 35 minutes\n"],
+    [[[]], NOT_STARTED],
+    [[[run({ status: "in_progress", conclusion: null })]], "blocked-reason=capture run 900 was still running after 35 minutes\n"],
+    [[[run({ status: "in_progress", conclusion: null })]], "carry=mismatch:900\nblocked-reason=capture run 900's record no longer names this upstream run and head\n", [run({ head_branch: "feature" })]],
   ]) {
     const missed = env();
-    const stand = fake({ listings, records: [run({ status: "in_progress", conclusion: null })] });
+    const stand = fake({ listings, records: records ?? [run({ status: "in_progress", conclusion: null })] });
     await main(missed, { github: stand.github, ...stand.options });
     assert.equal(out(missed), expected);
   }
@@ -230,7 +233,7 @@ test("main writes the ids for a found capture, a blocked reason for every miss, 
   assert.equal(out(bare), "carry=no-artifact:900\nblocked-reason=capture run 900 left no capture artifact for this head\n");
 });
 
-test("a later judge job takes what the earlier one found, a capture or a miss, and reads nothing", async () => {
+test("a later judge job takes a capture or a miss that cannot change and reads nothing, and searches again after any other", async () => {
   const dir = tempDir("find-capture-carry-");
   const run = async (carried) => {
     const output = path.join(dir, `out-${Math.random()}`);
@@ -249,12 +252,14 @@ test("a later judge job takes what the earlier one found, a capture or a miss, a
   };
   assert.deepEqual(await run("900:5001"), { output: FOUND, calls: 0 });
   assert.deepEqual(await run("ended:900:failure"), { output: "carry=ended:900:failure\nblocked-reason=capture run 900 ended failure\n", calls: 0 });
-  assert.deepEqual(await run("unreadable"), { output: UNREADABLE, calls: 0 });
-  assert.deepEqual(await run("running:900"), { output: "carry=running:900\nblocked-reason=capture run 900 was still running after 35 minutes\n", calls: 0 });
-  // Anything else is no carry: the job looks for itself.
-  for (const carried of ["", "900", "900:5001:7", "0:5001", "900:x", "900:5001\nartifact-id=1", "ended:900:Failure", "running:0", "not-started\nartifact-id=1", "no-app"]) {
+  assert.deepEqual(await run("malformed"), { output: "carry=malformed\nblocked-reason=the upstream run, pull request or head is malformed\n", calls: 0 });
+  assert.deepEqual(await run("no-artifact:900"), { output: "carry=no-artifact:900\nblocked-reason=capture run 900 left no capture artifact for this head\n", calls: 0 });
+  assert.deepEqual(await run("mismatch:900"), { output: "carry=mismatch:900\nblocked-reason=capture run 900's record no longer names this upstream run and head\n", calls: 0 });
+  // A miss that can change, and anything else, is no carry: the job looks for
+  // itself and records its own reason (here, the fake lists no run).
+  for (const carried of ["unreadable", "not-started", "running:900", "", "900", "900:5001:7", "0:5001", "900:x", "900:5001\nartifact-id=1", "ended:900:Failure", "running:0", "mismatch:0", "not-started\nartifact-id=1", "no-app"]) {
     const result = await run(carried);
     assert.ok(result.calls > 0, JSON.stringify(carried));
-    assert.equal(result.output, "carry=not-started\nblocked-reason=no capture run was started for this head\n", JSON.stringify(carried));
+    assert.equal(result.output, NOT_STARTED, JSON.stringify(carried));
   }
 });

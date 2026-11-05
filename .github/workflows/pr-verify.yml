@@ -424,7 +424,8 @@ jobs:
       # most 35 minutes; the later jobs find it done. With
       # merge.verify-capture.app unset it reads nothing and waits for
       # nothing. Any miss leaves no artifact id but a blocked reason the
-      # verdict records, carried to the later jobs, and the judgment goes on.
+      # verdict records, and the judgment goes on; only a miss that cannot
+      # change is carried to the later jobs, which otherwise search again.
       # The job's timeout holds this step's and the download's on top of the
       # judge steps' (workflow.test.mjs).
       - name: Find the capture
@@ -2376,7 +2377,8 @@ jobs:
       # most 35 minutes; the later jobs find it done. With
       # merge.verify-capture.app unset it reads nothing and waits for
       # nothing. Any miss leaves no artifact id but a blocked reason the
-      # verdict records, carried to the later jobs, and the judgment goes on.
+      # verdict records, and the judgment goes on; only a miss that cannot
+      # change is carried to the later jobs, which otherwise search again.
       # The job's timeout holds this step's and the download's on top of the
       # judge steps' (workflow.test.mjs).
       - name: Find the capture
@@ -4258,7 +4260,8 @@ jobs:
       # most 35 minutes; the later jobs find it done. With
       # merge.verify-capture.app unset it reads nothing and waits for
       # nothing. Any miss leaves no artifact id but a blocked reason the
-      # verdict records, carried to the later jobs, and the judgment goes on.
+      # verdict records, and the judgment goes on; only a miss that cannot
+      # change is carried to the later jobs, which otherwise search again.
       # The job's timeout holds this step's and the download's on top of the
       # judge steps' (workflow.test.mjs).
       - name: Find the capture

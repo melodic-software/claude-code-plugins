@@ -2533,7 +2533,8 @@ in the trusted pull request body, which the author reports and the writer reads 
 with no such line or a withheld body). With the app unset the writer records `no-app` ("no app
 check ran"). With it set and no capture summary (no capture run, one that ended other than success,
 one still running at the bound, no artifact, a failed read or download), it records `blocked` with
-the reason `find-capture.mjs` wrote, which the later judge jobs carry rather than search again; a
+the reason `find-capture.mjs` wrote. The later judge jobs carry a miss that cannot change (a
+malformed input, or a completed run's outcome) and search again after one that can; a
 summary it cannot read, that fails its schema, or whose text matches a shared
 credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
 no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-*` row in

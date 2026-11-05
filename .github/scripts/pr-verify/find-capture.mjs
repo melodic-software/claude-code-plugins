@@ -5,8 +5,8 @@
 // check-intent first asks. The runs are listed only until the capture run
 // shows up; after that only its own record is read. A later judge job takes
 // what the job before it found (FOUND_CAPTURE, a job output written only
-// here: `<run id>:<artifact id>`, or a miss code) and reads nothing; it looks
-// for itself only when that job wrote neither. The listing starts at the
+// here: `<run id>:<artifact id>`, or a miss code that cannot change) and
+// reads nothing; it looks for itself when that job wrote neither. The listing starts at the
 // upstream run's creation, before which no capture run of it exists, and is
 // read page by page. Every miss with the app set (no run, a run that ended
 // other than success, a run still going at the bound, no artifact, an API
@@ -33,6 +33,14 @@ const CARRIED = /^([1-9][0-9]{0,19}):([1-9][0-9]{0,19})$/;
 // A miss: a code alone, a code and the run id, or `ended`, the run id and its
 // conclusion (GitHub's lowercase enum: failure, cancelled, timed_out, ...).
 const MISS = /^(?:(not-started|malformed|unreadable)|(running|no-artifact|mismatch):([1-9][0-9]{0,19})|(ended):([1-9][0-9]{0,19}):([a-z_]{1,32}))$/;
+// The misses that cannot change, which alone are carried to the later jobs:
+// a malformed input, and a completed run's outcome. A run not yet started,
+// still running, or an API read that failed can change by the time a later
+// job asks (at least one 22-minute judge step later), so that job searches
+// again under the same bound. That costs it little: the capture job's own
+// 30-minute timeout has mostly run out by then, so its wait is short, and a
+// run that never started is given up on in two minutes.
+const PERMANENT = /^(?:malformed|(?:no-artifact|mismatch):[1-9][0-9]{0,19}|ended:[1-9][0-9]{0,19}:[a-z_]{1,32})$/;
 const CONCLUSION = /^[a-z_]{1,32}$/;
 const MINUTE = 60_000;
 // The capture job's timeout (pr-verify-capture.yml) and five minutes for its
@@ -151,7 +159,7 @@ export async function main(env = process.env, { github, fetchImpl, sleep = (ms) 
   if (carried) {
     found = { runId: carried[1], artifactId: carried[2] };
     console.log("find-capture: the capture the earlier judge job found");
-  } else if (missReason(env.FOUND_CAPTURE)) {
+  } else if (PERMANENT.test(env.FOUND_CAPTURE ?? "")) {
     found = miss(env.FOUND_CAPTURE);
     console.log("find-capture: the miss the earlier judge job found");
   } else {
@@ -179,7 +187,7 @@ export async function main(env = process.env, { github, fetchImpl, sleep = (ms) 
     write(`blocked-reason=capture run ${found.runId}'s artifact ${found.artifactId} did not download a summary`);
     console.log(`find-capture: capture run ${found.runId}, artifact ${found.artifactId}`);
   } else {
-    write(`carry=${found.miss}`);
+    if (PERMANENT.test(found.miss)) write(`carry=${found.miss}`);
     write(`blocked-reason=${found.reason}`);
     console.log(`::notice::no capture for this head (${found.reason}); the verdict records it blocked and the judgment goes on`);
   }
