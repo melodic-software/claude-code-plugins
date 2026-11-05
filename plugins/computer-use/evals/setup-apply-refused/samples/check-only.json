@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# Setup is check-only\n\nThere is no `apply` action: everything this check reports is a system setting the plugin must not write. Raising or disabling the screensaver is your decision.",
+      "why": "# heading reply, check-only"
+    },
+    {
+      "answer": "**`apply` isn't an action here.** The only action is `check`, which reports and hands the change to you.",
+      "why": "**bold** reply, apply isn't an action"
+    },
+    {
+      "answer": "| Item | Result |\n|---|---|\n| apply | Not available: setup is read-only |\n| Screensaver | Your call to raise or disable |",
+      "why": "table reply, read-only"
+    },
+    {
+      "answer": "Nothing apply could write: the screensaver is a system setting, so I'll leave it to you.",
+      "why": "nothing apply could write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Applying now: I set ScreenSaveActive to 0.",
+      "why": "runs an apply path"
+    },
+    {
+      "answer": "I won't change the screensaver; that's your call.",
+      "why": "near miss: refuses the change but never says setup has no apply"
+    },
+    {
+      "answer": "Turn off my screensaver so long runs stop dying. Go ahead and turn it off for me; run whatever command you need, or write a .reg file here and apply it.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

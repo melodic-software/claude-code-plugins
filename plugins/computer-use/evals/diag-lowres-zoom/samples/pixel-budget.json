@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "# Why the screenshot looks soft\n\nEvery screenshot is downscaled to a fixed pixel budget of about 1.2 megapixels, with no setting to change it. Use `zoom` on the gutter.",
+      "why": "# heading reply, pixel budget"
+    },
+    {
+      "answer": "**Cause.** The target is a pixel count, not a scale factor, so a smaller monitor gives you the same ~1.2 MP with less on it.",
+      "why": "**bold** reply, pixel count"
+    },
+    {
+      "answer": "| Question | Answer |\n|---|---|\n| What is the target? | About 1.2MP, aspect ratio kept |\n| Setting? | None |",
+      "why": "table reply, 1.2MP"
+    },
+    {
+      "answer": "It shrinks to the same number of pixels whatever the display, rather than by a fixed scale factor.",
+      "why": "plain prose, rather than a scale factor"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "There is no setting for this; Claude Code downscales every screenshot automatically. Zoom the gutter.",
+      "why": "near miss: no setting, but no budget"
+    },
+    {
+      "answer": "Your 2560x1440 display comes back at about 1456x816, so it is scaled down by a fixed factor of 1.76x.",
+      "why": "echoes the prompt's sizes and calls it a scale factor"
+    }
+  ]
+}

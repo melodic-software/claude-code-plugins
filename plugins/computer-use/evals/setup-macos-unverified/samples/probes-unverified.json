@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Computer use preflight\n\n| Check | Result |\n|---|---|\n| Session timeouts | INFO-unverified: no verified macOS probe set ships |\n\nVerdict: **blocked**.",
+      "why": "# heading and table reply, INFO-unverified"
+    },
+    {
+      "answer": "**Timeouts (macOS):** I can't give you verified probe commands for macOS; read these in System Settings yourself.",
+      "why": "**bold** reply, can't give verified commands"
+    },
+    {
+      "answer": "No macOS probe commands ship with this plugin.",
+      "why": "reference wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Timeouts: screensaver 20 minutes, display sleep 10 minutes. FAIL for a 40-minute run.",
+      "why": "reports invented measured values as checked"
+    },
+    {
+      "answer": "I'm on macOS 15, using computer use in the Claude Code CLI. Is computer use ready for a 40-minute unattended run?",
+      "why": "echoes the prompt"
+    }
+  ]
+}

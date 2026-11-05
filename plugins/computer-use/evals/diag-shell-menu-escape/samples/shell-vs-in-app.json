@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "# Shell menus are different\n\nFile Explorer's context menu is shell-owned, and shell-owned menus ignore a synthesized Escape. In-app menus are unaffected: Notepad's File menu closes on the first escape.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Not 'Escape is broken'.** It is specific to shell surfaces; an application's own menus still close on Escape.",
+      "why": "**bold** reply, application's own menus"
+    },
+    {
+      "answer": "| Menu | Escape |\n|---|---|\n| Shell context menu (Explorer) | Ignored |\n| Menus inside an app | Closes |",
+      "why": "table reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Synthesized Escape is unreliable on Windows; prefer clicks for every menu.",
+      "why": "generalizes to Escape is unreliable"
+    },
+    {
+      "answer": "Shell context menus ignore a synthesized Escape, so left-click empty space.",
+      "why": "near miss: names the shell side, never contrasts in-app menus"
+    },
+    {
+      "answer": "It sent escape to close it and the menu stayed up; it sent escape again and nothing changed.",
+      "why": "echoes the prompt"
+    }
+  ]
+}
