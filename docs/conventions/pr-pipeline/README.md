@@ -904,7 +904,7 @@ each row to these keys:
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `markdown` (a path ending in `.md`, in that case), `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
+| `allow` | What every other changed path must also meet: `any`, `markdown` (a path ending in `.md`, in that case), `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, a file the pull request already changes or a shared copy of a canonical it changes that the patch does not add, its `pr_paths` and `copy_paths`, read from that job's thread file, or any non-instruction file under a plugin's or skill's `evals/` or in a plugin a kept thread or `pr_paths` file sits in), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
@@ -1218,7 +1218,10 @@ the rules that only tighten in
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
-  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
+  token holds `issues: write` alone; that job re-reads the revert records and files nothing when
+  one already lists every revert commit. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
   or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
   `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
@@ -2602,12 +2605,15 @@ makes the gate refuse that pass `verify:spec-changed`. The resolver then judges 
 when every counted pass at the head started before the spec's last change, it proceeds with the
 reason `spec-changed` instead of skipping. Nothing re-runs pr-verify on an issue event, so the
 lost-run reconciler does it: for an open pull request whose head's `pr-require-checks` run passed
-at attempt 1 and holds such a pass, it re-runs that run with a record, and pr-verify judges the
-head against the spec as it is now. The gate and the resolver both weigh the passes of the
-pr-verify run that started last, so the new verdict replaces the old one. Each passed checks run
-is re-run this way once (attempt 2 is never re-run; a later edit or label starts a new attempt-1
-run), and a changed closing set or a removed spec comment leaves no time to
-compare, so those heads still wait for a person.
+and holds such a pass, it re-runs that run with a record naming the attempt the re-run starts, and
+pr-verify judges the head against the spec as it is now. The gate and the resolver both weigh the
+passes of the pr-verify run that started last, so the new verdict replaces the old one. The spec can
+change again after that re-run's pass, so the reconciler re-runs a passed checks run at attempt 1
+or 2 and records attempts 2 and 3; pr-verify's trigger check accepts a reconciler-recorded attempt
+up to 3 (`RECONCILER_ATTEMPT_CAP` in `check-trusted-trigger.mjs`, owner decision Q-RERUN3,
+2026-11-05). A run at attempt 3 is named in the reconciler's summary for a person, and a later edit
+or label starts a new attempt-1 run. A changed closing set or a removed spec comment leaves no time
+to compare, so those heads still wait for a person.
 
 Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
 its own reads every run it would not judge: a head already judged or moved past, a draft or a run

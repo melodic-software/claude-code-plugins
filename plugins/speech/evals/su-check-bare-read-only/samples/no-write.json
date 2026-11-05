@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/run-1/work/docs/script.txt"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/run-1/work/notes.md",
+            "content": "x",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "near miss: a Write call"
+    }
+  ]
+}

@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.0] - 2026-11-05
+
+### Added
+
+- draft-goal-condition checks readiness before an unattended run
+
+  When the run will be left alone, the skill checks four conditions from
+  evidence itself (done or watched once, the user's tools and signals,
+  a check per stage that can stop the run, repeated failures already
+  caught) and asks only about a condition that fails. Under --unattended
+  it records the failures and recommends a watched run. It then emits a
+  run contract beside the condition: goal, predicate, isolation,
+  permissions granted before launch, and the dead-end write-up.
+
+- plan-panel: configurable rubric, judge split and left-behind ideas
+
+  The workflow takes a rubric argument, set from the new
+  plan_panel_rubric key, and keeps today's four criteria as the default.
+  It returns judge_winners and judges_split, so a split panel is not
+  hidden by the mean, and left_behind, the runner-up ideas the
+  synthesizer considered and did not graft, each with why. The plan
+  skill now scores the drafts itself before reading the judges' scores.
+
 ## [2.10.1] - 2026-11-05
 
 ### Fixed

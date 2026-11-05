@@ -1480,9 +1480,11 @@ const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(C
 
 // `updated` is the issue's updatedAt: the edit time by default, else a time
 // before the pass. PR `number` is the head under check.
-function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1, extra = 0 } = {}) {
+// `started` is the checks run's latest attempt's start: before the pass at
+// 19:30 by default, so that pass judged it.
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, started = "2026-10-19T19:10:00Z", pass = true, digest = false, number = 1, extra = 0 } = {}) {
   const head = sha(number);
-  const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
+  const checks = { ...run(601, head, { conclusion: "success", attempt }), run_started_at: started, repository: { full_name: REPO } };
   const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
   const name = `pr-verify-${number}-${head}-pass${digest ? `-${FIX_1_DIGEST}` : ""}`;
   const issue = {
@@ -1550,7 +1552,58 @@ test("a pass the spec changed under re-runs the head's passed checks once, with 
   });
 });
 
-test("a pass judged after the spec's last change, a second attempt, or no pass re-runs nothing", async () => {
+// A spec that changed again after the recorded re-run's pass: the checks run
+// at attempt 2 is re-run once more, recorded at attempt 3, and one at attempt
+// 3, the cap, is named for a person instead.
+test("a pass the spec changed under at attempt 2 re-runs the checks again, recorded at attempt 3", async () => {
+  await withTrustedList(async (env) => {
+    const { code, outputs, reruns } = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z", attempt: 2 }).setup, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+    assert.equal(outputs["record-1"], `reconcile-rerun-601-3-${sha(1)}`);
+  });
+});
+
+// The reconciler's attempt-2 re-run completed and its pr-verify run is still
+// queued or judging: the only pass is the one from before that attempt, so
+// the spec still reads changed. Nothing is re-run until that verdict lands.
+test("a pass from before the checks run's attempt 2 started re-runs nothing while pr-verify judges it", async () => {
+  await withTrustedList(async (env) => {
+    const dir = tempDir("reconcile-summary-");
+    try {
+      const summary = path.join(dir, "summary.md");
+      writeFileSync(summary, "");
+      const { setup, specReads } = specChanged({ edited: "2026-10-19T19:45:00Z", attempt: 2, started: "2026-10-19T19:40:00Z" });
+      const { code, outputs, reruns } = await reconcile({ ...setup, env: { ...env, GITHUB_STEP_SUMMARY: summary } });
+      assert.equal(code, 0);
+      assert.deepEqual(reruns, []);
+      assert.equal(outputs["record-1"] ?? "", "");
+      assert.deepEqual(specReads, [], "no full spec read for a head still being judged");
+      assert.match(readFileSync(summary, "utf8"), /#1: run 601 \(\.github\/workflows\/pr-require-checks\.yml\) attempt 2 has no pass since it started; waiting for pr-verify's verdict on it/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test("a pass the spec changed under at attempt 3, the cap, re-runs nothing and is named for a person", async () => {
+  await withTrustedList(async (env) => {
+    const dir = tempDir("reconcile-summary-");
+    try {
+      const summary = path.join(dir, "summary.md");
+      writeFileSync(summary, "");
+      const { code, outputs, reruns } = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z", attempt: 3 }).setup, env: { ...env, GITHUB_STEP_SUMMARY: summary } });
+      assert.equal(code, 0);
+      assert.deepEqual(reruns, []);
+      assert.equal(outputs["record-1"] ?? "", "");
+      assert.match(readFileSync(summary, "utf8"), /#1: run 601 \(\.github\/workflows\/pr-require-checks\.yml\) is at attempt 3, the most this workflow records, and its spec changed after the pass; a person re-runs it/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test("a pass judged after the spec's last change, or no pass, re-runs nothing", async () => {
   await withTrustedList(async (env) => {
     // The checks run was created at 18:59:43 and the pass started at 19:30.
     // [options, full reads, pre-filter reads, pass artifact reads: pass and
@@ -1565,7 +1618,7 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
       // label change might leave it): the full read runs, and specChanged
       // still says no.
       "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 2, 2],
-      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0, 0],
+      "past the cap at attempt 4": [{ edited: "2026-10-19T19:45:00Z", attempt: 4 }, [], 0, 0],
       "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 1, 2],
     };
     for (const [label, [options, read, prefiltered, artifacts]] of Object.entries(cases)) {
@@ -1665,6 +1718,19 @@ test("a pull request past TOO_OLD_DAYS whose head has no verdict re-runs its pas
     assert.equal(outputs["record-1"], `reconcile-rerun-601-2-${sha(1)}`);
     assert.deepEqual((await reconcile({ ...old("2026-08-01T00:00:00Z"), env })).reruns, [], "79 days old");
     assert.deepEqual((await reconcile({ ...old("2026-07-27T23:00:00Z", true), env })).reruns, [], "a pass at the head");
+  });
+});
+
+// After the too-old re-run makes attempt 2, the head has no counted verdict
+// until pr-verify judges that attempt, so too-old never takes a re-run attempt:
+// a second re-run in that window would spend the reconciler's cap.
+test("a pull request past TOO_OLD_DAYS whose checks run is at attempt 2 re-runs nothing", async () => {
+  await withTrustedList(async (env) => {
+    const { setup } = specChanged({ edited: null, pass: false, attempt: 2, started: "2026-10-19T19:40:00Z" });
+    const { code, outputs, reruns } = await reconcile({ ...setup, pulls: [{ ...pr(1), created_at: "2026-07-27T23:00:00Z" }], env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.equal(outputs["record-1"] ?? "", "");
   });
 });
 

@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { ciSnapshot, claimsSecurity, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -102,6 +102,7 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
     pr: 42,
     head_sha: HEAD,
     pr_paths: ["src/a.js"],
+    copy_paths: [],
     threads: [
       {
         id: "PRRT_1",
@@ -1174,7 +1175,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   // with the head's CI snapshot (this fake lists no check runs).
   assert.equal(
     readFileSync(join(dir, "ok.run.json"), "utf8"),
-    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}],"reviewed_heads":["${HEAD}"],"ci":{"state":"unsettled","runs":[]}}\n`,
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"copy_paths":[],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}],"reviewed_heads":["${HEAD}"],"ci":{"state":"unsettled","runs":[]}}\n`,
   );
 
   // The people on the list come from TRUSTED_ACTORS.
@@ -2139,13 +2140,13 @@ test("an earlier-fail round with every fail-note thread resolved hands the FAIL'
   const result = await runEarlier(fakeApi({ threads: [resolvedNote], files: [{ filename: "src/a.js" }, { filename: "src/b.js" }] }), { readFailNotes });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(asked, [{ heads: [OLD_HEAD], files: ["src/a.js", "src/b.js"] }]);
-  assert.deepEqual(result.file, { version: 1, repository: "o/r", pr: 42, head_sha: HEAD, pr_paths: ["src/a.js", "src/b.js"], threads: [], verify_notes: NOTES });
+  assert.deepEqual(result.file, { version: 1, repository: "o/r", pr: 42, head_sha: HEAD, pr_paths: ["src/a.js", "src/b.js"], copy_paths: [], threads: [], verify_notes: NOTES });
   assert.deepEqual(result.threads, []);
   assert.equal(result.resolved, undefined);
   // run.json carries each note's id, head and path for the reply job, never its text.
   assert.equal(
     runRecord(result.file, result.reviewedHeads),
-    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js","src/b.js"],"threads":[],"verify_notes":[{"id":"VNOTE_1","head":"${OLD_HEAD}","path":"src/a.js"},{"id":"VNOTE_2","head":"${OLD_HEAD}","path":"src/b.js"}],"reviewed_heads":["${HEAD}"]}\n`,
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js","src/b.js"],"copy_paths":[],"threads":[],"verify_notes":[{"id":"VNOTE_1","head":"${OLD_HEAD}","path":"src/a.js"},{"id":"VNOTE_2","head":"${OLD_HEAD}","path":"src/b.js"}],"reviewed_heads":["${HEAD}"]}\n`,
   );
   // Without the dispatcher's FAILed heads the same PR still ends stop-resolved.
   const plain = await run(fakeApi({ threads: [resolvedNote] }));
@@ -2530,4 +2531,13 @@ test("select records the ci snapshot for run.json; with no snapshot function it 
   assert.equal(Object.hasOwn(result.file, "ci"), false, "the model's thread file does not carry it");
   const plain = await run(fakeApi());
   assert.equal(Object.hasOwn(JSON.parse(runRecord(plain.file, plain.reviewedHeads, plain.ci)), "ci"), false);
+});
+
+// #12346: the fix to lib/hook-utils.sh had to regenerate its copies; the
+// select job reads them from the base copy's scripts/shared-copies.txt.
+test("copyPathsFor lists the registered copies of the canonicals a PR changes", () => {
+  const copies = copyPathsFor([{ filename: "lib/hook-utils.sh" }, { filename: "README.md" }]);
+  assert.ok(copies.includes("plugins/source-control/hooks/hook-utils.sh"), copies.join(" "));
+  assert.ok(copies.length >= 20 && copies.every((path) => /^plugins\/[^/]+\/.+\/hook-utils\.sh$/.test(path)), copies.join(" "));
+  assert.deepEqual(copyPathsFor([{ filename: "README.md" }]), []);
 });

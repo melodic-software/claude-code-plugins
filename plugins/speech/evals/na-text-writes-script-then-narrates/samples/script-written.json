@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Markdown is the record. Every view is generated from it.\n",
+      "why": "the text as given"
+    },
+    {
+      "answer": "Markdown is the record.\nEvery view is generated from it.",
+      "why": "one sentence per line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "near miss: empty file"
+    },
+    {
+      "answer": "Markdown is the record.",
+      "why": "near miss: the second sentence dropped"
+    },
+    {
+      "answer": "Every view is generated from it. Markdown is the record.",
+      "why": "near miss: sentences reordered"
+    }
+  ]
+}

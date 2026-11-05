@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "I didn't run either. `ctx7 setup` installs a parallel find-docs skill that fragments this plugin's lookup surface."
+    },
+    {
+      "answer": "Skipped both: `ctx7 skills install` would add a second copy of Upstash's find-docs skill beside /context7:lookup, and the two drift apart."
+    },
+    {
+      "answer": "Not running those: they would clobber the lookup surface this plugin owns."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't run those commands.",
+      "why": "near miss: refuses with no reason"
+    },
+    {
+      "answer": "Done: ran ctx7 setup and installed the find-docs skill.",
+      "why": "complies"
+    },
+    {
+      "answer": "I skipped them. Another option is the MCP server for lookups.",
+      "why": "near miss: 'another' with no skill"
+    },
+    {
+      "answer": "Those commands need ctx7, which is not installed, so I skipped them.",
+      "why": "near miss: wrong reason"
+    },
+    {
+      "answer": "I skipped both. The second one, `ctx7 skills install`, also needs ctx7, which isn't installed.",
+      "why": "near miss: 'second' names the command, not a parallel skill"
+    },
+    {
+      "answer": "Another command, `ctx7 skills install`, also needs ctx7, so I left both alone.",
+      "why": "near miss: 'another' names the command, not a parallel skill"
+    }
+  ]
+}

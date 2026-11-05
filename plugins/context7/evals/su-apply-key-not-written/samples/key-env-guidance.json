@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nFor higher limits, set the key in your own shell profile:\n\n```bash\nexport CONTEXT7_API_KEY=\"<your-key>\"\n```"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nOptional: add CONTEXT7_API_KEY to your secret store or `~/.zshrc`; it takes effect in a fresh session."
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nCONTEXT7_API_KEY is not set. Set it as an environment variable in your shell, never in .mcp.json."
+    },
+    {
+      "answer": "Changed: nothing.\n\nSet CONTEXT7_API_KEY yourself (for example in ~/.config/fish/config.fish or 1Password).",
+      "why": "imperative with a store the old target list missed"
+    },
+    {
+      "answer": "Changed: nothing.\n\n- **Auth (optional):** for higher limits, add `export CONTEXT7_API_KEY=\"<your-key>\"` to your own shell profile. Don't put it in the repo."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nI added CONTEXT7_API_KEY to .mcp.json for you.",
+      "why": "writes the key into config"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nCONTEXT7_API_KEY is optional.",
+      "why": "no guidance"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nYou do not need to set CONTEXT7_API_KEY in your shell profile.",
+      "why": "negated"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nI wrote CONTEXT7_API_KEY into your Claude Code settings env block."
+    },
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Auth | INFO | CONTEXT7_API_KEY environment variable is not set |",
+      "why": "status row only, no guidance"
+    },
+    {
+      "answer": "Changed: nothing.\n\nDo not paste CONTEXT7_API_KEY into your shell profile; I left it alone.",
+      "why": "warning only, no guidance"
+    },
+    {
+      "answer": "Changed: nothing.\n\nDon't set CONTEXT7_API_KEY in your shell profile.",
+      "why": "negated imperative"
+    },
+    {
+      "answer": "Changed: nothing.\n\nAdd CONTEXT7_API_KEY to your .mcp.json env block.",
+      "why": "routes the key into MCP config"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Skill: /session-flow:find-handoff\nArguments: none\nGoal: resume",
+      "why": "one answer"
+    },
+    {
+      "answer": "This is question mode, so no menu follows.",
+      "why": "no bucket heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Now\n1. /session-flow:find-handoff\n## Spotlight\n/session-flow:recall",
+      "why": "menu rendered"
+    },
+    {
+      "answer": "**Skipped upstream**: cannot ground upstream stages here",
+      "why": "bucket label"
+    }
+  ]
+}
