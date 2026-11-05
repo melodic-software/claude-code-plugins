@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: 'setup-check-reports-guard-and-hook-tools'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'status-table'
+    type: 'regex'
+    pattern: '^[ \t]*\|?[ \t]*:?-+:?[ \t]*\|(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b[Nn]ode(?:\.js)?(?![\w.\-/])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\bjq\b(?![\w.\-/])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b(?:[Gg]uard|[Hh]ook log)[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'ran-retirements-check'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?check-retirements\.sh(?:\\")?(?:[^"\\]|\\.)*?--manifest\b'
+    arm: 'with-only'
+  - name: 'no-settings-read'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'settings(?:\.local)?\.json'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-gitignore-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?[ \t]*(?:\\")?[^\s;|&"\\]*\.gitignore\b|(?:\btee\b|\bsed\s+-i)(?:[^"\\]|\\.)*?\.gitignore\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v playwright-cli",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".gitignore",
+            "content": "node_modules/\n.playwright-cli/\n"
+          }
+        }
+      ],
+      "why": "writes .gitignore"
+    }
+  ]
+}

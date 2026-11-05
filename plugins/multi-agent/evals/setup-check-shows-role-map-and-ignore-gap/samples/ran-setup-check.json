@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/tmp/plugin/skills/setup/scripts/setup.sh check session=opus"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/tmp/plugin/skills/setup/scripts; bash \"$S/setup.sh\" check"
+          }
+        }
+      ],
+      "why": "directory in a variable, no session"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n check /tmp/plugin/skills/setup/scripts/setup.sh"
+          }
+        }
+      ],
+      "why": "read the script, did not run it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/tmp/plugin/skills/setup/scripts/setup.sh apply --layer local roles.worker.effort=high"
+          }
+        }
+      ],
+      "why": "apply, not check"
+    }
+  ]
+}

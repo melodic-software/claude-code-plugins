@@ -116,10 +116,13 @@ layers, first hit wins:
    `--unattended`, anywhere in the arguments, is neither a medium nor part of the target: it is the
    caller declaring that nobody is present. Take it out first, then read the rest.
 2. **Resolved preference**. Run the shared medium resolver, adding `--argument <medium>`,
-   `<medium>` being the argument's word, when there is one:
+   `<medium>` being the argument's word, when there is one. `<option>` is this plugin's `medium`
+   option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted
+   placeholder. Read each option value from this text; never put a `${user_config.*}` string in a
+   shell command.
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane visualization:visualize --option "${user_config.medium}" [--argument <medium>]
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane visualization:visualize --option "<option>" [--argument <medium>]
    ```
 
    It prints one JSON line, then the report line naming the medium and what decided it, then any

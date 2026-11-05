@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.6] - 2026-11-05
+
+### Added
+
+- Eval case `setup-check-reads-shipped-docs-modifies-nothing` for `/playwright:setup check` ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)): grades the read of the shipped browser reference, the status table, the .playwright-cli/ gitignore note, and no install or write.
+
 ## [1.0.5] - 2026-11-04
 
 ### Changed

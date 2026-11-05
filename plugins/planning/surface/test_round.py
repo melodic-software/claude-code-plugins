@@ -3710,7 +3710,7 @@ class TestMeta(DirCase):
 
 
 class TestEmojiMarkersValue(unittest.TestCase):
-    """`--emoji-markers` takes any value: true, 1, yes, on mean true; anything else means false."""
+    """`--emoji-markers` takes any value: false, 0, no, off mean false; anything else means true."""
 
     @classmethod
     def setUpClass(cls):
@@ -3738,17 +3738,28 @@ class TestEmojiMarkersValue(unittest.TestCase):
             ("TRUE", True),
             ("0", False),
             ("1", True),
-            ("", False),
+            ("", True),
             ("No", False),
             (" Yes ", True),
-            ("${user_config.use_emoji_question_markers}", False),
+            ("${user_config.use_emoji_question_markers}", True),
             ("OFF", False),
             ("on", True),
-            ("yes please", False),
+            (" no ", False),
+            ("yes please", True),
         ]
         for value, want in cases:
             with self.subTest(value=value):
                 self.assertIs(self.markers_after(value), want)
+
+    def test_a_new_file_records_the_flag_or_true_without_it(self):
+        for extra, want in (((), True), (("--emoji-markers", "off"), False)):
+            with self.subTest(extra=extra):
+                d = self.tmp / ("new-" + "-".join(extra or ("none",)))
+                self.addCleanup(run_round, d, "stop")
+                rc, out, err = run_round(d, "ensure-running", "--port", "0", *extra)
+                self.assertEqual(rc, 0, f"{extra!r}: {out}{err}")
+                doc = json.loads((d / "questions.json").read_text(encoding="utf-8"))
+                self.assertIs(doc["meta"]["emojiMarkers"], want)
 
 
 class TestQuestionPacingValue(unittest.TestCase):

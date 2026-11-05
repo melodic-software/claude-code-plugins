@@ -94,7 +94,7 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-# --- Config cascade (user-global -> team -> personal override; YAML, legacy JSON) -----------
+# --- Config cascade (user-global -> team -> personal override; JSON user-global, YAML team) -
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"

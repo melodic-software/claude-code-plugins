@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking, inline on src/nightly.js:4: src/cleanup.js:4 subtracts days * 86400 seconds from Date.now() milliseconds, so the purge deletes records minutes old.",
+      "why": "names the file that holds the pre-existing defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings. The nightly job calls the existing purge helper correctly.",
+      "why": "never reaches the called helper"
+    }
+  ]
+}

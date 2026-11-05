@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/plugin/lib/check-retirements.sh\" --manifest \"/tmp/plugin/retirements.yaml\""
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/tmp/plugin; bash $P/lib/check-retirements.sh --manifest $P/retirements.yaml; echo rc=$?"
+          }
+        }
+      ],
+      "why": "root in a variable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .claude/observability"
+          }
+        }
+      ],
+      "why": "looks for the old file by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/lib/check-retirements.sh"
+          }
+        }
+      ],
+      "why": "reads the script, does not run it"
+    }
+  ]
+}

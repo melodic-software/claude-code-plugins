@@ -778,7 +778,6 @@ tables above already declare policy-floor.
 | Plugin | Team-layer path | Format | Note |
 |---|---|---|---|
 | `ai-briefing` | `.claude/ai-briefing/` (`sources.md`, `audience.md`, `brand.json`, per-profile subfolders) | Markdown, JSON | team only |
-| `attribution` | `.claude/attribution.json` | JSON | |
 | `autonomy` | `.claude/autonomy/binding.json` | JSON | security axes never repo-local |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md`, `.claude/code-tidying/exclusion-overrides.md` | Markdown | team only |
 | `codebase-health` | `.claude/codebase-health.md` | Markdown | |

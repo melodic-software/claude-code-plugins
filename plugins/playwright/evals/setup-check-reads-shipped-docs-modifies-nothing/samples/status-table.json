@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| `playwright-cli` binary | PASS | /usr/local/bin/playwright-cli, 0.1.1 |\n| Browser availability | INFO | system Chrome resolves |\n| Artifact directory `.playwright-cli/` | INFO | not gitignored here |"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | playwright-cli | FAIL |\n| 2 | Browser | INFO |\n| 3 | .playwright-cli/ | INFO |\n\nRemediation: `/playwright:setup apply install-cli`.",
+      "why": "CLI absent, numbered rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "playwright-cli: PASS. Browser: INFO. .playwright-cli/: INFO.",
+      "why": "no table"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| playwright-cli | PASS |\n| Browser | INFO |",
+      "why": "no artifact-directory row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| .playwright-cli/ | INFO |\n| Browser | INFO |",
+      "why": "the artifact directory row is not the binary row"
+    },
+    {
+      "answer": "| Check | Detail |\n|---|---|\n| playwright-cli | present |\n| Browser | Chrome |\n| .playwright-cli/ | not ignored |",
+      "why": "no verdict"
+    }
+  ]
+}

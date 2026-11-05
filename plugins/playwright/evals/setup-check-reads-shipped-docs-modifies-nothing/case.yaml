@@ -1,0 +1,53 @@
+schema_version: "1.1"
+name: 'setup-check-reads-shipped-docs-modifies-nothing'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'status-table'
+    type: 'regex'
+    pattern: '^[ \t]*\|?[ \t]*:?-+:?[ \t]*\|(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?(?<![.\w/-])playwright-cli(?![\w.\-/])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b[Bb]rowser[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\.playwright-cli[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'artifact-dir-not-ignored'
+    type: 'regex'
+    pattern: '\.playwright-cli/?[^\n]*?(?:\b(?:not|isn''t|missing)\b[^\n]*?\b(?:git)?ignored?\b|\b(?:add|append)\b[^\n]*?\.gitignore)|\b(?:not|isn''t)\b[^\n]*?\b(?:git)?ignored\b[^\n]*?\.playwright-cli|\b(?:add|append)\b[^\n]*?\.playwright-cli/?[^\n]*?\.gitignore'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'read-windows-quirks'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'skills/playwright/reference/windows-quirks\.md'
+    arm: 'with-only'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?(?:\s|\\\\\\n)+)*(?:install|reinstall|add|upgrade|i)\b|pacman\s+-S|go(?:\s|\\\\\\n)+install\b|uv(?:\s|\\\\\\n)+(?:tool|pip)(?:\s|\\\\\\n)+install\b|(?:mise|asdf|rtx|aqua)(?:\s|\\\\\\n)+(?:install|use|upgrade|up|plugin\s+add)\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:curl|wget)\b(?:[^\"\\]|\\.)*?\|\s*(?:sudo(?:\s+-\S+)*\s+)?(?:bash|dash|zsh|sh)\b|(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\\"|'')?\$\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-browser-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&]|\\n))?\s*(?:(?:sudo|env|npx|bunx|pnpm\s+dlx|yarn\s+dlx)\s+)*(?:@playwright/cli|playwright-cli|playwright)(?:\.exe)?\s+install(?:-browser|-deps)?\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-gitignore-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?[ \t]*(?:\\")?[^\s;|&"\\]*\.gitignore\b|(?:\btee\b|\bsed\s+-i)(?:[^"\\]|\\.)*?\.gitignore\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

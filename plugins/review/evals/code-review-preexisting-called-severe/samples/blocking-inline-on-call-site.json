@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking, inline on src/nightly.js:4: purgeOlderThan(30) deletes far more than 30-day-old records. src/cleanup.js:4 subtracts days * 86400 seconds from Date.now() milliseconds, so the cutoff is about 43 minutes ago and every record older than that is deleted each night. The defect predates this PR (src/admin.js calls it on main), but the nightly job runs it unattended; fix with days * 86400 * 1000.\n\nSummary: one blocking data-loss finding on the new call site.",
+      "why": "blocking, inline on the changed call site, links the defect line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Advisory (summary): src/cleanup.js:4 mixes seconds and milliseconds. This predates the PR; the author can file a follow-up.",
+      "why": "a severe, fixable pre-existing defect reported only as advisory"
+    },
+    {
+      "answer": "No findings. The nightly job calls the existing purge helper correctly.",
+      "why": "the data-loss defect is not reported"
+    }
+  ]
+}

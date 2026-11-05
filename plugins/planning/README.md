@@ -128,11 +128,11 @@ a `**Planned breakage:**` line. A repository sets it for everyone with `scaffold
 `docs/conventions/planning.yaml`, which wins over this option.
 `/planning:setup apply scaffold_stubs=true` writes it.
 
-**`use_emoji_question_markers`.** On the page surface the anchors sit on the question title and
-the Recommendation heading; the terminal line they lead is `My recommendation:`. Q<N> numbering
-stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the
-emoji. A user instruction against emoji wins over this option, and the page is then started with
-`--emoji-markers false` so it matches the terminal.
+**`use_emoji_question_markers`.** The anchors are on by default. On the page surface they sit on
+the question title and the Recommendation heading; the terminal line they lead is
+`My recommendation:`. Q<N> numbering stays the functional handle, and persisted artifacts (ledger,
+register, Brief) never carry the emoji. A user instruction against emoji wins over this option, and
+the page is then started with `--emoji-markers false` so it matches the terminal.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -146,7 +146,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `surface` | string | `"terminal"` | Where /planning:interview asks its rounds: terminal (default, inline) or page (a local 127.0.0.1 page the session watches). Unset: terminal, and the interview names the other available surfaces in one line. |
 | `question_pacing` | string | `"round"` | How /planning:interview asks a frontier: round (default, every ready question in one message) or single (one per message, largest blast radius first). Asking for the other pacing in a session overrides it there; a repository's planning.yaml in its convention home overrides this value. |
 | `use_ask_user_question` | boolean | `false` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call instead of inline prose. Default: inline prose (dictation-friendly). |
-| `use_emoji_question_markers` | boolean | `false` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
+| `use_emoji_question_markers` | boolean | `true` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: on; turn off for plain text. |
 | `shared_session_open_browser` | boolean | `true` | When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on. |
 | `tunnel_hostname` | string | *(none)* | Hostname of a named Cloudflare tunnel for /planning:interview shared sessions (such as interview.example.com), so the guest link survives a restart. One session serves it at a time; others get a quick tunnel. Empty (default): a quick tunnel, whose link changes on restart. Setup: shared/README.md. |
 | `tunnel_token_file` | string | *(none)* | Absolute path, or one starting with ~/, of a file holding the named tunnel's token, readable only by you; cloudflared runs from it. Used only when tunnel_hostname is set. Default: empty. |

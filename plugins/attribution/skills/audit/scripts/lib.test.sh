@@ -2,9 +2,9 @@
 # Self-contained tests for lib.sh's config reader. Fixtures are built inline in a
 # tmpdir. Per the shell-test-helpers convention, assertion helpers are local.
 #
-# The load-bearing cases are the per-file fallback: the YAML layer replaces the
-# JSON one whole when both exist, the JSON is read when the YAML is absent, and
-# every value names the layer that supplied it.
+# The load-bearing cases are the layer list: the user-global JSON (read with jq),
+# then the YAML team layer and personal override, never the repository's old JSON
+# files under .claude/, with every value naming the layer that supplied it.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -14,7 +14,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "SKIP: jq not installed (the legacy layers are JSON)" >&2
+  echo "SKIP: jq not installed (the user-global layer is JSON)" >&2
   exit 0
 fi
 if ! command -v git >/dev/null 2>&1; then
@@ -49,73 +49,85 @@ assert_eq() {
 ROOT="$TEST_TMPDIR/repo"
 mkdir -p "$ROOT/.claude" "$ROOT/docs/conventions"
 git init -q "$ROOT"
-JSON_TEAM="$ROOT/.claude/attribution.json"
-JSON_LOCAL="$ROOT/.claude/attribution.local.json"
+OLD_TEAM="$ROOT/.claude/attribution.json"
+OLD_LOCAL="$ROOT/.claude/attribution.local.json"
 YAML_TEAM="$ROOT/docs/conventions/attribution.yaml"
 YAML_LOCAL="$ROOT/docs/conventions/attribution.local.yaml"
 USER_JSON="$HOME/.claude/attribution.json"
 
-reset() { rm -f "$JSON_TEAM" "$JSON_LOCAL" "$YAML_TEAM" "$YAML_LOCAL" "$USER_JSON"; }
+reset() { rm -f "$OLD_TEAM" "$OLD_LOCAL" "$YAML_TEAM" "$YAML_LOCAL" "$USER_JSON"; }
 
 layers() { printf '%s\n' ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; }
 
 v=""
 list=()
 
-# --- The old location, read when the YAML is absent -------------------------------
+# --- The user-global JSON layer, read with jq ----------------------------------------
 
 reset
-printf '%s\n' '{"stamp_expiry_days": 30, "gates": {"min_n_per_class": 4}, "excluded_paths": ["a/**", "b c/**"]}' >"$JSON_TEAM"
+printf '%s\n' '{"stamp_expiry_days": 30, "gates": {"min_n_per_class": 4}, "excluded_paths": ["a/**", "b c/**"]}' >"$USER_JSON"
 cfg_layers_init "$ROOT"
-assert_eq "with no YAML the JSON team file is the layer" "$(layers)" "$JSON_TEAM"
+assert_eq "the user-global JSON file is the only layer" "$(layers)" "$USER_JSON"
 cfg_scalar v stamp_expiry_days
 assert_eq "a JSON scalar is read" "$v" "30"
-assert_eq "a JSON scalar names its layer" "$CFG_SOURCE" "$JSON_TEAM"
+assert_eq "a JSON scalar names its layer" "$CFG_SOURCE" "$USER_JSON"
 cfg_scalar v gates.min_n_per_class
 assert_eq "a dotted key reads a nested JSON value" "$v" "4"
 list=()
 cfg_list list excluded_paths
 assert_eq "a JSON list is read, one element per entry" "$(printf '%s|' "${list[@]}")" "a/**|b c/**|"
-assert_eq "a JSON list names its layer" "$CFG_SOURCE" "$JSON_TEAM"
+assert_eq "a JSON list names its layer" "$CFG_SOURCE" "$USER_JSON"
 
-# --- The YAML wins when both exist -------------------------------------------------
+# A JSON list key holding a non-list clears the list.
+printf '%s\n' '{"excluded_paths": false}' >"$USER_JSON"
+cfg_layers_init "$ROOT"
+list=(stale)
+cfg_list list excluded_paths
+assert_eq "a JSON non-list value clears the list" "${#list[@]}|$CFG_SOURCE" "0|$USER_JSON"
 
+# --- The repository's old JSON files are not read; the YAML beside them is --------
+
+reset
+printf '%s\n' '{"stamp_expiry_days": 30}' >"$OLD_TEAM"
+printf '%s\n' '{"stamp_expiry_days": 75}' >"$OLD_LOCAL"
+cfg_layers_init "$ROOT"
+assert_eq "the old .claude JSON files are not layers" "$(layers)" ""
+cfg_scalar v stamp_expiry_days
+assert_eq "a value only the old JSON files set is not read" "$v|$CFG_SOURCE" "|"
+printf '%s\n' 'stamp_expiry_days: 60' >"$YAML_TEAM"
+printf '%s\n' 'stamp_expiry_days: 90' >"$YAML_LOCAL"
+cfg_layers_init "$ROOT"
+assert_eq "the YAML team layer and personal override are the layers" \
+  "$(layers)" "$YAML_TEAM"$'\n'"$YAML_LOCAL"
+cfg_scalar v stamp_expiry_days
+assert_eq "the YAML personal override supplies the value" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
+
+# --- Layer order: user-global, then team, then personal override -------------------
+
+reset
+printf '%s\n' '{"stamp_expiry_days": 30, "gates": {"min_n_per_class": 4}}' >"$USER_JSON"
 printf '%s\n' 'stamp_expiry_days: 60' 'excluded_paths:' '  - y/**' >"$YAML_TEAM"
 cfg_layers_init "$ROOT"
-assert_eq "with both present only the YAML team file is a layer" "$(layers)" "$YAML_TEAM"
+assert_eq "the user-global layer comes before the team layer" "$(layers)" "$USER_JSON"$'\n'"$YAML_TEAM"
 cfg_scalar v stamp_expiry_days
-assert_eq "the YAML value wins" "$v" "60"
-assert_eq "the YAML value names the YAML layer" "$CFG_SOURCE" "$YAML_TEAM"
+assert_eq "the team value refines the user-global one" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
 cfg_scalar v gates.min_n_per_class
-assert_eq "a key only the shadowed JSON sets is not read" "$v" ""
-assert_eq "an unsupplied value names no layer" "$CFG_SOURCE" ""
+assert_eq "a key only the user-global layer sets is read from it" "$v|$CFG_SOURCE" "4|$USER_JSON"
+cfg_scalar v budgets.corpus_fetch_ceiling
+assert_eq "an unsupplied value names no layer" "$v|$CFG_SOURCE" "|"
 list=()
 cfg_list list excluded_paths
 assert_eq "a YAML block list is read" "$(printf '%s|' "${list[@]}")" "y/**|"
 assert_eq "a YAML list names its layer" "$CFG_SOURCE" "$YAML_TEAM"
 
-# --- Personal overrides, the user-global layer, and per-file fallback per layer ------------
-
-printf '%s\n' '{"stamp_expiry_days": 75}' >"$JSON_LOCAL"
-cfg_layers_init "$ROOT"
-assert_eq "a YAML team layer sits beside a JSON personal override when the YAML personal override is absent" \
-  "$(layers)" "$YAML_TEAM"$'\n'"$JSON_LOCAL"
-cfg_scalar v stamp_expiry_days
-assert_eq "the JSON personal override refines the YAML team layer" "$v|$CFG_SOURCE" "75|$JSON_LOCAL"
-
 printf '%s\n' 'stamp_expiry_days: 90' 'excluded_paths: []' >"$YAML_LOCAL"
 cfg_layers_init "$ROOT"
-assert_eq "the YAML personal override replaces the JSON personal override" "$(layers)" "$YAML_TEAM"$'\n'"$YAML_LOCAL"
+assert_eq "the personal override comes last" "$(layers)" "$USER_JSON"$'\n'"$YAML_TEAM"$'\n'"$YAML_LOCAL"
 cfg_scalar v stamp_expiry_days
-assert_eq "the YAML personal override supplies the value" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
+assert_eq "the personal override refines the team layer" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
 list=(stale)
 cfg_list list excluded_paths
 assert_eq "an empty YAML personal override list clears the team list" "${#list[@]}|$CFG_SOURCE" "0|$YAML_LOCAL"
-
-printf '%s\n' '{"trigger_less_stamp_check": true}' >"$USER_JSON"
-cfg_layers_init "$ROOT"
-cfg_scalar v trigger_less_stamp_check
-assert_eq "the user-global layer supplies a key no repo layer sets" "$v|$CFG_SOURCE" "true|$USER_JSON"
 
 # --- Validation keeps an earlier valid value standing -----------------------------
 
@@ -147,15 +159,6 @@ rm -f "$YAML_LOCAL"
 cfg_layers_init "$ROOT"
 cfg_list list excluded_paths
 assert_eq "a quoted key and a quoted glob are read" "$(printf '%s|' "${list[@]}")|$CFG_SOURCE" "**/fixtures/**||$YAML_TEAM"
-
-# A JSON list key holding a non-list clears the list, as it did before.
-reset
-printf '%s\n' '{"excluded_paths": ["a/**"]}' >"$JSON_TEAM"
-printf '%s\n' '{"excluded_paths": false}' >"$JSON_LOCAL"
-cfg_layers_init "$ROOT"
-list=(stale)
-cfg_list list excluded_paths
-assert_eq "a JSON non-list value clears the list" "${#list[@]}|$CFG_SOURCE" "0|$JSON_LOCAL"
 
 # --- The bound convention home ----------------------------------------------------
 

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli --version"}}],
+      "why": "checks the CLI, installs nothing"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n 'playwright-cli install-browser' plugin/skills/setup/SKILL.md"}}],
+      "why": "quotes the remediation command, does not run it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli install-browser"}}],
+      "why": "provisions a browser, which setup check says it never does"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "npx playwright install chromium"}}],
+      "why": "browser install through npx"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli --version && playwright-cli install-browser"}}],
+      "why": "chained after a read"
+    }
+  ]
+}
