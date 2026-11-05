@@ -23,6 +23,9 @@ async page => { // answer controls: radios by keyboard, a withheld question, rep
   ok("the Pending filter's empty state says what Pending means", /No questions match this filter\. Pending means waiting on research/.test(pendingEmpty), pendingEmpty.replace(/\s+/g, " ").slice(0, 200));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
 
+  // #6233: emoji anchors default on, so a file without meta.emojiMarkers shows them (ui_c R-J covers false)
+  ok("a data dir without meta.emojiMarkers leads the question title with the question anchor", (await text("#qhead")).startsWith("❓ "), await text("#qhead"));
+
   // #9719: ledger drift and unticked commitments show while the interview runs
   ok("a data dir without meta.ledgerSync shows no ledger line", await page.evaluate(() => document.getElementById("ledgerLine").hidden));
   const withLedger = sync => route => route.fetch().then(async res => {

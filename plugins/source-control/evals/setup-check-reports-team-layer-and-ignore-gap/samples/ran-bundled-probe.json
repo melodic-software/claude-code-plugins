@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "REPO_ROOT=$(git rev-parse --show-toplevel); bash \"/tmp/plugin/lib/convention-key.sh\" layer \"$REPO_ROOT\" subject_pattern"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/plugin/skills/pull-request/scripts/parse-branch-issue.sh\" feat/12-demo ''"
+          }
+        }
+      ],
+      "why": "branch probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/source-control.yaml"
+          }
+        }
+      ],
+      "why": "reads the team file by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/lib/convention-key.sh"
+          }
+        }
+      ],
+      "why": "reads the script, does not run it"
+    }
+  ]
+}

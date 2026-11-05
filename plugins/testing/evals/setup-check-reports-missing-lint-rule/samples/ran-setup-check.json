@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/plugin/skills/setup/scripts/setup.sh\" check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/tmp/plugin/skills/setup/scripts/setup.sh check --root /tmp/work"
+          }
+        }
+      ],
+      "why": "with --root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n select pyproject.toml"
+          }
+        }
+      ],
+      "why": "reads the config by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/plugin/skills/setup/scripts/setup.sh\" apply --exclude 'legacy/**'"
+          }
+        }
+      ],
+      "why": "apply, not check"
+    }
+  ]
+}
