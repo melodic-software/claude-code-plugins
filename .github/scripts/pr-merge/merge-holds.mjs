@@ -56,6 +56,9 @@
 //   (linkHold), as pr-merge's reader binds it (babysit_verify_evidence.py
 //   `_pass_refusal`), so a body edited after arming to close or name another
 //   issue does not merge on a pass for the old one. The same approval lifts it.
+// - A head the arm never judged, when a verdicts file is given: the lanes
+//   App's newest read-back pin names another head (pinHold), so a push after
+//   the arm left GitHub's auto-merge on. The same approval lifts it.
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
@@ -258,6 +261,29 @@ export const fromRest = (row) => ({
   at: String(row?.submitted_at ?? row?.created_at ?? ""),
   body: String(row?.body ?? ""),
 });
+
+// The read-back pin (babysit_postmerge.PIN_RE): the lanes App posts one naming
+// the head just before it arms auto-merge (enable-auto-merge.mjs pinBody) or
+// enqueues. enable-auto-merge.mjs reads it from here.
+export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
+
+// Why the merge queue holds `head`, or null: the lanes App's newest pin among
+// `items` (fromRest's) names another head. GitHub checks expectedHeadOid only
+// when the arm is made, and turns auto-merge off only on a push by someone
+// without write access, so a later push by the lanes App or a person with
+// write access leaves the arm on, and the queue would merge a head the
+// arming checks never judged. With no pin, no lane armed it, and nothing holds.
+export function pinHold(items, head) {
+  const firstLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
+  const pin = items
+    .filter((item) => item.login === LANES_APP_LOGIN && PIN_RE.test(firstLine(item)))
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .at(-1);
+  const sha = pin === undefined ? head : PIN_RE.exec(firstLine(pin))[1];
+  return sha === head
+    ? null
+    : `its head is not ${sha}, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head; enable-auto-merge judges and pins this head before it arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`;
+}
 
 // Whether `path` matches the hold-path `glob`, case-folded as glob_match
 // folds it: a lane host on a case-insensitive filesystem reads `.github/codeowners`
@@ -1734,8 +1760,18 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
         verifier.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       }
     }
+    // In the merge queue only, where a moved head would merge: an approval of
+    // the head lifts it, as it lifts the verifier hold.
+    const unpinned = verdictsFile ? pinHold(items, head) : null;
+    if (unpinned && approved.length) {
+      console.log(`#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '${escape(unpinned)}'.`);
+    }
+    const pinHeld = unpinned !== null && approved.length === 0;
     for (const reason of reasons) {
       console.log(`::error::#${number}: ${escape(reason)}.`);
+    }
+    if (pinHeld) {
+      console.log(`::error::#${number}: ${escape(unpinned)}.`);
     }
     for (const reason of verifier) {
       console.log(`::error title=${VERIFIER_TITLE}::#${number}: ${escape(reason)}.`);
@@ -1743,7 +1779,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (!reasons.length) {
       console.log(`#${number}: no member veto and no hold path.`);
     }
-    return reasons.length || verifier.length ? 1 : 0;
+    return reasons.length || verifier.length || pinHeld ? 1 : 0;
   } catch (error) {
     console.log(`::error::merge-holds: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
     return 2;

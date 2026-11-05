@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, passRefusalOf, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, fromRest, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -958,6 +958,43 @@ test("evidenceHold holds a report it cannot read, or one for another head", () =
   for (const bad of [null, [], "x", {}, { head: HEAD }, { refusal: 1, head: HEAD }, report(null, { head: OLD }), report(null, { head: undefined })]) {
     assert.equal(evidenceHold(bad, HEAD), unread, JSON.stringify(bad));
   }
+});
+
+// GitHub turns auto-merge off only on a push by someone without write access,
+// so a lane push after enable-auto-merge armed the pull request leaves the
+// arm on: the queue holds the pushed head, which the pin does not name.
+const pinRow = (sha, at) => ({ id: 3, user: { login: "melodic-automation-lanes[bot]", id: 9, type: "Bot" }, body: `<!-- babysit-merge-pin sha=${sha} rung=C2 -->\nArmed.`, created_at: at, author_association: "NONE" });
+const PIN_HELD = /^::error::#99: its head is not fedcba9876543210fedcba9876543210fedcba98, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head;/m;
+
+test("in the merge queue, a lane push after the arm holds the pushed head the pin does not name", async () => {
+  const pushed = await queued(report(null), [pinRow(HEAD, "2026-10-23T09:00:00Z"), pinRow(OLD, "2026-10-23T10:00:00Z")]);
+  assert.equal(pushed.code, 1, pushed.out);
+  assert.match(pushed.out, PIN_HELD);
+  // The pin naming the head, or no pin at all, holds nothing.
+  for (const reviews of [[pinRow(OLD, "2026-10-23T09:00:00Z"), pinRow(HEAD, "2026-10-23T10:00:00Z")], []]) {
+    const through = await queued(report(null), reviews);
+    assert.equal(through.code, 0, through.out);
+  }
+  // A person's pin comment is no pin.
+  const forged = await queued(report(null), [{ ...pinRow(OLD, "2026-10-23T10:00:00Z"), user: { login: "someone", id: 8, type: "User" } }]);
+  assert.equal(forged.code, 0, forged.out);
+});
+
+test("in the merge queue, a trusted approval of the pushed head lifts the pin hold, and outside the queue it never holds", async () => {
+  const lifted = await queued(report(null), [pinRow(OLD, "2026-10-23T10:00:00Z"), approve]);
+  assert.equal(lifted.code, 0, lifted.out);
+  assert.match(lifted.out, /^#99: no pin hold: owner-person approved this head/m);
+  const event = await ci(["docs/a.md"], { reviews: [pinRow(OLD, "2026-10-23T10:00:00Z")] });
+  assert.equal(event.code, 0, event.out);
+  assert.doesNotMatch(event.out, PIN_HELD);
+});
+
+test("pinHold reads the lanes App's newest pin", () => {
+  const items = (...rows) => rows.map(fromRest);
+  assert.equal(pinHold(items(), HEAD), null);
+  assert.equal(pinHold(items(pinRow(HEAD, "2026-10-23T10:00:00Z")), HEAD), null);
+  assert.match(pinHold(items(pinRow(HEAD, "2026-10-23T09:00:00Z"), pinRow(OLD, "2026-10-23T10:00:00Z")), HEAD), /^its head is not fedcba98/);
+  assert.equal(PIN_RE.exec(`<!-- babysit-merge-pin sha=${HEAD} -->`)[1], HEAD);
 });
 
 test("in the merge queue, a reader with no FAIL hold lets a passed head through", async () => {
