@@ -1982,10 +1982,8 @@ reads the pull request once and, for a lanes App one that is not already armed a
 `do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
 and skips the merge job, `post-merge-dispatch` and every other sweep job. That report stands only
-while `settle --idle-tick` keeps it. When it refuses on what it found and nothing it read has
-moved, no verifying run created or re-run since included (`refusal-stands`), the wake refuses with
-it and arms nothing, since a fresh check would refuse too. Otherwise the wake never reuses it
-but runs the post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
+while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
+post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
 or 5) and `settle --idle-tick` keeps the fresh report too, since the wake starts no full run or
 re-run. Its `api-calls` totals, which report the room came from (`report=last`, `fresh` or `none`) and
 the outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms

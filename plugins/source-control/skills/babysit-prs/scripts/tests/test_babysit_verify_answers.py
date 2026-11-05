@@ -367,9 +367,7 @@ class KeyTest(unittest.TestCase):
         # wins; `refs/heads/` names the branch alone.
         world = World()
         key(world, branch="trunk")
-        probe_args = next(
-            c for c in world.calls if f"query={ve.PROBE_QUERY}" in c
-        )
+        probe_args = next(c for c in world.calls if f"query={ve.PROBE_QUERY}" in c)
         self.assertIn(f"ta=refs/heads/trunk:{ve.TRUSTED_ACTORS_PATH}", probe_args)
         self.assertIn(f"ar=refs/heads/main:{ve.ADMISSION_RULES_PATH}", probe_args)
 
@@ -398,7 +396,10 @@ class KeyTest(unittest.TestCase):
                 ("trusted", ve.TRUSTED_ACTORS_PATH),
                 ("rules", ve.ADMISSION_RULES_PATH),
             )
-            for branch, ref in (("main", "refs/heads/main"), ("feature", "refs/heads/feature"))
+            for branch, ref in (
+                ("main", "refs/heads/main"),
+                ("feature", "refs/heads/feature"),
+            )
         }
         return key(world, branch="feature")
 
@@ -936,7 +937,10 @@ class AnsweredTest(unittest.TestCase):
             mock.patch.object(ve, "_answer_key") as probe_,
             contextlib.redirect_stdout(out),
         ):
-            ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
+            ve.main(
+                ["evidence", "--repo", REPO, "--base-sha", "e" * 40, str(PR), HEAD],
+                now=NOW,
+            )
         probe_.assert_not_called()
         self.assertEqual(json.loads(out.getvalue()), MISSING)
 

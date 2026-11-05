@@ -3961,6 +3961,14 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
     refuses before paging, with the reason in the detail, rather than
     running into a reader's step timeout as a bare `verify:unreadable`."""
 
+    def setUp(self) -> None:
+        # `evidence` requires --base-sha and reads the config there.
+        config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
+        for name in ("read_config_at", "_default_branch_config"):
+            patcher = mock.patch.object(policy, name, return_value=config)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def first_timeout(self, total: int) -> float | None:
         fake = FlakyListing([])
         fake.live_total = total
@@ -3993,7 +4001,10 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
             contextlib.redirect_stdout(out),
         ):
-            ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
+            ve.main(
+                ["evidence", "--base-sha", EARLIER, "--repo", REPO, str(PR), HEAD],
+                now=NOW,
+            )
         report = json.loads(out.getvalue())
         self.assertEqual(report["refusal"], "verify:unreadable")
         self.assertIn(
@@ -4139,7 +4150,7 @@ def verify_cap_env(reads: int = 1) -> dict[str, str]:
     }};
     const read = verifyCapReader({{}}, {{ spawn, log: () => {{}} }});
     for (let number = 1; number <= {reads}; number += 1) {{
-      await read({{ number, head }});
+      await read({{ number, head, base: "b".repeat(40) }});
     }}
     """
     out = subprocess.run(
@@ -4159,6 +4170,12 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     doubt."""
 
     def setUp(self) -> None:
+        # `evidence` requires --base-sha and reads the config there.
+        _config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
+        for _name in ("read_config_at", "_default_branch_config"):
+            _patcher = mock.patch.object(policy, _name, return_value=_config)
+            _patcher.start()
+            self.addCleanup(_patcher.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.saved = pathlib.Path(tmp.name, "verify-listing.json")
@@ -7490,6 +7507,14 @@ class EvidenceCommandTest(unittest.TestCase):
     """`evidence <number> <head>` prints the gate's judgment for
     enable-auto-merge.mjs, which arms only on a null refusal."""
 
+    def setUp(self) -> None:
+        # `evidence` requires --base-sha and reads the config there.
+        config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
+        for name in ("read_config_at", "_default_branch_config"):
+            patcher = mock.patch.object(policy, name, return_value=config)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def run_main(
         self, argv: list[str], evidence: ve.Evidence
     ) -> tuple[dict[str, Any], ve.Reader]:
@@ -7510,19 +7535,20 @@ class EvidenceCommandTest(unittest.TestCase):
             self.assertEqual(ve.main(argv), 0)
         return json.loads(out.getvalue()), seen[0]
 
-    def test_a_pass_prints_a_null_refusal_under_the_given_cap(self) -> None:
+    def test_a_pass_prints_a_null_refusal_under_the_base_cap(self) -> None:
         report, reader = self.run_main(
-            ["evidence", "--repo", REPO, "--max-fails", "2", str(PR), HEAD],
+            ["evidence", "--base-sha", EARLIER, "--repo", REPO, str(PR), HEAD],
             ve.Evidence(None, HEAD, (ve.Verdict(HEAD, "pass", 1),), 0),
         )
         self.assertEqual((report["refusal"], report["head"]), (None, HEAD))
         self.assertEqual(
-            (reader.repo, reader.branch, reader.max_fails), (REPO, "main", 2)
+            (reader.repo, reader.branch, reader.max_fails),
+            (REPO, "main", policy.MAX_VERIFY_FAILS),
         )
 
     def test_a_repeated_fail_prints_its_refusal(self) -> None:
         report, _ = self.run_main(
-            ["evidence", "--repo", REPO, str(PR), HEAD],
+            ["evidence", "--base-sha", EARLIER, "--repo", REPO, str(PR), HEAD],
             ve.Evidence(ve.REPEATED_FAIL, HEAD, (), 0, "fails at 3 heads"),
         )
         self.assertEqual(report["refusal"], ve.REPEATED_FAIL)
@@ -7542,10 +7568,10 @@ class EvidenceCommandTest(unittest.TestCase):
             with self.subTest(refusal):
                 self.assertIs(ve.Evidence(refusal, HEAD, (), 0).needs_human, person)
 
-    def test_a_short_head_or_a_zero_cap_is_refused(self) -> None:
+    def test_a_short_head_or_no_base_is_refused(self) -> None:
         for argv in (
-            ["evidence", "--repo", REPO, str(PR), "abc"],
-            ["evidence", "--repo", REPO, "--max-fails", "0", str(PR), HEAD],
+            ["evidence", "--base-sha", EARLIER, "--repo", REPO, str(PR), "abc"],
+            ["evidence", "--repo", REPO, str(PR), HEAD],
         ):
             with (
                 contextlib.redirect_stderr(io.StringIO()),
@@ -7560,6 +7586,12 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
     FAIL cap is the lower of the base's and the default branch head's."""
 
     def setUp(self) -> None:
+        # `evidence` requires --base-sha and reads the config there.
+        _config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
+        for _name in ("read_config_at", "_default_branch_config"):
+            _patcher = mock.patch.object(policy, _name, return_value=_config)
+            _patcher.start()
+            self.addCleanup(_patcher.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.path = str(pathlib.Path(tmp.name, "verify-listing.json"))
@@ -7574,7 +7606,16 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
             contextlib.redirect_stdout(out),
         ):
-            argv = ["evidence", "--repo", REPO, *extra, str(PR), HEAD]
+            argv = [
+                "evidence",
+                "--base-sha",
+                EARLIER,
+                "--repo",
+                REPO,
+                *extra,
+                str(PR),
+                HEAD,
+            ]
             self.assertEqual(ve.main(argv, now=NOW), 0)
         return json.loads(out.getvalue())
 
@@ -7653,8 +7694,6 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
                     "evidence",
                     "--repo",
                     REPO,
-                    "--max-fails",
-                    "9",
                     "--base-sha",
                     EARLIER,
                     str(PR),
@@ -7696,6 +7735,14 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
     `refs-not-an-issue`, and a failed read refuses. A refused link reads no
     verdict."""
 
+    def setUp(self) -> None:
+        # `evidence` requires --base-sha and reads the config there.
+        config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
+        for name in ("read_config_at", "_default_branch_config"):
+            patcher = mock.patch.object(policy, name, return_value=config)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def cli(self, fake: FakeGitHub) -> dict[str, Any]:
         out = io.StringIO()
         with (
@@ -7704,7 +7751,16 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
             mock.patch.object(policy, "gh_capture", side_effect=fake),
             contextlib.redirect_stdout(out),
         ):
-            argv = ["evidence", "--lane-link", "--repo", REPO, str(PR), HEAD]
+            argv = [
+                "evidence",
+                "--base-sha",
+                EARLIER,
+                "--lane-link",
+                "--repo",
+                REPO,
+                str(PR),
+                HEAD,
+            ]
             self.assertEqual(ve.main(argv, now=NOW), 0)
         return json.loads(out.getvalue())
 
@@ -7863,7 +7919,10 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
             contextlib.redirect_stdout(out),
         ):
-            ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
+            ve.main(
+                ["evidence", "--base-sha", EARLIER, "--repo", REPO, str(PR), HEAD],
+                now=NOW,
+            )
         self.assertNotIn("ineligible", json.loads(out.getvalue()))
 
 

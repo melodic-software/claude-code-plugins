@@ -114,7 +114,7 @@ function fakeApi({
             user: { id: APP_ID },
             labels: [{ name: "work-class: mechanical" }],
             head: { sha: HEAD, repo: { full_name: REPOSITORY } },
-            base: { ref: "main" },
+            base: { ref: "main", sha: "b".repeat(40) },
           },
         ]
       );
@@ -192,7 +192,7 @@ const pull = (overrides) => [
     user: { id: APP_ID },
     labels: [],
     head: { sha: HEAD, repo: { full_name: REPOSITORY } },
-    base: { ref: "main" },
+    base: { ref: "main", sha: "b".repeat(40) },
     ...overrides,
   },
 ];
@@ -211,7 +211,7 @@ test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round",
   const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
   assert.equal(result, null);
   assert.deepEqual(api.calls.dispatch, []);
-  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined, expected: [] }]);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: "b".repeat(40), expected: [] }]);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
   // The cap never clears for the head: a later run at it reads nothing.
   const record = emptyRecord();

@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.8] - 2026-11-05
+
+### Changed
+
+- Shared `view-builder.mjs` synced where this plugin carries it ([#13437](https://github.com/melodic-software/claude-code-plugins/issues/13437)): the planning plan kind now reads PLAN.md; no other change to this plugin.
+
 ## [0.26.7] - 2026-11-04
 
 ### Changed

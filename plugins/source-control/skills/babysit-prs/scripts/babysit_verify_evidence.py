@@ -252,7 +252,7 @@ steps can upload (.github/scripts/pr-merge/head-ref-map.mjs). An entry ties or
 unties the FAIL as the download would; a missing or malformed map is no map,
 and the FAIL is downloaded.
 
-`python3 babysit_verify_evidence.py evidence --repo R [--max-fails N] <pr>
+`python3 babysit_verify_evidence.py evidence --repo R --base-sha <sha> <pr>
 <head>` prints `Evidence.report()` for one pull request as one JSON line;
 .github/scripts/pr-merge/enable-auto-merge.mjs arms native auto-merge only on
 its null `refusal` at the head it read.
@@ -4430,7 +4430,8 @@ def _answer_key(
             args.number,
             args.head,
             args.base_sha,
-            args.max_fails,
+            # The cap that stood here before the config set it: keeps saved keys.
+            merge_policy.MAX_VERIFY_FAILS,
             args.rung,
             args.lane_link,
             args.lane_reviews,
@@ -4809,49 +4810,6 @@ def _settle_reason(
         postmerge.idle_marks_refusal(repo, shared)
         or postmerge.idle_report_refusal(shared)
     )
-
-
-def _refusal_stands(repo: str, path: str, code_sha: str) -> int:
-    """`refusal-stands`: whether an earlier tick's post-merge report at `path`,
-    its check run by the code at commit `code_sha`, refuses on what it found
-    (`postmerge.content_refusal`) with nothing it was read from moved since
-    (`postmerge.refusal_moved`), so a check run now would refuse too and need
-    not run. The content is judged before any read. Prints `{"stands",
-    "refusal", "computedAt", "reason"}`, `reason` why it does not stand;
-    exit 0 when it stands, else 1, and the caller runs the check."""
-    shared = postmerge.read_shared(path)
-    refusal: str | None = None
-    reason: str | None
-    if shared is None:
-        reason = "post-merge answer missing or unreadable"
-    elif not merge_policy.check_code_unchanged(code_sha):
-        reason = "post-merge answer code-changed"
-    elif (refusal := postmerge.content_refusal(shared)) is None:
-        reason = "no refusal of its own content"
-    else:
-        try:
-            default = merge_policy._default_branch(repo, shared=True)
-            config = merge_policy._default_branch_config(repo, default)
-            reason = postmerge.refusal_moved(
-                repo,
-                shared,
-                default,
-                identity=config.agent_identity,
-                confirm_wait_minutes=config.confirm_wait_minutes,
-            )
-        except (RuntimeError, ValueError, OSError) as exc:
-            reason = f"unreadable: {exc}"
-    print(
-        json.dumps(
-            {
-                "stands": reason is None,
-                "refusal": refusal,
-                "computedAt": shared and shared.computed_at.isoformat(),
-                "reason": reason,
-            }
-        )
-    )
-    return 0 if reason is None else 1
 
 
 # GitHub refuses a comment body over 65536 characters; the findings are cut
@@ -6076,7 +6034,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     at the head it read. Exit 0 whenever the line is printed, a refusal
     included.
 
-    With `--base-sha`, the FAIL cap is the gate's: `merge.max-verify-fails`
+    `--base-sha` is required: the FAIL cap is the gate's, `merge.max-verify-fails`
     of the config at that base commit and at the default branch head, the
     lower one (`with_default_branch`), each read once per run by commit
     (`merge_policy.config_at`); a config that cannot be read refuses
@@ -6089,8 +6047,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     pull request's issue link is one the pr-merge lane takes and its issue
     clears the trust hold (`Reader.link_refusal`), else why not, with refusal
     `verify:ineligible`
-    and no verdict or config read. With `--lane-reviews` (and `--base-sha`
-    and `--rung`, the lane room's effective rung), a line whose refusal is
+    and no verdict or config read. With `--lane-reviews` (and
+    `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
     the pull request on its risk score (`lane_risk_refusal`), else why,
     `reviewsPerson`: whether only a person clears that hold, and
@@ -6132,12 +6090,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
     earlier tick's report, which must also pass `postmerge.idle_refusal`;
     `--fresh` with it, for a report this job's check just made, skips that
-    rule's verifying runs (`idle_runs_refusal`).
-
-    `refusal-stands --repo R --postmerge-result <file> --code-sha <sha>`:
-    whether an earlier tick's report refuses on its own content with nothing
-    it read moved since, so pr-merge's PR-scoped wake refuses as it does
-    without running the check (`_refusal_stands`)."""
+    rule's verifying runs (`idle_runs_refusal`)."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -6145,8 +6098,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd = sub.add_parser("evidence", allow_abbrev=False)
     cmd.add_argument("--repo", required=True)
     cmd.add_argument("--branch", default="main")
-    cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
-    cmd.add_argument("--base-sha", default=None)
+    # Required: the base's config names the lanes App (agent_identity), so a
+    # read without it takes every lanes App spec as untrusted.
+    cmd.add_argument("--base-sha", required=True)
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("--lane-reviews", action="store_true")
     cmd.add_argument("--lane-queue", action="store_true")
@@ -6177,10 +6131,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
     settle.add_argument("--fresh", action="store_true")
-    stands = sub.add_parser("refusal-stands", allow_abbrev=False)
-    stands.add_argument("--repo", required=True)
-    stands.add_argument("--postmerge-result", required=True)
-    stands.add_argument("--code-sha", required=True)
     legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
     legacy.add_argument("--repo", required=True)
     legacy.add_argument("--branch", default="main")
@@ -6218,8 +6168,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             idle=args.idle_tick,
             fresh=args.fresh,
         )
-    if args.command == "refusal-stands":
-        return _refusal_stands(args.repo, args.postmerge_result, args.code_sha)
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(
@@ -6236,21 +6184,15 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         )
         print(json.dumps(answer.report()))
         return 0
-    if (
-        args.max_fails < 1
-        or not merge_policy.SHA_RE.fullmatch(args.head)
-        or (
-            args.base_sha is not None
-            and not merge_policy.SHA_RE.fullmatch(args.base_sha)
-        )
+    if not (
+        merge_policy.SHA_RE.fullmatch(args.head)
+        and merge_policy.SHA_RE.fullmatch(args.base_sha)
     ):
-        parser.error(
-            "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
-        )
-    if args.lane_queue and not (args.lane_reviews and args.base_sha):
+        parser.error("head and --base-sha must be full commit SHAs")
+    if args.lane_queue and not args.lane_reviews:
         # The reviews read checks the head the count is for and reads the limit.
-        parser.error("--lane-queue needs --lane-reviews and --base-sha")
-    reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
+        parser.error("--lane-queue needs --lane-reviews")
+    reader = Reader(args.repo, args.branch, now=now)
     if args.shared_listing:
         reader.listing_max_age = None
     with merge_policy.base_tips_remembered():
@@ -6268,23 +6210,21 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
     """`evidence`'s answer for one pull request, read in full (`main`)."""
     link: dict[str, Any] = {}
-    config: merge_policy.PipelineConfig | None = None
     if args.lane_link:
         link["ineligible"] = reader.link_refusal(args.number)
         if link["ineligible"] is not None:
             refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
             return refusal.report() | link
-    if args.base_sha is not None:
-        try:
-            base = merge_policy.config_at(args.repo, args.base_sha)
-            if base.error:
-                raise merge_policy.PolicyReadError(base.error)
-            config = merge_policy.with_default_branch(args.repo, base)
-        except merge_policy.PolicyReadError as exc:
-            refusal = Evidence(UNREADABLE, args.head, (), 0, f"config: {exc}")
-            return refusal.report() | link
-        reader.max_fails = config.max_verify_fails
-        reader.agent_identity = config.agent_identity
+    try:
+        base = merge_policy.config_at(args.repo, args.base_sha)
+        if base.error:
+            raise merge_policy.PolicyReadError(base.error)
+        config = merge_policy.with_default_branch(args.repo, base)
+    except merge_policy.PolicyReadError as exc:
+        refusal = Evidence(UNREADABLE, args.head, (), 0, f"config: {exc}")
+        return refusal.report() | link
+    reader.max_fails = config.max_verify_fails
+    reader.agent_identity = config.agent_identity
     pr = None
     if args.lane_reviews:
         try:
@@ -6310,8 +6250,6 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         link["wholeReviewWanted"] = False
         if head != args.head:
             link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
-        elif config is None:
-            link["reviews"] = "unreadable: no --base-sha, so no config to score at"
         else:
             # The lowest of the room's effective rung and this base's config.
             rung = merge_policy.effective_rung(

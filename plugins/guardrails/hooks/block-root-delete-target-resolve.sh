@@ -54,7 +54,7 @@ rdt_kill_tree() {
   local -A __kt_kids=()
   kill -STOP "$1" 2>/dev/null
   for __kt_f in /proc/[0-9]*/stat; do
-    IFS= read -r __kt_l <"$__kt_f" 2>/dev/null || continue
+    IFS= read -r __kt_l 2>/dev/null <"$__kt_f" || continue
     __kt_pid="${__kt_l%% *}"
     __kt_l="${__kt_l##*) }"
     read -r _ __kt_pp _ <<<"$__kt_l"
