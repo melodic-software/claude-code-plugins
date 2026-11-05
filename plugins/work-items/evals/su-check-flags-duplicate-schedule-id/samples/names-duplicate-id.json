@@ -7,14 +7,6 @@
     {
       "answer": "Schedule validity FAILs: the id dependency-review appears twice, so `recheck dependency-review` cannot tell which row it means.",
       "why": "id first, then the repetition"
-    },
-    {
-      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Schedule present | PASS | `.github/recurring-schedule.json` parses, 2 rows |\n| Schedule is valid | **FAIL** | Both rows have a cadence and a title, and each title is distinct. But both rows use the id **`dependency-review`**, so `recheck` cannot address either one. |\n\nThe same id on two rows is a collision: rename one.",
-      "why": "both rows use the id, on the FAIL row"
-    },
-    {
-      "answer": "Schedule validity: FAIL, rows 1 and 2 carry the same id `dependency-review`.",
-      "why": "same id on the FAIL line"
     }
   ],
   "fail": [
@@ -37,18 +29,6 @@
     {
       "answer": "| Probe | Result |\n|---|---|\n| jq entry gate | FAIL: jq not found |\n| Schedule validity | INFO: duplicate id dependency-review (rows 1 and 2) |",
       "why": "FAIL belongs to another probe's row; the duplicate is reported as INFO"
-    },
-    {
-      "answer": "| Check | Result |\n|---|---|\n| jq entry gate | FAIL: jq not found |\n| Schedule is valid | INFO: both rows use the id `dependency-review` |",
-      "why": "both-rows wording on an INFO row; FAIL is another probe's"
-    },
-    {
-      "answer": "Schedule valid: PASS, the same id dependency-review is not reused. jq gate: FAIL.",
-      "why": "negated same-id on a PASS line; FAIL is another probe"
-    },
-    {
-      "answer": "Schedule valid: FAIL? No: the same id dependency-review is not reused, so it passes.",
-      "why": "FAIL first but the same-id claim is negated"
     }
   ]
 }

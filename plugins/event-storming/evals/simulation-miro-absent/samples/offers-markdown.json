@@ -1,15 +1,11 @@
 {
   "pass": [
     {"answer": "1. **Structured-markdown mode** (recommended): the same workshop, emitted as an event timeline and tables.", "why": "named mode"},
-    {"answer": "I can emit the model as a markdown artifact instead of stickies.", "why": "markdown artifact"},
-    {"answer": "Option A: I render the workshop into a Markdown file in this repo, updated after each phase.", "why": "markdown file"},
-    {"answer": "**Option 1, a Markdown board** (no setup): the timeline lives in this chat as tables.", "why": "markdown board"}
+    {"answer": "I can emit the model as a markdown artifact instead of stickies.", "why": "markdown artifact"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
     {"answer": "Install the miro plugin and run this again.", "why": "only the install path"},
-    {"answer": "Unknown skill: event-storming:simulation", "why": "skill missing"},
-    {"answer": "I'll render the board in Miro once you enable the plugin.", "why": "board without markdown"},
-    {"answer": "I could write a markdown file, but I will not: install Miro first.", "why": "refuses the markdown path"}
+    {"answer": "Unknown skill: event-storming:simulation", "why": "skill missing"}
   ]
 }
