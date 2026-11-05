@@ -240,7 +240,7 @@ in, so a copy carried to another checkout is refused (exit 3) rather than resume
 ## Configuration
 
 `<home>/attribution.yaml` and `<home>/attribution.local.yaml` per the config-cascade convention,
-each falling back to its `.claude/` JSON file only when the YAML is absent; keys and layers are
+over the user-global `~/.claude/attribution.json`; keys and layers are
 documented in the plugin README, and `/attribution:setup` manages the YAML files. Each detector's `--show-config` names the
 layer supplying every effective value. The accuracy dials (`nomination_passes`,
 `judge_lens_diversity`, `review_agents`, `deep_research_on_exhaustion`) and the budgets are

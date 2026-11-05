@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/attribution/schemas/attribution.schema.json",
   "title": "attribution team config",
-  "description": "Schema for a repository's docs/conventions/attribution.yaml, the team layer of the attribution plugin (ADR 0064, ADR 0075). The same keys are valid in docs/conventions/attribution.local.yaml (the personal layer) and in the legacy .claude/attribution.json files, which the audit reads only when the YAML beside them is absent. Every key is optional; an absent key keeps the shipped default. Reader: skills/audit/scripts/lib.sh (cfg_scalar, cfg_list); judge_samples and the separation, accuracy, budgets.searches_per_candidate and budgets.fetches_per_candidate keys are read by the audit skill itself.",
+  "description": "Schema for a repository's docs/conventions/attribution.yaml, the team layer of the attribution plugin (ADR 0064, ADR 0075). The same keys are valid in docs/conventions/attribution.local.yaml (the personal layer) and in the user-global ~/.claude/attribution.json. Every key is optional; an absent key keeps the shipped default. Reader: skills/audit/scripts/lib.sh (cfg_scalar, cfg_list); judge_samples and the separation, accuracy, budgets.searches_per_candidate and budgets.fetches_per_candidate keys are read by the audit skill itself.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

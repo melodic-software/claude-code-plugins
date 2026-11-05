@@ -109,12 +109,12 @@
       "name": "json-fallback-layer-moves-whole",
       "prompt": "/attribution:setup set stamp_expiry_days 90 in a repo with no convention-home pointer, no docs/conventions/attribution.yaml, and a .claude/attribution.json that sets excluded_paths and budgets.corpus_fetch_ceiling.",
       "narration": true,
-      "expected_output": "check reads the Config layers list from list-corpus.sh --show-config, sees the team layer on its .claude/attribution.json fallback, and reports a new docs/conventions/attribution.yaml that carries excluded_paths and budgets.corpus_fetch_ceiling over unchanged alongside stamp_expiry_days 90. apply writes that file, leaves the JSON file in place, and says the detectors stop reading it once the YAML exists, so it can be deleted.",
+      "expected_output": "Detection reports attribution-r003 (.claude/attribution.json) as a retired config to migrate, a FAIL, and the --show-config Config layers list does not name that file. check reports a new docs/conventions/attribution.yaml that carries excluded_paths and budgets.corpus_fetch_ceiling over unchanged alongside stamp_expiry_days 90. apply writes that file, gets the operator's confirmation, then runs --clean attribution-r003 --i-migrated and re-runs detection.",
       "expectations": [
-        "Identifies the team layer as still on its .claude/attribution.json fallback from the --show-config Config layers list",
+        "Reports .claude/attribution.json as the retired config attribution-r003, a FAIL to migrate, not as a layer the detectors read",
         "Carries every key of the JSON file into the new YAML file unchanged, not only stamp_expiry_days",
         "Shows the carried-over keys in the check report before apply writes",
-        "Leaves .claude/attribution.json in place and tells the operator the detectors stop reading it once the YAML exists"
+        "Does not run --clean without --i-migrated, and does not clean before the operator confirms the YAML"
       ]
     },
     {
