@@ -6250,12 +6250,13 @@ jobs:
       # one whose author resolve-pr.mjs resolvePull judges (no dependency
       # manager, and merge.verify-authors in the hold config's pr-pipeline.yaml
       # with its trusted-actor list: under `lane-or-owner` a User or Bot whose
-      # id the list holds) runs the same verdict reader and holds only on a
-      # FAIL class it reports for the head (verify:fail, verify:earlier-fail,
-      # verify:repeated-fail), by the base module's evidenceHold, owner
-      # decision 2026-11-04 "Hold on FAIL only (Recommended)". No pass, a stale
+      # id the list holds) runs the same verdict reader and holds only on
+      # verify:fail or verify:earlier-fail at the head, by the base module's
+      # evidenceHold (owner decisions 2026-11-04 "Hold on FAIL only
+      # (Recommended)" and "FAIL holds, cap not (Recommended)").
+      # verify:repeated-fail warns and does not hold, nor do no pass, a stale
       # or untrusted-spec pass, verify:unreadable, verify:too-old and a reader
-      # that does not judge do not hold it. It reads only its reviews, bodies
+      # that does not judge. It reads only its reviews, bodies
       # blanked, and no file list, so the kill switch, member veto, hold paths,
       # cost paths and trusted-actor list holds stay the lanes App's; a trusted
       # approval of the head lifts the FAIL hold. Any other author, and every
@@ -6562,7 +6563,11 @@ jobs:
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
             refusal=$(jq -r --arg head "$head" 'select(.head == $head) | .refusal | strings' "$RUNNER_TEMP/evidence.json" 2>/dev/null) || refusal=
             case $refusal in
-            verify:fail | verify:earlier-fail | verify:repeated-fail) ;;
+            verify:fail | verify:earlier-fail) ;;
+            verify:repeated-fail)
+              echo "::warning::#$pr: pr-verify's repeated-fail cap stands at this head; owner-login PRs are not held on the cap (owner decision 2026-11-04)"
+              exit 0
+              ;;
             *)
               echo "#$pr: not held: pull requests of an author pr-verify judges, other than the lanes App's, hold only on a FAIL, and the reader reports ${refusal:-none} for $head."
               exit 0

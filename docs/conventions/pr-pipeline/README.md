@@ -2171,20 +2171,20 @@ ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minute
 about 6 to 11, at most about 15. It reads with `ci-status`'s token, which holds no `issues`
 scope: an issue read that does not answer refuses `verify:unreadable`, which holds.
 
-In the merge queue another author pr-verify judges holds on a pr-verify FAIL only (owner decision
-2026-11-04, "Hold on FAIL only (Recommended)"), since an owner's credentials can queue a pull
-request pr-verify failed. The step judges the author as `resolve-pr.mjs` does: not a dependency
+In the merge queue another author pr-verify judges holds on a pr-verify FAIL only (owner decisions
+2026-11-04, "Hold on FAIL only (Recommended)" and "FAIL holds, cap not (Recommended)"), since an
+owner's credentials can queue a pull request pr-verify failed. The step judges the author as `resolve-pr.mjs` does: not a dependency
 manager's, and `merge.verify-authors` in the hold config's `pr-pipeline.yaml` (`lane-or-owner`
 there: a `User` or `Bot` whose id the trusted-actor list holds). For such an author it runs the
-same verdict reader and holds only when it reports a FAIL class for the head (`verify:fail`,
-`verify:earlier-fail`, `verify:repeated-fail`), judged by the base module's `evidenceHold`. No pass,
-a stale or untrusted-spec pass, `verify:unreadable`, `verify:too-old` and a reader that does not
-judge it leave it to merge. It reads only the reviews, bodies blanked, and no file list, so the
+same verdict reader and holds only when it reports `verify:fail` or `verify:earlier-fail` for the
+head, judged by the base module's `evidenceHold`. The `merge.max-verify-fails` cap
+(`verify:repeated-fail`) only warns. No pass, a stale or untrusted-spec pass, `verify:unreadable`,
+`verify:too-old` and a reader that does not judge it leave it to merge. It reads only the reviews, bodies blanked, and no file list, so the
 kill switch, member veto, hold paths, cost paths and trusted-actor list holds stay the lanes App's.
 A trusted approval of the head lifts the FAIL hold, but
 [a pull request's author cannot approve it](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/approving-a-pull-request-with-required-reviews),
-and the trusted-actor list names one person, so on that person's own pull request only a new head
-pr-verify does not fail clears it. An author pr-verify does not judge, and every author on a pull
+and the trusted-actor list names one person, so on an owner-login pull request the lift is a new
+head that pr-verify passes. An author pr-verify does not judge, and every author on a pull
 request event, is left to the merge gate or a person, as before. The step
 `Read whether the queued pull request is the lanes App's` outputs `verify_judged` by the same
 test, so the carried-read steps run for every judged author.

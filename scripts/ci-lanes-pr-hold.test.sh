@@ -1088,7 +1088,9 @@ if [[ "$(readers)" -eq 1 && "$(files_read)" -eq 0 && "$(runs)" -eq 0 ]] && grep 
 else
   fail "an owner pull request read: '$(sort -u "$TMP_ROOT/log")'"
 fi
-for refusal in verify:fail verify:earlier-fail verify:repeated-fail; do
+STUB_EVIDENCE="$(evidence verify:repeated-fail)" expect "in the merge queue, the repeated-fail cap warns and does not hold an owner pull request" 0 1 \
+  "::warning::#7: pr-verify's repeated-fail cap stands at this head; owner-login PRs are not held on the cap (owner decision 2026-11-04)"
+for refusal in verify:fail verify:earlier-fail; do
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds an owner pull request" 1 1 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why); push a new head"
 done
 for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:unreadable verify:too-old; do
@@ -1099,10 +1101,10 @@ STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' expect "in t
 STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 1 "$NOT_HELD"
-STUB_EVIDENCE="$(evidence verify:repeated-fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-  expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 1 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:repeated-fail: why)'."
-STUB_EVIDENCE="$(evidence verify:repeated-fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
-  expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 1 "pr-verify's reader refuses this head (verify:repeated-fail: why)"
+STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 1 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:fail: why)'."
+STUB_EVIDENCE="$(evidence verify:earlier-fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
+  expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 1 "pr-verify's reader refuses this head (verify:earlier-fail: why)"
 printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-evidence-hold.mjs"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_MODULE="$TMP_ROOT/no-evidence-hold.mjs" \
   expect "in the merge queue, a base module that cannot judge an owner FAIL fails closed" 1 1 "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL (verify:fail) of #7"
