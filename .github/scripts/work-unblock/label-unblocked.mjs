@@ -89,7 +89,9 @@
 // backoff (those hours doubling with each re-fire, at most
 // BACKOFF_CAP_HOURS), recorded in one comment
 // edited in place; it never gets needs-human. All share
-// limits.restarts-per-run.
+// limits.restarts-per-run. No re-fire of any cause goes ahead while a merged
+// pull request names the issue on a `Refs:` line after its newest decision or
+// refinement comment (admit.mjs mergedRefsAfter, as admission reads it).
 //
 // The lane skips an issue a blocker still blocks and keeps agent-ready on
 // (check-blockers.mjs), so the close path above, which leaves an agent-ready
@@ -1964,7 +1966,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"], mirror = noMirror }) {
+async function restartLimited({ github, actions, jobLog, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], mirror = noMirror }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -1996,6 +1998,10 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
     reportHold(LABEL, error);
     return 0;
   }
+  // A merged pull request that names the issue on a `Refs:` line, whoever
+  // opened it, is work done off the lane: admission's own check, read only
+  // for an issue about to be re-fired, and as none when the read fails.
+  const doneBy = mergedRefsReader({ github, repository: repo, numbers: open.map((item) => Number(item.number)), humans, appId });
   for (const issue of open) {
     const listed = {};
     const read = (kind) => (listed[kind] ??= paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
@@ -2032,6 +2038,11 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
       }
       if (reason !== null) {
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
+        continue;
+      }
+      const done = verdict.refire ? await doneBy(issue.number) : [];
+      if (done.length > 0) {
+        console.log(`label-unblocked: #${issue.number} not re-fired: ${doneReason(done)}`);
         continue;
       }
       ready.push({ ...verdict, number: Number(issue.number), had: labelNames(issue) });
@@ -2390,7 +2401,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, mirror: mirrorTo });
         failed += await readmitReady({ github, repo, listed, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now, mirror: mirrorTo });
       }
-      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, mirror: mirrorTo });
+      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, appId: logins.get(bot), now, limits, status, mirror: mirrorTo });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
