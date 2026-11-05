@@ -337,11 +337,57 @@ test("a hold in the Work status field the labels lack stops a decision", async (
   assert.deepEqual(w.writes, []);
 });
 
-// The claim is removing the status label, so an issue with none has nothing
-// the field could answer for: it is not read.
-test("an issue with no status label is not read, whatever its Work status field holds", async () => {
-  const w = world({ labels: [], comments: [{ id: 1, user: OWNER, body: DECISION }] });
-  assert.equal(await runWithField(w, { [NUMBER]: { state: "needs-owner-decision" } }), 0);
+// The field mirrors the removal that left an issue without a status in a later
+// run, so for such an issue the labels decide: the field is not read.
+test("an issue with no status label is judged by its labels, whatever its Work status field holds", async () => {
+  for (const state of ["needs-owner-decision", "confirmed", "ready"]) {
+    const w = world({ labels: [], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+    assert.equal(await runWithField(w, { [NUMBER]: { state } }), 0, state);
+    assert.deepEqual(w.labels(), ["needs-triage"], state);
+    expectDispatched(w);
+  }
+});
+
+// work-unblock's Refs handoff, or any other removal, can leave an open issue
+// with no status label; a listed human's decision still sends it to intake.
+test("a listed human's decision on an issue with no status label sends it to triage once", async () => {
+  const w = world({ labels: ["priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+  assert.equal(await run(w, 1), 0, "the second run finds needs-triage");
+  expectDispatched(w);
+});
+
+test("a decision on an outside author's issue with no status label moves it to needs-triage without a model run", async () => {
+  const w = world({ labels: [], author: AUTHOR, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  assert.equal(w.dispatches().length, 0);
+});
+
+const statuslessQuiet = [
+  ["agent-ready", ["agent-ready"], OWNER, DECISION],
+  ["status: ready with agent-ready", ["status: ready", "agent-ready"], OWNER, DECISION],
+  ["status: ready", ["status: ready"], OWNER, DECISION],
+  ["needs-human", ["needs-human"], OWNER, DECISION],
+  ["needs-triage", ["needs-triage"], OWNER, DECISION],
+  ["admission-deferred", ["admission-deferred"], OWNER, DECISION],
+  ["an unlisted person's decision", [], STRANGER, DECISION],
+  ["the author's decision when unlisted", [], AUTHOR, DECISION],
+  ["a listed human's comment without the marker", [], OWNER, "Option 1, I think."],
+];
+for (const [name, labels, user, body] of statuslessQuiet) {
+  test(`a comment on an issue with no parked status changes nothing: ${name}`, async () => {
+    const w = world({ labels, author: user === AUTHOR ? AUTHOR : OWNER, comments: [{ id: 1, user, body }] });
+    assert.equal(await run(w, 1), 0);
+    assert.deepEqual(w.writes, []);
+  });
+}
+
+test("a bot's decision on an issue with no status label changes nothing", async () => {
+  const w = world({ labels: [], comments: [{ id: 1, user: LISTED_BOT, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
   assert.deepEqual(w.writes, []);
 });
 
@@ -372,6 +418,15 @@ for (const [name, fail] of failures) {
     assert.equal(w.dispatches().length, name === "the dispatch" ? 2 : 1);
   });
 }
+
+test("a failed dispatch on an issue with no status label takes needs-triage back, puts no status on, and a re-run dispatches once", async () => {
+  const w = world({ labels: ["priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }], fail: `POST ${DISPATCH}` });
+  assert.equal(await run(w, 1), 1);
+  assert.deepEqual(w.labels(), ["priority: medium"]);
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  assert.equal(w.dispatches().length, 2, "the failed call and the re-run's");
+});
 
 test("a failed dispatch keeps a needs-triage label the issue already had", async () => {
   const w = world({ labels: ["status: needs-info", "needs-triage"], comments: [{ id: 1, user: OWNER, body: "Answer." }], fail: `POST ${DISPATCH}` });
@@ -594,6 +649,19 @@ test("a comment at needs-decision or confirmed starts the job only with the deci
     assert.equal(comment([status, "status: needs-info"], "An answer."), true, `${status} beside needs-info`);
   }
   assert.equal(comment(["status: needs-info"], "An answer."), true);
+});
+
+test("a decision on an issue with no parked status starts the job unless it is ready or held", () => {
+  const comment = (labels, body = DECISION) => reenterGate({ event: "issue_comment", comment: { type: "User", body }, labels });
+  assert.equal(comment([]), true);
+  assert.equal(comment(["priority: medium", "host-run"]), true);
+  assert.equal(comment([], "Thanks, looking."), false, "no marker");
+  assert.equal(comment([], "Decision recorded."), false, "no bold");
+  assert.equal(reenterGate({ event: "issue_comment", comment: { type: "Bot", body: DECISION }, labels: [] }), false, "a bot");
+  for (const label of ["status: ready", "agent-ready", "needs-human", "needs-triage", "admission-deferred"]) {
+    assert.equal(comment([label]), false, label);
+  }
+  assert.equal(comment(["status: ready", "agent-ready"]), false, "status: ready with agent-ready");
 });
 
 test("only a bot's status: confirmed removal with nothing else to move the issue starts the job", () => {

@@ -6,7 +6,10 @@ name: intake-reenter
 # the author's or a listed human's reply on a `status: needs-info` issue,
 # takes the status label off (a decision on an issue with `needs-human`
 # changes nothing), adds `needs-triage`, and dispatches intake-triage.yml once when intake admits
-# the issue's author (a listed human or the lanes App). It never adds
+# the issue's author (a listed human or the lanes App). A listed human's
+# decision on an issue with no `status:` label and no `agent-ready`,
+# `needs-human`, `needs-triage` or `admission-deferred` takes nothing off and
+# does the same. It never adds
 # `agent-ready`. The rules are in .github/scripts/intake-reenter/reenter.mjs.
 #
 # No model and no App token: the job's GITHUB_TOKEN edits labels and starts
@@ -51,11 +54,13 @@ permissions: {}
 
 jobs:
   reenter:
-    # Pull request comments, bot and App-posted comments, closed issues and
-    # issues without a parked status label stop here, before a runner starts,
-    # and so does a comment at `status: needs-decision` or `status: confirmed`
-    # without the decision marker, which the script refuses anyway (`contains`,
-    # not `startsWith`: the script trims leading whitespace first);
+    # Pull request comments, bot and App-posted comments and closed issues
+    # stop here, before a runner starts, and so does a comment without the
+    # decision marker anywhere but `status: needs-info`, and a decision on an
+    # issue at `status: ready` or with `agent-ready`, `needs-human`,
+    # `needs-triage` or `admission-deferred` and no parked status, which the
+    # script refuses anyway (`contains`, not `startsWith`: the script trims
+    # leading whitespace first; it alone tells a statusless issue apart);
     # so does any unlabel other than `needs-human`, and a `needs-human` unlabel
     # whose payload already shows `status: confirmed`: a session parking an
     # issue swaps the labels in one edit, and the script refuses any issue
@@ -72,7 +77,13 @@ jobs:
            && (((contains(github.event.issue.labels.*.name, 'status: needs-decision')
                  || contains(github.event.issue.labels.*.name, 'status: confirmed'))
                 && contains(github.event.comment.body, '**Decision recorded.**'))
-               || contains(github.event.issue.labels.*.name, 'status: needs-info')))
+               || contains(github.event.issue.labels.*.name, 'status: needs-info')
+               || (contains(github.event.comment.body, '**Decision recorded.**')
+                   && !contains(github.event.issue.labels.*.name, 'status: ready')
+                   && !contains(github.event.issue.labels.*.name, 'agent-ready')
+                   && !contains(github.event.issue.labels.*.name, 'needs-human')
+                   && !contains(github.event.issue.labels.*.name, 'needs-triage')
+                   && !contains(github.event.issue.labels.*.name, 'admission-deferred'))))
           || (github.event_name == 'issues'
               && ((github.event.label.name == 'needs-human'
                    && !contains(github.event.issue.labels.*.name, 'status: confirmed'))
