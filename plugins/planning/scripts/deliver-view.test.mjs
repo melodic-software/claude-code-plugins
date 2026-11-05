@@ -167,6 +167,33 @@ describe("parsePlan", () => {
     assert.deepEqual(plan.phases.map((phase) => phase.name), ["Phase 1: Fix", "Phase 2.5: Wire", "Phase IV: Ship"]);
   });
 
+  test("a criterion or behavior that wraps onto an indented line keeps its whole text", () => {
+    const plan = parsePlan(
+      [
+        "## Brief",
+        "",
+        "### Acceptance criteria",
+        "",
+        "- AC1: If the upload fails,",
+        "  the partial manifest must be discarded.",
+        "- AC2: One line.",
+        "",
+        "## Plan",
+        "",
+        "### Behaviors",
+        "",
+        "- B1: The view shows every phase",
+        "  in record order (AC2)",
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(plan.criteria, [
+      { id: "AC1", text: "If the upload fails, the partial manifest must be discarded." },
+      { id: "AC2", text: "One line." },
+    ]);
+    assert.deepEqual(plan.behaviors, [{ id: "B1", text: "The view shows every phase in record order", cites: "AC2" }]);
+  });
+
   test("a record with no ## Plan section is refused as data", () => {
     assert.throws(() => parsePlan("# Plan\n\n## Brief\n\n```\n## Plan\n```\n"), ViewBuildError);
     assert.throws(() => VIEW_KINDS.plan.parse({ phases: [] }), ViewBuildError);

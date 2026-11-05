@@ -295,6 +295,20 @@ const firstParagraph = (lines) => {
   return kept.slice(0, end < 0 ? kept.length : end).map(unlisted).join(" ");
 };
 
+/** Each list item joined with its indented continuation lines, as one line; other lines are dropped. */
+const listItems = (lines) => {
+  const items = [];
+  let open = false;
+  for (const line of lines) {
+    if (LIST_ITEM.test(line)) {
+      items.push(line.trimEnd());
+      open = true;
+    } else if (open && /^[ \t]+\S/.test(line)) items[items.length - 1] += ` ${line.trim()}`;
+    else open = false;
+  }
+  return items;
+};
+
 /** The record's lines grouped under their `##` and `###` headings, in order: [{ h2, h3, lines }]. */
 function outline(entries) {
   const parts = [{ h2: "", h3: "", lines: [] }];
@@ -381,13 +395,12 @@ export function parsePlan(record) {
     goal: firstParagraph(text(BRIEF_HEADING, /^Goal$/)) || (goalLine ? GOAL_LINE.exec(goalLine.line)[1].trim() : ""),
     blast: blastOf(entries),
     brief: { problem: listed(/^Problem$/), constraints: listed(/^Constraints$/), outOfScope: listed(/^Out[- ]of[- ]scope$/i) },
-    behaviors: text(PLAN_HEADING, /^Behav(?:ior|iour)s?$/)
+    behaviors: listItems(text(PLAN_HEADING, /^Behav(?:ior|iour)s?$/))
       .map((line) => BEHAVIOR.exec(line))
       .filter(Boolean)
       .map(([, id, claim, cites]) => ({ id, text: claim, cites: cites?.trim() ?? "" })),
     process: text(PLAN_HEADING, /^/).map((line) => PROCESS.exec(line)?.[1].trim()).find((found) => found !== undefined) ?? "",
-    criteria: [...text(BRIEF_HEADING, /^Acceptance criteria$/i), ...text(PLAN_HEADING, /^Acceptance criteria$/i)]
-      .filter((line) => LIST_ITEM.test(line))
+    criteria: [...listItems(text(BRIEF_HEADING, /^Acceptance criteria$/i)), ...listItems(text(PLAN_HEADING, /^Acceptance criteria$/i))]
       .map((line) => {
         const [, id = "", rest = unlisted(line)] = CRITERION.exec(unlisted(line)) ?? [];
         return { id, text: rest };
