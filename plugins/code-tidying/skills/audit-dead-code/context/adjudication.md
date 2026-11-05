@@ -25,7 +25,7 @@ analyzer in the roster can follow. Check each one before condemning a candidate.
 | Computed path or glob | a loader that builds the path (`"$dir/$name.sh"`, `scripts/*.sh`, `import(variable)`) and never spells this file's basename or repo-relative path. For `unreferenced-file` the verdict is `uncertain`, not `dead` | all |
 
 Cheap checks first, in this order: a repo-wide literal search for the bare name (including inside
-strings), then the config surfaces, then the framework-registration patterns for the candidate's
+strings), then the config files, then the framework-registration patterns for the candidate's
 language. Stop at the first piece of real evidence.
 
 The optional `LSP` assist is one more source, never a substitute. What `findReferences` returns:

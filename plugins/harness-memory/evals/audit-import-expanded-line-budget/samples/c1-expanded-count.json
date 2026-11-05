@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": "| 1 | C1 | CLAUDE.md | 247 visible lines (200 target, 24% over) |", "why": "the report's FAIL row"},
+    {"answer": "CLAUDE.md is 14 lines on its own, but with the import expanded 247 lines load, which is over the 200-line target.", "why": "prose"},
+    {"answer": "C1 line budget: FAIL at 247 lines once docs/module-guide.md is counted.", "why": "check first, figure after"},
+    {"answer": "The file exceeds the budget: **247** loaded lines.", "why": "bold figure"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "CLAUDE.md is 22 lines, well under the 200-line target.", "why": "counted the root file alone"},
+    {"answer": "CLAUDE.md is 14 lines and C1 passes.", "why": "non-blank root count"},
+    {"answer": "C1: 247 lines, PASS.", "why": "right figure, wrong verdict"},
+    {"answer": "247 lines load, within the 200-line target.", "why": "right figure, says it fits"},
+    {"answer": "Together the two files are 314 lines, over the 200-line target.", "why": "raw total, blank lines included"}
+  ]
+}

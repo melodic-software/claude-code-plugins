@@ -387,7 +387,7 @@ Two consequences of that order:
 - **Overrides remain per-dispatch duties.** The frontmatter binds only the
   default: security-surface work classes and conflict workers still take an
   explicit per-invocation frontier-alias override. The worker-lane bodies below
-  carry only those overrides, not a per-dispatch binding for the tiers the
+  carry only those overrides, not a per-dispatch binding for the model tiers the
   agent frontmatter already enforces. The merge-lane bodies additionally keep their
   `opus` binding for CI fixes, review-comment work, and judgment calls:
   babysit dispatches do not route through `implement-dispatch`, so no

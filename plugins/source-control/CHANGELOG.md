@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.4] - 2026-11-04
+
+### Fixed
+
+- The pull-request monitor's poll script removes its stderr temp file on every exit, a stopped watch included. Each watch and snapshot run left one empty file in the temp directory (#9571).
+- `fetch-failed-logs.sh` removes the temp scratch directory it creates when no plugin data directory holds the scratch. It keeps it only for `--keep-zip` and for an exit 3 or 4 whose message names the file. Each run left a directory behind, empty after a failed fetch (#9571).
+
+- `/source-control:pull-request` `create` checks each issue the body would close against the diff before writing it: an issue with a done-when item not delivered moves to `Refs: #N` with a `## Remaining` section, and closing keywords appear only on the linkage line. `ready` runs the same check on GitHub's closing references before the flip and leaves the PR in draft on an over-claim.
+
+## [8.1.3] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [8.1.2] - 2026-11-04
 
 ### Changed

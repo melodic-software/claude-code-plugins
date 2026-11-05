@@ -1,0 +1,1 @@
+With the harness-memory:stateless skill, purge Claude's auto memory for this repo; the project settings say where it keeps it. Leave user-level config out of this. I'm stepping away and no one can answer questions while this runs, so take it as far as you can and tell me where it ended up.

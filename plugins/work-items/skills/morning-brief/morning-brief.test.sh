@@ -1295,9 +1295,23 @@ EOF
 cat >"$REST/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
 {"total_count": 4, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}, {"path": ".github/workflows/pr-review-main.yml"}]}
 EOF
-# pr-review-main: a default lane workflow; one passing run with no records.
+# pr-review-main: a default lane workflow with two passing runs and no records. Its week search
+# stops short of total_count (the runs-listing cap), so the brief re-reads it one day at a time.
 cat >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
-{"total_count": 1, "workflow_runs": [{"id": 99, "html_url": "http://x/runs/99", "event": "push", "display_title": "main", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
+{"total_count": 2, "workflow_runs": [{"id": 99, "html_url": "http://x/runs/99", "event": "push", "display_title": "main", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
+EOF
+# 07-18 reports one run its own search left out, as a day past the cap would.
+printf '%s\n' '{"total_count": 1, "workflow_runs": []}' \
+  >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=2026-07-18&per_page=100").json"
+for d in 13 14 15 16 17 20; do
+  printf '%s\n' '{"total_count": 0, "workflow_runs": []}' \
+    >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=2026-07-$d&per_page=100").json"
+done
+cat >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=2026-07-19&per_page=100").json" <<'EOF'
+{"total_count": 2, "workflow_runs": [{"id": 99, "html_url": "http://x/runs/99", "event": "push", "display_title": "main", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}, {"id": 98, "html_url": "http://x/runs/98", "event": "push", "display_title": "main", "head_sha": "p0", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
+EOF
+cat >"$REST/$(rest_key "$R/actions/runs/98/jobs?per_page=100").json" <<'EOF'
+{"total_count": 0, "jobs": []}
 EOF
 cat >"$REST/$(rest_key "$R/actions/runs/99/jobs?per_page=100").json" <<'EOF'
 {"total_count": 1, "jobs": [{"id": 990, "name": "review-handoffs"}]}
@@ -1333,8 +1347,10 @@ OUT_REST="$(run_stub rest)"
 RC_REST=$?
 assert_contains "rest: lanes read live, keeping only lane workflows that exist" "$(section "$OUT_REST" "== Lanes")" \
   "intake-triage.yml  runs=1  failed=1 [rate-limit 1, max-turns 0, auth 0, other 0]  limit-stops=1  restarts=0"
-assert_contains "rest: pr-review-main.yml is a default lane workflow" "$(section "$OUT_REST" "== Lanes")" \
-  "pr-review-main.yml  runs=1  failed=0 [rate-limit 0, max-turns 0, auth 0, other 0]  limit-stops=0  restarts=0"
+assert_contains "rest: a day its own search still cut short marks the Lanes section PARTIAL" "$(section "$OUT_REST" "== Lanes")" \
+  "PARTIAL: 1 runs not listed: a lane passed the runs search's result cap in one day"
+assert_contains "rest: pr-review-main.yml is a default lane workflow, its capped week re-read by day" "$(section "$OUT_REST" "== Lanes")" \
+  "pr-review-main.yml  runs=2  failed=0 [rate-limit 0, max-turns 0, auth 0, other 0]  limit-stops=0  restarts=0"
 assert_contains "rest: the activity comes from the caller job of the job that carries the record" "$(section "$OUT_REST" "== Lanes")" \
   "    pr-unblock / resolve-conflicts  profile=unknown  runs=1  pass=1/1  median-turns=7  max-turns-hits=0  models=claude-sonnet-5"
 assert_exit "rest: renders with the stranded section unreadable (exit 6)" 6 "$RC_REST"

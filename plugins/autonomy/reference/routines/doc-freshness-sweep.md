@@ -58,7 +58,7 @@ class has two output shapes:
    mechanically checkable: no deterministic gate can decide whether prose now tells the
    truth about the code, because the truth being checked is semantic. The portion derives
    `C3`, not `C2`.
-4. **Higher-risk axes.** Docs are not the structural/config surfaces the `C4` axis names,
+4. **Higher-risk axes.** Docs are not the structural/config files the `C4` axis names,
    and the access scope is repo, not the external-watch access class the provenance axis
    (`C5`) keys on. Neither fires.
 5. **Composition.** When multiple portions match, the highest-risk class governs the posture

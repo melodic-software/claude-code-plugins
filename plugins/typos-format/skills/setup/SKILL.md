@@ -66,6 +66,8 @@ Spelling findings arrive at commit time, from the git pre-commit entry
 `${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh` first: probe what they actually do, don't recite
 this file. Then read the pre-computed tool row, run the remaining probes via Bash, and report a
 PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 typos stays a FAIL even when `typos_format_enabled` is off, because the installed git entry runs
 without Claude Code. Node.js (step 5) is a FAIL either way too.
@@ -75,7 +77,7 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
    Report the resolved path and `typos --version` output when found. FAIL when absent: an agent's
    commit then fails with the install command, and a person's commit passes with a notice.
 3. **Consumer typos config (informational only).** typos resolves its own governing config from
-   each checked path, and the check adds the bundled `config/default-typos.toml` via `typos -c`
+   each checked path, and the check adds the bundled `${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml` via `typos -c`
    (SHA `extend-ignore-re`); `extend-*` keys merge rather than replace. Report whether a
    `typos.toml`, `_typos.toml`, `.typos.toml`, a `Cargo.toml` with
    `[workspace.metadata.typos]`/`[package.metadata.typos]`, or a `pyproject.toml` with
@@ -96,7 +98,7 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
-   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 ## `apply install-git-hooks [scope=local|shared]`

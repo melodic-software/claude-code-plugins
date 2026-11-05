@@ -76,7 +76,7 @@ and the second is the one most easily got wrong:
    take effect. Absence from the team layer *is* the team's unsuppressed state; honoring a
    personal-only entry would let one developer hide a finding the team never accepted.
 
-So `.claude/mutation-testing-arid.local.md` is a **draft** surface. Describing it as "layered like
+So `.claude/mutation-testing-arid.local.md` is a **draft** file. Describing it as "layered like
 the config" is wrong in exactly the direction that matters. The config's later layers do take
 effect, and this record's do not.
 

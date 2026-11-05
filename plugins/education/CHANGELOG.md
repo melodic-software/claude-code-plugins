@@ -3,6 +3,21 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.8] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced
+  ([#12656](https://github.com/melodic-software/claude-code-plugins/issues/12656)): a copy button
+  that also carries `data-rv-record` copies the reader's choices as a fenced `page-input` block.
+  This plugin's pages carry no such button, so they behave as before.
+
+## [1.0.7] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [1.0.6] - 2026-11-04
 
 ### Changed

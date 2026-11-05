@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Confirm how `/education:quiz-me` offers comprehension checks, where generated quiz reports are
 stored, where `/education:teach` roots its learning workspaces, and where `/education:explain`
-starts. The plugin has two configuration surfaces:
+starts. The plugin has two kinds of configuration:
 
 - **Native `userConfig`**: `quiz_policy`, `report_library_dir`, `workspace_root`,
   `explain_starting_rung` and `medium`. Claude Code prompts for them when the plugin is enabled and

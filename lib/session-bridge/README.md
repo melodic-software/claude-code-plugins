@@ -12,7 +12,7 @@ planning plan and brainstorm views, and the review change digest's author Q&A).
 | `watch.sh` | The watcher: long-polls `/api/wait` from a background Bash task and prints one JSON line when there are events |
 | `wake.sh` | One wake: the app's `apply` on `<data_dir>/ops.json`, then the app's `AFTER_APPLY` subcommand when its conf names one (output on stderr, exit code ignored), then `watch.sh` |
 | `test_session_bridge.py` | Tests against a toy app: port, guards, long-poll, lease, event stream, client, `watch.sh` and `wake.sh`, adapter selection, and the channel server over stdio |
-| `view_bridge.py` | The view app: serves a page built by `lib/view-builder.mjs --connect`, takes its actions, and shows the session's replies |
+| `view_bridge.py` | The view app: serves a page built by `lib/view-builder.mjs --connect`, takes its actions, shows the session's replies, and lists unhandled actions as PageInput (`status`) |
 | `view-bridge.sh` | The view app's control script (`CONTROL` in its `session-bridge.conf`): runs `view_bridge.py` with the first Python 3 that runs |
 | `test_view_bridge.py` | Tests for the view app on the loopback adapter, including the full `ensure-running`, `watch.sh` and `apply` loop |
 
@@ -150,6 +150,16 @@ carries: an action a page asks for passes the same confirm or permission gate it
 
 `view-bridge.sh --dir <data_dir> stop` ends the server and its watcher; `lease [--release]` shows or
 clears the watcher lease.
+
+`view-bridge.sh --dir <data_dir> status --record-id <kind>` lists what the reader sent that the
+session has not handled, so input sent while no watcher ran is picked up at the owner's next
+message. It reads `actions.json` and `replies.json` and needs neither the server nor a watcher. It
+prints one line, `{note, events: [{seq, input}]}`, where `note` is `DATA_NOTE` and `input` holds
+PageInput entries only: `{kind, recordId, choiceId?, optionId?, text?, at}`. A `lock` or `unlock`
+action gives one entry per choice, and each note gives a `comment` entry. `recordId` is the
+`--record-id` the session passes, a builder key. Ticked rows, and the choices of any other action,
+are not listed. The session marks the seqs it wrote handled through `ops.json` and `apply`, as on a
+wake.
 
 The server also ends on its own once no watcher wait has been in flight for `IDLE_SECONDS` (600, the
 lease timeout; `--idle-seconds` overrides it), and clears its session files. The watcher is a

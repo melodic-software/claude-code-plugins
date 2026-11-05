@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.4] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js`, `view-builder.mjs` and `view-bridge/view_bridge.py` synced
+  ([#12656](https://github.com/melodic-software/claude-code-plugins/issues/12656)). A copy button
+  that also carries `data-rv-record` copies the reader's choices as a fenced `page-input` block,
+  and the view bridge gains a `status` command. The triage board uses neither, so it behaves as
+  before.
+
+## [11.1.3] - 2026-11-04
+
+### Fixed
+
+- The morning brief's Lanes section counts every run of a busy lane's week: when the week's runs search returns fewer runs than it reports, the brief reads that lane one day at a time.
+
 ## [11.1.2] - 2026-11-04
 
 ### Changed

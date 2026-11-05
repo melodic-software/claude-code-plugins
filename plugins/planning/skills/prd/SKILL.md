@@ -213,7 +213,7 @@ Two behaviors apply to this PRD's verifiable statements (the Step 4 success-metr
 
 ### Coverage prompt. Always on, asked once
 
-While capturing them, ask ONE question: are they missing an **unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven** case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs whatever the acceptance-criteria format resolves to, and with no convention surface present at all; it is a coverage check, not a format.
+While capturing them, ask ONE question: are they missing an **unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven** case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs whatever the acceptance-criteria format resolves to, and with no convention file present at all; it is a coverage check, not a format.
 
 ### Non-interactive runs skip the ask and say so
 
@@ -223,7 +223,7 @@ The unattended condition is **declared by the caller, never sniffed**: never rea
 
 ### EARS tags, when the convention selects them
 
-Resolve `acceptance_criteria_format` per "Resolving `acceptance_criteria_format`" below. Under `free-text`, the default and every degrade, every section is emitted untagged, the same shape as a run with no convention surface at all. Under `ears`, each acceptance criterion this run emits carries a bracketed pattern prefix on a plain bullet:
+Resolve `acceptance_criteria_format` per "Resolving `acceptance_criteria_format`" below. Under `free-text`, the default and every degrade, every section is emitted untagged, the same shape as a run with no convention file at all. Under `ears`, each acceptance criterion this run emits carries a bracketed pattern prefix on a plain bullet:
 
 | Tag | Pattern |
 |---|---|

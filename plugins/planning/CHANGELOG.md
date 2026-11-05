@@ -3,6 +3,42 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.7.0] - 2026-11-05
+
+### Added
+
+- A plan opens with a `### Behavior` list: each item is one observable claim that cites the acceptance criteria it serves, a `Process criteria:` line holds the criteria no behavior shows, and each phase names the behaviors it builds on a `**Delivers:**` line. The PLAN.md anatomy, the plan template, `/planning:plan` Step 2, review mode and both plan-reviewer files carry it, and the reduced reader depths copy the list.
+- The outcome gate's new `behaviors` criterion fails a plan with criterion ids whose list is missing or not the first `###` under `## Plan`, or that has a duplicate behavior id, an item citing no criterion, an unknown cite, an uncited criterion, a criterion both cited and on the Process line, an undelivered behavior, or an unknown Delivers id. A plan with no criterion id passes it with a warning.
+
+## [2.6.0] - 2026-11-04
+
+### Added
+
+- Review-page lock and comment input
+  ([#12656](https://github.com/melodic-software/claude-code-plugins/issues/12656)). On the local
+  plan page the reader can lock or unlock the verdict, and the session writes each lock, unlock and
+  comment as a row in a `## Reader input` section at the end of the record. A lock is never
+  approval: a plan is approved only in the conversation.
+- `view-bridge.sh status --record-id <kind>` lists what the reader sent that the session has not
+  handled, with PageInput fields only, so input sent while no watcher ran is picked up at the
+  owner's next message.
+- The plan, brainstorm and design views have a Copy choices as prompt control. It copies a fenced
+  `page-input` block for a published page, which cannot reach the session, and each page says live
+  input needs the local page. The new `scripts/page-input.mjs` checks a pasted block against the
+  open record's view kind and refuses a choice or option that view does not carry. The session
+  writes the entries only after the owner confirms them in the conversation.
+
+### Changed
+
+- Shared `view-runtime.js`, `view-builder.mjs`, `view_bridge.py` and `reference/rendered-view.md`
+  synced: the `data-rv-record` copy binding, the `status` command and the Reader input procedure.
+
+## [2.5.2] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [2.5.1] - 2026-11-04
 
 ### Fixed

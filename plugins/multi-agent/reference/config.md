@@ -1,4 +1,4 @@
-# multi-agent configuration surface
+# multi-agent configuration
 
 Owner document for the role map the `multi-agent` skills resolve. The bundled
 values live in [`defaults.yaml`](defaults.yaml); a consumer layer overrides
