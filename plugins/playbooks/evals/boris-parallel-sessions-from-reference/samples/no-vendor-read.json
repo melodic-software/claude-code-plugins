@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:boris"}}, {"tool": "Read", "input": {"file_path": "/root/.claude/plugins/cache/melodic-software/playbooks/1.0.0/skills/boris/reference/worktrees.md"}}], "why": "reads the worktrees reference only"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:boris"}}], "why": "answers from the hub"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/root/.claude/plugins/cache/melodic-software/playbooks/1.0.0/skills/boris/vendor/upstream-skill.md"}}], "why": "reads the vendored upstream baseline"}
+  ]
+}
