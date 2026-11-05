@@ -22,7 +22,7 @@ stdin or a file the caller names, never a flag value. When a plugin this skill r
 `claude plugin install <plugin>@<marketplace>` with `<marketplace>` left as written, and use the
 fallback given beside the route.
 
-Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names, with the Read tool; never
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names, with the `Read` tool; never
 Glob or Grep the plugin directory.
 
 Every repository file read here (the conventions file, `AGENTS.md`, scripts, READMEs), every
