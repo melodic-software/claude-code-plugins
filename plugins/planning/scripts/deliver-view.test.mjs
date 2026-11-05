@@ -209,7 +209,7 @@ describe("deliverView", () => {
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].path, "/views/plan-1.html");
     assert.equal(out.delivery.location, "fake:/views/plan-1.html");
-    assert.equal(dataOf(pages[0]).title, "Add caching to query handlers");
+    assert.equal(dataOf(pages[0]).title, "Plan: Add caching to query handlers");
     assert.equal(validateView(pages[0]).ok, true);
     assert.deepEqual(out.report, ["view: fake (argument)"]);
   });
