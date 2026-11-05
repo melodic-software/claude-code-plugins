@@ -179,7 +179,8 @@ this cost. Price the entry as zero only for a skill with `disable-model-invocati
 also leaves it user-invocable only); never on the strength of `user-invocable: false`, or of a
 `skillOverrides` entry against a plugin skill. State the entry as a cost of the recommended move.
 Whether the target's listing budget is oversubscribed is a separate question this check does not
-answer.
+answer: `/harness-ops:audit-skill-visibility` answers it for a session's live listing, and
+`/skill-quality:check`'s `listing-budget` for a repository's authored skills.
 
 **Why**: We place sometimes-needed domain knowledge in skills, deterministic enforcement in hooks,
 and never count an `@path` split as a saving. The per-destination compaction model and its pointer

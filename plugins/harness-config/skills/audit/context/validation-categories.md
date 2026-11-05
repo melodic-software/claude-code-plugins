@@ -289,7 +289,9 @@ warning naming the waived guard. To apply to a settings file that is a symlink, 
 ## Category G: Skill-listing budget
 
 Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "G. Skill-listing
-budget". What governs the category:
+budget". Which skills the listing drops, skill by skill, and why is
+`/harness-ops:audit-skill-visibility`'s question; this category measures the session's overflow
+and names the levers. What governs the category:
 
 - **State the budget, or the finding is not computable.** The listing budget and the per-entry
   description cap are upstream settings; the per-entry authoring limit is the one

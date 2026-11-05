@@ -10,11 +10,13 @@ contract gate) when installed, and lean on its findings; absent, this file is th
 
 ## Check
 
-- **Triggering**: is the `description` the sole auto-discovery driver, front-loaded with real use
-  cases and trigger phrases, within the listing budget? Under- vs over-triggering; negative
-  boundaries stated for adjacent intents.
-- **Progressive disclosure**: hub thin; detail in `reference/`; each reference linked with a
-  one-line load-when pointer. Does the hub stay thin as coverage grows?
+- **Triggering**: does the `description` follow `/playbooks:skill-authoring` `## Descriptions`?
+  Under- vs over-triggering, and confusion with an adjacent skill. Whether the listing
+  budget drops it is `/harness-ops:audit-skill-visibility`'s to answer.
+- **Progressive disclosure**: grade the hub and its references against
+  `/playbooks:skill-authoring` `## Body` and `## Reference files`, or run
+  `/docs-hygiene:audit-progressive-disclosure` when installed. Does the hub stay thin as coverage
+  grows?
 - **Composition**: if it orchestrates other skills, is each loaded inline or forked
   (`context: fork`), and does what a forked skill can see match what the step needs? Are the named
   skills real? Are absent-seam fallbacks stated?
