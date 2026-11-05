@@ -2117,15 +2117,19 @@ class RunValidityTest(unittest.TestCase):
         " outbound to xtomd.com:443)"
     )
 
-    def network_run(self, tags=None, arm="with", trace=NETWORK, every=False):
+    def network_run(self, tags=None, arm="with", trace=NETWORK, every=False, case_yaml=None):
         """The clean result at two runs per arm, the plugin's directory a
         suite.plugins path, measurable-criterion's prompt.md carrying tags (None:
-        no prompt.md) and its second `arm` run's trace `trace`, scoring the same
-        as its first; with every, both of its `arm` runs."""
+        no prompt.md), its case.yaml holding case_yaml (None: no case.yaml), and
+        its second `arm` run's trace `trace`, scoring the same as its first; with
+        every, both of its `arm` runs."""
         result = self.clean()
+        case_dir = self.dir / "suite" / result["cases"][1]["dir"]
         if tags:
-            prompt = self.dir / "suite" / result["cases"][1]["dir"] / "prompt.md"
+            prompt = case_dir / "prompt.md"
             prompt.write_text("---\ndescription: d\n%s\n---\n\nQ\n" % tags, encoding="utf-8")
+        if case_yaml:
+            (case_dir / "case.yaml").write_text(case_yaml, encoding="utf-8")
         data = load(self.write(result))
         data["suite"]["plugins"] = [{"path": self.PLUGIN}]
         for case in data["cases"]:
@@ -2180,6 +2184,21 @@ class RunValidityTest(unittest.TestCase):
                 proc.stdout,
             )
             self.assertIn("): measurable-criterion)", proc.stdout)
+
+    def test_a_no_network_tag_in_case_yaml_alone_makes_the_denial_a_warning(self):
+        for case_yaml in (
+            'schema_version: "1.1"\nname: m\ntags: [knowledge, no-network]\n',
+            'schema_version: "1.1"\nname: m\ntags:\n  - knowledge\n  - no-network\n'
+            "graders:\n  - name: g\n",
+        ):
+            proc = self.network_run(case_yaml=case_yaml)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("no-network case, not counted;", proc.stdout)
+
+    def test_a_case_yaml_without_the_tag_leaves_the_denial_a_fail(self):
+        proc = self.network_run(case_yaml='schema_version: "1.1"\nname: m\ntags: [knowledge]\n')
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(self.NETWORK_FAIL, proc.stdout)
 
     def test_network_denial_text_outside_a_bash_tool_result_is_not_a_denial(self):
         report = (

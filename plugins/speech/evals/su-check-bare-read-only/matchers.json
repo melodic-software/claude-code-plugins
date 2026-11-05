@@ -1,0 +1,23 @@
+{
+  "runs-check": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?check\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    "(?=",
+    {
+      "use": "token_argument"
+    },
+    "--data-dir\\b)"
+  ],
+  "no-fetch": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:python[\\d.]*(?:\\.exe)?(?:\\s+-\\w+)*(?:\\s|\\\\\\\\\\\\n)+)?(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?assets\\.py(?:\\\\\\\"|')?(?![\\w.-])",
+    {
+      "use": "token_argument"
+    },
+    "(?<![\\w-])fetch\\b"
+  ]
+}

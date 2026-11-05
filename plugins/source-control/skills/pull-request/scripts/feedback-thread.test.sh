@@ -105,23 +105,24 @@ assert_exit "check-paths refuses a test file beside a .github/workflows/ thread 
 run check-paths .github/scripts/x.mjs .github/scripts/x.test.mjs >/dev/null 2>&1
 assert_exit "check-paths allows a .github/scripts/ thread path and a test file beside it" 0 "$?"
 
-# check-paths: a file in a kept thread's plugins/<p>/ directory other than permission config,
-# package manifests and non-test code, and test files beside a thread path
+# check-paths: a file in a kept thread's plugins/<p>/ directory other than permission config
+# and package manifests, any plugin's or skill's eval files, and test files beside a thread path
 setup
 jq '.threads += [{"id":"PRRT_e","path":"plugins/p/evals/c/case.yaml","root_comment_id":400,"comments":[]},
   {"id":"PRRT_s","path":"plugins/planning/surface/round.py","root_comment_id":401,"comments":[]}]' \
   "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
 for path in plugins/p/evals/c/samples/y.json plugins/p/evals/c/samples/deep/z.json \
   plugins/p/evals/other/samples/y.json plugins/p/skills/s/SKILL.md plugins/p/evals/x.json \
-  plugins/planning/README.md plugins/planning/surface/test_round.py plugins/planning/surface/round_test.py src/a.test.js src/a.spec.ts; do
+  plugins/planning/README.md plugins/planning/surface/test_round.py plugins/planning/surface/round_test.py src/a.test.js src/a.spec.ts \
+  plugins/q/evals/c/samples/y.json plugins/q/skills/s/evals/c/case.yaml \
+  plugins/p/hooks/hooks.json plugins/p/.claude-plugin/plugin.json plugins/p/AGENTS.md \
+  plugins/p/skills/s/CLAUDE.md plugins/p/.claude/rules/r.md \
+  plugins/p/scripts/run.sh plugins/p/lib/X.TS plugins/planning/surface/helper.py plugins/planning/test_round.py; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths allows $path" 0 "$?"
 done
-for path in plugins/q/evals/c/samples/y.json plugins/pp/README.md plugins/README.md \
-  plugins/p/hooks/hooks.json plugins/p/.claude-plugin/plugin.json plugins/p/AGENTS.md \
-  plugins/p/skills/s/CLAUDE.md plugins/p/.claude/rules/r.md \
-  plugins/p/scripts/run.sh plugins/p/.claude/settings.json plugins/p/package.json plugins/p/lib/X.TS \
-  plugins/planning/surface/helper.py plugins/planning/test_round.py \
+for path in plugins/q/README.md plugins/q/evals/c/package.json plugins/pp/README.md plugins/README.md \
+  plugins/p/.claude/settings.json plugins/p/package.json \
   src/lib/a.test.js src/helper.js src/test_a.sh test_root.py \
   plugins/p/evals/c/../../../../.github/workflows/x.yml plugins/p/evals/c/./y.json plugins/p/evals/c//y.json \
   /src/a.js ./src/a.js; do
@@ -156,6 +157,30 @@ disposition '{"disposition":"VALID","evidence":["src/other.js:1"],"fix_sha":"","
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "record takes a VALID fix made in a pr_paths file" 0 "$?"
 
+# check-paths: any file of a plugin a pr_paths file sits in joins every thread's scope, and a
+# copy_paths file (a shared copy of a canonical the pull request changes, #12346) joins it while
+# the gated head holds it, without opening the rest of its plugin; .github/workflows/ stays out
+setup
+mkdir -p "$STUB/ws/plugins/a/hooks" "$STUB/ws/lib" "$STUB/ws/.github/workflows"
+echo 'h' >"$STUB/ws/plugins/a/hooks/hook-utils.sh"
+echo 'r' >"$STUB/ws/plugins/a/README.md"
+echo 'h' >"$STUB/ws/lib/hook-utils.sh"
+echo 'c' >"$STUB/ws/.github/workflows/ci.yml"
+fixture_git add -A && fixture_git commit -q -m copies
+jq '.pr_paths = ["lib/hook-utils.sh", "plugins/t/skills/s/SKILL.md"] | .copy_paths = ["plugins/a/hooks/hook-utils.sh", ".github/workflows/ci.yml"]' \
+  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+for path in plugins/a/hooks/hook-utils.sh plugins/t/hooks/hooks.json plugins/t/skills/u/scripts/new.py; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths allows $path through pr_paths or copy_paths" 0 "$?"
+done
+for path in plugins/a/README.md plugins/a/hooks/other.sh plugins/t/package.json .github/workflows/ci.yml; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths refuses $path with pr_paths and copy_paths set" 1 "$?"
+done
+jq '.copy_paths = []' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+run check-paths plugins/a/hooks/hook-utils.sh >/dev/null 2>&1
+assert_exit "check-paths refuses a shared copy copy_paths does not list" 1 "$?"
+
 # check-paths: a kept thread's named_paths join its scope only in its own plugins/<p>/ directory,
 # never under .github/, never an instruction path, and never off normal form. run-transcript.js is
 # the file #8116's thread PRRT_kwDOTCGFQM6tojDu was refused.
@@ -172,25 +197,24 @@ jq --arg t "$T" '.threads += [{"id":"PRRT_n","path":($t + "/write-transcript.js"
 run check-paths "$T/run-transcript.js" >/dev/null 2>&1
 assert_exit "check-paths allows a same-plugin file a fix request named" 0 "$?"
 for path in plugins/knowledge/AGENTS.md plugins/knowledge/hooks/guard.sh plugins/knowledge/.claude-plugin/plugin.json \
-  plugins/knowledge/.mcp.json plugins/knowledge/skills/s/CLAUDE.md; do
+  plugins/knowledge/.mcp.json plugins/knowledge/skills/s/CLAUDE.md "$T/run-watch.js"; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths allows named $path" 0 "$?"
 done
 for path in plugins/other/x.js .github/workflows/x.yml \
-  plugins/knowledge/.claude/settings.json plugins/knowledge/../other/x.js "plugins/knowledge/a b.js" "$T/run-watch.js"; do
+  plugins/knowledge/.claude/settings.json plugins/knowledge/../other/x.js "plugins/knowledge/a b.js"; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths refuses named $path" 1 "$?"
 done
 
-# check-paths: more code files, package manifests and non-ASCII letters stay out of the
-# plugin-wide scope, and so do plugin monitors, bin and .lsp.json (control surfaces)
-run check-paths plugins/knowledge/README.md >/dev/null 2>&1
-assert_exit "check-paths allows plugins/knowledge/README.md in the named thread's plugin" 0 "$?"
-for path in plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool plugins/knowledge/.lsp.json; do
+# check-paths: the plugin-wide scope holds code and plugin monitors, bin and .lsp.json; package
+# manifests and non-ASCII letters stay out
+for path in plugins/knowledge/README.md plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool plugins/knowledge/.lsp.json \
+  plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1; do
   run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths refuses control surface $path in the named thread's plugin" 1 "$?"
+  assert_exit "check-paths allows $path in the named thread's plugin" 0 "$?"
 done
-for path in plugins/knowledge/package-lock.json plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1 "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
+for path in plugins/knowledge/package-lock.json "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths refuses $path" 1 "$?"
 done
@@ -232,7 +256,7 @@ echo 'guarded' >"$STUB/ws/src/a.js"
 mkdir -p "$STUB/ws/src/nested" && : >"$STUB/ws/src/nested/package.json"
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "an empty stub name below the top of the checkout refuses the VALID record" 1 "$?"
-# A plugin's control files stay out of the plugin-wide scope of a thread on another of its files.
+# A plugin's control files are in the plugin-wide scope of a thread on another of its files.
 setup
 mkdir -p "$STUB/ws/plugins/p/.claude-plugin" "$STUB/ws/plugins/p/hooks"
 echo 'r' >"$STUB/ws/plugins/p/README.md"
@@ -244,7 +268,7 @@ fixture_git add -A && fixture_git commit -q -m plugin
 jq '.threads = [{"id":"PRRT_p","path":"plugins/p/README.md","line":1,"review_commit":.head_sha,"root_comment_id":300,"comments":[{"id":300,"body":"x"}]}]' "$STUB/threads.json" >"$STUB/t2.json" && mv "$STUB/t2.json" "$STUB/threads.json"
 for path in plugins/p/.claude-plugin/plugin.json plugins/p/hooks/hooks.json plugins/p/AGENTS.md; do
   run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths refuses $path through the plugin-wide scope" 1 "$?"
+  assert_exit "check-paths allows $path through the plugin-wide scope" 0 "$?"
 done
 run check-paths plugins/p/notes.md >/dev/null 2>&1
 assert_exit "check-paths allows a plain file in the thread's plugin" 0 "$?"

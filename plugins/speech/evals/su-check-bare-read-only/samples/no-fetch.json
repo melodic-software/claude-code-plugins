@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/check.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}'"
+          }
+        }
+      ],
+      "why": "the check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'assets.py fetch' /tmp/run-1/plugin/skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "quoted in a grep, not run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/assets.py\" fetch --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}'"
+          }
+        }
+      ],
+      "why": "downloads the model"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp && python3 assets.py fetch"
+          }
+        }
+      ],
+      "why": "downloads the model after a cd"
+    }
+  ]
+}

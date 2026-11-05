@@ -49,16 +49,17 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 [[ -f $threads_file ]] || die 2 "no thread file"
 
 # Not under .github/workflows/ in any letter case, with no empty, . or .. segment, of
-# plain ASCII segments, and in a kept thread's scope: its path, a file in the
-# plugins/<p>/ directory it sits in that is no instruction path (.gitmodules,
-# CODEOWNERS, a settings*.json, a package manifest or lockfile), no control
-# surface (CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, .claude-plugin/, hooks/,
-# monitors/, bin/) and no script or code file, a test file in its directory, or a path in its named_paths
-# (the files a write-access fix request named) in that same plugins/<p>/
-# directory that is no instruction path; or, when the gated head holds it as a
-# regular file, a file in the thread file's pr_paths (the files the pull request already
-# changes, which the select job already held to thread-scope.mjs's
-# prPathsOf). The same rule as
+# plain ASCII segments, and in a kept thread's scope: its path; a file that is
+# no instruction path (.gitmodules, CODEOWNERS, a settings*.json, a package
+# manifest or lockfile) and is either under a plugin's or a skill's evals/ or
+# in a plugins/<p>/ directory a kept thread's path or a pr_paths file sits in;
+# a test file in its directory; or a path in its named_paths (the files a
+# write-access fix request named) in that same plugins/<p>/ directory that is
+# no instruction path; or, when the gated head holds it as a regular file, a
+# file in the thread file's pr_paths (the files the pull request already
+# changes, which the select job already held to thread-scope.mjs's prPathsOf)
+# or copy_paths (the shared copies of the canonicals it changes,
+# copyPathsOf's). The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
@@ -72,17 +73,15 @@ allowed() {
       def plugin: first(capture("^(?<c>plugins/[^/]+/)").c) // null;
       ($p | test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$")) as $plain
       | ($p | test("(^|/)(\\.gitmodules|codeowners|settings[^/]*\\.json|package(-lock)?\\.json|requirements[^/]*\\.txt)$"; "i")) as $instruction
-      | ($p | test("^\\.github/|(^|/)(CLAUDE\\.md|AGENTS\\.md|\\.mcp\\.json|\\.lsp\\.json)$|(^|/)\\.claude(-plugin)?/|^plugins/[^/]+/(hooks|monitors|bin)/"; "i")) as $control
-      | (if $instruction or $control or ($p | test("\\.(sh|bash|zsh|ps1|py|mjs|cjs|js|ts|mts|cts)$"; "i"))
-         then null else $p | plugin end) as $plugin
+      | (if $instruction then null else $p | plugin end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
-      | (if $instruction then null else $p | plugin end) as $named
-      | ($tracked and any(.pr_paths[]?; . == $p)) as $pr
-      | $plain and ($pr or any(.threads[], .verify_notes[]?; .path as $t
+      | ($tracked and any(.pr_paths[]?, .copy_paths[]?; . == $p)) as $pr
+      | ($plugin != null and (($p | test("^plugins/[^/]+/(skills/[^/]+/)?evals/")) or any(.pr_paths[]?; startswith($plugin)))) as $wide
+      | $plain and ($pr or $wide or any(.threads[], .verify_notes[]?; .path as $t
           | $t == $p
           or ($plugin != null and ($t | startswith($plugin)))
           or ($test and ($t | dir) == ($p | dir))
-          or ($named != null and ($t | plugin) == $named and any(.named_paths[]?; . == $p))))' "$threads_file" >/dev/null
+          or ($plugin != null and ($t | plugin) == $plugin and any(.named_paths[]?; . == $p))))' "$threads_file" >/dev/null
 }
 
 # git in the checkout with no system, global, hook, fsmonitor or untracked

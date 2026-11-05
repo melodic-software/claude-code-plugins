@@ -11,8 +11,8 @@ export const PREDICATES = {
   // A markdown file: a path ending in .md, in that case.
   markdown: () => (path) => path.endsWith(".md"),
   // A kept thread's path, or a file thread-scope.mjs places in its scope,
-  // its named_paths and the PR's own files the patch does not add included:
-  // `keptThreads` is { paths, threads, prPaths }.
+  // its named_paths and the PR's own files and shared copies the patch does
+  // not add included: `keptThreads` is { paths, threads, prPaths, copyPaths }.
   "kept-threads": ({ keptThreads }) => {
     if (!(keptThreads?.paths instanceof Set) || keptThreads.paths.size === 0 || !Array.isArray(keptThreads.threads)) {
       throw new Error("allow kept-threads needs the run's kept thread paths");
@@ -20,6 +20,7 @@ export const PREDICATES = {
     return (path, entry) =>
       inThreadScope(path, keptThreads.paths, keptThreads.threads, {
         prPaths: keptThreads.prPaths ?? new Set(),
+        copyPaths: keptThreads.copyPaths ?? new Set(),
         added: entry === undefined || entry.status?.[0] === "A",
       });
   },

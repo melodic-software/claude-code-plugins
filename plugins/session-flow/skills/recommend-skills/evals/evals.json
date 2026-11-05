@@ -128,16 +128,18 @@
     },
     {
       "id": 10,
-      "name": "shortlist-drawn-from-the-index",
+      "name": "question-answered-from-the-index",
       "prompt": "Which skill fits here? I need to write tests for the invoice exporter I just added. (harness-ops is enabled.)",
-      "expected_output": "The skill builds its pool from /harness-ops:inventory's skills index, shortlists the tier-1 candidates from those index records, and reads only the shortlisted SKILL.md files. Every name it renders is an index record, and the rest of the index's in-domain skills appear by bare name with a count.",
+      "expected_output": "The request asks which skill fits a stated task, so the skill answers in question mode. It builds its pool from /harness-ops:inventory's skills index and names one skill that is an index record, the arguments to pass it, and one example prompt with labeled Goal, Pass/fail check, Proof wanted, Known facts and Constraints lines. It renders no bucket menu, and the example prompt names no test method or guessed cause.",
       "files": [],
       "narration": true,
       "expectations": [
         "Builds the pool from the skills index rather than from the in-context listing",
-        "Every shortlisted name is a record from the index, none taken from memory or invented",
-        "Reads the SKILL.md files of the shortlisted skills only, not of every index record",
-        "Index skills outside the shortlist still appear by name in tier 2 with a count"
+        "Names exactly one skill, and that skill is a record from the index, not taken from memory or invented",
+        "Gives the arguments to pass that skill",
+        "Gives one example prompt with labeled Goal, Pass/fail check, Proof wanted, Known facts and Constraints lines",
+        "Renders no Now, Next, Skipped upstream, Later or Spotlight bucket",
+        "The example prompt prescribes no method and no guessed cause"
       ]
     },
     {

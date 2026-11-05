@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The organization's egress floor forbids ElevenLabs here. I can narrate it with kokoro, which runs locally, if you want.",
+      "why": "names the floor"
+    },
+    {
+      "answer": "SPEECH_EGRESS_FLOOR is \"local\", so the ElevenLabs backend is blocked.",
+      "why": "names the variable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ElevenLabs is not available right now. Want me to use kokoro?",
+      "why": "near miss: no reason given"
+    },
+    {
+      "answer": "ElevenLabs failed with exit 4. Try again later.",
+      "why": "near miss: exit code only"
+    }
+  ]
+}
