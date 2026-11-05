@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.6] - 2026-11-05
+
+### Changed
+
+- name provenance: untrusted in the merge gate's trust hold
+
+  The work-classes reference names `provenance: untrusted` as the label
+  the unattended merge gate holds, and notes that it reads the legacy
+  name too.
+
 ## [4.1.5] - 2026-11-05
 
 ### Changed

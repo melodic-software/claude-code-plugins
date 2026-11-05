@@ -755,7 +755,9 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   const { jobs } = workflow("pr-unblock.yml");
   const job = jobs["report-stop-status"];
   const escalation = jobs["report-escalation"];
-  assert.deepEqual(job.needs, escalation.needs);
+  // report-escalation needs the same jobs, and report-stop-status for its
+  // status-withheld output.
+  assert.deepEqual(escalation.needs, [...job.needs, "report-stop-status"]);
   const SOURCES = [
     "resolve-conflicts-select",
     "apply-conflict-patch",
@@ -787,6 +789,7 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "needs.apply-patch-rung-up.result": rungUpResult,
     "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
     "needs.apply-patch-rung-up.outputs.patch-skip-reason": rungUpSkip,
+    "needs.report-stop-status.outputs.status-withheld": "",
   });
   for (const from of SOURCES) {
     assert.equal(evaluate(job.if, context({ from, reason: "x" })), true, from);
@@ -854,6 +857,16 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   assert.equal(evaluate(escalation.if, failed()), true);
   assert.equal(evaluate(escalation.with["escalation-reason"], failed()), "feedback-publish-failed");
   assert.equal(stopSkip("feedback-publish-failed"), "lane-stopped", "routed to a failing status");
+  // A refusal the feedback sweep sends again: report-stop-status withheld the
+  // status, so report-escalation posts no lane-stopped comment. An empty
+  // output (the status posted, or report-stop-status skipped or failed) posts.
+  const withheld = (extra = {}) => ({ ...failed(extra), "needs.report-stop-status.outputs.status-withheld": "true" });
+  assert.equal(evaluate(escalation.if, withheld()), false, "a withheld status posts no comment");
+  assert.equal(evaluate(escalation.if, failed()), true, "a posted status posts the comment");
+  assert.equal(job.outputs["status-withheld"], "${{ steps.post.outputs.status-withheld }}");
+  assert.equal(job.steps.find((step) => step.name === "Post the stop status").id, "post");
+  // The rung-up branch reads no withheld output: fix-ci's stop still posts.
+  assert.equal(evaluate(escalation.if, withheld({ headFrom: "fix-ci-context", rungUp: "true", rungUpResult: "failure" })), true, "a rung-up stop posts");
   // The head is the commit the activity's push job pushed, else its select
   // job's, never a model call's; the reason is the one report-escalation reads.
   const post = job.steps.find((step) => step.name === "Post the stop status");
@@ -969,6 +982,7 @@ const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", s
   "needs.apply-patch-rung-up.outputs.escalation-reason": escalation,
   "needs.apply-patch-rung-up.outputs.patch-skip-reason": skip,
   "needs.publish-feedback.result": "skipped",
+  "needs.report-stop-status.outputs.status-withheld": "",
 });
 
 test("pr-unblock.yml: a rung-up stop runs fix-ci and apply-patch again at model-rung 1 in the same run", () => {
@@ -8353,7 +8367,7 @@ test(`every caller of ${READ} runs no model, write token, push, comment or label
     }
     // Every upstream job succeeds and its gates proceed; a downstream helper
     // job (a handoff check) reports nothing, since no call ran.
-    const proceed = new Proxy({}, { get: (_, key) => (key === "proceed" ? "true" : key === "capped" ? "false" : "") });
+    const proceed = new Proxy({}, { get: (_, key) => (key === "proceed" || key === "person-opened" ? "true" : key === "capped" ? "false" : "") });
     const upstream = Object.keys(jobs).filter((id) => !downstream.has(id));
     // The first leg of each read chain is the one the stop hits. A later leg
     // that still starts (pr-unblock's subscription leg starts on its handoff
@@ -8807,8 +8821,15 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   assert.deepEqual(crossed.sort(), ["address-feedback-select.head-sha", "apply-feedback-patch.pushed-commit"]);
   // It runs on an acted round and on the reply script's own stops, which may
   // still have answered other threads; never on a kill-switch or gate skip.
+  // On a person's PR with no relayed upstream; workflow-gates.test.mjs holds
+  // those two skips.
   const runs = (result, skip) =>
-    evaluate(job.if.replace("!cancelled() && ", ""), { "needs.publish-feedback.result": result, "needs.publish-feedback.outputs.skip-reason": skip });
+    evaluate(job.if.replace("!cancelled() && ", ""), {
+      "needs.publish-feedback.result": result,
+      "needs.publish-feedback.outputs.skip-reason": skip,
+      "needs.address-feedback-select.outputs.person-opened": "true",
+      "inputs.upstream-relay": "",
+    });
   for (const skip of ["", "lane-stopped", "awaiting-human", "finding-stands", "no-model-turn"]) {
     assert.equal(runs("success", skip), true, `runs on skip ${JSON.stringify(skip)}`);
     assert.equal(runs("failure", skip), false, `not on a failed publish-feedback, skip ${JSON.stringify(skip)}`);

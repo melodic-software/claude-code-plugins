@@ -39,10 +39,16 @@ export const LIMITS = {
   stalledCommentRounds: 2,
   stalledChecks: 20,
   // Uncarried green runs per hold lane read in one window, oldest completion
-  // first: one run list, then a jobs read and one annotation read per job that
-  // prints a hold, so at most 3 + 6 × 3 × 2 calls while each run has one such
-  // job. Past it, the span stops at the last run read and the window is a gap.
+  // first, unless the lane sets its own (signals.mjs HOLD_LANES holdRuns):
+  // up to holdListPages run list pages, then a jobs read and one annotation
+  // read per job that prints a hold, so at most 4 × 3 + (3 × 6 + 40) × 2
+  // calls while each run has one such job. Past it, the span stops at the
+  // last run read and the window is a gap.
   holdRuns: 6,
+  // Run list pages of 100 per hold lane: intake-triage listed up to 151 green
+  // runs over the 7-hour created span in the 7 days to 2026-11-05. A lane with
+  // more is a gap, since its oldest-created runs go unlisted.
+  holdListPages: 3,
   // Held runs the carry keeps, newest first.
   holdsKept: 300,
 };
@@ -529,16 +535,23 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs } of HOLD_LANES) {
-        const runs = (await get(`/repos/${repo}/actions/workflows/${workflow}/runs?status=success&created=${created}&per_page=100`)).workflow_runs;
-        const unread = runs
+      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns } of HOLD_LANES) {
+        // By id: a run that starts between two page reads shifts one onto the next page.
+        const runs = new Map();
+        for (let page = 1; ; page += 1) {
+          const listing = await get(`/repos/${repo}/actions/workflows/${workflow}/runs?status=success&created=${created}&per_page=100${page > 1 ? `&page=${page}` : ""}`);
+          for (const r of listing.workflow_runs) runs.set(r.id, r);
+          if (listing.workflow_runs.length < 100 || runs.size >= (listing.total_count ?? 0)) break;
+          if (page >= LIMITS.holdListPages) throw new Error(`over ${LIMITS.holdListPages * 100} green runs of ${lane} listed; the oldest were not read`);
+        }
+        const unread = [...runs.values()]
           .filter((r) => defaultBranchCode(r) && ownHead(r) && completedSince(r) && !heldRuns.has(`${lane}:${r.id}`))
           .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at));
-        if (unread.length > LIMITS.holdRuns) {
-          readThrough = Math.min(readThrough, Date.parse(unread[LIMITS.holdRuns - 1].updated_at));
-          cut.push(lane);
+        if (unread.length > cap) {
+          readThrough = Math.min(readThrough, Date.parse(unread[cap - 1].updated_at));
+          cut.push(`${lane} (cap ${cap})`);
         }
-        for (const run of unread.slice(0, LIMITS.holdRuns)) {
+        for (const run of unread.slice(0, cap)) {
           const key = `${lane}:${run.id}`;
           const found = [];
           for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && jobs.includes(j.name))) {
@@ -567,7 +580,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       }
       data.holdRule = holds.rule;
       if (cut.length > 0) {
-        throw new Error(`over ${LIMITS.holdRuns} unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
+        throw new Error(`over the cap of unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
       }
       if (Date.parse(heldFrom) > since) throw new Error(`held runs read only since ${heldFrom}, short of the ${holds.rule.windowHours}-hour window`);
     });

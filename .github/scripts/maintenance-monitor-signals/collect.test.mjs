@@ -1041,6 +1041,7 @@ const holdRoutes = () => [
   [/runs\/83\/jobs/, { jobs: [{ id: 830, name: "label-unblocked", conclusion: "success" }] }],
   [/check-runs\/830\/annotations/, [notice("label-unblocked", "the agent-ready listing failed (HTTP 502); holding, and the next sweep reads it again")]],
   [/workflows\/pr-refine\.yml\/runs/, { workflow_runs: [run(87, { event: "workflow_dispatch" })] }],
+  [/workflows\/intake-triage\.yml\/runs/, { workflow_runs: [] }],
   [/runs\/84\/jobs/, { jobs: [] }],
   [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "label-unblocked", conclusion: "success" }, { id: 811, name: "wip-state", conclusion: "success" }] }],
   [/check-runs\/810\/annotations/, [
@@ -1143,7 +1144,7 @@ test("lane holds: past the cap the oldest unread runs are read, a carried one ta
   const carried = { ...CARRIED, runs: [...CARRIED.runs, carriedHold("pr-refine", 908, "2026-10-19T15:38:00Z")] };
   const api = fakeApi(refineRoutes());
   const data = await collect(input(api, { holds: { rule: RULE, carried } }));
-  assert.deepEqual(data.gaps, [`lane holds: over ${LIMITS.holdRuns} unread green runs of pr-refine; held runs read only through 2026-10-19T16:05:00Z`]);
+  assert.deepEqual(data.gaps, [`lane holds: over the cap of unread green runs of pr-refine (cap 6); held runs read only through 2026-10-19T16:05:00Z`]);
   assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-refine").map((h) => [h.runId, h.reason]), [
     [901, "fix-docs handoff evidence missing"],
     [900, "fix-docs handoff evidence missing"],
@@ -1161,6 +1162,55 @@ test("lane holds: past the cap the oldest unread runs are read, a carried one ta
   assert.deepEqual(next.gaps.filter((g) => g.startsWith("lane holds")), []);
   for (const id of [906, 907]) assert.ok(later.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
   assert.equal(next.heldCarry.through, "2026-10-19T17:41:00Z");
+});
+
+// intake-triage green runs 1000 on, one a minute from 15:37, each with an
+// apply-verdict job; 1000 and 1001 held with the notices apply-verdict.mjs
+// closing prints, the rest show only the api-budget notice.
+const intakeRuns = (count, from = 1000) =>
+  Array.from({ length: count }, (_, i) => run(from + i, { event: "issues", updated_at: `2026-10-19T${i < 23 ? "15" : "16"}:${String((37 + i) % 60).padStart(2, "0")}:00Z` })).reverse();
+const intakeRoutes = (listing) => [
+  [/workflows\/intake-triage\.yml\/runs/, listing],
+  [/runs\/1\d{3}\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "apply-verdict", conclusion: "success" }] })],
+  [/check-runs\/10000\/annotations/, [notice("apply-verdict", "held: admission failed: GET /repos/o/r/issues/7/timeline failed with status 503")]],
+  [/check-runs\/10010\/annotations/, [notice("apply-verdict", "held: GET /repos/o/r/issues/7 failed with status 502")]],
+  [/check-runs\/1\d{4}\/annotations/, [notice("api-budget", "end lanes-app core remaining=1 used=1 limit=2 reset=x")]],
+  ...holdRoutes(),
+];
+
+test("lane holds: intake-triage reads past the default cap up to its own, and its holds count", async () => {
+  const api = fakeApi(intakeRoutes({ workflow_runs: intakeRuns(8) }));
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "intake-triage").map((h) => [h.runId, h.item, h.reason]), [
+    [1001, null, "fault HTTP 502"],
+    [1000, null, "admission fault HTTP 503"],
+  ]);
+  for (let id = 1000; id < 1008; id += 1) assert.ok(api.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
+  assert.equal(data.heldCarry.through, "2026-10-19T16:41:00Z");
+});
+
+test("lane holds: intake-triage past its own cap of 40 is a gap that stops at the 40th run", async () => {
+  const api = fakeApi(intakeRoutes({ workflow_runs: intakeRuns(41) }));
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, ["lane holds: over the cap of unread green runs of intake-triage (cap 40); held runs read only through 2026-10-19T16:16:00Z"]);
+  assert.ok(api.calls.some((c) => c.includes("runs/1039/jobs")));
+  assert.ok(!api.calls.some((c) => c.includes("runs/1040/jobs")));
+});
+
+test("lane holds: a run list past one page reads the next, and past three pages is a gap", async () => {
+  // 150 listed: page 1 the 100 newest-created, none completed in the window;
+  // page 2 holds the held run 1000, completed in it.
+  const old = (from, n) => Array.from({ length: n }, (_, i) => run(from + i, { event: "issues", updated_at: "2026-10-19T12:00:00Z" }));
+  const paged = fakeApi(intakeRoutes((path) => (/&page=2$/.test(path) ? { total_count: 150, workflow_runs: [...intakeRuns(1), ...old(2000, 49)] } : { total_count: 150, workflow_runs: old(3000, 100) })));
+  const data = await collect(input(paged, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "intake-triage").map((h) => h.runId), [1000]);
+  assert.equal(paged.calls.filter((c) => c.includes("intake-triage.yml/runs")).length, 2);
+  const many = fakeApi(intakeRoutes((path) => ({ total_count: 400, workflow_runs: old(3000 + 100 * Number(/&page=(\d)$/.exec(path)?.[1] ?? 1), 100) })));
+  const cut = await collect(input(many, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(cut.gaps, ["lane holds: over 300 green runs of intake-triage listed; the oldest were not read"]);
+  assert.equal(many.calls.filter((c) => c.includes("intake-triage.yml/runs")).length, 3);
 });
 
 test("a carried held run of another repository or an unknown lane, or a bad span, is refused", () => {

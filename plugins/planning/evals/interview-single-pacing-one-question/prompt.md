@@ -1,6 +1,6 @@
 ---
 description: "Single pacing, asked for in the session: the user wants one question at a time while round 2's frontier holds five independent decisions. An eval run cannot set the plugin's question_pacing option, so the case uses the in-session request, which the skill says overrides the option for the session. Why hard: the frontier is computed whole, so the easy failure is to ask all five, or to ask one and add the rest as a preview, a topic header or an index."
-tags: [interview, round-layout, pacing]
+tags: [interview, round-layout, pacing, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

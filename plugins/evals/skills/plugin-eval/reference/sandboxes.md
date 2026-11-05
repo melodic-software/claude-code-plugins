@@ -133,7 +133,16 @@ case's own `env` field, whose accepted keys the docs row below defines.
 
 ## Docker link swap
 
-When the user says yes to the swap, wrap the run step's CLI command, unchanged:
+On WSL2, for every eval that grants `Bash`, run the swap without asking when all three hold:
+`DOCKER_CONFIG` is unset, every link (or `~/.docker` itself) points under `/mnt/`, and no link
+target holds a `tls/` directory (the Windows contexts store's TLS keys; `docker-links.py` refuses
+with exit 2 and names it). Say in the run report that the swap ran. `run` passes the command's exit
+code through, so a refused swap is told apart by its stderr line `docker-links: refused:`. The
+owner decided on 2026-11-05 to run the swap without asking when all three conditions hold. When
+any condition fails, refuse and name the links. The Docker behavior behind the decision is in
+[Record](#record).
+
+Wrap the run step's CLI command, unchanged:
 
 ```bash
 python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plugin eval …
@@ -146,7 +155,7 @@ longer one is untested, and at 63 characters no run started a shell sandbox
 `--keep-temp` sandboxes can fill, which fails every eval on the host with ENOSPC and breaks the
 session sockets stored there.
 
-It changes `~/.docker` outside the repository, so it runs only after the user agrees. It replaces
+It changes `~/.docker` outside the repository, and only for the run. It replaces
 every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of
 its target, runs the command, and puts the links back when the command exits, fails, or is
 interrupted. Anything written into the copies is discarded. A dangling link, whose target does
@@ -174,3 +183,15 @@ as well. Why every link and not a list of names: [records.md](records.md#sandbox
 - **Recheck when:** a `--keep-temp` run prints a sandbox path outside `<tmp>/claude-eval-*` or a
   `tracePath` with no `claude-eval-*` directory on it, the docs name the sandbox directory, or a
   release note says runs remove their sandboxes.
+
+- **Pointer:** the Docker link swap's no-ask rule rests on two Docker Desktop behaviors. First,
+  its WSL integration writes the `~/.docker` links into `/mnt/c` again at startup, over whatever
+  is there ([docker/for-win#11668](https://github.com/docker/for-win/issues/11668)), so a
+  one-time host fix does not last. Second, the WSL-side CLI uses the `default` context on the
+  integration's unix socket, and the Windows contexts behind the link are npipe endpoints it
+  cannot dial (`docker context ls` on a WSL2 host). Docker's
+  [WSL 2 backend](https://docs.docker.com/desktop/features/wsl/) page covers the integration but
+  not the links.
+- **As of:** 2026-11-05.
+- **Recheck when:** Docker Desktop's WSL integration changes how it writes `~/.docker`, or the
+  WSL CLI's default context changes.

@@ -7,7 +7,9 @@
 The store is $HOME/.docker. `run` replaces every symbolic link the preflight's
 `find "$HOME/.docker/" -mindepth 1 -type l` would list, or the store itself when
 it is a link, with a dereferenced copy of its target (a dangling link is
-removed for the run and recreated after), runs the command (no
+removed for the run and recreated after), refusing when a `tls` directory sits
+under any link's target, since the copy would bring those keys into the store;
+it then runs the command (no
 shell), and puts the links back when it exits, fails, or the wrapper gets
 SIGINT, SIGTERM or SIGHUP, which it forwards to the command first.
 
@@ -28,7 +30,8 @@ and the link targets are only read. A path that is a link again at restore time
 read or set.
 
 Exit: `run` exits with the command's code, or 128 + the signal number; 0 for a
-done `restore`; 2 refused with nothing changed (no store, a live holder for
+done `restore`; 2 refused with nothing changed (no store, a `tls` directory
+under a link target, a live holder for
 `restore`, a failed swap rolled back); 3 a restore step failed,
 the manifest is kept and names what is left.
 """
@@ -145,6 +148,17 @@ def find_links(store):
     return sorted(links)
 
 
+def tls_dirs(links):
+    """The `tls` directories under the links' targets: the context store's TLS
+    keys, which a copy would bring into ~/.docker."""
+    found = []
+    for link in links:
+        if link.is_dir():
+            for parent, dirs, _ in os.walk(link, followlinks=False):
+                found += [Path(parent) / name for name in dirs if name == "tls"]
+    return sorted(found)
+
+
 def remove(path):
     if path.is_symlink() or path.is_file():
         path.unlink()
@@ -211,6 +225,10 @@ def acquire(me):
         say(f"refused: no store at {store}")
         return 2
     links = find_links(store)
+    tls = tls_dirs(links)
+    if tls:
+        say("refused: a link target holds TLS material: " + ", ".join(map(str, tls)))
+        return 2
     state = {
         "links": [
             {"path": str(p), "target": os.readlink(p), "dangling": not p.exists()}
