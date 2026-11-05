@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.4] - 2026-11-05
+
+### Changed
+
+- `/implementation:implement` keeps a plan block it will not do on the task list as `skip: <reason>` instead of removing it.
+
 ## [0.35.3] - 2026-11-05
 
 ### Changed

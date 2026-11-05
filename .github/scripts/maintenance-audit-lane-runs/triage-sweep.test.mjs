@@ -94,6 +94,7 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
     born(10, [], { user: { id: OUTSIDER } }),
     // A quoted marker mid-body is not the publisher's last line.
     born(11, [], { body: "<!-- work-items:born-triaged -->\nmore text" }),
+    born(12, ["provenance: untrusted"]),
   ];
   assert.deepEqual(
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),

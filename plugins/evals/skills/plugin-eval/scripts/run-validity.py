@@ -168,10 +168,10 @@ suite of them `bash ran: n/a`. A case's allowed_tools cannot grant Bash, so the
 init tools list is the record read.
 
 A should-trigger case has a `tool_used` grader on the Skill tool that requires a
-call. A case is a no-trigger control, and exempt, when its prompt.md tags or
-description mark it one, or it has a max-0 Skill grader with no input_match (or one
+call. A case is a no-trigger control, and exempt, when its tags (prompt.md or
+case.yaml) or description mark it one, or it has a max-0 Skill grader with no input_match (or one
 aimed at the plugin's own skills) and no grader requiring a call. A case is an
-invocation probe when its prompt.md tags include `invocation-probe`, as
+invocation probe when its tags include `invocation-probe`, as
 skill-quality's `measure-invocation.sh emit-plugin-eval` writes them.
 
 Exit codes:
@@ -492,18 +492,30 @@ def read_trace(path):
         return None
 
 
-def frontmatter(path):
-    """description and tags from a prompt.md, or {} when it cannot be read."""
+def read_text(path):
+    """The file's text, or None when it cannot be read."""
     try:
         with open(path, encoding="utf-8") as handle:
-            text = handle.read()
+            return handle.read()
     except (OSError, TypeError):
+        return None
+
+
+def frontmatter(path):
+    """description and tags from a prompt.md, or {} when it cannot be read."""
+    text = read_text(path)
+    if text is None:
         return {}
     parts = text.split("---", 2)
     if not text.startswith("---") or len(parts) < 3:
         return {}
+    return top_level_fields(parts[1])
+
+
+def top_level_fields(text):
+    """description and tags from the top-level keys of a YAML block."""
     fields, key = {"tags": []}, None
-    for line in parts[1].splitlines():
+    for line in text.splitlines():
         item = re.match(r"\s*-\s+(.+)", line)
         if item and key == "tags":
             fields["tags"].append(item.group(1).strip().strip("'\""))
@@ -591,12 +603,15 @@ def skill_graders(case, root):
 
 
 def prompt_fields(case, root):
-    """The case's prompt.md frontmatter, tags lowercased, or {}."""
+    """The case's prompt.md frontmatter with its case.yaml top-level tags
+    added, tags lowercased, or {}."""
     case_dir = case.get(CASE_DIR)
     if not root or not isinstance(case_dir, str):
         return {}
     fields = frontmatter(os.path.join(root, case_dir, CASE_PROMPT))
-    fields["tags"] = [t.lower() for t in fields.get("tags", [])]
+    case_yaml = read_text(os.path.join(root, case_dir, CASE_YAML))
+    yaml_tags = top_level_fields(case_yaml)["tags"] if case_yaml else []
+    fields["tags"] = [t.lower() for t in fields.get("tags", []) + yaml_tags]
     return fields
 
 

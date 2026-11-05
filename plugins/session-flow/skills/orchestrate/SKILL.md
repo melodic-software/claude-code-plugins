@@ -229,7 +229,8 @@ the session sets is the one Claude receives, whatever this anchor says.
 everything that enters it stays for the rest of the session. So it holds the objective, the
 stopping condition, and the decision about what to spawn next, and it delegates the rest. It keeps
 the task list in a file (the plan or checklist the work already has, else one it creates), ticks
-each item as its return is verified, and reads that file rather than the scrollback. It keeps going
+each item as its return is verified, keeps an item it will not do listed as `skip: <reason>`, and
+reads that file rather than the scrollback. It keeps going
 when a step needs no input, with status notes in the same message as the next action, and stops to
 ask only when blocked on the user or before a destructive, hard-to-undo, or outward action. A top
 tier that reads findings, weighs them, and asks a follow-up question has converted a fan-out into a

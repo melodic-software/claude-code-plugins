@@ -122,6 +122,10 @@ SHIM="$TEST_TMPDIR/bin"
 mkdir -p "$SHIM"
 cat >"$SHIM/jq" <<EOF
 #!/usr/bin/env bash
+# A wrapper jq that falls back to the next jq on PATH would land here again;
+# refuse the second entry rather than start a bash and an awk per level.
+[[ -z "\${CRLF_JQ_SHIM:-}" ]] || { echo "crlf jq shim: re-entered through $REAL_JQ" >&2; exit 97; }
+export CRLF_JQ_SHIM=1
 "$REAL_JQ" "\$@" | awk '{ printf "%s\r\n", \$0 }'
 exit "\${PIPESTATUS[0]}"
 EOF

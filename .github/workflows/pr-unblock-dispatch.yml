@@ -46,6 +46,12 @@ name: pr-unblock-dispatch
 # with the base tip it was judged against, and read again once main moves. A
 # run only skips work on the record, never dispatches on it.
 
+# API_BUDGET_HOLD (outage posture element 2): only the dispatch step sets it; the trigger check
+# and the pace step are gates.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   push:
     branches: [main]
@@ -244,6 +250,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate limit past the guard's budget refuses the call with a notice
+          # (rate-guard.mjs): the refusal carries rateLimited, so a refused
+          # listing dispatches nothing and a refused read skips its PR, each
+          # with a warning, and a refused dispatch still ends the run red.
+          API_BUDGET_HOLD: "1"
           # fix-ci skips a PR whose pr-verify FAILs are at the cap (verify-cap.mjs).
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
           # The reader reads the FAIL index by exact name; a pull request with

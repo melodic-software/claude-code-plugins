@@ -75,9 +75,7 @@ the step UNKNOWN with remediation, never green.
 
 In this plugin's manifest each `migrate` record (`attribution-r001` to `attribution-r004`) is a
 retired config file the detectors never read, so every value in it is silently not applied until
-it is migrated. The exception is a root that is the home directory or not a repository: there an
-`attribution-r003` row names the user-global `~/.claude/attribution.json`, which the detectors do
-read. Report it as the user-global layer, not a FAIL, and never migrate or clean it.
+it is migrated.
 
 `apply` cleans up after writing any agreed keys. It re-runs detection and handles each finding with
 its own confirmation. It carries the file's keys into the successor the record names; the old

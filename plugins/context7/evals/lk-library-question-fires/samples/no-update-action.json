@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library prisma \"connection pooling\"",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [],
+      "why": "no command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/run-1/plugin/skills/lookup/scripts/update.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: runs the update action"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version; bash /tmp/run-1/plugin/skills/lookup/scripts/update.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "near miss: update after a separator"
+    }
+  ]
+}

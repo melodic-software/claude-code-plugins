@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Advisory (summary, no inline comment): src/names.js:2 formatName renders \"Ada undefined\" for a customer with no last name; it predates this PR.",
+      "answer": "Pre-existing (advisory): src/names.js:2 formatName renders \"Ada undefined\" for a customer with no last name; it predates this PR.",
       "why": "names the file that holds the pre-existing defect"
     }
   ],

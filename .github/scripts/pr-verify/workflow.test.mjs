@@ -14,7 +14,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
-import { CREDENTIAL_NAMES } from "./capture-probe.mjs";
+import { CREDENTIAL_NAMES, scanFiles } from "./capture-probe.mjs";
 import { WAIT_MS } from "./find-capture.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -1261,8 +1261,9 @@ test("wake-pr-merge wakes no lanes App pull request already armed or held by do-
 // pull request's code, so it is its own workflow: pr-verify.yml runs none,
 // and a verdict counts only from a pr-verify.yml run
 // (babysit_verify_evidence.py WORKFLOW_PATH). Credential separation (owner
-// decision Q11): the key reaches the Claude Code driver alone, never the app
-// it starts, and a probe in the app's position runs before any head code.
+// decision Q11): each job's one credential reaches the Claude Code driver
+// alone, never the app it starts, and a probe in the app's position runs
+// before any head code.
 const CAPTURE_TEXT = readFileSync(new URL("../../workflows/pr-verify-capture.yml", import.meta.url), "utf8");
 const CAP = "capture";
 const jobIn = (source, id) => {
@@ -1276,7 +1277,9 @@ const stepsIn = (source, id) =>
     .split(/\n(?=      - name: )/)
     .slice(1)
     .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block }));
+const CAP_SUB = "capture-subscription";
 const CAP_STEPS = stepsIn(CAPTURE_TEXT, CAP);
+const SUB_STEPS = stepsIn(CAPTURE_TEXT, CAP_SUB);
 const capIndex = (name) => {
   const at = CAP_STEPS.findIndex((s) => s.name === name);
   assert.ok(at >= 0, `a capture step named ${name}`);
@@ -1296,13 +1299,15 @@ const DRIVER = "Capture the change";
 const PROBE = "Probe what head code can reach";
 const PROBE_CHECK = "Check the probe";
 
-test("the capture workflow and its job can write nothing", () => {
+test("the capture workflow and its jobs can write nothing", () => {
   assert.match(CAPTURE_TEXT, /^permissions: \{\}$/m);
-  assert.deepEqual(jobIds(CAPTURE_TEXT), [CAP]);
-  const granted = blockOf(jobIn(CAPTURE_TEXT, CAP), "permissions", 4).trim().split("\n").map((line) => line.trim().split(" #")[0]);
-  assert.deepEqual(granted, ["contents: read", "pull-requests: read", "actions: read"]);
+  assert.deepEqual(jobIds(CAPTURE_TEXT), [CAP, CAP_SUB]);
+  for (const id of [CAP, CAP_SUB]) {
+    const granted = blockOf(jobIn(CAPTURE_TEXT, id), "permissions", 4).trim().split("\n").map((line) => line.trim().split(" #")[0]);
+    assert.deepEqual(granted, ["contents: read", "pull-requests: read", "actions: read"], id);
+    assert.match(jobIn(CAPTURE_TEXT, id), /^ {4}cache-mode: read$/m, id);
+  }
   assert.doesNotMatch(CAPTURE_TEXT, /^\s*[a-z-]+:\s*write\b|write-all|id-token/m);
-  assert.match(jobIn(CAPTURE_TEXT, CAP), /^ {4}cache-mode: read$/m);
 });
 
 test("the capture runs only for a same-repository head the judges would judge, never a fork's", () => {
@@ -1339,7 +1344,11 @@ test("the capture gates run first, then the reach probe after runner isolation a
   }
   assert.match(capStep("Isolate the runner"), /uses: \.\/\.base\/\.github\/actions\/setup-runner-isolation /);
   assert.match(capStep("Isolate the runner"), /install-subprocess-isolation: true/);
-  for (const name of [PROBE, PROBE_CHECK]) assert.doesNotMatch(capStep(name), /continue-on-error/, name);
+  // The probe's own failure never ends the job: the probe check carries the
+  // red for every failure but a handoff, before the head checkout.
+  assert.match(capStep(PROBE), /^ {8}continue-on-error: true$/m);
+  assert.doesNotMatch(capStep(PROBE_CHECK), /continue-on-error/);
+  assert.equal(capIndex(PROBE_CHECK) + 1, capIndex(HEAD_CHECKOUT));
   const probe = capStep(PROBE);
   assert.match(probe, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
   assert.deepEqual(list(probe, "tools"), ["Bash", "Read"]);
@@ -1396,8 +1405,10 @@ test("the step that starts the app holds no credential in any env it inherits, a
   for (const s of CAP_STEPS.slice(capIndex(HEAD_CHECKOUT))) {
     if (s.name !== DRIVER) assert.doesNotMatch(s.block, /secrets\.|github\.token/, s.name);
   }
-  // The job's only secret is that key.
-  assert.deepEqual([...new Set(CAPTURE_TEXT.match(/secrets\.[A-Z_]+/g))], ["secrets.PR_VERIFY_CLAUDE_API_KEY"]);
+  // Each job's only secret is its own credential.
+  assert.deepEqual([...new Set(jobIn(CAPTURE_TEXT, CAP).match(/secrets\.[A-Z_]+/g))], ["secrets.PR_VERIFY_CLAUDE_API_KEY"]);
+  assert.deepEqual([...new Set(jobIn(CAPTURE_TEXT, CAP_SUB).match(/secrets\.[A-Z_]+/g))], ["secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN"]);
+  assert.doesNotMatch(CAPTURE_TEXT, /secrets: inherit|toJSON\(secrets\)|secrets\[/);
 });
 
 test("the capture runs on main's skill with the run-e2e call its SKILL.md documents, within the job's timeout", () => {
@@ -1482,6 +1493,15 @@ test("the collected capture is run-e2e's summary and its listed regular files, o
   const blocked = (status, reason) => ({ route: "none", app: "claude-code", affected: [], capture: { status, reason, count: 0 }, entry_points: [], publishable: [] });
   assert.deepEqual(collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "timeout" }).summary, blocked("blocked", "the capture session ended without a result (timeout)"));
   assert.deepEqual(collect({ DRIVE_OUTCOME: "skipped" }).summary, blocked("blocked", "the capture session ended without a result (skipped)"));
+  // A driver's limit stop (run-claude-cli: class rate-limit with its reset)
+  // ends the job green and names the limit; a rate-limit with no reset is
+  // not a limit stop and keeps the plain reason.
+  const limited = collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "rate-limit", DRIVE_RESETS: "2026-11-05T18:00:00Z" });
+  assert.deepEqual(limited.summary, blocked("blocked", "the capture session stopped at its credential's usage limit"));
+  assert.match(limited.stdout, /^::notice::capture blocked: the capture session stopped at its credential's usage limit$/m);
+  assert.deepEqual(collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "rate-limit" }).summary, blocked("blocked", "the capture session ended without a result (rate-limit)"));
+  assert.match(capStep(DRIVER), /^ {8}continue-on-error: true$/m);
+  assert.equal(input(capStep("Collect the capture"), "DRIVE_RESETS"), "${{ steps.drive.outputs.lane-resets }}");
   const outside = path.join(tempDir("capture-outside-"), "e2e-summary.json");
   writeFileSync(outside, JSON.stringify(summary));
   writeFileSync(output, JSON.stringify({ summary: outside }));
@@ -1509,9 +1529,13 @@ const FENCE = [
   "Read(/${{ runner.temp }}/**)",
   "Read(~/.config/**)",
   "Read(~/.git-credentials)",
+  // Claude Code's own store, where a subscription login keeps its token
+  // (https://code.claude.com/docs/en/authentication, Credential management).
+  "Read(~/.claude/**)",
   "Edit(//proc/**)",
   "Edit(/${{ runner.temp }}/**)",
   "Edit(./.base/**)",
+  "Edit(~/.claude/**)",
 ];
 const FILE_TOOL = /^(?:Read|Edit|Write|Glob|Grep|NotebookEdit)$/;
 test("the driver's file tools are fenced to the head and the run directory, and the probe tries the fence", () => {
@@ -1521,8 +1545,22 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   for (const rule of allowed) assert.doesNotMatch(rule, FILE_TOOL, rule);
   // Only main's named skills: a head skill's frontmatter hooks would run beside the key.
   assert.deepEqual(allowed.filter((rule) => rule.startsWith("Skill")), ["Skill(testing:run-e2e *)", "Skill(app-control:drive *)"]);
-  // The default settings allow managed hooks only; no override.
-  assert.doesNotMatch(capStep("Apply the Claude managed settings"), /^ {8}with:$/m);
+  // The managed settings: the action's required pins (its action.yml check at
+  // b8bdd7f), plus the subprocess scrub and TLS verification, which a
+  // settings file head code writes mid-session cannot override (managed is
+  // the top of the settings stack, and `env` follows it:
+  // https://code.claude.com/docs/en/settings#settings-precedence).
+  for (const steps of [CAP_STEPS, SUB_STEPS]) {
+    const block = steps.find((s) => s.name === "Apply the Claude managed settings").block;
+    const folded = /^ {10}settings: >-\n((?: {12}.*\n?)+)/m.exec(block)?.[1];
+    assert.ok(folded, "a settings input");
+    assert.deepEqual(JSON.parse(folded.replace(/\n {12}/g, " ")), {
+      apiKeyHelper: "",
+      allowManagedHooksOnly: true,
+      env: { ANTHROPIC_BASE_URL: "https://api.anthropic.com", CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1", NODE_TLS_REJECT_UNAUTHORIZED: "1" },
+      permissions: { disableBypassPermissionsMode: "disable" },
+    });
+  }
   assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Read(./.base/.claude/skills/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");
@@ -1535,13 +1573,305 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   const probePrompt = capStep("Write the probe prompt");
   assert.match(probePrompt, /^ {12}echo ' {4}\/proc\/self\/environ'$/m);
   assert.match(probePrompt, /^ {12}echo " {4}\$PROMPT_FILE"$/m);
-  assert.match(capStep(PROBE_CHECK), /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE"; then\n {12}echo "::error::.*"\n {12}exit 1$/m);
+  assert.match(probePrompt, /^ {12}echo " {4}\$FENCE_FILE"$/m);
+  assert.match(capStep(PROBE_CHECK), /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE" "\$HOME\/\.claude\/pr-verify-probe-fence"; then\n {12}echo "::error::.*"\n {12}exit 1$/m);
+  // Every launcher step in both jobs carries the same fence, the probes' and the drivers' alike.
+  const launchers = [...CAP_STEPS, ...SUB_STEPS].filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
+  assert.equal(launchers.length, 4);
+  const fences = launchers.map((s) => list(s.block, "disallowed-tools").filter((rule) => /^(?:Read|Edit)\(/.test(rule)));
+  for (const fence of fences) assert.deepEqual(fence, FENCE);
+  // The fence file the probe reads exists under ~/.claude, so its refusal is the
+  // deny rule's and not a missing file's; it holds no credential.
+  const home = tempDir("capture-probe-home-");
+  const promptFile = path.join(tempDir("capture-probe-prompt-"), "probe.md");
+  const wrote = runStep(probePrompt, { HOME: home, GITHUB_WORKSPACE: tempDir("capture-probe-ws-"), PROMPT_FILE: promptFile });
+  assert.equal(wrote.status, 0, wrote.stderr);
+  const fenceFile = path.join(home, ".claude", "pr-verify-probe-fence");
+  assert.ok(existsSync(fenceFile));
+  assert.deepEqual(scanFiles([fenceFile]), []);
+  assert.match(readFileSync(promptFile, "utf8"), new RegExp(`^ {4}${fenceFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
   assert.equal(input(capStep(PROBE_CHECK), "EXECUTION_FILE"), "${{ steps.probe.outputs.execution-file }}");
   assert.equal(input(capStep(PROBE_CHECK), "PROMPT_FILE"), input(probePrompt, "PROMPT_FILE"));
   // The run directory: made before the legs, named to the driver, and the only place the collect step takes a summary from.
-  assert.match(probePrompt, /^ {10}mkdir -p "\$GITHUB_WORKSPACE\/capture-run"$/m);
+  assert.match(probePrompt, /^ {10}mkdir -p "\$GITHUB_WORKSPACE\/capture-run" "\$HOME\/\.claude"$/m);
   assert.match(capStep("Write the capture prompt and schema"), /Its run directory is"\n {12}echo "\$GITHUB_WORKSPACE\/capture-run: write e2e-summary\.json/);
   assert.match(capStep("Collect the capture"), /^ {12}"\$GITHUB_WORKSPACE"\/capture-run\/\*\) ;;$/m);
+});
+
+// The capture's credit gate (#12232: the owner treats a credit stop as a
+// capacity limit, never a red run). check-key-credit names its markers from
+// the caller's workflow file and key-job (gate.cjs markerName and probeName
+// at b8bdd7f: `key-credit-stop-<file>-<key-job>`,
+// `key-credit-probing-<file>-<key-job>`), so this workflow writes its own.
+const CAP_MARKER = "key-credit-stop-pr-verify-capture.yml-capture";
+const CAP_PROBING = "key-credit-probing-pr-verify-capture.yml-capture";
+const CAP_CREDIT_STEPS = ["Read the key's credit history", "Report the skipped key leg"];
+const CAP_PROBING_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
+const CAP_MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
+const CAP_HANDOFF = "Report the key's handoff";
+const stepIf = (block) => /^ {8}if: (.*)$/m.exec(block)?.[1];
+// A step's `if:` as admits reads it: always() holds while the job runs.
+const runs = (block, context) => admits(stepIf(block).replaceAll("always() && ", ""), context);
+
+test("the capture's credit gate reads the key's credit history after the agree step, and a skipped key sets up nothing", () => {
+  const gate = capStep("Read the key's credit history");
+  assert.match(gate, /^ {8}id: credit$/m);
+  assert.equal(stepIf(gate), "steps.agree.outcome == 'success'");
+  assert.match(gate, /^ {8}continue-on-error: true$/m);
+  assert.match(gate, /^ {8}timeout-minutes: 2$/m);
+  assert.doesNotMatch(gate, /secrets\./);
+  // The same pin as pr-verify.yml's gate.
+  assert.equal(/^ {8}uses: (.*)$/m.exec(gate)[1], /^ {8}uses: (.*)$/m.exec(step("Read the key's credit history"))[1]);
+  assert.equal(input(gate, "key-job"), CAP);
+  assert.match(CAP, /^[a-z][a-z0-9-]{0,99}$/);
+  assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
+  assert.equal(capIndex("Read the key's credit history"), capIndex("Assert the gate and the resolver agree") + 1);
+  for (const name of ["Resolve the capture's model", "Check the credential"]) {
+    assert.equal(stepIf(capStep(name)), "steps.agree.outcome == 'success' && steps.credit.outputs.skip-key != 'true'", name);
+    assert.ok(capIndex(name) > capIndex("Read the key's credit history"), name);
+  }
+  // A skip leaves the credential step skipped, so present is empty and no leg starts.
+  const credential = (skip) => runs(capStep("Check the credential"), { steps: { agree: { outcome: "success" }, credit: { outputs: { "skip-key": skip } } } });
+  assert.ok(!credential("true"));
+  assert.ok(credential("false") && credential(""));
+  for (const name of ["Apply the Claude managed settings", "Isolate the runner", "Write the probe prompt", PROBE]) {
+    assert.equal(stepIf(capStep(name)), "steps.credential.outputs.present == 'true'", name);
+  }
+  const report = capStep("Report the skipped key leg");
+  assert.equal(stepIf(report), "steps.credit.outputs.skip-key == 'true'");
+  assert.match(report, /^ {8}continue-on-error: true$/m);
+  assert.equal(input(report, "outcome"), "skipped");
+  assert.equal(input(report, "lane"), "pr-verify-capture");
+  assert.equal(input(report, "lane-id"), "pr-verify-capture");
+  assert.equal(input(report, "credential"), "PR_VERIFY_CLAUDE_API_KEY");
+  assert.equal(input(report, "known-failure-class"), "credit-stop");
+  assert.equal(input(report, "handoff"), '"true"');
+});
+
+test("the capture writes, scans and uploads the probing marker once its probe will start, before any head code", () => {
+  const [write, scan, upload] = CAP_PROBING_STEPS.map(capStep);
+  assert.match(write, /^ {8}id: probe-marker$/m);
+  assert.equal(stepIf(write), `always() && steps.credit.outputs.probing-marker == '${CAP_PROBING}' && steps.credential.outputs.present == 'true'`);
+  const writes = (output, present) => runs(write, { steps: { credit: { outputs: { "probing-marker": output } }, credential: { outputs: { present } } } });
+  assert.ok(writes(CAP_PROBING, "true"));
+  for (const [output, present] of [["", "true"], ["key-credit-probing-pr-verify.yml-check-intent", "true"], [CAP_PROBING, "false"], [CAP_PROBING, ""]]) {
+    assert.ok(!writes(output, present), `${output} ${present}`);
+  }
+  assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
+  assert.equal(stepIf(scan), "always() && steps.probe-marker.outcome == 'success'");
+  assert.match(scan, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.equal(stepIf(upload), "(always() && steps.probe-marker.outcome == 'success') && steps.probe-marker-scan.outputs.clean == 'true'");
+  assert.equal(input(upload, "name"), CAP_PROBING);
+  assert.equal(input(upload, "path"), "${{ runner.temp }}/key-credit-probing/run-id");
+  assert.equal(input(scan, "path"), input(upload, "path"));
+  assert.equal(input(upload, "retention-days"), "1");
+  assert.equal(input(upload, "if-no-files-found"), "error");
+  for (const name of CAP_PROBING_STEPS) assert.match(capStep(name), /^ {8}continue-on-error: true$/m, name);
+  assert.equal(capIndex(CAP_PROBING_STEPS[0]), capIndex("Check the credential") + 1);
+  assert.deepEqual(CAP_PROBING_STEPS.map(capIndex), [0, 1, 2].map((i) => capIndex(CAP_PROBING_STEPS[0]) + i));
+  assert.ok(capIndex(CAP_PROBING_STEPS[2]) < capIndex(PROBE));
+});
+
+test("the capture writes the credit-stop marker only after its probe's credit stop, and only before the head checkout", () => {
+  const [write, scan, upload] = CAP_MARKER_STEPS.map(capStep);
+  assert.match(write, /^ {8}id: credit-marker$/m);
+  assert.equal(stepIf(write), `always() && steps.credit.outputs.marker == '${CAP_MARKER}' && steps.probe.outputs.handoff-reason == 'credit-stop'`);
+  const writes = (marker, reason) => runs(write, { steps: { credit: { outputs: { marker } }, probe: { outputs: { "handoff-reason": reason } } } });
+  assert.ok(writes(CAP_MARKER, "credit-stop"));
+  // An auth handoff says nothing of the key's credit; a marker the gate does not name is never written.
+  for (const [marker, reason] of [[CAP_MARKER, "auth"], [CAP_MARKER, ""], ["", "credit-stop"], ["key-credit-stop-pr-verify.yml-check-intent", "credit-stop"]]) {
+    assert.ok(!writes(marker, reason), `${marker} ${reason}`);
+  }
+  assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);
+  assert.equal(stepIf(scan), "always() && steps.credit-marker.outcome == 'success'");
+  assert.match(scan, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.equal(stepIf(upload), "(always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'");
+  assert.equal(input(upload, "name"), CAP_MARKER);
+  assert.equal(input(upload, "path"), "${{ runner.temp }}/key-credit-stop/run-id");
+  assert.equal(input(scan, "path"), input(upload, "path"));
+  assert.equal(input(upload, "retention-days"), "1");
+  for (const name of CAP_MARKER_STEPS) assert.match(capStep(name), /^ {8}continue-on-error: true$/m, name);
+  // After the probe, before the head checkout: steps after it load .base
+  // actions head code could change, so no marker is written from there.
+  assert.ok(capIndex(CAP_MARKER_STEPS[0]) > capIndex(PROBE));
+  assert.ok(capIndex(CAP_MARKER_STEPS[2]) < capIndex(HEAD_CHECKOUT));
+  for (const s of CAP_STEPS.slice(capIndex(HEAD_CHECKOUT))) assert.doesNotMatch(s.block, /key-credit-/, s.name);
+  // Each marker's retention row is one day, as pr-verify.yml's.
+  const families = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families;
+  for (const name of [CAP_MARKER, CAP_PROBING]) assert.equal(families[name]?.["retention-days"], 1, name);
+});
+
+test("a probe that handed off skips the probe check and every step from the head checkout on, and ends green", () => {
+  const check = capStep(PROBE_CHECK);
+  assert.equal(stepIf(check), "steps.credential.outputs.present == 'true' && steps.probe.outputs.handoff != 'true'");
+  const checks = (handoff) => runs(check, { steps: { credential: { outputs: { present: "true" } }, probe: { outputs: { handoff } } } });
+  assert.ok(!checks("true"));
+  // A 403, a timeout, an install failure or any other stop hands nothing off, so the check runs.
+  assert.ok(checks("false") && checks(""));
+  // Run, it fails on a probe step that did not succeed before it reads any result.
+  assert.equal(input(check, "PROBE_OUTCOME"), "${{ steps.probe.outcome }}");
+  const dir = tempDir("capture-probe-check-");
+  const result = path.join(dir, "capture-probe.json");
+  writeFileSync(result, JSON.stringify({ clean: true, canary: true, hits: [] }));
+  for (const outcome of ["failure", "cancelled", ""]) {
+    const run = runStep(check, { PROBE_OUTCOME: outcome, RESULT: result });
+    assert.equal(run.status, 1, outcome);
+    assert.match(run.stdout, /::error::the reach probe did not succeed .*; no pull request code runs/, outcome);
+  }
+  // Every step from the head checkout on chains to the probe check's
+  // success: with it skipped, and so every later step skipped and the driver
+  // empty, none runs.
+  const skipped = { outcome: "skipped", outputs: {} };
+  const context = { steps: { "probe-check": skipped, head: skipped, prompt: skipped, drive: skipped, collect: skipped, "scan-capture": skipped } };
+  const after = CAP_STEPS.slice(capIndex(HEAD_CHECKOUT));
+  assert.ok(after.length >= 8);
+  for (const s of after) {
+    assert.ok(stepIf(s.block), `${s.name} has an if`);
+    assert.ok(!runs(s.block, context), s.name);
+  }
+  // The handoff's warning holds no secret and reads the class through env.
+  const handoff = capStep(CAP_HANDOFF);
+  assert.equal(stepIf(handoff), "steps.probe.outputs.handoff == 'true'");
+  assert.equal(input(handoff, "LANE_CLASS"), "${{ steps.probe.outputs.lane-class }}");
+  assert.doesNotMatch(/^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(handoff)[1], /\$\{\{|secrets\./);
+  assert.ok(capIndex(CAP_HANDOFF) < capIndex(PROBE_CHECK));
+});
+
+const SUB_STOP = "Report the subscription's stop";
+test("capture-subscription's probe stop on the subscription's limit, credit or a 401 or 402 reports it and checks out no head code, and any other probe failure fails closed", { skip: process.platform === "win32" && "bash step" }, () => {
+  const subIndex = (name) => {
+    const at = SUB_STEPS.findIndex((s) => s.name === name);
+    assert.ok(at >= 0, `a capture-subscription step named ${name}`);
+    return at;
+  };
+  const subStep = (name) => SUB_STEPS[subIndex(name)].block;
+  // run-claude-cli sets handoff on a fallback-ready subscription leg's limit
+  // stop, credit stop or 401 or 402 alone; a 403, a timeout or an install
+  // failure leaves it false or empty, so the probe check runs.
+  const check = subStep(PROBE_CHECK);
+  assert.equal(stepIf(check), "steps.credential.outputs.present == 'true' && steps.probe.outputs.handoff != 'true'");
+  const checks = (handoff) => runs(check, { steps: { credential: { outputs: { present: "true" } }, probe: { outputs: { handoff } } } });
+  assert.ok(!checks("true"));
+  assert.ok(checks("false") && checks(""));
+  const result = path.join(tempDir("capture-sub-probe-check-"), "capture-probe.json");
+  writeFileSync(result, JSON.stringify({ clean: true, canary: true, hits: [] }));
+  const failed = runStep(check, { PROBE_OUTCOME: "failure", RESULT: result });
+  assert.equal(failed.status, 1);
+  assert.match(failed.stdout, /::error::the reach probe did not succeed \(failure\); no pull request code runs/);
+  // With the check skipped, no step from the head checkout on runs.
+  const skipped = { outcome: "skipped", outputs: {} };
+  const context = { steps: { "probe-check": skipped, head: skipped, prompt: skipped, drive: skipped, collect: skipped, "scan-capture": skipped } };
+  const after = SUB_STEPS.slice(subIndex(HEAD_CHECKOUT));
+  assert.ok(after.length >= 8);
+  for (const s of after) {
+    assert.ok(stepIf(s.block), `${s.name} has an if`);
+    assert.ok(!runs(s.block, context), s.name);
+    // Nothing after head code picks a credential or writes a marker.
+    assert.doesNotMatch(s.block, /fallback-ready|key-credit-|secrets\.(?!PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN \}\})/, s.name);
+  }
+  // The stop report: after the probe, before the probe check, on the handoff alone.
+  const stop = subStep(SUB_STOP);
+  assert.ok(subIndex(PROBE) < subIndex(SUB_STOP) && subIndex(SUB_STOP) < subIndex(PROBE_CHECK));
+  assert.equal(stepIf(stop), "steps.probe.outputs.handoff == 'true'");
+  assert.ok(runs(stop, { steps: { probe: { outputs: { handoff: "true" } } } }));
+  assert.ok(!runs(stop, { steps: { probe: { outputs: { handoff: "false" } } } }));
+  assert.doesNotMatch(stop, /continue-on-error/);
+  assert.equal(input(stop, "HANDOFF_REASON"), "${{ steps.probe.outputs.handoff-reason }}");
+  assert.doesNotMatch(/^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(stop)[1], /\$\{\{|secrets\./);
+  const report = (reason) => {
+    const ran = runStep(stop, { HANDOFF_REASON: reason });
+    assert.equal(ran.status, 0, reason);
+    assert.match(ran.stdout, /^::notice::no pull request code runs and nothing is captured$/m, reason);
+    return ran.stdout;
+  };
+  assert.match(report("limit-stop"), /^::notice::the pr-verify role's subscription \(PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\) is at its usage limit$/m);
+  assert.match(report("credit-stop"), /^::notice::the pr-verify role's subscription \(PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\) is out of credit$/m);
+  assert.match(report("auth"), /^::warning::the API refused the pr-verify role's subscription token \(PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\), class auth; the owner must replace the secret$/m);
+  assert.doesNotMatch(report("limit-stop"), /::(?:error|warning)::/);
+});
+
+test("capture-subscription runs only when the capture job's key could not capture, on a fixed runner", () => {
+  const job = jobIn(CAPTURE_TEXT, CAP_SUB);
+  assert.match(job, /^ {4}needs: capture$/m);
+  assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
+  assert.equal(
+    jobIf(CAPTURE_TEXT, CAP_SUB),
+    [
+      "!cancelled()",
+      `&& ${TRIGGER_GATE}`,
+      "&& needs.capture.result == 'success'",
+      "&& (needs.capture.outputs.handoff == 'true'",
+      "|| needs.capture.outputs.credential-present == 'false'",
+      "|| needs.capture.outputs.skip-key == 'true')",
+    ].join(" "),
+  );
+  const run = (result, outputs) => admits(jobIf(CAPTURE_TEXT, CAP_SUB), withNeeds({ [CAP]: { result, outputs } }));
+  assert.ok(run("success", { handoff: "true", "credential-present": "true" }));
+  assert.ok(run("success", { "credential-present": "false" }));
+  assert.ok(run("success", { "skip-key": "true" }));
+  // A key that captured, or a capture job that stopped at its gates (no app, a judged head), runs nothing more.
+  assert.ok(!run("success", { handoff: "false", "credential-present": "true", "skip-key": "false" }));
+  assert.ok(!run("success", {}));
+  // A red capture job (a probe that found a reachable credential) runs no second leg.
+  assert.ok(!run("failure", { handoff: "true" }));
+  assert.ok(!run("skipped", {}));
+  assert.ok(!admits(jobIf(CAPTURE_TEXT, CAP_SUB), withNeeds({ [CAP]: { result: "success", outputs: { "skip-key": "true" } } }, { head_repository: { full_name: "someone/fork" } })));
+  // The capture job's outputs: launcher and gate outputs, each compared to a
+  // fixed string in that `if`, and no step of this job reads `needs.`.
+  assert.equal(
+    /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobIn(CAPTURE_TEXT, CAP))?.[1],
+    ["      handoff: ${{ steps.probe.outputs.handoff }}", "      credential-present: ${{ steps.credential.outputs.present }}", "      skip-key: ${{ steps.credit.outputs.skip-key }}", ""].join("\n"),
+  );
+  assert.doesNotMatch(job.slice(job.indexOf("\n    steps:\n")), /needs\./);
+  assert.doesNotMatch(jobIn(CAPTURE_TEXT, CAP_SUB), /^ {4}outputs:/m);
+});
+
+test("capture-subscription repeats the capture job's steps but for the credential and the key's credit steps", () => {
+  const lines = (block) =>
+    block
+      .split("\n")
+      .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
+      .join("\n");
+  const drop = new Set([...CAP_CREDIT_STEPS, ...CAP_PROBING_STEPS, ...CAP_MARKER_STEPS, CAP_HANDOFF]);
+  // The subscription's own stop report, and its probe's fallback-ready, are
+  // the only other differences; every fence and setting stays equal.
+  const subJob = SUB_STEPS.filter((s) => s.name !== SUB_STOP).map((s) => {
+    const block = lines(s.block);
+    return s.name === PROBE ? block.replace('\n          fallback-ready: "true"', "") : block;
+  });
+  const keyJob = CAP_STEPS.filter((s) => !drop.has(s.name)).map((s) =>
+    lines(s.block)
+      .replaceAll(" && steps.credit.outputs.skip-key != 'true'", "")
+      .replace("PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}\n          SECRET_NAME: PR_VERIFY_CLAUDE_API_KEY", "PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}\n          SECRET_NAME: PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN")
+      .replaceAll("api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}", "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}"),
+  );
+  assert.deepEqual(subJob, keyJob);
+  // So the reach probe runs again on the subscription leg before any head
+  // code, and the same capture name uploads, which find-capture.mjs reads
+  // from the run whichever job wrote it.
+  const sub = (name) => SUB_STEPS.find((s) => s.name === name).block;
+  for (const name of [PROBE, DRIVER]) {
+    assert.equal(input(sub(name), "subscription-token"), "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}", name);
+    assert.equal(input(sub(name), "api-key"), undefined, name);
+  }
+  // Only the subscription's probe passes fallback-ready, so its stop sets
+  // handoff; no job runs after it, and the key legs and the driver pass none.
+  assert.equal(input(sub(PROBE), "fallback-ready"), '"true"');
+  for (const block of [sub(DRIVER), capStep(PROBE), capStep(DRIVER)]) assert.equal(input(block, "fallback-ready"), undefined);
+  assert.doesNotMatch(CAPTURE_TEXT, /fallback-token|FALLBACK_CLAUDE_CODE_OAUTH_TOKEN/);
+  assert.equal(input(sub("Upload the capture"), "name"), input(capStep("Upload the capture"), "name"));
+  for (const steps of [CAP_STEPS, SUB_STEPS]) {
+    const uploads = steps.filter((s) => /uses: actions\/upload-artifact@/.test(s.block)).map((s) => s.name);
+    assert.deepEqual(uploads, steps === CAP_STEPS ? ["Upload the key's probing marker", "Upload the key's credit-stop marker", "Upload the capture"] : ["Upload the capture"]);
+  }
+});
+
+test("a capture job that hands off leaves capture-subscription time inside the judges' wait", () => {
+  // The subscription job's own bound, after a handoff measured at 36 s from
+  // job start (run 41984197946), stays inside find-capture.mjs WAIT_MS.
+  const minutes = (id) => Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobIn(CAPTURE_TEXT, id))[1]);
+  assert.equal(minutes(CAP_SUB), 30);
+  assert.ok(WAIT_MS >= (minutes(CAP_SUB) + 5) * 60_000);
 });
 
 test("the three judge jobs carry identical capture steps, before the prompt, that never fail the job", () => {

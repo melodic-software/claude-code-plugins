@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: su-apply-install-cli-redetects
+graders:
+  - name: runs-global-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?npm(?:\.exe)?(?=(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?<![\w-])(?:-g|--global)(?![\w-]))(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:install|i|add)(?![\w-])(?=(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?<![\w/.-])ctx7(?:@[\w.-]+)?(?![\w/.-]))'
+    min: 1
+    arm: with-only
+  - name: redetects-version
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?ctx7(?:@[\w.-]+)?(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:--version|-v|-V)(?![\w-])'
+    min: 1
+    arm: with-only
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-config-via-shell
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bclaude\s+mcp\s+add\b|\bctx7(?:@[\w.-]+)?\s+(?:setup|login)\b|>>?\s*(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\btee\s+(?:-\S+\s+)*(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\b(?:sed|perl)\s+(?:[^;&|]*?\s)?-\w*i[^;&|]*?(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\b(?:mv|cp|install|ln)\s+(?:-\S+\s+)*\S+\s+(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b(?:\\"|'')?\s*(?:[;&|)"]|\\n))'
+    min: 0
+    max: 0
+    arm: both
+  - name: key-env-guidance
+    type: regex
+    pattern: '^(?![^\n]*\b(?:do not|don[''’]t|never|avoid)\s+(?:\w+\s+){0,2}export\s+CONTEXT7_API_KEY=)[^\n]*\bexport\s+CONTEXT7_API_KEY=|^(?=[^\n]*CONTEXT7_API_KEY)[^\n]*?(?:^|[.;:!?]\s+|\*\*\s*|\(\s*|[-*+]\s+|\d+[.)]\s+|\b(?:then|please|just|simply)\s+)(?:set|add|export|put|store|keep|save|define)\s+(?![^\n,.;]*\.mcp\.json|[^\n,.;]*settings\.json)(?=[^\n,.;]{0,60}?(?:CONTEXT7_API_KEY|\bit\b|\b(?:the|your)\s+(?:API\s+)?key\b))'
+    flags: mi
+    target: last_message
+  - name: windows-note
+    type: regex
+    pattern: '\bMSYS_NO_PATHCONV=1(?!\d)'
+    target: last_message
+    arm: both

@@ -60,6 +60,7 @@
 #   morning-brief.sh --stranded-days N        floor of the stranded-findings window, in days (default 3)
 #   morning-brief.sh --stuck-days N           age in a queue label past which an open item is listed as stuck (default 7)
 #   morning-brief.sh --stuck-limit N          cap on the stuck items listed, oldest first (default 20)
+#   morning-brief.sh --landed-sample N        PRs listed under "Read these" in the landed section (default 3)
 #   morning-brief.sh --data-dir DIR           base dir for the stranded bookmark (default $CLAUDE_PLUGIN_DATA
 #                                             when it names work-items, else ~/.claude/plugins/data/work-items);
 #                                             absolute, with no .. segment or control character
@@ -102,7 +103,8 @@
 # (personal, gitignored): org, subscription, actions_included_minutes,
 # actions_included_storage_gb, usage_alert_percent, log_cap_alert_percent,
 # forecast_alert, required_budgets and allowed_collaborators (lists),
-# anomaly_alert, expiry_days, workflow_read_limit. A flag beats the personal
+# anomaly_alert, expiry_days, workflow_read_limit; and landed_sample, the
+# Landed section's --landed-sample. A flag beats the personal
 # file, which beats the team file, which beats the default. An invalid value is
 # named on stderr and its key takes the default, never a lower layer's value
 # (docs/contracts/config-cascade/README.md).
@@ -191,6 +193,13 @@ MERGED_JSON=""
 # threads: wide enough to cover a bot that reviews well after a merge lands. A
 # gap between runs is covered by the bookmark, not by this number.
 STRANDED_DAYS="3"
+# Landed section: PRs merged since this machine's landed_at, of which
+# LANDED_SAMPLE are listed under "Read these". Empty: the morning_brief
+# landed_sample key, else 3.
+LANDED_SAMPLE=""
+# The stranded read's cutoff once its merged-PR pages read in full, so the
+# landed section can reuse those pages when they reach back far enough.
+STRANDED_READ_CUTOFF=""
 # Stuck section: an open item counts as stuck once its newest labeled event for
 # a queue label is older than STUCK_DAYS; STUCK_LIMIT caps the lines shown.
 # Judgment defaults (the owner's, 2026-10-20), kept as settings.
@@ -370,6 +379,12 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_uint "$1" "$2"
     STUCK_DAYS="$((10#$2))"
+    shift 2
+    ;;
+  --landed-sample)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    LANDED_SAMPLE="$((10#$2))"
     shift 2
     ;;
   --stuck-limit)
@@ -719,6 +734,12 @@ config_value ANOMALY_ALERT anomaly_alert text ""
 config_value EXPIRY_DAYS expiry_days uint 30
 config_value ALLOWED_COLLABORATORS_ARG allowed_collaborators list ""
 config_value WORKFLOW_READ_LIMIT workflow_read_limit uint 300
+# The landed sample size is not a cost setting: its layer prints in the Landed
+# section, not on the Cost section's settings line.
+n_cost_settings=${#COST_SETTING_LAYERS[@]}
+config_value LANDED_SAMPLE landed_sample uint 3
+LANDED_SETTING="${COST_SETTING_LAYERS[*]:n_cost_settings}"
+COST_SETTING_LAYERS=("${COST_SETTING_LAYERS[@]:0:n_cost_settings}")
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -1053,7 +1074,7 @@ STUCK_LABELS=("${QUEUE_LABELS[@]}")
 # --- Section state ---------------------------------------------------------
 # Sections render into files so the header, printed first, can carry the
 # unreadable count.
-SECTIONS_TOTAL=9
+SECTIONS_TOTAL=10
 UNREADABLE=0
 UNREADABLE_NAMES=()
 
@@ -1883,6 +1904,7 @@ print_stranded() {
       unreadable stranded "$LAST_ERR"
       return
     fi
+    STRANDED_READ_CUTOFF=$cutoff
   fi
 
   # A response with no page document is not a clean window.
@@ -1989,6 +2011,84 @@ print_stranded() {
     elif ! save_bookmark "$bookmark" "$(from_epoch "$floor")"; then
       echo "  bookmark not saved under the data dir; the next run reads back to its floor or an older bookmark"
     fi
+  fi
+  echo
+}
+
+# =============================================================================
+# Section 5b — landed PRs and the ones to read
+# =============================================================================
+# PRs merged since this machine's landed_at, a stamp under the data dir beside
+# the stranded bookmark. A first run reads the last day. LANDED_SAMPLE of them,
+# spread evenly across the merge order, are listed under "Read these". landed_at
+# moves to this run's clock only after the section read in full.
+print_landed() {
+  local cutoff=$((NOW_EPOCH - 86400)) window="first read on this machine: last 1d" stamp="" mark mark_epoch
+  if [[ -z "$MERGED_JSON" && -n "$REPO" ]]; then
+    stamp="$(stranded_bookmark_path)"
+    [[ -n "$stamp" ]] && stamp="${stamp%/*}/landed-at"
+    if [[ -n "$stamp" && -f "$stamp" ]]; then
+      mark="$(tr -d '[:space:]' <"$stamp")"
+      mark_epoch="$(to_epoch "$mark")"
+      if [[ -n "$mark_epoch" ]]; then
+        cutoff=$mark_epoch
+        window="since landed_at"
+      else
+        window="landed_at unparsable, ignored: last 1d"
+      fi
+    fi
+  fi
+  echo "== Landed (merged since $(utc_stamp "$cutoff"): $window) =="
+  [[ -n "$LANDED_SETTING" ]] && echo "  setting: $LANDED_SETTING"
+  local merged_file="$WORK/merged.json" err
+  if [[ -n "$MERGED_JSON" ]]; then
+    merged_file="$MERGED_JSON"
+    err="$(body_error "$merged_file")"
+    if [[ -n "$err" ]]; then
+      unreadable landed "$err"
+      return
+    fi
+  elif [[ -z "$REPO" ]]; then
+    echo "  (no repo resolved — pass --repo or --merged-json)"
+    echo
+    return
+  elif [[ "$TRANSPORT" == "rest" ]]; then
+    unreadable landed "the merged-PR read needs GraphQL, which this session does not serve"
+    return
+  elif [[ -z "$STRANDED_READ_CUTOFF" ]] || ((STRANDED_READ_CUTOFF > cutoff)); then
+    # The stranded pages do not reach back to this cutoff: read again.
+    merged_file="$WORK/landed.json"
+    if ! fetch_merged_gql "$merged_file" "$cutoff"; then
+      graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
+      unreadable landed "$LAST_ERR"
+      return
+    fi
+  fi
+
+  local landed
+  landed="$(jq -s -r --argjson cutoff "$cutoff" --argjson k "$LANDED_SAMPLE" '
+    if ([ .. | objects | select(has("data")) | .data.repository.pullRequests | objects ] | length) == 0
+    then error("no page") else . end
+    | [ .. | objects | select(has("data")) | .data.repository.pullRequests.nodes[]? ]
+    | map(select(.mergedAt != null and ((.mergedAt | fromdateiso8601) >= $cutoff)))
+    | unique_by(.number) | sort_by(.mergedAt, .number)
+    | length as $n
+    | "  \($n) PR\(if $n == 1 then "" else "s" end) merged",
+      if $n == 0 or $k == 0 then empty else
+        ([$k, $n] | min) as $m
+        | "  Read these (\($m) of \($n), spread across the window):",
+          # The oldest, the newest and evenly between; one pick is the newest.
+          ( (if $m == 1 then [$n - 1] else [ range(0; $m) | (. * ($n - 1) / ($m - 1) | floor) ] end) as $picks
+            | .[$picks[]]
+            | "    #\(.number) \(.title)\n      \(.url)  merged \(.mergedAt)" )
+      end
+  ' "$merged_file" 2>/dev/null)" || {
+    unreadable landed "could not parse the merged-PR pages"
+    return
+  }
+  echo "$landed"
+  if [[ -n "$stamp" ]] && ! save_bookmark "$stamp" "$(from_epoch "$NOW_EPOCH")"; then
+    echo "  landed_at not saved under the data dir; the next run reads back to this cutoff"
   fi
   echo
 }
@@ -3164,7 +3264,7 @@ print_cost() {
     line="${COST_SETTING_LAYERS[*]}"
     echo "  settings: ${line//[[:cntrl:]]/ }"
   else
-    echo "  settings: defaults (no morning_brief key in work-items.yaml or work-items.local.yaml)"
+    echo "  settings: defaults (no morning_brief cost key in work-items.yaml or work-items.local.yaml)"
   fi
   cost_github
   cost_azure
@@ -3196,6 +3296,7 @@ print_merge_ready >"$WORK/s2"
 print_decisions >"$WORK/s3"
 print_telemetry >"$WORK/s4"
 print_stranded >"$WORK/s5"
+print_landed >"$WORK/s5b"
 print_lanes >"$WORK/s6"
 print_touches >"$WORK/s6b"
 print_cost >"$WORK/s7"
@@ -3207,7 +3308,7 @@ if ((UNREADABLE > 0)); then
   echo "  $UNREADABLE of $SECTIONS_TOTAL sections unreadable: ${UNREADABLE_NAMES[*]}"
 fi
 echo
-cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6" "$WORK/s6b" "$WORK/s7"
+cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s5b" "$WORK/s6" "$WORK/s6b" "$WORK/s7"
 
 # Exit 5 when the brief carries no data at all; 6 when some sections rendered
 # beside unreadable ones, so a caller never takes a partial brief for a full one.

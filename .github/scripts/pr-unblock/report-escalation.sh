@@ -55,7 +55,10 @@
 # `pr-unblock/conflict` for resolve-conflicts (GitHub starts no pull_request
 # workflow on a conflicted PR, so this status is also what shows the head why
 # its CI is missing), else `pr-unblock/<activity>`. That mode needs GH_TOKEN
-# with statuses: write and reads TARGET_URL (optional, the run).
+# with statuses: write and reads TARGET_URL (optional, the run). For
+# feedback-publish-failed it posts nothing when the reply job's lane token was
+# refused in a way a retry takes the head on (retried_refusal), which also
+# reads GITHUB_RUN_ID with actions: read and checks: read.
 #
 # Exit: 0 when escalated or already escalated; 1 on bad input or API failure.
 set -euo pipefail
@@ -98,6 +101,44 @@ leave_queue() {
     echo "::warning::#$number: could not dequeue it; ci-status still fails its merge group on $1"
   fi
   echo "::notice title=hold-label-dequeue::pr=$number label=$1 outcome=$outcome"
+}
+
+# Status mode, feedback-publish-failed: whether this run's reply job failed at
+# its lane token for a reason a retry takes the head on, read from this run's
+# jobs (actions: read) and that job's annotations (checks: read) by
+# ../pr-merge/refire-refused.mjs tokenRefusal, the one copy of those reasons.
+# A workflow-modified refusal, which the feedback sweep sends again with no
+# lane-file, branch or author filter (feedback-dispatch.mjs sweepRefused),
+# prints its path and returns 0. A transient refusal returns 1: pr-merge's
+# re-fire skips a PR that changes a lane file, a skip branch or one that fails
+# qualifies (refire-refused.mjs), so it is no proof of a retry. Anything else,
+# a failed read included, returns 1 and the status goes on: only positive
+# evidence withholds it. A head with SWEEP_HEAD_CAP address-feedback rounds,
+# which the sweep skips, returns 1 too, so a refusal it will not resend posts.
+retried_refusal() {
+  local jobs ids id notes annotations='{}'
+  [[ ${GITHUB_RUN_ID:-} =~ ^[1-9][0-9]*$ ]] || return 1
+  jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100") || return 1
+  ids=$(jq -er '[.jobs[] | select(.name == "publish-feedback / run" and .conclusion == "failure") | .id | select(type == "number")] | .[]' <<<"$jobs") || return 1
+  for id in $ids; do
+    notes=$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100") || return 1
+    annotations=$(jq -c --arg id "$id" --argjson notes "$notes" '. + {($id): $notes}' <<<"$annotations") || return 1
+  done
+  # The head's address-feedback rounds, which the sweep counts against its cap.
+  rounds=$(gh api "repos/$GITHUB_REPOSITORY/commits/${HEAD_SHA:-}/check-runs?check_name=pr-unblock%20%2F%20address-feedback&per_page=100") || return 1
+  # shellcheck disable=SC2016 # a JavaScript template literal, not a shell expansion
+  REFIRE_MODULE="$(dirname "${BASH_SOURCE[0]}")/../pr-merge/refire-refused.mjs" DISPATCH_MODULE="$(dirname "${BASH_SOURCE[0]}")/feedback-dispatch.mjs" JOBS="$jobs" ANNOTATIONS="$annotations" ROUNDS="$rounds" node --input-type=module -e '
+    const { pathToFileURL } = await import("node:url");
+    const { tokenRefusal } = await import(pathToFileURL(process.env.REFIRE_MODULE).href);
+    const { DEFAULTS, SWEEP_HEAD_CAP } = await import(pathToFileURL(process.env.DISPATCH_MODULE).href);
+    const notes = JSON.parse(process.env.ANNOTATIONS);
+    const why = await tokenRefusal({ jobs: JSON.parse(process.env.JOBS).jobs, readAnnotations: async (id) => notes[id] ?? [], activity: "address-feedback" });
+    if (why === null || why.kind === "transient") process.exit(1);
+    // The URL names the check; a renamed one reads no rounds, so post.
+    if (DEFAULTS.checkName !== "pr-unblock / address-feedback") process.exit(1);
+    const rounds = (JSON.parse(process.env.ROUNDS).check_runs ?? []).filter((c) => c.name === DEFAULTS.checkName && c.app?.id === DEFAULTS.appId).length;
+    if (rounds >= SWEEP_HEAD_CAP) process.exit(1);
+    process.stdout.write(`workflow-modified, ${why.path}`);' 2>/dev/null
 }
 
 # `clear`: an attempt of ACTIVITY on HEAD_SHA ended without a stop (a same-head
@@ -162,6 +203,11 @@ case ${1:-} in
   status)
     if [[ $route != fail ]]; then
       echo "no status for $ESCALATION_REASON: it holds for a person"
+      exit 0
+    fi
+    # shellcheck disable=SC2310 # retried_refusal returns 1 itself on every failed read
+    if [[ $ESCALATION_REASON == feedback-publish-failed ]] && refusal=$(retried_refusal); then
+      echo "::notice title=report-stop-status::no status for $ESCALATION_REASON: the reply job's lane token was refused ($refusal), and a retry takes this head"
       exit 0
     fi
     if [[ $activity == resolve-conflicts ]]; then
