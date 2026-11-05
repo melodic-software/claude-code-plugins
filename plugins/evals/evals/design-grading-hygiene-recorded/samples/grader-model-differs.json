@@ -5,11 +5,17 @@
     },
     {
       "answer": "Grading hygiene: the tone check uses a judge from a different model family than the drafter (not Sonnet), and its verdict is constrained to a single score. Each re-run costs only the judge calls; the regex and word-count checks are free."
+    },
+    {
+      "answer": "Tone: >=4/5, graded by Claude Opus with a PASS/FAIL verdict."
     }
   ],
   "fail": [
     {
       "answer": "## Criteria\n\n- Tone >= 4/5, LLM-graded.\n- Every reply cites a KB article ID (regex).\n- Under 180 words (word count).\n\nBaseline: tone 3.2, citation 71%."
+    },
+    {
+      "answer": "Tone: >=4/5, graded by Claude Sonnet with a PASS/FAIL verdict."
     }
   ]
 }

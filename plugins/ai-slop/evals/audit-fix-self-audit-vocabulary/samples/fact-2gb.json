@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "so a 2 GB table no longer has to fit in memory",
+      "why": "keeps the 2 GB fact"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "so a large table no longer has to fit in memory",
+      "why": "drops the 2 GB figure"
+    }
+  ]
+}

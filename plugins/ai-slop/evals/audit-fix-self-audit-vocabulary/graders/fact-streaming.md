@@ -1,6 +1,7 @@
 ---
 type: regex
+flags: i
 target: { source: file, path: docs/release-note.md }
 arm: both
-pattern: '2 ?GB[\s\S]*--dry-run|--dry-run[\s\S]*2 ?GB'
+pattern: 'stream|each row|row by row|as soon as'
 ---
