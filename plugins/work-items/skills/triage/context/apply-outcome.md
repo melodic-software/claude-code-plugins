@@ -34,6 +34,8 @@ For a PR, the outcome addresses the attached code explicitly: adopt the diff (br
 
 **Decision-carrier clusters.** When step 1's cluster detection found members sharing one decision, apply human-gated to the **carrier only** (its body lists the member numbers). Each other member instead gets a native `blocked-by` edge to the carrier plus a `blocked by #<carrier> decision` comment, **never a per-member human-gated label**. Resolving the carrier's decision unblocks the whole cluster in one human touch.
 
+**Signature clusters.** When step 1 found a signature cluster, the parent takes its outcome from the table above. Each other member takes the Duplicate row with the parent as the surviving item, never the autonomous-eligible role label. Before closing a member, record its sighting on the parent: `add-recurrence <parent> --source-link <member URL> --note "seen again: #<member> <one-line symptom>"`, so a later pass over the same member writes nothing new. A member is never linked to the parent by a `blocked-by` edge: the parent's close would then promote the member to `agent-ready`.
+
 **Umbrella-fold routing (atomic).** When routing folds a member into an umbrella, treat the fold as **one indivisible sequence** per the Title section of [`reference/issue-conventions.md`](../../../reference/issue-conventions.md). Do not advance to the next item until every step completes:
 
 1. **Item-side membership comment**, on the folded item via the adapter's comment operation, stating membership in the umbrella.
