@@ -814,7 +814,8 @@ session-builder queue, which no merge gate reads), a failing commit status on th
 sweep sends again; a transient broker refusal still posts it, since pr-merge's re-fire skips some
 PRs), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
-naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
+naming the run) that the next stop edits in place; when `report-stop-status` withholds the status,
+`report-escalation` posts no comment either. The stopping job's check skips `lane-stopped`.
 `workflow-staged` routes `fail` as a capability limit: the merge carries the PR's own
 `.github/workflows/` changes together with the base's, which the lane token cannot push, and
 nothing in it is a person's decision, so a session merges main by hand.
