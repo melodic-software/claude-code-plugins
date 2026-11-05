@@ -161,10 +161,15 @@ test("a verify:earlier-fail refusal names its FAILed heads and warns nothing; a 
   assert.equal(await capRead({ number: 42, head: HEAD, base: BASE }), null);
 });
 
-test("without a base commit the reader takes its own cap default", async () => {
-  const { read, calls } = reader(answer({ refusal: "verify:repeated-fail" }));
-  assert.equal(await read({ number: 42, head: HEAD, base: undefined }), "verify:repeated-fail");
-  assert.deepEqual(calls[0].args, [VERIFY_SCRIPT, "evidence", "--repo", REPO, "42", HEAD]);
+test("without a base commit the reader is not run and the read fails", async () => {
+  const lines = [];
+  const calls = [];
+  const read = verifyReader({ GITHUB_REPOSITORY: REPO }, { spawn: (...args) => (calls.push(args), answer({ refusal: "verify:repeated-fail" })), log: (line) => lines.push(line) });
+  for (const base of [undefined, null, "main"]) {
+    assert.deepEqual(await read({ number: 42, head: HEAD, base }), { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true });
+  }
+  assert.equal(calls.length, 0);
+  assert.match(lines.join("\n"), /^::warning::#42: no base commit/m);
 });
 
 // Gap: a cap reached only through other pull requests' FAILs is hidden when
