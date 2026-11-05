@@ -3,6 +3,12 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.19] - 2026-11-05
+
+### Changed
+
+- `/domain-driven-design:curate-language`: the fallback glossary shape groups terms under subheadings when they fall into clear clusters; a small or uniform set stays one list.
+
 ## [0.4.18] - 2026-11-04
 
 ### Changed

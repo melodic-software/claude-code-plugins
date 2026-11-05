@@ -59,6 +59,22 @@
       "reason": "The probe only says one run is trying the key after a credit stop's window; the gate counts it for probe-minutes, at most 1440, so a day covers it and an expired probe runs the key.",
       "scan": "upload"
     },
+    "key-credit-stop-pr-verify-capture.yml-capture": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-verify-capture.yml capture's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
+    },
+    "key-credit-probing-pr-verify-capture.yml-capture": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-verify-capture.yml capture's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which, once the credit-stop marker is past its window, reads the newest probing marker of this exact name created after that stop and skips while it is inside probe-minutes (15 unset)"
+      ],
+      "reason": "The probe only says one run is trying the key after a credit stop's window; the gate counts it for probe-minutes, at most 1440, so a day covers it and an expired probe runs the key.",
+      "scan": "upload"
+    },
     "pr-review-main-*": {
       "retention-days": "max",
       "readers": [

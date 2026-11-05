@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.9] - 2026-11-05
+
+### Changed
+
+- `/playbooks:skill-authoring` skill criteria: a script's usage lives in its `--help`, and the skill names only the command.
+
 ## [0.28.8] - 2026-11-05
 
 ### Added

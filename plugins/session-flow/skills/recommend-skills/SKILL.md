@@ -1,6 +1,6 @@
 ---
-description: "Ranked menu of every installed skill that fits this moment (Now, Next, Skipped upstream, Later, Spotlight), hiding nothing. Use when: 'what are my options', 'which skill fits here', 'what am I forgetting'. One next stage: /session-flow:workflow."
-argument-hint: "[topic-slug]"
+description: "Ranked menu of every installed skill that fits this moment (Now, Next, Skipped upstream, Later, Spotlight), hiding nothing; a free-text question gets one skill and an example prompt. Use when: 'what are my options', 'which skill fits here', 'what am I forgetting'. One next stage: /session-flow:workflow."
+argument-hint: "[topic-slug|question]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Lay out the skills that fit this moment as a ranked, nothing-hidden menu
 ---
 
-**Arguments.** `[topic-slug]`. e.g. /session-flow:recommend-skills, /session-flow:recommend-skills my-topic
+**Arguments.** `[topic-slug|question]`. e.g. /session-flow:recommend-skills, /session-flow:recommend-skills my-topic, /session-flow:recommend-skills which skill finds why the build is slow?
 
 # Recommend skills
 
@@ -36,6 +36,17 @@ The output size turns on this test:
   run it; the model merely believes they need not. That belief is an annotation.
 
 When unsure which side a candidate falls on, it is unnecessary. Keep it.
+
+## Question mode
+
+A question that asks which skill fits a task it states, as the argument (an argument holding a
+space is never a topic slug) or as the request that invoked this skill, gets one answer in place
+of the menu: one skill from the resolved catalog below (rule 2 holds), the arguments to pass it,
+and one example prompt with one labeled line each for Goal, Pass/fail check, Proof wanted, Known
+facts and Constraints. The prompt names no method and no guessed cause, which are the skill's to
+find. A request for the options themselves ("what are my options", "what next", "show me my
+options"), or one that states no task, gets the menu, which rule 1 governs. When no catalog skill
+fits, say so and render the menu.
 
 ## Resolve the candidate set
 
@@ -113,7 +124,8 @@ save-points, workflow checklists, running-retro ledgers, open PRs, and work-item
 what this skill needs, in this plugin. Invoke it, or consume its briefing if it already ran this
 session.
 
-**Slug selection** for artifact-grounded reads: an explicit argument wins; else the
+**Slug selection** for artifact-grounded reads: an explicit topic-slug argument wins (a question
+argument is not one); else the
 most-recently-modified topic slice; else the branch-derived slug. Resolve every path from the
 memory root (default `.work/`), which is configurable, so never hardcode it.
 
@@ -175,7 +187,7 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
   by its own mandate never presenting both and leaving the operator to disambiguate. That rule
   governs **stage** routing. This skill owns **option surfacing**, the whole set, ranked, for a
   human to pick from. Reach for `workflow` when you want a decision; reach here when you want the
-  menu.
+  menu, or, in question mode, the skill for a task you state.
 - **`/session-flow:orient`** reports *where you stand* and deliberately prescribes nothing. This
   skill consumes that position rather than restating it.
 - **`/discipline:use-your-skills`** corrects the **model's** drift, a skill it should have fired and
@@ -186,7 +198,8 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 
 ## What this skill does NOT do
 
-- **Does not decide.** It ranks and annotates. Picking is the operator's.
+- **Does not decide.** It ranks and annotates, and question mode names one fit. Picking is the
+  operator's.
 - **Does not filter by merit.** "Already done" and "unnecessary" never remove an option. See the two
   rules. A design that ranks-then-truncates reintroduces the same gatekeeping through the cutoff.
 - **Does not build its own durable-state probe.** It routes to `/session-flow:orient`, invoked via the Skill tool.
