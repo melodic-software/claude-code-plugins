@@ -43,6 +43,7 @@ never used in its place. An invalid value never stops the run.
 | `phase_order` | `composed`, `subtraction-first`, `riskiest-first` | `composed` | `/planning:plan` Step 2, after build-technique selection: the order of the plan's phases | repository file over user config over default |
 | `scaffold_stubs` | `true`, `false` (bare YAML booleans; a quoted `"true"` is invalid) | `false` | `/planning:design` handoff: names the stub files and their signatures; `/planning:plan` Step 2: places the stub phase | repository file over user config over default |
 | `time_units` | `true`, `false` (bare YAML booleans) | `false` | the procedure in [`../context/problem-framing.md`](../context/problem-framing.md) "Time units": whether an estimate or budget of work may be stated in hours, days or weeks | repository file over user config over default |
+| `plan_panel_rubric` | a list of 2 to 6 `{ name, text }` criteria, each `name` unique snake_case other than `draft` and `rationale` | `goal_fit`, `blast_radius`, `test_strategy`, `reversibility`; texts below | `/planning:plan` panel launch ([`../skills/plan/context/plan-panel.md`](../skills/plan/context/plan-panel.md)): passed as the workflow's `rubric`, the criteria judges score and the synthesizer grafts by; the workflow keeps the default for an invalid list | repository file over default |
 | `pre_confirmed_label` | a tracker label name (non-empty string) | unset | same procedure, "Pre-confirmed": the label that marks an item's stated problem confirmed in an unattended run; choose one only people with write access apply, never one a workflow or agent applies | repository file over default |
 | `work_size` | an object with `appetite`, `size`, `uncertainty`, each a map of level name to a quoted one-line description | appetite and size `Small`, `Medium`, `Large`; uncertainty `Known`, `Knowable`, `Unknown`; descriptions below | same procedure, "Work size": the levels the Brief's `### Work size` names | repository file over default |
 | `wayfind_research_start` | `auto`, `confirm` | `auto` (owner decision Q532, 2026-10-15) | `/planning:wayfind` chart step 6 and work step 4: `auto` starts a research item without asking when the frontier holds only research items, else asks first in an interactive session; `confirm` always asks first. An unattended session starts only research items without `needs-human` | repository file over default |
@@ -122,6 +123,17 @@ work_size:
     Known: "The approach and its unknowns are understood."
     Knowable: "The open points can be settled by looking."
     Unknown: "The open points need experiment or discovery."
+```
+
+`plan_panel_rubric` lives in the repository file only and is edited by hand: `/planning:setup apply`
+writes no lists. A list set there replaces the default whole. The default:
+
+```yaml
+plan_panel_rubric:
+  - { name: goal_fit, text: "does it deliver the stated task, no more and no less" }
+  - { name: blast_radius, text: "5 = smallest reach for what it delivers, and the reach is named" }
+  - { name: test_strategy, text: "5 = names the boundaries the tests drive and gives every phase a mechanically verifiable check" }
+  - { name: reversibility, text: "5 = each phase can be undone or abandoned cheaply" }
 ```
 
 ## Convention-home keys

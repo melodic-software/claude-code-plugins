@@ -80,6 +80,27 @@
         }
       }
     },
+    "plan_panel_rubric": {
+      "description": "The criteria the planning:plan-panel judges score each draft on, 1 to 5 each, and the synthesizer grafts by. 2 to 6 criteria with unique snake_case names other than draft and rationale; the workflow keeps the default rubric for any other value.",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$", "not": { "enum": ["draft", "rationale"] } },
+          "text": { "type": "string", "minLength": 1, "description": "What a strong score means, shown to the judges after the name." }
+        },
+        "required": ["name", "text"]
+      },
+      "default": [
+        { "name": "goal_fit", "text": "does it deliver the stated task, no more and no less" },
+        { "name": "blast_radius", "text": "5 = smallest reach for what it delivers, and the reach is named" },
+        { "name": "test_strategy", "text": "5 = names the boundaries the tests drive and gives every phase a mechanically verifiable check" },
+        { "name": "reversibility", "text": "5 = each phase can be undone or abandoned cheaply" }
+      ]
+    },
     "pre_confirmed_label": {
       "description": "A tracker label name. In an unattended run, an item carrying it that states its problem counts as problem-confirmed. Unset: no label pre-confirms; the comment marker in context/problem-framing.md still applies.",
       "type": "string",
