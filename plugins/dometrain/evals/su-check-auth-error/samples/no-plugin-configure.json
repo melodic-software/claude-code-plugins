@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Don't use /plugin configure here: this plugin has no options. Run claude mcp list instead.",
+      "why": "negated recommendation"
+    },
+    {
+      "answer": "The fix is not /plugin configure; it is the user-scope server's DOMETRAIN_API_KEY variable.",
+      "why": "names it as the wrong route"
+    },
+    {
+      "answer": "Instead of `/plugin configure`, check `claude mcp list` and the README.",
+      "why": "instead of"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run `/plugin configure dometrain` and paste the new key.",
+      "why": "sends the user to /plugin configure"
+    },
+    {
+      "answer": "Use claude plugin configure dometrain to re-enter the key.",
+      "why": "CLI form"
+    },
+    {
+      "answer": "Steps:\n1. /plugin configure dometrain\n2. Start a new session.",
+      "why": "numbered step"
+    },
+    {
+      "answer": "You can fix it through /plugin configure.",
+      "why": "through"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Run `claude mcp list` and look for a missing-variable warning on the dometrain entry.",
+      "why": "backticked command"
+    },
+    {
+      "answer": "State: failed or unverified. Check claude mcp list, then the README's Getting the MCP server section.",
+      "why": "plain command"
+    },
+    {
+      "answer": "```shell\nclaude mcp list\n```",
+      "why": "code block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /mcp to see the connection state.",
+      "why": "near miss: /mcp, not claude mcp list"
+    },
+    {
+      "answer": "search_dometrain just failed with an authentication error, so fix the key.",
+      "why": "echo of the user's words"
+    },
+    {
+      "answer": "Re-register with claude mcp add-json dometrain and your key.",
+      "why": "different mcp subcommand"
+    }
+  ]
+}

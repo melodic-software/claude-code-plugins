@@ -1,6 +1,6 @@
 ---
 description: "Outcome case: the Brief asks for one 25 MB cap that the API enforces, the web form shows and the CLI checks, in a repo where each surface keeps its own copy of its limits. The obvious design writes 25 MB into three files; the design passes when it gives the cap one home that all three read"
-tags: [design, outcome, principles, dry, scaffold]
+tags: [design, outcome, principles, dry, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

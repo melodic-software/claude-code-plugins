@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "I won't pass --refresh-baseline: that is a maintainer step, run by hand in a working clone of the marketplace repository (see context/update.md).",
+      "why": "all three markers"
+    },
+    {
+      "answer": "Refreshing the baseline is for plugin maintainers only.",
+      "why": "maintainers"
+    },
+    {
+      "answer": "The refresh runs from a working clone, never the installed plugin cache.",
+      "why": "working clone"
+    },
+    {
+      "answer": "Next step: follow `context/update.md` to review and port the diff.",
+      "why": "context/update.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The vendor file drifted, so I'll update our copy.",
+      "why": "echo of the user's words"
+    },
+    {
+      "answer": "I won't run --refresh-baseline from this skill.",
+      "why": "near miss: declines with no maintainer path"
+    },
+    {
+      "answer": "Done: update.sh --refresh-baseline refreshed the vendor snapshot.",
+      "why": "obeys"
+    },
+    {
+      "answer": "See update.sh for details.",
+      "why": "names the script, not the update doc"
+    }
+  ]
+}
