@@ -21,7 +21,7 @@ export const UNIT = /^[acd][1-8]$/;
 // the key leg an empty key as well.
 export const REASONS = {
   key: ["credit-stop", "auth", "no-key"],
-  subscription: ["limit-stop", "credit-stop", "auth"],
+  subscription: ["limit-stop", "credit-stop", "auth", "no-key"],
 };
 // The artifact and file name each leg's marker uploads under, before the
 // unit; the route job downloads by it.
@@ -63,6 +63,13 @@ export function route(leg, dir) {
   return { include };
 }
 
+// Every collected unit, handed on with reason credit-stop: the credit gate
+// skipped the key leg, so no marker exists.
+export function routeSkipped(units) {
+  if (!Array.isArray(units)) throw new Error("the units are not a list");
+  return { include: units.map((unit) => marker("key", unit, "credit-stop")) };
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const env = process.env;
   try {
@@ -88,8 +95,16 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       }
       case "route": {
         const matrix = route(env.LEG, env.HANDOFF_DIR);
-        appendFileSync(env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\ncount=${matrix.include.length}\n`);
+        // A key leg's credit stop writes the credit gate's marker.
+        const creditStop = env.LEG === "key" && matrix.include.some((entry) => entry.reason === "credit-stop");
+        appendFileSync(env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\ncount=${matrix.include.length}\n${env.LEG === "key" ? `credit-stop=${creditStop}\n` : ""}`);
         console.log(`handoff: ${matrix.include.length} unit(s) for the next leg`);
+        break;
+      }
+      case "route-skipped": {
+        const matrix = routeSkipped(JSON.parse(env.UNITS ?? "null"));
+        appendFileSync(env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\ncount=${matrix.include.length}\n`);
+        console.log(`handoff: the credit gate skipped the key; ${matrix.include.length} unit(s) for the subscription leg`);
         break;
       }
       default:

@@ -505,6 +505,7 @@ jobs:
     needs: resolve-conflicts-select
     if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -519,6 +520,7 @@ jobs:
       role: pr-unblock
       lane: pr-unblock
       activity: resolve-conflicts
+      key-credit-job: resolve-conflicts
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -605,6 +607,7 @@ jobs:
       ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true'
       && needs.resolve-conflicts-handoff.outputs.posted != 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -695,6 +698,7 @@ jobs:
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-handoff, resolve-conflicts-subscription, resolve-conflicts-subscription-handoff]
     if: ${{ !cancelled() && needs.resolve-conflicts-handoff.outputs.fallback-ready == 'true' && needs.resolve-conflicts-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -1573,6 +1577,7 @@ jobs:
     needs: address-feedback-select
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -1586,6 +1591,7 @@ jobs:
       role: pr-unblock
       lane: pr-unblock
       activity: address-feedback
+      key-credit-job: address-feedback
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -1673,6 +1679,7 @@ jobs:
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
       && needs.address-feedback-handoff.outputs.posted != 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -1764,6 +1771,7 @@ jobs:
     needs: [address-feedback-select, address-feedback, address-feedback-handoff, address-feedback-subscription, address-feedback-subscription-handoff]
     if: ${{ !cancelled() && needs.address-feedback-handoff.outputs.fallback-ready == 'true' && needs.address-feedback-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -3227,6 +3235,7 @@ jobs:
     needs: review-dependency-select
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -3240,6 +3249,7 @@ jobs:
       role: pr-unblock
       lane: pr-unblock
       activity: review-dependency
+      key-credit-job: review-dependency
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -3326,6 +3336,7 @@ jobs:
       ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true'
       && needs.review-dependency-handoff.outputs.posted != 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -3416,6 +3427,7 @@ jobs:
     needs: [review-dependency-select, review-dependency, review-dependency-handoff, review-dependency-subscription, review-dependency-subscription-handoff]
     if: ${{ !cancelled() && needs.review-dependency-handoff.outputs.fallback-ready == 'true' && needs.review-dependency-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -3774,6 +3786,7 @@ jobs:
     needs: fix-ci-context
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -3787,6 +3800,7 @@ jobs:
       role: pr-unblock
       lane: pr-unblock
       activity: fix-ci
+      key-credit-job: fix-ci
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -3879,6 +3893,7 @@ jobs:
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
       && needs.fix-ci-handoff.outputs.posted != 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -3970,6 +3985,7 @@ jobs:
     needs: [fix-ci-context, fix-ci, fix-ci-handoff, fix-ci-subscription, fix-ci-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-ci-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -4064,6 +4080,7 @@ jobs:
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
       && needs.apply-patch.outputs.rung-up == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -4077,6 +4094,7 @@ jobs:
       role: pr-unblock
       lane: pr-unblock
       activity: fix-ci
+      key-credit-job: fix-ci-rung-up
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -4160,6 +4178,7 @@ jobs:
       && needs.fix-ci-rung-up.result != 'skipped'
       && needs.fix-ci-rung-up-handoff.outputs.posted != 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -4251,6 +4270,7 @@ jobs:
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff, fix-ci-rung-up-subscription, fix-ci-rung-up-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-ci-rung-up-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-rung-up-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -4641,3 +4661,200 @@ jobs:
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
         && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
       trusted-base: default-tip
+
+  # The key's credit-stop markers, read by the read runner's broker-check in
+  # later runs (each first call's key-credit-job). Each comes from a jobs-API
+  # read of the call's run job (handoff-evidence.sh credit-stop), never from a
+  # call's output. No job needs this one, so the read, which waits for the
+  # jobs listing's steps, delays no handoff.
+  key-credit-markers:
+    needs: [resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-ci-rung-up]
+    if: ${{ !cancelled() && (needs.resolve-conflicts.result != 'skipped' || needs.address-feedback.result != 'skipped' || needs.review-dependency.result != 'skipped' || needs.fix-ci.result != 'skipped' || needs.fix-ci-rung-up.result != 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether resolve-conflicts's key hit a credit stop
+        id: credit-stop-resolve-conflicts
+        if: needs.resolve-conflicts.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-conflicts
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write resolve-conflicts's credit-stop marker
+        id: credit-marker-resolve-conflicts
+        if: steps.credit-stop-resolve-conflicts.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-resolve-conflicts"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-resolve-conflicts/run-id"
+
+      - name: Upload resolve-conflicts's credit-stop marker
+        if: steps.credit-marker-resolve-conflicts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-resolve-conflicts
+          path: ${{ runner.temp }}/key-credit-stop-resolve-conflicts/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether address-feedback's key hit a credit stop
+        id: credit-stop-address-feedback
+        if: needs.address-feedback.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: address-feedback
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write address-feedback's credit-stop marker
+        id: credit-marker-address-feedback
+        if: steps.credit-stop-address-feedback.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-address-feedback"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-address-feedback/run-id"
+
+      - name: Upload address-feedback's credit-stop marker
+        if: steps.credit-marker-address-feedback.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-address-feedback
+          path: ${{ runner.temp }}/key-credit-stop-address-feedback/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether review-dependency's key hit a credit stop
+        id: credit-stop-review-dependency
+        if: needs.review-dependency.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: review-dependency
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write review-dependency's credit-stop marker
+        id: credit-marker-review-dependency
+        if: steps.credit-stop-review-dependency.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-review-dependency"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-review-dependency/run-id"
+
+      - name: Upload review-dependency's credit-stop marker
+        if: steps.credit-marker-review-dependency.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-review-dependency
+          path: ${{ runner.temp }}/key-credit-stop-review-dependency/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether fix-ci's key hit a credit stop
+        id: credit-stop-fix-ci
+        if: needs.fix-ci.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write fix-ci's credit-stop marker
+        id: credit-marker-fix-ci
+        if: steps.credit-stop-fix-ci.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-ci"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-ci/run-id"
+
+      - name: Upload fix-ci's credit-stop marker
+        if: steps.credit-marker-fix-ci.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-fix-ci
+          path: ${{ runner.temp }}/key-credit-stop-fix-ci/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Read whether fix-ci-rung-up's key hit a credit stop
+        id: credit-stop-fix-ci-rung-up
+        if: needs.fix-ci-rung-up.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci-rung-up
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write fix-ci-rung-up's credit-stop marker
+        id: credit-marker-fix-ci-rung-up
+        if: steps.credit-stop-fix-ci-rung-up.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-ci-rung-up"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-ci-rung-up/run-id"
+
+      - name: Upload fix-ci-rung-up's credit-stop marker
+        if: steps.credit-marker-fix-ci-rung-up.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-unblock.yml-fix-ci-rung-up
+          path: ${{ runner.temp }}/key-credit-stop-fix-ci-rung-up/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
