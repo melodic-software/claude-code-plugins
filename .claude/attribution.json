@@ -1,6 +1,0 @@
-{
-  "excluded_paths": [
-    "**/evals/fixtures/**"
-  ],
-  "trigger_less_stamp_check": true
-}

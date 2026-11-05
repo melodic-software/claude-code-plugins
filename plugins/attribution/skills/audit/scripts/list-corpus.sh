@@ -124,7 +124,7 @@ ROOT="$(git -C "$(anchor_dir)" rev-parse --show-toplevel 2>/dev/null || true)"
 
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$ROOT}"
 
-# --- Config cascade (user-global -> team -> personal override; YAML, legacy JSON) -----------
+# --- Config cascade (user-global -> team -> personal override; JSON user-global, YAML team) -
 
 cfg_layers_init "$CONFIG_ROOT"
 

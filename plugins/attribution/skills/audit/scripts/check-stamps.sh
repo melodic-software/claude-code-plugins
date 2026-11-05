@@ -129,7 +129,7 @@ if [[ -n "$AS_OF" && ! "$AS_OF" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
 fi
 [[ -n "$AS_OF" ]] || AS_OF="$(date +%Y-%m-%d)"
 
-# --- Config cascade (user-global -> team -> personal override; YAML, legacy JSON) -----------
+# --- Config cascade (user-global -> team -> personal override; JSON user-global, YAML team) -
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
