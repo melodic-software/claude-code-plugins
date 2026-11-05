@@ -30,15 +30,8 @@ name: work-unblock
 # merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
 # Each work-resolve-issue run that finishes, unless it ran no job, runs the
 # same sweep at once, so a freed slot admits the next deferred issue then.
-#
-# A listed human closing the marker issue, the one labeled
-# `work-unblock-sweep` (SWEEP_LABEL in the script), runs that sweep at once
-# instead of the close path, behind the same closer check: the hub reopens and
-# closes it after a rate-limit breaker clears, so issues the kill switch
-# stopped at broker-check are re-fired without waiting for the schedule (one
-# stopped at a token mint still waits limits.reset-clamp-min). A second kick
-# is one more sweep, queued behind the first; it re-fires no issue twice. Each
-# kick logs a `sweep-kick` notice with the close time.
+# After an outage or a kill switch, the next of these sweeps is the probe:
+# nothing re-arms it.
 #
 # The hourly sweep also restarts an issue the usage limit stopped: once the
 # limit has reset, the App removes and re-adds agent-ready (at most five a run);
@@ -134,12 +127,13 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
       && github.event.workflow_run.conclusion != 'skipped')
     # One run at a time across the repository, so two runs cannot each admit
-    # the queued cap's whole room. The rest wait in line and are never
-    # cancelled (`queue: max`).
+    # the queued cap's whole room. One more waits, and a newer run replaces
+    # it: a sweep reads the whole state, and its closed-issue window repeats a
+    # close run's work (label-unblocked.mjs labelUnblocked, closeSplitParents),
+    # so the next sweep does a replaced run's work.
     concurrency:
       group: work-unblock-label-unblocked
       cancel-in-progress: false
-      queue: max
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -238,9 +232,8 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: work-unblock
           activity: label-unblocked
-          # A sweep (scheduled or after an issue lane run) names no issue; any
-          # close, the marker's included, names its issue, which the broker
-          # needs on an issues event.
+          # A sweep (scheduled or after an issue lane run) names no issue; a
+          # close names its issue, which the broker needs on an issues event.
           issue-number: ${{ github.event_name == 'issues' && format('{0}', github.event.issue.number) || '' }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
@@ -249,10 +242,9 @@ jobs:
 
       # The script re-reads every blocked issue, its labels, blockers and
       # comments from the API; nothing is taken from the event but the closed
-      # issue's number, labels and close time and who closed it (a sweep, the
-      # marker's included, lists the closed issues from the API too). It gets
-      # the kill switch answer from
-      # the first step and stops on anything but `proceed`.
+      # issue's number and who closed it (a sweep lists the closed issues from
+      # the API too). It gets the kill switch answer from the first step and
+      # stops on anything but `proceed`.
       - name: Label the unblocked issues
         if: steps.lane-token.outputs.token != ''
         env:
