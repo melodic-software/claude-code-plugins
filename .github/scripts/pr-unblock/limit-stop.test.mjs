@@ -159,9 +159,9 @@ test("with failures retried, failed runs stop handling the head until three of t
 });
 
 // A class whose run never started the model (ci-workflows lane-outcome.md:
-// install-failed, sandbox-unavailable, no-credential) is a fault: it holds,
-// counts toward no cap, and the next tick dispatches the head again. A class a
-// model turn may have run under (max-turns) still counts, so three cap the head.
+// install-failed, sandbox-unavailable) is a fault: it holds, counts toward no
+// cap, and the next tick dispatches the head again. A class that persists or
+// that a model turn may have run under (no-credential, max-turns) still counts.
 test("a fault stop holds without counting toward the cap; a max-turns failure still counts", () => {
   const now = ended + HOUR;
   const fault = (cls, id) => posted(`lane=pr-unblock activity=resolve-conflicts class=${cls}`, { id });
@@ -169,7 +169,6 @@ test("a fault stop holds without counting toward the cap; a max-turns failure st
   for (const faults of [
     [1, 2, 3, 4].map((id) => fault("install-failed", id)),
     [1, 2, 3, 4].map((id) => record("sandbox-unavailable", id)),
-    [1, 2, 3, 4].map((id) => record("no-credential", id)),
   ]) {
     for (const opt of [{}, { failuresRetry: true }, { failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true }]) {
       assert.equal(anyHandles(faults, { now, ...opt }), false);
@@ -182,6 +181,9 @@ test("a fault stop holds without counting toward the cap; a max-turns failure st
   assert.equal(cappedAt(turns, { failuresRetry: true }), 3);
   assert.equal(anyHandles([turns[0], fault("install-failed", 9), turns[1]], { now, failuresRetry: true }), false, "two counted failures of three");
   assert.equal(anyHandles([run(1)], { now }), true, "a red run with no record still handles the head");
+  const noCred = [1, 2, 3].map((id) => record("no-credential", id));
+  assert.equal(anyHandles(noCred, { now, failuresRetry: true }), true, "a missing credential fails every tick, so it still caps the head");
+  assert.equal(cappedAt(noCred, { failuresRetry: true }), 3);
 });
 
 test("with failures retried, an unreset limit stop or any run that did not fail still handles the head", () => {

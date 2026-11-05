@@ -101,12 +101,12 @@ export function pendingStop(runs, { now, limits = LIMIT_DEFAULTS }) {
 
 // The lane record classes of a run whose model never started
 // (ci-workflows docs/lane-outcome.md, Failure classes): the CLI install failed,
-// the sandbox probe kept the run from starting, or the leg had no credential.
-// Such a failure says nothing about the head, so it holds: it neither handles
-// the head nor counts toward `limit-stops-per-head`, and the next tick
-// dispatches again. Every other failure, a red run with no record included,
-// still counts, since a model turn may have run.
-const FAULT_CLASSES = new Set(["install-failed", "sandbox-unavailable", "no-credential"]);
+// or the sandbox probe kept the run from starting. Such a failure says
+// nothing about the head, so it holds: it neither handles the head nor counts
+// toward `limit-stops-per-head`, and the next tick dispatches again. Every
+// other failure still counts, a red run with no record and `no-credential`
+// included: a missing secret fails the same way every tick, like `auth`.
+const FAULT_CLASSES = new Set(["install-failed", "sandbox-unavailable"]);
 const faultStop = (run) => run?.status === "completed" && run.conclusion === "failure" && FAULT_CLASSES.has(laneRecord(run)?.failureClass);
 
 const untrustedSkip = (run) =>
