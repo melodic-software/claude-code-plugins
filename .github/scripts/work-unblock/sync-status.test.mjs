@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { isStatusLabel, mirrorIssue, onLabelEvent, sweep } from "./sync-status.mjs";
+import { FULL_SWEEP_HOUR, isStatusLabel, mirrorIssue, onLabelEvent, sweep, sweepSince } from "./sync-status.mjs";
 
 const REPO = "o/r";
 const FIELD = 7;
@@ -162,4 +162,19 @@ test("a failed field write counts as failed, and the sweep stops at its call bud
   const result = await sweep({ ...args(capped.github, []), budget: 4, pause: async () => {}, log: (line) => lines.push(line) });
   assert.equal(result.swept, 1);
   assert.match(lines.at(-1), /^swept 1: wrote 1, unchanged 0, failed 0; stopped at #2: call budget of 4 spent/);
+});
+
+test("an hourly run sweeps issues updated in the last two hours; the daily full-sweep hour sweeps every open issue", () => {
+  assert.equal(sweepSince(new Date("2026-11-05T11:47:00Z")), "2026-11-05T09:47:00.000Z");
+  const full = new Date(`2026-11-05T${String(FULL_SWEEP_HOUR).padStart(2, "0")}:47:00Z`);
+  assert.equal(sweepSince(full), undefined);
+});
+
+test("a windowed sweep lists only issues updated since its start", async () => {
+  const { github, calls } = fakeGitHub({ 1: { labels: ["agent-ready"], field: 101, setter: TRUSTED_ID } });
+  await sweep({ ...args(github, []), since: "2026-11-05T09:47:00.000Z", pause: async () => {} });
+  assert.ok(calls.some((call) => call.includes("&since=2026-11-05T09%3A47%3A00.000Z")), calls.join("\n"));
+  const full = fakeGitHub({ 1: { labels: ["agent-ready"], field: 101, setter: TRUSTED_ID } });
+  await sweep({ ...args(full.github, []), pause: async () => {} });
+  assert.ok(full.calls.every((call) => !call.includes("since=")), full.calls.join("\n"));
 });
