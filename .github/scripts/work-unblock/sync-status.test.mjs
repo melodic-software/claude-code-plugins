@@ -4,9 +4,10 @@
 // already holds the state, set by a trusted account, is not written again;
 // the hourly sweep counts what it wrote, left and failed.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { FULL_SWEEP_HOUR, isStatusLabel, mirrorIssue, onLabelEvent, sweep, sweepSince } from "./sync-status.mjs";
+import { FULL_SWEEP_CRON, isStatusLabel, mirrorIssue, onLabelEvent, sweep, sweepSince } from "./sync-status.mjs";
 
 const REPO = "o/r";
 const FIELD = 7;
@@ -164,10 +165,15 @@ test("a failed field write counts as failed, and the sweep stops at its call bud
   assert.match(lines.at(-1), /^swept 1: wrote 1, unchanged 0, failed 0; stopped at #2: call budget of 4 spent/);
 });
 
-test("an hourly run sweeps issues updated in the last two hours; the daily full-sweep hour sweeps every open issue", () => {
-  assert.equal(sweepSince(new Date("2026-11-05T11:47:00Z")), "2026-11-05T09:47:00.000Z");
-  const full = new Date(`2026-11-05T${String(FULL_SWEEP_HOUR).padStart(2, "0")}:47:00Z`);
-  assert.equal(sweepSince(full), undefined);
+test("an hourly entry sweeps issues updated in the last two hours; the daily entry sweeps every open issue, even when it starts late", () => {
+  assert.equal(sweepSince(new Date("2026-11-05T11:47:00Z"), "47 0-3,5-23 * * *"), "2026-11-05T09:47:00.000Z");
+  assert.equal(sweepSince(new Date("2026-11-05T05:20:00Z"), FULL_SWEEP_CRON), undefined);
+});
+
+test("work-unblock.yml schedules the daily full-sweep entry and passes the firing entry to the script", () => {
+  const workflow = readFileSync(new URL("../../workflows/work-unblock.yml", import.meta.url), "utf8");
+  assert.ok(workflow.includes(`- cron: "${FULL_SWEEP_CRON}"`), "the daily cron entry");
+  assert.match(workflow, /SCHEDULE: \$\{\{ github\.event\.schedule \}\}/);
 });
 
 test("a windowed sweep lists only issues updated since its start", async () => {

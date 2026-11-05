@@ -10,7 +10,8 @@
 //   issue's labels fresh (several label events can land together) and its
 //   field, and write the state the labels collapse to unless the field
 //   already holds it.
-// - `schedule` (work-unblock's hourly run): the same for every open issue, one
+// - `schedule`: the same for every open issue updated in the last two hours
+//   (the hourly entries), or every open issue (the daily entry), one
 //   at a time, a short pause apart, within CALL_BUDGET calls, ending on
 //   `swept N: wrote W, unchanged U, failed F`.
 //
@@ -138,13 +139,14 @@ export async function sweep({ github, repository, config, trustedActors, status,
 
 // Label events mirror each change as it lands, so an hourly run only catches
 // what they missed: issues updated in the last two hours, a window that
-// covers a late scheduled run. Once a day, in the FULL_SWEEP_HOUR UTC hour,
-// the sweep reads every open issue to catch any other drift. Returns the
-// `since` time, or undefined for the full sweep.
-export const FULL_SWEEP_HOUR = 4;
+// covers a late scheduled run. The run started by work-unblock.yml's daily
+// FULL_SWEEP_CRON entry reads every open issue to catch any other drift; the
+// trigger decides, not the clock, so a late start still sweeps in full.
+// Returns the `since` time, or undefined for the full sweep.
+export const FULL_SWEEP_CRON = "47 4 * * *";
 export const SWEEP_WINDOW_MS = 2 * 60 * 60 * 1000;
-export function sweepSince(at) {
-  return at.getUTCHours() === FULL_SWEEP_HOUR ? undefined : new Date(at.getTime() - SWEEP_WINDOW_MS).toISOString();
+export function sweepSince(at, schedule) {
+  return schedule === FULL_SWEEP_CRON ? undefined : new Date(at.getTime() - SWEEP_WINDOW_MS).toISOString();
 }
 
 export async function main({ env = process.env, log = console.log, now = () => new Date() } = {}) {
@@ -172,7 +174,7 @@ export async function main({ env = process.env, log = console.log, now = () => n
     const args = { github, repository, config, trustedActors, status, log };
     if (env.GITHUB_EVENT_NAME === "schedule") {
       const budget = /^[1-9][0-9]{0,4}$/.test(env.CALL_BUDGET ?? "") ? Number(env.CALL_BUDGET) : undefined;
-      const result = await sweep({ ...args, budget, since: sweepSince(now()) });
+      const result = await sweep({ ...args, budget, since: sweepSince(now(), env.SCHEDULE) });
       return result.failed > 0 || result.stopped ? 1 : 0;
     }
     if (env.GITHUB_EVENT_NAME !== "issues") {
