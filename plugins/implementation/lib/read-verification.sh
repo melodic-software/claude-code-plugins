@@ -2,9 +2,11 @@
 # GENERATED from lib/read-verification.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 # Resolve the `verification` level (off | light | standard | strict) one skill
-# runs at, from its plugin's team file docs/conventions/<plugin>.yaml as origin's
-# default branch holds it. Meaning of each level:
-# docs/conventions/verification-level/README.md.
+# runs at, from its plugin's team file <home>/<plugin>.yaml as origin's default
+# branch holds it. <home> is the convention home that resolve-convention-home.sh
+# reads at the same commit; with no pointer line, or a declined one, it is
+# docs/conventions. Meaning of each level:
+# docs/contracts/verification-level/README.md.
 #
 #   verification_skills.<skill>   wins when set
 #   verification                  the plugin's value otherwise
@@ -16,7 +18,8 @@
 #
 # SINGLE SOURCE OF TRUTH: lib/read-verification.sh at the marketplace repo root.
 # Each copy sits beside its plugin's copies of config-root.sh,
-# parse-concern-value.sh and yaml-subset.awk; never edit a copy. Edit the
+# resolve-convention-home.sh, parse-concern-value.sh and yaml-subset.awk; never
+# edit a copy. Edit the
 # source and run scripts/sync-shared-copies.sh.
 #
 # Usage:
@@ -78,7 +81,14 @@ git -C "$root" fetch --quiet origin "$branch" >/dev/null 2>&1 ||
 sha="$(git -C "$root" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}")" ||
   standard "default; team layer skipped: origin/$branch has not been fetched"
 
-file="docs/conventions/$plugin.yaml"
+rc=0
+home="$(bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$root" --ref "origin/$branch" 2>/dev/null)" || rc=$?
+case "$rc" in
+0) ;;
+1 | 4) home=docs/conventions ;;
+*) standard "default; team layer skipped: the convention-home pointer at origin/$branch is broken (resolve-convention-home.sh exit $rc)" ;;
+esac
+file="$home/$plugin.yaml"
 at="at origin/$branch, commit $sha$stale"
 
 # resolve [ref]: sets LEVEL, KEY (empty when no key set) and ERR (empty when valid).

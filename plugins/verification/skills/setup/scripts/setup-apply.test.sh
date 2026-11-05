@@ -777,7 +777,7 @@ assert_contains "case 30: proof_level is unset in the committed file" "$out" "PA
 
 # --- Case 31: --check reports verification and verification_skills -------------
 # The schema lists off, light, standard and strict for both keys
-# (docs/conventions/verification-level/README.md).
+# (docs/contracts/verification-level/README.md).
 R31="$(new_root c31)"
 printf 'proof_level: live\nverification: light\nverification_skills:\n  confirm: strict\n' >"$(yaml_of "$R31")"
 out="$(run --root "$R31" --check)"

@@ -686,3 +686,4 @@ lib/read-verification.sh plugins/implementation/lib/read-verification.sh
 lib/config-root.sh plugins/implementation/lib/config-root.sh
 lib/parse-concern-value.sh plugins/implementation/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/implementation/lib/yaml-subset.awk
+lib/resolve-convention-home.sh plugins/implementation/lib/resolve-convention-home.sh

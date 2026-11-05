@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests for lib/read-verification.sh. Expected outputs follow
-# docs/conventions/verification-level/README.md: a skill entry beats the plugin
+# docs/contracts/verification-level/README.md: a skill entry beats the plugin
 # value, the team file is read at origin's default branch only, and anything the
 # reader cannot read or trust resolves standard with its reason.
 # Run directly: bash lib/read-verification.test.sh
@@ -63,6 +63,17 @@ assert_eq "an absent file resolves standard" \
 repo=$(fixture plugin $'verification: light\n')
 assert_eq "the plugin value applies" \
   "verification: light ($F verification $(at "$repo"))" "$(run "$repo")"
+
+repo=$(fixture home-pointer $'verification: off\n')
+mkdir -p "$repo/team/conv"
+printf 'verification: strict\n' >"$repo/team/conv/verification.yaml"
+# shellcheck disable=SC2016 # the backticks are the pointer line's literal markup.
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team/conv`.\n<!-- END GENERATED: convention-home -->\n' >"$repo/AGENTS.md"
+g -C "$repo" add -A
+g -C "$repo" commit -q -m home
+g -C "$repo" push -q origin main
+assert_eq "a non-default convention home is read from its pointer line" \
+  "verification: strict (team/conv/verification.yaml verification $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture skill $'verification: light\nverification_skills:\n  confirm: strict\n  measure: off\n')
 assert_eq "a skill entry beats the plugin value" \

@@ -7,7 +7,10 @@ the level says.
 
 ## Keys
 
-In a plugin's team file, `docs/conventions/<plugin>.yaml`, validated by that plugin's schema:
+In a plugin's team file, `<home>/<plugin>.yaml`, validated by that plugin's schema. `<home>` is
+the convention home named by the pointer line, read at the same default-branch commit by
+`lib/resolve-convention-home.sh`; with no pointer line, or a declined one, it is
+`docs/conventions`. A broken pointer skips the layer.
 
 ```yaml
 verification: light          # the plugin's level
@@ -33,7 +36,7 @@ emits the results labeled unverified instead of skipping them.
 
 - `verification_skills.<skill>` wins; otherwise `verification`; otherwise `standard`.
 - **Team layer only, read from the default branch.** Floor direction `team-only`
-  ([config-cascade](../../contracts/config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
+  ([config-cascade](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
   the file is read at `origin/<default>` after a fetch, never the working tree, so a branch cannot
   lower its own level. There is no user option and no personal override. When the working tree's
   copy gives another level, a second line names both copies.
