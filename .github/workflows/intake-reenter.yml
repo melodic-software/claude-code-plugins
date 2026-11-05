@@ -99,6 +99,11 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
         id: tip
@@ -134,6 +139,17 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or labeled"
+
+      # reenter.mjs reads an issue's Work status field through resolve-config.mjs,
+      # whose packages only the resolve-config action installs; this job does
+      # not run it.
+      - name: Install resolve-config's packages
+        timeout-minutes: 3
+        # A failed install leaves the Work status field unread (the reader
+        # warns and the labels decide); the re-entry still runs.
+        continue-on-error: true
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: Send the answered issue back to triage
         if: steps.kill.outputs.proceed == 'true'
