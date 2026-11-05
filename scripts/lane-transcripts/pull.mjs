@@ -42,8 +42,9 @@ const PER_PAGE = 100;
 export const MAX_PAGES = 400;
 const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
-export const GH_ATTEMPTS = 5;
+export const GH_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
+export const GH_MAX_DELAY_MS = 30_000;
 
 const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
@@ -82,10 +83,11 @@ function defaultDeps(env) {
   return { gh: run("gh"), unzip: run("unzip"), now: () => Date.now(), sleep: (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) };
 }
 
-// GitHub answers these calls with a passing 5xx now and then, sometimes for
-// several seconds at a time, so each gets a few tries, doubling the wait before
-// each one (about 30 s in all). A rate limit stops the pull at once: every
-// further call while limited spends the user's shared budget.
+// GitHub answers these calls with a passing 5xx, on some days for most calls
+// to the artifact listing at any page, so each gets ten tries, doubling the
+// wait before each one up to 30 s (about 3.5 min in all). A rate limit stops
+// the pull at once: every further call while limited spends the user's shared
+// budget.
 function ghRetried(deps, args) {
   const attempts = deps.ghAttempts ?? GH_ATTEMPTS;
   for (let attempt = 1; ; attempt++) {
@@ -94,7 +96,7 @@ function ghRetried(deps, args) {
     } catch (error) {
       if (/rate limit|HTTP 429/i.test(String(error?.stderr))) throw new PullError("rate-limited: gh reported a rate limit");
       if (attempt >= attempts) throw error;
-      deps.sleep(2 ** (attempt - 1) * (deps.ghDelayMs ?? GH_DELAY_MS));
+      deps.sleep(Math.min(2 ** (attempt - 1) * (deps.ghDelayMs ?? GH_DELAY_MS), GH_MAX_DELAY_MS));
     }
   }
 }

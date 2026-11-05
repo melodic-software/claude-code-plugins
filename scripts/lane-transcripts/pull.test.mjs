@@ -294,8 +294,8 @@ test("a listing page that fails past its retries fails the pull and keeps the la
   assert.equal(result.code, 1);
   assert.match(result.err, /pull failed: artifact-list: gh exited 1/);
   assert.ok(!result.err.includes(MARKER));
-  assert.equal(deps.calls.filter((c) => c.endsWith("page=2")).length, 5);
-  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000], "the wait doubles, about 30 s before giving up");
+  assert.equal(deps.calls.filter((c) => c.endsWith("page=2")).length, 10);
+  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000], "the wait doubles to a 30 s cap, about 3.5 min before giving up");
   assert.equal(stateOf(sink).last_success_at, last);
 });
 
