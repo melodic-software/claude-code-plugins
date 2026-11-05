@@ -46,8 +46,12 @@ the sum of its members; prefix-side deltas double-count, and their sum is only a
 what the basket saves on the prefix side. Confirm both on this binary with
 `attribute --verify-additivity`, which reports its verdict per bucket.
 
+**Bundled files.** A `reference/...` path this skill names is under
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/`. Read each one with the `Read` tool, never through Bash
+(`cat`, `sed`, `grep`), Glob or Grep.
+
 Two rules govern everything this skill says, per the plugin's
-[`reference/engine.md`](reference/engine.md):
+[`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/engine.md`](reference/engine.md):
 
 1. **Only measured numbers are reported.** No token figure, tool inventory, or threshold ships in
    this skill; values drift with every CLI release. If a number was not produced by a run on this
@@ -193,6 +197,9 @@ the stamp's `sessionKind: headless` is the honest boundary of the claim.
 ```shell
 bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 ```
+
+Run it as its own Bash call, with nothing chained before or after it, and do not list the data
+directory.
 
 The audit's artifacts live under `${CLAUDE_PLUGIN_DATA}/audit/<state-key>/`, keyed by project so
 one machine's many checkouts never share a ledger. Pass this resolved absolute path wherever
