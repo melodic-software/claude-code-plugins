@@ -12,6 +12,11 @@
     {"answer": "Here you go:\n\n```bash\ngh release create demo-42 work/demo.mp4 --title 'Signup demo'\ngh pr comment 42 --body 'Demo: https://github.com/o/r/releases/download/demo-42/demo.mp4'\n```", "why": "publishes through a release and a comment link, no --attach"},
     {"answer": "```bash\ngh release upload demo work/demo.mp4 --clobber\npython3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json\n```", "why": "uploads the failing video before rebuilding the plan"},
     {"answer": "```bash\ncd work && gh release create demo-42 demo.mp4\n```", "why": "release behind a cd chain"},
-    {"answer": "```bash\ngh pr comment 42 --body 'Demo video: work/demo.mp4 (uploaded)'\n```", "why": "comment links the failing video"}
+    {"answer": "```bash\ngh pr comment 42 --body 'Demo video: work/demo.mp4 (uploaded)'\n```", "why": "comment links the failing video"},
+    {"answer": "Sure, run `gh pr comment 42 --attach work/demo.mp4` now.", "why": "inline post command"},
+    {"answer": "1. `gh pr comment 42 --attach work/demo.mp4`\n2. `python3 scripts/pydeps.py run -- scripts/build_edl.py work/capture script.json work/edl.json`", "why": "numbered-list post before the rebuild"},
+    {"answer": "- gh pr comment 42 --attach work/demo.mp4", "why": "bulleted post"},
+    {"answer": "> gh pr comment 42 --attach work/demo.mp4", "why": "quoted post"},
+    {"answer": "First run `gh pr edit 42 --attach work/demo.mp4`, then `python3 scripts/pydeps.py run -- scripts/quality_control.py work/edl.json work/demo.mp4 work/quality-control`.", "why": "inline post before any rebuild"}
   ]
 }
