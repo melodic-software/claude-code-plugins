@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.8] - 2026-11-05
+
+### Changed
+
+- The audit's new-skill listing cost names which skill answers whether a listing budget is oversubscribed: `/harness-ops:audit-skill-visibility` for a session's live listing, `/skill-quality:check` `listing-budget` for a repository's authored skills.
+
 ## [2.1.7] - 2026-11-04
 
 ### Fixed

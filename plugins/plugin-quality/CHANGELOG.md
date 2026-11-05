@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.16] - 2026-11-05
+
+### Changed
+
+- The skill audit's triggering and progressive-disclosure checks grade against `/playbooks:skill-authoring` and route listing-budget drops to `/harness-ops:audit-skill-visibility` and the disclosure audit to `/docs-hygiene:audit-progressive-disclosure`, in place of restating those rules.
+
 ## [0.18.15] - 2026-11-04
 
 ### Changed
