@@ -58,7 +58,8 @@
 // allow. Otherwise, when a done-when item is one the lane cannot perform,
 // admit.mjs's noteUnrunnable posts the split it recommends. An option GitHub
 // keeps under another id than models.issue-dimensions maps fails the run and
-// leaves the issue's labels as they are.
+// leaves the issue's labels as they are. A GitHub fault (isFault), in admission
+// or anywhere else, holds the run green with a notice instead (closing).
 //
 // Issue text can only refuse or hold back: a line the model quotes is prefixed
 // `> ` and matches nothing, a duplicated, missing or unknown value writes no
@@ -90,7 +91,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, loadTrustedList, networkFailure, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
@@ -627,13 +628,13 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller
-  // fails the job on it.
+  // fails the job on it, or holds on a fault (closing).
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
   if (plan.ready && admitIssue && !waits) {
     try {
       admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at });
     } catch (error) {
-      admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
+      admission = { outcome: "error", reasons: [String(error?.message ?? error)], ...(isFault(error) ? { fault: true } : {}) };
     }
   }
   // A held issue never reaches admission, so its split note, when a done-when
@@ -642,7 +643,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     try {
       admission = await noteSplit(issue);
     } catch (error) {
-      admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
+      admission = { outcome: "error", reasons: [String(error?.message ?? error)], ...(isFault(error) ? { fault: true } : {}) };
     }
   }
   if (plan.ready) {
@@ -747,6 +748,59 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
+// A GitHub 5xx or 429, a call the rate guard refused, or a request that got no
+// answer: what happened to the issue is unknown, not wrong. Any other 4xx (a
+// lost permission, a missing label) stays red, since a retry meets it again.
+export const isFault = (error) =>
+  (error?.name === "GitHubError" && (error.status >= 500 || error.status === 429)) ||
+  error?.name === "RateLimitStop" ||
+  networkFailure(error);
+
+// The step's closing annotations and exit code, for run()'s result or the
+// error it threw. A fault, in admission or anywhere in the run, holds green
+// with a notice (outage posture element 2), since an hourly sweep takes the
+// issue up again: work-unblock's readmitReady one left at `status: ready` in
+// no queue, the triage sweep one with no `status:` label, which reads this
+// notice's `held: ` as it reads a failure (triage-sweep.mjs classifyRun). Any
+// other error, a forbidden missed edge and an unwritten reasons comment fail.
+// `held` is the step's `held` output, which keeps refine-select from acting
+// on a verdict whose result is unknown (intake-triage.yml).
+export function closing({ result, error } = {}) {
+  const clean = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+  const held = (why) => `::notice title=apply-verdict::held: ${why}`;
+  if (error !== undefined) {
+    const why = clean(error?.message ?? error);
+    return isFault(error) ? { lines: [held(why)], code: 0, held: true } : { lines: [`::error title=apply-verdict::${why}`], code: 1, held: false };
+  }
+  const lines = [];
+  let code = 0;
+  const missed = missedAnnotation(result.missed, result.undeleted, result.plan?.ready);
+  if (missed) {
+    lines.push(missed.line);
+    code = missed.fail ? 1 : code;
+  }
+  if (result.admission?.outcome === "error") {
+    const why = `admission failed: ${clean(result.admission.reasons[0])}`;
+    lines.push(result.admission.fault ? held(why) : `::error title=apply-verdict::${why}`);
+    code = result.admission.fault ? code : 1;
+  }
+  if (result.reasonsError) {
+    lines.push(`::error title=apply-verdict::the reasons comment was not written: ${clean(result.reasonsError)}`);
+    code = 1;
+  }
+  return { lines, code, held: Boolean(result.admission?.fault) };
+}
+
+// Logs closing()'s lines, writes `held=true` to the step outputs on a hold,
+// and returns the exit code.
+export function finish({ lines, code, held }, { outputPath, log = console.log } = {}) {
+  lines.forEach((line) => log(line));
+  if (held && outputPath) {
+    writeOutputs({ held: "true" }, outputPath);
+  }
+  return code;
+}
+
 // Why a ready verdict took a triage hold off, for the comment and the summary.
 const refusedNote = (refused) =>
   `${refused.map((label) => `\`${label}\``).join(", ")} came off: this run's triage applied ${refused.length > 1 ? "them" : "it"} with no intent, security or cost flag, and only a flag stops for a person: admission routes a capability limit (a host run, a paid eval), and the issue lane decides a choice of means.`;
@@ -820,6 +874,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     writeOutputs({ proceed: String(proceed) });
     console.log(`apply-verdict: the broker ${proceed ? "would" : "would not"} mint for this run's actors`);
   } else {
+    let closed;
     try {
       const { issueDimensionsFromBase, issueLaneWebHostsFromBase, fieldSetters } = await import(
         new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
@@ -877,24 +932,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
       }
-      const missed = missedAnnotation(result.missed, result.undeleted, result.plan?.ready);
-      if (missed) {
-        console.log(missed.line);
-        if (missed.fail) {
-          process.exitCode = 1;
-        }
-      }
-      if (result.admission?.outcome === "error") {
-        console.log(`::error title=apply-verdict::admission failed: ${result.admission.reasons[0].replaceAll(/[\r\n%]/g, " ")}`);
-        process.exitCode = 1;
-      }
-      if (result.reasonsError) {
-        console.log(`::error title=apply-verdict::the reasons comment was not written: ${result.reasonsError.replaceAll(/[\r\n%]/g, " ")}`);
-        process.exitCode = 1;
-      }
+      closed = closing({ result });
     } catch (error) {
-      console.log(`::error title=apply-verdict::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
-      process.exitCode = 1;
+      closed = closing({ error });
     }
+    process.exitCode = finish(closed, { outputPath: env.GITHUB_OUTPUT });
   }
 }
