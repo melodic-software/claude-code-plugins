@@ -1237,7 +1237,9 @@ jobs:
   # that CLI and the key runs capture-probe.mjs, whose canary child shows its
   # /proc scan can see an environment, and two Read calls the deny rules must
   # refuse. Same conditions as the model job, so a release the gate takes again
-  # is probed again.
+  # is probed again. This is the key leg's probe; scrub-probe-subscription and
+  # scrub-probe-fallback probe the same way on the credential each later leg
+  # runs on, after the same handoffs as the model's legs.
   scrub-probe:
     needs: gate
     if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'
@@ -1246,6 +1248,9 @@ jobs:
     cache-mode: read
     permissions:
       contents: read # check out main
+    outputs:
+      handoff: ${{ steps.probe.outputs.handoff }}
+      credential-present: ${{ steps.credential.outputs.present }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1278,6 +1283,14 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
 
+      # Only whether the secret is set leaves this step, never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        env:
+          PRESENT: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
+        run: echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -1309,9 +1322,12 @@ jobs:
 
       # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
       # only to the api-key input.
+      # continue-on-error lets a handoff end the job green; "Check the probe"
+      # fails it on any other probe failure.
       - name: Probe what a Bash child can reach
         id: probe
-        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
         timeout-minutes: 7
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
         env:
@@ -1365,8 +1381,9 @@ jobs:
       # CLI other than the release, no result, a name that never reached the
       # probe, any hit, a missed canary, or a Read the deny rules let through.
       - name: Check the probe
-        if: always() && steps.probe.outcome != 'skipped'
+        if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
         env:
+          KEY_NAME: ISSUE_LANE_CLAUDE_API_KEY
           RELEASE: ${{ needs.gate.outputs.release }}
           LEG_OUTCOME: ${{ steps.probe.outcome }}
           LEG_CLASS: ${{ steps.probe.outputs.lane-class }}
@@ -1384,8 +1401,382 @@ jobs:
           if ! [ -f "$RESULT" ] || [ -L "$RESULT" ]; then
             fail "the probe left no result"
           fi
-          if ! jq -e '.names | index("ISSUE_LANE_CLAUDE_API_KEY")' "$RESULT" >/dev/null; then
-            fail "the key's name did not reach the probe"
+          if ! jq -e --arg name "$KEY_NAME" '.names | index($name)' "$RESULT" >/dev/null; then
+            fail "the credential's name did not reach the probe"
+          fi
+          if ! jq -e '.clean == true and .canary == true and .hits == []' "$RESULT" >/dev/null; then
+            reach=$(jq -r '[.hits[]?.name] | unique | join(", ")' "$RESULT" 2>/dev/null || true)
+            fail "a Bash child could reach a credential or token, or the scan could not show it works (${reach:-no hit named})"
+          fi
+          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE"; then
+            fail "the leg's file tools were not refused /proc and the runner's temp directory"
+          fi
+          echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
+          echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # The scrub probe on the subscription token, after the key probe handed off,
+  # found its key empty, or was skipped by the credit gate.
+  scrub-probe-subscription:
+    needs: [gate, scrub-probe]
+    if: >-
+      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+      && (needs.scrub-probe.outputs.handoff == 'true' || needs.scrub-probe.outputs.credential-present == 'false'
+      || needs.gate.outputs.skip-key == 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    cache-mode: read
+    permissions:
+      contents: read # check out main
+    outputs:
+      handoff: ${{ steps.probe.outputs.handoff }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the model
+        id: models
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: upstream-apply-changelog
+          activity: apply-changelog
+          base-path: .base
+          output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
+
+      # Only whether the secret is set leaves this step, never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        env:
+          PRESENT: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          # Whether the fallback probe can run, never the token.
+          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+          echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
+
+      - name: Apply the Claude managed settings
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+
+      - name: Isolate the runner
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      - name: Write the probe prompt
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        env:
+          PROMPT_FILE: ${{ runner.temp }}/upstream-apply-changelog-probe.md
+        run: |
+          {
+            echo 'Run this one command with the Bash tool, exactly as written:'
+            echo
+            echo '    node .base/.github/scripts/pr-verify/capture-probe.mjs'
+            echo
+            echo 'Then call the Read tool once on each of these paths, one call each, whatever the'
+            echo 'command printed; each read is expected to be refused:'
+            echo
+            echo '    /proc/self/environ'
+            echo "    $PROMPT_FILE"
+            echo
+            echo 'Then answer with the last line the command printed. Do nothing else.'
+          } >"$PROMPT_FILE"
+
+      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
+      # only to the api-key input.
+      # continue-on-error lets a handoff end the job green; "Check the probe"
+      # fails it on any other probe failure.
+      - name: Probe what a Bash child can reach
+        id: probe
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 7
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN
+        with:
+          lane: upstream-apply-changelog
+          role: issue-lane
+          prompt-file: ${{ runner.temp }}/upstream-apply-changelog-probe.md
+          preamble: You run unattended; do only what you are told.
+          subscription-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          model: ${{ steps.models.outputs.model }}
+          max-turns: "6"
+          permission-mode: dontAsk
+          cli-version: ${{ needs.gate.outputs.release }}
+          tools: |
+            Bash
+            Read
+          allowed-tools: |
+            Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)
+          disallowed-tools: |
+            Read(//proc/**)
+            Read(//sys/**)
+            Read(/${{ runner.temp }}/**)
+            Read(~/.config/**)
+            Read(~/.git-credentials)
+            Edit(//proc/**)
+            Edit(/${{ runner.temp }}/**)
+            Edit(./.base/**)
+            Glob
+            Grep
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          leg-timeout-minutes: "5"
+
+      - name: Upload the probe's sealed transcript
+        if: always() && steps.probe.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.probe.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+      # Fails closed, naming the release and hit names only: a failed leg, a
+      # CLI other than the release, no result, a name that never reached the
+      # probe, any hit, a missed canary, or a Read the deny rules let through.
+      - name: Check the probe
+        if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
+        env:
+          KEY_NAME: ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN
+          RELEASE: ${{ needs.gate.outputs.release }}
+          LEG_OUTCOME: ${{ steps.probe.outcome }}
+          LEG_CLASS: ${{ steps.probe.outputs.lane-class }}
+          CLI_VERSION: ${{ steps.probe.outputs.cli-version }}
+          RESULT: ${{ github.workspace }}/capture-probe.json
+          EXECUTION_FILE: ${{ steps.probe.outputs.execution-file }}
+          PROMPT_FILE: ${{ runner.temp }}/upstream-apply-changelog-probe.md
+        run: |
+          fail() {
+            echo "::error::Claude Code $RELEASE: the subprocess scrub probe failed: $1"
+            exit 1
+          }
+          [ "$LEG_OUTCOME" = success ] || fail "the leg ended without a result (${LEG_CLASS:-$LEG_OUTCOME})"
+          [ "$CLI_VERSION" = "$RELEASE" ] || fail "the leg ran Claude Code ${CLI_VERSION:-unknown}"
+          if ! [ -f "$RESULT" ] || [ -L "$RESULT" ]; then
+            fail "the probe left no result"
+          fi
+          if ! jq -e --arg name "$KEY_NAME" '.names | index($name)' "$RESULT" >/dev/null; then
+            fail "the credential's name did not reach the probe"
+          fi
+          if ! jq -e '.clean == true and .canary == true and .hits == []' "$RESULT" >/dev/null; then
+            reach=$(jq -r '[.hits[]?.name] | unique | join(", ")' "$RESULT" 2>/dev/null || true)
+            fail "a Bash child could reach a credential or token, or the scan could not show it works (${reach:-no hit named})"
+          fi
+          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE"; then
+            fail "the leg's file tools were not refused /proc and the runner's temp directory"
+          fi
+          echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
+          echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # The scrub probe on the fallback token, after the subscription probe handed
+  # off. The last leg: it never hands off.
+  scrub-probe-fallback:
+    needs: [gate, scrub-probe-subscription]
+    if: >-
+      ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
+      && needs.scrub-probe-subscription.outputs.handoff == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    cache-mode: read
+    permissions:
+      contents: read # check out main
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the model
+        id: models
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: upstream-apply-changelog
+          activity: apply-changelog
+          base-path: .base
+          output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
+
+      # Only whether the secret is set leaves this step, never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+
+      - name: Apply the Claude managed settings
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+
+      - name: Isolate the runner
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      - name: Write the probe prompt
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
+        env:
+          PROMPT_FILE: ${{ runner.temp }}/upstream-apply-changelog-probe.md
+        run: |
+          {
+            echo 'Run this one command with the Bash tool, exactly as written:'
+            echo
+            echo '    node .base/.github/scripts/pr-verify/capture-probe.mjs'
+            echo
+            echo 'Then call the Read tool once on each of these paths, one call each, whatever the'
+            echo 'command printed; each read is expected to be refused:'
+            echo
+            echo '    /proc/self/environ'
+            echo "    $PROMPT_FILE"
+            echo
+            echo 'Then answer with the last line the command printed. Do nothing else.'
+          } >"$PROMPT_FILE"
+
+      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
+      # only to the api-key input.
+      # continue-on-error lets a handoff end the job green; "Check the probe"
+      # fails it on any other probe failure.
+      - name: Probe what a Bash child can reach
+        id: probe
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 7
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          CAPTURE_PROBE_EXTRA_NAMES: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+        with:
+          lane: upstream-apply-changelog
+          role: issue-lane
+          prompt-file: ${{ runner.temp }}/upstream-apply-changelog-probe.md
+          preamble: You run unattended; do only what you are told.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          max-turns: "6"
+          permission-mode: dontAsk
+          cli-version: ${{ needs.gate.outputs.release }}
+          tools: |
+            Bash
+            Read
+          allowed-tools: |
+            Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)
+          disallowed-tools: |
+            Read(//proc/**)
+            Read(//sys/**)
+            Read(/${{ runner.temp }}/**)
+            Read(~/.config/**)
+            Read(~/.git-credentials)
+            Edit(//proc/**)
+            Edit(/${{ runner.temp }}/**)
+            Edit(./.base/**)
+            Glob
+            Grep
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          leg-timeout-minutes: "5"
+
+      - name: Upload the probe's sealed transcript
+        if: always() && steps.probe.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.probe.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+      # Fails closed, naming the release and hit names only: a failed leg, a
+      # CLI other than the release, no result, a name that never reached the
+      # probe, any hit, a missed canary, or a Read the deny rules let through.
+      - name: Check the probe
+        if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
+        env:
+          KEY_NAME: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+          RELEASE: ${{ needs.gate.outputs.release }}
+          LEG_OUTCOME: ${{ steps.probe.outcome }}
+          LEG_CLASS: ${{ steps.probe.outputs.lane-class }}
+          CLI_VERSION: ${{ steps.probe.outputs.cli-version }}
+          RESULT: ${{ github.workspace }}/capture-probe.json
+          EXECUTION_FILE: ${{ steps.probe.outputs.execution-file }}
+          PROMPT_FILE: ${{ runner.temp }}/upstream-apply-changelog-probe.md
+        run: |
+          fail() {
+            echo "::error::Claude Code $RELEASE: the subprocess scrub probe failed: $1"
+            exit 1
+          }
+          [ "$LEG_OUTCOME" = success ] || fail "the leg ended without a result (${LEG_CLASS:-$LEG_OUTCOME})"
+          [ "$CLI_VERSION" = "$RELEASE" ] || fail "the leg ran Claude Code ${CLI_VERSION:-unknown}"
+          if ! [ -f "$RESULT" ] || [ -L "$RESULT" ]; then
+            fail "the probe left no result"
+          fi
+          if ! jq -e --arg name "$KEY_NAME" '.names | index($name)' "$RESULT" >/dev/null; then
+            fail "the credential's name did not reach the probe"
           fi
           if ! jq -e '.clean == true and .canary == true and .hits == []' "$RESULT" >/dev/null; then
             reach=$(jq -r '[.hits[]?.name] | unique | join(", ")' "$RESULT" 2>/dev/null || true)

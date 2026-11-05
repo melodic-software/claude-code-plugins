@@ -5523,6 +5523,8 @@ const MODEL_CALL_READS = {
   "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
   // The scanned replies' attempt, SHA-256 and INCORRECT flag, never a run job output.
   "adjudicate-feedback": ["feedback-attempt", "feedback-disputed", "feedback-sha256"],
+  // The adjudicator's credit gate starts on the adjudicator's own condition.
+  "adjudicate-key-credit": ["feedback-attempt", "feedback-disputed"],
 };
 
 // One leg answers the round: the fallback call when it ran, else the first.

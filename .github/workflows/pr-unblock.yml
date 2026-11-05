@@ -1849,8 +1849,12 @@ jobs:
   # subscription, with no refused key attempt first. No secret, no model, no
   # checkout; every failure runs the key (skip-key empty). Probing is off.
   adjudicate-key-credit:
-    needs: address-feedback-select
-    if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
+    # adjudicate-feedback's own condition: a round with a disputed reply.
+    if: >-
+      ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

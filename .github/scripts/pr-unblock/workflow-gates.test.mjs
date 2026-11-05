@@ -442,6 +442,7 @@ const JOBS = [
   "address-feedback-subscription-handoff",
   "address-feedback-fallback",
   "apply-feedback-patch",
+  "adjudicate-key-credit",
   "adjudicate-feedback",
   "publish-feedback",
 ];
@@ -451,7 +452,7 @@ const JOBS = [
 // too, so the push and the reply would never run.
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
   const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription" || need === "address-feedback-fallback"));
-  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-feedback", "publish-feedback"]);
+  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-key-credit", "adjudicate-feedback", "publish-feedback"]);
   for (const job of [...after, "address-feedback", "address-feedback-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
