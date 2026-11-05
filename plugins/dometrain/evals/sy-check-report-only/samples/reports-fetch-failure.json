@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": "update.sh exited 2 (unverifiable): it failed to fetch the upstream SKILL.md from raw.githubusercontent.com, so drift could not be checked.",
+      "why": "exit 2 with reason"
+    },
+    {
+      "answer": "Exit code: `2`. The fetch failed, so the result is unverifiable.",
+      "why": "label form"
+    },
+    {
+      "answer": "Result: unverifiable. `✖ Failed to fetch https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md`",
+      "why": "quotes the script's stderr"
+    },
+    {
+      "answer": "The script couldn't reach raw.githubusercontent.com, so I can't say whether the vendored copy has drifted.",
+      "why": "couldn't reach"
+    },
+    {
+      "answer": "Drift state is unknown: network access is blocked in this session.",
+      "why": "network blocked"
+    },
+    {
+      "answer": "Exit: 2 — unverifiable. There's no network in this session.",
+      "why": "exit 2 with a dash"
+    },
+    {
+      "answer": "The check came back unverifiable.",
+      "why": "came back unverifiable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No drift detected. dometrain grounding content is in sync with upstream.",
+      "why": "invented no-drift result"
+    },
+    {
+      "answer": "Drift detected: upstream added a new tool to the catalog section.",
+      "why": "invented drift result"
+    },
+    {
+      "answer": "Exit codes: 0 no drift, 1 drift, 2 unverifiable. Run the check to find out which applies.",
+      "why": "legend only"
+    },
+    {
+      "answer": "No drift detected. Exit codes: `0` no drift, `1` drift, `2` unverifiable.",
+      "why": "invented verdict beside a backticked legend"
+    },
+    {
+      "answer": "No drift.\n\n| Exit | Meaning |\n|---|---|\n| 0 | no drift |\n| 1 | drift |\n| 2 | unverifiable |",
+      "why": "invented verdict beside a legend table"
+    },
+    {
+      "answer": "Drift detected. (2 — unverifiable would mean the fetch failed.)",
+      "why": "dash legend beside an invented verdict"
+    },
+    {
+      "answer": "Exit code 2 means unverifiable; this run found no drift.",
+      "why": "explains exit 2 without reporting it"
+    },
+    {
+      "answer": "No drift detected (exit 0). If the fetch failed it would exit 2.",
+      "why": "conditional mentions of a failed fetch and exit 2"
+    },
+    {
+      "answer": "The script exited 1 (drift). See context/update.md.",
+      "why": "wrong exit code for a run with no network"
+    },
+    {
+      "answer": "Exit code 0; the copy matches upstream.",
+      "why": "exit 0"
+    },
+    {
+      "answer": "No network calls were needed; the copy matches upstream.",
+      "why": "'no network' in passing beside an invented verdict"
+    }
+  ]
+}

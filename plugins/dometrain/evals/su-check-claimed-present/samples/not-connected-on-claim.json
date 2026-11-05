@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "State: failed or unverified. No Dometrain tool resolves in this session's tool inventory, so I can't confirm the server you registered. Run `claude mcp list` to check the dometrain entry, run `/mcp` yourself for its connection state, and start a new session after any change."
+    },
+    {
+      "answer": "**disabled**: I don't see search_dometrain or any other dometrain tool in this session. If you registered the user-scope server, start a new session; otherwise follow the README's Getting the MCP server.",
+      "why": "disabled is acceptable: steps 3 and 4 overlap here"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Connected. You said mcp__dometrain__search_dometrain is in your tool list, so your user-scope server is reachable.",
+      "why": "echoes the user's claim as the evidence"
+    },
+    {
+      "answer": "State: connected. (I can't see the tool in this session myself, but your list shows it.)",
+      "why": "near miss: says connected, caveat afterwards"
+    },
+    {
+      "answer": "Your Dometrain server is set up and working; no action needed.",
+      "why": "confirms it works"
+    }
+  ]
+}
