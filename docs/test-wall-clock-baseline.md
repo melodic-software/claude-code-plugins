@@ -93,7 +93,10 @@ of `fd862a49b848`; a cell with an exit code is a suite that failed there. It
 holds the 18 suites the 60-minute run reached; a blank cell was not reached.
 
 Re-measured rows: `audit-engine.test.sh` is 1336 s after #13229 (2714 s just before it, same host
-and day), from `run-plugin-tests.sh --timings` at `--jobs 1` on a native `C:` clone.
+and day), from `run-plugin-tests.sh --timings` at `--jobs 1` on a native `C:` clone. `cant-fail-scan.test.sh` is
+993 and 1069 s after #13231's process-start cut, against 1294 and 1421 s just before it at
+`b70be89eb4`, in alternated pairs on the same host on 2026-11-04, timed with Git Bash's `time` on
+native `D:` worktrees; every run passed.
 
 | Suite | Linux CI (s) | Windows Git Bash (s) |
 | --- | --- | --- |
@@ -666,7 +669,7 @@ and day), from `run-plugin-tests.sh --timings` at `--jobs 1` on a native `C:` cl
 | `plugins/testing/scripts/gen-hook-filters.test.sh` | 1 | |
 | `plugins/testing/scripts/resolve-config.test.sh` | 7 | |
 | `plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh` | 8 | |
-| `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` | 128 | 891 |
+| `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` | 128 | 1069 |
 | `plugins/testing/skills/audit/scripts/judge-check.test.sh` | 0 | |
 | `plugins/testing/skills/check-visual-parity/scripts/visual-compare.test.sh` | 4 | |
 | `plugins/testing/skills/setup/scripts/setup.test.sh` | 2 | |
