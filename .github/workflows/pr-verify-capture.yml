@@ -143,6 +143,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # A rate-guard stop holds green with the resolver's other GitHub
+          # faults (resolve-pr.mjs closing) instead of failing the step.
+          API_BUDGET_HOLD: "1"
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json

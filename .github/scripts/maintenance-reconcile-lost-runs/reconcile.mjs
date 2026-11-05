@@ -33,6 +33,11 @@
 //   plan step names each record, the workflow uploads them, and only then does
 //   the act step re-run the run, so the record exists before the re-run. The
 //   same holds for each CI re-run that carries a record.
+// - Held: a pr-verify run whose first attempt a GitHub fault held green
+//   (resolve-pr.mjs closing): it succeeded with a `held: ` notice and no
+//   verdict. Re-run once, as a lane run is, with the same record, from runs
+//   created within FAULT_HELD_HOURS, so a hold is retried on the next pass.
+//   A run held again at attempt 2 waits for the head's next checks run.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
 //   pr-verify pass that the spec has since changed under (an issue edit or a
 //   new spec comment after the pass: resolve-pr's `spec-changed`, the same
@@ -185,7 +190,7 @@ import { pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
-import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
+import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
 import {
@@ -318,6 +323,13 @@ export const RECORDED_LANES = new Map([
 // The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
 // runs none, so no outage holds its re-run.
 export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
+// The recorded lane whose resolver holds green on a GitHub fault
+// (resolve-pr.mjs closing), and how far back its succeeded runs are listed for
+// a hold: a held run ends minutes after it starts, so this window spans four
+// passes, and it keeps the listing to one page where the whole lookback holds
+// hundreds of succeeded runs.
+export const FAULT_HELD_LANE = ".github/workflows/pr-verify.yml";
+export const FAULT_HELD_HOURS = 2;
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
@@ -467,6 +479,23 @@ const isLostLane = (r, since) =>
   LANE_LOST.has(r.conclusion) &&
   r.run_attempt === 1 &&
   Date.parse(r.created_at) >= since;
+// A pr-verify run that may have held green on a GitHub fault: it concludes
+// success, so it is never lost, and only its jobs tell (faultHeld). Only its
+// first attempt is re-run, as a lost lane run's is.
+const isFaultHeld = (r, since) =>
+  r.path === FAULT_HELD_LANE &&
+  r.event === "workflow_run" &&
+  r.head_branch === "main" &&
+  SHA.test(r.head_sha ?? "") &&
+  r.status === "completed" &&
+  r.conclusion === "success" &&
+  r.run_attempt === 1 &&
+  Date.parse(r.created_at) >= since;
+// The resolver's notice when a fault held it, read as triage-sweep.mjs
+// classifyRun reads apply-verdict's.
+const HELD_NOTE = /^held: /;
+export const heldNoted = (annotations) =>
+  Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "notice" && HELD_NOTE.test(String(a.message ?? "")));
 // The checks run whose re-run starts pr-verify again: a pr-require-checks
 // pull_request run that passed on its first attempt.
 const isPassedChecks = (r) =>
@@ -547,6 +576,9 @@ const lostNow = (item, r, since) => {
   if (item.kind === "spec" || item.kind === "too-old") {
     return isPassedChecks(r);
   }
+  if (item.kind === "fault-held") {
+    return isFaultHeld(r, since);
+  }
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
 };
 
@@ -574,8 +606,9 @@ const withRecord = (item) =>
   item.kind === "upstream" || (RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1))
     ? { ...item, record: rerunRecordName(item.id, item.head) }
     : item;
-// The items the record uploads cover: every lane re-run, and each recorded CI re-run.
-const recorded = (item) => item.kind === "lane" || item.record !== undefined;
+// The items the record uploads cover: every lane re-run, a held one included,
+// and each recorded CI re-run.
+const recorded = (item) => item.kind === "lane" || item.kind === "fault-held" || item.record !== undefined;
 
 const byMergeCriticality = (a, b) => Number(b.auto_merge != null) - Number(a.auto_merge != null) || a.number - b.number;
 const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
@@ -670,6 +703,28 @@ async function holdReason(call, repo, run, judge, settled, carry = new Map(), ke
     return { reason: "after its verdict write started, so a re-run would judge the head again", settle: true };
   }
   return started.length === 0 ? { reason: NOT_STARTED, settle: wholeListing(listing) && cut.length === 0 && (jobs.length > 0 || settled) } : undefined;
+}
+
+// Whether a succeeded pr-verify first attempt held on a GitHub fault: a job
+// that ran HELD_STEP, which runs only then, with the resolver's `held: `
+// notice among its check-run annotations (heldNoted), so only a held run's
+// annotations are read. `final` when no hold shows on a whole listing whose
+// every job's steps listed, which a completed attempt never changes. An
+// unreadable listing throws.
+async function faultHeld(call, repo, run) {
+  const listing = await call("GET", `/repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
+  if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
+    throw new Error("its job listing is not one complete page");
+  }
+  const marked = listing.jobs.filter(
+    (job) => Number.isSafeInteger(job?.id) && Array.isArray(job.steps) && job.steps.some((step) => step?.name === HELD_STEP && step.conclusion === "success"),
+  );
+  for (const job of marked) {
+    if (heldNoted(await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`))) {
+      return { held: true, final: false };
+    }
+  }
+  return { held: false, final: wholeListing(listing) && listing.jobs.every((job) => stepsKnown(job)) };
 }
 
 // The start times of the runs that uploaded the PR's unexpired pr-verify
@@ -1214,6 +1269,35 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
 
+  // pr-verify runs a GitHub fault held green (faultHeld), each re-run once
+  // like a lost lane run, and only while the status page shows Actions
+  // operational (main reads nothing otherwise). A run with no hold is settled,
+  // so each succeeded run's jobs are read once.
+  const heldSince = Math.max(since, now - FAULT_HELD_HOURS * 3_600_000);
+  try {
+    const heldCreated = encodeURIComponent(`>=${new Date(heldSince).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+    const file = FAULT_HELD_LANE.slice(FAULT_HELD_LANE.lastIndexOf("/") + 1);
+    const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${file}/runs?created=${heldCreated}&status=success`, LANE_RUN_PAGES);
+    for (const r of listed.filter((run) => isFaultHeld(run, heldSince))) {
+      if (settled.has(r.id)) {
+        settle.push({ id: r.id, reason: settled.get(r.id) });
+        continue;
+      }
+      try {
+        const { held, final } = await faultHeld(call, repo, r);
+        if (held) {
+          lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, r.head_sha) });
+        } else if (final) {
+          settle.push({ id: r.id, reason: "" });
+        }
+      } catch (error) {
+        noteFailure(`held run ${r.id}`, error);
+      }
+    }
+  } catch (error) {
+    noteFailure(`${FAULT_HELD_LANE} held runs`, error);
+  }
+
   // A failed floor-label run takes no place: it is one short job, not CI.
   const intake = [];
   let candidates = [];
@@ -1334,7 +1418,7 @@ async function act({ repo, call, say, since, sleep, items }) {
   let failed = 0;
   let wrote = false;
   for (const item of items) {
-    const where = item.kind === "lane" || item.kind === "intake" || item.kind === "verdict" ? item.kind : `#${item.pr}`;
+    const where = item.kind === "lane" || item.kind === "fault-held" || item.kind === "intake" || item.kind === "verdict" ? item.kind : `#${item.pr}`;
     try {
       if (recorded(item) && item.record !== rerunRecordName(item.id, item.head)) {
         throw new Error("the plan names no record for it");
@@ -1344,7 +1428,7 @@ async function act({ repo, call, say, since, sleep, items }) {
         say(`${where}: run ${item.id} changed since the listing; left alone`);
         continue;
       }
-      if (item.kind !== "lane" && item.kind !== "intake" && item.kind !== "verdict") {
+      if (item.kind !== "lane" && item.kind !== "fault-held" && item.kind !== "intake" && item.kind !== "verdict") {
         // A push since the listing makes this run obsolete, and re-running it
         // would cancel the new head's CI in the PR's concurrency group.
         const current = await call("GET", `/repos/${repo}/pulls/${item.pr}`);
@@ -1393,6 +1477,8 @@ async function act({ repo, call, say, since, sleep, items }) {
             ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: the pull request is past ${TOO_OLD_DAYS} days and its head has no verdict`
             : item.kind === "review"
             ? `${where}: re-ran review run ${item.id} (${item.path}), which a kill switch stopped; its completion re-runs ci-status`
+            : item.kind === "fault-held"
+            ? `${where}: re-ran run ${item.id} (${item.path}), which held on a GitHub fault`
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
     } catch (error) {

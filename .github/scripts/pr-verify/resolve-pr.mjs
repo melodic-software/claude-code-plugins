@@ -60,7 +60,9 @@ import {
   commitPulls,
   createGitHub,
   detailSuffix,
+  GitHubError,
   graphQLReader,
+  isFault,
   loadTrustedList,
   responseDetail,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -1085,7 +1087,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
       response = await send(location);
     }
     if (!response.ok) {
-      throw Object.assign(new Error(`the log of job ${jobId} answered ${response.status}`), { detail: await responseDetail(response) });
+      throw new GitHubError(response.status, `GET the log of job ${jobId}`, await responseDetail(response));
     }
     return response.text();
   };
@@ -1152,11 +1154,34 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
 // detail when a GitHub call failed.
 export const failureAnnotation = (error) => `::error::pr-verify could not resolve the pull request: ${error.message}${detailSuffix(error)}`;
 
+// The reason a GitHub fault writes, which pr-verify.yml's HELD_STEP runs on.
+export const HELD_REASON = "held";
+// pr-verify.yml's step that runs only on a held run, so the lost-run reconciler
+// reads its annotations only for such a run (reconcile.mjs heldRun).
+export const HELD_STEP = "Note the hold";
+
+// The step's closing for the error main threw: a GitHub fault (isFault: a 5xx,
+// a 429, a rate-guard stop under API_BUDGET_HOLD, or no answer) holds green
+// with a `held: ` notice and proceed=false, so nothing is judged and the lost-run
+// reconciler re-runs the run once on its next pass (outage posture element 2);
+// any other error fails the step with failureAnnotation.
+export function closing(error) {
+  if (!isFault(error)) {
+    return { lines: [failureAnnotation(error)], outputs: null, code: 1 };
+  }
+  const why = `${error?.message ?? error}${detailSuffix(error)}`.replaceAll(/[\r\n%]/g, " ");
+  return { lines: [`::notice title=pr-verify::held: pr-verify could not resolve the pull request: ${why}`], outputs: `proceed=false\nreason=${HELD_REASON}\n`, code: 0 };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] === "carry") {
   carryMain();
 } else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    console.log(failureAnnotation(error));
-    process.exitCode = 1;
+    const closed = closing(error);
+    closed.lines.forEach((line) => console.log(line));
+    if (closed.outputs && process.env.GITHUB_OUTPUT) {
+      appendFileSync(process.env.GITHUB_OUTPUT, closed.outputs);
+    }
+    process.exitCode = closed.code;
   });
 }
