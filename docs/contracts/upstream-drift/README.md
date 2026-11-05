@@ -530,13 +530,15 @@ Why:
 
 - The [disposition sweep of 2026-11-04](https://github.com/melodic-software/claude-code-plugins/issues/3465#issuecomment-6633945050)
   applied 0 dispositions.
-- The owner ruled on 2026-10-30 that no class is fix-eligible yet (owner-decisions record, "Q1 and Q2
-  (Backlog HITL numbering), 2026-10-30"), so the gate has nothing to fail on.
+- One class is fix-eligible: the owner declared fingerprint-confirmed near-verbatim findings
+  eligible on 2026-11-02 (`plugins/attribution/CHANGELOG.md` 0.15.0; [CHANGELOG 4.2.0](CHANGELOG.md)),
+  superseding the 2026-10-30 ruling that none was. No sweep has applied one, so the gate waits on the
+  first applied disposition, not on an eligible class.
 - The sweep's zero is not evidence the repository is clean: most files got only the automatic scan
   and most closures hold candidates no panel judged ([CHANGELOG 4.2.0](CHANGELOG.md)). It does not
   show the gate would pass, or that a predicate for it would be right.
 
-- **Re-derive trigger**: the first disposition sweep that applies at least one disposition, recorded
+- **Recheck trigger**: the first disposition sweep that applies at least one disposition, recorded
   on [#3465](https://github.com/melodic-software/claude-code-plugins/issues/3465) or its successor
   sweep record.
 - **Built then**: a gate step in `pr-require-checks.yml` that fails on a new fix-eligible finding,

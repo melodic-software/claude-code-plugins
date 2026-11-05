@@ -7,7 +7,7 @@ clarification is a patch.
 ## [4.2.1] - 2026-11-05
 
 Patch: records the owner's decision that the cleaned-state CI gate is deferred until a sweep applies
-a disposition, with its re-derive trigger, in the enforceability section. No required part,
+a disposition, with its recheck trigger, in the enforceability section. No required part,
 canonical name, or enforceability tier changes.
 
 ## [4.2.0] - 2026-11-05
