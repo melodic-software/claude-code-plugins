@@ -10,7 +10,9 @@
       "reason": "Each index artifact is how the gate finds its FAIL, so it keeps the FAIL's own retention (write-verdict.mjs retentionDays, max for a FAIL): an index that expired first would hide a FAIL that still counts. It holds only the FAIL's artifact name, built from numbers and a SHA, and no model text, so no leak scan runs over it.",
       "scan": "none",
       "computed-by": ".github/scripts/pr-verify/write-verdict.mjs",
-      "uploads": [".github/actions/upload-fail-index/action.yml#runs"]
+      "uploads": [
+        ".github/actions/upload-fail-index/action.yml#runs"
+      ]
     },
     "pr-verify-*": {
       "retention-days": "max",
@@ -439,6 +441,70 @@
       "uploads": [
         ".github/workflows/maintenance-reconcile-lost-runs.yml#reconcile"
       ]
+    },
+    "key-credit-stop-pr-refine.yml-fix-docs": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step runs ci-workflows check-key-credit for pr-refine.yml's fix-docs call (key-credit-job fix-docs), which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "key-credit-stop-pr-unblock.yml-resolve-conflicts": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step runs ci-workflows check-key-credit for pr-unblock.yml's resolve-conflicts call (key-credit-job resolve-conflicts), which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "key-credit-stop-pr-unblock.yml-address-feedback": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step runs ci-workflows check-key-credit for pr-unblock.yml's address-feedback call (key-credit-job address-feedback), which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "key-credit-stop-pr-unblock.yml-review-dependency": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step runs ci-workflows check-key-credit for pr-unblock.yml's review-dependency call (key-credit-job review-dependency), which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "key-credit-stop-pr-unblock.yml-fix-ci": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step runs ci-workflows check-key-credit for pr-unblock.yml's fix-ci call (key-credit-job fix-ci), which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "key-credit-stop-pr-unblock.yml-fix-ci-rung-up": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step runs ci-workflows check-key-credit for pr-unblock.yml's fix-ci-rung-up call (key-credit-job fix-ci-rung-up), which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "key-credit-stop-work-resolve-issue.yml-resolve-issue": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step runs ci-workflows check-key-credit for work-resolve-issue.yml's resolve-issue call (key-credit-job resolve-issue), which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "key-credit-stop-maintenance-audit-lane-runs.yml-judge": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-audit-lane-runs.yml collect's \"Read the key's credit history\" step runs ci-workflows check-key-credit for key job judge, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none"
     },
     "key-credit-stop-*": {
       "retention-days": 1,

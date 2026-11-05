@@ -60,7 +60,7 @@ const FALLBACK_REASON =
 // The fallback job's record names why the subscription did not judge, from
 // its handoff-reason (ci-workflows intake-triage.yml, the fallback job).
 const FB_REASON =
-  "${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}";
+  "${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}";
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 // Whether the fallback leg can run, never the token (ci-workflows
 // intake-triage.yml and pr-review-cli.yml, "Check the credential").
@@ -572,6 +572,10 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
       `      leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "sub-leg")} }}`,
       ...WAKE_OUTPUTS,
       ...CAPTURE_OUTPUT("      # For check-intent-fallback: the capture this job found (find-capture.mjs)."),
+      "      # For check-intent-fallback: an empty token hands the judgment on when",
+      "      # the fallback token is set.",
+      "      credential-present: ${{ steps.credential.outputs.present }}",
+      "      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}",
       "",
     ].join("\n"),
   );
@@ -582,22 +586,26 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
   }
 });
 
-test("the fallback job runs only on the subscription job's clean handoff, on a fixed runner", () => {
+test("the fallback job runs only on the subscription job's clean handoff, or its empty token with the fallback token set, on a fixed runner", () => {
   const job = jobText(FB);
   assert.match(job, /^ {4}needs: check-intent-subscription$/m);
   const gate = gateOf(FB);
-  // One hop: an empty subscription token is the subscription job's red,
-  // never a reason to run the fallback (the reusables gate on handoff alone).
+  // An empty subscription token hands on as an empty key does, but only to a
+  // fallback token that is set (#13586).
   assert.equal(
     gate,
     [
       "!cancelled()",
       "&& needs.check-intent-subscription.result == 'success'",
       `&& ${TRIGGER_GATE}`,
-      "&& needs.check-intent-subscription.outputs.handoff == 'true'",
+      "&& (needs.check-intent-subscription.outputs.handoff == 'true'",
       "&& needs.check-intent-subscription.outputs.leg-clean == 'true'",
+      "|| needs.check-intent-subscription.outputs.credential-present == 'false'",
+      "&& needs.check-intent-subscription.outputs.fallback-ready == 'true')",
     ].join(" "),
   );
+  assert.ok(admits(gate, withNeeds({ [SUB]: { result: "success", outputs: { "credential-present": "false", "fallback-ready": "true" } } })), "an empty subscription token");
+  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "success", outputs: { "credential-present": "false", "fallback-ready": "false" } } })), "every token empty");
   // The implicit success() needs every ancestor, so a key job the credit gate
   // skipped would skip this job; the subscription job's success is spelled out.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
@@ -701,6 +709,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace(/^( {10}handoff: .*steps\.)sub(-leg)/m, "$1key$2")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
           .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
+          .replace(" && !(steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true')", "")
           .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
       );
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
@@ -839,14 +848,14 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   }
   assert.equal(input(step("Report the judgment's outcome", SUB), "fallback-reason"), FALLBACK_REASON);
   assert.equal(input(step("Report the judgment's outcome", FB), "fallback-reason"), FB_REASON);
-  // Only a hand-off spares the key job its red; an empty token fails the subscription job.
+  // Only a hand-off spares the key job its red; an empty subscription token fails its job unless the fallback token takes over.
   assert.match(
     STEPS[KEY].at(-1).block,
     new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.credit\\.outputs\\.skip-key != 'true' && steps\\.verdict\\.outcome != 'success' && steps\\.credential\\.outputs\\.present != 'false' && ${legsClear("key-leg")}$`, "m"),
   );
   assert.match(
     STEPS[SUB].at(-1).block,
-    new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.verdict\\.outcome != 'success' && ${legsClear("sub-leg")}$`, "m"),
+    new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.verdict\\.outcome != 'success' && !\\(steps\\.credential\\.outputs\\.present == 'false' && steps\\.credential\\.outputs\\.fallback-ready == 'true'\\) && ${legsClear("sub-leg")}$`, "m"),
   );
   assert.match(STEPS[FB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
@@ -873,9 +882,10 @@ test("a handoff leaves one lane record per leg, the leg that handed off marked h
   assert.match(FALLBACK_REASON, /lane-class == 'auth' && 'auth'/);
   // A clean subscription handoff skips the subscription job's report the
   // same way; the fallback job, which runs exactly when leg-clean is true,
-  // records the run with report-lane-outcome's limit-stop, credit-stop or auth.
+  // records the run with report-lane-outcome's limit-stop, credit-stop or auth,
+  // or no-key after an empty subscription token.
   assert.match(jobText(FB), /needs\.check-intent-subscription\.outputs\.leg-clean == 'true'/);
-  assert.deepEqual([...FB_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["limit-stop", "credit-stop", "auth"]);
+  assert.deepEqual([...FB_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["limit-stop", "credit-stop", "auth", "no-key"]);
   // No gate keys the subscription leg on the credit-stop class any more:
   // run-claude-cli's handoff output is the one signal.
   for (const line of text.split("\n").filter((l) => /^\s+(- )?if: /.test(l) || /^\s+&& /.test(l))) {
