@@ -39,13 +39,14 @@ When unsure which side a candidate falls on, it is unnecessary. Keep it.
 
 ## Question mode
 
-An argument that is a free-text question (it holds a space), not a topic slug, gets one answer in
-place of the menu: one skill from the resolved catalog below (rule 2 holds), the arguments to pass
-it, and one example prompt. The prompt states the goal, the pass/fail check, the proof wanted, the
-known facts and the constraints; it names no method and no guessed cause, which are the skill's to
-find. Rule 1 governs the menu, which a run with no argument, or a request for the options
-themselves ("what are my options", "what next"), still renders. When no catalog skill fits, say so
-and render the menu.
+A question that asks which skill fits a task it states, as the argument (an argument holding a
+space is never a topic slug) or as the request that invoked this skill, gets one answer in place
+of the menu: one skill from the resolved catalog below (rule 2 holds), the arguments to pass it,
+and one example prompt with one labeled line each for Goal, Pass/fail check, Proof wanted, Known
+facts and Constraints. The prompt names no method and no guessed cause, which are the skill's to
+find. A request for the options themselves ("what are my options", "what next", "show me my
+options"), or one that states no task, gets the menu, which rule 1 governs. When no catalog skill
+fits, say so and render the menu.
 
 ## Resolve the candidate set
 
