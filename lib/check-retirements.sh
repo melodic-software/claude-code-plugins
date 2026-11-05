@@ -52,6 +52,12 @@
 # Paths are emitted exactly as declared — repo-relative, never joined onto the
 # root (docs/contracts/windows-path-emit). A human summary goes to stderr.
 #
+# NON-REPOSITORY ROOT. When the root is $HOME, or has no `.git` and is not
+# inside a git work tree, a kind file record is not evaluated: there a
+# `.claude/<name>.json` path names the live user-global layer, not a retired
+# team file. Its line goes to stderr as `<id>: skipped: root is not a
+# repository`, no row is written, and `--clean` of that record is refused.
+#
 # CLEANUP. `--clean <id>` cleans exactly one record's artifact. delete unlinks
 # the file (only if content_match, when declared, still matches) or removes the
 # directory (only after re-resolving that it is inside the root and is not the
@@ -81,7 +87,8 @@
 #                1 at least one active leftover; 2 usage, unreadable manifest,
 #                or an invalid record.
 # Exit (clean):  0 cleaned; 1 nothing present to clean; 2 usage, invalid
-#                record, unknown id, migrate without --i-migrated, or a failed
+#                record, unknown id, migrate without --i-migrated, a file
+#                record at a non-repository root, or a failed
 #                remove/rename (on Windows usually a locked file — close it and
 #                re-run; nothing is left half-done).
 #
@@ -116,6 +123,9 @@ Usage:
 Exit (detect): 0 no active leftover; 1 at least one active leftover; 2 usage,
                unreadable manifest, or an invalid record (the whole run fails).
 Exit (clean):  0 cleaned; 1 nothing present to clean; 2 error.
+
+At $HOME or outside a git work tree, kind file records are skipped (stderr:
+`<id>: skipped: root is not a repository`) and --clean refuses them.
 EOF
 }
 
@@ -178,6 +188,22 @@ else
 fi
 [[ -d "$ROOT" ]] || die "--root is not a directory: $ROOT"
 ROOT="${ROOT%/}"
+
+# ROOT_IS_REPO=0 at $HOME or outside a git work tree: kind file records are
+# skipped there (see NON-REPOSITORY ROOT above).
+# A `.git` at the root also counts: git may be missing, or refuse a repository
+# another user owns ("dubious ownership"), and a skip there would read as PASS.
+ROOT_IS_REPO=1
+real_root_dir=$(CDPATH='' cd -- "$ROOT" 2>/dev/null && pwd -P)
+real_home_dir=""
+[[ -n "${HOME:-}" ]] && real_home_dir=$(CDPATH='' cd -- "$HOME" 2>/dev/null && pwd -P)
+if [[ -n "$real_home_dir" && "$real_root_dir" == "$real_home_dir" ]]; then
+  ROOT_IS_REPO=0
+elif [[ ! -e "$ROOT/.git" ]] &&
+  [[ "$(git -C "$ROOT" rev-parse --is-inside-work-tree 2>/dev/null | tr -d '\r')" != "true" ]]; then
+  ROOT_IS_REPO=0
+fi
+NOT_REPO_REASON="skipped: root is not a repository"
 
 # ---------------------------------------------------------------------------
 # Manifest parsing — every record is validated before anything is evaluated.
@@ -544,9 +570,13 @@ present() {
 if [[ -z "$CLEAN_ID" ]]; then
   active_hits=0
   report_only_hits=0
+  skipped=0
   i=0
   while [[ $i -lt $REC_COUNT ]]; do
-    if present "$i"; then
+    if [[ $ROOT_IS_REPO -eq 0 && "${REC_KIND[$i]}" == "file" ]]; then
+      echo "check-retirements: ${REC_ID[$i]}: $NOT_REPO_REASON" >&2
+      skipped=$((skipped + 1))
+    elif present "$i"; then
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
         "${REC_ID[$i]}" "${REC_KIND[$i]}" "${REC_PATH[$i]}" \
         "${REC_ACTION[$i]}" "${REC_STATUS[$i]}" "${REC_NOTE[$i]}"
@@ -558,7 +588,9 @@ if [[ -z "$CLEAN_ID" ]]; then
     fi
     i=$((i + 1))
   done
-  echo "check-retirements: $MANIFEST: $REC_COUNT record(s) evaluated against $ROOT — $active_hits active leftover(s), $report_only_hits report-only." >&2
+  skipped_note=""
+  [[ $skipped -eq 0 ]] || skipped_note=", $skipped skipped"
+  echo "check-retirements: $MANIFEST: $REC_COUNT record(s) evaluated against $ROOT — $active_hits active leftover(s), $report_only_hits report-only${skipped_note}." >&2
   [[ $active_hits -eq 0 ]] && exit 0
   exit 1
 fi
@@ -583,6 +615,10 @@ path="${REC_PATH[$idx]}"
 action="${REC_ACTION[$idx]}"
 target=$(target_of "$path")
 base=$(target_base "$path")
+
+if [[ $ROOT_IS_REPO -eq 0 && "$kind" == "file" ]]; then
+  die "$CLEAN_ID: refusing to clean $path — $NOT_REPO_REASON ($ROOT); there it can be a live user-global file"
+fi
 
 if [[ "$action" == "migrate" && $I_MIGRATED -eq 0 ]]; then
   echo "ERROR: $CLEAN_ID is a migrate record: its content must be carried over before the artifact goes." >&2
