@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: 'plugins-audit-divergence-report-collapses-bulk-names-conflicts'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'The 29 actionable divergences are collapsed into a single bulk-count line, not enumerated one by one; per-project-path sub-lines under it are allowed, each naming at most 3 ids, followed by `+K more` when more ids remain'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'The 2 same-version (versionsMatch: true) multi-scope installs are excluded from the actionable divergence count'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'The delisted_settings_only plugin id gets an individual per-row detail line under Action needed, separate from the bulk divergence line'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'The response never claims to detect or report an enable-state mismatch (true in one scope, false in another) — fleet-state.sh only exposes the merged effective value, not each scope''s raw enabledPlugins map'
+    focus: 'trace'
+context:
+  scaffold_script: scaffold.sh
