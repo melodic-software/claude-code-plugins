@@ -424,6 +424,9 @@ const HOLD_NOTICES = [
   { title: "report-outcome", pattern: new RegExp(`^issue #(\\d+) stopped on a fault \\((${NAME})\\), and every retry`), hold: (m) => ({ item: `#${m[1]}`, reason: `fault ${m[2]}` }) },
   // label-unblocked.mjs reportHold: a listing the sweep could not read.
   { title: "label-unblocked", pattern: new RegExp(`^the (${NAME}) listing failed \\(`), hold: (m) => ({ item: null, reason: `${m[1]} listing failed` }) },
+  // label-unblocked.mjs failedFor: one issue's read met a GitHub fault. The
+  // reason names only the status, never the fault's text.
+  { title: "label-unblocked", pattern: /^#(\d+): (?:.*\bstatus (\d{3})\b)?.*; holding, and the next sweep reads it again$/, hold: (m) => ({ item: `#${m[1]}`, reason: `read fault${m[2] ? ` HTTP ${m[2]}` : ""}` }) },
   // handoff-evidence.sh: a fix-docs read that failed.
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
   // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is

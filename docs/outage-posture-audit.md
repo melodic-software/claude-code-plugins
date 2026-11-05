@@ -73,7 +73,7 @@ element 1, but only pr-merge uses it.
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
 | 1 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2204`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201` | The shared client sends up to 3 attempts with full jitter, and a rate limit within 60 s is waited out, while a longer one fails the step (a notice under the hold opt-in). |
-| 2 | met | `.github/scripts/work-unblock/label-unblocked.mjs:487`, `.github/scripts/work-unblock/label-unblocked.mjs:674` | A failed listing, or a GitHub fault on one issue's read, holds with a notice and the run exits 0. A sweep that held an issue keeps the next window back. A failed write, or a read that fails for another reason (another 4xx, an answer of the wrong shape), still ends the run red. |
+| 2 | met | `.github/scripts/work-unblock/label-unblocked.mjs:487`, `.github/scripts/work-unblock/label-unblocked.mjs:674` (lines at this change, after `222d8023`) | A failed listing, or a GitHub fault on one issue's read, holds with a notice and the run exits 0. A sweep that held an issue keeps the next window back. A failed write, or a read that fails for another reason (another 4xx, an answer of the wrong shape), still ends the run red. |
 | 3 | gap | `.github/workflows/work-unblock.yml:30`, `.github/scripts/work-unblock/label-unblocked.mjs:168` | A marker-issue sweep-kick re-arms the sweep after the rate-limit breaker clears, and breaker-trip records are stored for each issue. |
 | 4 | met | `.github/scripts/work-unblock/label-unblocked.mjs:194`, `.github/scripts/work-unblock/label-unblocked.mjs:82` | The lane lifts its own refs-hold `needs-human` once the PR merges or closes, and infrastructure re-fires never file `needs-human`. |
 | 5 | met | `.github/workflows/work-unblock.yml:170` | The kill switch is the only pre-gate. No status-page step runs. |
@@ -372,9 +372,10 @@ An eighth part 2 change fixed work-unblock's listing gap, with tests
   closes the held one missed. That is one more read per sweep on the job token, and three holds or
   more in a row still lose closes older than the 3 hours, as red runs did. A failed
   listing of the deferred, open or `agent-ready` issues holds with a notice and the sweep goes on:
-  each is read whole every sweep. A read or write that fails for one issue still ends the run red,
-  and a rate limit past the guard's budget does too until the workflow sets `API_BUDGET_HOLD=1`.
-  Either red run is left out of `sweepSince`, so the window stays back.
+  each is read whole every sweep. A read for one issue that meets a GitHub fault holds that issue
+  with a notice, and the rest of the sweep goes on. Only a failed write, or a read that fails for
+  another reason, ends the run red. A held run prints a line that `sweepSince` reads, and a red run
+  is left out of it, so either way the window stays back.
 
 A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
 
@@ -429,7 +430,7 @@ most `FAULT_HELD_READS` a pass. At about 700 succeeded runs a day that is about 
 hour, plus one or two listing reads a pass. Monitor signal 13 does not count these holds.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
-`retry-spent` fault hold, work-unblock's held listings, pr-refine's held `fix-docs` reads and
+`retry-spent` fault hold, work-unblock's held listings and issue reads, pr-refine's held `fix-docs` reads and
 intake-triage's held verdicts (`apply-verdict.mjs` `closing`). A
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge

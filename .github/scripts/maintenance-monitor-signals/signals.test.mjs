@@ -566,6 +566,17 @@ test("signal 13: each lane's hold notice parses, and other notices do not", () =
   assert.equal(parseHold(undefined, "handoff evidence for fix-docs still missing after 3 reads: x; the outputs stay empty"), null);
 });
 
+// label-unblocked.mjs failedFor's notice for one issue's faulted read.
+test("signal 13: work-unblock's held issue read parses to the issue and the status", () => {
+  const issueHold = (message) => parseHold("label-unblocked", message);
+  assert.deepEqual(issueHold("#20: GET /repos/o/r/issues/20 failed with status 503; holding, and the next sweep reads it again"), { item: "#20", reason: "read fault HTTP 503" });
+  // A network fault names no status.
+  assert.deepEqual(issueHold("#7: fetch failed; holding, and the next sweep reads it again"), { item: "#7", reason: "read fault" });
+  // The run-ending error for the same issue, and another title, are no hold.
+  assert.equal(issueHold("#20: GET /repos/o/r/issues/20 failed with status 404"), null);
+  assert.equal(parseHold("report-outcome", "#20: fetch failed; holding, and the next sweep reads it again"), null);
+});
+
 // apply-verdict.mjs closing's own annotation line, split as the runner splits
 // `::notice title=<title>::<message>`, so producer and parser are one contract.
 const annotation = (line) => /^::notice title=([^:]+)::(.*)$/.exec(line).slice(1);
