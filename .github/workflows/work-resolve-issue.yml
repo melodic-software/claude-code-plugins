@@ -28,6 +28,13 @@ name: work-resolve-issue
 # title stay two. Quoted: unquoted, " #" would start a YAML comment.
 run-name: "${{ github.event.issue.title }} #${{ github.event.issue.number }}"
 
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it. report-outcome.mjs, find-prior included,
+# reads through retry-fetch.mjs, which the rate guard never refuses, so its
+# fault holds need none.
+# A step opts in only once its script is shown to hold green with a notice on
+# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
+# a hold would pass what it could not read, so the rest still end red on a
+# rate limit past the guard's budget.
 on:
   issues:
     types: [labeled]
