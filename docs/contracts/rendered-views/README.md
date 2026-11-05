@@ -637,9 +637,9 @@ grandfathered list when they moved onto it.
 Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `education:illustrate`
 (`plugins/education/skills/illustrate/scripts/build-explainer.mjs`), which has left the grandfathered
 set and defaults to a local `file`, then `terminal`, publishing an artifact only when an argument or
-a layer asks for one; `planning:plan` and
-`planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data,
-and `planning:design`, offering a view of PLAN.md's `## Design` section, each kind an entry in the
+a layer asks for one; `planning:brainstorm`, offering its view from a checked-in template plus the
+session's JSON as data, and `planning:plan` and `planning:design`, offering views of PLAN.md and of its
+`## Design` section, each kind an entry in the
 builder's view-kind registry rendered through `render(laneId, kind, record)`
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
