@@ -342,8 +342,9 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds });
   // The Work status field is read only for an issue the sweep is about to act
-  // on, so the reader's cap (MAX_CHECKED) and the check cap cover the same
-  // issues: a field hold the labels lack drops it, uncounted.
+  // on, and that issue counts toward MAX_CHECKED whether the field holds it or
+  // not, so the reader's cap (also MAX_CHECKED) never runs out before the
+  // check cap: no issue is acted on with its field unread.
   const fieldHolds = async (issue) => {
     const statusLabels = new Map([[issue.number, await statusOf(issue.number, (issue.labels ?? []).map((l) => l.name))]]);
     return selectCandidates({ issues: [issue], now, authorIds, statusLabels }).length === 0;
@@ -375,8 +376,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       // decides, so the label goes on once.
       if (full) {
         if ((labels ?? []).some((l) => l.name === FLOOR)) continue;
-        if (await fieldHolds(issue)) continue;
         checked += 1;
+        if (await fieldHolds(issue)) continue;
         await handOff(number, labels);
         result.handedOff.push(number);
         continue;
@@ -384,8 +385,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       const state = readState(comments, appId);
       // Handed to a maintainer already: the needs-triage label is on it.
       if (state.filed) continue;
-      if (await fieldHolds(issue)) continue;
       checked += 1;
+      if (await fieldHolds(issue)) continue;
       const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${state.runs.at(-1)}`) : null;
       // A run the API no longer has counts as finished.
       const finished = state.runs.length > 0 && latest === null ? { status: "completed" } : latest;

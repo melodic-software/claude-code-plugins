@@ -169,6 +169,38 @@ test("the sweep asks the field only of an issue it is about to act on, and a fie
   assert.deepEqual([result.dispatched, result.handed, result.handedOff], [[], [], []]);
 });
 
+test("a field-held issue counts toward the check cap, so a capped reader never leaves an acted-on issue unread", async () => {
+  // The sweep's MAX_CHECKED is 20; its reader stops reading after 20 calls.
+  // 21 unlabeled candidates, the field holding the first and the last.
+  const cap = 20;
+  const count = cap + 1;
+  const held = new Set([1, count]);
+  const writes = [];
+  const gh = {
+    call: async (method, path, body) => {
+      if (method === "GET" && path.startsWith("/repos/o/r/issues?")) return Array.from({ length: count }, (_, k) => issue(k + 1));
+      // The issues between the two held ones each have a triage run still in
+      // progress: they count as checks and need no write.
+      const m = /^\/repos\/o\/r\/issues\/(\d+)\/comments/.exec(path);
+      if (m && !held.has(Number(m[1]))) return [{ id: Number(m[1]), user: BOT, body: renderState({ runs: [500 + Number(m[1])], filed: null, runUrl: "u" }) }];
+      if (method === "GET" && path.startsWith("/repos/o/r/actions/runs/")) return { status: "in_progress" };
+      if (method === "GET") return [];
+      writes.push({ path, number: Number(body?.inputs?.["issue-number"] ?? /issues\/(\d+)\//.exec(path)?.[1]) });
+      return { workflow_run_id: 99 };
+    },
+  };
+  let reads = 0;
+  const statusOf = async (number, labels) => {
+    if (reads >= cap) return labels;
+    reads += 1;
+    return held.has(number) ? [...labels, "needs-human"] : labels;
+  };
+  const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), statusOf });
+  assert.ok(reads <= cap);
+  assert.ok(!writes.some((w) => held.has(w.number)), JSON.stringify(writes));
+  assert.ok(![...result.dispatched, ...result.handed, ...result.handedOff].some((n) => held.has(n)), JSON.stringify(result));
+});
+
 test("the sweep state round-trips and is read only from the bot's comment", () => {
   const body = renderState({ runs: [11, 22], filed: null, runUrl: "https://github.com/o/r/actions/runs/22" });
   const comments = [
