@@ -47,6 +47,8 @@ of truth for what the plugin requires and how it resolves things.
 **Read them first.** Probe what they actually do, don't recite this file. Then read the
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence except Node.js (item 1)
 downgrades from FAIL to INFO. The hook and the `SessionStart` probe both exit through the
@@ -60,7 +62,7 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    shim resolves on `PATH` yet cannot run, so resolution alone is not a PASS). FAIL if it is
    absent or exits non-zero, in every toggle state; the remediation is to install or repair
    Node.js (README Requirements).
-2. **Bash version.** Check against the hook's documented floor (README Requirements).
+2. **Bash version.** Check against the hooks' floor, Bash 3.2 or newer (`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`).
 3. **`jq`.** The pre-computed `jq` row, or the Bash probe when that row carries no result. The
    batch hook reads the file paths with `jq` and does nothing, silently, without it. FAIL if
    absent *and* the repository opted in per item 5; INFO otherwise, because without a config
@@ -120,7 +122,7 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
-   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 ## `apply install-git-hooks [scope=local|shared]`
