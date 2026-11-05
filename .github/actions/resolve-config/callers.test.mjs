@@ -612,12 +612,30 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   });
   assert.equal(evaluate(sub.if, leg("true", "", "", "refine", "true")), true, "a skipped key goes straight to the subscription");
   assert.equal(evaluate(sub.if, leg("true", "", "", "size-decline", "true")), false);
-  // The fallback leg runs only after the subscription leg handed off.
-  const third = (refine, handoff) => ({ ...picked(refine), "needs.refine-issue-subscription.outputs.handoff": handoff });
+  // The fallback leg runs after the subscription leg handed off or found its token empty.
+  const third = (refine, handoff, present = "true") => ({
+    ...picked(refine),
+    "needs.refine-issue-subscription.outputs.handoff": handoff,
+    "needs.refine-issue-subscription.outputs.credential-present": present,
+  });
   assert.equal(evaluate(fallback.if, third("true", "true")), true);
+  assert.equal(evaluate(fallback.if, third("true", "", "false")), true, "an empty subscription token hands to the fallback leg");
   assert.equal(evaluate(fallback.if, third("true", "false")), false);
   assert.equal(evaluate(fallback.if, third("true", "")), false);
+  assert.equal(evaluate(fallback.if, third("true", "", "")), false, "a subscription leg that never checked its token hands nothing on");
   assert.equal(evaluate(fallback.if, third("false", "true")), false);
+  // An empty subscription token with the fallback token set ends the subscription leg green.
+  const failStep = sub.steps.find((s) => s.name === "Fail without a refinement");
+  const fails = (present, ready) =>
+    evaluate(failStep.if, {
+      "steps.context.outcome": "success",
+      "steps.upload.outcome": "skipped",
+      "steps.run.outputs.handoff": "",
+      "steps.credential.outputs.present": present,
+      "steps.credential.outputs.fallback-ready": ready,
+    });
+  assert.equal(fails("false", "true"), false);
+  assert.equal(fails("false", "false"), true, "no token at all fails");
   assert.equal(evaluate(sub.if, leg("true", "true", "true")), true);
   assert.equal(evaluate(sub.if, leg("true", "", "false")), true);
   assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);

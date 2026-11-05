@@ -619,6 +619,7 @@ jobs:
     outputs:
       handoff: ${{ steps.run.outputs.handoff }}
       handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
       lane-class: ${{ steps.run.outputs.lane-class }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
@@ -672,7 +673,7 @@ jobs:
           FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           if [ "$PRESENT" != true ]; then
-            echo "::error::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN is empty; the release waits for a later run"
+            echo "::warning::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN is empty; model-fallback runs the release on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
           fi
           echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
           echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
@@ -926,10 +927,11 @@ jobs:
   # never hands off.
   model-fallback:
     needs: [gate, model-subscription]
-    # The first attempt only, after the subscription leg handed off.
+    # The first attempt only, after the subscription leg handed off or found
+    # its token empty.
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && needs.model-subscription.outputs.handoff == 'true' }}
+      && (needs.model-subscription.outputs.handoff == 'true' || needs.model-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -945,6 +947,7 @@ jobs:
     outputs:
       handoff: ${{ steps.run.outputs.handoff }}
       handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
       lane-class: ${{ steps.run.outputs.lane-class }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
@@ -1193,7 +1196,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.model-subscription.outputs.handoff-reason }}
+          fallback-reason: ${{ needs.model-subscription.outputs.handoff-reason || needs.model-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       # The plan, and the planned branches as one git bundle from the base,
       # sealed with the sealer from the trusted checkout.
@@ -1437,6 +1440,7 @@ jobs:
       contents: read # check out main
     outputs:
       handoff: ${{ steps.probe.outputs.handoff }}
+      credential-present: ${{ steps.credential.outputs.present }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1614,12 +1618,12 @@ jobs:
           tokens: github-token
 
   # The scrub probe on the fallback token, after the subscription probe handed
-  # off. The last leg: it never hands off.
+  # off or found its token empty. The last leg: it never hands off.
   scrub-probe-fallback:
     needs: [gate, scrub-probe-subscription]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && needs.scrub-probe-subscription.outputs.handoff == 'true' }}
+      && (needs.scrub-probe-subscription.outputs.handoff == 'true' || needs.scrub-probe-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read

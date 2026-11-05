@@ -569,7 +569,14 @@ test("the subscription leg runs after a key handoff, an empty key or a credit-ga
   assert.equal(runsSub({ "needs.gate.outputs.proceed": "", "needs.gate.outputs.skip-key": "true" }), false);
   const fb = folded("model-fallback").replace("!cancelled() && ", "").replace("github.run_attempt == '1'", "true");
   assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.handoff": "true" }), true);
+  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.credential-present": "false" }), true, "an empty subscription token hands to the fallback leg");
   assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.handoff": "false" }), false);
+  assert.equal(evalIf(fb, { ...base }), false, "a subscription leg that never checked its token hands nothing on");
+  // The empty-token run counts toward the cap once, on the fallback leg.
+  assert.equal(evalIf(startWrite("model-subscription"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
+  assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.run.outcome": "success" })), true);
+  const probeFb = folded("scrub-probe-fallback").replace("!cancelled() && ", "").replace("github.run_attempt == '1'", "true");
+  assert.equal(evalIf(probeFb, { ...base, "needs.scrub-probe-subscription.outputs.credential-present": "false" }), true, "the probe follows the same rule");
   assert.match(jobOf("model-subscription"), /^ {4}needs: \[gate, model\]$/m);
   assert.match(jobOf("model-fallback"), /^ {4}needs: \[gate, model-subscription\]$/m);
   // One credential per leg, each passed to run-claude-cli alone.

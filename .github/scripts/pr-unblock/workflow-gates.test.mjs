@@ -587,7 +587,19 @@ test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each
     assert.equal(gateOf(stage), `steps.token.outputs.any == 'true' && ${counted}`, `stage ${n}`);
     assert.equal(gateOf(key), `steps.key.outputs.key == 'true' && ${counted}`, `key leg ${n}`);
     assert.equal(gateOf(sub), `steps.token.outputs.token == 'true' && ${counted} && (steps.judge-${n}.outcome == 'skipped' || steps.judge-${n}.outputs.handoff == 'true')`, `subscription leg ${n}`);
-    assert.equal(gateOf(fb), `steps.token.outputs.fallback == 'true' && ${counted} && steps.judge-${n}-subscription.outputs.handoff == 'true'`, `fallback leg ${n}`);
+    assert.equal(
+      gateOf(fb),
+      `steps.token.outputs.fallback == 'true' && ${counted} && (steps.judge-${n}-subscription.outputs.handoff == 'true' || steps.token.outputs.token != 'true' && (steps.judge-${n}.outcome == 'skipped' || steps.judge-${n}.outputs.handoff == 'true'))`,
+      `fallback leg ${n}`,
+    );
+    // An empty subscription token hands the slot to the fallback leg, after
+    // the key leg handed off or did not run.
+    const runsFb = (values) =>
+      evaluate(gateOf(fb).replace(counted, "true"), { "steps.token.outputs.fallback": "true", ...values });
+    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "skipped", [`steps.judge-${n}.outputs.handoff`]: "", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), true, `empty token, no key ${n}`);
+    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "failure", [`steps.judge-${n}.outputs.handoff`]: "true", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), true, `empty token after a key handoff ${n}`);
+    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "success", [`steps.judge-${n}.outputs.handoff`]: "false", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), false, `the key answered ${n}`);
+    assert.equal(runsFb({ "steps.token.outputs.token": "true", [`steps.judge-${n}.outcome`]: "skipped", [`steps.judge-${n}.outputs.handoff`]: "", [`steps.judge-${n}-subscription.outputs.handoff`]: "false" }), false, `the subscription answered ${n}`);
     assert.match(gateOf(keep), new RegExp(`^always\\(\\) && \\(steps\\.judge-${n}\\.outputs\\.structured-output-file != ''`), `keep ${n}`);
     assert.equal(slotOf(stage), String(n), `stage ${n} copies its own slot`);
     assert.equal(slotOf(keep), String(n), `keep ${n} writes its own slot`);

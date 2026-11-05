@@ -832,6 +832,7 @@ jobs:
     outputs:
       handoff: ${{ steps.probe.outputs.handoff }}
       handoff-reason: ${{ steps.probe.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
       fallback-present: ${{ steps.credential.outputs.fallback-present }}
     # Why this leg runs, for its lane records' fallback reason.
     env:
@@ -1425,7 +1426,7 @@ jobs:
   # for the credential and the subscription's stop report (workflow.test.mjs
   # holds them equal), so the gates, the hardening and the reach probe run
   # again on this job's token. It runs only after capture-subscription's
-  # probe handed off with the fallback token set. It is the last leg and
+  # probe handed off, or found its token empty, with the fallback token set. It is the last leg and
   # never hands off: a probe that stops at a limit fails its check, and no
   # pull request code runs.
   capture-fallback:
@@ -1437,7 +1438,8 @@ jobs:
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.capture-subscription.result == 'success'
-      && needs.capture-subscription.outputs.handoff == 'true'
+      && (needs.capture-subscription.outputs.handoff == 'true'
+      || needs.capture-subscription.outputs.credential-present == 'false')
       && needs.capture-subscription.outputs.fallback-present == 'true'
     runs-on: ubuntu-24.04
     # The probe's and the driver's step timeouts (7 + 16) leave 7 minutes
@@ -1451,7 +1453,7 @@ jobs:
       actions: read # the upstream run, and verdicts already uploaded
     # Why this leg runs, for its lane records' fallback reason.
     env:
-      LEG_FALLBACK_REASON: ${{ needs.capture-subscription.outputs.handoff-reason }}
+      LEG_FALLBACK_REASON: ${{ needs.capture-subscription.outputs.handoff-reason || needs.capture-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
     steps:
       - name: Resolve main's tip
         id: tip

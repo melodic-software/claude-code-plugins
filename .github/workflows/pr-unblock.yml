@@ -2033,9 +2033,11 @@ jobs:
           FALLBACK: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           any=false
-          if [ "$KEY_USABLE" = true ] || [ "$TOKEN" = true ]; then any=true; fi
+          if [ "$KEY_USABLE" = true ] || [ "$TOKEN" = true ] || [ "$FALLBACK" = true ]; then any=true; fi
           if [ "$any" != true ]; then
-            echo "::warning::PR_UNBLOCK_CLAUDE_API_KEY and PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN are both unusable; no disputed thread is adjudicated"
+            echo "::warning::no Claude credential is usable; no disputed thread is adjudicated"
+          elif [ "$TOKEN" != true ]; then
+            echo "::warning::PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN is empty; the fallback leg adjudicates in its place"
           fi
           { echo "token=$TOKEN"; echo "fallback=$FALLBACK"; echo "any=$any"; } >>"$GITHUB_OUTPUT"
 
@@ -2057,7 +2059,7 @@ jobs:
       # runs the key leg, then the subscription leg when the key leg handed
       # off (a credit stop, or a 401 or 402) or did not run, then the fallback
       # leg when the subscription leg handed off (a limit stop, a credit stop,
-      # or a 401 or 402). The steps hold one credential each and stay in one
+      # or a 401 or 402) or its token is empty. The steps hold one credential each and stay in one
       # job: the judge has Read alone, no Bash (run-claude-cli's one-job rule). The judge has
       # Read alone, as pr-verify's verifier does: evidence.json names every
       # file it needs, so Glob and Grep are denied rather than trusted to
@@ -2215,7 +2217,10 @@ jobs:
 
       - name: Adjudicate disputed thread 0 on the fallback token
         id: judge-0-fallback
-        if: steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.judge-0-subscription.outputs.handoff == 'true'
+        if: >-
+          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+          && (steps.judge-0-subscription.outputs.handoff == 'true'
+          || steps.token.outputs.token != 'true' && (steps.judge-0.outcome == 'skipped' || steps.judge-0.outputs.handoff == 'true'))
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2279,7 +2284,7 @@ jobs:
           handoff: ${{ steps.judge-0-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.judge-0-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-0-subscription.outputs.handoff-reason }}
+          fallback-reason: ${{ steps.judge-0-subscription.outputs.handoff-reason || 'no-key' }}
 
       # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
@@ -2443,7 +2448,10 @@ jobs:
 
       - name: Adjudicate disputed thread 1 on the fallback token
         id: judge-1-fallback
-        if: steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.judge-1-subscription.outputs.handoff == 'true'
+        if: >-
+          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+          && (steps.judge-1-subscription.outputs.handoff == 'true'
+          || steps.token.outputs.token != 'true' && (steps.judge-1.outcome == 'skipped' || steps.judge-1.outputs.handoff == 'true'))
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2507,7 +2515,7 @@ jobs:
           handoff: ${{ steps.judge-1-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.judge-1-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-1-subscription.outputs.handoff-reason }}
+          fallback-reason: ${{ steps.judge-1-subscription.outputs.handoff-reason || 'no-key' }}
 
       # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
@@ -2671,7 +2679,10 @@ jobs:
 
       - name: Adjudicate disputed thread 2 on the fallback token
         id: judge-2-fallback
-        if: steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.judge-2-subscription.outputs.handoff == 'true'
+        if: >-
+          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+          && (steps.judge-2-subscription.outputs.handoff == 'true'
+          || steps.token.outputs.token != 'true' && (steps.judge-2.outcome == 'skipped' || steps.judge-2.outputs.handoff == 'true'))
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2735,7 +2746,7 @@ jobs:
           handoff: ${{ steps.judge-2-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.judge-2-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-2-subscription.outputs.handoff-reason }}
+          fallback-reason: ${{ steps.judge-2-subscription.outputs.handoff-reason || 'no-key' }}
 
       # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no

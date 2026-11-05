@@ -1832,7 +1832,7 @@ test("capture-subscription runs only when the capture job's key could not captur
   assert.doesNotMatch(jobIn(CAPTURE_TEXT, CAP_FB), /^ {4}outputs:/m);
 });
 
-test("capture-fallback runs only after capture-subscription's probe handed off with the fallback token set", () => {
+test("capture-fallback runs only after capture-subscription's probe handed off, or found its token empty, with the fallback token set", () => {
   const job = jobIn(CAPTURE_TEXT, CAP_FB);
   assert.match(job, /^ {4}needs: capture-subscription$/m);
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
@@ -1842,23 +1842,26 @@ test("capture-fallback runs only after capture-subscription's probe handed off w
       "!cancelled()",
       `&& ${TRIGGER_GATE}`,
       "&& needs.capture-subscription.result == 'success'",
-      "&& needs.capture-subscription.outputs.handoff == 'true'",
+      "&& (needs.capture-subscription.outputs.handoff == 'true'",
+      "|| needs.capture-subscription.outputs.credential-present == 'false')",
       "&& needs.capture-subscription.outputs.fallback-present == 'true'",
     ].join(" "),
   );
   const run = (result, outputs) => admits(jobIf(CAPTURE_TEXT, CAP_FB), withNeeds({ [CAP_SUB]: { result, outputs } }));
   assert.ok(run("success", { handoff: "true", "fallback-present": "true" }));
   assert.ok(!run("success", { handoff: "true", "fallback-present": "false" }), "no fallback token, no third leg");
+  assert.ok(run("success", { "credential-present": "false", "fallback-present": "true" }), "an empty subscription token hands to the fallback leg");
+  assert.ok(!run("success", { "credential-present": "false", "fallback-present": "false" }));
   assert.ok(!run("success", { handoff: "false", "fallback-present": "true" }), "a subscription that captured runs nothing more");
   assert.ok(!run("failure", { handoff: "true", "fallback-present": "true" }));
   assert.ok(!run("skipped", {}));
   assert.equal(
     /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobIn(CAPTURE_TEXT, CAP_SUB))?.[1],
-    ["      handoff: ${{ steps.probe.outputs.handoff }}", "      handoff-reason: ${{ steps.probe.outputs.handoff-reason }}", "      fallback-present: ${{ steps.credential.outputs.fallback-present }}", ""].join("\n"),
+    ["      handoff: ${{ steps.probe.outputs.handoff }}", "      handoff-reason: ${{ steps.probe.outputs.handoff-reason }}", "      credential-present: ${{ steps.credential.outputs.present }}", "      fallback-present: ${{ steps.credential.outputs.fallback-present }}", ""].join("\n"),
   );
   assert.doesNotMatch(job.slice(job.indexOf("\n    steps:\n")), /needs\./);
   // Each later leg names why it ran in its lane records, from a job env no step of the leg sets.
-  assert.match(jobIn(CAPTURE_TEXT, CAP_FB), /^ {6}LEG_FALLBACK_REASON: \$\{\{ needs\.capture-subscription\.outputs\.handoff-reason \}\}$/m);
+  assert.match(jobIn(CAPTURE_TEXT, CAP_FB), /^ {6}LEG_FALLBACK_REASON: \$\{\{ needs\.capture-subscription\.outputs\.handoff-reason \|\| needs\.capture-subscription\.outputs\.credential-present == 'false' && 'no-key' \|\| '' \}\}$/m);
   assert.match(jobIn(CAPTURE_TEXT, CAP_SUB), /^ {6}LEG_FALLBACK_REASON: \$\{\{ needs\.capture\.outputs\.handoff-reason \|\| /m);
 });
 
