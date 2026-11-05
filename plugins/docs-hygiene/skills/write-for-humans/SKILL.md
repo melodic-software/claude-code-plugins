@@ -133,11 +133,6 @@ The table follows the Before text from its first word to its last:
 
 ## After writing
 
-- **Read it once, at speed, as someone new to the system.** Every rule above serves this test: a
-  reader with no context gets the point on the first pass. A sentence you had to read twice fails
-  it, and so does one that reads as generated, however many rules it satisfies. If applying a rule
-  left a sentence harder to read, revert that edit, then repair the sentence another way or keep
-  the earlier wording.
 - **Run the project's prose linter.** When the repository configures one (a Vale, markdownlint, or
   textlint config), run it on the files you wrote, fix what it reports in them, and report the
   command and its result.

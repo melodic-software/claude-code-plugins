@@ -1,0 +1,12 @@
+---
+bump: patch
+---
+
+### Changed
+
+- write-for-humans no longer tells the model to re-read its finished draft
+
+  The "After writing" bullet that asked for one more read of the draft
+  as a newcomer is gone: Claude Opus 5 checks its own work unprompted,
+  and the instruction caused over-verification. The prose linter and
+  AI-tell checks, which produce new evidence, stay.
