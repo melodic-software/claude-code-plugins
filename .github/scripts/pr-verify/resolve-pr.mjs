@@ -1156,7 +1156,7 @@ export const failureAnnotation = (error) => `::error::pr-verify could not resolv
 // The reason a GitHub fault writes, which pr-verify.yml's HELD_STEP runs on.
 export const HELD_REASON = "held";
 // pr-verify.yml's step that runs only on a held run, so the lost-run reconciler
-// reads its annotations only for such a run (reconcile.mjs heldRun).
+// reads its annotations only for such a run (reconcile.mjs faultHeld).
 export const HELD_STEP = "Note the hold";
 
 // The step's closing for the error main threw: a GitHub fault (isFault: a 5xx,

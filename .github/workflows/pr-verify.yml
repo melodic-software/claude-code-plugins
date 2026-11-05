@@ -204,7 +204,7 @@ jobs:
       # A GitHub fault held the resolver green with a `held: ` notice and
       # proceed=false (resolve-pr.mjs closing). This step marks the run so the
       # lost-run reconciler finds it from the jobs listing and re-runs it once
-      # on its next pass (reconcile.mjs heldRun).
+      # on its next pass (reconcile.mjs faultHeld).
       - name: Note the hold
         if: steps.pr.outputs.reason == 'held'
         run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
@@ -2248,7 +2248,7 @@ jobs:
       # A GitHub fault held the resolver green with a `held: ` notice and
       # proceed=false (resolve-pr.mjs closing). This step marks the run so the
       # lost-run reconciler finds it from the jobs listing and re-runs it once
-      # on its next pass (reconcile.mjs heldRun).
+      # on its next pass (reconcile.mjs faultHeld).
       - name: Note the hold
         if: steps.pr.outputs.reason == 'held'
         run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
@@ -4143,7 +4143,7 @@ jobs:
       # A GitHub fault held the resolver green with a `held: ` notice and
       # proceed=false (resolve-pr.mjs closing). This step marks the run so the
       # lost-run reconciler finds it from the jobs listing and re-runs it once
-      # on its next pass (reconcile.mjs heldRun).
+      # on its next pass (reconcile.mjs faultHeld).
       - name: Note the hold
         if: steps.pr.outputs.reason == 'held'
         run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"

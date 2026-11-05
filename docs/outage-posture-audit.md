@@ -423,7 +423,8 @@ page shows Actions operational, so outside an outage a held verdict is retried w
 minutes (the cron runs at minutes 4 and 34). A run held again at attempt 2 waits for the head's
 next checks run. The reconciler lists pr-verify's succeeded runs from `FAULT_HELD_HOURS` back, or
 from the last pass that read when that is earlier, since a pass idle through an outage reads
-nothing. Each run's jobs are read once, since a run with no hold is carried as settled, and at
+nothing, or from the oldest first attempt that pass saw still going, since a run's three jobs can
+take about 17 hours. That pass already lists the runs still going, so this adds no read. Each run's jobs are read once, since a run with no hold is carried as settled, and at
 most `FAULT_HELD_READS` a pass. At about 700 succeeded runs a day that is about 30 jobs reads an
 hour, plus one or two listing reads a pass. Monitor signal 13 does not count these holds.
 

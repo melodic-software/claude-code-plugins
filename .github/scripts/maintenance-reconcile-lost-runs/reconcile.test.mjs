@@ -818,6 +818,23 @@ test("after a 10-hour outage, a run held 9 hours ago is re-run, listed from the 
   assert.equal(settled.held_since, "2026-10-19T11:00:00.000Z");
 });
 
+// pr-verify's three jobs run in turn, each up to 346 minutes, so a run can
+// hold in its last job long after FAULT_HELD_HOURS from its creation.
+test("a run created 10 hours ago, still going at one pass and held at the next, is re-run once", async () => {
+  const going = { ...verifyRun(501, { status: "in_progress", created: "2026-10-19T10:00:00Z" }), jobs: [] };
+  const first = await reconcile({ pulls: [], runs: [going], carry: null });
+  assert.equal(first.code, 0);
+  assert.deepEqual(first.reruns, []);
+  assert.equal(first.settled.held_since, "2026-10-19T10:00:00.000Z");
+  const held = heldRun(501, { created: "2026-10-19T10:00:00Z" });
+  const second = await reconcile({ pulls: [], runs: [held], carry: JSON.stringify(first.settled) });
+  assert.equal(second.code, 0);
+  assert.deepEqual(second.reruns, [501]);
+  // Without the carry, the 6-hour window alone misses it.
+  const alone = await reconcile({ pulls: [], runs: [held], carry: null });
+  assert.deepEqual(alone.reruns, []);
+});
+
 test("a pass reads at most 100 succeeded runs' jobs for a hold, oldest first, and the next pass starts at the first it left", async () => {
   // Left from an outage: 120 runs from 05:00, a minute apart, with the last
   // reading pass at 04:00.

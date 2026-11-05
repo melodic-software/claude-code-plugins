@@ -37,8 +37,9 @@
 //   (resolve-pr.mjs closing): it succeeded with a `held: ` notice and no
 //   verdict. Re-run once, as a lane run is, with the same record, so a hold
 //   is retried on the next pass that reads. Its succeeded runs are listed
-//   from FAULT_HELD_HOURS back, or from the last pass that read when that is
-//   earlier (the carried `held_since`), and at most FAULT_HELD_READS of them
+//   from FAULT_HELD_HOURS back, or from the carried `held_since` when that is
+//   earlier: the last pass that read, or the oldest first attempt that pass
+//   saw still going, inside the lookback. At most FAULT_HELD_READS of them
 //   have their jobs read a pass. A run held again at attempt 2 waits for the
 //   head's next checks run.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
@@ -338,10 +339,10 @@ export const RECORDED_LANES = new Map([
 export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
 // The recorded lane whose resolver holds green on a GitHub fault
 // (resolve-pr.mjs closing), and how far back its succeeded runs are listed for
-// a hold: past check-intent's 346-minute limit, so a later job's hold is still
-// listed once its run completes. The listing starts at the last pass that read
-// instead when that is earlier, since a pass idle through an outage reads
-// nothing and carries nothing, and holds cluster in exactly those outages.
+// a hold. The listing starts earlier when the last pass that read did, since
+// a pass idle through an outage reads nothing and carries nothing, and holds
+// cluster in exactly those outages, or when a run created earlier was still
+// going then (its three jobs can take about 17 hours).
 export const FAULT_HELD_LANE = ".github/workflows/pr-verify.yml";
 export const FAULT_HELD_HOURS = 6;
 // The succeeded runs whose jobs one pass reads, oldest first; the rest wait
@@ -1381,6 +1382,20 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   } catch (error) {
     noteFailure(`${FAULT_HELD_LANE} held runs`, error);
     heldSince = heldStart;
+  }
+  // A pr-verify run still going can hold in a later job, its three jobs each
+  // up to 346 minutes, after FAULT_HELD_HOURS have passed, so the next pass
+  // lists back to the oldest first attempt not yet completed. The lane listing
+  // above already read those runs (LANE_LIST_STATUSES, inside the lookback),
+  // so this adds no read; when it failed, the next pass starts where this one did.
+  if (laneFailures.has(FAULT_HELD_LANE)) {
+    heldSince = Math.min(heldSince, heldStart);
+  } else {
+    for (const r of laneRuns.get(FAULT_HELD_LANE).values()) {
+      if (r.status !== "completed" && r.event === "workflow_run" && r.head_branch === "main" && r.run_attempt === 1 && isTime(r.created_at)) {
+        heldSince = Math.min(heldSince, Date.parse(r.created_at));
+      }
+    }
   }
 
   // A failed floor-label run takes no place: it is one short job, not CI.
