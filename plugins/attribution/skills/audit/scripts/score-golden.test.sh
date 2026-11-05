@@ -194,10 +194,10 @@ assert_eq "the gate defaults are the plan's values" \
 assert_contains "a class below min n ships report-only" \
   "$(echo "$OUT" | jq -r '.by_class[] | select(.class == "verbatim") | .gate')" "report-only"
 
-mkdir -p "$CLAUDE_PROJECT_DIR/.claude"
+mkdir -p "$CLAUDE_PROJECT_DIR/docs/conventions"
 git init -q "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
-printf '%s\n' '{"gates": {"min_n_per_class": 2, "fix_precision_bar": 0.1, "report_recall_floor": 0.1}}' \
-  >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+printf '%s\n' 'gates:' '  min_n_per_class: 2' '  fix_precision_bar: 0.1' '  report_recall_floor: 0.1' \
+  >"$CLAUDE_PROJECT_DIR/docs/conventions/attribution.yaml"
 CFG="$(run --golden "$GOLDEN" --actual "$ACTUAL" 2>/dev/null)"
 assert_eq "config lowers the minimum n" \
   "$(echo "$CFG" | jq -r '.gates.min_n_per_class')" "2"
@@ -205,7 +205,7 @@ assert_contains "a class at or above min n binds" \
   "$(echo "$CFG" | jq -r '.by_class[] | select(.class == "verbatim") | .gate')" "binding"
 assert_eq "a class is measured against the configured bar" \
   "$(echo "$CFG" | jq -r '.by_class[] | select(.class == "verbatim") | .meets_precision_bar')" "true"
-rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+rm -f "$CLAUDE_PROJECT_DIR/docs/conventions/attribution.yaml"
 
 OUT_SC="$(run --show-config 2>&1)"
 assert_exit "--show-config exits 0" "$?" "0"

@@ -27,7 +27,8 @@ fi
 
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/config"
-mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR/.claude"
+CONV="$CLAUDE_PROJECT_DIR/docs/conventions"
+mkdir -p "$HOME" "$CONV"
 git init -q "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
 
 FAILED=0
@@ -205,11 +206,11 @@ OUT="$(run --topic t1 status)"
 assert_exit "status under the default ceiling exits 0" "$?" "0"
 assert_contains "the default ceiling is attributed to the defaults" "$OUT" "corpus_fetch_ceiling (bundled default)"
 
-printf '%s\n' '{"budgets": {"corpus_fetch_ceiling": 30}}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 30' >"$CONV/attribution.yaml"
 OUT="$(run --topic t1 status)"
 assert_exit "status under a configured ceiling exits 0" "$?" "0"
 assert_contains "the configured ceiling applies" "$OUT" "spend: 22 of 30"
-assert_contains "the configured ceiling names its layer" "$OUT" "(from $CLAUDE_PROJECT_DIR/.claude/attribution.json)"
+assert_contains "the configured ceiling names its layer" "$OUT" "(from $CONV/attribution.yaml)"
 
 run --topic t1 spend 7 >/dev/null
 OUT="$(run --topic t1 status)"
@@ -226,22 +227,19 @@ assert_exit "spend over the ceiling exits 1" "$?" "1"
 assert_contains "spend over the ceiling is reported as spent" "$OUT" "spend: 34 of 30"
 
 # A team layer's ceiling is refined by the personal override: the later layer wins.
-printf '%s\n' '{"budgets": {"corpus_fetch_ceiling": 500}}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.local.json"
+printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 500' >"$CONV/attribution.local.yaml"
 OUT="$(run --topic t1 status)"
 assert_exit "a later layer raising the ceiling clears the stop" "$?" "0"
 assert_contains "the later layer supplies the ceiling" "$OUT" "spend: 34 of 500"
 
-# The YAML team layer (ADR 0075) replaces the JSON one when both exist.
-CONV="$CLAUDE_PROJECT_DIR/docs/conventions"
-mkdir -p "$CONV"
+# With the personal override gone, a lower team ceiling stops the sweep again.
 printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 20' >"$CONV/attribution.yaml"
-rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.local.json"
+rm -f "$CONV/attribution.local.yaml"
 OUT="$(run --topic t1 status)"
-assert_exit "a YAML ceiling below the spend stops the sweep" "$?" "1"
-assert_contains "the YAML ceiling applies over the JSON beside it" "$OUT" "spend: 34 of 20"
-assert_contains "the YAML ceiling names its layer" "$OUT" "(from $CONV/attribution.yaml)"
-rm -rf "$CLAUDE_PROJECT_DIR/docs"
-rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json" "$CLAUDE_PROJECT_DIR/.claude/attribution.local.json"
+assert_exit "a team ceiling below the spend stops the sweep" "$?" "1"
+assert_contains "the lowered team ceiling applies" "$OUT" "spend: 34 of 20"
+assert_contains "the team ceiling names its layer" "$OUT" "(from $CONV/attribution.yaml)"
+rm -f "$CONV/attribution.yaml" "$CONV/attribution.local.yaml"
 
 # --- cache -------------------------------------------------------------------------
 
@@ -321,12 +319,12 @@ assert_exit "--show-config exits 0" "$?" "0"
 assert_contains "--show-config names the ledger path" "$OUT" "$REPO/.work/<topic-slug>/sweep-ledger.md"
 assert_contains "--show-config prints the effective ceiling" "$OUT" "corpus_fetch_ceiling=200 (bundled default)"
 
-printf '%s\n' '{"budgets": {"corpus_fetch_ceiling": 90}}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 90' >"$CONV/attribution.yaml"
 OUT="$(run --topic t1 --show-config)"
 assert_contains "--show-config attributes a configured ceiling to its layer" "$OUT" \
-  "corpus_fetch_ceiling=90 (from $CLAUDE_PROJECT_DIR/.claude/attribution.json)"
+  "corpus_fetch_ceiling=90 (from $CONV/attribution.yaml)"
 assert_contains "--show-config names the ledger for the topic" "$OUT" "$LEDGER"
-rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+rm -f "$CONV/attribution.yaml"
 
 # The script alone, with no lib.sh beside it: the --show-config probe reads
 # "detector unavailable", never an empty configuration.

@@ -30,7 +30,7 @@ fi
 
 # Fixture CONFIG isolation, the same idea as the git isolation above:
 # list-corpus.sh resolves its cascade from $HOME and CLAUDE_PROJECT_DIR, so
-# running this suite inside a repo that ships `.claude/attribution.json` would
+# running this suite inside a repo that ships `docs/conventions/attribution.yaml` would
 # grade the fixtures against THAT repo's exclusions. Cases that exercise the
 # cascade set CLAUDE_PROJECT_DIR per invocation and override this.
 export HOME="$TEST_TMPDIR/home"
@@ -107,12 +107,12 @@ git -C "$ATTR_REPO" config user.name "Test"
 git -C "$ATTR_REPO" add -A
 git -C "$ATTR_REPO" commit -qm "attr fixture"
 
-CFG_DIR="$REPO/.claude"
+CFG_DIR="$REPO/docs/conventions"
 mkdir -p "$CFG_DIR"
 
 run_default() {
   # A run with no config layers: CLAUDE_PROJECT_DIR points at a config-free
-  # directory so the fixture repo's own .claude/ never leaks into the case.
+  # directory so the fixture repo's own config layers never leak into the case.
   local noconfig="$TEST_TMPDIR/noconfig"
   mkdir -p "$noconfig"
   (cd "$REPO" && CLAUDE_PROJECT_DIR="$noconfig" bash "$LIST_CORPUS" "$@")
@@ -187,7 +187,7 @@ assert_eq "declined matches the declined counts" \
 
 # --- Config cascade --------------------------------------------------------------
 
-printf '%s\n' '{"excluded_paths":["legacy/**"]}' >"$CFG_DIR/attribution.json"
+printf '%s\n' 'excluded_paths:' '  - legacy/**' >"$CFG_DIR/attribution.yaml"
 TEAM_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_not_contains "a team-config exclusion drops the path" \
   "$(echo "$TEAM_OUT" | jq -r '.files[]')" "legacy/old.md"
@@ -196,14 +196,14 @@ assert_contains "the config decline names the config layer" \
 assert_eq "the config decline carries its own pattern" \
   "$(echo "$TEAM_OUT" | jq -r '.declined[] | select(.path_pattern == "legacy/**") | .count')" "1"
 
-printf '%s\n' '{"excluded_paths":["**/evals/fixtures/golden/**"]}' >"$CFG_DIR/attribution.json"
+printf '%s\n' 'excluded_paths:' '  - "**/evals/fixtures/golden/**"' >"$CFG_DIR/attribution.yaml"
 FIX_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_not_contains "the fixture tree declines under a config entry" \
   "$(echo "$FIX_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
 assert_contains "legacy returns once the config no longer excludes it" \
   "$(echo "$FIX_OUT" | jq -r '.files[]')" "legacy/old.md"
 
-printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.local.json"
+printf '%s\n' 'excluded_paths:' '  - docs/**' >"$CFG_DIR/attribution.local.yaml"
 OVERRIDE_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_not_contains "the personal override's exclusion applies" \
   "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "docs/guide.md"
@@ -211,8 +211,8 @@ assert_contains "the personal override replaces the team value per key" \
   "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
 # Per-key override means a later layer REPLACES the value, and an explicit empty
 # array is a value.
-printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.json"
-printf '%s\n' '{"excluded_paths":[]}' >"$CFG_DIR/attribution.local.json"
+printf '%s\n' 'excluded_paths:' '  - docs/**' >"$CFG_DIR/attribution.yaml"
+printf '%s\n' 'excluded_paths: []' >"$CFG_DIR/attribution.local.yaml"
 CLEAR_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_contains "an explicit empty personal override clears an inherited exclusion" \
   "$(echo "$CLEAR_OUT" | jq -r '.files[]')" "docs/guide.md"
@@ -220,30 +220,30 @@ assert_eq "clearing leaves only the built-in carve-outs declined" \
   "$(echo "$CLEAR_OUT" | jq -r '[.declined[] | select(.reason | test("excluded_paths"))] | length')" "0"
 assert_contains "an explicit empty list lifts the default, so the fixtures report" \
   "$(echo "$CLEAR_OUT" | jq -r '.files[]')" "$FIXTURE"
-rm -f "$CFG_DIR/attribution.local.json" "$CFG_DIR/attribution.json"
+rm -f "$CFG_DIR/attribution.local.yaml" "$CFG_DIR/attribution.yaml"
 
-# The YAML layers (ADR 0075) replace the JSON ones per file: with both present
-# only the YAML is read, and a YAML block list or empty flow list is a value.
-CONV="$REPO/docs/conventions"
-mkdir -p "$CONV"
-printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.json"
+# The repository's old JSON team file under .claude/ is not read: the YAML team
+# layer (ADR 0075) beside it is the only one listed and applied.
+CONV="$CFG_DIR"
+OLD_JSON="$REPO/.claude/attribution.json"
+mkdir -p "$REPO/.claude"
+printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$OLD_JSON"
 printf '%s\n' 'excluded_paths:' '  - legacy/**' >"$CONV/attribution.yaml"
 YAML_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_not_contains "a YAML team exclusion drops the path" \
   "$(echo "$YAML_OUT" | jq -r '.files[]')" "legacy/old.md"
-assert_contains "the JSON beside the YAML is not read" \
+assert_contains "the old JSON team file is not read" \
   "$(echo "$YAML_OUT" | jq -r '.files[]')" "docs/guide.md"
 YAML_SC="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" --show-config 2>&1)"
 assert_contains "--show-config attributes the exclusions to the YAML layer" \
   "$YAML_SC" "excluded_paths=legacy/** (from $CONV/attribution.yaml)"
-assert_not_contains "--show-config does not list the shadowed JSON layer" \
-  "$YAML_SC" "$CFG_DIR/attribution.json"
+assert_not_contains "--show-config does not list the old JSON team file" \
+  "$YAML_SC" "$OLD_JSON"
 printf '%s\n' 'excluded_paths: []' >"$CONV/attribution.local.yaml"
 YAML_CLEAR="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_contains "an empty YAML personal override list clears the team exclusion" \
   "$(echo "$YAML_CLEAR" | jq -r '.files[]')" "legacy/old.md"
-rm -rf "$CONV"
-rm -f "$CFG_DIR/attribution.json"
+rm -f "$CONV/attribution.yaml" "$CONV/attribution.local.yaml" "$OLD_JSON"
 
 mkdir -p "$HOME/.claude"
 printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/attribution.json"
@@ -258,11 +258,11 @@ HOME_SC="$(cd "$HOME" && CLAUDE_PROJECT_DIR="$HOME" bash "$LIST_CORPUS" --show-c
 assert_eq "home root: the user-global file is listed once" \
   "$(printf '%s\n' "$HOME_SC" | grep -c "^  $HOME/.claude/attribution.json")" "1"
 NONREPO="$TEST_TMPDIR/nonrepo-cfg"
-mkdir -p "$NONREPO/.claude"
-printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$NONREPO/.claude/attribution.json"
+mkdir -p "$NONREPO/docs/conventions"
+printf '%s\n' 'excluded_paths:' '  - docs/**' >"$NONREPO/docs/conventions/attribution.yaml"
 NONREPO_SC="$(cd "$NONREPO" && CLAUDE_PROJECT_DIR="$NONREPO" bash "$LIST_CORPUS" --show-config 2>&1)"
-assert_not_contains "a non-repo root: its .claude file is not a team layer" \
-  "$NONREPO_SC" "$NONREPO/.claude/attribution.json"
+assert_not_contains "a non-repo root: its team file is not a layer" \
+  "$NONREPO_SC" "$NONREPO/docs/conventions/attribution.yaml"
 rm -f "$HOME/.claude/attribution.json"
 
 # --- --show-config ---------------------------------------------------------------
@@ -271,11 +271,11 @@ OUT_SC="$(run_default --show-config 2>&1)"
 assert_exit "--show-config exits 0" "$?" "0"
 assert_contains "--show-config reports no layers when none exist" "$OUT_SC" "bundled defaults"
 
-printf '%s\n' '{"excluded_paths":["legacy/**"]}' >"$CFG_DIR/attribution.json"
+printf '%s\n' 'excluded_paths:' '  - legacy/**' >"$CFG_DIR/attribution.yaml"
 OUT_SC="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" --show-config 2>&1)"
-assert_contains "--show-config names the team layer" "$OUT_SC" "$CFG_DIR/attribution.json"
+assert_contains "--show-config names the team layer" "$OUT_SC" "$CFG_DIR/attribution.yaml"
 assert_contains "--show-config prints the effective exclusions" "$OUT_SC" "legacy/**"
-rm -f "$CFG_DIR/attribution.json"
+rm -f "$CFG_DIR/attribution.yaml"
 
 # The script alone, with no lib.sh beside it: the pre-computed --show-config
 # probe reads "detector unavailable", never an empty configuration.
