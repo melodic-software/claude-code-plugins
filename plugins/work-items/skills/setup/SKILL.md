@@ -354,7 +354,7 @@ canonical members from
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`), report
    INFO and continue; triage verifies at item-edit time.
 3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter
-   `work-class:`). Compare against the five canonical members in the reference.
+   `work-class:` and `provenance:`). Compare against the five canonical members in the reference.
 4. **All present**. Report "work-class axis provisioned" and continue.
 5. **Any missing, label-as-code owner declared**, stop. Name each missing label and route remediation
    to that owner; never `gh label create` ad hoc.

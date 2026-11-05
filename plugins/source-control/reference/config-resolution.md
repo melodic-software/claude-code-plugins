@@ -452,7 +452,7 @@ set regardless of `babysit_loop_merge`; operators keep `--merge human-only` on l
 
 **C5 hold.** Untrusted provenance is the one work class that holds a merge: no rung, no config
 key, and no invocation argument, including the explicit-`autopilot` exception above, grants merge
-authority over a `work-class: untrusted-provenance` (C5) pull request. It is not a
+authority over a `provenance: untrusted` (C5) pull request. It is not a
 `babysit_loop_merge` value but a hold the resolved rung always composes under. The unattended merge
 gate enforces it in code (`trust_refusal` in `babysit_merge_policy.py`: a linked issue carrying a
 label naming untrusted work, or one a non-human removed) and refuses a fork head; the loop's rung
