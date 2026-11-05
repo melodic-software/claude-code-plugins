@@ -8888,9 +8888,16 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
   assert.equal(sub({ "needs.model.outputs.credential-present": "false" }), true);
   assert.equal(sub({ "needs.gate.outputs.skip-key": "true" }), true);
   assert.equal(sub({ "needs.model.outputs.handoff": "false" }), false);
-  const fb = (handoff) => evaluate(jobs["model-fallback"].if, ctx({ "needs.model-subscription.outputs.handoff": handoff }));
+  const fb = (handoff, present = "true") =>
+    evaluate(jobs["model-fallback"].if, ctx({ "needs.model-subscription.outputs.handoff": handoff, "needs.model-subscription.outputs.credential-present": present }));
   assert.equal(fb("true"), true);
+  assert.equal(fb("", "false"), true, "an empty subscription token hands to the fallback leg");
   assert.equal(fb("false"), false);
+  assert.equal(fb("", ""), false, "a subscription leg that never checked its token hands nothing on");
+  assert.equal(
+    jobs["model-fallback"].steps.find((s) => s.name === "Record the leg").with["fallback-reason"],
+    "${{ needs.model-subscription.outputs.handoff-reason || needs.model-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}",
+  );
 
   // The scan opens the leg that ran: the fallback leg, else the subscription leg, else the key leg.
   const open = jobs.scan.steps.find((s) => s.id === "open");

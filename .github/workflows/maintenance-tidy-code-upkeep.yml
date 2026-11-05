@@ -536,6 +536,7 @@ jobs:
     outputs:
       handoff: ${{ steps.run.outputs.handoff }}
       handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
       sealed-2: ${{ steps.seal.outputs.sealed-2 }}
@@ -585,7 +586,7 @@ jobs:
           FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           if [ "$PRESENT" != true ]; then
-            echo "::error::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN is empty; nothing sweeps the areas"
+            echo "::warning::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN is empty; model-fallback sweeps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
           fi
           echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
           echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
@@ -792,10 +793,11 @@ jobs:
   # never hands off.
   model-fallback:
     needs: [gate, model-subscription]
-    # The first attempt only, after the subscription leg handed off.
+    # The first attempt only, after the subscription leg handed off or found
+    # its token empty.
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && needs.model-subscription.outputs.handoff == 'true' }}
+      && (needs.model-subscription.outputs.handoff == 'true' || needs.model-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -809,6 +811,7 @@ jobs:
     outputs:
       handoff: ${{ steps.run.outputs.handoff }}
       handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
       sealed-2: ${{ steps.seal.outputs.sealed-2 }}
@@ -1009,7 +1012,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.model-subscription.outputs.handoff-reason }}
+          fallback-reason: ${{ needs.model-subscription.outputs.handoff-reason || needs.model-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       # The plan, and the planned branches as one git bundle from the base,
       # sealed with the sealer from the trusted checkout.
