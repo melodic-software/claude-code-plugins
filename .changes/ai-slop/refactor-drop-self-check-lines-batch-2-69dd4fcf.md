@@ -1,11 +1,5 @@
 ---
-bump: patch
+bump: none
 ---
 
-### Changed
-
-- The rewrite guide's self-audit is one pass, without the second read
-
-  The self-audit pass that applies the judgment rows to unflagged
-  sentences stays; the extra read after it is gone, since Opus 5 checks
-  its own work without being told to.
+No release needed (test): add the audit-fix-self-audit-vocabulary eval case, which checks that the fix's self-audit removes model vocabulary the detector does not flag and keeps every fact
