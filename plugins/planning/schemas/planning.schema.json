@@ -81,7 +81,7 @@
       }
     },
     "plan_panel_rubric": {
-      "description": "The criteria the planning:plan-panel judges score each draft on, 1 to 5 each, and the synthesizer grafts by. 2 to 6 criteria with unique snake_case names other than draft and rationale; the workflow keeps the default rubric for any other value.",
+      "description": "The criteria the planning:plan-panel judges score each draft on, 1 to 5 each, and the synthesizer grafts by. 2 to 6 criteria with unique snake_case names other than draft, rationale, angle, judges and total; the workflow keeps the default rubric for any other value.",
       "type": "array",
       "minItems": 2,
       "maxItems": 6,
@@ -89,7 +89,7 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$", "not": { "enum": ["draft", "rationale"] } },
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$", "not": { "enum": ["draft", "rationale", "angle", "judges", "total"] } },
           "text": { "type": "string", "minLength": 1, "description": "What a strong score means, shown to the judges after the name." }
         },
         "required": ["name", "text"]

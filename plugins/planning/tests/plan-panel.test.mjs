@@ -254,10 +254,25 @@ test('a caller rubric replaces the default in the judge prompt, schema and total
   assert.equal(result.winner.id, 'A')
   assert.equal(result.scores.find(s => s.draft === 'A').total, 9)
   assert.deepEqual(result.rubric, rubric)
+  assert.ok(synth(calls).prompt.includes('security (no new attack surface), cost (cheap to run)'))
 })
 
 test('an invalid rubric falls back to the default and is logged', async () => {
-  const { result, logs } = await run({ task: 't', rubric: [{ name: 'Bad Name', text: 'x' }, { name: 'ok', text: 'y' }] })
-  assert.deepEqual(result.rubric.map(c => c.name), ['goal_fit', 'blast_radius', 'test_strategy', 'reversibility'])
+  for (const bad of [{ name: 'Bad Name', text: 'x' }, { name: null, text: 'x' }]) {
+    const { result, logs } = await run({ task: 't', rubric: [bad, { name: 'ok', text: 'y' }] })
+    assert.deepEqual(result.rubric.map(c => c.name), ['goal_fit', 'blast_radius', 'test_strategy', 'reversibility'])
+    assert.ok(logs.some(l => l.includes('args.rubric')))
+  }
+})
+
+test('a criterion named like a score field is refused, so it cannot corrupt the totals', async () => {
+  const rubric = [{ name: 'judges', text: 'x' }, { name: 'quality', text: 'y' }]
+  const { result, logs } = await run({ task: 't', rubric }, {
+    reply: (p, o) => (o.label.startsWith('judge:')
+      ? { scores: ['A', 'B', 'C', 'D'].map(l => ({ draft: l, judges: l === 'A' ? 5 : 1, quality: l === 'B' ? 4 : 1, rationale: 'r' })), dissent: '' }
+      : defaultReply(p, o)),
+  })
   assert.ok(logs.some(l => l.includes('args.rubric')))
+  assert.deepEqual(result.rubric.map(c => c.name), ['goal_fit', 'blast_radius', 'test_strategy', 'reversibility'])
+  assert.ok(result.scores.every(s => s.judges === 3))
 })

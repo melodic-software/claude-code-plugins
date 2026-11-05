@@ -142,10 +142,12 @@ const DEFAULT_RUBRIC = [
   { name: 'reversibility', text: '5 = each phase can be undone or abandoned cheaply' },
 ]
 // A caller rubric is 2 to 6 { name, text } criteria with snake_case names; anything else keeps the default.
+// The reserved names are fields of a score row, which a criterion of the same name would overwrite.
 const CRITERION = /^[a-z][a-z0-9_]{0,39}$/
+const RESERVED = ['draft', 'rationale', 'angle', 'judges', 'total']
 const passedRubric = Array.isArray(input.rubric) ? input.rubric : null
 const rubricOk = passedRubric && passedRubric.length >= 2 && passedRubric.length <= 6 &&
-  passedRubric.every(c => c && CRITERION.test(c.name) && c.name !== 'draft' && c.name !== 'rationale' && typeof c.text === 'string' && c.text.trim()) &&
+  passedRubric.every(c => c && typeof c.name === 'string' && CRITERION.test(c.name) && !RESERVED.includes(c.name) && typeof c.text === 'string' && c.text.trim()) &&
   new Set(passedRubric.map(c => c.name)).size === passedRubric.length
 if (input.rubric != null && !rubricOk) log('args.rubric is not 2 to 6 unique { name, text } criteria: using the default rubric')
 const RUBRIC_DEF = rubricOk ? passedRubric.map(c => ({ name: c.name, text: c.text.trim() })) : DEFAULT_RUBRIC
@@ -264,7 +266,7 @@ const runners = drafts.filter(d => d !== winner)
 const scoreLines = scores.map(s => s.draft + ' (' + s.angle + '): total ' + s.total + ' from ' + s.judges + ' judge(s)').join('\n')
 const synthesized = await agentRetry(
   BRIEF + '\n\nBuild one implementation plan. Start from the winning draft ' + winner.id + ' and keep its structure. ' +
-  'Graft an idea from a runner-up only where it improves ' + RUBRIC.join(', ') + ' ' +
+  'Graft an idea from a runner-up only where it improves ' + RUBRIC_DEF.map(c => c.name + ' (' + c.text + ')').join(', ') + ' ' +
   'without contradicting the winner, and record each graft with its draft letter. Record each runner-up idea you ' +
   'considered and did not graft as left_behind, with its draft letter and why. List as dissent every judge ' +
   'concern and runner-up objection the plan does not resolve.' + READ_ONLY +
