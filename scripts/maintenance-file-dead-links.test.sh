@@ -214,10 +214,11 @@ PATCH repos/o/r/issues/12
 F state=open
 F body=$(marker "$url_done")
 POST repos/o/r/issues
+F labels[]=needs-triage
 F title=Dead link: $url_new1
 F body=$(marker "$url_new1")"
 if ((FILE_STATUS == 0)) && [[ "$GH_WRITES" == "$expected" ]]; then
-  ok "an open record is updated, a completed one reopened, a not-planned one left, and new links filed up to MAX_NEW"
+  ok "an open record is updated, a completed one reopened, a not-planned one left, and new links filed needs-triage up to MAX_NEW"
 else
   fail "the file step wrote the wrong records: status $FILE_STATUS, writes:
 $GH_WRITES
@@ -233,8 +234,9 @@ first_body="$(awk '/^----$/ { exit } { print }' "$TMP_ROOT/bodies")"
 # shellcheck disable=SC2016 # a literal markdown code span
 if [[ "$first_body" == *"- URL: \`$url_open\`"* && "$first_body" == *'- `docs/a.md` line 7'* &&
   "$first_body" == *"- Run: https://github.com/o/r/actions/runs/1"* &&
-  "$first_body" == *"(https://example.com/dispositions)"* && "$first_body" == *"- Status: 404 (Not Found)"* ]]; then
-  ok "the body names the URL, status, run, each location and the demotion path"
+  "$first_body" == *"(https://example.com/dispositions)"* && "$first_body" == *'- Status: 404 `Not Found`'* &&
+  "$first_body" == *"Close this only once the link check no longer reports the URL"* ]]; then
+  ok "the body names the URL, status in a code span, run, each location, the demotion path and when to close"
 else
   fail "the issue body is missing a part: $first_body"
 fi

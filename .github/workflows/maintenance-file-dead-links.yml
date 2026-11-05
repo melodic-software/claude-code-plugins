@@ -22,9 +22,11 @@ name: maintenance-file-dead-links
 #   issue github-actions[bot] filed. An open record has its body rewritten
 #   with this run's locations; a record closed as completed is reopened, since
 #   the link is dead again; one closed as not planned is left alone. A link
-#   with no record gets a new issue, at most MAX_NEW a run. Its token starts
-#   no workflow; the hourly triage sweep in maintenance-audit-lane-runs.yml
-#   brings the issue to intake.
+#   with no record gets a new issue, at most MAX_NEW a run, labeled
+#   needs-triage. Its token starts no workflow, so intake-triage.yml never
+#   adds that floor label on open, and the hourly triage sweep leaves
+#   github-actions[bot] issues out (triage-sweep.mjs): the label is what puts
+#   the issue in the untriaged queue. A reopened record keeps its labels.
 #
 # The trigger names the link-check workflow by its `name:`, which the
 # standards component owns: a rename there disconnects this workflow.
@@ -169,14 +171,17 @@ jobs:
               "<!-- link-check-dead-pointer url-sha256=\($hash) -->\n\n"
               + "The weekly online link check found this link dead.\n\n"
               + "- URL: `\(.url)`\n"
-              + "- Status: \(.status // "no status code")\(if .detail != "" then " (\(.detail))" else "" end)\n"
+              + "- Status: \(.status // "no status code")\(if .detail != "" then " `\(.detail)`" else "" end)\n"
               + "- Run: \($run)\n\n"
               + "Where it appears:\n\n"
               + ([.locations[] | "- `\(.path)`" + (if .line then " line \(.line)" else "" end)] | join("\n"))
               + "\n\nRepair each pointer by [the demotion path when a pointer later dies](\($demote)): "
               + "point at a live source that holds the same fact, or demote the pointer to a stamped record "
               + "or an archived-snapshot citation; never re-expand it into a copy. A page that is alive but "
-              + "refuses the checker gets an exact-URL `.lycheeignore` entry with a dated reason.\n"
+              + "refuses the checker gets an exact-URL `.lycheeignore` entry with a dated reason.\n\n"
+              + "Close this only once the link check no longer reports the URL: removed, replaced, or in "
+              + "`.lycheeignore`. A dead URL kept in a link, the marked pointer of a demoted record included, "
+              + "is found again and reopens this issue on the next run.\n"
             ' <<<"$link")"
             record="${records[$hash]:-}"
             if [[ -z "$record" ]]; then
@@ -184,7 +189,7 @@ jobs:
                 over+=("$url")
                 continue
               fi
-              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f title="Dead link: ${url:0:180}" -f body="$body" >/dev/null; then
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-triage' -f title="Dead link: ${url:0:180}" -f body="$body" >/dev/null; then
                 filed=$((filed + 1))
               else
                 echo "::error::could not file the dead-link issue for $url"
