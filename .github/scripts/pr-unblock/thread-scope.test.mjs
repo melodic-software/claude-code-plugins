@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { inThreadScope, isProtectedPath, prPathsOf } from "./thread-scope.mjs";
+import { copyPathsOf, inThreadScope, isProtectedPath, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 
 const kept = new Set(["plugins/p/evals/c/graders/x.md", "src/a.js"]);
 
@@ -44,23 +44,17 @@ test("the four recorded trips are in scope", () => {
   }
 });
 
-test("permission config and non-test code in the same plugin are refused", () => {
+test("code in the same plugin is in scope, and its permission config and package manifest are refused", () => {
   const named = new Set(["plugins/p/skills/s/SKILL.md"]);
-  for (const path of [
-    "plugins/p/scripts/run.sh",
-    "plugins/p/skills/s/scripts/helper.py",
-    "plugins/p/lib/x.mjs",
-    "plugins/p/lib/x.js",
-    "plugins/p/lib/x.ts",
-    "plugins/p/lib/X.SH",
-    "plugins/p/.claude/settings.json",
-    "plugins/p/package.json",
-  ]) {
+  for (const path of ["plugins/p/scripts/run.sh", "plugins/p/skills/s/scripts/helper.py", "plugins/p/lib/x.mjs", "plugins/p/lib/x.js", "plugins/p/lib/x.ts", "plugins/p/lib/X.SH"]) {
+    assert.equal(inThreadScope(path, named), true, path);
+  }
+  for (const path of ["plugins/p/.claude/settings.json", "plugins/p/package.json"]) {
     assert.equal(inThreadScope(path, named), false, path);
   }
 });
 
-test("hooks, manifests, agent rules, monitors, bin and MCP config in the same plugin are out of scope", () => {
+test("hooks, manifests, agent rules, monitors, bin and MCP config in the same plugin are in scope", () => {
   const named = new Set(["plugins/p/skills/s/SKILL.md"]);
   for (const path of [
     "plugins/p/hooks/hooks.json",
@@ -73,7 +67,7 @@ test("hooks, manifests, agent rules, monitors, bin and MCP config in the same pl
     "plugins/p/.mcp.json",
     "plugins/p/.lsp.json",
   ]) {
-    assert.equal(inThreadScope(path, named), false, path);
+    assert.equal(inThreadScope(path, named), true, path);
   }
 });
 
@@ -82,18 +76,20 @@ test("a thread's own path stays in scope whatever its type, and a sibling test o
     assert.equal(inThreadScope(path, new Set([path])), true, path);
   }
   assert.equal(inThreadScope("plugins/p/hooks/guard.test.mjs", new Set(["plugins/p/hooks/guard.mjs"])), true);
-  assert.equal(inThreadScope("plugins/p/scripts/test_run.py", new Set(["plugins/p/README.md"])), false);
+  assert.equal(inThreadScope("plugins/p/scripts/test_run.py", new Set(["plugins/p/README.md"])), true);
+  assert.equal(inThreadScope("src/lib/test_run.py", new Set(["src/README.md"])), false);
 });
 
 test("another plugin's file and an unnamed file outside plugins/ stay out of scope", () => {
-  assert.equal(inThreadScope("plugins/q/evals/c/samples/y.json", kept), false);
+  assert.equal(inThreadScope("plugins/q/README.md", kept), false);
+  assert.equal(inThreadScope("plugins/q/lib/x.mjs", kept), false);
   assert.equal(inThreadScope("plugins/pp/README.md", kept), false);
   assert.equal(inThreadScope("src/b.js", kept), false);
   assert.equal(inThreadScope("plugins/README.md", kept), false);
 });
 
 test("with no kept thread under the plugin, its files are refused", () => {
-  assert.equal(inThreadScope("plugins/p/evals/c/samples/y.json", new Set(["src/a.js"])), false);
+  assert.equal(inThreadScope("plugins/p/README.md", new Set(["src/a.js"])), false);
 });
 
 // Names from the coordinator's addition; plugins/planning/surface/test_round.py
@@ -162,11 +158,10 @@ const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
 const WRITE = `${T}/write-transcript.js`;
 const RUN = `${T}/run-transcript.js`;
 
-test("a same-plugin file in a kept thread's named_paths is in scope, and only that thread's", () => {
+test("a same-plugin file is in scope named or not", () => {
   const paths = new Set([WRITE]);
-  assert.equal(inThreadScope(RUN, paths), false);
+  assert.equal(inThreadScope(RUN, paths), true);
   assert.equal(inThreadScope(RUN, paths, [{ path: WRITE, named_paths: [RUN] }]), true);
-  assert.equal(inThreadScope(`${T}/run-watch.js`, paths, [{ path: WRITE, named_paths: [RUN] }]), false);
   assert.equal(inThreadScope(`plugins/knowledge/lib/x.sh`, paths, [{ path: WRITE, named_paths: ["plugins/knowledge/lib/x.sh"] }]), true);
 });
 
@@ -183,9 +178,9 @@ test("a named path in another plugin, under .github/, or on an instruction path 
   ]) {
     assert.equal(inThreadScope(path, new Set([WRITE]), [{ path: WRITE, named_paths: [path] }]), false, path);
   }
-  // The thread the name came from decides the plugin, not any other kept thread.
-  const other = [{ path: "plugins/other/a.md", named_paths: [RUN] }];
-  assert.equal(inThreadScope(RUN, new Set([WRITE, "plugins/other/a.md"]), other), false);
+  // A name does not reach past its thread's plugin.
+  const other = [{ path: "plugins/other/a.md", named_paths: ["plugins/third/x.js"] }];
+  assert.equal(inThreadScope("plugins/third/x.js", new Set([WRITE, "plugins/other/a.md"]), other), false);
 });
 
 test("a named path off normal form or outside plain ASCII is refused", () => {
@@ -206,7 +201,7 @@ test("a named path off normal form or outside plain ASCII is refused", () => {
 // From the security review of #8461: a segment named exactly hooks or
 // .claude, plugin monitors, bin and .lsp.json, more code extensions, and
 // non-ASCII letters JS /i does not fold (U+212A KELVIN SIGN, U+017F LONG S).
-test("more code files are refused", () => {
+test("more code files in the same plugin are in scope", () => {
   for (const path of [
     "plugins/p/lib/x.cjs",
     "plugins/p/lib/x.mts",
@@ -215,7 +210,7 @@ test("more code files are refused", () => {
     "plugins/p/lib/x.bash",
     "plugins/p/lib/x.zsh",
   ]) {
-    assert.equal(inThreadScope(path, kept), false, path);
+    assert.equal(inThreadScope(path, kept), true, path);
   }
 });
 
@@ -237,21 +232,19 @@ test("a file the PR already changes is in every kept thread's scope", () => {
   }
 });
 
-test("a file the PR does not change stays outside a thread's scope", () => {
+test("a file outside plugins/ the PR does not change stays outside a thread's scope", () => {
   const prPaths = new Set([DOC]);
-  assert.equal(inThreadScope(SCRIPT, new Set([DOC]), [], { prPaths }), false);
   assert.equal(inThreadScope("src/b.js", new Set([DOC]), [], { prPaths }), false);
 });
 
 test("a fix that adds a file the PR lists gets no pr_paths scope", () => {
-  const prPaths = new Set([DOC, SCRIPT, "src/b.js"]);
-  assert.equal(inThreadScope(SCRIPT, new Set([DOC]), [], { prPaths, added: true }), false);
+  const prPaths = new Set([DOC, "src/b.js"]);
   assert.equal(inThreadScope("src/b.js", new Set([DOC]), [], { prPaths, added: true }), false);
   // A new file stays in the thread's own scope as before.
   assert.equal(inThreadScope("plugins/p/skills/s/new.md", new Set([DOC]), [], { prPaths, added: true }), true);
 });
 
-test("a protected, instruction, HIGH floor or control-plane path the PR changes is refused", () => {
+test("a protected, instruction, HIGH floor or control-plane path outside plugins/ the PR changes is refused", () => {
   const refused = [
     ".github/workflows/x.yml",
     ".GitHub/Workflows/x.yml",
@@ -267,14 +260,11 @@ test("a protected, instruction, HIGH floor or control-plane path the PR changes 
     ".github/actions/setup-runner-isolation/action.yml",
     ".github/standards/runner-policy/x.json",
     "CLAUDE.md",
-    "plugins/p/AGENTS.md",
+    "docs/AGENTS.md",
     ".mcp.json",
-    "plugins/p/.lsp.json",
+    ".lsp.json",
     ".claude/rules/r.md",
-    "plugins/p/.claude-plugin/plugin.json",
-    "plugins/p/hooks/guard.sh",
-    "plugins/p/monitors/monitors.json",
-    "plugins/p/bin/tool",
+    ".claude-plugin/marketplace.json",
     "a\\b.md",
     "a b.md",
     "src/../x.md",
@@ -284,6 +274,72 @@ test("a protected, instruction, HIGH floor or control-plane path the PR changes 
   // Even when a thread file lists them, inThreadScope refuses each beside a
   // thread outside their plugin.
   for (const path of refused) {
-    assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { prPaths: new Set(refused) }), false, path);
+    assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { prPaths: new Set(refused), copyPaths: new Set(refused) }), false, path);
   }
+});
+
+test("a plugin's own hooks, manifest, agent rules, monitors and bin the PR changes join pr_paths", () => {
+  const surfaces = ["plugins/p/AGENTS.md", "plugins/p/.lsp.json", "plugins/p/.claude-plugin/plugin.json", "plugins/p/hooks/guard.sh", "plugins/p/monitors/monitors.json", "plugins/p/bin/tool"];
+  assert.deepEqual(prPathsOf(surfaces.map((filename) => ({ filename }))), [...surfaces].sort());
+});
+
+// #12630: the fix needed eval scaffolds the PR did not list.
+test("a plugin's or a skill's eval files are in scope from any thread, new files included", () => {
+  for (const path of ["plugins/q/evals/c/case.yaml", "plugins/q/evals/c/graders/g.sh", "plugins/q/skills/s/evals/c/samples/y.json", "plugins/q/skills/s/evals/evals.json"]) {
+    assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { added: true }), true, path);
+  }
+  for (const path of ["plugins/q/evals/c/package.json", "plugins/q/evals/c/.claude/settings.json", "plugins/q/skills/s/x/evals/y.json", "evals/c/case.yaml", "plugins/q/evalsx/y.json"]) {
+    assert.equal(inThreadScope(path, new Set(["docs/x.md"])), false, path);
+  }
+});
+
+test("any file in a plugin the PR already changes is in scope, new files included, and another plugin's is not", () => {
+  const prPaths = new Set(prPathsOf([{ filename: "plugins/p/skills/s/SKILL.md" }, { filename: "README.md" }]));
+  for (const path of ["plugins/p/lib/x.mjs", "plugins/p/hooks/hooks.json", "plugins/p/skills/t/scripts/new.py", "plugins/p/AGENTS.md"]) {
+    assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { prPaths, added: true }), true, path);
+  }
+  for (const path of ["plugins/q/README.md", "plugins/p/package.json", "plugins/p/.claude/settings.json", "src/x.js"]) {
+    assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { prPaths }), false, path);
+  }
+});
+
+const REGISTRY = `# header
+lib/hook-utils.sh plugins/a/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/b/hooks/hook-utils.sh # trailing
+lib/other.sh plugins/c/scripts/other.sh
+
+lib/settings.json plugins/d/settings.json
+lib/x.sh .github/workflows/x.sh
+`;
+
+test("sharedCopyPairs reads the registry's two-field lines", () => {
+  assert.deepEqual(sharedCopyPairs(REGISTRY), [
+    ["lib/hook-utils.sh", "plugins/a/hooks/hook-utils.sh"],
+    ["lib/hook-utils.sh", "plugins/b/hooks/hook-utils.sh"],
+    ["lib/other.sh", "plugins/c/scripts/other.sh"],
+    ["lib/settings.json", "plugins/d/settings.json"],
+    ["lib/x.sh", ".github/workflows/x.sh"],
+  ]);
+});
+
+// #12346: a fix to lib/hook-utils.sh had to regenerate its 20 copies.
+test("the copies of a canonical the PR changes are in scope, and do not open the rest of their plugins", () => {
+  const files = [{ filename: "lib/hook-utils.sh" }, { filename: "lib/settings.json" }, { filename: "lib/x.sh" }];
+  const copyPaths = new Set(copyPathsOf(files, sharedCopyPairs(REGISTRY)));
+  assert.deepEqual([...copyPaths], ["plugins/a/hooks/hook-utils.sh", "plugins/b/hooks/hook-utils.sh"]);
+  const prPaths = new Set(prPathsOf(files));
+  const threads = new Set(["lib/hook-utils.sh"]);
+  assert.equal(inThreadScope("plugins/a/hooks/hook-utils.sh", threads, [], { prPaths, copyPaths }), true);
+  assert.equal(inThreadScope("plugins/a/hooks/hook-utils.sh", threads, [], { prPaths, copyPaths, added: true }), false);
+  for (const path of ["plugins/a/README.md", "plugins/a/hooks/other.sh", "plugins/c/scripts/other.sh", "plugins/d/settings.json", ".github/workflows/x.sh"]) {
+    assert.equal(inThreadScope(path, threads, [], { prPaths, copyPaths }), false, path);
+  }
+});
+
+test(".github/workflows/ stays refused through every widened class", () => {
+  const path = ".github/workflows/ci.yml";
+  const prPaths = new Set([path, "plugins/p/README.md"]);
+  assert.equal(inThreadScope(path, new Set(["plugins/p/README.md"]), [], { prPaths, copyPaths: new Set([path]) }), false);
+  assert.deepEqual(copyPathsOf([{ filename: "lib/x.sh" }], [["lib/x.sh", path]]), []);
+  assert.equal(inThreadScope(".github/scripts/pr-unblock/thread-scope.mjs", new Set(["plugins/p/README.md"]), [], { prPaths }), false);
 });

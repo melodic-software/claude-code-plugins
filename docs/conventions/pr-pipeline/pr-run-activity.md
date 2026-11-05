@@ -1057,10 +1057,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    as both paths, untracked files that git does not ignore included), a file outside every kept
    thread's scope or any `.github/workflows/` path, read with no hook, fsmonitor or untracked-cache config.
    Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
-   thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
+   thread's scope is its path; a file in the `plugins/<p>/` directory its path or a `pr_paths`
+   file sits in, or under any `plugins/<p>/evals/` or `plugins/<p>/skills/<s>/evals/`, except an
    instruction path
-   (`.gitmodules`, `CODEOWNERS`, a `settings*.json`, `package.json`, `package-lock.json` or `requirements*.txt`, at any depth) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
-   `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   (`.gitmodules`, `CODEOWNERS`, a `settings*.json`, `package.json`, `package-lock.json` or `requirements*.txt`, at any depth); a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
    directory; and its `named_paths`. The select job sets those from the thread's fix requests by a
    trusted person with write access: each file-shaped word outside fenced code and quoted lines,
    read from the repository root when it holds a `/` and from the thread path's directory when it
@@ -1070,10 +1070,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    at most). Every kept thread's scope also holds the thread file's `pr_paths`: each file the
    pull request's file listing changes, rename sources included, in normal form, not under
    `.github/workflows/`, not a `.gitmodules`, `CODEOWNERS`, `settings*.json`, package manifest or
-   `requirements*.txt`, and not a control-plane or agent-instruction surface: anything under
-   `.github/` (the pr-merge HIGH floor's trusted-actor list, trusted-trigger check and
-   `resolve-config` among it), `CLAUDE.md`, `AGENTS.md`, `.mcp.json` or `.lsp.json`, a `.claude`
-   or `.claude-plugin` directory, or a plugin's `hooks/`, `monitors/` or `bin/`. A path the fix creates gets no scope from `pr_paths`: the tool checks it exists at
+   `requirements*.txt`, and, outside `plugins/<p>/`, not a control-plane or agent-instruction
+   surface: anything under `.github/` (the pr-merge HIGH floor's trusted-actor list,
+   trusted-trigger check and `resolve-config` among it), `CLAUDE.md`, `AGENTS.md`, `.mcp.json` or
+   `.lsp.json`, or a `.claude` or `.claude-plugin` directory. It holds the thread file's
+   `copy_paths` on the same terms: each copy the base `scripts/shared-copies.txt` registers for a
+   canonical the pull request changes, so a fix to the canonical can regenerate its copies; a copy
+   adds no other file of its plugin. A path the fix creates gets no scope from `pr_paths` or `copy_paths`: the tool checks it exists at
    the gated head, `apply-patch.mjs` refuses an added entry, and the reply job an `added`,
    `renamed` or `copied` file.
 3. After the skill, the run job carries the tool's `replies.jsonl` beside the patch, at most

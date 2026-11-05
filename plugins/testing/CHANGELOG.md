@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.4] - 2026-11-05
+
+### Changed
+
+- `/testing:write`: on a bug fix, the first red runs against the existing code and fails on the wrong behavior, not on a missing symbol. When the skill states the interface it assumes, it adds one line on what a test at that seam catches and what it misses.
+
 ## [3.2.3] - 2026-11-05
 
 ### Added
