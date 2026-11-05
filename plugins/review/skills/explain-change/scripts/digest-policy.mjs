@@ -7,9 +7,9 @@
 // through the shared medium resolver (lib/view-settings.mjs) with this plugin's
 // `medium` option (`--option`). Team files are read from the base commit,
 // never the working tree, so a checked-out pull request cannot configure its
-// own digest. The team file is docs/conventions/review-digest.yaml; the docs
-// block and the dot file are read only when it is absent. Prints one JSON object. Paths and labels from the pull request
-// are compared, never echoed.
+// own digest. The team file is docs/conventions/review-digest.yaml. Prints one
+// JSON object. Paths and labels from the pull request are compared, never
+// echoed.
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
 //                     [--policy off|offer|always] [--requested] [--option <medium>] < facts.json
@@ -37,14 +37,12 @@ export const DEFAULTS = Object.freeze({
 /** The config files themselves: a change to one always fires risk-path, whatever risk_paths says. */
 export const CONFIG_PATHS = Object.freeze([
   "docs/conventions/review-digest.yaml",
-  "docs/conventions/review-digest.md",
-  ".claude/review-digest.json",
   ".claude/review-digest.local.json",
   "docs/conventions/rendered-views.yaml",
   "docs/conventions/rendered-views.local.yaml",
   ".gitmodules",
 ]);
-/** The team file, validated by plugins/review/schemas/review-digest.schema.json. The docs block and the dot file are read only when it is absent. */
+/** The team file, validated by plugins/review/schemas/review-digest.schema.json. */
 const TEAM_YAML = "docs/conventions/review-digest.yaml";
 const YAML_PARSER = fileURLToPath(new URL("../../../lib/yaml-subset.awk", import.meta.url));
 const POLICIES = ["off", "offer", "always"];
@@ -122,27 +120,6 @@ function layerPaths(root, userFile, teamFiles, personalOverrideFile) {
   };
 }
 
-/** The one ```json config block in a docs convention file, or why there is none. */
-export function configBlock(markdown) {
-  const lines = markdown.split(/\r?\n/);
-  const found = [];
-  let fence = null;
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (fence) {
-      if (fence.config ? line === "```" : new RegExp(`^${fence.mark}${fence.mark[0]}*\\s*$`).test(line)) {
-        if (fence.config) found.push({ line: fence.line, body: lines.slice(fence.line, i).join("\n") });
-        fence = null;
-      }
-      continue;
-    }
-    const open = /^(`{3,}|~{3,})(.*)$/.exec(line);
-    if (open) fence = { mark: open[1], line: i + 1, config: line === "```json config" };
-  }
-  if (found.length > 1) return { error: `two config blocks (lines ${found.map((b) => b.line).join(" and ")})` };
-  return found.length ? { body: found[0].body } : { none: true };
-}
-
 function readJsonLayer(path, label, warnings) {
   let text;
   try {
@@ -202,42 +179,15 @@ export function parseYamlLayer(text, label, path, warnings) {
   return value;
 }
 
-/** The team layer as the base commit holds it: the YAML file, else the docs block, else the dot file. */
-function readTeamDigest(base, yamlPath, docsPath, dotPath, warnings) {
+/** The team layer as the base commit holds it: the YAML file only. */
+function readTeamDigest(base, yamlPath, warnings) {
   const yaml = base.read(yamlPath);
-  if (yaml !== null) {
-    const value = parseYamlLayer(yaml, "team", yamlPath, warnings);
-    return value ? { value, path: yamlPath } : null;
+  if (yaml === null) {
+    if (base.ref && existsSync(join(base.root, yamlPath))) warnings.push(`team ${yamlPath}: not on the base commit ${base.ref}; layer ignored`);
+    return null;
   }
-  const [docs, dot] = [base.read(docsPath), base.read(dotPath)];
-  if (docs === null && dot === null && base.ref) {
-    for (const p of [yamlPath, docsPath, dotPath]) {
-      if (existsSync(join(base.root, p))) warnings.push(`team ${p}: not on the base commit ${base.ref}; layer ignored`);
-    }
-  }
-  if (docs !== null) {
-    const block = configBlock(docs);
-    if (block.error) {
-      warnings.push(`team ${docsPath}: ${block.error}; layer ignored`);
-      return null;
-    }
-    if (!block.none) {
-      if (dot !== null) warnings.push(`team: both ${docsPath} and ${dotPath} exist; used ${docsPath}`);
-      try {
-        const value = JSON.parse(block.body || "{}");
-        if (value && typeof value === "object" && !Array.isArray(value)) return { value, path: docsPath };
-        warnings.push(`team ${docsPath}: config block is not a JSON object; layer ignored`);
-      } catch (error) {
-        warnings.push(`team ${docsPath}: ${error.message}; layer ignored`);
-      }
-      return null;
-    }
-  }
-  if (dot !== null) {
-    const value = parseJsonLayer(dot, "team", dotPath, warnings);
-    return value ? { value, path: dotPath } : null;
-  }
-  return null;
+  const value = parseYamlLayer(yaml, "team", yamlPath, warnings);
+  return value ? { value, path: yamlPath } : null;
 }
 
 /** The review-digest surface, per-key over the shipped defaults. */
@@ -248,7 +198,7 @@ export function resolveDigestConfig(baseOid) {
   const paths = layerPaths(
     findRoot(),
     "review-digest.json",
-    [TEAM_YAML, "docs/conventions/review-digest.md", ".claude/review-digest.json"],
+    [TEAM_YAML],
     ".claude/review-digest.local.json",
   );
   const layers = [];
@@ -259,7 +209,7 @@ export function resolveDigestConfig(baseOid) {
   if (paths.root) {
     if (paths.team.length) {
       const base = baseReader(paths.root, baseOid, warnings);
-      const team = readTeamDigest(base, TEAM_YAML, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
+      const team = readTeamDigest(base, TEAM_YAML, warnings);
       if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
     }
     if (paths.personalOverride && existsSync(paths.personalOverride) && personalOverrideApplies(paths.root, paths.personalOverride, warnings)) {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.2] - 2026-11-05
+
+### Changed
+
+- **The `setup` skill no longer carries its own exception for a home-directory or non-repository root.** Since 0.17.1, at such a root, `lib/check-retirements.sh` skips `kind: file` records and reports `skipped: root is not a repository`. `check` therefore reports no `attribution-r003` row for the user-global `~/.claude/attribution.json` there ([#13504](https://github.com/melodic-software/claude-code-plugins/issues/13504)).
+
 ## [0.17.1] - 2026-11-05
 
 ### Fixed

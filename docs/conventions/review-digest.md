@@ -51,10 +51,8 @@ Layers resolve per the
 an earlier one key by key:
 
 1. user-global `~/.claude/review-digest.json`
-2. team: `docs/conventions/review-digest.yaml`. For one release, when that file is absent from the
-   base commit, the `json config` block in `docs/conventions/review-digest.md` is read, else
-   `.claude/review-digest.json`. A present YAML file wins whole: an invalid value in it falls to the
-   layer below, never to the old location.
+2. team: `docs/conventions/review-digest.yaml`, the only team file. An invalid value in it falls to
+   the layer below.
 3. personal override `.claude/review-digest.local.json`
 
 The result names the layer that supplied each value (`team <commit>:<path>`, `user-global <path>`,
@@ -81,18 +79,3 @@ is told the opt-in: the review plugin's `medium` option set to `artifact`, which
 the visibility. A team `artifact` or `hosted` value is ignored with a notice: a team file never
 publishes. The session names claude.ai as the destination before it publishes. A reader who keeps
 digests on their machine sets the review plugin's `medium` option to `file`.
-
-The block below is this repository's old team location, kept until the cleanup slice under #5906
-removes it; the YAML file above wins while both exist. Both hold the shipped defaults, and a test holds
-them equal to each other and to the skill's own defaults.
-
-```json config
-{
-  "digest_policy": "offer",
-  "max_files": 5,
-  "max_changed_lines": 200,
-  "blast_radius": ["HIGH", "CRITICAL"],
-  "risk_paths": [".github/workflows/**", "**/hooks/**", "**/migrations/**"],
-  "opt_in_label": "explain-change"
-}
-```
