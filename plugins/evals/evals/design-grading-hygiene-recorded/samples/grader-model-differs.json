@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "## Criteria\n\n| Criterion | Target | Grader |\n|---|---|---|\n| Tone | >= 4 of 5 | LLM judge: Claude Opus, a different model from the Sonnet generator, verdict PASS/FAIL only |\n\nRe-run cost: the citation regex and word count are free; the tone judge is metered on every re-run."
+    },
+    {
+      "answer": "Grading hygiene: the tone check uses a judge from a different model family than the drafter (not Sonnet), and its verdict is constrained to a single score. Each re-run costs only the judge calls; the regex and word-count checks are free."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Criteria\n\n- Tone >= 4/5, LLM-graded.\n- Every reply cites a KB article ID (regex).\n- Under 180 words (word count).\n\nBaseline: tone 3.2, citation 71%."
+    }
+  ]
+}

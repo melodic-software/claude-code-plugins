@@ -258,5 +258,5 @@ phrased, never by inventing new claims during a fix pass.
 Last pass over each rewritten file, before the semantic-diff verification: read it asking "what
 still makes this read machine-written?" and fix what surfaces, whether or not a rule flagged
 it: a leftover "leverage", a triad that came back, a word from the judgment rows above, a
-paragraph with no verdict in it. Findings from this pass are reported like rubric findings
+paragraph with no verdict in it. The self-audit is one pass. Findings from this pass are reported like rubric findings
 (quoted text, catalog entry when one fits).

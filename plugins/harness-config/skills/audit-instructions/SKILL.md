@@ -403,7 +403,8 @@ count, planned and actual (lanes, Phase C verifiers, the B2 pass, and its verifi
 the ~20-dispatch confirmation was asked or, because the run carried `--unattended`, disclosed here in
 its place. It names the lane budget (tokens and the derived line figure), every plugin the partition
 split by skill and into how many lanes, any over-budget skill, and on a `--resume` how many lanes
-were reused and how many re-ran. Present findings
+were reused and how many re-ran. The target-model fail-loud stop is an invocation-time validation
+abort, not an interactive gate, since it prompts nobody and blocks nothing mid-run. Present findings
 as a table. Each row's identity is `(check, claim, sites)` per
 [reference/finding-identity.md](reference/finding-identity.md); presentation fields stay outside the
 hash. An I15 or I39 conflict is one finding with two sites and one Finding ID. **Finding ID** is the row's
