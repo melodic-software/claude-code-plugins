@@ -1,6 +1,6 @@
 ---
 description: "Production integration design whose Brief already records a 300 ms p95 performance requirement, a degraded-provider reliability requirement and a logging restriction: the first round designs to them as settled inputs and asks none of them again"
-tags: [design, quality-requirements, nfr, scaffold]
+tags: [design, quality-requirements, nfr, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
