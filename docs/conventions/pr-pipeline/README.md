@@ -3558,7 +3558,7 @@ with its default.
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
+the WIP cap check holds the run ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
 In pr-merge, a rate limit that stops any of `post-merge-dispatch`'s GitHub calls (its post-merge
@@ -3611,16 +3611,16 @@ the admission share, at or over the queued cap, or with a held PR past the alarm
 writes a warning annotation. Over the WIP cap or the held cap on or after `pause-from` it pauses runs: work-resolve-issue
 starts no run, work-unblock re-fires none, and the log and step summary carry one line
 `admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
-(a `::notice` annotation titled `admission paused`). When the open listing or the base config
-cannot be read, the lane keeps the last known pause: the status work-unblock's hourly sweep last
-saved to the Actions cache (key prefix `check-wip-cap-state-`) from reads that succeeded. Only a
-trusted trigger such as `schedule` can save a default-branch cache, so work-resolve-issue's
-pick-slot (`cache-mode: read`) only restores it. A kept pause names only `wip`, `held-cap` or
-`wip,held-cap`; any other saved reason counts as no saved state. A kept pause logs
-`admission paused: reason=<reason> (read-error, kept last state)`, unless a config that was read no
-longer pauses (`pause-from` cleared or in the future); with no saved state (none yet,
-or the cache evicted it), the check fails open and the run starts. Without a merged count the
-cap is `limits.wip-cap`. A held PR's age runs from when it opened.
+(a `::notice` annotation titled `admission paused`). When the open listing, the merged count or
+the base config cannot be read, or a search answers `incomplete_results: true`, the pause is
+unknown and the run holds (outage posture elements 2 and 3, `docs/outage-posture-audit.md`):
+`capped` is `true`, `pause_basis` is `unknown`, and the log and step summary carry one line
+`WIP cap hold: <what could not be read>, ...` (a `::notice` annotation titled `WIP cap hold`).
+pick-slot starts resolve-issue only on `capped` `false`, so a check that fails or sets nothing
+holds too, with the same notice from pick-slot's `Hold on an unknown WIP cap` step. The job ends
+green, and work-unblock's sweep re-fires the issue as a WIP cap skip, whose run reads again. No
+stored state decides the pause. work-unblock's own reads of the cap take `limits.wip-cap` when the
+merged count cannot be read. A held PR's age runs from when it opened.
 
 Queued work is the open `agent-ready` issues no open lane PR names, plus the held lane PRs. A lane
 PR names its issue on its first body line (`Closes #<n>` or `Refs: #<n>`, as report-outcome writes
@@ -3645,7 +3645,7 @@ unknown, not failed: admissions pause whether or not `pause-from` is set or reac
 and work-unblock's deferral log names that reason. A base config the check cannot read (a failed
 resolve-config import, as after a failed `npm ci` of its dependencies) leaves the caps unknown, so
 admissions pause the same way (`admission_basis` and `admission_reason` `config-unreadable`), with
-a `check-wip-cap` warning; the run pause keeps the last known state, as on any failed read. The queued cap itself still
+a `check-wip-cap` warning; the run holds, as on any failed read the pause depends on. The queued cap itself still
 pauses only on or after `pause-from`, and no run pause changes.
 The queued issues come from the repository issues listing (open `agent-ready` issues, oldest
 first), not the search index, whose results carry no recency guarantee. The listing also returns
@@ -3713,9 +3713,9 @@ count as queued work:
 | `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
-and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;
+and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause or hold;
 `admission-open` is `false` only while new admissions pause. A job that reads only `capped`
-(pick-slot, and work-unblock's state save) passes `reads: pause`: the check then makes just the
+(pick-slot) passes `reads: pause`: the check then makes just the
 open listing and the merged count, and leaves the admission fields null with `admission_basis`
 `not-read` (`search-incomplete` or `config-unreadable` when either applies).
 
@@ -3738,7 +3738,7 @@ open listing and the merged count, and leaves the admission fields null with `ad
 | `alert` | Any of the five. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
-| `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
+| `pause_basis` | `read` from this run's reads; `unknown` when a read the pause depends on failed, so the run holds. |
 | `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued`, `search-incomplete` or `config-unreadable` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
 | `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `config-unreadable` when the base config could not be read; otherwise `not-read` under `reads: pause`. |
 

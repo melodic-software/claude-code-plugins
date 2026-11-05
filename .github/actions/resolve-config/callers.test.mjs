@@ -1208,21 +1208,50 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
     assert.equal(evaluate(pick.if, context), runs, label);
     assert.equal(evaluate(resolve.if, context), runs, label);
   }
-  // At the WIP cap resolve-issue takes no slot; a cap check that failed or
-  // set nothing starts it.
+  // At the WIP cap resolve-issue takes no slot, and a cap check that failed or
+  // set nothing holds the same way (outage posture element 2): only `false`
+  // starts it, in each call that takes a slot.
   assert.equal(pick.outputs.capped, "${{ steps.wip.outputs.capped }}");
-  for (const [capped, runs] of [["true", false], ["false", true], ["", true]]) {
+  for (const [capped, runs] of [["true", false], ["false", true], ["", false], ["null", false]]) {
     const context = { "github.event.label.name": "agent-ready", "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": capped };
     assert.equal(evaluate(resolve.if, context), runs, `capped ${JSON.stringify(capped)}`);
   }
-  const wip = pick.steps.find((item) => item.id === "wip");
-  assert.equal(wip["continue-on-error"], true, "a failed cap check must start the run");
+  for (const id of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
+    assert.match(jobs[id].if, /needs\.pick-slot\.outputs\.capped == 'false'/, id);
+    assert.doesNotMatch(jobs[id].if, /capped != 'true'/, id);
+  }
   // The per-issue run group still dedupes: one agent-ready run per issue.
   assert.equal(
     concurrency.group,
     "work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}",
   );
   assert.equal(concurrency["cancel-in-progress"], false);
+});
+
+// Outage posture elements 2 and 3 (#12283): an unknown WIP cap holds the run
+// green with a notice, and the next run reads again; no stored pause decides.
+test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green with a notice, and no cached pause is read", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const pick = jobs["pick-slot"];
+  // The check fails green, so the job still ends green and work-unblock's
+  // sweep reads the run as a WIP cap skip and re-fires it; a step names the
+  // hold when the check could not.
+  const wip = pick.steps.find((item) => item.id === "wip");
+  assert.equal(wip["continue-on-error"], true, "a failed cap check holds green");
+  const hold = pick.steps.find((item) => item.name === "Hold on an unknown WIP cap");
+  assert.ok(pick.steps.indexOf(hold) > pick.steps.indexOf(wip), "the hold notice follows the check");
+  for (const [capped, runs] of [["", true], ["true", false], ["false", false]]) {
+    assert.equal(evaluate(hold.if, { "steps.wip.outputs.capped": capped }), runs, `hold notice on capped ${JSON.stringify(capped)}`);
+  }
+  assert.match(hold.run, /^echo "::notice title=WIP cap hold::/);
+  assert.equal(hold["continue-on-error"], undefined);
+  // No step in the job or the action restores or saves a stored pause.
+  const action = parse(read("../check-wip-cap/action.yml"));
+  for (const step of [...pick.steps, ...action.runs.steps]) {
+    assert.doesNotMatch(String(step.uses ?? ""), /^actions\/cache/, step.name);
+  }
+  assert.equal(action.inputs["save-state"], undefined);
+  assert.doesNotMatch(JSON.stringify(action), /check-wip-cap-state|WIP_STATE/);
 });
 
 // The run job's timeout is the issue size's (models.issue-dimensions), resolved
