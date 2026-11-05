@@ -20,12 +20,9 @@
 #      Not through parse-concern-value.sh: that reader needs bash, which this
 #      script never starts, and it strips a trailing slash, which would change
 #      a regex.
-#   2. For one release, a key that file lacks is read from the legacy surfaces:
-#      the flat-scalar neutral file (an explicit `## convention_source` pointer
-#      in `.claude/source-control.md`, else the well-known
-#      `docs/conventions/source-control/commit-convention.yml`), then the
-#      `## <key>` H2 of `.claude/source-control.md`.
-#   A team YAML file counts only while git tracks it.
+#   2. `docs/conventions/source-control/commit-convention.yml`, the flat-scalar
+#      folder-form file, for a key the team file lacks.
+#   Each file counts only while git tracks it.
 #
 # POSIX sh, so the commit-msg hook runs it with `sh`, needs no bash beside that
 # sh, and never starts a bash by name: on Windows that can be System32's WSL
@@ -93,11 +90,7 @@ readonly PR_DEFERRAL='Same as `subject_pattern`.'
 readonly TEAM_YAML_REL="docs/conventions/source-control.yaml"
 # The personal file beside it, read only where the team sets no subject_pattern.
 readonly PERSONAL_YAML_REL="docs/conventions/source-control.local.yaml"
-# The legacy markdown team file, read for one release.
-readonly LEGACY_MD_REL=".claude/source-control.md"
-# Well-known default path for the legacy neutral convention file. When the
-# markdown team file declares no explicit convention_source pointer, the
-# resolver probes this path; see the pointer-resolution block below.
+# The folder-form file, read for a key the team file lacks.
 readonly WELL_KNOWN_NEUTRAL="docs/conventions/source-control/commit-convention.yml"
 
 case "${1:-}" in
@@ -141,7 +134,6 @@ esac
 readonly YAML_PARSER="$self_dir/yaml-subset.awk"
 
 readonly TEAM_YAML="$repo_root/$TEAM_YAML_REL"
-readonly TEAM_FILE="$repo_root/$LEGACY_MD_REL"
 
 nl='
 '
@@ -154,30 +146,8 @@ bom="$(printf '\357\273\277')"
 # never inside `$( )`, so the exit reaches the caller; the others hand results
 # back in named variables or through `$( )`.
 
-# h2_value <file> <key>: first non-empty body line under `## <key>`,
-# CR-stripped. Empty when the section is absent or bodyless. Awk over sed:
-# needs section-state, not a line match.
-h2_value() {
-  [ -f "$1" ] || return 0
-  awk -v key="$2" '
-    BEGIN { in_section = 0 }
-    /^##[[:space:]]/ {
-      # A new H2 ends the target section.
-      hdr = $0; sub(/^##[[:space:]]+/, "", hdr); sub(/[[:space:]]+$/, "", hdr)
-      in_section = (hdr == key) ? 1 : 0
-      next
-    }
-    in_section {
-      line = $0; gsub(/\r/, "", line)
-      if (line ~ /^[[:space:]]*$/) next          # skip blank lines before the value
-      sub(/^[[:space:]]+/, "", line); sub(/[[:space:]]+$/, "", line)
-      print line; exit                            # first non-empty body line wins
-    }
-  ' "$1"
-}
-
 # yaml_scalar <key> <line>: sets yaml_v to the flat-scalar value of a `<key>:`
-# line from the legacy neutral YAML file: surrounding whitespace trimmed (a CRLF
+# line from the folder-form file: surrounding whitespace trimmed (a CRLF
 # line's CR included, since [:space:] holds CR), ONE pair of matching
 # surrounding quotes ('…' or "…") removed. No YAML quote-escape processing — the
 # one-sed extraction contract other consumers rely on can't either, so the seam
@@ -196,7 +166,7 @@ yaml_scalar() {
   esac
 }
 
-# The legacy neutral file's keys, read ONCE (read_neutral) with shell builtins:
+# The folder-form file's keys, read ONCE (read_neutral) with shell builtins:
 # the guard runs this resolver on every commit it judges, and a grep per key
 # lookup was most of its process cost. For each key, NEUTRAL_HAS_* is 1 when a
 # line starts `<key>:` at column 0 and NEUTRAL_* holds the first such line's
@@ -208,16 +178,15 @@ NEUTRAL_SUBJECT=""
 NEUTRAL_HAS_PR_TITLE=""
 NEUTRAL_PR_TITLE=""
 
-# read_neutral: fill the NEUTRAL_* values from NEUTRAL_FILE. An unreadable file
-# is a declared-but-broken pointer: it fails closed (exit 1) with a diagnostic,
-# like the sibling pointer checks, rather than falling back to the markdown H2.
-# Called at top level (through resolve_legacy) so the exit reaches the caller.
-# The -r test keeps a failed redirection from exiting the shell without the
-# diagnostic.
+# read_neutral: fill the NEUTRAL_* values from NEUTRAL_FILE. A tracked file it
+# cannot read fails closed (exit 1) with a diagnostic, never reads as no
+# convention. Called at top level (through resolve_neutral) so the exit reaches
+# the caller. The -r test keeps a failed redirection from exiting the shell
+# without the diagnostic.
 read_neutral() {
   [ -n "$NEUTRAL_FILE" ] || return 0
   if [ ! -r "$NEUTRAL_FILE" ]; then
-    printf '%s\n' "resolve-convention-pattern: cannot read convention_source file '$ptr'; enforcement disabled (fix the file's permissions)." >&2
+    printf '%s\n' "resolve-convention-pattern: cannot read $NEUTRAL_REL; enforcement disabled (fix the file's permissions)." >&2
     exit 1
   fi
   while IFS= read -r rn_line || [ -n "$rn_line" ]; do
@@ -295,7 +264,7 @@ in_repo_or_exit() {
 # team policy (or, if malformed, disable enforcement). git unavailable, or the
 # file untracked -> the file is not a layer. A tracked file the shared parser
 # rejects (a duplicate key included) disables enforcement with a diagnostic,
-# never a fallback to legacy values the migration retired. The records are read
+# never a fallback to the folder-form file. The records are read
 # once; every lookup below is shell builtins.
 #
 # One YAML file is loaded at a time: the team file here, and the personal file
@@ -381,8 +350,8 @@ yaml_bare_key() {
 # check_yaml_key <key>: a key the loaded file CARRIES must hold one value.
 # Present-but-empty (`subject_pattern: ''`, or `subject_pattern:` alone) or a
 # list or mapping in its place is a configuration error, not an omission —
-# falling back to a legacy value would enforce a stale pattern the migration
-# meant to retire.
+# falling back to the folder-form file would enforce a pattern the team file
+# meant to replace.
 check_yaml_key() {
   [ "$YAML_ACTIVE" -eq 1 ] || return 0
   yaml_lookup "$1"
@@ -409,86 +378,56 @@ check_yaml_dialect() {
 }
 check_yaml_dialect
 
-# --- Legacy surfaces, read for one release: the neutral file and the markdown ---
-# The markdown team file MAY declare `## convention_source` naming a
-# repo-relative flat-scalar YAML file (the tool-agnostic SSOT other consumers —
-# commit-msg hooks, CI — read with one sed). When declared, that file is
-# authoritative for the machine keys it carries; a key it omits falls back to
-# the markdown H2. The pointer is honored from the TEAM file only (same policy
-# floor — a gitignored personal override must not redirect the gate), and a
-# declared-but-broken pointer FAILS CLOSED to no-enforcement with a diagnostic
-# rather than silently re-reading markdown values migration may have retired.
+# --- The folder-form file: docs/conventions/source-control/commit-convention.yml ---
+# A flat-scalar YAML file that other consumers (commit-msg hooks, CI) read with
+# one sed. It supplies a key the team file lacks.
 #
-# resolve_legacy runs only for a key the team YAML lacks, so a broken pointer
-# never disables a key the YAML supplies. It sets NEUTRAL_FILE and NEUTRAL_REL
-# (empty when no neutral file applies) and exits 1 on a pointer it cannot honor:
-# an absolute or traversal path, a missing file, or a dialect other than
-# posix-ere.
+# POLICY FLOOR: the file counts ONLY while git tracks it. Nothing else tracked
+# opts the repository in, so honoring an untracked or gitignored file at this
+# path would let a generated/local artifact override team policy (or, if
+# malformed, disable enforcement) on one checkout. git unavailable, or the file
+# untracked -> the file is not a layer.
+#
+# resolve_neutral runs only for a key the team YAML lacks, so a broken
+# folder-form file never disables a key the YAML supplies. It sets NEUTRAL_FILE
+# and NEUTRAL_REL (empty when the file is not a layer) and exits 1 on a file it
+# cannot honor: a symlink, a path that leaves the repository, or a dialect
+# other than posix-ere.
 NEUTRAL_FILE=""
 NEUTRAL_REL=""
-LEGACY_READY=0
-resolve_legacy() {
-  LEGACY_READY=1
-  ptr="$(h2_value "$TEAM_FILE" "convention_source")"
-  # Precedence: an explicit convention_source (rung 1) always wins. Absent one,
-  # probe the well-known default path (rung 2) so the common case needs no
-  # pointer at all; absent that too, resolution falls through to the markdown H2
-  # (rung 3). The default is a plain repo-relative path and passes the same
-  # safety checks below as any pointer.
-  #
-  # POLICY FLOOR: the well-known rung activates ONLY when the file is
-  # git-TRACKED. Unlike an explicit convention_source — whose opt-in is a
-  # tracked edit to the team file — this rung has no other tracked signal, so
-  # honoring an untracked or gitignored file at this path would let a
-  # generated/local artifact silently override team policy (or, if malformed,
-  # disable enforcement) on one checkout. git unavailable, or the file untracked
-  # -> skip this rung and fall through to the markdown H2 (fail toward the prior
-  # behavior, never toward the hole).
-  if [ -z "$ptr" ] && [ -f "$repo_root/$WELL_KNOWN_NEUTRAL" ] &&
-    git -C "$repo_root" ls-files --error-unmatch -- "$WELL_KNOWN_NEUTRAL" >/dev/null 2>&1; then
-    ptr="$WELL_KNOWN_NEUTRAL"
+NEUTRAL_READY=0
+resolve_neutral() {
+  NEUTRAL_READY=1
+  if [ ! -f "$repo_root/$WELL_KNOWN_NEUTRAL" ] ||
+    ! git -C "$repo_root" ls-files --error-unmatch -- "$WELL_KNOWN_NEUTRAL" >/dev/null 2>&1; then
+    return 0
   fi
-  [ -n "$ptr" ] || return 0
-  case "$ptr" in
-  /* | [A-Za-z]:* | *\\* | *..*)
-    # Repo-relative forward-slash paths only: no absolute paths (POSIX or
-    # drive-lettered), no backslash separators, no `..` traversal — a tracked
-    # pointer must not read outside the repository the gate governs.
-    printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' is not a plain repo-relative path (absolute, backslash, or '..' segment); enforcement disabled." >&2
-    exit 1
-    ;;
-  *) ;; # plain repo-relative path — proceed
-  esac
-  NEUTRAL_FILE="$repo_root/$ptr"
-  NEUTRAL_REL="$ptr"
-  if [ ! -f "$NEUTRAL_FILE" ]; then
-    printf '%s\n' "resolve-convention-pattern: convention_source declares '$ptr' but no such file exists under the repo root; enforcement disabled (fix the pointer or restore the file)." >&2
-    exit 1
-  fi
-  in_repo_or_exit "$ptr" "convention_source"
+  NEUTRAL_FILE="$repo_root/$WELL_KNOWN_NEUTRAL"
+  NEUTRAL_REL="$WELL_KNOWN_NEUTRAL"
+  in_repo_or_exit "$WELL_KNOWN_NEUTRAL" "the folder-form file"
   read_neutral
   if [ -n "$NEUTRAL_DIALECT" ] && [ "$NEUTRAL_DIALECT" != "posix-ere" ]; then
-    printf '%s\n' "resolve-convention-pattern: convention_source file declares dialect '$NEUTRAL_DIALECT'; enforcement consumes posix-ere only — enforcement disabled." >&2
+    printf '%s\n' "resolve-convention-pattern: $NEUTRAL_REL declares dialect '$NEUTRAL_DIALECT'; enforcement consumes posix-ere only — enforcement disabled." >&2
     exit 1
   fi
 }
 
-# check_neutral_key <key>: a key the neutral file CARRIES must hold a value.
+# check_neutral_key <key>: a key the folder-form file CARRIES must hold a value.
 # Present-but-empty (`subject_pattern:` or `subject_pattern: ''`) is a
-# configuration error, not an omission — silently falling back to the markdown
-# H2 would enforce a stale pattern the migration meant to retire.
+# configuration error, not an omission — reading it as unset would let the
+# personal file stand in for a team key.
 check_neutral_key() {
   neutral_key "$1"
   [ -n "$nk_has" ] || return 0
   [ -n "$nk_v" ] && return 0
-  printf '%s\n' "resolve-convention-pattern: convention_source file carries '$1' with an empty value; a carried key must hold a value (delete the line to fall back to the markdown H2) — enforcement disabled." >&2
+  printf '%s\n' "resolve-convention-pattern: $NEUTRAL_REL carries '$1' with an empty value; a carried key must hold a value (delete the line to leave the key unset) — enforcement disabled." >&2
   exit 1
 }
 
 # team_value <key>: TV is the key's team value and TV_LAYER the repo-relative
 # file that supplied it, both empty when none does: the team YAML when it
-# carries the key; otherwise, once resolve_legacy has run, the neutral file when
-# it carries the key, then the markdown H2.
+# carries the key, otherwise, once resolve_neutral has run, the folder-form
+# file.
 team_value() {
   TV=""
   TV_LAYER=""
@@ -498,15 +437,12 @@ team_value() {
     TV_LAYER="$TEAM_YAML_REL"
     return 0
   fi
-  [ "$LEGACY_READY" -eq 1 ] || return 0
+  [ "$NEUTRAL_READY" -eq 1 ] || return 0
   neutral_key "$1"
   if [ -n "$nk_v" ]; then
     TV="$nk_v"
     TV_LAYER="$NEUTRAL_REL"
-    return 0
   fi
-  TV="$(h2_value "$TEAM_FILE" "$1")"
-  [ -z "$TV" ] || TV_LAYER="$LEGACY_MD_REL"
   return 0
 }
 
@@ -547,22 +483,22 @@ raw_value() {
 # Which keys this lookup reads: the key itself, and subject_pattern too when a
 # pr_title_pattern may defer to it (the YAML lacks pr_title_pattern, or carries
 # the deferral marker). Present-but-empty keys fail closed BEFORE resolution, on
-# whichever surface carries them; the legacy surfaces are resolved only when the
-# YAML lacks one of those keys.
+# whichever file carries them; the folder-form file is read only when the YAML
+# lacks one of those keys.
 check_yaml_key "$key"
 yaml_lookup "$key"
-need_legacy=0
-[ "$YAML_HAS" -eq 1 ] || need_legacy=1
+need_neutral=0
+[ "$YAML_HAS" -eq 1 ] || need_neutral=1
 need_subject=0
 if [ "$key" = "pr_title_pattern" ] &&
   { [ "$YAML_HAS" -eq 0 ] || [ "$YAML_VAL" = "$PR_DEFERRAL" ]; }; then
   need_subject=1
   check_yaml_key subject_pattern
   yaml_lookup subject_pattern
-  [ "$YAML_HAS" -eq 1 ] || need_legacy=1
+  [ "$YAML_HAS" -eq 1 ] || need_neutral=1
 fi
-if [ "$need_legacy" -eq 1 ]; then
-  resolve_legacy
+if [ "$need_neutral" -eq 1 ]; then
+  resolve_neutral
   yaml_lookup "$key"
   [ "$YAML_HAS" -eq 1 ] || check_neutral_key "$key"
   if [ "$need_subject" -eq 1 ]; then

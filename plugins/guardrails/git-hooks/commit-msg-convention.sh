@@ -8,8 +8,8 @@
 # guard sees only tool calls, while this git hook checks every commit in the
 # repository, from an editor, `git commit -F <file>`, an IDE or another agent.
 # It reads the team-tracked pattern (`subject_pattern` in
-# docs/conventions/source-control.yaml, or for one release the legacy
-# .claude/source-control.md surfaces) through the same resolver the guard uses,
+# docs/conventions/source-control.yaml, else the folder-form
+# docs/conventions/source-control/commit-convention.yml) through the same resolver the guard uses,
 # installed beside this script with its YAML parser as entry assets. Where the
 # team tracks none, the resolver falls back to the operator's own
 # `subject_pattern` in a git-ignored docs/conventions/source-control.local.yaml.
