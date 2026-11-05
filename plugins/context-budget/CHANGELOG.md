@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.0.4] - 2026-11-05
+
+### Fixed
+
+- `/context-budget:audit` names its `reference/...` files by their `${CLAUDE_PLUGIN_ROOT}/skills/audit/` path and reads them with the `Read` tool, never through Bash, Glob or Grep, and runs `lib/state-key.sh` as its own Bash call with nothing chained to it ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
+
 ## [1.0.3] - 2026-11-04
 
 ### Changed
