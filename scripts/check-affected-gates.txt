@@ -47,6 +47,7 @@ vendor-version-bump ci-only scripts/check-vendor-version-bump.sh --check-bump <b
 portability-lint ci-only scripts/check-skill-portability.sh <base>
 cant-fail-scan ci-only scripts/check-cant-fail-scan.sh <base>
 evals-quality ci-only bash plugins/skill-quality/scripts/check-evals-quality.sh <eval sets>
+eval-cases ci-only python3 plugins/evals/skills/validate/scripts/validate-cases.py <plugin eval dir>
 listing-budget-configured ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 precompute-compose ci-only whole-repo scanner, scripts/check-skill-precompute-compose.sh --all
 adr-numbers ci-only whole-repo scanner, scripts/check-adr-numbers.sh --check

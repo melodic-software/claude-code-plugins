@@ -3258,6 +3258,34 @@ jobs:
             fi
           fi
           bash plugins/skill-quality/scripts/check-evals-quality.sh "${sets[@]}"
+      # /evals:validate's static check of each `claude plugin eval` suite
+      # (the plugin's `experimental.evals` directory, else `evals/`): FAIL on
+      # what the binary rejects at load or a deterministic grader that
+      # disagrees with its samples. No model call. A diff validates each
+      # changed plugin's suite; the validator or this workflow changing, or no
+      # diff base, validates every suite.
+      - name: Validate every changed plugin's eval suite
+        id: eval_cases
+        continue-on-error: true
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh eval-cases {0}
+        run: |
+          plugins=(plugins/*/)
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
+            plugins .github/workflows/pr-require-checks.yml); then
+            if ! grep -qE '^(plugins/evals/skills/validate/scripts/|\.github/)' <<<"$changed"; then
+              mapfile -t plugins < <(sed -nE 's#^(plugins/[^/]+/).*#\1#p' <<<"$changed" | sort -u)
+            fi
+          fi
+          status=0
+          for dir in "${plugins[@]}"; do
+            [ -f "${dir}.claude-plugin/plugin.json" ] || continue
+            suite="$dir$(jq -r '.experimental.evals // "evals"' "${dir}.claude-plugin/plugin.json")"
+            [ -d "$suite" ] || continue
+            python3 plugins/evals/skills/validate/scripts/validate-cases.py "$suite" || status=1
+          done
+          exit "$status"
       - name: Report precompute git+multi-line violations (warn-only)
         id: precompute_compose
         continue-on-error: true
@@ -3367,6 +3395,7 @@ jobs:
             changed-skills=${{ steps.changed_skills.outcome }}
             evals-schema=${{ steps.evals_schema.outcome }}
             evals-quality=${{ steps.evals_quality.outcome }}
+            eval-cases=${{ steps.eval_cases.outcome }}
             precompute-compose=${{ steps.precompute_compose.outcome }}
             listing-budget-configured=${{ github.event_name != 'schedule' && 'success' || steps.listing_budget_configured.outcome }}
             portability-lint=${{ steps.portability.outcome }}
