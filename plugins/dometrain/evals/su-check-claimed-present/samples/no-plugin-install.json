@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude mcp list",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "listing servers"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin list",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "near miss: plugin list, not install"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin install dometrain@dometrain -s user",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "installs another plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin marketplace add Dometrain/mcp --scope user",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "adds Dometrain's marketplace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /ws && claude plugin i dometrain",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "short alias after cd"
+    }
+  ]
+}

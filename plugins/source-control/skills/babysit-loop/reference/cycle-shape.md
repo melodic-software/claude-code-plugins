@@ -120,7 +120,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    No work class decides eligibility: the item's `work-class:`
    label and any `Work-class: C<n>` body trailer are not read, so an item with no class
    partitions like any other. The one class that still holds a PR is C5, untrusted provenance:
-   the tests below and the merge gate's `work-class: untrusted-provenance` hold (`trust_refusal`).
+   the tests below and the merge gate's `provenance: untrusted` hold (`trust_refusal`).
    Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
    that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
    degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed

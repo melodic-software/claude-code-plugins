@@ -71,7 +71,7 @@ if [[ ! -f "$BASELINE" ]]; then
     echo "  ✓ Baseline seeded ($(wc -c <"$BASELINE") bytes)"
     exit 0
   fi
-  echo "  ↳ Drift: run with --refresh-baseline to seed the baseline"
+  echo "  ↳ Drift: no baseline yet (plugin maintainers, in a working clone: run with --refresh-baseline to seed it; see context/update.md)"
   exit 1
 fi
 
