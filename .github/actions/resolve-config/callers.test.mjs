@@ -9127,3 +9127,126 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
   assert.deepEqual(readPosted(t, read, listing([{ name: "Run the skill on the API key", conclusion: "success" }])).outputs, { "credit-stop": "false" });
   assert.deepEqual(readPosted(t, read, listing([], "skipped")).outputs, { "credit-stop": "false" });
 });
+
+// --- every model lane runs the three-leg chain (#13586) ---
+
+// A lane is the catalog lanes of one workflow and role that share an id once
+// the leg suffix is dropped: resolve-issue, resolve-issue-subscription,
+// resolve-issue-handoff and resolve-issue-fallback are one lane. Across its
+// jobs a lane runs on the role's API key, the role's subscription token and the
+// central fallback token: run-claude-cli's key, subscription and fallback legs.
+// A job that only asks whether a secret is set runs no leg on it, so the live
+// check counts the names a job reads past its presence checks.
+const LEG_SUFFIX = /-(?:subscription|fallback|handoff)$/;
+function laneLegs(catalog, launched = (lane) => lane.currentSecrets) {
+  const lanes = new Map();
+  for (const role of catalog.roles) {
+    for (const lane of role.lanes) {
+      const key = `${lane.workflow} ${role.id} ${lane.id.replace(LEG_SUFFIX, "")}`;
+      const entry = lanes.get(key) ?? { role, secrets: new Set() };
+      for (const name of launched(lane)) entry.secrets.add(name);
+      lanes.set(key, entry);
+    }
+  }
+  return lanes;
+}
+// Each lane that lacks a leg, with the legs it lacks.
+function missingLegs(catalog, launched) {
+  const missing = new Map();
+  for (const [key, { role, secrets }] of laneLegs(catalog, launched)) {
+    const lacks = [role.keySecret, role.tokenSecret, FALLBACK_SECRET].filter((name) => !secrets.has(name));
+    if (lacks.length) missing.set(key, lacks);
+  }
+  return missing;
+}
+const EVAL_REASON = "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval runs outside run-claude-cli, so it has no handoff to a fallback leg (#13586)";
+// Lanes that cannot take every leg yet (#13586): each names the exact legs it
+// waives and why. The test fails when an exempt lane lacks a leg its entry
+// does not name, or runs a leg its entry waives, so an entry never covers
+// more than it says and goes once its lane gains the leg.
+const LEG_EXEMPTIONS = {
+  "eval-browser-dispatch.yml maintenance eval": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "eval-hill-climb-pass.yml maintenance pass": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance pass-a": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance pass-a2": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance pass-b": { legs: ["key", "fallback"], reason: EVAL_REASON },
+  "maintenance-measure-skill-edit.yml maintenance propose": { legs: ["key"], reason: "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY) (#13586)" },
+  "post-merge-test-mutation.yml automations audit": {
+    legs: ["key", "fallback"],
+    reason: "it runs on claude-code-action, which takes no API key here (only run-claude-cli does) and has no handoff to a fallback leg; both wait on the audit's move to run-claude-cli (#13586)",
+  },
+};
+// A secret name's leg: the role's API key, its subscription token, or the
+// central fallback token.
+const legOf = (name) => (name === FALLBACK_SECRET ? "fallback" : /_CLAUDE_API_KEY$/.test(name) ? "key" : "subscription");
+// Every way the live lanes and the exemptions disagree.
+function exemptionProblems(missing, exemptions, lanes) {
+  const problems = [];
+  for (const [key, lacks] of missing) {
+    const waived = new Set(exemptions[key]?.legs ?? []);
+    for (const leg of lacks.map(legOf)) if (!waived.has(leg)) problems.push(`${key} lacks its ${leg} leg`);
+  }
+  for (const [key, { legs, reason }] of Object.entries(exemptions)) {
+    if (!lanes.has(key)) problems.push(`${key} is not a catalog lane`);
+    if (!/\(#13586\)$/.test(reason ?? "")) problems.push(`${key} names no reason and tracking issue`);
+    const lacking = new Set((missing.get(key) ?? []).map(legOf));
+    for (const leg of legs) if (!lacking.has(leg)) problems.push(`${key} now runs its ${leg} leg: drop it from the exemption`);
+  }
+  return problems;
+}
+
+test("every model lane runs the role's API key, its subscription token and the fallback token, or is exempt for exactly the legs it lacks", () => {
+  const jobs = claudeSecretJobs();
+  const launched = (lane) => claudeReads(withoutPresenceChecks(jobs.get(`${lane.workflow} ${lane.id}`)?.job ?? {}));
+  assert.deepEqual(exemptionProblems(missingLegs(fundingCatalog(), launched), LEG_EXEMPTIONS, laneLegs(fundingCatalog())), []);
+});
+
+test("an exemption waives only the legs it names", () => {
+  const lanes = new Map([["w.yml r run", {}]]);
+  const reason = "why (#13586)";
+  const missing = (...names) => new Map([["w.yml r run", names]]);
+  const exempt = (legs) => ({ "w.yml r run": { legs, reason } });
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), exempt(["key"]), lanes), [], "the named leg is waived");
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY", FALLBACK_SECRET), exempt(["key"]), lanes), ["w.yml r run lacks its fallback leg"], "a leg the entry does not name");
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), exempt(["key", "fallback"]), lanes), ["w.yml r run now runs its fallback leg: drop it from the exemption"], "a waived leg that runs");
+  assert.deepEqual(exemptionProblems(new Map(), exempt(["key"]), lanes), ["w.yml r run now runs its key leg: drop it from the exemption"], "a lane with every leg");
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_CODE_OAUTH_TOKEN"), {}, lanes), ["w.yml r run lacks its subscription leg"], "no entry at all");
+  assert.deepEqual(exemptionProblems(new Map(), { "w.yml r gone": { legs: [], reason } }, lanes), ["w.yml r gone is not a catalog lane"]);
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), { "w.yml r run": { legs: ["key"], reason: "why" } }, lanes), ["w.yml r run names no reason and tracking issue"]);
+});
+
+test("the leg check fails a lane that lacks a leg and passes one that has all three", () => {
+  const role = { id: "r", keySecret: "R_CLAUDE_API_KEY", tokenSecret: "R_CLAUDE_CODE_OAUTH_TOKEN" };
+  const lane = (id, currentSecrets) => ({ id, workflow: "w.yml", currentSecrets });
+  const catalog = (lanes) => ({ roles: [{ ...role, lanes }] });
+  assert.deepEqual(
+    [...missingLegs(catalog([lane("run", ["R_CLAUDE_API_KEY"]), lane("run-subscription", ["R_CLAUDE_CODE_OAUTH_TOKEN"]), lane("run-fallback", [FALLBACK_SECRET])]))],
+    [],
+    "three legs over three jobs",
+  );
+  assert.deepEqual([...missingLegs(catalog([lane("run", ["R_CLAUDE_API_KEY", "R_CLAUDE_CODE_OAUTH_TOKEN", FALLBACK_SECRET])]))], [], "three legs in one job");
+  assert.deepEqual(
+    [...missingLegs(catalog([lane("run", ["R_CLAUDE_API_KEY"]), lane("run-subscription", ["R_CLAUDE_CODE_OAUTH_TOKEN"])]))],
+    [["w.yml r run", [FALLBACK_SECRET]]],
+    "no fallback leg",
+  );
+  assert.deepEqual([...missingLegs(catalog([lane("run", ["R_CLAUDE_CODE_OAUTH_TOKEN"])]))], [["w.yml r run", ["R_CLAUDE_API_KEY", FALLBACK_SECRET]]], "subscription only");
+  // Another lane's legs never fill this one's.
+  assert.deepEqual(
+    [...missingLegs(catalog([lane("run", ["R_CLAUDE_API_KEY"]), lane("other-subscription", ["R_CLAUDE_CODE_OAUTH_TOKEN"]), lane("other-fallback", [FALLBACK_SECRET])]))].map(([key]) => key),
+    ["w.yml r run", "w.yml r other"],
+  );
+});
+
+test("a credential passed outside the launcher step is caught", () => {
+  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@0123456789012345678901234567890123456789";
+  const job = (steps, env) => ({ "runs-on": "ubuntu-24.04", ...(env ? { env } : {}), steps });
+  const doc = (j) => ({ jobs: { j } });
+  const stray = (d) => strayClaudeReaders({ doc: d, job: d.jobs.j }, "run-claude-cli");
+  const through = { name: "Run", uses: launcher, with: { "api-key": "${{ secrets.R_CLAUDE_API_KEY }}" } };
+  assert.deepEqual(stray(doc(job([through]))), [], "the launcher's own input");
+  assert.deepEqual(stray(doc(job([{ name: "Has key", env: { P: "${{ secrets.R_CLAUDE_API_KEY != '' }}" }, run: "true" }, through]))), [], "a presence check");
+  assert.deepEqual(stray(doc(job([{ name: "Call claude", env: { ANTHROPIC_API_KEY: "${{ secrets.R_CLAUDE_API_KEY }}" }, run: "claude -p hi" }]))), ["step Call claude"]);
+  assert.deepEqual(stray(doc(job([through], { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.R_CLAUDE_CODE_OAUTH_TOKEN }}" }))), ["job env"]);
+  assert.deepEqual(stray({ env: { K: "${{ secrets.R_CLAUDE_API_KEY }}" }, jobs: { j: job([through]) } }), ["workflow env"]);
+});
