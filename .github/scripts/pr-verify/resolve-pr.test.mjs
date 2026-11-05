@@ -528,6 +528,21 @@ test("a real defect still fails the resolver red", async () => {
   }
 });
 
+test("a whole job list that every re-read returns the same way stays red", async () => {
+  // No ci-status job, two of them, or the draft step listed with a conclusion
+  // that is neither success nor skipped: a re-read returns it unchanged.
+  const cases = {
+    "no ci-status job": [{ id: 9001, name: "lint", conclusion: "success", steps: [] }],
+    "two ci-status jobs": [9001, 9002].map((id) => ({ id, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: "skipped" }] })),
+    "the draft step failed": [{ id: 9001, name: "ci-status", conclusion: "failure", steps: [{ name: "Note a draft", conclusion: "failure" }] }],
+  };
+  for (const [name, jobs] of Object.entries(cases)) {
+    const error = await thrown(resolve({ jobs: { total_count: jobs.length, jobs } }));
+    assert.ok(!error.incomplete, name);
+    assertRed(closing(error), error);
+  }
+});
+
 // A list longer than the query reads (comments(first: 100), closing issues
 // first: 10, a jobs page of 100, another associatedPullRequests page) fails
 // every re-read the same way, so it stays red instead of holding unseen.

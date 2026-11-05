@@ -397,10 +397,15 @@ export async function draftRun(github, repository, runId, read) {
   const ci = jobs.filter((job) => job?.name === "ci-status");
   const steps = ci.length === 1 && Array.isArray(ci[0].steps) ? ci[0].steps.filter((step) => step?.name === DRAFT_STEP) : [];
   const conclusion = steps.length === 1 ? steps[0].conclusion : undefined;
-  if (conclusion !== "success" && conclusion !== "skipped") {
-    throw incomplete(`run ${runId}'s draft state could not be read: ci-status lists no conclusion for ${DRAFT_STEP}`);
+  if (conclusion === "success" || conclusion === "skipped") {
+    return conclusion === "success";
   }
-  return conclusion === "success";
+  const message = `run ${runId}'s draft state could not be read: ci-status lists no conclusion for ${DRAFT_STEP}`;
+  // Only steps listed empty or cut short (one ci-status job, the step absent)
+  // can come back whole on a re-read, so only that holds. No single ci-status
+  // job, or the step listed with another conclusion, reads the same every
+  // time, so it stays red rather than holding the head unverified unseen.
+  throw ci.length === 1 && steps.length === 0 ? incomplete(message) : new Error(message);
 }
 
 // For a counted FAIL's pr-verify run, whether it judged a checks run that
