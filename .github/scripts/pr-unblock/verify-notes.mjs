@@ -26,9 +26,10 @@
 // line, updated in place on a later FAIL, and the PR gets the
 // pr-verify-failed label, which ci-status holds in the merge queue. ci-status
 // reads that label once per merge group, so a PR already queued past that read
-// would still merge: one in the queue is dequeued too, under this job's
-// pull-requests: write token. A refused dequeue fails the job red, naming the
-// PR. No round starts. A PASS or PASS-NOTES at its head removes the label.
+// would still merge: one in the queue is dequeued too. This job's GITHUB_TOKEN
+// is refused that mutation, so a refused read or dequeue warns and the label
+// stays the hold (address-feedback.mjs leaveQueueOnHold). No round starts. A
+// PASS or PASS-NOTES at its head removes the label.
 //
 // A FAIL write-verdict.mjs recorded as withheld also holds the pull request
 // for a person (holdForCredential), in any state and at any head, apart from
@@ -58,7 +59,7 @@ import { pathToFileURL } from "node:url";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
-import { createGitHubApi, humanGatedLabelFrom, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, humanGatedLabelFrom, leaveQueueOnHold, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The label that holds a person's pull request after a FAIL (ci-status's
 // merge-queue label step reads the same name).
@@ -207,7 +208,7 @@ async function holdPersonPull({ api, pull, verdict, log }) {
   if (!(await hasLabel(api, pull, pr))) {
     await api.addLabels(pr, [FAILED_LABEL]);
   }
-  await leaveQueue({ api, pr, log });
+  await leaveQueueOnHold({ readQueueEntry: (n) => api.readQueueEntry(n), dequeuePull: (id) => api.dequeuePull(id), pr, label: FAILED_LABEL, log });
   log(`#${pr}: a person's pull request; the fail at ${head} is in its fail comment and the ${FAILED_LABEL} label holds it`);
 }
 
