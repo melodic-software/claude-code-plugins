@@ -47,7 +47,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=273
+EXPECTED_CASES=274
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
