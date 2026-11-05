@@ -303,7 +303,7 @@ for `destructive-bash-deny` or `sensitive-file-deny`. An ask rule prompts even i
 `dontAsk` auto-denies every call that would otherwise prompt
 ([permissions](https://code.claude.com/docs/en/permissions)), so the `git push` ask-gates stall or
 break a lane that pushes on its own. The signal the engine recognizes is `babysit_loop_merge`
-resolving above `human-only` in the team-tracked `.claude/source-control.md`: an explicit
+resolving above `human-only` in the team-tracked `docs/conventions/source-control.yaml`: an explicit
 `c2-mechanical`, `c3-autonomous`, or `full-autonomy`, or loop-lane (`babysit_loop_*`) keys with no
 merge key, which resolves to the `c2-mechanical` baseline. Only the team-tracked layer counts,
 because merge-rung raises bind from that layer alone (source-control's `config-resolution.md`).

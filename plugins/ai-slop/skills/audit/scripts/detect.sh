@@ -205,7 +205,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --- Config cascade (user-global -> team -> personal override; YAML, legacy JSON) -
+# --- Config cascade (user-global JSON -> team -> personal override YAML) --------
 
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [[ -z "$REPO_ROOT" ]]; then
@@ -222,20 +222,18 @@ CFG_LAYERS=()
 [[ -f "$USER_CFG" ]] && CFG_LAYERS+=("$USER_CFG")
 if [[ "$(config_root_classify "$REPO_ROOT")" == repo ]]; then
   # The team layer is <home>/ai-slop.yaml and the personal layer
-  # <home>/ai-slop.local.yaml (ADR 0075). The legacy .claude/ai-slop.json and
-  # .claude/ai-slop.local.json are read only when the YAML beside them is absent.
+  # <home>/ai-slop.local.yaml (ADR 0075).
   CONV_HOME="docs/conventions"
   if _home="$(bash "$SCRIPT_DIR/../../../lib/resolve-convention-home.sh" --root "$REPO_ROOT" 2>/dev/null)" && [[ -n "$_home" ]]; then
     CONV_HOME="$_home"
   fi
   for _name in ai-slop ai-slop.local; do
     _cfg="$REPO_ROOT/$CONV_HOME/$_name.yaml"
-    [[ -f "$_cfg" ]] || _cfg="$REPO_ROOT/.claude/$_name.json"
     [[ -f "$_cfg" ]] && ! config_root_paths_same "$_cfg" "$USER_CFG" && CFG_LAYERS+=("$_cfg")
   done
 fi
 
-# jq reads the legacy JSON layers; the YAML layers need no jq.
+# jq reads the user-global JSON layer; the YAML layers need no jq.
 HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
 HAVE_JSON_LAYER=0

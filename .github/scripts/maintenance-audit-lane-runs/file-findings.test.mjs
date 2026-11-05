@@ -329,6 +329,18 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   assert.equal(s.issues.length, 1);
 });
 
+test("a rewrite mirrors its agent-ready removal into the Work status field from the labels the listing read", async () => {
+  const log = [];
+  const call = async (method) => (log.push(method), {});
+  const mirrorStatus = async (number, change) => log.push(["MIRROR", number, change]);
+  const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
+  // The listing's REST label objects, as listSweepIssues read them.
+  const existing = [{ number: 100, labels: [{ name: "agent-ready" }, { name: "source: lane-sweep" }] }];
+  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", existing, mirrorStatus, wait: async () => {} });
+  assert.deepEqual(done.updated, [100]);
+  assert.deepEqual(log, ["POST", "DELETE", ["MIRROR", 100, { had: existing[0].labels, remove: ["agent-ready"] }], "PATCH"]);
+});
+
 test("a sweep missing a unit's findings carries the earlier entries over", async () => {
   const s = store();
   const a = { fingerprint: FP, finding: finding() };

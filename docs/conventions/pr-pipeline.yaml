@@ -601,6 +601,21 @@ activities:
     reads-untrusted: true
     # The closed issue; the hourly sweep takes none and lists recent closes.
     inputs: [issue]
+  sync-status:
+    # When a status label (models.issue-status) is added to or removed from an
+    # issue, and hourly for every open issue, writes the state the issue's
+    # labels collapse to into its Work status field, unless a listed human or
+    # the lanes App already set it to that state. The labels stay the source
+    # of truth. A script, no model.
+    # .github/workflows/work-unblock.yml runs it.
+    script: .github/scripts/work-unblock/sync-status.mjs
+    # Writes the Work status issue field; nothing else.
+    effect: mutate-tracker
+    gating: advisory
+    # Reads only label names and field values, no free text.
+    reads-untrusted: false
+    # The labeled issue; the hourly sweep takes none and lists open issues.
+    inputs: [issue]
   apply-verdict:
     # After intake triage, writes its verdict as the lanes App: the work-class
     # label, the Size, Complexity and Uncertainty issue fields, and
@@ -833,6 +848,9 @@ lanes:
     stage: work
     slots:
       - activity: label-unblocked
+      # Started by a status label added or removed, and by the hourly sweep,
+      # in its own job of work-unblock.yml.
+      - activity: sync-status
   # Started by intake triage on an opened issue or its dispatch
   # (.github/workflows/intake-triage.yml).
   intake-triage:

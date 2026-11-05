@@ -13,7 +13,7 @@ Moved to [this section](../../contracts/commit-convention/README.md#the-parse-co
 
 ## The neutral convention SSOT (convention_source)
 
-Moved to [this section](../../contracts/commit-convention/README.md#the-neutral-convention-ssot-convention_source).
+Moved to [this section](../../contracts/commit-convention/README.md#the-folder-form-convention-file).
 
 ## Two governing contracts
 

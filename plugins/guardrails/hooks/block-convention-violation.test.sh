@@ -16,16 +16,27 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# Isolated repo root with an optional team convention body. A real git repo so
-# repo-root resolution and the sequencer probe answer for THIS directory, not
-# the enclosing marketplace repo.
+# Isolated repo root with an optional team convention body, written to the
+# tracked docs/conventions/source-control.yaml. A real git repo so repo-root
+# resolution and the sequencer probe answer for THIS directory, not the
+# enclosing marketplace repo.
 newrepo() {
   local d
   d="$(mktemp -d "$TEST_TMPDIR/repo.XXXXXX")"
   git -C "$d" init -q -b main
-  mkdir -p "$d/.claude"
-  [[ -n "${1:-}" ]] && printf '%s\n' "$1" >"$d/.claude/source-control.md"
+  if [[ -n "${1:-}" ]]; then
+    mkdir -p "$d/docs/conventions"
+    printf '%s\n' "$1" >"$d/docs/conventions/source-control.yaml"
+    git -C "$d" add docs/conventions/source-control.yaml
+  fi
   printf '%s' "$d"
+}
+# addfolder <repo> <body>: write the folder-form
+# docs/conventions/source-control/commit-convention.yml and track it.
+addfolder() {
+  mkdir -p "$1/docs/conventions/source-control"
+  printf '%s\n' "$2" >"$1/docs/conventions/source-control/commit-convention.yml"
+  git -C "$1" add docs/conventions/source-control/commit-convention.yml
 }
 
 GUARD_UNDER_TEST="$HOOK"
@@ -37,9 +48,9 @@ run() {
     -- "CLAUDE_PROJECT_DIR=$repo"
 }
 
-TICKET=$'## subject_pattern\n^[A-Z]+-[0-9]+: .+\n\n## pr_title_pattern\nSame as `subject_pattern`.'
-CC=$'## subject_pattern\nConventional Commits'
-PCRE=$'## subject_pattern\n^(?:feat|fix): .+'
+TICKET=$'subject_pattern: \047^[A-Z]+-[0-9]+: .+\047\npr_title_pattern: "Same as `subject_pattern`."'
+CC='subject_pattern: Conventional Commits'
+PCRE=$'subject_pattern: \047^(?:feat|fix): .+\047'
 
 GOOD_COMMIT=$'git commit -F - --cleanup=verbatim <<\'EOF\'\nABC-123: do the thing\n\nBody line.\nEOF'
 BAD_COMMIT=$'git commit -F - --cleanup=verbatim <<\'EOF\'\njunk subject\n\nBody line.\nEOF'
@@ -47,10 +58,15 @@ BAD_COMMIT=$'git commit -F - --cleanup=verbatim <<\'EOF\'\njunk subject\n\nBody 
 # --- unresolved -> no enforcement ---------------------------------------------
 r="$(newrepo "")"
 run "no team file: violating subject allowed" "$r" "$BAD_COMMIT" 0
-r="$(newrepo $'## trailer_policy\nnone')"
+r="$(newrepo 'trailer_policy: none')"
 run "key absent: violating subject allowed" "$r" "$BAD_COMMIT" 0
 r="$(newrepo "$PCRE")"
 run "PCRE pattern: non-enforceable, allowed" "$r" "$BAD_COMMIT" 0
+r="$(newrepo "")"
+mkdir -p "$r/.claude"
+printf '%s\n' $'## subject_pattern\n^[A-Z]+-[0-9]+: .+' >"$r/.claude/source-control.md"
+git -C "$r" add .claude/source-control.md
+run "retired markdown: a tracked .claude/source-control.md pattern is not enforced" "$r" "$BAD_COMMIT" 0
 
 # --- subject enforcement -------------------------------------------------------
 r="$(newrepo "$TICKET")"
@@ -95,15 +111,12 @@ run "CC keyword: conforming feat: subject allowed" "$r" \
   $'git commit -F - <<\'EOF\'\nfeat: add thing\nEOF' 0
 run "CC keyword: violating subject blocked" "$r" "$BAD_COMMIT" 2
 
-# --- the team YAML outranks the legacy markdown --------------------------------
-r="$(newrepo "$CC")"
-mkdir -p "$r/docs/conventions"
-printf '%s\n' "subject_pattern: '^[A-Z]+-[0-9]+: .+'" $'pr_title_pattern: "Same as `subject_pattern`."' \
-  >"$r/docs/conventions/source-control.yaml"
-git -C "$r" add docs/conventions/source-control.yaml
+# --- the team YAML outranks the folder form ------------------------------------
+r="$(newrepo "$TICKET")"
+addfolder "$r" "$CC"
 run "team yaml: conforming subject allowed" "$r" "$GOOD_COMMIT" 0
 run "team yaml: violating subject blocked" "$r" "$BAD_COMMIT" 2
-run "team yaml: a subject only the legacy markdown allows is blocked" "$r" \
+run "team yaml: a subject only the folder form allows is blocked" "$r" \
   $'git commit -F - <<\'EOF\'\nfeat: add thing\nEOF' 2
 run "team yaml: conforming PR title allowed" "$r" \
   "gh pr create --title 'ABC-9: ship it' --body-file b.md" 0
@@ -111,7 +124,7 @@ run "team yaml: violating PR title blocked" "$r" \
   "gh pr create --title 'junk title' --body-file b.md" 2
 
 # --- the personal layer: only where the team tracks no subject_pattern --------
-# personal_repo [team markdown body]: a repo whose operator keeps a git-ignored
+# personal_repo [team yaml body]: a repo whose operator keeps a git-ignored
 # docs/conventions/source-control.local.yaml holding a ticket pattern.
 # core.excludesFile names a missing file, so no global ignore rule decides a case.
 personal_repo() {
@@ -167,7 +180,7 @@ run "gh pr create: violating --title= blocked" "$r" \
   "gh pr create --title='junk title'" 2
 run "gh pr create: no --title never blocked" "$r" "gh pr create --web" 0
 run "gh pr edit --title out of scope, allowed" "$r" "gh pr edit 12 --title 'junk'" 0
-r="$(newrepo $'## subject_pattern\n^[A-Z]+-[0-9]+: .+')"
+r="$(newrepo $'subject_pattern: \047^[A-Z]+-[0-9]+: .+\047')"
 run "no pr_title_pattern key: title not gated" "$r" "gh pr create --title 'junk'" 0
 
 # --- PowerShell canonical here-string form ------------------------------------
@@ -281,8 +294,9 @@ subrepo() {
   local d="$1/$2"
   mkdir -p "$d"
   git -C "$d" init -q -b main
-  mkdir -p "$d/.claude"
-  printf '%s\n' "$TICKET" >"$d/.claude/source-control.md"
+  mkdir -p "$d/docs/conventions"
+  printf '%s\n' "$TICKET" >"$d/docs/conventions/source-control.yaml"
+  git -C "$d" add docs/conventions/source-control.yaml
   printf '%s' "$d"
 }
 
@@ -461,11 +475,11 @@ assert_eq "cache: entry carries its terminator" "END" "$(tail -n 1 "$CACHE_FILE"
 # Every dependency the resolver reads is recorded with its existence at warm
 # time, which is what lets a later deletion or appearance read as a miss.
 assert_contains "cache: entry records the team file as present" "$(cat "$CACHE_FILE")" \
-  "DEP 1 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/.claude/source-control.md"
+  "DEP 1 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control.yaml"
 assert_contains "cache: entry records the absent well-known file" "$(cat "$CACHE_FILE")" \
   "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control/commit-convention.yml"
-assert_contains "cache: entry records the absent team yaml" "$(cat "$CACHE_FILE")" \
-  "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control.yaml"
+assert_absent "cache: entry records no retired markdown file" "$(cat "$CACHE_FILE")" \
+  "/.claude/source-control.md"
 assert_contains "cache: entry records the absent personal file" "$(cat "$CACHE_FILE")" \
   "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control.local.yaml"
 
@@ -495,8 +509,8 @@ assert_eq "cache: a warm run forks the resolver zero times" 0 "$(wc -l <"$CB_LOG
 #    the one enforced, proven by a subject that the OLD pattern rejected and the
 #    NEW one accepts. `touch -d` rather than a bare write: two writes inside one
 #    filesystem timestamp tick would not move the mtime at all.
-printf '%s\n' "$CC" >"$r/.claude/source-control.md"
-touch -d '+1 minute' "$r/.claude/source-control.md"
+printf '%s\n' "$CC" >"$r/docs/conventions/source-control.yaml"
+touch -d '+1 minute' "$r/docs/conventions/source-control.yaml"
 : >"$CB_LOG"
 CONV_SUBJECT=$'git commit -F - <<\'EOF\'\nfeat: a conventional-commits subject\nEOF\n'
 json=$(jq -n --arg c "$CONV_SUBJECT" --arg d "$r" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
@@ -543,7 +557,7 @@ pd4="$TEST_TMPDIR/pdata-gone"
 rm -rf "$pd4"
 cache_run "$r4" "$pd4" "$VIOLATING"
 assert_exit "cache: warmed while the team file exists (blocks)" 2 "$CACHE_RC"
-rm -f "$r4/.claude/source-control.md"
+rm -f "$r4/docs/conventions/source-control.yaml"
 : >"$CB_LOG"
 json=$(jq -n --arg c "$VIOLATING" --arg d "$r4" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
 gone_rc=0
@@ -558,13 +572,14 @@ fi
 
 # 8. A dependency that APPEARS invalidates, even with an mtime OLDER than the
 #    cache (a restore from an archive, or `cp -p`), where `-nt` alone would
-#    still read fresh. The tracked well-known YAML outranks the markdown H2, so
-#    once it exists the pattern it carries is the one enforced.
-r5="$(newrepo "$TICKET")"
+#    still read fresh. The repository tracks no pattern when the cache warms, so
+#    once the tracked folder-form file exists the pattern it carries is the one
+#    enforced.
+r5="$(newrepo "")"
 pd5="$TEST_TMPDIR/pdata-appear"
 rm -rf "$pd5"
 cache_run "$r5" "$pd5" "$CONFORMING"
-assert_exit "cache: warmed with the markdown pattern (ticket subject allowed)" 0 "$CACHE_RC"
+assert_exit "cache: warmed with no pattern (ticket subject allowed)" 0 "$CACHE_RC"
 mkdir -p "$r5/docs/conventions/source-control"
 printf 'subject_pattern: "^(feat|fix): .+"\n' >"$r5/docs/conventions/source-control/commit-convention.yml"
 touch -d '1 minute ago' "$r5/docs/conventions/source-control/commit-convention.yml"
@@ -584,12 +599,13 @@ cache_run "$r5" "$pd5" "$CONV_SUBJECT"
 assert_exit "cache: the appeared YAML's pattern is what is served warm" 0 "$CACHE_RC"
 
 # 9. The team YAML is a dependency too: once it appears, tracked, its pattern
-#    outranks the markdown H2 the cache was warmed with.
-r6="$(newrepo "$TICKET")"
+#    outranks the folder-form pattern the cache was warmed with.
+r6="$(newrepo "")"
+addfolder "$r6" "$TICKET"
 pd6="$TEST_TMPDIR/pdata-team-yaml"
 rm -rf "$pd6"
 cache_run "$r6" "$pd6" "$CONFORMING"
-assert_exit "cache: warmed with the markdown pattern before the team yaml exists" 0 "$CACHE_RC"
+assert_exit "cache: warmed with the folder-form pattern before the team yaml exists" 0 "$CACHE_RC"
 mkdir -p "$r6/docs/conventions"
 printf 'subject_pattern: "^(feat|fix): .+"\n' >"$r6/docs/conventions/source-control.yaml"
 touch -d '1 minute ago' "$r6/docs/conventions/source-control.yaml"

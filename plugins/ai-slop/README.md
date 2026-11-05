@@ -60,8 +60,8 @@ The team layer is `docs/conventions/ai-slop.yaml` and the personal layer is
 [`schemas/ai-slop.schema.json`](schemas/ai-slop.schema.json) and resolved per the config-cascade
 convention (user-global, team, personal; later layers refine earlier ones per key). The convention
 home is the one the repository binds in its instruction file, `docs/conventions` by default. The
-older JSON files (the same names with a `.json` extension, under `.claude/`) are read only when
-the YAML beside them is absent, for one release; `/ai-slop:setup` writes the YAML.
+audit does not read the older JSON files (the same names with a `.json` extension, under
+`.claude/`); `/ai-slop:setup` writes the YAML and offers to carry an old team file's values into it.
 
 ```yaml
 excluded_paths: ["docs/legacy/**"]

@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.10] - 2026-11-05
+
+### Changed
+
+- `changelog`'s native-drift record no longer names this repository's retired `.claude/bugs.md` among the bugs team files; `docs/conventions/bugs.yaml` is the only one.
+
 ## [8.4.9] - 2026-11-04
 
 ### Changed
