@@ -72,7 +72,7 @@ Enforcement, so the rule is not merely written down:
   the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` and
   `WIT_HUMAN_FLOOR_PROVENANCE_LABELS` in
   [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh), so a
-  `provenance: signal` item is dropped whatever its `work-class:` label).
+  `provenance: untrusted` or `provenance: signal` item is dropped whatever its `work-class:` label).
   Without that exclusion the contradictory item stays frontier-available, so each lane
   instance in turn claims it, hits the admission gate's provenance hold, and escalates, burning a
   worker every pass while the item never moves.

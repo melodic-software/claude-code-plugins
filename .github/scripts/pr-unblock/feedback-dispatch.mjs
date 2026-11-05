@@ -786,6 +786,9 @@ export async function dispatchFeedback({
       // round resolves that FAIL's notes too (address-feedback.mjs select).
       ...(passOnly && supersededAtHead === true ? { "verify-superseded-head": head } : {}),
       ...(earlierFail.length > 0 ? { "verify-earlier-fail-heads": earlierFail.join(" ") } : {}),
+      // A person's relayed reply leaves resolve-feedback-threads nothing to
+      // resolve, so pr-unblock.yml starts no such job for it.
+      ...(relayed ? { "upstream-relay": "true" } : {}),
     },
   };
   const send = async () => {
