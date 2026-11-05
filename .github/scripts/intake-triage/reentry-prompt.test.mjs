@@ -20,7 +20,7 @@ test("a question the recorded decision settled is never asked or flagged again, 
 test("only an intent question as ESCALATION defines it stays open after a decision, including one later text raises", () => {
   assert.match(
     REENTRY,
-    /Treat as open too only an intent question, as ESCALATION defines one, that the decision leaves or text written after it raises: an outcome or done-when still not exact \(such as a term the decision uses but does not define\) or a primary-design choice still unpicked\./,
+    /Treat as open too only an intent question, as ESCALATION defines one, that the decision leaves open or text written after it raises: an outcome or done-when still not exact \(such as a term the decision uses but does not define\) or a primary-design choice still unpicked\./,
   );
 });
 

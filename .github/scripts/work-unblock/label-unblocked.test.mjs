@@ -12,7 +12,6 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import * as admitModule from "../intake-triage/admit.mjs";
 import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_DONE, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -40,9 +39,8 @@ import {
 // then the visible reason line and work-unblock's stop-reason marker.
 const heldBody = (reasons, code) => `${ADMIT_MARKER}\n${refusalText(reasons)}\n\nReason: \`${code}\`\n<!-- stop-reason lane=work-unblock reason=${code} -->`;
 // The reason decide() gives a security hold (an unlisted author, a gained
-// security area): `security` once decide names its holds' reasons
-// (admit.mjs HOLD_ORDER), else the fail-closed `intent`.
-const DECIDE_SECURITY = "HOLD_ORDER" in admitModule ? "security" : "intent";
+// security area).
+const DECIDE_SECURITY = "security";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { parseReason } from "../lib/stop-reason.mjs";
 import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";

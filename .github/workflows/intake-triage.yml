@@ -421,7 +421,7 @@ jobs:
            the decision. One the decision answers, calls no owner question, defers or leaves to the
            issue lane is settled: never ask it again or flag intent for it, whatever an earlier
            verdict flagged. Treat as open too only an intent question, as ESCALATION defines one,
-           that the decision leaves or text written after it raises: an outcome or done-when still
+           that the decision leaves open or text written after it raises: an outcome or done-when still
            not exact (such as a term the decision uses but does not define) or a primary-design
            choice still unpicked. This settles intent only: COST, the security rules above and (d)
            still flag as written.
