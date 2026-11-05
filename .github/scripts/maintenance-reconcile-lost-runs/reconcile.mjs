@@ -45,9 +45,11 @@
 //   nobody touched since then. A spec can change again after the re-run's
 //   pass, so a passed run is re-run at each attempt below
 //   RECONCILER_ATTEMPT_CAP, each re-run recorded at the attempt it starts;
-//   one at the cap is named for a person. An edit or label later starts a new
+//   one at the cap is named for a person. A run past attempt 1 is taken only
+//   once a pass started after its attempt did, so it is not re-run again
+//   while pr-verify still judges it. An edit or label later starts a new
 //   attempt-1 run.
-// - Too old: the same passed run, inside GitHub's re-run window, on a pull
+// - Too old: the same passed run, at attempt 1 only, inside GitHub's re-run window, on a pull
 //   request created more than TOO_OLD_DAYS ago whose head has no counted
 //   verdict (its pass expired: resolve-pr's `ok`). The gate refuses it
 //   `verify:too-old` until a fresh pass at the head; the recorded re-run
@@ -564,7 +566,7 @@ const lostNow = (item, r, since) => {
     return isStoppedVerdict(r, since);
   }
   if (item.kind === "spec" || item.kind === "too-old") {
-    return isPassedChecks(r) && belowCap(r) && r.run_attempt === item.attempt;
+    return isPassedChecks(r) && belowCap(r) && r.run_attempt === item.attempt && (item.kind === "spec" || r.run_attempt === 1);
   }
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
 };
@@ -1047,7 +1049,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
         const earliest = Math.min(...own.filter((r) => RECORDED_UPSTREAMS.has(r.path)).map((r) => Date.parse(r.created_at)));
         passed.push({ pull, checks, starts: [Number.isNaN(earliest) ? null : new Date(earliest).toISOString()] });
-        if (now - Date.parse(pull.created_at) > TOO_OLD_DAYS * 86_400_000 && now - Date.parse(checks.created_at) < RERUN_WINDOW_DAYS * 86_400_000) {
+        // Too old takes a first attempt only: its "no counted verdict" also
+        // holds while pr-verify still judges a re-run attempt, which it could
+        // not tell from a verdict that never came.
+        if (
+          checks.run_attempt === 1 &&
+          now - Date.parse(pull.created_at) > TOO_OLD_DAYS * 86_400_000 &&
+          now - Date.parse(checks.created_at) < RERUN_WINDOW_DAYS * 86_400_000
+        ) {
           tooOld.push({ pull, checks });
         }
       }
@@ -1102,7 +1111,15 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const reread = [];
   await readPasses(moved.filter((c) => c.carried), reread, new Map());
   // Only a candidate whose spec moved after its pass gets resolve-pr's full read.
-  for (const { pull, checks } of [...moved.filter((c) => !c.carried), ...(await prefilterSpec(call, repo, reread))]) {
+  for (const { pull, checks, starts } of [...moved.filter((c) => !c.carried), ...(await prefilterSpec(call, repo, reread))]) {
+    // A re-run attempt is judged by the pr-verify run its completion starts;
+    // until that run's pass lands, the old passes still read spec-changed.
+    // So a checks run past attempt 1 is taken only once a pass started after
+    // its attempt did, and none is re-run again while that judgment runs.
+    if (checks.run_attempt > 1 && !starts.some((s) => Date.parse(s) > Date.parse(checks.run_started_at))) {
+      say(`#${pull.number}: run ${checks.id} (${checks.path}) attempt ${checks.run_attempt} has no pass since it started; waiting for pr-verify's verdict on it`);
+      continue;
+    }
     try {
       if ((await judgeSpec(checks.id)).reason === "spec-changed") {
         if (!belowCap(checks)) {
@@ -1120,18 +1137,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   }
   // A pull request past TOO_OLD_DAYS whose head has no counted verdict (an
   // expired pass): the gate refuses it `verify:too-old` until a fresh pass at
-  // the head, so its passed checks run is re-run, recorded, below the cap, and
+  // the head, so its passed checks run is re-run once, at attempt 1, recorded, and
   // pr-verify judges the head (resolve-pr's `ok`). A head a spec re-run
   // already takes is skipped.
   const specPrs = new Set(ready.flat().filter((item) => item.kind === "spec").map((item) => item.pr));
   for (const { pull, checks } of tooOld.filter(({ pull }) => !specPrs.has(pull.number))) {
     try {
       if ((await judgeSpec(checks.id)).reason === "ok") {
-        if (!belowCap(checks)) {
-          say(atCap(pull, checks, `it is past ${TOO_OLD_DAYS} days and its head has no verdict`));
-          continue;
-        }
-        ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: checks.run_attempt, head: pull.head.sha })]);
+        ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
       }
     } catch (error) {
       if (error instanceof RateLimited) {
