@@ -239,10 +239,8 @@ else
       wwant=$(old_win "$q") || continue
       rc=0
       out=$(
-        rdt_win_to got "$q"
-        r=$?
+        rdt_win_to got "$q" || exit 1
         printf '|%s|%s' "$got" "$PWD"
-        exit "$r"
       ) || rc=$?
       ((rc == 0)) || continue
       [[ "$out" == '|'* ]] || no "win writes nothing to stdout: $q" "[$out]"
