@@ -147,6 +147,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --help
 linked worktree, a `.git/` path resolves under `git rev-parse --git-common-dir`, where git keeps
 the files every worktree shares, such as hooks: `.git/hooks/x` is `<git-common-dir>/hooks/x`.
 
+**A `kind: file` record needs a repository root.** When the resolved root is `$HOME`, or has no
+`.git` and is not inside a git work tree, the helper does not evaluate `kind: file` records. A
+`.git` at the root counts as a repository even when git is missing or refuses the repository. There a `.claude/<name>.json` path names the live user-global layer,
+not a retired team file. Each such record is reported on stderr as
+`<id>: skipped: root is not a repository`, writes no row, and `--clean` of it is exit 2. `dir` and
+`line` records are evaluated as usual.
+
 **Detection output.** One TSV row per leftover on stdout, a human summary on stderr:
 
 ```text
@@ -157,9 +164,9 @@ id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 
 | Exit | Meaning |
 |---|---|
-| 0 | No active leftover. `report-only` hits may still be listed as rows. |
+| 0 | No active leftover. `report-only` hits may still be listed as rows. At a root that is `$HOME` or not a repository, `kind: file` records were skipped (each named on stderr), not found absent. |
 | 1 | At least one active leftover was found. |
-| 2 | Usage error, unreadable manifest, or an invalid record. **An invalid record fails the whole run before any row is written**, naming the record and the field. A skipped record would be a leftover nobody hears about ([liveness assertion](../liveness-assertion/README.md)). |
+| 2 | Usage error, unreadable manifest, or an invalid record. **An invalid record fails the whole run before any row is written**, naming the record and the field. Skipping an invalid record would leave a leftover nobody hears about ([liveness assertion](../liveness-assertion/README.md)). |
 
 **Exit codes, `--clean <id>`:**
 
@@ -167,7 +174,7 @@ id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 |---|---|
 | 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root, or the common git dir for a linked worktree's `.git/` path, and is not that directory itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
 | 1 | Nothing present to clean. |
-| 2 | Usage, invalid record, unknown id, a `migrate` record without `--i-migrated`, or a failed remove or rename. **On Windows a failed remove is usually a locked file**: nothing is left half-done; close the file and re-run. |
+| 2 | Usage, invalid record, unknown id, a `migrate` record without `--i-migrated`, a `kind: file` record at a root that is `$HOME` or not a repository, or a failed remove or rename. **On Windows a failed remove is usually a locked file**: nothing is left half-done; close the file and re-run. |
 
 Invariants every caller may rely on:
 
