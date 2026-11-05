@@ -8849,25 +8849,27 @@ test("the tip step outputs the exact ref's SHA from this repository and fails on
 // A lane is the catalog lanes of one workflow and role that share an id once
 // the leg suffix is dropped: resolve-issue, resolve-issue-subscription,
 // resolve-issue-handoff and resolve-issue-fallback are one lane. Across its
-// jobs a lane reads the role's API key, the role's subscription token and the
+// jobs a lane runs on the role's API key, the role's subscription token and the
 // central fallback token: run-claude-cli's key, subscription and fallback legs.
+// A job that only asks whether a secret is set runs no leg on it, so the live
+// check counts the names a job reads past its presence checks.
 const LEG_SUFFIX = /-(?:subscription|fallback|handoff)$/;
-function laneLegs(catalog) {
+function laneLegs(catalog, launched = (lane) => lane.currentSecrets) {
   const lanes = new Map();
   for (const role of catalog.roles) {
     for (const lane of role.lanes) {
       const key = `${lane.workflow} ${role.id} ${lane.id.replace(LEG_SUFFIX, "")}`;
       const entry = lanes.get(key) ?? { role, secrets: new Set() };
-      for (const name of lane.currentSecrets) entry.secrets.add(name);
+      for (const name of launched(lane)) entry.secrets.add(name);
       lanes.set(key, entry);
     }
   }
   return lanes;
 }
 // Each lane that lacks a leg, with the legs it lacks.
-function missingLegs(catalog) {
+function missingLegs(catalog, launched) {
   const missing = new Map();
-  for (const [key, { role, secrets }] of laneLegs(catalog)) {
+  for (const [key, { role, secrets }] of laneLegs(catalog, launched)) {
     const lacks = [role.keySecret, role.tokenSecret, FALLBACK_SECRET].filter((name) => !secrets.has(name));
     if (lacks.length) missing.set(key, lacks);
   }
@@ -8884,8 +8886,8 @@ const LEG_EXEMPTIONS = {
   "maintenance-measure-skill-edit.yml maintenance pass-a2": { stopped: "the maintenance role holds no API key, and claude plugin eval has no run-claude-cli handoff" },
   "maintenance-measure-skill-edit.yml maintenance pass-b": { stopped: "the maintenance role holds no API key, and claude plugin eval has no run-claude-cli handoff" },
   "maintenance-measure-skill-edit.yml maintenance propose": { stopped: "the maintenance role holds no API key" },
-  "post-merge-test-mutation.yml automations audit": { stopped: "claude-code-action takes no API key here (only run-claude-cli does), and the audit uses the action's plugin_marketplaces, plugins, settings and allowed_bots" },
-  "upstream-apply-changelog.yml issue-lane scrub-probe": { stopped: "it probes the release CLI's subprocess scrub on the key, not the lane's work" },
+  "post-merge-test-mutation.yml automations audit": { stopped: "it runs on claude-code-action, which takes no API key here (only run-claude-cli does); its key leg needs the audit moved to run-claude-cli first" },
+  "upstream-apply-changelog.yml issue-lane scrub-probe": { pending: 13590 },
   "upstream-apply-changelog.yml issue-lane model": { pending: 13590 },
   "pr-unblock.yml pr-unblock adjudicate-feedback": { pending: 13590 },
   "intake-triage.yml intake refine-issue": { pending: 13590 },
@@ -8894,7 +8896,9 @@ const LEG_EXEMPTIONS = {
 };
 
 test("every model lane runs the role's API key, its subscription token and the fallback token, or is exempt with a reason", () => {
-  const missing = missingLegs(fundingCatalog());
+  const jobs = claudeSecretJobs();
+  const launched = (lane) => claudeReads(withoutPresenceChecks(jobs.get(`${lane.workflow} ${lane.id}`)?.job ?? {}));
+  const missing = missingLegs(fundingCatalog(), launched);
   const unexempt = [...missing].filter(([key]) => !Object.hasOwn(LEG_EXEMPTIONS, key)).map(([key, lacks]) => `${key} lacks ${lacks.join(", ")}`);
   assert.deepEqual(unexempt, []);
   const lanes = laneLegs(fundingCatalog());
