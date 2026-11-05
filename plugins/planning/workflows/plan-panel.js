@@ -1,7 +1,7 @@
 export const meta = {
   name: 'plan-panel',
   description: 'Draft independent implementation plans from distinct angles, score them with independent judges, and synthesize one plan from the winner',
-  whenToUse: 'Run by /planning:plan for a hard or wide plan, which resolves args: task (required), context, angles, roles, maxConcurrent. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /planning:plan with the task.',
+  whenToUse: 'Run by /planning:plan for a hard or wide plan, which resolves args: task (required), context, angles, rubric, roles, maxConcurrent. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /planning:plan with the task.',
   phases: [
     { title: 'Draft', detail: 'one planner per angle, each blind to the others' },
     { title: 'Judge', detail: 'independent judges score every draft against the rubric' },
@@ -135,12 +135,24 @@ if (!drafts.length) {
   return { error: 'no-drafts', next: 'No planner returned a draft. Plan on the main thread.', nulls: { drafts: draftNulls, judges: [] }, ran: angles.map(a => a.name) }
 }
 
-const RUBRIC = ['goal_fit', 'blast_radius', 'test_strategy', 'reversibility']
-const RUBRIC_TEXT =
-  'Score each draft from 1 (poor) to 5 (strong) on: goal_fit (does it deliver the stated task, no more and no less), ' +
-  'blast_radius (5 = smallest reach for what it delivers, and the reach is named), test_strategy (5 = names the ' +
-  'boundaries the tests drive and gives every phase a mechanically verifiable check), reversibility (5 = each ' +
-  'phase can be undone or abandoned cheaply).'
+const DEFAULT_RUBRIC = [
+  { name: 'goal_fit', text: 'does it deliver the stated task, no more and no less' },
+  { name: 'blast_radius', text: '5 = smallest reach for what it delivers, and the reach is named' },
+  { name: 'test_strategy', text: '5 = names the boundaries the tests drive and gives every phase a mechanically verifiable check' },
+  { name: 'reversibility', text: '5 = each phase can be undone or abandoned cheaply' },
+]
+// A caller rubric is 2 to 6 { name, text } criteria with snake_case names; anything else keeps the default.
+// The reserved names are fields of a score row, which a criterion of the same name would overwrite.
+const CRITERION = /^[a-z][a-z0-9_]{0,39}$/
+const RESERVED = ['draft', 'rationale', 'angle', 'judges', 'total']
+const passedRubric = Array.isArray(input.rubric) ? input.rubric : null
+const rubricOk = passedRubric && passedRubric.length >= 2 && passedRubric.length <= 6 &&
+  passedRubric.every(c => c && typeof c.name === 'string' && CRITERION.test(c.name) && !RESERVED.includes(c.name) && typeof c.text === 'string' && c.text.trim()) &&
+  new Set(passedRubric.map(c => c.name)).size === passedRubric.length
+if (input.rubric != null && !rubricOk) log('args.rubric is not 2 to 6 unique { name, text } criteria: using the default rubric')
+const RUBRIC_DEF = rubricOk ? passedRubric.map(c => ({ name: c.name, text: c.text.trim() })) : DEFAULT_RUBRIC
+const RUBRIC = RUBRIC_DEF.map(c => c.name)
+const RUBRIC_TEXT = 'Score each draft from 1 (poor) to 5 (strong) on: ' + RUBRIC_DEF.map(c => c.name + ' (' + c.text + ')').join(', ') + '.'
 
 const SCORE_SCHEMA = {
   type: 'object',
@@ -151,13 +163,10 @@ const SCORE_SCHEMA = {
         type: 'object',
         properties: {
           draft: { type: 'string' },
-          goal_fit: { type: 'integer', minimum: 1, maximum: 5 },
-          blast_radius: { type: 'integer', minimum: 1, maximum: 5 },
-          test_strategy: { type: 'integer', minimum: 1, maximum: 5 },
-          reversibility: { type: 'integer', minimum: 1, maximum: 5 },
+          ...Object.fromEntries(RUBRIC.map(k => [k, { type: 'integer', minimum: 1, maximum: 5 }])),
           rationale: { type: 'string' },
         },
-        required: ['draft', 'goal_fit', 'blast_radius', 'test_strategy', 'reversibility', 'rationale'],
+        required: ['draft', ...RUBRIC, 'rationale'],
       },
     },
     dissent: { type: 'string', description: 'a concern that survives even in the best draft, or an empty string' },
@@ -167,9 +176,10 @@ const SCORE_SCHEMA = {
 
 const draftBlock = drafts.map(d => '### Draft ' + d.id + '\n' + d.plan).join('\n\n')
 
-let scores = drafts.map(d => ({ draft: d.id, angle: d.angle, judges: 0, goal_fit: 0, blast_radius: 0, test_strategy: 0, reversibility: 0, total: 0 }))
+let scores = drafts.map(d => ({ draft: d.id, angle: d.angle, judges: 0, ...Object.fromEntries(RUBRIC.map(k => [k, 0])), total: 0 }))
 let judgeNulls = []
 let judgeDissent = []
+let judgeWinners = []
 let winner = drafts[0]
 
 if (drafts.length > 1) {
@@ -200,6 +210,12 @@ if (drafts.length > 1) {
       ran: angles.map(a => a.name),
     }
   }
+
+  // Each judge's own pick, so a split panel is visible and not hidden by the mean.
+  judgeWinners = returned.map(r => {
+    const tot = d => { const row = r.scores.find(x => x && String(x.draft).trim().toUpperCase() === d.id); return RUBRIC.reduce((t, k) => t + (Number(row[k]) || 0), 0) }
+    return drafts.reduce((b, d) => (tot(d) > tot(b) ? d : b), drafts[0]).id
+  })
 
   for (const s of scores) {
     for (const r of returned) {
@@ -232,17 +248,27 @@ const SYNTH_SCHEMA = {
         required: ['idea', 'from'],
       },
     },
+    left_behind: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { idea: { type: 'string' }, from: { type: 'string', description: 'the draft letter' }, reason: { type: 'string' } },
+        required: ['idea', 'from', 'reason'],
+      },
+      description: 'runner-up ideas considered and not grafted, each with why',
+    },
     dissent: { type: 'array', items: { type: 'string' }, description: 'objections or trade-offs the plan does not resolve' },
   },
-  required: ['plan', 'grafted', 'dissent'],
+  required: ['plan', 'grafted', 'left_behind', 'dissent'],
 }
 
 const runners = drafts.filter(d => d !== winner)
 const scoreLines = scores.map(s => s.draft + ' (' + s.angle + '): total ' + s.total + ' from ' + s.judges + ' judge(s)').join('\n')
 const synthesized = await agentRetry(
   BRIEF + '\n\nBuild one implementation plan. Start from the winning draft ' + winner.id + ' and keep its structure. ' +
-  'Graft an idea from a runner-up only where it improves goal fit, blast radius, test strategy or reversibility ' +
-  'without contradicting the winner, and record each graft with its draft letter. List as dissent every judge ' +
+  'Graft an idea from a runner-up only where it improves ' + RUBRIC_DEF.map(c => c.name + ' (' + c.text + ')').join(', ') + ' ' +
+  'without contradicting the winner, and record each graft with its draft letter. Record each runner-up idea you ' +
+  'considered and did not graft as left_behind, with its draft letter and why. List as dissent every judge ' +
   'concern and runner-up objection the plan does not resolve.' + READ_ONLY +
   '\n\nScores:\n' + scoreLines +
   (judgeDissent.length ? '\n\nJudge concerns:\n- ' + judgeDissent.join('\n- ') : '') +
@@ -260,7 +286,11 @@ return {
   plan: synthOk ? synthesized.plan : winner.plan,
   synthesized: synthOk,
   scores,
+  rubric: RUBRIC_DEF,
+  judge_winners: judgeWinners,
+  judges_split: new Set(judgeWinners).size > 1,
   grafted: synthOk && Array.isArray(synthesized.grafted) ? synthesized.grafted : [],
+  left_behind: synthOk && Array.isArray(synthesized.left_behind) ? synthesized.left_behind : [],
   dissent: [...judgeDissent, ...(synthOk && Array.isArray(synthesized.dissent) ? synthesized.dissent : [])],
   drafts: drafts.map(d => ({ id: d.id, angle: d.angle, plan: d.plan, key_ideas: d.key_ideas })),
   nulls: { drafts: draftNulls, judges: judgeNulls },
