@@ -434,10 +434,28 @@ export { earlierFlags, ownVerdict, UNRECORDED, VERDICT_MARKER };
 // Q4: a security flag reaches the owner; a charge clears only through a
 // `Cost decided: ` line), and so does an unrecorded one (null), which may have
 // been either. Pure.
+// The time is the newest intent raise the comment records (RAISED, written by
+// sayReasons, since an identical body is never re-written and so keeps an
+// older updated_at), else the comment's own updated_at.
 export function flagsAfterDecision(flags, own, kept, humans) {
-  const since = Date.parse(own?.updated_at);
+  const since = Date.parse(raisedAt(own?.body) ?? own?.updated_at);
   const decided = Number.isFinite(since) && kept.some((item) => Date.parse(item.comment?.created_at) > since && isDecisionComment(item, humans));
   return decided && flags !== null ? flags.filter((flag) => flag !== "intent") : flags;
+}
+
+// The hidden line recording when a verdict last raised the intent flag, and
+// its reader: the ISO time, or null when the body has none.
+const RAISED = "<!-- intake-triage intent-raised-at ";
+export function raisedAt(body) {
+  const line = String(body ?? "").split("\n").find((l) => l.startsWith(RAISED) && l.endsWith(" -->"));
+  return line ? line.slice(RAISED.length, -" -->".length) : null;
+}
+
+// The RAISED line for a held comment: this run's verdict time when its own
+// verdict flags intent, else the line the earlier comment carried, else none.
+export function raisedLine(verdictFlags, writtenAt, earlierBody) {
+  const at = verdictFlags?.includes("intent") ? writtenAt : raisedAt(earlierBody);
+  return Number.isFinite(Date.parse(at)) ? [`${RAISED}${at} -->`] : [];
 }
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
@@ -662,7 +680,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const edgeForbidden = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
     try {
-      await sayReasons(github, repository, base, comments, appId, plan, admission, edgeForbidden);
+      await sayReasons(github, repository, base, comments, appId, plan, admission, edgeForbidden, raisedLine(verdict.flags, comment.updated_at, own?.body));
     } catch (error) {
       reasonsError = String(error?.message ?? error);
     }
@@ -885,7 +903,7 @@ const settled = (admission) =>
 // one admission moved or did not finish gets the record a later run reads.
 // A missing edge GitHub answered 403 for names the permission (refused); a
 // 429 or 5xx does not, since the sweep's re-run writes it.
-async function sayReasons(github, repository, base, comments, appId, plan, admission, refused) {
+async function sayReasons(github, repository, base, comments, appId, plan, admission, refused, raised = []) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
   if (plan.ready && !own && after === null && plan.refused.length === 0) {
@@ -910,6 +928,7 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
         ...plan.reasons.map((reason) => `- ${reason}`),
         "",
         // After the reason list, which earlierFlags reads line by line.
+        ...raised,
         ...personReasonLines(INTAKE_LANE, plan.reason).toReversed(),
       ].join("\n");
   if (own?.body === body) {

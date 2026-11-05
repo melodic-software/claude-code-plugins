@@ -26,6 +26,8 @@ import {
   OLD_FOOTER,
   parseVerdict,
   planWrites,
+  raisedAt,
+  raisedLine,
   READY,
   run,
   UNRECORDED,
@@ -2302,7 +2304,8 @@ describe("held verdict reason codes", () => {
     const body = writes(fake.calls).find(({ method, path }) => method === "POST" && path.endsWith("/comments")).body.body;
     assert.deepEqual(parseReason(body), { lane: "intake-triage", reason: "security" });
     assert.ok(body.startsWith(`${VERDICT_MARKER}\n`));
-    assert.ok(body.endsWith("\n\nReason: `security`\n<!-- stop-reason lane=intake-triage reason=security -->"), body);
+    assert.ok(body.endsWith("\n\n<!-- intake-triage intent-raised-at 2026-10-22T12:05:00Z -->\nReason: `security`\n<!-- stop-reason lane=intake-triage reason=security -->"), body);
+    assert.equal(raisedAt(body), "2026-10-22T12:05:00Z", "this run's intent flag records its raise time");
     assert.deepEqual(earlierFlags([{ body, user: { id: LANES_APP } }], LANES_APP), ["security", "intent"]);
   });
 });
@@ -2343,6 +2346,24 @@ describe("re-entry after a recorded decision", () => {
     assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision(undefined, { body: "I think we should ship it." })), humans), ["intent"], "a comment that is no decision");
     assert.deepEqual(flagsAfterDecision(["intent"], own, kept(decision(), "2026-10-22T11:30:00Z", OUTSIDER), humans), ["intent"], "a decision another account last edited");
     assert.deepEqual(flagsAfterDecision(["intent"], undefined, kept(decision()), humans), ["intent"], "no App verdict comment to answer");
+  });
+
+  // An identical body is never re-written, so updated_at can predate a raise
+  // made after the decision; the recorded raise time decides instead.
+  test("an intent flag raised again after a decision still holds a later clean verdict", async () => {
+    const reraised = appVerdict(`- flagged: intent\n${raisedLine(["intent"], "2026-10-22T12:00:00Z", undefined)[0]}`);
+    assert.equal(raisedAt(reraised.body), "2026-10-22T12:00:00Z");
+    assert.deepEqual(flagsAfterDecision(["intent"], reraised, kept(decision()), humans), ["intent"], "the 11:00 decision predates the 12:00 raise");
+    assert.deepEqual(flagsAfterDecision(["intent"], reraised, kept(decision("2026-10-22T13:00:00Z")), humans), [], "a decision after the raise answers it");
+    assert.equal((await go(held([reraised, decision()]))).outcome, "needs-decision");
+  });
+
+  test("raisedLine records this run's time when its verdict flags intent, else carries the earlier line", () => {
+    const earlier = appVerdict(`- flagged: intent\n${raisedLine(["intent"], "2026-10-22T12:00:00Z")[0]}`).body;
+    assert.deepEqual(raisedLine(["intent", "cost"], "2026-10-23T08:00:00Z", earlier), ["<!-- intake-triage intent-raised-at 2026-10-23T08:00:00Z -->"]);
+    assert.deepEqual(raisedLine(["cost"], "2026-10-23T08:00:00Z", earlier), ["<!-- intake-triage intent-raised-at 2026-10-22T12:00:00Z -->"]);
+    assert.deepEqual(raisedLine([], "2026-10-23T08:00:00Z", undefined), []);
+    assert.equal(raisedAt("<!-- intake-triage intent-raised-at 2026-10-22T12:00:00Z --> trailing"), null, "a line with other text is not the record");
   });
 
   test("a carried intent flag a newer decision answers does not re-hold a clean verdict", async () => {
