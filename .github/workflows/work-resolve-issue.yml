@@ -295,6 +295,7 @@ jobs:
     # which runs only default-branch-tip code. The first call holds the API
     # key alone.
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -305,6 +306,7 @@ jobs:
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
+      key-credit-job: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
@@ -373,6 +375,43 @@ jobs:
           CALLS: resolve-issue
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
+      # Whether resolve-issue's key leg hit a credit stop, read from this run's jobs
+      # (handoff-evidence.sh credit-stop), never from a resolve-issue output, and
+      # only when it handed off. A read that cannot settle ends with a notice
+      # and uploads nothing.
+      - name: Read whether resolve-issue's key hit a credit stop
+        id: credit-stop
+        if: steps.handoff.outputs.handed-off == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-issue
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      # Read by the next runs' key-credit gate (the read runner's broker-check,
+      # key-credit-job resolve-issue): uploaded only after the key leg's credit stop.
+      # It holds the run id, no model text.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: steps.credit-stop.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Upload the key's credit-stop marker
+        if: steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-work-resolve-issue.yml-resolve-issue
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
+
       # Whether the third call can run, never the token. resolve-issue-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
       # stays the last; a failed read leaves it empty, which hands nothing on.
@@ -402,6 +441,7 @@ jobs:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -494,6 +534,7 @@ jobs:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write

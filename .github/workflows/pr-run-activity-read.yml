@@ -90,6 +90,18 @@ on:
         required: false
         type: string
         default: ""
+      key-credit-job:
+        description: >-
+          The first call only: the key job's name for ci-workflows
+          check-key-credit, the activity's own (`fix-ci`, `resolve-issue`), so
+          the activities of one caller file keep separate credit-stop markers.
+          broker-check reads the key's credit history before any model turn,
+          and a credit stop inside vars.KEY_CREDIT_WINDOW_HOURS skips the key:
+          the call hands off at once and the caller's next call runs on the
+          subscription. Empty runs no gate.
+        required: false
+        type: string
+        default: ""
       fallback-ready:
         description: >-
           The second call only: `true` when the caller runs a third call on
@@ -428,6 +440,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
+      actions: read # the key-credit gate lists this repository's credit-stop markers
       contents: read
       id-token: write
       issues: write
@@ -440,6 +453,7 @@ jobs:
       lease: ${{ steps.lease.outputs.lease }}
       lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
       blocked: ${{ steps.recheck-blockers.outcome == 'success' && steps.recheck-blockers.outputs.proceed != 'true' }}
+      skip-key: ${{ steps.credit.outputs.skip-key }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -496,6 +510,51 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
           kill-switch-ok: true
+
+      # The key-credit gate (ci-workflows check-key-credit, gate.cjs: one
+      # artifact-list call for the marker the caller uploads after a key
+      # leg's credit stop), on the first call alone. Every failure runs the
+      # key: skip-key is then empty. Probing is off. A marker is forgeable by
+      # any same-repository workflow; a forged one only moves the call to the
+      # subscription leg: plan capacity, no credential.
+      - name: Read the key's credit history
+        id: credit
+        if: >-
+          steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
+          && inputs.key-credit-job != '' && inputs.fallback == ''
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          key-job: ${{ inputs.key-credit-job }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # The skipped key's secret name, from the role as run-claude-cli names
+      # it (`issue-lane` gives ISSUE_LANE_CLAUDE_API_KEY).
+      - name: Name the skipped key
+        id: skipped-key
+        if: steps.credit.outputs.skip-key == 'true'
+        env:
+          ROLE: ${{ inputs.role }}
+        run: |
+          [[ $ROLE =~ ^[a-z][a-z0-9-]*$ ]] || { echo "::error::the role is not lower-case kebab"; exit 1; }
+          name=${ROLE^^}
+          echo "name=${name//-/_}_CLAUDE_API_KEY" >>"$GITHUB_OUTPUT"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
+          credential: ${{ steps.skipped-key.outputs.name }}
+          known-failure-class: credit-stop
+          handoff: "true"
 
       # Issue mode, after the broker's allow and before any model turn: claim
       # the issue with a lease comment only, held by the lanes App identity,
@@ -1596,8 +1655,12 @@ jobs:
         env:
           PRESENT: ${{ secrets.claude-api-key != '' }}
           SECRET_NAME: ${{ steps.launch.outputs.key-name }}
+          SKIP_KEY: ${{ needs.broker-check.outputs.skip-key }}
         run: |
-          if [ "$PRESENT" = true ]; then
+          if [ "$SKIP_KEY" = true ]; then
+            echo "::notice::$SECRET_NAME's last credit stop is inside the key-credit window; the caller's next call runs the activity on the subscription token"
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          elif [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
           else
             echo "::warning::$SECRET_NAME is empty; the caller's fallback call runs the activity on the subscription token"
@@ -1702,6 +1765,14 @@ jobs:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
         run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
+
+      # A fixed-name step the caller's handoff job reads through the jobs API
+      # (handoff-evidence.sh credit-stop) to upload the key's credit-stop
+      # marker: it runs only on run-claude-cli's handoff-reason, which the
+      # launcher sets after the leg ends, and writes nothing.
+      - name: Mark a key credit stop
+        if: always() && steps.act-key.outputs.handoff-reason == 'credit-stop'
+        run: echo "::notice::the key leg hit a credit stop; the caller uploads its credit-stop marker"
 
       - name: Run the skill on the OAuth token
         id: act-token

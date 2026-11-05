@@ -1386,7 +1386,8 @@ test("pr-run-activity-read.yml: an issue run re-checks its blockers inside the s
   assert.equal(budget.uses, "./.base/.github/actions/log-api-budget");
   assert.equal(budget.if, "always()");
   // No job's permissions widen: broker-check's issues grant was already the lease's, and the model job holds read only.
-  assert.deepEqual(check.permissions, { contents: "read", "id-token": "write", issues: "write" });
+  // actions: read is the key-credit gate's, listing the credit-stop markers.
+  assert.deepEqual(check.permissions, { actions: "read", contents: "read", "id-token": "write", issues: "write" });
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" });
   // Only the first call of an issue run re-checks, and only once it holds its lease;
   // the subscription and fallback legs, PR mode and a backed-off run do not.
@@ -2820,8 +2821,12 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     for (const job of [first, sub]) assert.equal(job.permissions.issues, "write");
     assert.equal(first.with.role, "pr-unblock");
     assert.equal(first.with.fallback, undefined);
+    // Only the first call names its key job for the key-credit gate.
+    const { "key-credit-job": keyCreditJob, ...firstSame } = first.with;
+    assert.equal(keyCreditJob, firstId, "the first call names its own key job");
+    assert.equal(sub.with["key-credit-job"], undefined);
     const { fallback, "fallback-ready": fallbackReady, ...same } = sub.with;
-    assert.deepEqual(same, first.with, "the fallback call runs the same activity on the same inputs");
+    assert.deepEqual(same, firstSame, "the fallback call runs the same activity on the same inputs");
     // The third call: the same activity on the same inputs, on the central
     // fallback token alone, started on the second call's handoff as read from
     // this run's jobs, and only with the fallback token set.
@@ -2831,7 +2836,7 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     assert.equal(fallbackReady, `\${{ needs.${HANDOFF[firstId]}.outputs.fallback-ready }}`);
     const { fallback: thirdFallback, ...thirdSame } = third.with;
     assert.equal(thirdFallback, "fallback");
-    assert.deepEqual(thirdSame, first.with, "the third call runs the same activity on the same inputs");
+    assert.deepEqual(thirdSame, firstSame, "the third call runs the same activity on the same inputs");
     assert.deepEqual(third.secrets, { "fallback-claude-code-oauth-token": "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}", ...CARRIER_SECRETS });
     assert.equal(third.permissions.issues, "write");
     assert.deepEqual(third.concurrency, first.concurrency, fallbackId);
@@ -3002,7 +3007,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
     assert.equal(jobs[id].with["trusted-base"], "default-tip", id);
     assert.equal(jobs[id].with["dispatcher-run-id"], "${{ inputs.dispatcher-run-id }}", id);
     assert.equal(jobs[id].with.lane, "pr-refine", id);
-    assert.deepEqual(jobs[id].permissions, { contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
+    assert.deepEqual(jobs[id].permissions, { ...(id === "apply-docs-patch" ? {} : { actions: "read" }), contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
   }
   const starts = ({ activity = "fix-docs", pr = "7", sender = "1", held = "false" } = {}) =>
     evaluate(jobs["fix-docs"].if, {
@@ -7641,14 +7646,16 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(starts("true", { "needs.pick-slot.outputs.capped": "true" }), false, "at the WIP cap");
   assert.equal(sub.with.fallback, "handoff");
   assert.equal(sub.with["fallback-ready"], "${{ needs.resolve-issue-handoff.outputs.fallback-ready }}");
+  const { "key-credit-job": keyCreditJob, ...firstSame } = jobs["resolve-issue"].with;
+  assert.equal(keyCreditJob, "resolve-issue", "the first call names its own key job");
   const { fallback, "fallback-ready": fallbackReady, ...same } = sub.with;
-  assert.deepEqual(same, jobs["resolve-issue"].with, "the fallback call runs the same activity on the same inputs");
+  assert.deepEqual(same, firstSame, "the fallback call runs the same activity on the same inputs");
   assert.deepEqual(sub.concurrency, jobs["resolve-issue"].concurrency, "in the same slot");
   // The third call: the same inputs on the fallback token, in the same slot.
   const third = jobs["resolve-issue-fallback"];
   const { fallback: thirdFallback, ...thirdSame } = third.with;
   assert.equal(thirdFallback, "fallback");
-  assert.deepEqual(thirdSame, jobs["resolve-issue"].with, "the third call runs the same activity on the same inputs");
+  assert.deepEqual(thirdSame, firstSame, "the third call runs the same activity on the same inputs");
   assert.deepEqual(third.concurrency, jobs["resolve-issue"].concurrency, "in the same slot");
   // The handoff job: the default branch tip's handoff-evidence.sh on
   // read-only tokens, no secret, as every pr-unblock handoff job runs it.
@@ -7661,7 +7668,8 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.resolve-issue.result": "success" }), false, "unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
-  assert.equal(handoff.steps.length, 5);
+  // Tip, checkout, the handoff read, the credit-stop read and marker, the fallback presence, the budget.
+  assert.equal(handoff.steps.length, 8);
   assert.deepEqual(handoff.steps.slice(0, 2), workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps.slice(0, 2), "the same tip and sparse checkout");
   assertFallbackPresence(handoff);
   assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
@@ -9016,4 +9024,81 @@ test("pr-run-activity-read.yml: the reuse summary runs on the credential of the 
   assert.equal(step("summary-fallback").with["fallback-token"], "${{ secrets.fallback-claude-code-oauth-token }}");
   assert.equal(step("summary-token").with["subscription-token"], "${{ secrets.claude-code-oauth-token }}");
   assert.equal(step("summary-key").with["api-key"], "${{ secrets.claude-api-key }}");
+});
+
+// The read runner's key-credit gate (#13586): broker-check, which runs no
+// head code, reads the key's credit history for the first call's
+// key-credit-job, and a key inside the window hands off before any model turn.
+test("pr-run-activity-read.yml: broker-check skips a credit-stopped key on the first call alone", () => {
+  const { jobs, on } = workflow("pr-run-activity-read.yml");
+  assert.equal(on.workflow_call.inputs["key-credit-job"].default, "");
+  const credit = jobs["broker-check"].steps.find((s) => s.id === "credit");
+  assert.match(credit.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40}$/);
+  assert.equal(credit.with["key-job"], "${{ inputs.key-credit-job }}");
+  assert.equal(credit["continue-on-error"], true, "a failed read runs the key");
+  const reads = (job, fallback, allowed = "true") =>
+    atStep(credit.if, { "steps.broker.outcome": "success", "steps.broker.outputs.allowed": allowed, "inputs.key-credit-job": job, "inputs.fallback": fallback });
+  assert.equal(reads("fix-ci", ""), true);
+  assert.equal(reads("", ""), false, "no key job, no gate");
+  assert.equal(reads("fix-ci", "handoff"), false, "a later call has no key");
+  assert.equal(reads("fix-ci", "", "false"), false, "a call the broker refused");
+  assert.equal(jobs["broker-check"].outputs["skip-key"], "${{ steps.credit.outputs.skip-key }}");
+  // The run job's key presence step reads the skip, so the call hands off as an empty key does.
+  const present = jobs.run.steps.find((s) => s.id === "key-present");
+  assert.equal(present.env.SKIP_KEY, "${{ needs.broker-check.outputs.skip-key }}");
+  assert.match(present.run, /if \[ "\$SKIP_KEY" = true \]; then\n[^\n]*\n\s+echo "present=false"/);
+  // The skipped key leg's lane record comes from broker-check, not the run job.
+  const record = jobs["broker-check"].steps.find((s) => s.name === "Report the skipped key leg");
+  assert.equal(record.if, "steps.credit.outputs.skip-key == 'true'");
+  assert.equal(record.with["known-failure-class"], "credit-stop");
+  assert.equal(record.with.handoff, "true");
+  // The fixed-name step the caller reads for the marker, right after the key leg's mode check.
+  const names = jobs.run.steps.map((s) => s.name);
+  assert.equal(names.indexOf("Mark a key credit stop"), names.indexOf("Check the API key leg's permission mode") + 1);
+  assert.equal(jobs.run.steps.find((s) => s.name === "Mark a key credit stop").if, "always() && steps.act-key.outputs.handoff-reason == 'credit-stop'");
+});
+
+test("every read-runner first call names its key job and grants the gate's actions: read, and its handoff job uploads the marker from a jobs-API read", () => {
+  const FIRSTS = {
+    "pr-refine.yml": { "fix-docs": "fix-docs-handoff" },
+    "pr-unblock.yml": { "resolve-conflicts": "resolve-conflicts-handoff", "address-feedback": "address-feedback-handoff", "review-dependency": "review-dependency-handoff", "fix-ci": "fix-ci-handoff", "fix-ci-rung-up": "fix-ci-rung-up-handoff" },
+    "work-resolve-issue.yml": { "resolve-issue": "resolve-issue-handoff" },
+  };
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job?.uses === READ_RUNNER) assert.equal(job.permissions.actions, "read", `${file} ${id}`);
+    }
+  }
+  for (const [file, firsts] of Object.entries(FIRSTS)) {
+    const { jobs } = workflow(file);
+    for (const [call, handoffId] of Object.entries(firsts)) {
+      assert.equal(jobs[call].with["key-credit-job"], call, `${file} ${call}`);
+      const steps = jobs[handoffId].steps;
+      const read = steps.find((s) => s.id === "credit-stop");
+      assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop", handoffId);
+      assert.deepEqual(read.env, { GH_TOKEN: "${{ github.token }}", CALLS: call, HANDOFF_EVIDENCE_LAG: "notice" }, handoffId);
+      assert.equal(read["continue-on-error"], true, handoffId);
+      const write = steps.find((s) => s.id === "credit-marker");
+      assert.equal(write.if, "steps.credit-stop.outputs.credit-stop == 'true'", handoffId);
+      const upload = steps.find((s) => s.name === "Upload the key's credit-stop marker");
+      // check-key-credit gate.cjs markerName: key-credit-stop-<caller file>-<key job>.
+      assert.equal(upload.with.name, `key-credit-stop-${file}-${call}`, handoffId);
+      assert.equal(upload.with["retention-days"], 1);
+      assert.doesNotMatch(JSON.stringify(steps), new RegExp(`needs\\.${call}\\.outputs\\.`), `${handoffId} reads no ${call} output`);
+    }
+  }
+});
+
+// The credit-stop fact reads the run job's fixed-name step, which runs only on
+// run-claude-cli's handoff-reason; a skipped run job, or one without that step,
+// is no credit stop.
+test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop step", (t) => {
+  const read = workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps.find((s) => s.id === "credit-stop");
+  const listing = (steps, conclusion = "success") => ({ total_count: 1, jobs: [{ name: "fix-ci / run", conclusion, steps }] });
+  const stopped = readPosted(t, read, listing([{ name: "Mark a key credit stop", conclusion: "success" }]));
+  assert.equal(stopped.status, 0);
+  assert.deepEqual(stopped.outputs, { "credit-stop": "true" });
+  assert.deepEqual(readPosted(t, read, listing([{ name: "Mark a key credit stop", conclusion: "skipped" }])).outputs, { "credit-stop": "false" });
+  assert.deepEqual(readPosted(t, read, listing([{ name: "Run the skill on the API key", conclusion: "success" }])).outputs, { "credit-stop": "false" });
+  assert.deepEqual(readPosted(t, read, listing([], "skipped")).outputs, { "credit-stop": "false" });
 });

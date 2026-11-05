@@ -211,6 +211,7 @@ jobs:
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
       && needs.fix-docs-head.outputs.held == 'false'
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -224,6 +225,7 @@ jobs:
       role: pr-unblock
       lane: pr-refine
       activity: fix-docs
+      key-credit-job: fix-docs
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -293,6 +295,43 @@ jobs:
           CALLS: fix-docs
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted allowed handed-off
 
+      # Whether fix-docs's key leg hit a credit stop, read from this run's jobs
+      # (handoff-evidence.sh credit-stop), never from a fix-docs output, and
+      # only when it handed off. A read that cannot settle ends with a notice
+      # and uploads nothing.
+      - name: Read whether fix-docs's key hit a credit stop
+        id: credit-stop
+        if: steps.posted.outputs.posted == 'false'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-docs
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      # Read by the next runs' key-credit gate (the read runner's broker-check,
+      # key-credit-job fix-docs): uploaded only after the key leg's credit stop.
+      # It holds the run id, no model text.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: steps.credit-stop.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Upload the key's credit-stop marker
+        if: steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-refine.yml-fix-docs
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
+
       # Whether the third call can run, never the token. fix-docs-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
       # stays the last. A failed read leaves it empty. A lagging read sets it, and
@@ -331,6 +370,7 @@ jobs:
       && needs.fix-docs-handoff.outputs.allowed == 'true'
       && needs.fix-docs-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -422,6 +462,7 @@ jobs:
     needs: [fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-docs-handoff.outputs.fallback-ready == 'true' && needs.fix-docs-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write

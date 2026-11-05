@@ -419,7 +419,9 @@
     "key-credit-stop-*": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/pr-review-main.yml review-handoffs-credit, through ci-workflows check-key-credit gate.cjs, in later runs inside vars.KEY_CREDIT_WINDOW_HOURS"
+        ".github/workflows/pr-review-main.yml review-handoffs-credit, through ci-workflows check-key-credit gate.cjs, in later runs inside vars.KEY_CREDIT_WINDOW_HOURS",
+        ".github/workflows/pr-run-activity-read.yml broker-check's \"Read the key's credit history\" step, through ci-workflows check-key-credit gate.cjs, for the first call's key-credit-job: the markers pr-unblock.yml, pr-refine.yml and work-resolve-issue.yml upload from each first call's handoff job",
+        ".github/workflows/maintenance-audit-lane-runs.yml collect's \"Read the key's credit history\" step, for key job judge: the marker judge-handoffs uploads after a key leg's credit stop"
       ],
       "reason": "The gate counts a marker only inside its window, 1 hour unset, so 1 day covers it; a window over 24 hours ends at expiry. It holds only the run id the workflow writes, never model text, so it is not scanned.",
       "scan": "none",
