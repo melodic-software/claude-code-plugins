@@ -5,7 +5,9 @@
   date and recheck trigger: [rule](../../.claude/rules/skill-bodies-state-current-rules.md).
 - Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
   eval evidence of no loss, except a restated upstream fact swapped for a pointer:
-  [skill criteria](../../plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md).
+  [skill criteria](../../plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md). A PR
+  held for that evidence is released by its record:
+  [Cross-lane PR hold](../contracts/loop-lane/README.md#cross-lane-pr-hold).
 - A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
   owner or in a declared-provider surface:
   [ADR 0060](../adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).

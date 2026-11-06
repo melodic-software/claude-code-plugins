@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The signal is a one-off nobody reproduced and it near-matches open #212, so no ticket: I file nothing, run add-recurrence 212 --source-link https://github.com/acme/ledger/actions/runs/9911 --note \"seen again: sync deadline exceeded once\" and stop.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Similar to #212 but maybe different, so I filed a new item #230 to be safe.",
+      "why": "files a new item"
+    },
+    {
+      "answer": "Filed #230 and linked it to #212 as related.",
+      "why": "files a new item"
+    }
+  ]
+}

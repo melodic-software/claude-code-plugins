@@ -30,8 +30,8 @@
     },
     "filing_posture": {
       "enum": ["manual-only", "allowed"],
-      "default": "manual-only",
-      "description": "Team policy for /bugs:scan --track. manual-only files nothing; allowed permits --track to file. Neither value makes a bare invocation file. Nearest-wins across layers."
+      "deprecated": true,
+      "description": "Deprecated: set filing_posture in docs/conventions/work-items.yaml instead (plugins/work-items/schemas/work-items.schema.json). /bugs:scan reads this key for one more release, with a notice, only when the work-items file does not set it. manual-only files nothing; allowed permits --track to file."
     },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],

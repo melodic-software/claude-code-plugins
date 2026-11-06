@@ -79,8 +79,10 @@ merged result:
    layer, resolve as if it were absent. Check a present team YAML against
    [`${CLAUDE_PLUGIN_ROOT}/schemas/bugs.schema.json`](../../schemas/bugs.schema.json) and report
    each violation; the reference still governs how a run treats an unknown key or a bad lane entry.
-2. **Effective config and provenance.** The merged `lanes` and `filing_posture` and the layer that
-   supplied each, honoring the reference's merge semantics; an explicit empty-list opt-out is
+2. **Effective config and provenance.** The merged `lanes` and the resolved `filing_posture` (the
+   reference's Filing posture section) and the layer that supplied each, honoring the reference's
+   merge semantics. A `filing_posture` in a bugs layer is WARN: deprecated, move it to
+   `docs/conventions/work-items.yaml`; an explicit empty-list opt-out is
    reported as an opt-out, not a broken layer. All layers absent is a fully working state: INFO,
    never FAIL, since `/bugs:scan` falls through to its bundled default lanes.
 3. **Per-layer version-control verdict.** A present team file must be tracked, which takes **two**
@@ -105,7 +107,7 @@ never written.
 
 1. **Read the effective config across every layer** and present it. Where a user-global or personal override
    layer changes the team file's effect (adding lanes, replacing one by name, opting out with an
-   empty list, or supplying `filing_posture` nearest-wins), say so: a team-scope edit alone will not
+   empty list), say so: a team-scope edit alone will not
    account for it, and re-adding a lane a personal override opts out of will not restore it on this machine.
    Prompt the user to update that layer; do not edit it for them.
 2. **Draft lanes from the repository** before asking anything: entrypoint and API directories, the
@@ -114,8 +116,9 @@ never written.
    team YAML, propose only additions; with nothing to infer from, propose the bundled generic
    default lanes.
 3. **Confirm one decision at a time.** Present each drafted lane with a recommendation; the user
-   accepts, edits, or drops it. Then settle `filing_posture`, stating what each value permits per the
-   reference and that neither value ever lets a bare invocation file.
+   accepts, edits, or drops it. Never write `filing_posture`: it lives in
+   `docs/conventions/work-items.yaml`. When the team YAML still sets it, show the line to add there
+   and, once that file sets it and the user says yes, drop it from the team YAML.
 4. **Write conservatively.** Scaffold the file in the reference's format when absent; otherwise
    make a targeted update. Fill absent keys at their documented defaults, preserve comments, and
    report rather than silently rewrite anything you cannot reconcile. Never rewrite a file you did

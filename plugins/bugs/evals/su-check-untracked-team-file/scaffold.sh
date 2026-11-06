@@ -14,5 +14,4 @@ lanes:
   - name: entrypoints
     globs:
       - 'src/api/**/*.ts'
-filing_posture: manual-only
 YAML

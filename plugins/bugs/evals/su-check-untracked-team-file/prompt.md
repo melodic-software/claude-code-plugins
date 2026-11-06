@@ -4,7 +4,7 @@ tags: [bugs, setup, check, outcome, scaffold]
 max_turns: 14
 timeout_seconds: 360
 allowed_tools: [Bash, Read, Glob, Grep]
-expected_outcome: "The reply flags docs/conventions/bugs.yaml as present but untracked (a FAIL) and says to commit it, reports the entrypoints lane and manual-only posture from the team layer, and changes no file."
+expected_outcome: "The reply flags docs/conventions/bugs.yaml as present but untracked (a FAIL) and says to commit it, reports the entrypoints lane from the team layer and the manual-only posture from the default (no docs/conventions/work-items.yaml sets it), and changes no file."
 ---
 
 /bugs:setup check

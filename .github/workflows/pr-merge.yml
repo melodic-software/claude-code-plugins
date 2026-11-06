@@ -63,7 +63,8 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # run on its current head was refused by the token broker as
 # workflow-modified, once per version of the workflow file the broker named,
 # and takes off a needs-human label the lanes App set for a pr-unblock
-# escalation once its recorded reason no longer holds.
+# escalation once its recorded reason no longer holds, and a do-not-merge
+# held only for eval evidence once its no-loss record names the head.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` or `needs-human` label (the
@@ -933,14 +934,14 @@ jobs:
     # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
     # which is what ends a long sweep: the budget stops between candidates,
     # a timeout can stop one between its check and its merge-queue write.
-    # 45 leaves about two minutes before the loop, the listing's 60 s of retry
+    # 48 leaves about two minutes before the loop, the listing's 60 s of retry
     # waits among them, then the longer of the
     # budget plus the last candidate's read limit (merge.gate-candidate-minutes,
     # 4) and a deferred candidate's ceiling (merge.gate-deferred-minutes, 20;
     # it is always gated first), plus one read's own timeout, the escalation
-    # clear's 15 (three reader runs of 4), the writes and the closing steps
-    # (workflow.test.mjs checks it).
-    timeout-minutes: 45
+    # clear's 15 (three reader runs of 4), the eval-hold release's 3, the
+    # writes and the closing steps (workflow.test.mjs checks it).
+    timeout-minutes: 48
     permissions:
       contents: read # check out main
       pull-requests: read # list the open PRs
@@ -2140,6 +2141,26 @@ jobs:
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
+
+      # Takes do-not-merge off a pull request held only for eval evidence
+      # (`<!-- pr-hold reason=eval -->`) once a listed human posts the VALID
+      # no-loss eval-pair record for its current head, after a comment naming
+      # the record and the head. At most five a run, under the same gate as
+      # the escalation clear. Rules: .github/scripts/pr-merge/release-eval-hold.mjs.
+      - name: Release eval holds whose record matches the head
+        if: >-
+          always() && github.event_name == 'schedule'
+          && steps.lane-token.outputs.token != ''
+          && steps.mode.outputs.report-only == 'false'
+          && steps.gate.outputs.rate-limited != 'true'
+          && steps.candidates.outputs.listed == 'true'
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/pr-merge/release-eval-hold.mjs
 
       # Under always(), not the lane token, so a run that stops before it mints
       # one (superseded, refused) still logs the job token's calls; a token
