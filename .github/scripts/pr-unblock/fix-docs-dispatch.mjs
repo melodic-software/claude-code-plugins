@@ -63,7 +63,7 @@ export const DEFAULTS = Object.freeze({
   earlierCheckName: "pr-unblock / fix-docs",
   // Account ids (GET /users/<login>, the same as GraphQL's databaseId):
   // dependabot[bot], whose own rebases a lane commit stops;
-  // melodic-plugin-release[bot] and melodic-standards-sync[bot], whose PRs
+  // melodic-release[bot] and melodic-standards-sync[bot], whose PRs
   // carry generated or synced files.
   excludedAuthorIds: Object.freeze([49699333, 337859524, 300666570]),
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.

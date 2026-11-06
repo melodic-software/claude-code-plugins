@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| 1 | Course Authoring | ... | H1: pivotal Course Published; H2: instructor swimlane; H3/H4: Instructor owns zone 1 |\n| 2 | Refund Disputes | ... | H5: refund hot spot; H6: Refund vs Chargeback |", "why": "all six by number"},
+    {"answer": "Business phases split at the pivotal events. Parallel swimlanes separate authoring and learning. Event density shows ownership. The hot spot on refunds marks a boundary, and the same word Enrollment means two different things.", "why": "all six by name"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "H1: pivotal Course Published. H5: refund hot spot. H6: Enrollment language divergence.", "why": "H2, H3 and H4 missing"},
+    {"answer": "Three contexts: Catalog, Learning, Payments.", "why": "no heuristic"},
+    {"answer": "Pivotal events split the timeline. Zone 3 runs in parallel with Zone 1. Event density shows ownership. The refund hot spot marks a boundary. H6: Enrollment.", "why": "bare parallel echoes the fixture, no swimlane heuristic"},
+    {"answer": "H1: pivotal events. H2: swimlanes. H3: ownership. H5: hot spots. We keep a ubiquitous language per context.", "why": "bare language, no H6 divergence"}
+  ]
+}

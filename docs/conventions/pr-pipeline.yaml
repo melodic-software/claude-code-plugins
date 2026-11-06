@@ -1277,11 +1277,11 @@ adoption:
   # against its title and body, as a person's is. Any other App (a model
   # writes its body, the lanes App's included) needs a closing issue, since
   # the run that wrote the diff would also write its spec. Ids from
-  # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
+  # trusted-actors.json: melodic-release[bot], melodic-standards-sync[bot].
   spec-from-body-apps: [337859524, 300666570]
   # Apps that enqueue and merge their own PRs: pr-merge writes no reasons
   # comment or risk escalation on one, as no one acts on it (ADR 0048). Its
-  # score still holds pr-merge's own merge. melodic-plugin-release[bot].
+  # score still holds pr-merge's own merge. melodic-release[bot].
   self-merging-apps: [337859524]
 
 # Review bots, besides claude[bot] and the review lanes, whose review threads

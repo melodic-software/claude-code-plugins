@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Bourgau's post is an enrichment, not a replacement.", "why": "enrichment"},
+    {"answer": "Treat the blog as one practitioner's interpretation.", "why": "interpretation"},
+    {"answer": "Content from that post would be tagged [BOURGAU].", "why": "tag"},
+    {"answer": "Practitioner material is marked SUPPLEMENTED.", "why": "supplemented tag"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "The Bourgau blog says to enforce the timeline first.", "why": "echoes the prompt's name only"},
+    {"answer": "Rayner's post is wrong.", "why": "no enrichment framing"}
+  ]
+}

@@ -870,7 +870,7 @@ test("verify-authors lane-or-owner judges the owner account's PRs and the lane's
   const spoof = pull({ user: { id: OWNER_ID + 1, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [spoof] }, opts), "author-not-lane-or-owner", "owner login, other id");
   // A listed App (the release App) is judged too (owner decision 2026-10-22).
-  const app = pull({ user: { id: OWNER_ID, login: "melodic-plugin-release[bot]", type: "Bot" } });
+  const app = pull({ user: { id: OWNER_ID, login: "melodic-release[bot]", type: "Bot" } });
   assert.equal(await reason({ pulls: [app] }, opts), "ok", "a listed Bot");
   const org = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Organization" } });
   assert.equal(await reason({ pulls: [org] }, opts), "author-not-lane-or-owner", "another account type");
@@ -908,7 +908,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   const spec = [{ number: 41, source: "pull-request", spec_kind: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
   for (const [user, expected] of [
     [{ id: OWNER_ID, login: "kyle-sexton", type: "User" }, spec],
-    [{ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" }, spec],
+    [{ id: RELEASE, login: "melodic-release[bot]", type: "Bot" }, spec],
     [{ id: CLAUDE, login: "claude[bot]", type: "Bot" }, []],
     [{ id: CURSORAGENT, login: "cursoragent", type: "User" }, []],
     [{ id: 337595936, login: LANE, type: "Bot" }, []],
@@ -921,7 +921,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   // S&C D: a body last edited by anyone but its author or a trusted person
   // is not the spec; edited by them, it still is.
   const owner = own({ id: OWNER_ID, login: "kyle-sexton", type: "User" });
-  const releasePr = own({ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" });
+  const releasePr = own({ id: RELEASE, login: "melodic-release[bot]", type: "Bot" });
   const by = (databaseId, __typename = "User") => ({ lastEditedAt: "2026-10-22T00:00:00Z", editor: { __typename, login: "x", databaseId } });
   for (const [pr, edit, expected] of [
     [owner, by(4242), []],
@@ -952,7 +952,7 @@ test("a PR whose title another actor renamed last is not its own spec", async ()
   };
   const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
   const owner = own({ id: OWNER_ID, login: "kyle-sexton", type: "User" });
-  const releasePr = own({ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" });
+  const releasePr = own({ id: RELEASE, login: "melodic-release[bot]", type: "Bot" });
   const spec = [{ number: 41, source: "pull-request", spec_kind: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
   const by = (databaseId, __typename = "User") => ({ __typename, databaseId });
   for (const [label, pr, renames, expected] of [
