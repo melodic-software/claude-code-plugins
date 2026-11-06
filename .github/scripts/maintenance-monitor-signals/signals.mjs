@@ -442,7 +442,27 @@ export const HOLD_LANES = [
     listPages: 5,
     holdStep: "Note the hold",
   },
+  // One run per pr-require-checks run, as pr-verify: 425 green runs on
+  // 2026-11-05. Scaled by pr-verify's measured shape (a peak hour 2.8 times
+  // its mean, a peak 7-hour created span 53% of its day), that is about 50
+  // an hour and 225 a span, so 70 a window and 4 list pages leave headroom.
+  // The legs are matrix jobs, listed as `review (claude-review, ...)`, so a
+  // job matches by name or as a matrix leg (holdJob); only a job whose
+  // `Note the hold` ran has its annotations read.
+  {
+    lane: "pr-review-main",
+    workflow: "pr-review-main.yml",
+    jobs: ["trigger", "review", "review-subscription", "review-fallback"],
+    area: "Review lanes (pr-review-main)",
+    holdRuns: 70,
+    listPages: 4,
+    holdStep: "Note the hold",
+  },
 ];
+
+// Whether a listed job is one of `jobs`: by name, or as a matrix leg of one,
+// which GitHub lists as `<job> (<matrix values>)`.
+export const holdJob = (jobs, name) => jobs.some((job) => name === job || String(name).startsWith(`${job} (`));
 const NAME = "[a-z]+(?:-[a-z]+)*";
 const HOLD_NOTICES = [
   // report-outcome.mjs: a fault stop whose counted retries were all faults.
@@ -477,6 +497,9 @@ const HOLD_NOTICES = [
     pattern: /^held: (?:pr-verify's trigger gate met a GitHub fault|pr-verify could not resolve the pull request)/,
     hold: (m) => ({ item: null, reason: m[0].includes("trigger gate") ? "trigger gate fault" : "resolver fault" }),
   },
+  // pr-review-main.yml's four `Select a lane-source pull request` steps: the
+  // file list did not read after retry_call's 3 reads.
+  { title: "pr-review-main", pattern: /^held: the file list did not read /, hold: () => ({ item: null, reason: "file list unread" }) },
   // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is
   // a closed set, never the fault's own text, so the finding's fingerprint
   // stays put; the issue a path names may be a blocker, so no item.

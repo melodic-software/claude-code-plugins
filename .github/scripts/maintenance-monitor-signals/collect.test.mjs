@@ -1043,6 +1043,7 @@ const holdRoutes = () => [
   [/workflows\/pr-refine\.yml\/runs/, { workflow_runs: [run(87, { event: "workflow_dispatch" })] }],
   [/workflows\/intake-triage\.yml\/runs/, { workflow_runs: [] }],
   [/workflows\/pr-verify\.yml\/runs/, { workflow_runs: [] }],
+  [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: [] }],
   [/runs\/84\/jobs/, { jobs: [] }],
   [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "label-unblocked", conclusion: "success" }, { id: 811, name: "wip-state", conclusion: "success" }] }],
   [/check-runs\/810\/annotations/, [
@@ -1297,6 +1298,31 @@ test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages"
   const six = paging(5);
   assert.deepEqual((await collect(input(six, { holds: { rule: RULE, carried: CARRIED } }))).gaps, ["lane holds: over 500 green runs of pr-verify listed; the oldest were not read"]);
   assert.equal(six.calls.filter((c) => c.includes("pr-verify.yml/runs")).length, 5);
+});
+
+// pr-review-main green runs: 7000 held in a matrix leg, 7001 held in the
+// trigger job, 7002 reviewed with no hold, none of its annotations read.
+const reviewJob = (id, name, held) => ({ id, name, conclusion: "success", steps: [{ name: "Select a lane-source pull request", conclusion: "success" }, { name: "Note the hold", conclusion: held ? "success" : "skipped" }] });
+const unreadList = "held: the file list did not read (HTTP 502); no review, and the lost-run reconciler re-runs this run once";
+
+test("lane holds: pr-review-main counts a held trigger job or matrix leg, reading annotations only where Note the hold ran", async () => {
+  const runs = [7000, 7001, 7002].map((id, i) => run(id, { event: "workflow_run", updated_at: `2026-10-19T16:0${i}:00Z` })).reverse();
+  const api = fakeApi([
+    [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: runs }],
+    [/runs\/7000\/jobs/, { jobs: [reviewJob(70000, "trigger", false), reviewJob(70001, "review (claude-review, claude-review)", true), reviewJob(70002, "review (claude-security-review, claude-security-review)", false)] }],
+    [/runs\/7001\/jobs/, { jobs: [reviewJob(70010, "trigger", true)] }],
+    [/runs\/7002\/jobs/, { jobs: [reviewJob(70020, "trigger", false), reviewJob(70021, "record", true)] }],
+    [/check-runs\/70001\/annotations/, [notice("pr-review-main", unreadList)]],
+    [/check-runs\/70010\/annotations/, [notice("pr-review-main", unreadList)]],
+    ...holdRoutes(),
+  ]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => [h.runId, h.reason]), [
+    [7001, "file list unread"],
+    [7000, "file list unread"],
+  ]);
+  for (const id of [70000, 70002, 70020, 70021]) assert.ok(!api.calls.some((c) => c.includes(`check-runs/${id}/`)), id);
 });
 
 test("a carried held run of another repository or an unknown lane, or a bad span, is refused", () => {

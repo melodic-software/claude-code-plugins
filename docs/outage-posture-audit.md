@@ -558,7 +558,11 @@ pr-review-security rows 2 cite its head.
   `reconcile.mjs:351`) and re-runs a held first attempt once, with the lane record. It waits while
   the upstream gate reads an outage, as a lost pr-review-main run does (`:1398`). A held run in
   which any job's verdict write started is held for a person, as `holdReason` holds a red one,
-  since a whole-run re-run would review the written lane again. "No verdict" stays red.
+  since a whole-run re-run would review the written lane again. "No verdict" stays red. Signal 13
+  counts the hold with the fixed reason `file list unread` (`signals.mjs` `HOLD_LANES`): the
+  entry reads the trigger job and each leg, whose matrix runs list as `review (…)`, and only a job
+  whose `Note the hold` ran has its annotations read. Its cap of 70 runs a window and 4 list pages
+  scales pr-verify's measured peaks to pr-review-main's 425 green runs on 2026-11-05.
 
 A later audit of pr-require-checks' workflow changed no step; its rows 2 to 6 cite commit
 `91414684`. A change after it, #13671, rewrote the job's read retries; row 1 cites #13671's head.

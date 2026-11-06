@@ -4,7 +4,7 @@
 // list is bounded, and `get` spends the run's call budget.
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unblock/escalation-routes.mjs";
-import { HOLD_LANES, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
+import { HOLD_LANES, holdJob, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 import { stepsKnown } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
 export const LIMITS = {
@@ -40,10 +40,10 @@ export const LIMITS = {
   stalledChecks: 20,
   // Uncarried green runs per hold lane read in one window, oldest completion
   // first, unless the lane sets its own (signals.mjs HOLD_LANES holdRuns):
-  // up to holdListPages run list pages (pr-verify's own 5), then a jobs read
-  // and one annotation read per job that prints a hold (for pr-verify, only
-  // a job whose `Note the hold` ran), so at most 4 × 3 + 5 + (2 × 6 + 20 + 40
-  // + 80) × 2 calls while each run has one such job. Past it, the span stops
+  // up to holdListPages run list pages (pr-verify's own 5, pr-review-main's
+  // 4), then a jobs read and one annotation read per job that prints a hold
+  // (for both, only a job whose `Note the hold` ran), so at most 4 × 3 + 5 +
+  // 4 + (2 × 6 + 20 + 40 + 80 + 70) × 2 calls while each run has one such job. Past it, the span stops
   // at the last run read and the window is a gap.
   holdRuns: 6,
   // Run list pages of 100 per hold lane, unless the lane sets its own
@@ -568,7 +568,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
           // with no steps (the jobs API can list them empty) is read too.
           const printed = (j) =>
             holdStep === undefined || !Array.isArray(j.steps) || j.steps.length === 0 || j.steps.some((s) => s?.name === holdStep && s.conclusion === "success");
-          for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && jobs.includes(j.name) && printed(j))) {
+          for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && holdJob(jobs, j.name) && printed(j))) {
             for (const a of await annotationsOf(job.id)) {
               const hold = parseHold(a.title, a.message, a.annotation_level);
               if (hold) found.push(hold);
