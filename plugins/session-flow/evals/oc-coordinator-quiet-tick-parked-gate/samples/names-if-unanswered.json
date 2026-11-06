@@ -5,8 +5,12 @@
       "why": "names the unanswered consequence"
     },
     {
-      "answer": "Decision: approve deleting legacy/. Recommend yes. Until you answer, B and C wait.",
-      "why": "until-you-answer wording"
+      "answer": "Decision: approve deleting legacy/. Recommend yes. If you don't answer, B and C wait.",
+      "why": "if-you-don't-answer wording"
+    },
+    {
+      "answer": "Delete legacy/? I recommend yes. Until you decide, worker C stays blocked behind B.",
+      "why": "until-you-decide wording"
     }
   ],
   "fail": [
