@@ -1,0 +1,118 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --status 2>/dev/null | head -10",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "status line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --help | grep -n login",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl login",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "login"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl config",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl init --all --browser",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "init"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx firecrawl-cli@latest login",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "package form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl || exit 1\nif true; then firecrawl config; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "guarded by a shell conditional or loop (Codex on #11939)"
+    }
+  ]
+}

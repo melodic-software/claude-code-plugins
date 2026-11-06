@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/SKILL.md"}}], "why": "main skill"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "C:\\p\\firecrawl\\skills\\firecrawl\\SKILL.md", "limit": 200}}], "why": "Windows path with a limit"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/setup/SKILL.md"}}], "why": "the setup skill itself"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/context/configuration.md"}}], "why": "configuration only"}
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl:firecrawl",
+            "args": "scrape https://docs.contoso-platform.example/guides/rate-limits"
+          }
+        }
+      ],
+      "why": "qualified name with args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: a text-only referral to /firecrawl:firecrawl fails"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl:setup"
+          }
+        }
+      ],
+      "why": "wrong skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discovery:read-docs",
+            "args": "use firecrawl on the blocked page"
+          }
+        }
+      ],
+      "why": "firecrawl named only in args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl:firecrawl-extra"
+          }
+        }
+      ],
+      "why": "a different skill whose name starts with firecrawl"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "- FIRECRAWL_NO_TELEMETRY: unset (INFO)", "why": "named"}
+  ],
+  "fail": [
+    {"answer": "- Telemetry: on (INFO)", "why": "not named"},
+    {"answer": "- FIRECRAWL_TELEMETRY: unset", "why": "a different name"}
+  ]
+}

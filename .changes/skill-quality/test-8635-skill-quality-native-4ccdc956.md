@@ -1,7 +1,0 @@
----
-bump: patch
----
-
-### Changed
-
-- The check and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Eleven of the thirteen legacy cases become twelve new cases. Check case 1 splits into `ck-check-gate-fail-verbatim` (the gate runs on a scaffolded skill, reports FAIL and quotes the broken-reference line as printed, with the warnings after it) and `ck-check-missing-skill-not-fabricated` (a missing skill is reported, not given invented results). The other new cases are `ck-validate-evals-reports-json-path` (a schema violation is named by its JSON path and no eval case runs), `ck-validate-evals-absent-not-failure` (a skill with no `evals.json` is not a validation failure; it merges check cases 2 and 3), `ck-broken-ref-hand-verify` (the cited line is read before any fix), `ck-declines-skill-authoring`, `ck-outside-git-degrades`, `ck-precompute-warn-advisory`, `ck-cross-skill-invocation-doctrine`, `ck-verb-contract-fail-blocks`, `ck-measure-invocation-both-splits` (both splits' rates from a scaffolded probe set, reported as a lexical floor) and `su-check-non-default-root-headless-route` (a non-default root is verified and the `skills_root` change goes through `claude plugin configure`). Setup cases 1 and 3 were already covered by `su-check-default-root` and `su-check-missing-root-routes-to-configure`, which gain graders that nothing is written and no directory is created. Both `evals.json` files are deleted.

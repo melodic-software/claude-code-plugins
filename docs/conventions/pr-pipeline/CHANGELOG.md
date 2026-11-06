@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## [8.58.2] - 2026-11-06
+
+### Fixed
+
+- pr-merge's candidate listing holds green when `gh pr list` returns its limit of 1000 pull
+  requests, as it holds on a failed listing: the `Merge lane hold` notice, `held` with the reason
+  `listing full`, and no gate, arm or merge that run (#12292). Before, the job ended red and wrote
+  no held summary, so the monitor never counted it; signal 12 now counts these sweeps.
+
+## [8.58.1] - 2026-11-06
+
+### Fixed
+
+- The concurrency table's `pr-feedback-dispatch` row now matches the workflow. Its group is per
+  pr-verify run (`verify-<run id>`), shared by all sweeps (`sweep`), or per reviewed head
+  otherwise, and `queue: max` queues waiting runs instead of replacing them.
+
 ## [8.58.0] - 2026-11-06
 
 ### Added

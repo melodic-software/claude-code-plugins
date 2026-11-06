@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Set persistently; verify with `setup check` in a fresh session.", "why": "fresh session"},
+    {"answer": "The variable is visible only in a new terminal.", "why": "new terminal"},
+    {"answer": "Open a new Claude Code session, then run /firecrawl:setup check.", "why": "new Claude Code session"}
+  ],
+  "fail": [
+    {"answer": "Re-run /firecrawl:setup check now to confirm.", "why": "immediate re-check"},
+    {"answer": "Restart your machine.", "why": "no session wording"}
+  ]
+}

@@ -1061,6 +1061,24 @@ test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first pu
   assert.equal(dispatches("skipped", "", "false", ""), true, "an upstream check that wrote nothing");
 });
 
+test("pr-unblock-dispatch.yml installs the FAIL-cap reader only on a run that dispatches", () => {
+  for (const name of ["Set up Python", "Install the pinned YAML reader"]) {
+    const installs = (outcome, proceed = "", paced = "false") =>
+      evaluate(stepIf(DISPATCHER, name), {
+        "steps.kill.outputs.proceed": "true",
+        "steps.upstream.outputs.degraded": "false",
+        "steps.gate.outcome": outcome,
+        "steps.gate.outputs.proceed": proceed,
+        "steps.pace.outputs.paced": paced,
+      });
+    assert.equal(installs("skipped"), true, `${name}: a push or tick that dispatches`);
+    assert.equal(installs("skipped", "", ""), true, `${name}: a pacer that wrote nothing`);
+    assert.equal(installs("success", "true"), true, `${name}: a trusted hand run`);
+    assert.equal(installs("skipped", "", "true"), false, `${name}: a paced tick`);
+    assert.equal(installs("success", "false"), false, `${name}: a refused trigger`);
+  }
+});
+
 test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {
   const reconciler = cronMinutes("maintenance-reconcile-lost-runs.yml");
   assert.deepEqual(cronMinutes(DISPATCHER), reconciler.map((minute) => (minute + 5) % 60));
@@ -1077,6 +1095,10 @@ test("pr-unblock-dispatch.yml: only a push cancels the dispatcher run going; a t
   assert.equal(cancels("push"), true);
   assert.equal(cancels("schedule"), false);
   assert.equal(cancels("workflow_dispatch"), false);
+  // GitHub's default keeps one pending run: a newer tick replaces a waiting one.
+  const end = block.findIndex((line, i) => i > at && !line.startsWith("      "));
+  const keys = block.slice(at + 1, end).map((line) => line.trim().split(":")[0]);
+  assert.deepEqual(keys, ["group", "cancel-in-progress"], "the default single pending run");
 });
 
 // The owner's one automatic hop past the subscription call: each lane's

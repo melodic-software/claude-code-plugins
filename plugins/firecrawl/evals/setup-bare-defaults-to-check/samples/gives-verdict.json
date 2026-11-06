@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| firecrawl-cli | INFO | absent; installs on first need |",
+      "why": "table"
+    },
+    {
+      "answer": "## Authentication: INDETERMINATE\n\n`firecrawl --status` timed out.",
+      "why": "heading"
+    },
+    {
+      "answer": "**PASS** firecrawl 1.26.3 at /usr/local/bin/firecrawl",
+      "why": "bold"
+    },
+    {
+      "answer": "- FIRECRAWL_API_KEY: FAIL (unset)",
+      "why": "list"
+    },
+    {
+      "answer": "| firecrawl CLI | Info | absent |",
+      "why": "title case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Everything looks fine, firecrawl is installed.",
+      "why": "no verdict"
+    },
+    {
+      "answer": "The check passes and the info is below.",
+      "why": "lowercase prose"
+    },
+    {
+      "answer": "Unknown skill: firecrawl:setup",
+      "why": "skill missing"
+    }
+  ]
+}

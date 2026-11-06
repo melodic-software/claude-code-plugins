@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "| Authentication | INDETERMINATE | status timed out |", "why": "table cell"},
+    {"answer": "Auth: Indeterminate, not a failure.", "why": "mixed case"}
+  ],
+  "fail": [
+    {"answer": "| Authentication | FAIL | status timed out |", "why": "FAIL"},
+    {"answer": "Auth is unknown right now.", "why": "no verdict word"}
+  ]
+}

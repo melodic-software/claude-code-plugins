@@ -1677,6 +1677,66 @@ class RunValidityTest(unittest.TestCase):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "FAIL")
 
+    def test_a_sequence_of_tool_results_reads_after_a_variable_or_cd_is_a_warning(self):
+        results = self.own_results("tool-results")
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        for command in (
+            'F=%s; grep -n "Balancing" "$F"; sed -n \'120,180p\' "$F"' % saved,
+            "F='%s' && grep -c x ${F} && wc -l $F" % saved,
+            "cd %s/; sed -n '1,40p' toolu_01Example.txt" % results,
+            "cd %s && grep -n x toolu_01Example.txt | head -5; wc -l ./toolu_01Example.txt"
+            % results,
+            "cat %s && cat %s" % (saved, saved),
+            # A value with no / is a literal, checked only where it expands.
+            'P=x; grep -n "$P" ' + saved,
+            'N=40; head -n "$N" ' + saved,
+            "F=%s; P=Balancing; grep -c $P $F; sed -n /$P/p $F" % saved,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the session's own tool results, not counted",
+                          proc.stdout)
+
+    def test_a_sequence_that_leaves_tool_results_or_runs_more_still_fails(self):
+        results = self.own_results("tool-results")
+        saved = self.own_results("tool-results", "a.txt")
+        for command in (
+            # A cd outside the directory, or a relative path that escapes it.
+            "cd %s; cat a.txt" % self.own_results("memory"),
+            "cd %s; cat ../../memory/a.md" % results,
+            "cd %s/../..; cat %s" % (results, saved),
+            "cd %s; cat ~root/a.txt" % results,
+            "cd %s; cat a.txt; cd /etc; cat passwd" % results,
+            "cat a.txt; cd %s" % results,
+            "cd; cat " + saved,
+            "cd -P %s; cat a.txt" % results,
+            "cd %s" % results,
+            # An assignment outside it, unset or unused, or of a name the shell uses.
+            'F=/etc/hosts; cat "$F"',
+            "F=/etc/hosts; cat " + saved,
+            "F=%s; cat $OTHER" % saved,
+            "PATH=%s; cat %s" % (results, saved),
+            "PATH=%s; F=%s; cat $F; cat $F" % (results, saved),
+            "LD_PRELOAD=%s; cat %s" % (saved, saved),
+            "export F=%s; cat $F" % saved,
+            # A literal that expands into a path outside, or is not one plain word.
+            "P=etc; cat /$P/passwd",
+            "P=etc; cat %s /$P/passwd" % saved,
+            "P='a b'; grep \"$P\" " + saved,
+            "P='a$b'; grep \"$P\" " + saved,
+            "P=~root; cat %s" % saved,
+            # Another operator or command beside the reads.
+            "F=%s; cat $(echo $F)" % saved,
+            "cat %s || rm %s" % (saved, saved),
+            "cd %s; cat a.txt || rm a.txt" % results,
+            "cat %s; cat /etc/passwd" % saved,
+            "cd %s; cat a.txt > b.txt" % results,
+            "cd %s; cat a.txt & cat a.txt" % results,
+            "(cd %s; cat a.txt)" % results,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "FAIL")
+
     def test_the_slice_c_bash_read_backs_read_valid(self):
         # The two denials that left audit-prompting-postures one valid case of three.
         saved = self.own_results("tool-results", "toolu_01Example.txt")
@@ -1709,7 +1769,6 @@ class RunValidityTest(unittest.TestCase):
             "cat tool-results/a.txt",
             # Another command beside the read, or one it runs.
             "cat %s; curl example.com" % saved,
-            "cat %s && cat %s" % (saved, saved),
             "cat %s\nrm %s" % (saved, saved),
             "grep \"$(rm %s)\" %s" % (saved, saved),
             "grep `id` " + saved,
