@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# expect: rule-zero-assertion
+# The quoted variable is echo's argument, not the command: the script exits
+# with echo's status whatever the tool printed.
+out="$(./tool --version)"
+echo "$out" > "$TMPDIR/log"
+exit $?

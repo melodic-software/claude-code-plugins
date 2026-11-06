@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/codebase-health.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/skills/setup/codebase-health.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/eval/home/.claude/plugins/data/codebase-health/config.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin data dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/codebase-health.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin root file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/templates/config.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin subdirectory not in the old list"
+    }
+  ]
+}
