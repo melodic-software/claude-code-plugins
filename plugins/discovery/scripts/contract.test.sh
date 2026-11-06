@@ -788,6 +788,10 @@ assert_present 'the recency gate says it dates claims, not sources' \
   'skills/research/context/discipline.md' 'This gate dates claims, not sources'
 assert_present 'the parent contract ships an Evidence use line' \
   'reference/parent-contract.md' '^Evidence use: <internal\|publish>$'
+assert_present 'the parent contract ships a Research config line' \
+  'reference/parent-contract.md' '^Research config: corroborators=<n> recency=<active>/<standard>/<guide>$'
+assert_present 'the researcher input contract names the Research config line' \
+  'agents/researcher.md' '^- \*\*Research config\*\*: `corroborators=<n> recency='
 assert_present 'the parent contract counts three research-only lines' \
   'reference/parent-contract.md' 'Research adds three more labeled lines'
 assert_absent 'no file says research adds only one envelope line' \
