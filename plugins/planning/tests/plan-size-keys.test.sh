@@ -73,7 +73,7 @@ home_keys="$(section "$PLUGIN_DIR/reference/config.md" '## Convention-home keys'
 for row in '^\| .plan_size_bands. \|.*\| .trivial: 1., .small: 5., .medium: 15. \|' '^\| .plan_inventory_min_files. \|.*\| .10. \|'; do
   if grep -qE "$row" <<<"$home_keys"; then ok "config.md row: $row"; else fail "config.md row: $row"; fi
 done
-if grep -qF 'trivial` < `small` < `medium' <<<"$home_keys"; then
+if grep -qF 'must rise strictly' <<<"$home_keys"; then
   ok 'config.md states the rising-order rule'
 else
   fail 'config.md states the rising-order rule'
