@@ -6,7 +6,7 @@
 // prerequisites checker's probe rule (the pattern is a regular expression run
 // over the probe's output).
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
@@ -1469,59 +1469,159 @@ test('a relative CCD_RUNTIME_DIR and a session name starting with - are usage er
   await assert.rejects(main(['stop', '--session=-x']), { code: 2, message: '--session takes 1-32 letters, digits, _ or -, not starting with -' });
 });
 
-// ---- cli/account.mjs, run against a stub claude ----
+// ---- cli/account.mjs: the driven session's account, read by its holder ----
 // The stub outputs follow `claude auth status --json` from Claude Code 2.1.319: `authMethod` is
-// `api_key` for a key (no email or orgName) and `claude.ai` for a subscription login. account.mjs
-// runs under the attended buildLaunch env, which deletes ANTHROPIC_API_KEY as the driven session's
-// env does, so key auth reaches it only from settings (apiKeyHelper or settings `env`). The stub
-// ignores its environment, so these cases pin the parsing, not where the key comes from.
+// `api_key` under ANTHROPIC_API_KEY (no email or orgName) and `claude.ai` for a subscription login.
+// The caller's own `claude` always disagrees with the holder's, as the CI outer leg's does with the
+// sibling sandbox's, so a value read in the caller's environment fails each case.
 
 const ACCOUNT = join(HERE, '..', 'cli', 'account.mjs');
+const KEY_AUTH = JSON.stringify({ loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' });
+const SIGNED_IN = JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', email: 'user@example.com', orgName: 'Example Org' });
+const STAYS_UP = `export const TuiTest = { ephemeral: () => ({
+  run: async () => {}, state: async () => ({ exited: null, exit_signal: null }),
+  close: async () => {}, closeQuiet: async () => {},
+}) };
+`;
 
-function runAccount(stdout) {
+/** A sandbox whose `claude auth status --json` prints `status`. */
+function authBox(status) {
   const box = sandbox();
-  writeFileSync(join(box.bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' '${stdout}'\n`, { mode: 0o755 });
+  writeFileSync(join(box.bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' '${status}'\n`, { mode: 0o755 });
+  return box;
+}
+
+/** Runs account.mjs under `runtime` with `bin` first on PATH; async, so an in-process holder can answer. */
+const runAccount = (runtime, bin, args = []) =>
+  new Promise((done) => {
+    const env = { ...process.env, XDG_RUNTIME_DIR: runtime, PATH: `${bin}${delimiter}${process.env.PATH}` };
+    const child = spawn(process.execPath, [ACCOUNT, ...args], { env });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => (stdout += d));
+    child.stderr.on('data', (d) => (stderr += d));
+    child.on('close', (status) => done({ status, stdout, stderr }));
+  });
+
+/** Launches a session in a runtime directory of its own whose holder's claude prints `status`, then runs `fn`. */
+async function withAccountSession(status, { key } = {}, fn) {
+  const runtime = mkdtempSync(join(tmpdir(), 'ccd-acct-'));
+  const box = authBox(status);
+  placeEngine(box.target, STAYS_UP, { marked: true });
+  const caller = authBox(status === KEY_AUTH ? SIGNED_IN : KEY_AUTH);
+  const name = session();
+  const inRuntime = (f) => withEnv({ XDG_RUNTIME_DIR: runtime, ANTHROPIC_API_KEY: key }, f);
   try {
-    return spawnSync(process.execPath, [ACCOUNT], {
-      encoding: 'utf8',
-      env: { ...process.env, PATH: `${box.bin}${delimiter}${process.env.PATH}` },
-    });
+    const launch = ['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60'];
+    await inRuntime(() => withPath(box.bin, () => quietly(() => main(key ? [...launch, '--unattended'] : launch))));
+    return await fn({ runtime, name, callerBin: caller.bin });
   } finally {
-    rmSync(box.root, { recursive: true, force: true });
+    await inRuntime(() => main(['stop', '--session', name]).catch(() => {}));
+    for (const dir of [box.root, caller.root, runtime]) rmSync(dir, { recursive: true, force: true });
   }
 }
 
-const KEY_AUTH = { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' };
+test('account prints the none: line for a session on its kept ANTHROPIC_API_KEY, whatever the caller is signed in as', posixOnly, () =>
+  withAccountSession(KEY_AUTH, { key: 'fake-ci' }, async ({ runtime, callerBin }) => {
+    const run = await runAccount(runtime, callerBin);
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, 'none: API-key auth has no signed-in account\n');
+  }));
 
-test('account prints the none: line and exits 0 under key auth with no account', posixOnly, () => {
-  const run = runAccount(JSON.stringify(KEY_AUTH));
-  assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.stdout, 'none: API-key auth has no signed-in account\n');
+test('account prints the email and organization of a signed-in session, not the caller key auth', posixOnly, () =>
+  withAccountSession(SIGNED_IN, {}, async ({ runtime, name, callerBin }) => {
+    for (const args of [[], ['--session', name]]) {
+      const run = await runAccount(runtime, callerBin, args);
+      assert.equal(run.status, 0, run.stderr);
+      assert.equal(run.stdout, 'user@example.com\nExample Org\n', `account ${args.join(' ')}`);
+    }
+  }));
+
+test('account prints the organization of a session on key auth that names one', posixOnly, () =>
+  withAccountSession(JSON.stringify({ ...JSON.parse(KEY_AUTH), orgName: 'Example Org' }), { key: 'fake-ci' }, async ({ runtime, callerBin }) => {
+    const run = await runAccount(runtime, callerBin);
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, 'Example Org\n');
+  }));
+
+test('account exits 1 with nothing on stdout for key auth the launch did not keep', posixOnly, () =>
+  // An attended launch clears ANTHROPIC_API_KEY, so a key reported anyway came from somewhere the driver cannot see.
+  withAccountSession(KEY_AUTH, {}, async ({ runtime, callerBin }) => {
+    const run = await runAccount(runtime, callerBin);
+    assert.equal(run.status, 1);
+    assert.equal(run.stdout, '');
+    assert.equal(run.stderr, 'account: claude auth status names no email or organization\n');
+  }));
+
+test('account exits 1 with nothing on stdout for a session with no login, or a subscription login naming no account', posixOnly, async () => {
+  for (const status of [{ loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' }, { loggedIn: true, authMethod: 'claude.ai' }]) {
+    await withAccountSession(JSON.stringify(status), { key: 'fake-ci' }, async ({ runtime, callerBin }) => {
+      const run = await runAccount(runtime, callerBin);
+      assert.equal(run.status, 1);
+      assert.equal(run.stdout, '');
+    });
+  }
 });
 
-test('account exits 1 with nothing on stdout when no account is signed in at all', posixOnly, () => {
-  // This process may not look where the driven session signs in, so no login is never "nothing to hide".
-  const run = runAccount(JSON.stringify({ loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' }));
-  assert.equal(run.status, 1);
-  assert.equal(run.stdout, '');
+test('account exits 1 with nothing on stdout when the session holder cannot read its auth status', posixOnly, () =>
+  withAccountSession('not json', { key: 'fake-ci' }, async ({ runtime, callerBin }) => {
+    const run = await runAccount(runtime, callerBin);
+    assert.equal(run.status, 1);
+    assert.equal(run.stdout, '');
+    assert.equal(run.stderr, 'account: claude auth status printed no JSON; cannot read the signed-in account to mask it\n');
+  }));
+
+test('account exits 1 with nothing on stdout when no session runs or the named one is missing', posixOnly, async () => {
+  const runtime = mkdtempSync(join(tmpdir(), 'ccd-acct-'));
+  const caller = authBox(SIGNED_IN);
+  try {
+    let run = await runAccount(runtime, caller.bin);
+    assert.deepEqual(run, { status: 1, stdout: '', stderr: 'account: no session is running; launch one first\n' });
+    run = await runAccount(runtime, caller.bin, ['--session', 'gone']);
+    assert.deepEqual(run, { status: 1, stdout: '', stderr: "account: no session 'gone' is running; run launch first\n" });
+  } finally {
+    rmSync(caller.root, { recursive: true, force: true });
+    rmSync(runtime, { recursive: true, force: true });
+  }
 });
 
-test('account prints the organization under key auth that names one', posixOnly, () => {
-  const run = runAccount(JSON.stringify({ ...KEY_AUTH, orgName: 'Example Org' }));
-  assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.stdout, 'Example Org\n');
-});
+/** A holder stand-in under `runtime` that answers ping with pong and account with `lines`. */
+async function accountHolder(runtime, name, lines) {
+  mkdirSync(join(runtime, 'ccd'), { recursive: true, mode: 0o700 });
+  const sock = join(runtime, 'ccd', `${name}.sock`);
+  const server = netForHolders.createServer((conn) =>
+    conn.once('data', (d) => conn.end(`${JSON.stringify({ ok: true, result: JSON.parse(d).verb === 'ping' ? 'pong' : lines })}\n`)),
+  );
+  await new Promise((r) => server.listen(sock, r));
+  return () => server.close();
+}
 
-test('account exits 1 with nothing on stdout for a subscription login with no account', posixOnly, () => {
-  const run = runAccount(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }));
-  assert.equal(run.status, 1);
-  assert.equal(run.stdout, '');
-  assert.equal(run.stderr, 'account: claude auth status names no email or organization\n');
-});
-
-test('account exits 1 with nothing on stdout when claude auth status prints no JSON', posixOnly, () => {
-  const run = runAccount('not json');
-  assert.equal(run.status, 1);
-  assert.equal(run.stdout, '');
-  assert.equal(run.stderr, 'account: claude auth status printed no JSON; cannot read the signed-in account to mask it\n');
+test('account exits 1 with nothing on stdout when two sessions run, or a holder answers anything but account lines', posixOnly, async () => {
+  const runtime = mkdtempSync(join(tmpdir(), 'ccd-acct-'));
+  const caller = authBox(SIGNED_IN);
+  const closers = [];
+  try {
+    closers.push(await accountHolder(runtime, 'one', ['user@example.com']), await accountHolder(runtime, 'two', ['user@example.com']));
+    let run = await runAccount(runtime, caller.bin);
+    assert.deepEqual(run, { status: 1, stdout: '', stderr: 'account: 2 sessions are running (one, two); pass --session <name>\n' });
+    run = await runAccount(runtime, caller.bin, ['--session', 'one']);
+    assert.deepEqual(run, { status: 0, stdout: 'user@example.com\n', stderr: '' });
+    const forged = [
+      ['none: API-key auth has no signed-in account', 'user@example.com'],
+      ['none: nothing to see'],
+      [],
+      ['user@example.com\nnone: API-key auth has no signed-in account'],
+      'none: API-key auth has no signed-in account',
+    ];
+    for (const [i, lines] of forged.entries()) {
+      closers.push(await accountHolder(runtime, `forged${i}`, lines));
+      run = await runAccount(runtime, caller.bin, ['--session', `forged${i}`]);
+      assert.equal(run.status, 1, JSON.stringify(lines));
+      assert.equal(run.stdout, '', JSON.stringify(lines));
+    }
+  } finally {
+    for (const close of closers) close();
+    rmSync(caller.root, { recursive: true, force: true });
+    rmSync(runtime, { recursive: true, force: true });
+  }
 });
