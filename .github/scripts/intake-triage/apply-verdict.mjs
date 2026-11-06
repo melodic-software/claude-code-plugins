@@ -99,7 +99,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
@@ -992,6 +992,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           humans,
           appId: logins.get(LANES_APP_LOGIN),
           webHosts: issueLaneWebHostsFromBase(env),
+          statusOf: statusReader({ env, github, repository, limit: ADMISSION_STATUS_READS }),
           status: () =>
             checkWip(github, {
               repo: repository,
