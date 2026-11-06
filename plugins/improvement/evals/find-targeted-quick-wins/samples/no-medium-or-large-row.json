@@ -7,6 +7,10 @@
   "fail": [
     { "answer": "| 1 | Time buildSummary | Performance | S | rung 4 |\n| 2 | Run lookups concurrently | Performance | M | sequential awaits (rung 4) |", "why": "an M row in the ranked list" },
     { "answer": "1. **Instrument checkout** (S).\n2. **Move pricing to a batch endpoint** (L, rung 4).", "why": "an L list item" },
-    { "answer": "### 1. Instrument checkout\n\n- Size: S\n\n### 2. Batch the fetches\n\n- Size: Medium", "why": "Size: Medium under a heading row" }
+    { "answer": "### 1. Instrument checkout\n\n- Size: S\n\n### 2. Batch the fetches\n\n- Size: Medium", "why": "Size: Medium under a heading row" },
+    { "answer": "### 1. Instrument checkout\n\n- Size: S–M\n- Evidence: no timing anywhere (rung 4)", "why": "flagged: size line is a range reaching M" },
+    { "answer": "| 1 | Time buildSummary and each fetch | Performance | S–M | nothing measures checkout (rung 4) |", "why": "flagged: table cell is a range reaching M" },
+    { "answer": "1. **Add timing around buildSummary** (rung 4)\n   Size: S to M", "why": "flagged: range written with to" },
+    { "answer": "| 1 | Time buildSummary | Performance | S | rung 4 |\n| 2 | Cache prices | Performance | S-M | src/pricing.js:4 (rung 4) |", "why": "flagged: hyphen range cell on row 2" }
   ]
 }

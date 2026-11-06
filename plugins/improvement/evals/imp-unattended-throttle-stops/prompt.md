@@ -1,9 +1,9 @@
 ---
-description: "Legacy improve case unattended-skips-upstream-and-throttles, throttle half. Narration: no source-control plugin loads and the forge is unreachable, so the prompt gives the open improve pull requests as facts (three, the throttle limit). The run asks nothing (no-ask-tool, no-question-in-reply), stops and says it is at the throttle limit (stops-at-throttle), makes no edit, branch, commit, push or pull request (no-edit, no-branch-commit-or-pr), and reaches for no upstream guidance (no-research-skill, no-web-fetch, no-web-search). The below-throttle path, one pull request created with --draft, an issue-linkage line and no merge, needs the forge and is held. Needs --scaffold and --allow-tools Bash Edit so the must-not graders can fail."
+description: "Legacy improve case unattended-skips-upstream-and-throttles, throttle half. Narration: no source-control plugin loads and the forge is unreachable, so the prompt gives the open improve pull requests as facts (three, the throttle limit). The run asks nothing (no-ask-tool, no-question-in-reply), stops and says it is at the throttle limit (stops-at-throttle), makes no edit, branch, commit, push or pull request (no-edit, no-branch-commit-or-pr), and reaches for no upstream guidance (no-research-skill, no-web-fetch, no-web-search). The below-throttle path, one pull request created with --draft, an issue-linkage line and no merge, needs the forge and is held. Needs --scaffold and --allow-tools Bash Edit WebFetch WebSearch so the must-not graders can fail; without WebFetch and WebSearch on the command line, no-web-fetch and no-web-search cannot fail."
 tags: [improve, unattended, throttle, narration, no-network]
 max_turns: 20
 timeout_seconds: 600
-allowed_tools: [Read, Glob, Grep, Skill, Edit, Bash, AskUserQuestion]
+allowed_tools: [Read, Glob, Grep, Skill, Edit, Bash, AskUserQuestion, WebFetch, WebSearch]
 expected_outcome: "The run asks no question, counts the three open improve pull requests, stops at the limit of 3 with a short report, and edits, branches, commits, pushes and fetches nothing."
 ---
 

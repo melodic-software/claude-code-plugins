@@ -24,7 +24,7 @@ import request from "request";
 
 const BASE_URL = "https://${step}.internal.example";
 
-export function get${step^}(id, callback) {
+export function get$(printf '%s' "${step:0:1}" | tr '[:lower:]' '[:upper:]')${step:1}(id, callback) {
   request({ url: \`\${BASE_URL}/${step}/\${encodeURIComponent(id)}\`, json: true }, (error, response, body) => {
     if (error) {
       callback(error);

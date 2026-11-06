@@ -32,20 +32,20 @@ graders:
     arm: both
   - name: rank1-row-sized-small
     type: regex
-    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?\d{1,2}\b))[\s\S]){0,900}?(?:\|\s*\**S\**\s*\||\b[Ss]ize\**\s*[:=]?\s*\**\s*\(?(?:S|[Ss]mall)\b|\((?:[^()\n]{0,40}[,;]\s*)?S(?:\s*[,;][^()\n]{0,40})?\))'
+    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?\d{1,2}\b))[\s\S]){0,900}?(?:\|\s*\**S\**\s*\||\b[Ss]ize\**\s*[:=]?\s*\**\s*\(?(?:S|[Ss]mall)\b(?![ \t]*(?:[-–—/]|to|or)[ \t]*\**(?:[ML]\b|[Mm]edium|[Ll]arge))|\((?:[^()\n]{0,40}[,;]\s*)?S(?:\s*[,;][^()\n]{0,40})?\))'
     flags: 'm'
     target: last_message
     arm: both
   - name: no-medium-or-large-row
     type: regex
-    pattern: '^[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?\d{1,2}\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,6}\s)|\n[ \t]*\n(?=\**(?!(?:Size|Evidence|Confidence|Dimension|Value|Rung|Rationale)\b)[A-Za-z`]))[\s\S]){0,900}?(?:\|\s*\**[ML]\**\s*\||\b[Ss]ize\**\s*[:=]?\s*\**\s*\(?(?:M|L|[Mm]edium|[Ll]arge)\b|\((?:[^()\n]{0,40}[,;]\s*)?[ML](?:\s*[,;][^()\n]{0,40})?\))'
+    pattern: '^[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?\d{1,2}\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,6}\s)|\n[ \t]*\n(?=\**(?!(?:Size|Evidence|Confidence|Dimension|Value|Rung|Rationale)\b)[A-Za-z`]))[\s\S]){0,900}?(?:\|\s*\**(?:[SML]\s*(?:[-–—/]|to|or)\s*\**)?[ML]\**(?:\s*(?:[-–—/]|to|or)\s*\**[SML]\**)?\s*\||\b[Ss]ize\**\s*[:=]?\s*\**\s*\(?(?:(?:S|[Ss]mall)\s*(?:[-–—/]|to|or)\s*)?(?:M|L|[Mm]edium|[Ll]arge)\b|\((?:[^()\n]{0,40}[,;]\s*)?(?:S\s*(?:[-–—/]|to|or)\s*)?[ML](?:\s*[,;][^()\n]{0,40})?\))'
     flags: 'm'
     match: not_contains
     target: last_message
     arm: both
   - name: top-candidate-instruments
     type: regex
-    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))[\s\S]){0,600}?\b(?:instrument|add (?:timing|tracing|metrics|telemetry|latency|logging|spans?)|baseline|measure(?: it| this| that| them)? (?:first|before|checkout|latency|the|each|where|how)|capture (?:timing|latency|durations?)|time (?:`?buildSummary|checkout|each|every|the (?:checkout|whole|pricing|inventory|calls?|requests?|fetch))|(?:record|track|log) (?:timings?|latency|durations?)|start (?:by|with) measuring)'
+    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))[\s\S]){0,600}?\b(?:instrument(?:ing)?\b|(?:add|adding|introduce|set up|establish|capture|record|take|measure)\s+(?:an?\s+|the\s+|some\s+|basic\s+|simple\s+|lightweight\s+)*(?:baseline|timers?|metrics?|instrumentation)\b|add (?:timing|tracing|metrics|telemetry|latency|logging|spans?)|measure(?: it| this| that| them)? (?:first|before|checkout|latency|the|each|where|how)|capture (?:timing|latency|durations?)|time (?:`?buildSummary|checkout|each|every|the (?:checkout|whole|pricing|inventory|calls?|requests?|fetch))|(?:record|track|log) (?:timings?|latency|durations?)|start (?:by|with) measuring)'
     flags: 'im'
     target: last_message
     arm: both

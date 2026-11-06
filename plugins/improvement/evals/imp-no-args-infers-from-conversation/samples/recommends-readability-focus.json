@@ -11,6 +11,10 @@
     {
       "answer": "**Focus**\n- **Recommended:** `readability`. The method uses index loops and one-letter names.\n- Other lenses: `standards` (the default), `naming`.",
       "why": "smoke4: Focus heading, recommendation on the next bullet"
+    },
+    {
+      "answer": "**Focus:** `readability` (recommended). Other lenses: `standards`, `naming`.",
+      "why": "focus then colon then readability"
     }
   ],
   "fail": [
@@ -25,6 +29,14 @@
     {
       "answer": "**Focus**\n- **Recommended:** `standards`.\n- Other lenses: `readability`, `naming`.",
       "why": "near miss: readability offered only as another lens"
+    },
+    {
+      "answer": "**Focus:** `standards` (the default). Other lenses: `readability`, `naming`.",
+      "why": "near miss: readability offered only as another lens on the focus line"
+    },
+    {
+      "answer": "Recommended focus: `standards`. Other lenses: `readability`, `naming`.",
+      "why": "near miss: recommend word, then readability as another lens"
     }
   ]
 }

@@ -37,7 +37,7 @@ graders:
     arm: both
   - name: recommends-readability-focus
     type: regex
-    pattern: '\bfocus\b[^\n]{0,160}?\breadab\w*|\breadab\w*[^\n]{0,160}?\bfocus\b|\bfocus\b\**[ \t]*\n[ \t]*[-*][ \t]*\**[Rr]ecommended\**:?\**[ \t]*`?readab\w*'
+    pattern: '\b(?:recommend\w*|suggest\w*|propos\w*)\b(?:(?!other|also|alt(?:ernat)|instead)[^\n]){0,60}?\breadab\w*|\bfocus\b\**[ \t]*[:=]\**[ \t]*`?\**readab\w*|\breadab\w*[ \t]+(?:as|is)[ \t]+(?:the|my|our)[ \t]+(?:recommended[ \t]+)?focus\b|\bfocus\b\**[ \t]*\n[ \t]*[-*][ \t]*\**[Rr]ecommended\**:?\**[ \t]*`?readab\w*'
     flags: 'i'
     target: last_message
     arm: both
