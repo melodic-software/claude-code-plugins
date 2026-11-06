@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": { "skill": "code-tidying:batch-simplify", "args": "repo in-place --unattended" }
+        }
+      ],
+      "why": "the skill fired with clean args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": { "command": "python3 -m unittest discover tests" }
+        }
+      ],
+      "why": "the skill never fired"
+    }
+  ]
+}
