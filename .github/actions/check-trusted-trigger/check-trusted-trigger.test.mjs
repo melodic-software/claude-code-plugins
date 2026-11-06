@@ -1586,6 +1586,24 @@ test("app-label:an App issues event other than labeled stops with bot-actor", as
   assert.deepEqual(calls, []);
 });
 
+// work-resolve-issue's field trigger: a listed human setting the Work status
+// field passes on the sender alone; the App's mirror write starts nothing.
+test("app-label: the App's field_added stops with bot-actor and reads nothing", async () => {
+  const { outputs, calls } = await appLabel({ action: "field_added", event: { action: "field_added", issue: { number: 7 }, sender: LANES_APP } });
+  assert.deepEqual(outputs, STOPPED("bot-actor"));
+  assert.deepEqual(calls, []);
+});
+
+test("app-label: a listed human's field_added proceeds on the sender", async () => {
+  const { outputs } = await appLabel({ event: { action: "field_added", issue: { number: 7 }, sender: KYLE, repository: { full_name: REPOSITORY } }, triggeringActor: "kyle-sexton" });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("app-label: an unlisted sender's field_added stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ event: { action: "field_added", issue: { number: 7 }, sender: STRANGER, repository: { full_name: REPOSITORY } }, triggeringActor: "stranger" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
 test("app-label:unset, the App's agent-ready label still stops with bot-actor", async () => {
   const { outputs, calls } = await appLabel({ appLabel: "" });
   assert.deepEqual(outputs, STOPPED("bot-actor"));

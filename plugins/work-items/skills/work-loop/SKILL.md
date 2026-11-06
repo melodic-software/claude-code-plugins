@@ -234,12 +234,12 @@ the former default-on pause).
    terminate against automated intake). Applied together with a machine-marked `kind=routed-advisory`
    escalation comment (step 5's marker shape and record write), so the routing surfaces in the attended
    queue's escalated view instead of vanishing behind a bare label. **By default the sweep writes
-   no `work-class:` or autonomous-eligible role label**, since the labeler precondition cannot tell
+   no autonomous-eligible role label**, since the labeler precondition cannot tell
    this lane's label writes from a person's: a delegable, decision-defaulted or stub outcome takes
-   the human-gated role label plus a `kind=escalated` marker with a `Proposed work class:` line
+   the human-gated role label plus a `kind=escalated` marker proposing the role-label swap
    (step 5's marker shape and record write), per "Work-loop intake sweep: propose, never admit" in
    [`${CLAUDE_PLUGIN_ROOT}/skills/triage/context/apply-outcome.md`](${CLAUDE_PLUGIN_ROOT}/skills/triage/context/apply-outcome.md).
-   Only a launch prompt that explicitly opts the sweep into writing those labels lifts this.
+   Only a launch prompt that explicitly opts the sweep into writing that label lifts this.
 3. **Admission gate.** Drop every frontier candidate that is already in flight (the gate's
    in-flight precondition below) or held by its Objection window ([reference/objection-window.md](reference/objection-window.md),
    which also escalates an objected one), then admit the rest per the gate. Fail-closed.
@@ -330,9 +330,8 @@ the former default-on pause).
 ## Admission gate (fail-closed)
 
 The gate does not decide by work class. A candidate that passes the in-flight check, the objection
-window, the labeler precondition and the hard gates below is admitted, whatever its `work-class:`
-label, and with none. Of the class and provenance labels, only `provenance: signal` or
-`provenance: untrusted` (also under its legacy name `work-class: untrusted-provenance`) holds a
+window, the labeler precondition and the hard gates below is admitted, whatever its other labels.
+Of the provenance labels, only `provenance: signal` or `provenance: untrusted` holds a
 candidate for a person: `list-frontier --autonomous` already drops each
 ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)),
 and a candidate found carrying any of them is escalated through step 5, never dispatched. A candidate
@@ -392,7 +391,7 @@ As of: 2026-10-04. Recheck trigger: the endpoint's role mapping changes.
 Hard gates:
 
 - **Provenance hold.** A candidate carrying `provenance: signal` or
-  `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) is human-gated.
+  `provenance: untrusted` is human-gated.
   Step 5 escalates it as `kind=escalated`; it is never dispatched.
 - **Provenance-removal hold.** The provenance hold tests only whether a label is present, so its
   absence counts only when someone allowed to grant admission removed it. For each candidate, and
