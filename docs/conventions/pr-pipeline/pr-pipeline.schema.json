@@ -741,7 +741,7 @@
         "order": {
           "type": "integer",
           "minimum": 1,
-          "description": "A Refine pass's place: passes run in ascending order, and a tie keeps the activities' order in this file."
+          "description": "A Refine pass's place in the plan: passes are planned in ascending order, and a tie keeps the order of the pr-refine lane's slots."
         },
         "group": {
           "type": "string",
