@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "No, it won't break. Without gh the CI stages warn and appear in the closing summary.",
+      "why": "describes the degradation"
+    },
+    {
+      "answer": "You don't need to remove the CI secret stages: the wizard handles a missing gh itself.",
+      "why": "argues against removing them"
+    },
+    {
+      "answer": "You could drop the CI secret stages, but that would lose the summary line telling people what to set.",
+      "why": "rejecting phrase in the same sentence"
+    },
+    {
+      "answer": "Removing the set_secret calls would throw away the reminder, so leave them in.",
+      "why": "explanatory sentence against the forbidden advice"
+    },
+    {
+      "answer": "The wizard just skips the CI writes and warns; the run carries on.",
+      "why": "describes the wizard's own skip"
+    },
+    {
+      "answer": "You can skip installing gh; those people set the CI values by hand from the summary at 1.5x speed.",
+      "why": "skipping the gh install is not bypassing the stages"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "To be safe, you could remove the CI secret stages and set those values by hand.",
+      "why": "suggests removing the stages"
+    },
+    {
+      "answer": "I'll drop the set_secret and set_var calls so nobody hits the gh path.",
+      "why": "names the helper calls"
+    },
+    {
+      "answer": "We could comment out the gh secret stages for those users.",
+      "why": "comment out"
+    },
+    {
+      "answer": "You could skip the CI-variable steps for those people. There's no need to install gh then.",
+      "why": "near miss: exempting phrase only in the next sentence"
+    },
+    {
+      "answer": "I'd suggest you bypass the stages that call gh when it is missing from .env setups.",
+      "why": "bypass stages ... gh, with a .env dot inside the sentence"
+    }
+  ]
+}

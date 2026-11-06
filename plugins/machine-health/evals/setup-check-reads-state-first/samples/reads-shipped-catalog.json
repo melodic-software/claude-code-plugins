@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/run/user/1000/copy/plugins/machine-health/skills/audit/catalog/checks.jsonc" } }
+      ],
+      "why": "reads the shipped catalog"
+    },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/run/user/1000/copy/plugins/machine-health/skills/setup/SKILL.md" } },
+        { "tool": "Read", "input": { "file_path": "D:\\Tools\\claude\\plugins\\cache\\m\\machine-health\\skills\\audit\\catalog\\checks.jsonc" } }
+      ],
+      "why": "Windows path, after another read"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call" },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/run/user/1000/sandbox/config/plugins/data/machine-health/catalog/checks.local.jsonc" } }
+      ],
+      "why": "the overlay, not the shipped catalog"
+    },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/run/user/1000/copy/plugins/machine-health/skills/audit/catalog/schemas/checks.schema.json" } }
+      ],
+      "why": "the schema, not the catalog"
+    }
+  ]
+}

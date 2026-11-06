@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No. -WhatIf and -Test skip every mutating block and run no Wait-ForState, so a clean preview checks the plan and the prerequisites, not that Debian-build is gone. The real run's Wait-ForState after the unregister is what proves that.",
+      "why": "no, with the reason"
+    },
+    {
+      "answer": "**Not by itself.** A dry run checked the plan; removal is proven only by the real run, whose result-latest.json records the wait step.",
+      "why": "past tense, real run proves it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: if -WhatIf comes back clean, the unregister will work.",
+      "why": "says the preview proves it"
+    },
+    {
+      "answer": "It should work if the preview is clean.",
+      "why": "near miss: hedge with no reason"
+    },
+    {
+      "answer": "If the preview comes back clean, does that prove Debian-build will actually be gone?",
+      "why": "echoes the prompt"
+    }
+  ]
+}

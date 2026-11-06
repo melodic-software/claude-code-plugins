@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdicts"],
+  "properties": {
+    "verdicts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["index", "disposition", "cause"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0, "maximum": 49 },
+          "disposition": { "enum": ["productive", "equivalent", "arid", "unclassified"] },
+          "cause": { "enum": ["none", "no-assertion", "input-gap", "unclassified"] }
+        }
+      }
+    }
+  }
+}

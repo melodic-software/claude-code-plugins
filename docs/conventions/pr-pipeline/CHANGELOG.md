@@ -1,5 +1,38 @@
 # Changelog for the PR pipeline convention
 
+## [8.56.7] - 2026-11-06
+
+### Fixed
+
+- pr-refine holds a `fix-docs` run whose `fix-docs-head` cannot read the PR head (a failed read, a rate limit past the guard's budget, or an answer with no SHA): the step logs a notice and ends green, nothing else starts but `fix-docs-head-held`, whose `PR head hold` notice monitor signal 13 counts, and the dispatcher counts such a run toward `limits.limit-stops-per-head` as it counts a handoff hold, so the PR is dispatched again. Before, the run ended red. The read runner's report job now reads the PR head a second time after a transient fault, and the shared head read waits a full-jitter 0 to 10 s before that second read.
+
+## [8.56.6] - 2026-11-05
+
+### Fixed
+
+- work-unblock no longer runs its sweep when a listed human closes the issue labeled `work-unblock-sweep`: that close now runs the close path like any other, and the sweep runs only on its hourly schedule and after a work-resolve-issue run, so the next of those is the probe after an outage or a kill switch. The `sweep-kick` notice is gone. The `label-unblocked` job also drops `queue: max` and keeps GitHub's default of one waiting run, which a newer run replaces: the next sweep repeats a replaced run's work.
+
+## [8.56.5] - 2026-11-05
+
+### Fixed
+
+- work-resolve-issue holds a run whose WIP cap check could not read the pause (a failed or incomplete open lane PR listing or base config read, or a check that failed or set nothing): resolve-issue starts only on `capped` `false`, pick-slot ends green with a `WIP cap hold` notice, and work-unblock's sweep re-fires the issue so its next run reads again. Before, a failed read kept the last pause work-unblock's hourly sweep had cached, and with none the run started. check-wip-cap no longer restores or saves that cache (`save-state` and `state-saved` are gone, `pause_basis` is `read` or `unknown`), and work-unblock's `wip-state` job, which only saved it, is removed.
+
+## [8.56.4] - 2026-11-05
+
+### Fixed
+
+- `report-escalation` posts no lane-stopped comment when `report-stop-status` withholds the failing status for a workflow-modified token refusal the feedback sweep sends again
+- Monitor signal 13 counts intake-triage's apply-verdict hold, read under its own per-lane cap, and the lane-holds run listing pages instead of dropping runs past the first 100
+
+- `resolve-feedback-threads` starts no job and asks the lanes token broker for no token on a PR no listed person opened (address-feedback-select's new `person-opened` output, the `ownerPull` test `resolve-threads.mjs` applies) or on a round whose upstream is a review-comment relay (the new `upstream-relay` dispatch input `feedback-dispatch.mjs` sends), where it has no thread to resolve; a person's PR on a review-completion round runs it as before
+
+## [8.56.3] - 2026-11-05
+
+### Fixed
+
+- Native auto-merge: a lanes App pull request whose head moved after its arm no longer merges at a head the arming checks never judged. GitHub turns auto-merge off only on a push by someone without write access, so the merge queue's `ci-status` now holds a head the lanes App's newest pin does not name (`merge-holds.mjs` `pinHold`), unless a trusted person's approval of that head lifts it. `enable-auto-merge` also disarms an armed pull request whose head that pin does not name, and pins and arms the new head once its next scheduled run judges it.
+
 ## [8.56.2] - 2026-11-05
 
 ### Fixed

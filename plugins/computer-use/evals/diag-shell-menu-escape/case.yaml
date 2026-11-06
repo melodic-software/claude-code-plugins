@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: diag-shell-menu-escape
+graders:
+  - name: left-click-empty
+    type: regex
+    pattern: '\bleft[- ]?click(?:s|ed|ing)?\b[^\n.]{0,50}\b(?:empty|blank|neutral|unused|elsewhere|outside|away from)\b|(?<!right[- ])(?<!right)\bclick(?:s|ed|ing)?\b[^\n.]{0,20}\b(?:on |in |into )?(?:an? |some |the )?(?:empty|blank|neutral|unused) (?:space|area|spot|part|region)\b|"action"\s*:\s*"left_click"[^\n]{0,80}\b(?:empty|blank)\b'
+    flags: 'i'
+    target: last_message
+  - name: shell-vs-in-app
+    type: regex
+    pattern: '^(?=[\s\S]*\bshell\b)(?=[\s\S]*(?:\bin-app\b|\bin[- ]application\b|\b(?:app|application)[- ](?:owned|level)\b|\bNotepad\b|\b(?:an?|the) (?:app|application)(?:[''’]s)? own menus?\b|\bmenus? (?:inside|within) (?:an? |the )?(?:app|application|program)s?\b|\b(?:app|application) menus\b))'
+    flags: 'i'
+    target: last_message
+  - name: reads-quirks-spoke
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?windows-quirks\.md"'
+    arm: 'with-only'

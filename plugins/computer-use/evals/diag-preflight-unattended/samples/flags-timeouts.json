@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# Check before you leave\n\nLook at the screensaver timeout and the display-off timeout. If either is shorter than 40 minutes, raise or disable it for the run.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Screensaver:** if it fires after 10 minutes of idle, the run dies at minute 10.",
+      "why": "**bold** reply, minutes"
+    },
+    {
+      "answer": "| Setting | Check |\n|---|---|\n| Screensaver timeout | Longer than 40 minutes? |\n| Display sleep | Longer than 40 minutes? |",
+      "why": "table reply"
+    },
+    {
+      "answer": "What is your screen saver's wait time set to? And the timeout for display sleep?",
+      "why": "asks about the timeouts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "It should take about 40 minutes, and Claude will be clicking the whole time.",
+      "why": "echoes the prompt's 40 minutes"
+    },
+    {
+      "answer": "Claude's input doesn't reset the idle timer, so something may interrupt the run.",
+      "why": "near miss: names the idle timer, never the screensaver or display-sleep timeout"
+    },
+    {
+      "answer": "Make sure Tallyhouse is maximized and no update prompts are pending.",
+      "why": "different hazard"
+    }
+  ]
+}

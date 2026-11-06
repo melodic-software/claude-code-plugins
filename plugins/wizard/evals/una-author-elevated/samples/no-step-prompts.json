@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#requires -Version 7.0\nparam([switch] $Test)\nfunction Use-GuardedResource {\n    param()\n}\nfunction Confirm-Irreversible {\n    param([string] $Name)\n}\nfunction Invoke-UnattendedRun {\n    param()\n}\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm:$false | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "no prompt below the marker; -Confirm:$false allowed"
+    },
+    {
+      "answer": "function Confirm-Irreversible { Read-Host 'type the name' }\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm:$false | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "Read-Host only in the library"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#requires -Version 7.0\nparam([switch] $Test)\nfunction Use-GuardedResource {\n    param()\n}\nfunction Confirm-Irreversible {\n    param([string] $Name)\n}\nfunction Invoke-UnattendedRun {\n    param()\n}\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    $ok = Read-Host 'Enable WSL? (y/n)'\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm:$false | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "Read-Host per step"
+    },
+    {
+      "answer": "#requires -Version 7.0\nparam([switch] $Test)\nfunction Use-GuardedResource {\n    param()\n}\nfunction Confirm-Irreversible {\n    param([string] $Name)\n}\nfunction Invoke-UnattendedRun {\n    param()\n}\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Confirm-Irreversible -Name 'powercfg /setactive'\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm:$false | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "consent prompt on a reversible step"
+    },
+    {
+      "answer": "#requires -Version 7.0\nparam([switch] $Test)\nfunction Use-GuardedResource {\n    param()\n}\nfunction Confirm-Irreversible {\n    param([string] $Name)\n}\nfunction Invoke-UnattendedRun {\n    param()\n}\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Invoke-IdempotentStep -Name 'WSL feature' -Done { (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State -eq 'Enabled' } -Action {\n        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -Confirm | Out-Null\n    }\n    Invoke-IdempotentStep -Name 'work dir' -Done { Test-Path C:\\agent\\work } -Action { New-Item -ItemType Directory C:\\agent\\work | Out-Null }\n}\n",
+      "why": "near miss: -Confirm switch"
+    }
+  ]
+}

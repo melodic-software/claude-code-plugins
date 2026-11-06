@@ -227,6 +227,7 @@ read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
 declare -A OUTSIDE_TRIGGERS=(
   [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml"
   [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
+  [scripts/lane-transcripts]=".github/workflows/"
 )
 
 # Every Node package as `<package> <owner> [<trigger>]`.

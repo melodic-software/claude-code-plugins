@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Re-run cost: the citation regex and word count are free; the tone judge is metered on every re-run."
+    },
+    {
+      "answer": "Cost per run: two code-graded checks cost nothing, and the LLM-graded tone check is billed for each judge call."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Criteria\n\n- Tone >= 4/5, LLM-graded by a different model.\n- Every reply cites a KB article ID (regex).\n- Under 180 words (word count)."
+    }
+  ]
+}

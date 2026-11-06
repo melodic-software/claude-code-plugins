@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.6] - 2026-11-06
+
+### Changed
+
+- Shared `hook-utils.sh` synced where this plugin carries it: an opt-in shfmt parse memo that only the guardrails Bash dispatcher turns on (#6634); no change to this plugin's behavior.
+
+## [3.2.5] - 2026-11-05
+
+### Fixed
+
+- `/testing:write` now triggers when new code is asked for with its tests ("add X with unit tests"), not only when tests are asked for existing code ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
+
 ## [3.2.4] - 2026-11-05
 
 ### Changed

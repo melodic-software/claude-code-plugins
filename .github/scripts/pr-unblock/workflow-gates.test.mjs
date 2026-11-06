@@ -442,6 +442,7 @@ const JOBS = [
   "address-feedback-subscription-handoff",
   "address-feedback-fallback",
   "apply-feedback-patch",
+  "adjudicate-key-credit",
   "adjudicate-feedback",
   "publish-feedback",
 ];
@@ -451,7 +452,7 @@ const JOBS = [
 // too, so the push and the reply would never run.
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
   const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription" || need === "address-feedback-fallback"));
-  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-feedback", "publish-feedback"]);
+  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-key-credit", "adjudicate-feedback", "publish-feedback"]);
   for (const job of [...after, "address-feedback", "address-feedback-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -476,6 +477,31 @@ test("pr-unblock.yml: publish-feedback runs exactly when the select job proceede
       JSON.stringify([proceed, resolveOnly]),
     );
   }
+});
+
+// resolve-threads.mjs serves only a PR a listed person opened, and leaves
+// open every thread a person wrote in, so a lanes App PR's round and a
+// relayed person's reply start no resolve job and ask the broker for no token
+// (#13580). A person's PR on a review-completion round runs as before.
+test("pr-unblock.yml: resolve-feedback-threads starts no job on a PR no listed person opened or a relayed reply", () => {
+  const { gate } = jobGate(UNBLOCK, "resolve-feedback-threads");
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "needs.publish-feedback.result": "success",
+      "needs.publish-feedback.outputs.skip-reason": "",
+      "needs.address-feedback-select.outputs.person-opened": "true",
+      "inputs.upstream-relay": "",
+      ...overrides,
+    });
+  assert.equal(runs(), true, "a person's PR on a review-completion round");
+  assert.equal(runs({ "needs.publish-feedback.outputs.skip-reason": "lane-stopped" }), true, "and on the reply script's own stop");
+  assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "false" }), false, "a lanes App PR");
+  assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "" }), false, "an unread author");
+  assert.equal(runs({ "inputs.upstream-relay": "true" }), false, "a relayed person's reply");
+  assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "false", "inputs.upstream-relay": "true" }), false, "a relay on a lanes App PR");
+  // The input feedback-dispatch.mjs sends on a relay round is declared, or
+  // GitHub refuses the dispatch.
+  assert.match(readFileSync(new URL(`../../workflows/${UNBLOCK}`, import.meta.url), "utf8"), /\n      upstream-relay:\n        description: .+\n        required: false\n        type: string\n        default: ""\n/);
 });
 
 // A pass-only round lists only stale fail-note threads: its select job's
@@ -561,8 +587,9 @@ test("pr-unblock.yml: adjudicate-feedback logs the API budget its prepare step s
 });
 
 // adjudicate-feedback.mjs stages up to MAX_THREADS slots, and the job has one
-// stage, judge and keep step per slot; a slot with no steps would read as
-// unadjudicated with no error.
+// stage step, three judge legs (key, subscription, fallback) and one keep
+// step per slot; a slot with no steps would read as unadjudicated with no
+// error.
 test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each with the same grants", () => {
   const steps = [];
   for (const line of jobBlock(UNBLOCK, "adjudicate-feedback")) {
@@ -575,21 +602,49 @@ test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each
   const slotOf = (step) => /\/adjudicate\/(\d+)$/.exec(step.find((line) => line.includes("SLOT_DIR:")) ?? "")?.[1];
   const judges = steps.filter((step) => /run-claude-cli@/.test(field(step, "uses") ?? ""));
   const slots = Array.from({ length: MAX_THREADS }, (_, n) => n);
-  assert.deepEqual(judges.map((step) => field(step, "id")), slots.map((n) => `judge-${n}`));
+  const legIds = (n) => [`judge-${n}`, `judge-${n}-subscription`, `judge-${n}-fallback`];
+  assert.deepEqual(judges.map((step) => field(step, "id")), slots.flatMap(legIds));
   for (const n of slots) {
     const stage = steps.find((step) => nameOf(step) === `Stage disputed thread ${n}`);
-    const judge = judges[n];
+    const [key, sub, fb] = legIds(n).map((id) => judges.find((step) => field(step, "id") === id));
     const keep = steps.find((step) => nameOf(step) === `Keep disputed thread ${n}'s verdict`);
-    const counted = `steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
-    assert.equal(gateOf(stage), counted, `stage ${n}`);
-    assert.equal(gateOf(judge), counted, `judge ${n}`);
-    assert.equal(gateOf(keep), `always() && steps.judge-${n}.outputs.structured-output-file != ''`, `keep ${n}`);
+    const counted = `fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
+    assert.equal(gateOf(stage), `steps.token.outputs.any == 'true' && ${counted}`, `stage ${n}`);
+    assert.equal(gateOf(key), `steps.key.outputs.key == 'true' && ${counted}`, `key leg ${n}`);
+    assert.equal(gateOf(sub), `steps.token.outputs.token == 'true' && ${counted} && (steps.judge-${n}.outcome == 'skipped' || steps.judge-${n}.outputs.handoff == 'true')`, `subscription leg ${n}`);
+    assert.equal(
+      gateOf(fb),
+      `steps.token.outputs.fallback == 'true' && ${counted} && (steps.judge-${n}-subscription.outputs.handoff == 'true' || steps.token.outputs.token != 'true' && (steps.judge-${n}.outcome == 'skipped' || steps.judge-${n}.outputs.handoff == 'true'))`,
+      `fallback leg ${n}`,
+    );
+    // An empty subscription token hands the slot to the fallback leg, after
+    // the key leg handed off or did not run.
+    const runsFb = (values) =>
+      evaluate(gateOf(fb).replace(counted, "true"), { "steps.token.outputs.fallback": "true", ...values });
+    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "skipped", [`steps.judge-${n}.outputs.handoff`]: "", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), true, `empty token, no key ${n}`);
+    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "failure", [`steps.judge-${n}.outputs.handoff`]: "true", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), true, `empty token after a key handoff ${n}`);
+    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "success", [`steps.judge-${n}.outputs.handoff`]: "false", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), false, `the key answered ${n}`);
+    assert.equal(runsFb({ "steps.token.outputs.token": "true", [`steps.judge-${n}.outcome`]: "skipped", [`steps.judge-${n}.outputs.handoff`]: "", [`steps.judge-${n}-subscription.outputs.handoff`]: "false" }), false, `the subscription answered ${n}`);
+    assert.match(gateOf(keep), new RegExp(`^always\\(\\) && \\(steps\\.judge-${n}\\.outputs\\.structured-output-file != ''`), `keep ${n}`);
     assert.equal(slotOf(stage), String(n), `stage ${n} copies its own slot`);
     assert.equal(slotOf(keep), String(n), `keep ${n} writes its own slot`);
+    // Each leg passes exactly one credential, the fallback-ready only on the subscription leg.
+    const credentials = (step) => step.filter((line) => /^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready): /.test(line)).map((line) => line.trim());
+    assert.deepEqual(credentials(key), ["api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}"], `key leg ${n}`);
+    assert.deepEqual(credentials(sub), ["subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}", "fallback-ready: ${{ steps.token.outputs.fallback }}"], `subscription leg ${n}`);
+    assert.deepEqual(credentials(fb), ["fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"], `fallback leg ${n}`);
+    // Every leg writes its own lane record.
+    for (const leg of [key, sub, fb]) {
+      const id = field(leg, "id");
+      const record = steps.find((step) => /report-lane-outcome@/.test(field(step, "uses") ?? "") && gateOf(step) === `always() && steps.${id}.outcome != 'skipped'`);
+      assert.ok(record, `${id} has a lane record`);
+      assert.ok(record.some((line) => line === "          lane-id: adjudicate-feedback"), `${id} record lane-id`);
+    }
   }
+  const credentialLines = /^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready): .*\n/gm;
   const withOf = (step) => step.slice(step.indexOf("        with:")).join("\n");
   for (const judge of judges.slice(1)) {
-    assert.equal(withOf(judge), withOf(judges[0]), "every slot's model call has the same inputs and grants");
+    assert.equal(withOf(judge).replace(credentialLines, ""), withOf(judges[0]).replace(credentialLines, ""), "every slot's model call has the same inputs and grants");
   }
   assert.match(withOf(judges[0]), /\n {10}allowed-tools: Read\(\.\/adjudicate\/\*\*\)\n/, "Read is allowed in the slot alone");
   assert.match(withOf(judges[0]), /\n {10}tools: Read\n/, "the judge's one tool is Read");
@@ -1298,7 +1353,8 @@ esac
       assert.equal(run.status, 0, `${text}: ${run.stdout}`);
       assert.equal(run.calls, 2, text);
       assert.equal(run.sleeps.length, 1, text);
-      assert.ok(run.sleeps[0] >= 5 && run.sleeps[0] <= 10, `${text}: waited ${run.sleeps[0]}`);
+      // Full jitter (outage posture element 1): a wait drawn from 0 to the 10 s cap.
+      assert.ok(/^(?:[0-9]|10)$/.test(run.sleeps[0]), `${text}: waited ${run.sleeps[0]}`);
       assert.match(run.stdout, /^::warning::reading #7 failed \(transient\): /m, text);
       assert.equal(run.written, `sha=${sha}\ndefault-base=true\n`, text);
     }

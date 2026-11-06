@@ -53,6 +53,18 @@
         }
       ],
       "why": "chained u+x"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\nchmod +x scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ]
 }

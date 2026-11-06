@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-06
+
+### Changed
+
+- Shared `hook-utils.sh` synced where this plugin carries it: an opt-in shfmt parse memo that only the guardrails Bash dispatcher turns on (#6634); no change to this plugin's behavior.
+
 ## [1.0.3] - 2026-11-04
 
 ### Changed

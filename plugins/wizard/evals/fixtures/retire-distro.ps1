@@ -1,6 +1,6 @@
 #requires -Version 7.0
 <#
-  Unattended procedure library. The agent authors the block below # STAGES.
+  Unattended procedure library. The agent authors the stage block that follows it.
   The human launches this script. The agent never launches the real run.
   Secrets declared on Invoke-UnattendedRun resolve once before the first stage:
   environment, then file, then the credential store (SecretManagement, then the

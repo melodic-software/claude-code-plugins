@@ -182,8 +182,7 @@ jobs:
     if: github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # An issues run can only restore a default-branch cache; it reads the
-    # WIP cap's last known state and never saves one (work-unblock does).
+    # No step here uses a cache; read keeps an issues run from saving one.
     cache-mode: read
     permissions:
       contents: read # check out the default branch for the WIP cap
@@ -217,8 +216,12 @@ jobs:
       # When the WIP cap check pauses the lane (over the WIP cap or the held
       # cap on or after wip.pause-from), resolve-issue is skipped: no
       # slot, no token. work-unblock's sweep re-fires the issue once under the
-      # cap. The check publishes its status as the `wip` output; one that fails
-      # starts the run. A read that fails keeps the last known pause. Its
+      # cap. The check publishes its status as the `wip` output. A read the
+      # pause depends on that fails, or a check that sets no `capped`, holds
+      # (outage posture element 2): resolve-issue starts only on
+      # `capped == 'false'`, the job ends green with a notice, and
+      # work-unblock's sweep re-fires the issue as a WIP cap skip, so its next
+      # run reads again (element 3). No stored state decides the pause. Its
       # queued cap (`admission-open`) gates only new agent-ready labels in
       # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Check out the default branch tip
@@ -238,15 +241,24 @@ jobs:
           # Only capped leaves this job, so the admission reads are skipped.
           reads: pause
 
+      # The check names its own hold; this names one it could not, when it
+      # failed or never ran.
+      - name: Hold on an unknown WIP cap
+        if: steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'
+        run: echo "::notice title=WIP cap hold::the WIP cap check did not finish, so the pause is unknown and this run starts no work; work-unblock's next sweep re-fires it and the check reads again"
+
       # A job's timeout is fixed before it starts, so the run job's comes from
       # here: the issue's Size, Complexity and Uncertainty fields read through
       # the base config (models.issue-dimensions). The run job takes the same
       # dimensions for its turn cap rather than reading the fields again, so a
       # field set while it waits in its slot cannot outgrow the timeout.
       # Without issue-dimensions the timeout is 40 minutes, a 25-minute leg. A config that
-      # cannot be resolved, or an option it does not map, fails this job.
+      # cannot be resolved, or an option it does not map, fails this job. A run
+      # held on an unknown pause skips this read, so it ends green; a paused
+      # run still reads it, since report-skip runs at the WIP cap too.
       - name: Resolve the issue dimensions' timeout
         id: dimensions
+        if: steps.wip.outputs.held == 'false'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: work-resolve-issue
@@ -280,7 +292,7 @@ jobs:
     needs: [admit, pick-slot]
     if: >-
       github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
-      && needs.pick-slot.outputs.capped != 'true'
+      && needs.pick-slot.outputs.capped == 'false'
     # One run per slot at a time; the rest wait in line, holding no runner,
     # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
     # per slot and cancels any more. report-outcome takes no slot, so it never
@@ -295,6 +307,7 @@ jobs:
     # which runs only default-branch-tip code. The first call holds the API
     # key alone.
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -305,6 +318,7 @@ jobs:
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
+      key-credit-job: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
@@ -390,6 +404,83 @@ jobs:
         with:
           tokens: github-token
 
+  # The key's credit-stop markers, read by the read runner's broker-check in
+  # later runs (each first call's key-credit-job). Each comes from a jobs-API
+  # read of the call's run job (handoff-evidence.sh credit-stop), never from a
+  # call's output. No job needs this one, so the read, which waits for the
+  # jobs listing's steps, delays no handoff.
+  key-credit-markers:
+    needs: [resolve-issue]
+    if: ${{ !cancelled() && (needs.resolve-issue.result != 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether resolve-issue's key hit a credit stop
+        id: credit-stop-resolve-issue
+        if: needs.resolve-issue.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-issue
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write resolve-issue's credit-stop marker
+        id: credit-marker-resolve-issue
+        if: steps.credit-stop-resolve-issue.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-resolve-issue"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-resolve-issue/run-id"
+
+      - name: Upload resolve-issue's credit-stop marker
+        if: steps.credit-marker-resolve-issue.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-work-resolve-issue.yml-resolve-issue
+          path: ${{ runner.temp }}/key-credit-stop-resolve-issue/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The subscription fallback, a second call on new VMs in the same slot: it
   # runs only on resolve-issue-handoff's read, holds the OAuth token alone,
   # and passes fallback handoff, the one fact that read attests.
@@ -397,11 +488,12 @@ jobs:
     needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff]
     if: >-
       ${{ !cancelled() && github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
-      && needs.pick-slot.outputs.capped != 'true' && needs.resolve-issue-handoff.outputs.handed-off == 'true' }}
+      && needs.pick-slot.outputs.capped == 'false' && needs.resolve-issue-handoff.outputs.handed-off == 'true' }}
     concurrency:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -488,12 +580,13 @@ jobs:
     needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff, resolve-issue-subscription, resolve-issue-subscription-handoff]
     if: >-
       ${{ !cancelled() && github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
-      && needs.pick-slot.outputs.capped != 'true' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true'
+      && needs.pick-slot.outputs.capped == 'false' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true'
       && needs.resolve-issue-subscription-handoff.outputs.handed-off == 'true' }}
     concurrency:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write

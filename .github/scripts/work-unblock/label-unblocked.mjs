@@ -6,9 +6,7 @@
 // repository's blocker: closed there by a listed human), no hold label, and
 // not already agent-ready. Issues it would label are taken oldest
 // opened first (owner Q95). Every fact is read from the API now, never from the event
-// payload, except the closed issue's labels: one carrying SWEEP_LABEL is the
-// marker, and a listed human closing it runs the sweep below at once, not the
-// close path. No model.
+// payload. No model.
 //
 // The close path also strips the closed issue's own queue labels
 // (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
@@ -119,8 +117,10 @@
 // up. A swept close counts only when a listed human or a merge made it. A
 // listing the sweep cannot read holds: a notice and a green exit, no read or
 // write after a failed closed listing, and the next sweep's window stays back,
-// so it reads the closes this one missed. A read or write that fails for one
-// issue still ends the run red, which keeps the window back the same way.
+// so it reads the closes this one missed. A read for one issue that meets a
+// GitHub fault holds that issue the same way: a notice, the rest of the sweep
+// goes on, and the window stays back. A write that fails, or a read that fails
+// for another reason, ends the run red, which keeps the window back too.
 // Overlapping windows are harmless: an issue already labeled is left alone, and one whose
 // label was removed (by a person, or by a lane's pushback) is not labeled
 // again until the lanes App or a listed human adds `status: ready` after the
@@ -262,11 +262,10 @@
 //   GITHUB_REPOSITORY      owner/repo
 //   GITHUB_EVENT_NAME      `issues` (a close), or `schedule` or
 //                          `workflow_run` (a finished work-resolve-issue run)
-//                          for the sweep; a close of an issue labeled
-//                          SWEEP_LABEL runs the sweep too
+//                          for the sweep
 //   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
-//                          sender and issue number, labels and close time
-//                          are read; on a sweep event it is not read
+//                          sender and issue number are read; on a sweep
+//                          event it is not read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
@@ -295,7 +294,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { notBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
-import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
@@ -372,6 +371,10 @@ const LOG_CAP_BYTES = 1_048_576;
 // so this line alone lets the next sweep's window start from it.
 const LISTED_LINE = "label-unblocked: read the closed-issue listing";
 const LISTED = new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ${LISTED_LINE}$`);
+// The line a run prints when it held an issue on a faulted read (failedFor),
+// and that line in a raw job log. The next sweep's window stays back past it.
+const HELD_LINE = "label-unblocked: held an issue on a failed read";
+const HELD = new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ${HELD_LINE}$`);
 // work-unblock.yml's job and its step that runs this script. The kill switch
 // and a lane the config turns off skip the step and leave the run green, so
 // only this step's success shows a sweep ran.
@@ -402,15 +405,6 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
-// The marker issue's label: a listed human closing an issue that carries it
-// runs the sweep at once instead of waiting for the schedule (the hub reopens
-// and closes it after a rate-limit breaker clears). That sweep re-fires at
-// once only issues the kill switch stopped at broker-check; one stopped at a
-// token mint still waits limits.reset-clamp-min. A second kick is one more
-// sweep: runs queue one at a time, and a re-fired issue's newer label holds it.
-// The only copy of the name; work-unblock.yml's header names it in prose and
-// reads nothing.
-export const SWEEP_LABEL = "work-unblock-sweep";
 // The one comment per issue that says it keeps being re-fired on a backoff,
 // edited in place on each re-fire; it reads as a re-fire record timed by its
 // last edit.
@@ -455,6 +449,38 @@ const reportError = (number, error) =>
 // sweep holds, with this notice, and the next tick reads it again.
 const reportHold = (what, error) =>
   console.log(`::notice title=label-unblocked::the ${what} listing failed (${escapeCommand(error?.message ?? error)}); holding, and the next sweep reads it again`);
+// main's clients tag the error of a read (a GET, or a GraphQL query as
+// retryServerErrors tells one) that met a GitHub fault (isFault), and count
+// on the GitHub client (`held`) the issues failedFor holds on one.
+const READ_FAULT = Symbol("a read met a GitHub fault");
+function markReads(client) {
+  const marked = async (method, apiPath, body, ...rest) => {
+    try {
+      return await client(method, apiPath, body, ...rest);
+    } catch (error) {
+      const read = method === "GET" || (method === "POST" && graphqlQuery(apiPath, { body: JSON.stringify(body) }));
+      if (read && isFault(error)) {
+        error[READ_FAULT] = true;
+      }
+      throw error;
+    }
+  };
+  marked.held = 0;
+  return marked;
+}
+// What one issue's failed read or write adds to the run's failures. A faulted
+// read is no verdict on the issue (outage posture element 2): the issue is
+// held with a notice and the run stays green. Anything else, a failed write
+// or a read that failed for another reason, is reported and ends the run red.
+function failedFor(github, number, error) {
+  if (error?.[READ_FAULT]) {
+    console.log(`::notice title=label-unblocked::#${number}: ${escapeCommand(error.message)}; holding, and the next sweep reads it again`);
+    github.held += 1;
+    return 0;
+  }
+  reportError(number, error);
+  return 1;
+}
 
 const isLabel = (event, kind) => event.event === kind && String(event.label?.name).toLowerCase() === LABEL;
 
@@ -632,7 +658,8 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
       throw new Error("the last sweep's job has no usable id");
     }
     const log = await jobLog(repo, swept.id, { maxBytes: LOG_CAP_BYTES });
-    return String(log ?? "").split("\n").some((line) => LISTED.test(line))
+    const lines = String(log ?? "").split("\n");
+    return lines.some((line) => LISTED.test(line)) && !lines.some((line) => HELD.test(line))
       ? { since: from, why: `the last sweep started ${at}` }
       : { since: widest, why: `the last sweep, started ${at}, held or shows no read of its listing` };
   } catch (error) {
@@ -819,8 +846,7 @@ async function unpark({ github, repo, parked, humans, appId, admission, mirror =
         going.push(issue.number);
       }
     } catch (error) {
-      failed += 1;
-      reportError(issue.number, error);
+      failed += failedFor(github, issue.number, error);
     }
   }
   console.log(`label-unblocked: ${going.length} of ${parked.length} parked issue(s) go back to intake`);
@@ -830,8 +856,7 @@ async function unpark({ github, repo, parked, humans, appId, admission, mirror =
       await mirror(number, change(labelNames(parked.find((issue) => issue.number === number)), [], [CONFIRMED]));
       console.log(`label-unblocked: #${number} ${CONFIRMED} removed; intake-reenter sends it to intake`);
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -898,8 +923,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`label-unblocked: #${number} deferral dropped: ${reason}`);
       }
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -936,8 +960,7 @@ async function stripClosed({ github, repo, number, read }) {
     console.log(`label-unblocked: #${number} closed; removed ${removed.length} queue and state label(s)${removed.length > 0 ? `: ${removed.join(", ")}` : ""}`);
     return 0;
   } catch (error) {
-    reportError(number, error);
-    return 1;
+    return failedFor(github, number, error);
   }
 }
 
@@ -1146,8 +1169,7 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
         console.log(`label-unblocked: #${item.number} admission comment now names its open sub-issues`);
       }
     } catch (error) {
-      failed += 1;
-      reportError(item.number, error);
+      failed += failedFor(github, item.number, error);
     }
   }
   let candidates = listed.filter((item) => !queued(lower(item)) && (!waiting(item) || drained.has(item.number)));
@@ -1227,8 +1249,7 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
         console.log(`label-unblocked: #${number} left as is: ${reasons}`);
       }
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -1255,8 +1276,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
     } catch (error) {
-      failed += 1;
-      reportError(source, error);
+      failed += failedFor(github, source, error);
       continue;
     }
     for (const item of blocked) {
@@ -1294,8 +1314,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       }
       await admit({ github, repo, number, gate, deferred, confirmed, had: labelNames(current), mirror });
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed + (parked.length > 0 ? await unpark({ github, repo, parked, humans, appId, admission, mirror }) : 0);
@@ -2091,8 +2110,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
       }
       ready.push({ ...verdict, number: Number(issue.number), had: labelNames(issue) });
     } catch (error) {
-      failed += 1;
-      reportError(issue.number, error);
+      failed += failedFor(github, issue.number, error);
     }
   }
   ready.sort((a, b) => a.resets - b.resets || a.number - b.number);
@@ -2120,8 +2138,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
         await mirror(number, change(had, [], [...removed, ...(release ? [HUMAN_LABEL] : [])]));
         console.log(`label-unblocked: #${number} handed to triage: PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
       } catch (error) {
-        failed += 1;
-        reportError(number, error);
+        failed += failedFor(github, number, error);
       }
       continue;
     }
@@ -2144,8 +2161,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
       }
       await github("DELETE", `${base}/labels/${LABEL}`);
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
       continue;
     }
     // The label is off now; one failed re-add would leave the issue out of
@@ -2184,8 +2200,7 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot, clo
     try {
       await closeSplitParent({ github, repo, number, humans, closes, bot, sweep, mirror });
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -2222,8 +2237,7 @@ async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now,
     try {
       await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${item.number}`), humans, closes, bot, mirror });
     } catch (error) {
-      failed += 1;
-      reportError(item.number, error);
+      failed += failedFor(github, item.number, error);
     }
   }
   return failed;
@@ -2341,7 +2355,7 @@ const baseAdmission = (env) => {
     })());
 };
 
-export { budgetLatch };
+export { budgetLatch, failedFor, markReads };
 
 export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), mirrorStatus, statusOf } = {}) {
   try {
@@ -2350,16 +2364,16 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     }
     // A finished work-resolve-issue run sweeps as the schedule does: its
     // payload is not read, and its sender is usually the lanes App.
-    const scheduled = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
-    const event = scheduled ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
-    if (!scheduled && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
+    const sweep = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
+    const event = sweep ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+    if (!sweep && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
       throw new Error("this runs only on an issue closing, on the schedule or after a work-resolve-issue run");
     }
     if (env.KILL_SWITCH !== "proceed") {
       console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");
       return 0;
     }
-    if (!scheduled) {
+    if (!sweep) {
       // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
       // cleanly: the broker refuses it, and the hourly sweep picks it up.
       if (event.sender?.type === "Bot") {
@@ -2380,23 +2394,15 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // readiness is read (read-status.mjs); a caller that hands its own client
     // and no reader reads labels only.
     const reader = statusOf ?? (github ? undefined : null);
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
+    github = markReads(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse }));
     const mirrorTo = mirror ?? (await statusMirror({ env, github, repository: repo }));
     const statusTo = reader === null ? statusReader({ env, github, repository: repo }) : reader;
     const queuedStatus = reader === null ? statusReader({ env, github, repository: repo, limit: STATUS_READS }) : reader;
-    // A listed human's close of the marker issue (its labels read from the
-    // payload) runs the sweep, not the close path: it blocks nothing.
-    const kick = !scheduled && labelNames(event.issue).some((name) => name.toLowerCase() === SWEEP_LABEL);
-    const sweep = scheduled || kick;
-    if (kick) {
-      const closedAt = Date.parse(event.issue.closed_at);
-      const closed = Number.isFinite(closedAt) ? ` closed=${new Date(closedAt).toISOString()}` : "";
-      console.log(`::notice title=work-unblock::sweep-kick marker=#${Number(event.issue.number)}${closed} started=${new Date(now).toISOString()}`);
-    }
     if (sweep) {
       const latch = budgetLatch("github-token");
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
       jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
+      actions = actions && markReads(actions);
     }
     const window = sweep ? await sweepSince({ actions, jobLog, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     let closed = sweep ? [] : [Number(event.issue.number)];
@@ -2428,7 +2434,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, mirror: mirrorTo });
-    // The sweep marker carries no queue labels, so a kick skips this.
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number) });
     }
@@ -2446,6 +2451,9 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         failed += await readmitReady({ github, repo, listed, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now, mirror: mirrorTo });
       }
       failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, appId: logins.get(bot), now, limits, status, mirror: mirrorTo });
+    }
+    if (github.held > 0) {
+      console.log(HELD_LINE);
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {

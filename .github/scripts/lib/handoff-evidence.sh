@@ -22,6 +22,10 @@
 #   stale    the call's run job stopped at `Stop on stale workflow files`
 #            (issue mode, before any model turn): read from the step, which
 #            no run job can rename. A skipped or absent run job is false.
+#   credit-stop  the call's key leg hit a credit stop: its run job's `Mark a
+#            key credit stop` step succeeded, a step that runs only on
+#            run-claude-cli's handoff-reason, set after the leg ends. A skipped
+#            or absent run job is false.
 #
 # GitHub's jobs listing can return a job's steps empty, or a step's conclusion
 # null, for minutes after the job ends. Job-level fields come at once, so they
@@ -40,7 +44,7 @@
 # Authorization header, as gh's do
 # (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
 #
-# Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale)
+# Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale, credit-stop)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
 # Outputs: one FACT=true|false line per requested fact, and one log line
 # naming them with the read count. A fact still unsettled after the last read:
@@ -64,11 +68,11 @@ set -euo pipefail
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 [[ $# -gt 0 ]] || {
-  echo "::error::usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale)"
+  echo "::error::usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale, credit-stop)"
   exit 2
 }
 for fact in "$@"; do
-  case $fact in allowed | posted | handed-off | stale) ;; *)
+  case $fact in allowed | posted | handed-off | stale | credit-stop) ;; *)
     echo "::error::unknown handoff fact: $fact"
     exit 2
     ;;
@@ -125,13 +129,17 @@ settle='
     | if $r == null or $r.conclusion == "skipped" then "false"
       elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
       else by_step($r; "Stop on stale workflow files") end;
+  def credit_stop($c): job("\($c) / run") as $r
+    | if $r == null or $r.conclusion == "skipped" then "false"
+      elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
+      else by_step($r; "Mark a key credit stop") end;
   def any_of($vals): if any($vals[]; . == "true") then "true"
     elif any($vals[]; startswith("missing")) then ([$vals[] | select(startswith("missing"))] | join("; "))
     else "false" end;
   ($calls | split(" ") | map(select(. != ""))) as $cs
   | $facts | split(" ")[]
   | . as $f
-  | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) elif $f == "stale" then stale(.) else handed_off(.) end]))"'
+  | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) elif $f == "stale" then stale(.) elif $f == "credit-stop" then credit_stop(.) else handed_off(.) end]))"'
 
 # Pages read per listing: a Link header that never ends cannot loop.
 max_pages=20

@@ -1,5 +1,5 @@
 ---
-description: "After a run with a wide severity spread and a steep trend, the audit's remaining output is the dated markdown report, the state files and the built decision page; the session writes no HTML view of the report itself"
+description: "After a run with a wide severity spread and a steep trend, the audit's remaining output is the dated markdown report under the configured report root (the report_dir seam, here D:\\HealthReports), the state files and the built decision page; the session writes no HTML view of the report itself. names-markdown-report and report-under-configured-root grade the report path, names-history-append the history line, no-model-written-html the rest."
 tags: [machine-health, audit, report, invented]
 max_turns: 8
 timeout_seconds: 300
