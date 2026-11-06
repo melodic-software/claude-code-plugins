@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Operator-run refresh of the user-scope plugin fleet: move the marketplace
-# clones and `cache/` aside, re-fetch them through the documented CLI, and prove
-# the configuration came back unchanged.
+# Operator-run reset of the user-scope plugin fleet: move the marketplace
+# clones and `cache/` (and, for `clean`, `data/`) aside, re-fetch them through
+# the documented CLI, and prove the configuration came back unchanged.
 #
 # Usage:
 #   reset-refresh.sh preview
 #   reset-refresh.sh refresh [--journal-root <dir>]
+#   reset-refresh.sh clean [--journal-root <dir>]
 #
 # `preview` changes nothing and calls no CLI: it prints the count and size of
 # what `refresh` would move aside (each known marketplace's clone under
 # `plugins/marketplaces/`, and `plugins/cache/` with its `temp_git_*` entries)
-# and the user-scope ids it would reinstall.
+# and the user-scope ids it would reinstall, then what `clean` would also
+# discard (`plugins/data/`) and any earlier `plugins.bak-*` backup.
 #
 # `refresh` keeps installed_plugins.json, known_marketplaces.json and every
 # settings file, and never writes any of them itself:
@@ -33,12 +35,31 @@
 #      disabled id enables it. "already enabled|disabled" counts as success.
 #   7. Snapshots again and compares all three; any difference is a failure.
 #
+# `clean` does all of that, plus:
+#   - Refuses unless stdin is a terminal (it asks before some installs, so it
+#     aborts when run autonomously) and while an earlier `~/.claude/plugins.bak-*`
+#     exists, so at most one backup is kept.
+#   - Moves `cache/`, the clones and `data/` into `~/.claude/plugins.bak-<ts>`
+#     instead of the run directory, and never deletes that backup.
+#   - Installs with `--json`. When an install only displays a marketplace-declared
+#     command, it prints that command and asks; on yes it re-runs with
+#     `--accept-command <sha256>`. It never passes `-y`.
+#   - Also snapshots every project and local install record, and byte copies of
+#     user `settings.json` and each existing project's `.claude/settings.json` and
+#     `.claude/settings.local.json`, compared with `cmp`.
+#   - On any CLI failure or difference, moves the rebuilt copies into the run
+#     directory and the backup back into place, then reports the difference.
+#   - On a pass, deletes the run's snapshot files and prints the backup's path
+#     and size, the `data/` entries whose setup reruns, the dotfile-managed paths
+#     under the plugin root (`chezmoi managed`, when present) and a restart line.
+#
 # Output: plain text on stdout; every CLI call and its output is appended to
 # `<run_dir>/journal.log`, and the snapshots are `<run_dir>/{before,after}.*.json`.
 #
 # Exit codes:
-#   0  preview printed, or refresh finished with every snapshot identical
-#   1  refresh finished with a CLI failure or a snapshot difference
+#   0  preview printed, or refresh or clean finished with every snapshot identical
+#   1  refresh or clean finished with a CLI failure or a snapshot difference
+#      (clean has moved its backup back)
 #   2  usage error, a refusal, a missing prerequisite or state file, a state file
 #      that is not valid JSON, or a failed move
 
@@ -52,13 +73,14 @@ USER_SETTINGS="$CLAUDE_DIR/settings.json"
 
 usage() {
   cat <<'EOF'
-reset-refresh.sh: refresh the user-scope plugin fleet with its configuration unchanged.
+reset-refresh.sh: reset the user-scope plugin fleet with its configuration unchanged.
 
 Usage:
   reset-refresh.sh preview
   reset-refresh.sh refresh [--journal-root <dir>]
+  reset-refresh.sh clean [--journal-root <dir>]
 
-Exit: 0 preview, or refresh with every snapshot identical; 1 refresh with a CLI
+Exit: 0 preview, or a run with every snapshot identical; 1 a run with a CLI
 failure or a snapshot difference; 2 usage error, refusal or failed move.
 EOF
 }
@@ -84,7 +106,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 case "$MODE" in
-preview | refresh) ;;
+preview | refresh | clean) ;;
 -h | --help)
   usage
   exit 0
@@ -148,13 +170,33 @@ if [[ "$MODE" == "preview" ]]; then
   echo "Reinstall at user scope: $(reinstall_ids | grep -c .) id(s)"
   echo "Left out (@builtin): $(user_ids | grep -c '@builtin$') id(s)"
   echo "Project/local records, cache moved but not reinstalled: $(non_user_ids | grep -c .) id(s)"
+  if [[ -d "$PLUGINS_DIR/data" ]]; then
+    entries=$(find "$PLUGINS_DIR/data" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
+    echo "clean also discards data/: $entries entries ($(size_kb "$PLUGINS_DIR/data") KB)"
+  else
+    echo "clean also discards data/: absent"
+  fi
+  for bak in "$CLAUDE_DIR"/plugins.bak-*; do
+    [[ -e "$bak" ]] && echo "clean refuses while this earlier backup exists: $bak ($(size_kb "$bak") KB)"
+  done
   exit 0
 fi
 
-# --- refresh -------------------------------------------------------------------
+# --- refresh and clean ---------------------------------------------------------
 if [[ -n "${CLAUDE_CODE_REMOTE:-}" ]]; then
-  echo "REFUSED: CLAUDE_CODE_REMOTE is set; run refresh from a terminal on this machine" >&2
+  echo "REFUSED: CLAUDE_CODE_REMOTE is set; run $MODE from a terminal on this machine" >&2
   exit 2
+fi
+if [[ "$MODE" == "clean" ]]; then
+  if [[ ! -t 0 ]]; then
+    echo "REFUSED: clean asks before some installs, so it runs only from a terminal, never autonomously" >&2
+    exit 2
+  fi
+  for bak in "$CLAUDE_DIR"/plugins.bak-*; do
+    [[ -e "$bak" ]] || continue
+    echo "REFUSED: an earlier backup exists: $bak; remove it yourself, then run clean again" >&2
+    exit 2
+  done
 fi
 # Git Bash has no pgrep; Windows lists its processes through tasklist.exe. `//` keeps
 # MSYS from rewriting the `/FI` switches as paths.
@@ -208,13 +250,16 @@ if [[ -z "${RESET_REFRESH_RUN_DIR:-}" ]]; then
   root_real=$(cd "$JOURNAL_ROOT" && pwd -P)
   run_dir=$(mktemp -d "$root_real/$(date -u +%Y%m%dT%H%M%SZ).XXXXXX") || exit 2
   cp "${BASH_SOURCE[0]}" "$run_dir/reset-refresh.sh" || exit 2
-  RESET_REFRESH_RUN_DIR="$run_dir" exec bash "$run_dir/reset-refresh.sh" refresh
+  RESET_REFRESH_RUN_DIR="$run_dir" exec bash "$run_dir/reset-refresh.sh" "$MODE"
 fi
 RUN_DIR="$RESET_REFRESH_RUN_DIR"
 JOURNAL="$RUN_DIR/journal.log"
 : >>"$JOURNAL"
 # Out of the caller's directory, which can be inside the cache this run moves.
 cd "$RUN_DIR" || exit 2
+
+PARTS="marketplaces installs enabled"
+[[ "$MODE" == "clean" ]] && PARTS="$PARTS projects"
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 snapshot() {
@@ -229,6 +274,43 @@ snapshot() {
   else
     echo '{}' >"$RUN_DIR/$tag.enabled.json"
   fi
+  [[ "$MODE" == "clean" ]] || return 0
+  jqr -S '[.plugins // {} | to_entries[] | .key as $id
+    | .value[]? | select(.scope != "user") | {id: $id} + .]
+    | sort_by(.id, .scope, .projectPath)' "$INSTALLED_JSON" >"$RUN_DIR/$tag.projects.json"
+}
+
+# The settings files clean compares byte for byte: user settings, and the shared
+# and local settings of each existing project a project or local record names.
+settings_files() {
+  [[ -f "$USER_SETTINGS" ]] && echo "$USER_SETTINGS"
+  jqr -r '[.plugins // {} | .[][]? | select(.scope != "user") | .projectPath // empty]
+    | unique[]' "$INSTALLED_JSON" | while IFS= read -r p; do
+    command -v cygpath >/dev/null 2>&1 && p=$(cygpath -u "$p")
+    for f in "$p/.claude/settings.json" "$p/.claude/settings.local.json"; do
+      [[ -f "$f" ]] && echo "$f"
+    done
+  done
+  return 0
+}
+snapshot_settings() {
+  local i=0 f
+  : >"$RUN_DIR/settings.list" || return 1
+  while IFS= read -r f; do
+    i=$((i + 1))
+    cp "$f" "$RUN_DIR/settings.$i" || return 1
+    printf '%s\n' "$f" >>"$RUN_DIR/settings.list"
+  done < <(settings_files)
+}
+# Prints each settings file that differs from its copy, or that appeared.
+compare_settings() {
+  local i=0 f
+  while IFS= read -r f; do
+    i=$((i + 1))
+    cmp -s "$RUN_DIR/settings.$i" "$f" || echo "$f"
+  done <"$RUN_DIR/settings.list"
+  settings_files | grep -vxF -f "$RUN_DIR/settings.list"
+  return 0
 }
 
 FAILURES=0
@@ -241,41 +323,112 @@ run_cli() {
   printf '%s\n' "$CLI_OUT" >>"$JOURNAL"
   return "$rc"
 }
+count_failure() {
+  FAILURES=$((FAILURES + 1))
+  echo "  failed: claude $* ($(printf '%s' "$CLI_OUT" | tail -n 1))"
+}
 cli_or_count() {
   if ! run_cli "$@"; then
     case "$CLI_OUT" in
     *"already enabled"* | *"already disabled"*) return 0 ;;
     *) ;;
     esac
-    FAILURES=$((FAILURES + 1))
-    echo "  failed: claude $* ($(printf '%s' "$CLI_OUT" | tail -n 1))"
+    count_failure "$@"
   fi
+}
+# clean asks before an install that runs a marketplace-declared command, and
+# accepts only that command through its sha256, never with -y.
+install_user() {
+  local id="$1" result sha ans
+  if [[ "$MODE" != "clean" ]]; then
+    cli_or_count plugin install "$id" --scope user
+    return
+  fi
+  run_cli plugin install "$id" --scope user --json && return 0
+  result=$(printf '%s\n' "$CLI_OUT" | tail -n 1)
+  sha=$(printf '%s\n' "$result" | jqr -r '.shownCommand.sha256 // empty' 2>/dev/null)
+  if [[ -z "$sha" ]]; then
+    count_failure plugin install "$id" --scope user --json
+    return
+  fi
+  echo "Installing $id runs a command its marketplace declares:"
+  printf '%s\n' "$result" | jqr '.shownCommand'
+  read -r -p "Run this command for $id? [y/N] " ans
+  case "$ans" in
+  y | Y | yes | YES) cli_or_count plugin install "$id" --scope user --json --accept-command "$sha" ;;
+  *)
+    FAILURES=$((FAILURES + 1))
+    echo "  declined: $id is not reinstalled"
+    ;;
+  esac
 }
 
 snapshot before || {
   echo "ERROR: could not snapshot the state files; nothing was moved" >&2
   exit 2
 }
+if [[ "$MODE" == "clean" ]] && ! snapshot_settings; then
+  echo "ERROR: could not copy the settings files; nothing was moved" >&2
+  exit 2
+fi
 # A read loop, not mapfile: macOS system bash is 3.2.
 IDS=()
 MPS=()
+DATA=()
 while IFS= read -r line; do IDS+=("$line"); done < <(reinstall_ids)
 while IFS= read -r line; do MPS+=("$line"); done < <(marketplace_names)
-
-moved="$RUN_DIR/moved"
-mkdir -p "$moved/marketplaces" || exit 2
-if [[ -d "$PLUGINS_DIR/cache" ]]; then
-  mv "$PLUGINS_DIR/cache" "$moved/cache" || {
-    echo "ERROR: could not move $PLUGINS_DIR/cache aside; nothing was fetched" >&2
-    exit 2
-  }
+if [[ "$MODE" == "clean" && -d "$PLUGINS_DIR/data" ]]; then
+  while IFS= read -r line; do DATA+=("$line"); done < <(find "$PLUGINS_DIR/data" -mindepth 1 -maxdepth 1 | sed 's|.*/||' | LC_ALL=C sort)
 fi
-for mp in ${MPS[@]+"${MPS[@]}"}; do
-  [[ -d "$PLUGINS_DIR/marketplaces/$mp" ]] || continue
-  mv "$PLUGINS_DIR/marketplaces/$mp" "$moved/marketplaces/$mp" || {
-    echo "ERROR: could not move the $mp clone aside; nothing was fetched" >&2
+
+if [[ "$MODE" == "clean" ]]; then
+  # A sibling of plugins/, so each move is a rename on the same filesystem.
+  moved="$CLAUDE_DIR/plugins.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir "$moved" "$moved/marketplaces" || {
+    echo "ERROR: could not create the backup $moved; nothing was moved" >&2
     exit 2
   }
+else
+  moved="$RUN_DIR/moved"
+  mkdir -p "$moved/marketplaces" || exit 2
+fi
+
+# Every target reset so far, whether moved aside or absent before the run.
+TARGETS=()
+# The rebuilt copies go to the run directory first, so a backup part never
+# nests inside its rebuilt namesake, and a target absent before is absent
+# again; then the emptied backup is removed.
+move_back() {
+  local rebuilt="$RUN_DIR/rebuilt" rel ok=1
+  mkdir -p "$rebuilt/marketplaces" "$PLUGINS_DIR/marketplaces" || return 1
+  for rel in ${TARGETS[@]+"${TARGETS[@]}"}; do
+    if [[ -e "$PLUGINS_DIR/$rel" ]] && ! mv "$PLUGINS_DIR/$rel" "$rebuilt/$rel"; then
+      ok=0
+      echo "  could not move the rebuilt $rel aside"
+      continue
+    fi
+    [[ -e "$moved/$rel" ]] || continue
+    mv "$moved/$rel" "$PLUGINS_DIR/$rel" || {
+      ok=0
+      echo "  could not move $moved/$rel back"
+    }
+  done
+  rmdir "$moved/marketplaces" "$moved" || ok=0
+  ((ok))
+}
+reset_target() {
+  if [[ -d "$PLUGINS_DIR/$1" ]] && ! mv "$PLUGINS_DIR/$1" "$moved/$1"; then
+    echo "ERROR: could not move $PLUGINS_DIR/$1 aside; nothing was fetched" >&2
+    [[ "$MODE" == "clean" ]] && move_back >&2
+    exit 2
+  fi
+  TARGETS+=("$1")
+}
+
+reset_target cache
+[[ "$MODE" == "clean" ]] && reset_target data
+for mp in ${MPS[@]+"${MPS[@]}"}; do
+  reset_target "marketplaces/$mp"
 done
 echo "Moved aside: $moved"
 
@@ -283,7 +436,7 @@ for mp in ${MPS[@]+"${MPS[@]}"}; do
   cli_or_count plugin marketplace update "$mp"
 done
 for id in ${IDS[@]+"${IDS[@]}"}; do
-  cli_or_count plugin install "$id" --scope user
+  install_user "$id"
 done
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
@@ -305,15 +458,49 @@ snapshot after || {
   DIFFS=$((DIFFS + 1))
   echo "  could not snapshot the state files after the run"
 }
-for part in marketplaces installs enabled; do
+for part in $PARTS; do
   if ! cmp -s "$RUN_DIR/before.$part.json" "$RUN_DIR/after.$part.json"; then
     DIFFS=$((DIFFS + 1))
     echo "  differs: $part (compare $RUN_DIR/before.$part.json and after.$part.json)"
   fi
 done
+if [[ "$MODE" == "clean" ]]; then
+  while IFS= read -r f; do
+    DIFFS=$((DIFFS + 1))
+    echo "  differs: settings file $f (byte compare against its copy listed in $RUN_DIR/settings.list)"
+  done < <(compare_settings)
+fi
 
 echo "Marketplaces refreshed: ${#MPS[@]}; ids reinstalled: ${#IDS[@]}; CLI failures: $FAILURES; snapshot differences: $DIFFS"
 echo "Run journal: $RUN_DIR"
+
+if [[ "$MODE" == "clean" ]]; then
+  if ((FAILURES == 0 && DIFFS == 0)); then
+    rm -f "$RUN_DIR"/before.*.json "$RUN_DIR"/after.*.json "$RUN_DIR"/settings.*
+    echo "Backup: $moved ($(size_kb "$moved") KB). clean never deletes it and refuses to run"
+    echo "again while it exists: remove it yourself once the plugins work."
+    echo "Plugins whose setup reruns on first use, their data/ discarded: ${#DATA[@]}"
+    for d in ${DATA[@]+"${DATA[@]}"}; do echo "  $d"; done
+    if command -v chezmoi >/dev/null 2>&1; then
+      echo "Dotfile-managed paths under ~/.claude/plugins (re-apply them with chezmoi apply):"
+      managed=$(chezmoi managed --include=files 2>/dev/null | tr -d '\r' | grep '^\.claude/plugins/')
+      if [[ -n "$managed" ]]; then printf '%s\n' "$managed" | sed 's|^|  ~/|'; else echo "  none"; fi
+    else
+      echo "Dotfile-managed paths under ~/.claude/plugins: chezmoi not found, not checked"
+    fi
+    echo "Restart Claude Code: a session that was open still resolves hooks and skills into the moved tree."
+    exit 0
+  fi
+  echo "Moving the backup back into place"
+  if move_back; then
+    echo "Moved back: cache/, data/ and the clones are as before the run; the rebuilt copies are in $RUN_DIR/rebuilt."
+  else
+    echo "MOVE-BACK INCOMPLETE: what is left is in $moved; the rebuilt copies are in $RUN_DIR/rebuilt."
+  fi
+  ((DIFFS > 0)) && echo "The move-back restores no state or settings file: each difference above is still in place."
+  exit 1
+fi
+
 echo "The moved-aside copies stay in $moved until you remove them."
 ((FAILURES == 0 && DIFFS == 0)) && exit 0
 echo "To go back: replace $PLUGINS_DIR/cache with $moved/cache, and each"

@@ -47,7 +47,7 @@ is well justified.
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit):
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result):
 
 - a decision justified only by precedent. "that's how this repo does it",
   "the existing code does X, so match it", with no rationale stated;
