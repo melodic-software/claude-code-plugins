@@ -8,8 +8,8 @@
 // job repeats it on the central fallback token only when the subscription job
 // hands it on, so one job per run writes a verdict.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { test } from "node:test";
@@ -1331,6 +1331,7 @@ const SANDBOX_STEPS = [
   SIBLING,
   SIBLING_CHECK,
   SIBLING_STOP,
+  "Stop the key proxy",
   "Report the key proxy's usage",
 ];
 // A step's bash script, as GitHub runs it.
@@ -1397,7 +1398,13 @@ test("the capture gates run first, then the reach probe after runner isolation a
   assert.match(capStep(PROBE_CHECK), /\.clean == true and \.canary == true and \.hits == \[\]/);
   // Head code comes only after the probe passed, and nothing before it names the head.
   assert.match(capStep(HEAD_CHECKOUT), /^ {8}if: steps\.probe-check\.outcome == 'success'$/m);
-  for (const s of CAP_STEPS.slice(0, capIndex(HEAD_CHECKOUT))) assert.doesNotMatch(s.block, /^ {10}ref: .*head-sha|^ {10}path: head$|\$GITHUB_WORKSPACE\/head\b|git (?:-C \S+ )?fetch/m, s.name);
+  // The one exception: the sandbox step makes head an empty directory, so the sandbox can mount it read-only before the checkout fills it.
+  const HEAD_MOUNT_POINT = /^ {10}mkdir -p "\$GITHUB_WORKSPACE\/head" "\$GITHUB_WORKSPACE\/capture-run"\n/m;
+  assert.match(capStep(SIBLING), HEAD_MOUNT_POINT);
+  for (const s of CAP_STEPS.slice(0, capIndex(HEAD_CHECKOUT))) {
+    const block = s.name === SIBLING ? s.block.replace(HEAD_MOUNT_POINT, "") : s.block;
+    assert.doesNotMatch(block, /^ {10}ref: .*head-sha|^ {10}path: head$|\$GITHUB_WORKSPACE\/head\b|git (?:-C \S+ )?fetch/m, s.name);
+  }
   const checkouts = CAP_STEPS.filter((s) => /uses: actions\/checkout@/.test(s.block));
   assert.deepEqual(checkouts.map((s) => s.name), ["Check out the default branch tip", HEAD_CHECKOUT]);
   assert.equal(input(checkouts[0].block, "ref"), "${{ steps.tip.outputs.sha }}");
@@ -1471,7 +1478,7 @@ test("the capture runs on main's skill with the run-e2e call its SKILL.md docume
   // The judges wait longer than the capture can run (find-capture.mjs).
   assert.ok(WAIT_MS > jobMinutes * 60_000);
   // A failed or timed-out driver still leaves a blocked capture to upload.
-  assert.match(capStep("Collect the capture"), /^ {8}if: always\(\) && steps\.probe-check\.outcome == 'success'$/m);
+  assert.match(capStep("Collect the capture"), /^ {8}if: always\(\) && steps\.probe-check\.outcome == 'success' && steps\.sibling-stop\.outcome == 'success'$/m);
 });
 
 // The step's own script, run as GitHub runs a bash step.
@@ -1618,7 +1625,12 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   assert.match(probePrompt, /^ {12}echo ' {4}\/proc\/self\/environ'$/m);
   assert.match(probePrompt, /^ {12}echo " {4}\$PROMPT_FILE"$/m);
   assert.match(probePrompt, /^ {12}echo " {4}\$FENCE_FILE"$/m);
-  assert.match(capStep(PROBE_CHECK), /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE" "\$HOME\/\.claude\/pr-verify-probe-fence"; then\n {12}echo "::error::.*"\n {12}exit 1$/m);
+  assert.match(probePrompt, /^ {12}echo " {4}\$ENVIRON_LINK"$/m);
+  assert.match(probePrompt, /^ {12}echo " {4}\$FENCE_LINK"$/m);
+  assert.match(
+    capStep(PROBE_CHECK),
+    /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE" "\$HOME\/\.claude\/pr-verify-probe-fence" "\$GITHUB_WORKSPACE\/capture-run\/probe-environ-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-fence-link"; then\n {12}echo "::error::.*"\n {12}exit 1$/m,
+  );
   // Every launcher step carries the same fence, the probe's and the driver's alike.
   const launchers = [...CAP_STEPS, ...SUB_STEPS].filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
   assert.equal(launchers.length, 2);
@@ -1628,12 +1640,23 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   // deny rule's and not a missing file's; it holds no credential.
   const home = tempDir("capture-probe-home-");
   const promptFile = path.join(tempDir("capture-probe-prompt-"), "probe.md");
-  const wrote = runStep(probePrompt, { HOME: home, GITHUB_WORKSPACE: tempDir("capture-probe-ws-"), PROMPT_FILE: promptFile });
+  const probeWorkspace = tempDir("capture-probe-ws-");
+  const wrote = runStep(probePrompt, { HOME: home, GITHUB_WORKSPACE: probeWorkspace, PROMPT_FILE: promptFile });
   assert.equal(wrote.status, 0, wrote.stderr);
   const fenceFile = path.join(home, ".claude", "pr-verify-probe-fence");
   assert.ok(existsSync(fenceFile));
   assert.deepEqual(scanFiles([fenceFile]), []);
-  assert.match(readFileSync(promptFile, "utf8"), new RegExp(`^ {4}${fenceFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+  const promptText = readFileSync(promptFile, "utf8");
+  const listed = (file) => new RegExp(`^ {4}${file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m");
+  assert.match(promptText, listed(fenceFile));
+  // A read through a link in the run directory must be refused as well: one link to the environ, one to the fence file.
+  for (const [name, target] of [["probe-environ-link", "/proc/self/environ"], ["probe-fence-link", fenceFile]]) {
+    const link = path.join(probeWorkspace, "capture-run", name);
+    assert.equal(readlinkSync(link), target, name);
+    assert.match(promptText, listed(link), name);
+  }
+  // The links go once the probe passed, before any head code.
+  assert.match(capStep(PROBE_CHECK), /^ {10}rm -f -- "\$GITHUB_WORKSPACE\/capture-run\/probe-environ-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-fence-link"$/m);
   assert.equal(input(capStep(PROBE_CHECK), "EXECUTION_FILE"), "${{ steps.probe.outputs.execution-file }}");
   assert.equal(input(capStep(PROBE_CHECK), "PROMPT_FILE"), input(probePrompt, "PROMPT_FILE"));
   // The run directory: made before the legs, named to the driver, and the only place the collect step takes a summary from.
@@ -1763,15 +1786,20 @@ test("a probe that handed off skips the probe check and every step from the head
   }
   // Every step from the head checkout on chains to the probe check's
   // success: with it skipped, and so every later step skipped and the driver
-  // empty, none runs.
+  // empty, none runs, but the steps that stop the sandbox and the proxy,
+  // which started before the probe, and report the proxy's log.
   const skipped = { outcome: "skipped", outputs: {} };
-  const context = { steps: { "probe-check": skipped, head: skipped, prompt: skipped, drive: skipped, collect: skipped, "scan-capture": skipped } };
+  const started = { steps: { "probe-check": skipped, head: skipped, prompt: skipped, drive: skipped, collect: skipped, "scan-capture": skipped, sibling: { outcome: "success", outputs: { "child-pid": "4242" } }, proxy: { outcome: "success", outputs: {} } } };
+  const cleanup = [SIBLING_STOP, "Stop the key proxy", "Report the key proxy's usage"];
   const after = CAP_STEPS.slice(capIndex(HEAD_CHECKOUT));
   assert.ok(after.length >= 8);
   for (const s of after) {
     assert.ok(stepIf(s.block), `${s.name} has an if`);
-    assert.ok(!runs(s.block, context), s.name);
+    assert.equal(runs(s.block, started), cleanup.includes(s.name), s.name);
   }
+  // With neither started, the cleanup does not run either.
+  const neither = { steps: { ...started.steps, sibling: skipped, proxy: skipped } };
+  for (const name of cleanup) assert.ok(!runs(capStep(name), neither), name);
   // The handoff's warning holds no secret and reads the class through env.
   const handoff = capStep(CAP_HANDOFF);
   assert.equal(stepIf(handoff), "steps.probe.outputs.handoff == 'true'");
@@ -1885,22 +1913,35 @@ test("the sibling sandbox runs under an env -i allowlist with every isolation fl
     "--tmpfs /tmp",
     "--new-session",
     "--info-fd 3",
+    "--unshare-user --disable-userns --cap-drop ALL",
+    "--tmpfs /run",
+    "--ro-bind /run/ccd-proxy /run/ccd-proxy",
     '--tmpfs "$HOME"',
     '--tmpfs "$RUNNER_TEMP"',
     "--ro-bind /opt/ccd/driven-etc /etc/claude-code",
-    '--bind "$ws" "$ws"',
+    '--ro-bind "$ws" "$ws"',
     '--ro-bind "$ws/.base" "$ws/.base"',
-    '--bind "$rt" "$rt"',
+    '--ro-bind "$ws/head" "$ws/head"',
     "--ro-bind /opt/ccd/deps /opt/ccd/deps",
     '-- /bin/bash /opt/ccd/sibling-init.sh "$ws"',
   ]) {
     assert.ok(flags.includes(flag), flag);
   }
-  for (const flag of ["--die-with-parent", "--unsetenv", "--share-net", "--dev-bind", "--bind / /"]) assert.ok(!script.includes(flag), flag);
+  for (const flag of ["--die-with-parent", "--unsetenv", "--share-net", "--dev-bind", "--bind / /", "--cap-add"]) assert.ok(!script.includes(flag), flag);
   assert.ok(flags.startsWith("--ro-bind / / "), "the root file system is read-only");
-  // Later mounts land on earlier ones: the binds sit inside the home's tmpfs, and main's checkout is read-only over the workspace.
-  assert.ok(flags.indexOf('--tmpfs "$HOME"') < flags.indexOf('--bind "$ws" "$ws"'));
-  assert.ok(flags.indexOf('--bind "$ws" "$ws"') < flags.indexOf('--ro-bind "$ws/.base" "$ws/.base"'));
+  // The sandbox writes only its run directory and the runtime directory: never the workspace the outer driver leg runs in.
+  assert.deepEqual([...flags.matchAll(/(?:^| )--bind (\S+) (\S+)/g)].map((m) => `${m[1]} ${m[2]}`), ['"$ws/capture-run" "$ws/capture-run"', '"$rt" "$rt"']);
+  // Later mounts land on earlier ones: /run is emptied but for the proxy's directory, the binds sit inside the
+  // home's tmpfs, and the head, main's checkout and the run directory are mounted over the read-only workspace.
+  const at = (flag) => flags.indexOf(flag);
+  assert.ok(at("--tmpfs /run") < at("--ro-bind /run/ccd-proxy /run/ccd-proxy"));
+  assert.ok(at('--tmpfs "$HOME"') < at('--ro-bind "$ws" "$ws"'));
+  for (const inner of ['--ro-bind "$ws/.base"', '--ro-bind "$ws/head"', '--bind "$ws/capture-run"']) assert.ok(at('--ro-bind "$ws" "$ws"') < at(inner), inner);
+  // Both mount points exist, empty, before bwrap starts, made by this step and not by code inside.
+  assert.ok(script.indexOf('mkdir -p "$GITHUB_WORKSPACE/head" "$GITHUB_WORKSPACE/capture-run"') < script.indexOf("env -i"));
+  assert.doesNotMatch(SIBLING_INIT, /\bmkdir\b/);
+  // The bubblewrap version the runner installed, for the runner probe to read.
+  assert.match(script, /^echo "::notice::\$\(bwrap --version\)"$/m);
   assert.doesNotMatch(block, /secrets\.|github\.token|ANTHROPIC_/);
   assert.equal(stepIf(block), "steps.credential.outputs.present == 'true'");
   assert.match(script, /^echo "child-pid=\$pid" >>"\$GITHUB_OUTPUT"$/m);
@@ -1919,8 +1960,11 @@ test("the key proxy starts before isolation as its own user, with the key on std
   assert.deepEqual(script.match(/\$\{?PROXY_KEY\b/g), ["$PROXY_KEY"]);
   assert.match(
     script,
-    /^printf '%s' "\$PROXY_KEY" \| env -u PROXY_KEY sudo -n -u ccd-proxy -- \/usr\/bin\/setsid -f \/bin\/sh -c 'exec \/usr\/bin\/env -i PATH=\/usr\/bin:\/bin \/opt\/ccd\/bin\/node \/opt\/ccd\/key-proxy\/key-proxy\.mjs --socket \/run\/ccd-proxy\/proxy\.sock --config \/opt\/ccd\/key-proxy\/config\.json [^']*'$/m,
+    /^printf '%s' "\$PROXY_KEY" \| env -u PROXY_KEY sudo -n -u ccd-proxy -- \/usr\/bin\/setsid -f \/bin\/sh -c '\(while kill -0 \$\$ 2>\/dev\/null; do if \[ -e \/run\/ccd-stop\/stop \]; then kill \$\$; sleep 5; kill -9 \$\$; exit 0; fi; sleep 1; done\) <\/dev\/null >\/dev\/null 2>&1 & exec \/usr\/bin\/env -i PATH=\/usr\/bin:\/bin \/opt\/ccd\/bin\/node \/opt\/ccd\/key-proxy\/key-proxy\.mjs --socket \/run\/ccd-proxy\/proxy\.sock --config \/opt\/ccd\/key-proxy\/config\.json [^']*'$/m,
   );
+  // The watcher holds no key: its stdin is /dev/null, and the stop file's directory is the runner's, outside the sandbox's /run.
+  assert.match(capStep("Create the key proxy's user and directories"), /^ {10}sudo install -d -m 0750 -o "\$uid" -g "\$gid" \/run\/ccd-stop$/m);
+  assert.match(scriptOf(capStep("Stop the key proxy")), /^touch \/run\/ccd-stop\/stop$/m);
   assert.match(script, /^unset PROXY_KEY$/m);
   assert.doesNotMatch(script, /--upstream/);
   // Ready only as ccd-proxy's 0660 socket, answering 404 on a path it refuses.
@@ -1956,7 +2000,8 @@ test("the proxy config comes from main's pr-pipeline.yaml, and the driven settin
   const port = /^port=(\d+)$/m.exec(SIBLING_INIT)?.[1];
   assert.ok(port);
   assert.equal(settings.env.ANTHROPIC_BASE_URL, `http://127.0.0.1:${port}`);
-  assert.match(SIBLING_INIT, /^socat "TCP-LISTEN:\$port,bind=127\.0\.0\.1,[^"]*" UNIX-CONNECT:\/run\/ccd-proxy\/proxy\.sock /m);
+  assert.match(SIBLING_INIT, /^proxy_sock=\/run\/ccd-proxy\/proxy\.sock$/m);
+  assert.match(SIBLING_INIT, /^socat "TCP-LISTEN:\$port,bind=127\.0\.0\.1,[^"]*" "UNIX-CONNECT:\$proxy_sock" /m);
   assert.match(scriptOf(capStep(PROXY_START)), /--socket \/run\/ccd-proxy\/proxy\.sock/);
   assert.equal(settings.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS, String(config.maxTokensCeiling));
   assert.equal(settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
@@ -1990,7 +2035,12 @@ test("the sibling probe fails closed before any head code and must not see the s
   // The sentinel's name is the one the sandbox's probe looks for.
   assert.match(scriptOf(capStep(SENTINEL)), /^env -i PATH=\/usr\/bin:\/bin CCD_SENTINEL_CREDENTIAL="sk-ant-sentinel-/m);
   assert.match(SIBLING_INIT, /CAPTURE_PROBE_EXTRA_NAMES=CCD_SENTINEL_CREDENTIAL node \/opt\/ccd\/capture-probe\.mjs "\$probe\/capture-probe\.json"/);
-  assert.match(SIBLING_INIT, /'\{pids: \$pids, proxy_status: \$ps, egress: \$eg, doctor_rc: \$dr, engine: \$engine, pid1_env: \$env\}' >"\$probe\/facts\.json"/);
+  assert.match(
+    SIBLING_INIT,
+    /'\{pids: \$pids, proxy_status: \$ps, egress: \$eg, doctor_rc: \$dr, engine: \$engine, pid1_env: \$env, dns: \$dns, userns: \$userns, writes: \$writes, sockets: \$sockets, sockets_scanned: \$scanned\}' >"\$probe\/facts\.json"/,
+  );
+  assert.match(SIBLING_INIT, /'\{workspace: \$w, head: \$h, base: \$b, capture_run: \$r\}'/);
+  assert.match(SIBLING_INIT, /--arg w "\$\(write "\$ws"\)" --arg h "\$\(write "\$ws\/head"\)" --arg b "\$\(write "\$ws\/\.base"\)" --arg r "\$\(write "\$ws\/capture-run"\)"/);
   // Reported only once the probe and the facts are written, and before the broker holds the dummy key.
   const lines = SIBLING_INIT.split("\n");
   const line = (re) => lines.findIndex((l) => re.test(l));
@@ -2005,7 +2055,11 @@ test("the sibling probe fails closed before any head code and must not see the s
   const brokerDir = path.join(home, ".ccd", "broker");
   mkdirSync(probeDir, { recursive: true });
   mkdirSync(brokerDir, { recursive: true });
-  const clean = { probe: { clean: true, canary: true, read: 6, hits: [], names: [...CREDENTIAL_NAMES, "CCD_SENTINEL_CREDENTIAL"] }, facts: { pids: 7, proxy_status: "404", egress: "refused", doctor_rc: 0, engine: true, pid1_env: ["CCD_RUNTIME_DIR", "HOME", "LANG", "PATH", "TERM"] } };
+  const writes = { workspace: "refused", head: "refused", base: "refused", capture_run: "open" };
+  const clean = {
+    probe: { clean: true, canary: true, read: 6, hits: [], names: [...CREDENTIAL_NAMES, "CCD_SENTINEL_CREDENTIAL"] },
+    facts: { pids: 7, proxy_status: "404", egress: "refused", doctor_rc: 0, engine: true, pid1_env: ["CCD_RUNTIME_DIR", "HOME", "LANG", "PATH", "TERM"], dns: "refused", userns: "refused", writes, sockets: ["/run/ccd-proxy/proxy.sock"], sockets_scanned: true },
+  };
   const run = ({ probe = clean.probe, facts = clean.facts, done = true } = {}) => {
     writeFileSync(path.join(probeDir, "capture-probe.json"), JSON.stringify(probe));
     writeFileSync(path.join(probeDir, "facts.json"), JSON.stringify(facts));
@@ -2028,6 +2082,16 @@ test("the sibling probe fails closed before any head code and must not see the s
       "a bridge that does not reach the proxy": { facts: { ...clean.facts, proxy_status: "000" } },
       "the host's processes in view": { facts: { ...clean.facts, pids: 140 } },
       "an engine without verified signatures": { facts: { ...clean.facts, engine: false } },
+      "names that resolve": { facts: { ...clean.facts, dns: "resolved" } },
+      "a user namespace it can make": { facts: { ...clean.facts, userns: "open" } },
+      "a host socket that answers": { facts: { ...clean.facts, sockets: ["/run/ccd-proxy/proxy.sock", "/run/dbus/system_bus_socket"] } },
+      "no socket that answers, the proxy's included": { facts: { ...clean.facts, sockets: [] } },
+      "a socket scan cut off": { facts: { ...clean.facts, sockets_scanned: false } },
+      "a writable workspace": { facts: { ...clean.facts, writes: { ...writes, workspace: "open" } } },
+      "a writable head": { facts: { ...clean.facts, writes: { ...writes, head: "open" } } },
+      "a writable main checkout": { facts: { ...clean.facts, writes: { ...writes, base: "open" } } },
+      "a run directory it cannot write": { facts: { ...clean.facts, writes: { ...writes, capture_run: "refused" } } },
+      "no facts on writes": { facts: { ...clean.facts, writes: undefined } },
       "no report": { done: false },
     };
     for (const [why, fixture] of Object.entries(fails)) {
@@ -2051,8 +2115,7 @@ test("the dummy key lives in sibling-init.sh's unexported variable and reaches j
   for (const use of uses) assert.match(use, /^printf '%s' "\$\{?key(?:: -20\})?"? \| /, use);
   assert.match(uses[1], /\| exec node "\$driver\/broker\.mjs" --socket "\$rt\/broker\/broker\.sock" --driver "\$driver\/driver\.mjs" \\$/);
   assert.doesNotMatch(SIBLING_INIT, /\bexport\b|ANTHROPIC_|declare -x/);
-  // The broker's roots exist before it starts; the head checkout fills head later.
-  assert.match(SIBLING_INIT, /^mkdir -p "\$ws\/head" "\$ws\/capture-run"$/m);
+  // The broker's roots are the mount points the sandbox step makes; the head checkout fills head later.
   assert.match(SIBLING_INIT, /--root "\$ws\/head" --root "\$ws\/capture-run" --deps-dir \/opt\/ccd\/deps /);
 });
 
@@ -2075,11 +2138,18 @@ test("the outer claude reaches the broker and the holders through CCD_* only", (
   assert.doesNotMatch(capStep(PROBE), /CCD_/);
 });
 
-test("the sandbox is stopped before collect, and collect copies no link", { skip: process.platform === "win32" && "bash step" }, () => {
+test("the sandbox is stopped before collect, and collect copies no link", { skip: process.platform === "win32" && "bash step" }, async () => {
   const stop = capStep(SIBLING_STOP);
   assert.ok(capIndex(DRIVER) < capIndex(SIBLING_STOP) && capIndex(SIBLING_STOP) < capIndex("Collect the capture"));
-  assert.equal(stepIf(stop), "always() && steps.head.outcome == 'success' && steps.sibling.outputs.child-pid != ''");
+  assert.equal(stepIf(stop), "always() && steps.sibling.outputs.child-pid != ''");
+  assert.match(stop, /^ {8}id: sibling-stop$/m);
+  assert.doesNotMatch(stop, /continue-on-error/);
   assert.equal(input(stop, "CHILD_PID"), "${{ steps.sibling.outputs.child-pid }}");
+  // The proxy is stopped after it, whenever it started, and its usage reported after that.
+  assert.ok(capIndex(SIBLING_STOP) < capIndex("Stop the key proxy") && capIndex("Stop the key proxy") < capIndex("Report the key proxy's usage"));
+  assert.ok(capIndex("Report the key proxy's usage") < capIndex("Collect the capture"));
+  for (const name of ["Stop the key proxy", "Report the key proxy's usage"]) assert.equal(stepIf(capStep(name)), "always() && steps.proxy.outcome != 'skipped'", name);
+  assert.match(capStep(PROXY_START), /^ {8}id: proxy$/m);
   // Run, it kills the pid it is given and waits for it to go.
   const started = spawnSync("bash", ["-c", "sleep 30 </dev/null >/dev/null 2>&1 & echo $!"], { encoding: "utf8" });
   const pid = Number(started.stdout.trim());
@@ -2094,7 +2164,18 @@ test("the sandbox is stopped before collect, and collect copies no link", { skip
     }
   };
   assert.ok(gone(), "the sandbox's first process is gone");
-  assert.equal(runStep(stop, { CHILD_PID: "1; true" }).status, 0, "a pid that is not a number stops nothing");
+  assert.equal(runStep(stop, { CHILD_PID: "1; true" }).status, 1, "a pid that is not a number fails the step");
+  // A process kill -0 still finds after the wait (here a zombie its living parent never reaps) fails the step.
+  const parent = spawn("bash", ["-c", "sleep 0 & echo $!; exec sleep 60"], { stdio: ["ignore", "pipe", "ignore"] });
+  try {
+    const zombie = Number(await new Promise((resolve) => parent.stdout.once("data", (d) => resolve(String(d).trim()))));
+    assert.ok(zombie > 0);
+    const stuck = runStep(stop, { CHILD_PID: String(zombie) });
+    assert.equal(stuck.status, 1);
+    assert.match(stuck.stdout, /^::error::the sibling sandbox is still running$/m);
+  } finally {
+    parent.kill("SIGKILL");
+  }
   const collect = scriptOf(capStep("Collect the capture"));
   assert.doesNotMatch(collect, /^\s*cp (?!-P -- )/m, "every copy keeps a link a link");
   assert.match(collect, /^ {2}cp -P -- "\$src" "\$OUT\/\$rel"$/m);

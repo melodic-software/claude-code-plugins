@@ -370,7 +370,9 @@ jobs:
       # deps directory stays the runner's, the owner the driver requires, and
       # the sandbox mounts it read-only. The runtime directory, short for
       # socket paths, sits outside the runner's temp directory and ~/.claude;
-      # "Capture the change" names it by its /home/runner path.
+      # "Capture the change" names it by its /home/runner path. Once sudo is
+      # gone the runner's user cannot signal the proxy, so it stops the proxy
+      # by creating a file in /run/ccd-stop, which the proxy's user can see.
       - name: Create the key proxy's user and directories
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 1
@@ -384,6 +386,7 @@ jobs:
           sudo useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid "$gid" ccd-proxy
           sudo install -d -m 0755 -o root -g root /opt/ccd /opt/ccd/bin /opt/ccd/key-proxy /opt/ccd/driven-etc
           sudo install -d -m 0750 -o ccd-proxy -g "$gid" /run/ccd-proxy
+          sudo install -d -m 0750 -o "$uid" -g "$gid" /run/ccd-stop
           sudo install -d -m 0700 -o "$uid" -g "$gid" /opt/ccd/deps
           install -d -m 0700 "$HOME/.ccd" "$HOME/.ccd/broker" "$HOME/.ccd/probe" "$HOME/.ccd/log"
           # The toolcache's node is the runner's to change; the sandbox runs a root-owned copy.
@@ -463,15 +466,18 @@ jobs:
       # isolated, so no later step, the sandbox or pull request code can read
       # it in a process, an argument or a file. printf is a shell builtin, so
       # the key is no process's argument. The proxy's log, in its own 0750
-      # directory, holds request paths and token counts, never the key. The
-      # readiness check asks a path the proxy refuses, spending nothing.
+      # directory, holds request paths and token counts, never the key. A
+      # watcher beside it, with no access to the key, ends it once
+      # /run/ccd-stop/stop exists ("Stop the key proxy"). The readiness check
+      # asks a path the proxy refuses, spending nothing.
       - name: Start the key proxy
+        id: proxy
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 1
         env:
           PROXY_KEY: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
         run: |
-          printf '%s' "$PROXY_KEY" | env -u PROXY_KEY sudo -n -u ccd-proxy -- /usr/bin/setsid -f /bin/sh -c 'exec /usr/bin/env -i PATH=/usr/bin:/bin /opt/ccd/bin/node /opt/ccd/key-proxy/key-proxy.mjs --socket /run/ccd-proxy/proxy.sock --config /opt/ccd/key-proxy/config.json 2>>/run/ccd-proxy/proxy.log >&2'
+          printf '%s' "$PROXY_KEY" | env -u PROXY_KEY sudo -n -u ccd-proxy -- /usr/bin/setsid -f /bin/sh -c '(while kill -0 $$ 2>/dev/null; do if [ -e /run/ccd-stop/stop ]; then kill $$; sleep 5; kill -9 $$; exit 0; fi; sleep 1; done) </dev/null >/dev/null 2>&1 & exec /usr/bin/env -i PATH=/usr/bin:/bin /opt/ccd/bin/node /opt/ccd/key-proxy/key-proxy.mjs --socket /run/ccd-proxy/proxy.sock --config /opt/ccd/key-proxy/config.json 2>>/run/ccd-proxy/proxy.log >&2'
           unset PROXY_KEY
           sock=/run/ccd-proxy/proxy.sock
           for _ in $(seq 30); do
@@ -515,16 +521,22 @@ jobs:
       # code. It starts from an empty environment holding only these names
       # (bwrap's own process keeps the environment it starts with, readable
       # at /proc/1/environ inside, so --unsetenv alone is not enough), with no
-      # network, its own processes, /proc and /dev, and the root file system
-      # read-only under empty tmpfs mounts over /tmp, the home (the runner's
-      # install, its temp and action directories and ~/.claude), the runner's
-      # temp directory and /run/user. Bound back: the workspace read-write
-      # with main's checkout read-only on top, the runtime directory, the
-      # driven managed settings over /etc/claude-code, and the engine
-      # read-only. The driven session works in an empty directory on the
-      # tmpfs, so no head settings file loads as its project's. No
-      # --die-with-parent, since this step's shell ends first: "Stop the
-      # sibling sandbox" kills it by the pid bwrap reports on --info-fd.
+      # network, its own processes, user namespace (it may create no other,
+      # and holds no capability), /proc and /dev, and the root file system
+      # read-only under empty tmpfs mounts over /tmp, /run (so no host
+      # socket there, D-Bus, journald or the resolver, is reachable), the
+      # home (the runner's install, its temp and action directories and
+      # ~/.claude) and the runner's temp directory. Bound back: the
+      # workspace read-only, the outer driver leg's working directory and
+      # configuration, with only the run directory writable; the runtime
+      # directory; the proxy's socket directory; the driven managed settings
+      # over /etc/claude-code; and the engine read-only. The head and run
+      # directories are made here, empty, so each is its own mount before the
+      # head checkout fills head. The driven session works in an empty
+      # directory on the tmpfs, so no head settings file loads as its
+      # project's. No --die-with-parent, since this step's shell ends first:
+      # "Stop the sibling sandbox" kills it by the pid bwrap reports on
+      # --info-fd.
       - name: Start the sibling sandbox
         id: sibling
         if: steps.credential.outputs.present == 'true'
@@ -532,10 +544,8 @@ jobs:
         run: |
           rt="$HOME/.ccd"
           ws="$GITHUB_WORKSPACE"
-          extra=()
-          if [ -d "/run/user/$(id -u)" ]; then
-            extra+=(--tmpfs "/run/user/$(id -u)")
-          fi
+          mkdir -p "$GITHUB_WORKSPACE/head" "$GITHUB_WORKSPACE/capture-run"
+          echo "::notice::$(bwrap --version)"
           exec 3>"$rt/log/bwrap-info.json"
           env -i \
             PATH=/opt/ccd/bin:/opt/ccd/claude/node_modules/.bin:/usr/bin:/bin \
@@ -545,15 +555,19 @@ jobs:
             --dev /dev \
             --proc /proc \
             --tmpfs /tmp \
+            --tmpfs /run \
+            --ro-bind /run/ccd-proxy /run/ccd-proxy \
+            --unshare-user --disable-userns --cap-drop ALL \
             --unshare-pid --unshare-ipc --unshare-net --unshare-uts \
             --new-session \
             --info-fd 3 \
             --tmpfs "$HOME" \
             --tmpfs "$RUNNER_TEMP" \
-            "${extra[@]}" \
             --ro-bind /opt/ccd/driven-etc /etc/claude-code \
-            --bind "$ws" "$ws" \
+            --ro-bind "$ws" "$ws" \
             --ro-bind "$ws/.base" "$ws/.base" \
+            --ro-bind "$ws/head" "$ws/head" \
+            --bind "$ws/capture-run" "$ws/capture-run" \
             --bind "$rt" "$rt" \
             --ro-bind /opt/ccd/deps /opt/ccd/deps \
             --dir "$HOME/w" --chdir "$HOME/w" \
@@ -575,9 +589,11 @@ jobs:
       # still the sandbox's own: its reach probe found nothing, scanned with
       # its canary and looked for the sentinel's name; its first environment
       # is the allowlist; it sees under 10 processes; the bridge reaches the
-      # proxy; the internet does not answer; the engine loads with verified
-      # signatures; and the broker listens. Then the sentinel stops, so the
-      # driver leg's own probe reads as before.
+      # proxy; the internet and name resolution do not answer; the proxy's is
+      # the only unix socket that accepts a connection; it can write only the
+      # run directory; it cannot make a user namespace; the engine loads with
+      # verified signatures; and the broker listens. Then the sentinel stops,
+      # so the driver leg's own probe reads as before.
       - name: Check the sibling sandbox
         id: sibling-check
         if: steps.credential.outputs.present == 'true'
@@ -602,6 +618,10 @@ jobs:
             echo "::error::the sibling sandbox's environment, process view, bridge, egress or engine is not as built; no pull request code runs"
             exit 1
           fi
+          if ! jq -e '.dns == "refused" and .userns == "refused" and .sockets_scanned == true and .sockets == ["/run/ccd-proxy/proxy.sock"] and .writes == {"workspace": "refused", "head": "refused", "base": "refused", "capture_run": "open"}' "$d/facts.json" >/dev/null 2>&1; then
+            echo "::error::the sibling sandbox can resolve names, make a user namespace, reach a unix socket other than the key proxy's, or write outside its run directory; no pull request code runs"
+            exit 1
+          fi
           for _ in $(seq "$WAIT_SECONDS"); do
             [ -S "$HOME/.ccd/broker/broker.sock" ] && break
             sleep 1
@@ -618,7 +638,10 @@ jobs:
       # Arguments), so the capture prompt names it.
       # FENCE_FILE stands in for Claude Code's credential store
       # (~/.claude/.credentials.json): a file that exists under ~/.claude,
-      # so a refused Read of it is the fence, not a missing file.
+      # so a refused Read of it is the fence, not a missing file. Two links in
+      # the run directory, which the driver may read and the sibling sandbox
+      # may write, point at /proc/self/environ and the fence file: a read
+      # through either must be refused too.
       - name: Write the probe prompt
         if: steps.credential.outputs.present == 'true'
         env:
@@ -627,6 +650,10 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/capture-run" "$HOME/.claude"
           FENCE_FILE="$HOME/.claude/pr-verify-probe-fence"
           echo 'not a credential' >"$FENCE_FILE"
+          ENVIRON_LINK="$GITHUB_WORKSPACE/capture-run/probe-environ-link"
+          FENCE_LINK="$GITHUB_WORKSPACE/capture-run/probe-fence-link"
+          ln -sfn /proc/self/environ "$ENVIRON_LINK"
+          ln -sfn "$FENCE_FILE" "$FENCE_LINK"
           {
             echo 'Run this one command with the Bash tool, exactly as written:'
             echo
@@ -638,6 +665,8 @@ jobs:
             echo '    /proc/self/environ'
             echo "    $PROMPT_FILE"
             echo "    $FENCE_FILE"
+            echo "    $ENVIRON_LINK"
+            echo "    $FENCE_LINK"
             echo
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
@@ -645,7 +674,7 @@ jobs:
       # The reach probe, before any pull request code, under the driver's
       # own file-tool fence (the same deny rules as "Capture the change"): a
       # Bash child of a leg on the job's credential, where the app under
-      # test will run, and three Read calls the fence must refuse. continue-on-error lets a
+      # test will run, and five Read calls the fence must refuse. continue-on-error lets a
       # handoff end the job green; "Check the probe" fails the job on any
       # other probe failure, so no head code runs unprobed.
       - name: Probe what head code can reach
@@ -663,7 +692,7 @@ jobs:
           preamble: You run unattended; do only what you are told.
           api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
-          max-turns: "6"
+          max-turns: "8"
           permission-mode: dontAsk
           tools: |
             Bash
@@ -722,7 +751,7 @@ jobs:
           credential: ${{ steps.probe.outputs.credential }}
           handoff: ${{ steps.probe.outputs.handoff }}
           known-failure-class: ${{ steps.probe.outputs.lane-class }}
-          max-turns: "6"
+          max-turns: "8"
           fallback-reason: ${{ env.LEG_FALLBACK_REASON }}
 
       # Read by the next runs' credit gate: the artifact its `marker` output
@@ -808,10 +837,11 @@ jobs:
             echo "::error::head code could reach a credential or token, or the probe could not show its scan works (${reach:-no readable result}); no pull request code runs"
             exit 1
           fi
-          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" "$HOME/.claude/pr-verify-probe-fence"; then
-            echo "::error::the driver's file tools are not fenced off /proc, the runner's temp directory and ~/.claude; no pull request code runs"
+          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" "$HOME/.claude/pr-verify-probe-fence" "$GITHUB_WORKSPACE/capture-run/probe-environ-link" "$GITHUB_WORKSPACE/capture-run/probe-fence-link"; then
+            echo "::error::the driver's file tools are not fenced off /proc, the runner's temp directory and ~/.claude, directly or through a link; no pull request code runs"
             exit 1
           fi
+          rm -f -- "$GITHUB_WORKSPACE/capture-run/probe-environ-link" "$GITHUB_WORKSPACE/capture-run/probe-fence-link"
           echo "::notice::the reach probe found nothing head code or the driver's file tools can read"
 
       # persist-credentials false keeps the job token out of .git/config. The
@@ -967,29 +997,58 @@ jobs:
           known-failure-class: ${{ steps.drive.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
 
-      # Before the capture is copied out, nothing in the sandbox may still
-      # write: the sandbox's first process is its PID namespace's init, and
-      # killing it ends every process in it.
+      # Whenever the sandbox started, a failed sibling check and a probe
+      # handoff included: before the capture is copied out, nothing in the
+      # sandbox may still write. The sandbox's first process is its PID
+      # namespace's init, and killing it ends every process in it; one still
+      # there fails the job, and the collect step then copies nothing.
       - name: Stop the sibling sandbox
-        if: always() && steps.head.outcome == 'success' && steps.sibling.outputs.child-pid != ''
-        continue-on-error: true
+        id: sibling-stop
+        if: always() && steps.sibling.outputs.child-pid != ''
         timeout-minutes: 1
         env:
           CHILD_PID: ${{ steps.sibling.outputs.child-pid }}
         run: |
-          [[ $CHILD_PID =~ ^[0-9]+$ ]] || exit 0
+          if ! [[ $CHILD_PID =~ ^[0-9]+$ ]]; then
+            echo "::error::the sibling sandbox's pid is not a number"
+            exit 1
+          fi
           kill -KILL "$CHILD_PID" 2>/dev/null || true
           for _ in $(seq 20); do
             kill -0 "$CHILD_PID" 2>/dev/null || break
             sleep 0.25
           done
+          if kill -0 "$CHILD_PID" 2>/dev/null; then
+            echo "::error::the sibling sandbox is still running"
+            exit 1
+          fi
+
+      # Whenever the proxy started: nothing after the drive needs the key.
+      # The runner's user cannot signal ccd-proxy's processes, so the stop
+      # file asks the watcher "Start the key proxy" left beside it. The VM
+      # ends with the job, so a proxy still running warns and fails nothing.
+      - name: Stop the key proxy
+        id: proxy-stop
+        if: always() && steps.proxy.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          touch /run/ccd-stop/stop
+          for _ in $(seq 20); do
+            pgrep -u ccd-proxy -x node >/dev/null || break
+            sleep 0.5
+          done
+          if pgrep -u ccd-proxy -x node >/dev/null; then
+            echo "::warning::the key proxy is still running"
+            exit 1
+          fi
 
       # What the driven session spent through the key proxy, for setting
       # pr-pipeline.yaml's token-cap from measured runs. The log is the
       # proxy's own, which the runner's user cannot write; only numbers jq
       # computes from it are printed, never a line of it.
       - name: Report the key proxy's usage
-        if: always() && steps.head.outcome == 'success' && steps.sibling.outputs.child-pid != ''
+        if: always() && steps.proxy.outcome != 'skipped'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -1017,7 +1076,7 @@ jobs:
       # upload, which would follow one.
       - name: Collect the capture
         id: collect
-        if: always() && steps.probe-check.outcome == 'success'
+        if: always() && steps.probe-check.outcome == 'success' && steps.sibling-stop.outcome == 'success'
         env:
           APP: ${{ steps.config.outputs.app }}
           OUT: ${{ runner.temp }}/pr-capture

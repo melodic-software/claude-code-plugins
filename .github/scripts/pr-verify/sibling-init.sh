@@ -4,10 +4,12 @@
 # Before any pull request code exists it records what code here can reach:
 # the reach probe (capture-probe.mjs, with the sentinel's name added), the
 # driver engine's doctor, the bridge to the key proxy, whether the internet
-# answers, the process count and the sandbox's first environment. The
-# workflow's "Check the sibling sandbox" step reads those files and fails the
-# job on anything unexpected. Then it starts the launch broker, the only
-# process given the dummy key, on its stdin.
+# and name resolution answer, which unix sockets accept a connection, where
+# it can write, whether it can make a user namespace, the process count and
+# the sandbox's first environment. The workflow's "Check the sibling
+# sandbox" step reads those files and fails the job on anything unexpected.
+# Then it starts the launch broker, the only process given the dummy key, on
+# its stdin.
 set -uo pipefail
 
 ws=$1
@@ -15,13 +17,11 @@ rt=${CCD_RUNTIME_DIR:?}
 probe=$rt/probe
 driver=/opt/ccd/control-claude-code/driver
 port=47100
-
-# The broker's roots must exist when it starts; the head checkout fills head later.
-mkdir -p "$ws/head" "$ws/capture-run"
+proxy_sock=/run/ccd-proxy/proxy.sock
 
 # The sandbox has no network: a loopback port carries the driven session's
 # requests to the key proxy's unix socket outside.
-socat "TCP-LISTEN:$port,bind=127.0.0.1,fork,reuseaddr" UNIX-CONNECT:/run/ccd-proxy/proxy.sock </dev/null >>"$rt/log/socat.log" 2>&1 &
+socat "TCP-LISTEN:$port,bind=127.0.0.1,fork,reuseaddr" "UNIX-CONNECT:$proxy_sock" </dev/null >>"$rt/log/socat.log" 2>&1 &
 
 # The probe runs before the broker, so no process here holds even the dummy key.
 (cd "$ws" && CAPTURE_PROBE_EXTRA_NAMES=CCD_SENTINEL_CREDENTIAL node /opt/ccd/capture-probe.mjs "$probe/capture-probe.json" >"$probe/capture-probe.out" 2>&1)
@@ -43,10 +43,51 @@ if curl -s -o /dev/null --max-time 3 https://api.anthropic.com/; then
 else
   egress=refused
 fi
+if getent hosts api.anthropic.com >/dev/null 2>&1; then
+  dns=resolved
+else
+  dns=refused
+fi
+if unshare -U true >/dev/null 2>&1; then
+  userns=open
+else
+  userns=refused
+fi
+
+# Where code here can write: never the workspace, the head checkout or main's
+# checkout, which the outer driver leg reads and runs from; only the run directory.
+write() {
+  local file=$1/.ccd-write-probe
+  if touch "$file" 2>/dev/null; then
+    rm -f "$file"
+    echo open
+  else
+    echo refused
+  fi
+}
+writes=$(jq -n -c --arg w "$(write "$ws")" --arg h "$(write "$ws/head")" --arg b "$(write "$ws/.base")" --arg r "$(write "$ws/capture-run")" \
+  '{workspace: $w, head: $h, base: $b, capture_run: $r}')
+
+# Every unix socket on the file system that accepts a connection; only the
+# proxy's is expected. The toolcache, /usr and /snap hold none and would make
+# the scan slow; a scan cut off by its bound counts as not done.
+scan=$(timeout 90 find / \( -path /proc -o -path /sys -o -path /usr -o -path /opt/hostedtoolcache -o -path /snap \) -prune -o -type s -print 2>/dev/null)
+scan_rc=$?
+scanned=true
+if [[ $scan_rc -eq 124 ]]; then
+  scanned=false
+fi
+sockets=$(while IFS= read -r found; do
+  if [[ -n $found ]] && timeout 2 socat -u /dev/null "UNIX-CONNECT:$found" >/dev/null 2>&1; then
+    printf '%s\n' "$found"
+  fi
+done <<<"$scan" | jq -R . | jq -s -c sort)
+
 pids=(/proc/[0-9]*)
 pid1_env=$(tr '\0' '\n' </proc/1/environ | cut -d= -f1 | jq -R . | jq -s -c sort)
 jq -n --argjson pids "${#pids[@]}" --arg ps "$status" --arg eg "$egress" --argjson dr "$doctor_rc" --argjson engine "$engine" --argjson env "$pid1_env" \
-  '{pids: $pids, proxy_status: $ps, egress: $eg, doctor_rc: $dr, engine: $engine, pid1_env: $env}' >"$probe/facts.json"
+  --arg dns "$dns" --arg userns "$userns" --argjson writes "$writes" --argjson sockets "$sockets" --argjson scanned "$scanned" \
+  '{pids: $pids, proxy_status: $ps, egress: $eg, doctor_rc: $dr, engine: $engine, pid1_env: $env, dns: $dns, userns: $userns, writes: $writes, sockets: $sockets, sockets_scanned: $scanned}' >"$probe/facts.json"
 
 # The driven session's home is this sandbox's tmpfs: onboarding done, the
 # dummy key approved by its last 20 characters as Claude Code records it, and
