@@ -25,6 +25,8 @@ const BLOCK_TYPES = ["text", "image", "document", "tool_use", "tool_result", "th
 const BASE_CONFIG = {
   tokenCap: 1_000_000, models: MODELS, maxTokensCeiling: 1000, maxBodyBytes: 100_000, maxInFlight: 8,
   maxCountTokensRequests: 100, betas: BETAS, bodyKeys: BODY_KEYS, blockTypes: BLOCK_TYPES,
+  // Longer than any test holds an upstream idle; the timeout tests override it.
+  upstreamTimeoutMs: 10_000,
 };
 
 const servers = [];
@@ -69,11 +71,12 @@ const okJson = (usage = { input_tokens: 1, output_tokens: 1 }) => (_req, _body, 
 
 async function startProxy(upstream, overrides = {}) {
   const config = loadConfig({ ...BASE_CONFIG, ...overrides }, upstream.url);
-  const { server, budget } = createProxy({ key: KEY, config });
+  const logs = [];
+  const { server, budget } = createProxy({ key: KEY, config, log: (e) => logs.push(e) });
   servers.push(server);
   const socket = path.join(tempDir("kp-"), "p.sock");
   await new Promise((r) => server.listen(socket, r));
-  return { socket, budget };
+  return { socket, budget, logs };
 }
 
 // One request over the proxy's socket; resolves with status, headers, body.
@@ -167,11 +170,34 @@ test("request header allowlist: version, listed betas and x-claude-code-* pass; 
   assert.equal(h["anthropic-version"], "2023-06-01");
   assert.equal(h["anthropic-beta"], MAIN_BETAS);
   assert.equal(h["x-claude-code-session-id"], "s-1");
-  for (const dropped of ["x-stainless-os", "accept-encoding", "cookie", "anthropic-workspace-id"]) assert.equal(h[dropped], undefined, dropped);
+  for (const dropped of ["x-stainless-os", "cookie", "anthropic-workspace-id"]) assert.equal(h[dropped], undefined, dropped);
+  // The client's gzip/br/zstd is replaced: both upstream requests ask for identity.
+  assert.equal(h["accept-encoding"], "identity");
+  assert.equal(up.counts[0].headers["accept-encoding"], "identity");
   assert.equal((await call(socket, { body: message({ model: "model-title" }), headers: { "anthropic-beta": TITLE_BETAS } })).status, 200);
 
   assertRefused(await call(socket, { body: message(), headers: { "anthropic-beta": `${MAIN_BETAS},files-api-2025-04-14` } }), 403, "permission_error");
   assert.equal(up.seen.length, 2);
+});
+
+test("a beta refusal names each refused beta in the response body and the log line", async () => {
+  const up = await stubUpstream(okJson());
+  const { socket, logs } = await startProxy(up);
+  const header = `${MAIN_BETAS},files-api-2025-04-14,mcp-client-2025-04-04,files-api-2025-04-14`;
+  const res = await call(socket, { body: message(), headers: { "anthropic-beta": header } });
+  assertRefused(res, 403, "permission_error");
+  const msg = JSON.parse(res.body).error.message;
+  assert.ok(msg.includes("files-api-2025-04-14, mcp-client-2025-04-04"), msg);
+  assert.ok(!msg.includes("claude-code-20250219"), "an allowed beta is not named");
+  assert.deepEqual(logs.at(-1).betas, ["files-api-2025-04-14", "mcp-client-2025-04-04"]);
+  assert.equal(logs.at(-1).status, 403);
+
+  // Twelve unknown betas: ten are named, the rest counted.
+  const many = Array.from({ length: 12 }, (_, i) => `x-beta-${i}`);
+  const capped = await call(socket, { body: message(), headers: { "anthropic-beta": many.join(",") } });
+  assert.deepEqual(logs.at(-1).betas, many.slice(0, 10));
+  assert.ok(JSON.parse(capped.body).error.message.includes("x-beta-9 (+2 more)"));
+  assert.equal(up.seen.length + up.counts.length, 0);
 });
 
 test("body canonicalization: upstream receives the checked object re-serialized, so a duplicate key cannot smuggle its first value", async () => {
@@ -281,6 +307,17 @@ test("requests carrying server tools are refused", async () => {
   ];
   for (const body of refused) assertRefused(await call(socket, { body }), 403, "permission_error");
   assert.equal(up.seen.length, before);
+});
+
+test("a tools field that is not a list, or a tools entry that is not an object, is refused", async () => {
+  const up = await stubUpstream(okJson());
+  const { socket } = await startProxy(up);
+  const server = { type: "web_fetch_20250910", name: "web_fetch" };
+  for (const tools of [server, { 0: server, length: 1 }, "web_fetch", null, ["web_fetch"], [[server]]]) {
+    assertRefused(await call(socket, { body: message({ tools }) }), 403, "permission_error");
+    assertRefused(await call(socket, { url: "/v1/messages/count_tokens", body: countBody({ tools }) }), 403, "permission_error");
+  }
+  assert.equal(up.seen.length + up.counts.length, 0);
 });
 
 test("content allowlist: block types outside the list and any source other than base64, text or content are refused at any depth", async () => {
@@ -400,6 +437,84 @@ test("a 400 preflight is refused with a status that is not retried", async () =>
   assert.equal(budget.reserved, 0);
 });
 
+test("a 429 preflight is relayed with its retry headers and body, takes no reservation and frees its slot", async () => {
+  const limited = '{"type":"error","error":{"type":"rate_limit_error","message":"Number of requests has exceeded your rate limit"}}';
+  const up = await stubUpstream(okJson(), {
+    countTokens: (res) => res.writeHead(429, { "content-type": "application/json", "retry-after": "7", "anthropic-ratelimit-requests-remaining": "0" }).end(limited),
+  });
+  const { socket, budget } = await startProxy(up, { maxInFlight: 1 });
+  for (let i = 0; i < 2; i++) {
+    const res = await call(socket, { body: message() });
+    assert.equal(res.status, 429);
+    assert.equal(res.body, limited);
+    assert.equal(res.headers["retry-after"], "7");
+    assert.equal(res.headers["anthropic-ratelimit-requests-remaining"], "0");
+  }
+  assert.equal(up.seen.length, 0);
+  assert.equal(budget.reserved, 0);
+  assert.equal(budget.committed, 0);
+});
+
+test("a preflight whose connection drops is answered 502 with x-should-retry true, takes no reservation and frees its slot", async () => {
+  const up = await stubUpstream(okJson(), { countTokens: (res) => res.socket.destroy() });
+  const { socket, budget } = await startProxy(up, { maxInFlight: 1 });
+  for (let i = 0; i < 2; i++) {
+    const res = await call(socket, { body: message() });
+    assert.equal(res.status, 502);
+    assert.equal(res.headers["x-should-retry"], "true");
+    assert.equal(JSON.parse(res.body).error.type, "api_error");
+  }
+  assert.equal(up.counts.length, 2);
+  assert.equal(up.seen.length, 0);
+  assert.equal(budget.reserved, 0);
+  assert.equal(budget.committed, 0);
+});
+
+test("a main request whose upstream connection drops before any response is a retryable 502 that releases its reservation and slot", async () => {
+  let n = 0;
+  const up = await stubUpstream((req, body, res) => {
+    if (n++ === 0) return res.socket.destroy();
+    okJson()(req, body, res);
+  }, { countTokens: 50 });
+  const { socket, budget } = await startProxy(up, { maxInFlight: 1 });
+  const res = await call(socket, { body: message() });
+  assert.equal(res.status, 502);
+  assert.equal(res.headers["x-should-retry"], "true");
+  assert.equal(JSON.parse(res.body).error.type, "api_error");
+  assert.equal(budget.reserved, 0);
+  assert.equal(budget.committed, 0);
+  assert.equal((await call(socket, { body: message() })).status, 200);
+});
+
+test("an upstream that never answers the main request times out as a retryable 502 that releases its reservation and slot", { timeout: 10_000 }, async () => {
+  let n = 0;
+  const up = await stubUpstream((req, body, res) => {
+    if (n++ > 0) okJson()(req, body, res);
+  }, { countTokens: 50 });
+  const { socket, budget } = await startProxy(up, { maxInFlight: 1, upstreamTimeoutMs: 150 });
+  const res = await call(socket, { body: message() });
+  assert.equal(res.status, 502);
+  assert.equal(res.headers["x-should-retry"], "true");
+  assert.equal(JSON.parse(res.body).error.type, "api_error");
+  await up.seen[0].closed; // the proxy aborted the stalled upstream request
+  assert.equal(budget.reserved, 0);
+  assert.equal(budget.committed, 0);
+  assert.equal((await call(socket, { body: message() })).status, 200);
+});
+
+test("a count_tokens preflight that never answers times out as a retryable 502 and frees its slot", { timeout: 10_000 }, async () => {
+  const up = await stubUpstream(okJson(), { countTokens: () => {} });
+  const { socket, budget } = await startProxy(up, { maxInFlight: 1, upstreamTimeoutMs: 150 });
+  // The second pass would get the in-flight 403 if the first kept its slot.
+  for (let i = 0; i < 2; i++) {
+    const res = await call(socket, { body: message() });
+    assert.equal(res.status, 502);
+    assert.equal(res.headers["x-should-retry"], "true");
+  }
+  assert.equal(up.seen.length, 0);
+  assert.equal(budget.reserved, 0);
+});
+
 test("an in-flight reservation stops concurrent requests from passing the cap together", async () => {
   let releaseA;
   const holdA = new Promise((r) => (releaseA = r));
@@ -486,6 +601,27 @@ test("an upstream that drops mid-stream drops the client and commits the reserva
   assert.equal(budget.committed, 650);
 });
 
+test("an upstream that stalls mid-stream is aborted after the idle timeout: the client is dropped and the reservation committed", { timeout: 10_000 }, async () => {
+  const up = await stubUpstream((_req, _body, res) => {
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.write(sse("message_start", { message: { usage: { input_tokens: 5, output_tokens: 1 } } }));
+    // Then nothing: no ping, no message_delta.
+  }, { countTokens: 50 });
+  const { socket, budget } = await startProxy(up, { tokenCap: 1000, maxTokensCeiling: 600, upstreamTimeoutMs: 150 });
+  const { req, res } = await openStream(socket, message({ max_tokens: 600, stream: true }));
+  req.on("error", () => {});
+  const ended = await new Promise((resolve) => {
+    res.on("data", () => {});
+    res.on("error", () => resolve("dropped"));
+    res.on("end", () => resolve("ended"));
+    res.on("close", () => resolve("closed"));
+  });
+  assert.notEqual(ended, "ended"); // no clean end: the client must see a drop
+  await up.seen[0].closed;
+  await until(() => budget.reserved === 0);
+  assert.equal(budget.committed, 650); // 50 counted + 600 max_tokens
+});
+
 test("an oversized body gets a 413 that is not retried, and never reaches upstream", async () => {
   const up = await stubUpstream(okJson());
   const { socket } = await startProxy(up, { maxBodyBytes: 2000 });
@@ -554,5 +690,8 @@ test("the script exits non-zero on a missing key or a bad config", async () => {
   assert.equal(await spawnProxy(["--socket", path.join(dir, "a.sock"), "--config", good], "").exited, 2);
   assert.equal(await spawnProxy(["--socket", path.join(dir, "b.sock"), "--config", bad], KEY).exited, 2);
   assert.equal(await spawnProxy(["--socket", path.join(dir, "c.sock"), "--config", noBodyKeys], KEY).exited, 2);
+  const noTimeout = path.join(dir, "notimeout.json");
+  writeFileSync(noTimeout, JSON.stringify({ ...BASE_CONFIG, upstreamTimeoutMs: undefined }));
+  assert.equal(await spawnProxy(["--socket", path.join(dir, "d.sock"), "--config", noTimeout], KEY).exited, 2);
   assert.equal(await spawnProxy(["--config", good], KEY).exited, 2);
 });
