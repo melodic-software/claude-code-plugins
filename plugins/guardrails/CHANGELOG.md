@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-06
+
+### Changed
+
+- The Bash and PowerShell guard dispatcher keeps each shfmt parse for the rest of the call, so a command text read again (such as the inner text of `bash -c '...'`, which several guards each re-read) is not parsed again: one shfmt and one jq instead of four of each, and 21 fewer process creations per such call (#6634).
+
 ## [2.0.1] - 2026-11-05
 
 ### Fixed

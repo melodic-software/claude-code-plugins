@@ -1,7 +1,0 @@
----
-bump: patch
----
-
-### Changed
-
-- The audit and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Six of the eleven legacy cases become five new cases: `audit-admin-check-unknown-no-uac` (an admin-gated check reports UNKNOWN with `needs_admin`, the run raises no consent prompt, and the elevated pass waits for the owner's yes), `audit-no-mid-run-prompt` (the run never stops to ask for input), `setup-check-reads-state-first` (bare setup reads the shipped catalog and reports the current state before offering changes), `setup-shipped-catalog-edit-refused` (a request to edit the shipped catalog gets the minimal overlay entry instead, merging two legacy cases) and `setup-report-dir-plugin-configure` (the report folder is the `report_dir` plugin option, changed through `plugin configure`). The other five were already covered by `audit-markdown-report-no-model-html`, `audit-macos-reports-unknown-and-stops`, `audit-unapproved-remediation-surfaced`, `audit-history-correction-appends` and `setup-apply-blanket-approval-refused` (a case tagged unmeasurable, so the explicit-yes approval boundary has no measured case in the Linux sandbox); `audit-markdown-report-no-model-html` gains a grader that the report lands under the configured report root. The setup cases give the state folder as facts and grade the proposal, because a run cannot write its plugin data folder. Both `evals.json` files are deleted.

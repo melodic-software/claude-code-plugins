@@ -10,7 +10,7 @@ import { test } from "node:test";
 
 import { emptyRecord, isHandled, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
-import { dispatchDocsFixes, docsRunState, heldHandoff, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
+import { dispatchDocsFixes, docsRunState, heldHandoff, heldHead, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
 const CHECK = "pr-refine / fix-docs";
@@ -408,6 +408,36 @@ test("a green fix-docs run that held on a failed handoff read is dispatched agai
   assert.ok(isHandled(done.record, CHECK, pr(54).headRefOid));
   const mixed = await run({ pages: [[pr(54)]], workflowRuns: [ran(10, 54, "failure"), ...green(9)], runJobs }, { maxRunsPerHead: 2 });
   assert.deepEqual(numbers(mixed.api), [], "a red run and a held one count together");
+});
+
+// fix-docs-head's hold on an unread PR head (outage posture element 2) ends the
+// run green with fix-docs skipped, as a person's hold does; only pr-refine.yml's
+// fix-docs-head-held job, which runs on the unread output alone, tells them apart.
+const UNREAD = ended(job("fix-docs-head", "success"), job("fix-docs-head-held", "success"), job("fix-docs", "skipped"));
+
+test("heldHead: only a fix-docs-head-held job that succeeded shows an unread head", () => {
+  assert.equal(heldHead(UNREAD), true);
+  assert.equal(heldHead(HELD), false, "a person's hold");
+  assert.equal(heldHead(ended(job("fix-docs-head", "success"), job("fix-docs-head-held", "skipped"))), false);
+  assert.equal(heldHead(ended(job("fix-docs-head", "success"), job("fix-docs-head-held", "failure"))), false);
+  assert.equal(heldHead(HANDED_OFF), false);
+  assert.equal(heldHead(null), false, "a run that is gone");
+});
+
+test("a green fix-docs run held on an unread PR head is dispatched again, until three held runs end the PR; a person's hold ends it", async () => {
+  const green = (...ids) => ids.map((id) => ran(id, 54, "success"));
+  const runJobs = new Map([9, 10, 11].map((id) => [id, UNREAD]));
+  const again = await run({ pages: [[pr(54)]], workflowRuns: green(10, 9), runJobs });
+  assert.deepEqual(numbers(again.api), ["54"]);
+  assert.equal(isHandled(again.record, CHECK, pr(54).headRefOid), false);
+  const done = await run({ pages: [[pr(54)]], workflowRuns: green(11, 10, 9), runJobs });
+  assert.deepEqual(numbers(done.api), []);
+  assert.ok(isHandled(done.record, CHECK, pr(54).headRefOid));
+  const mixed = await run({ pages: [[pr(54)]], workflowRuns: [ran(11, 54, "failure"), ...green(10, 9)], runJobs: new Map([[10, UNREAD], [9, HANDED_OFF]]) });
+  assert.deepEqual(numbers(mixed.api), [], "a red run, a handoff hold and an unread head count together");
+  const person = await run({ pages: [[pr(54)]], workflowRuns: green(9), runJobs: new Map([[9, HELD]]) });
+  assert.deepEqual(numbers(person.api), []);
+  assert.ok(isHandled(person.record, CHECK, pr(54).headRefOid));
 });
 
 test("a green fix-docs run that scanned ends the PR, and a run that did not go green costs no job read", async () => {

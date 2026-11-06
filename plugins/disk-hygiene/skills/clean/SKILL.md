@@ -132,9 +132,11 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
 
 ## Confirmation gate
 
-Every question this skill asks passes this gate, the no-target prompt above, the large-scan
-confirmation in §1, the root-children selection, the removal approval
-in §5, and the unsupported-platform handoff in §6. One surface rule and one floor cover all five.
+Every question this skill asks passes this gate: the no-target prompt above, the large-scan
+confirmation in §1, the root-children selection, and the removal approval of §5 and §6. One floor
+covers all four, and one surface rule covers every question the skill itself asks. The removal
+approval is the hook `ask` on the tier's `apply` (Linux) or `handoff-apply` (Windows); the skill asks
+it through the surface rule only on macOS or where that `ask` would not prompt.
 What a valid answer must *name* is per question, because a target prompt has no tier or path list to
 name and cannot be held to a bar built for one.
 
@@ -159,7 +161,7 @@ naming what the question never presented cannot be met.
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on a volume root), never "everything" or the scan target itself |
-| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown; on Windows the hook `ask` on that tier's `handoff-apply` asks it (§6) |
+| Removal approval (§5, §6) | exactly the one tier and the exact path list just shown; the hook `ask` on that tier's `apply` (Linux) or `handoff-apply` (Windows) asks it, and macOS's manual lane asks it in the session (§6) |
 
 **`--sizes-only`** goes through the same large-scan question as an ordinary unbounded walk, so a known-large root needs `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only, keeps no per-path entries, and has no entry cap. Detail: [scan-flags.md](reference/scan-flags.md#--sizes-only).
 
@@ -381,9 +383,12 @@ the platform one. Invalid input exits 2. `manual-handoff-lane` issues no approva
 When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
 it is, why removable and risk from your step 3 report (the preview repeats the plan's fixed prose
 there), whether it is an empty directory, the single tier, and only then logical
-/ reclaimable bytes, plus the preview's approval token, then pass the
-[confirmation gate](#confirmation-gate). The approval must name **exactly that tier and list**.
-Process another tier only with a new plan, preview, and question.
+/ reclaimable bytes, plus the preview's approval token. The `apply` call's hook `ask` (§6) lists
+that tier, the count and every path, and is the [confirmation gate](#confirmation-gate)'s removal
+question, so ask nothing separately before it. Where a hook `ask` would not prompt in the session's
+mode (the PowerShell-lane pointer in Gotchas), ask the gate's removal question first. The approval
+must name **exactly that tier and list**. Process another tier only with a new plan, preview, and
+question.
 
 A candidate a policy rule matched carries `policy_rule` (overlay `source`, rule `index`, matched
 `hint_id`; a rule matches a hint by id or by the hint's `class`, and then `hint_source` names the layer that supplied the hint: show it when it differs from `source`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
@@ -396,7 +401,7 @@ window unticked, with `in_flight_reason` shown ([age basis](reference/scan-flags
 
 ## 6. Apply only the confirmed preview
 
-After an affirmative answer in this interactive session, run only:
+After the §5 table, in this interactive session, run only:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" apply --execute \
@@ -408,8 +413,9 @@ After an affirmative answer in this interactive session, run only:
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
 skill-frontmatter belt blocks those bypasses and returns a hook-issued `ask`
 (`permissionDecision: "ask"`) for the exact engine apply command, the same mechanism as the
-PowerShell deletion lane below, including the `dontAsk` / `permissions.ask` caveats. Confirm that
-prompt only when it matches the tier and paths just approved. If the plan, snapshot,
+PowerShell deletion lane below, including the `dontAsk` / `permissions.ask` caveats. That prompt is
+the tier's approval: confirm it only when it names exactly the tier and every path the §5 table
+showed, and decline one that lists no paths. A declined prompt runs nothing and ends that tier. If the plan, snapshot,
 path identity, descendant set, VCS state, or handle state changed, re-scan and re-ask; never reuse a
 token.
 

@@ -45,7 +45,9 @@ each irreversible step is marked and listed as an `-Irreversible` name.
 
 ### 2. Author
 
-Copy [template.ps1](template.ps1). Leave the library above `# STAGES` unchanged.
+Copy [template.ps1](template.ps1) with exactly
+`cat "${CLAUDE_SKILL_DIR}/template.ps1" > <target>.ps1`, then edit the copy;
+never retype it. Leave the library above `# STAGES` unchanged.
 Replace the example `Invoke-UnattendedRun` body with the procedure, using only
 these helpers:
 

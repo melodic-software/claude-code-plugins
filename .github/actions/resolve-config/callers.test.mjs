@@ -396,7 +396,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "born-triaged": { contents: "read", issues: "read" },
     "kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
-    "intake-triage": { contents: "read", issues: "write" },
+    "intake-triage": { actions: "read", contents: "read", issues: "write" },
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-key-credit": { actions: "read" },
@@ -3153,6 +3153,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
   assert.deepEqual(held.sort(), [
     "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
+    "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
     "pr-verify-capture.yml capture-fallback: Resolve the pull request",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
@@ -3165,13 +3166,13 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
 });
 
 // fix-docs-head's head-SHA read retries a transient fault once (outage posture
-// element 1; read-pr-head.bash): run with a stub gh that fails `failures`
-// times with `failure`, then answers the head, and a stub sleep that only
-// records each wait.
-test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault once, and never a rate limit", () => {
+// element 1; read-pr-head.bash), and a head it still cannot read holds green
+// (element 2): run with a stub gh that fails `failures` times with `failure`,
+// then answers the head, and a stub sleep that only records each wait.
+test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault once, never a rate limit, and holds green on a head it cannot read", () => {
   const head = "a".repeat(40);
   const step = workflow("pr-refine.yml").jobs["fix-docs-head"].steps.find((s) => s.id === "head");
-  const readHead = (failures, { body = head, failure = "HTTP 502: Bad Gateway" } = {}) => {
+  const readHead = (failures, { body = head, failure = "HTTP 502: Bad Gateway", prNumber = "7" } = {}) => {
     const dir = tempDir("refine-head-");
     try {
       const bin = join(dir, "bin");
@@ -3190,7 +3191,7 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
       const result = spawnSync("bash", ["-e", "-c", step.run], {
         cwd: dir,
         encoding: "utf8",
-        env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7" },
+        env: { ...step.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, GITHUB_REPOSITORY: "o/r", PR_NUMBER: prNumber },
       });
       const lines = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8").split("\n").filter(Boolean) : []);
       return { status: result.status, stdout: result.stdout, output: readFileSync(output, "utf8"), calls: Number(lines("calls")[0] ?? 0), sleeps: lines("sleeps").length };
@@ -3202,14 +3203,66 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   assert.deepEqual([once.status, once.output, once.calls, once.sleeps], [0, `sha=${head}\n`, 1, 0], once.stdout);
   const retried = readHead(1);
   assert.deepEqual([retried.status, retried.output, retried.calls, retried.sleeps], [0, `sha=${head}\n`, 2, 1], retried.stdout);
+  // A head still unread holds: exit 0, no sha, unread=true, notices and no error.
   const never = readHead(2);
-  assert.deepEqual([never.status, never.output, never.calls], [1, "", 2]);
-  assert.match(never.stdout, /::error::the PR could not be read \(transient\)/);
+  assert.deepEqual([never.status, never.output, never.calls], [0, "unread=true\n", 2], never.stdout);
+  assert.match(never.stdout, /^::notice::the PR could not be read \(transient\)/m);
+  assert.doesNotMatch(never.stdout, /::error::/);
   const limited = readHead(1, { failure: "HTTP 429: API rate limit exceeded" });
-  assert.deepEqual([limited.status, limited.output, limited.calls, limited.sleeps], [1, "", 1, 0]);
+  assert.deepEqual([limited.status, limited.output, limited.calls, limited.sleeps], [0, "unread=true\n", 1, 0]);
   const empty = readHead(0, { body: "null" });
-  assert.deepEqual([empty.status, empty.output], [1, ""]);
-  assert.match(empty.stdout, /::error::no PR head SHA read/);
+  assert.deepEqual([empty.status, empty.output], [0, "unread=true\n"]);
+  assert.match(empty.stdout, /^::notice::no PR head SHA read for #7/m);
+  // A bad PR number is the dispatch's fault, not GitHub's: red, no read.
+  const bad = readHead(0, { prNumber: "7; x" });
+  assert.deepEqual([bad.status, bad.output, bad.calls], [1, "", 0]);
+  assert.match(bad.stdout, /^::error::pr-number is not a PR number$/m);
+  // Nothing after the read runs on an unread head but the hold marker job,
+  // which needs fix-docs-head alone, holds no grant, and logs signal 13's notice.
+  const { jobs } = workflow("pr-refine.yml");
+  assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread }}");
+  for (const id of ["setup-node", "hold"]) {
+    const later = jobs["fix-docs-head"].steps.find((s) => s.id === id || (id === "setup-node" && s.name === "Set up Node"));
+    assert.equal(later.if, "steps.head.outputs.sha != ''", id);
+  }
+  const held = jobs["fix-docs-head-held"];
+  assert.equal(held.needs, "fix-docs-head");
+  assert.deepEqual(held.permissions, {});
+  assert.equal(evaluate(held.if, { "needs.fix-docs-head.outputs.unread": "true" }), true);
+  assert.equal(evaluate(held.if, { "needs.fix-docs-head.outputs.unread": "" }), false);
+  assert.match(held.steps[0].run, /^echo "::notice title=PR head hold::the head of #\$PR_NUMBER could not be read/);
+  assert.equal(held.steps[0].env.PR_NUMBER, "${{ inputs.pr-number }}");
+  // fix-docs-dispatch.mjs heldHead reads this job's name.
+  assert.match(readFileSync(new URL("../../scripts/pr-unblock/fix-docs-dispatch.mjs", import.meta.url), "utf8"), /`\$\{activity\}-head-held`/);
+  // fix-docs-head ends green on an unread head, so its dependents are not
+  // skipped by a failed need: each one's own if must keep it from running.
+  // Walk them in file order, each skipped job's outputs empty for the next.
+  // Each if is also evaluated on a head that was read and not held, where
+  // fix-docs must run: a default for an unmodeled ref cannot pass the walk.
+  const needsOf = (job) => [job.needs ?? []].flat();
+  const downstream = new Set(["fix-docs-head"]);
+  const results = { "fix-docs-head": "success", "fix-docs-head-held": "success" };
+  const heads = { unread: { unread: "true" }, read: { "head-sha": "a".repeat(40), unread: "", held: "false" } };
+  const ifContext = (expression, head) => {
+    // A real fix-docs dispatch from a person: a PR number and this activity.
+    const context = { "inputs.pr-number": "7", "inputs.activity": "fix-docs" };
+    for (const [ref] of expression.matchAll(/\b(?:needs|inputs|github|vars)\.[\w-]+(?:\.[\w-]+)*/g)) {
+      if (Object.hasOwn(context, ref)) continue;
+      const [, need, kind, name] = /^needs\.([\w-]+)\.(result|outputs)\.?([\w-]*)$/.exec(ref) ?? [];
+      context[ref] = need === undefined ? "" : kind === "result" ? (results[need] ?? "skipped") : need === "fix-docs-head" ? (head[name] ?? "") : "";
+    }
+    return context;
+  };
+  for (const [id, job] of Object.entries(jobs)) {
+    if (id === "fix-docs-head" || id === "fix-docs-head-held" || !needsOf(job).some((n) => downstream.has(n))) continue;
+    downstream.add(id);
+    // The sender check passes, so only the head's outputs can stop the job.
+    const expression = String(job.if ?? "true").replace(/format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/g, "true");
+    assert.equal(evaluate(expression, ifContext(expression, heads.unread)), false, `${id} runs on an unread head: ${expression}`);
+    if (id === "fix-docs") assert.equal(evaluate(expression, ifContext(expression, heads.read)), true, `fix-docs does not run on a read head: ${expression}`);
+    results[id] = "skipped";
+  }
+  assert.ok(downstream.has("fix-docs") && downstream.has("apply-docs-patch"), [...downstream].join(", "));
 });
 
 // The read report job posts on the run's head only when it equals a head the
@@ -5456,22 +5509,41 @@ test("report job: the PR number comes from the caller or the event, a run job pr
   assert.equal(read.env.RUN_PR_NUMBER, "${{ needs.run.outputs.pr-number }}");
   const signed = steps.find((s) => s.id === "signed");
   assert.equal(signed.with["pr-number"], "${{ steps.pr-head.outputs.number }}");
-  // Stub gh: the PR's head.
+  // Stub gh: fails the first FAILURES calls with a 502, then answers the PR's
+  // head; a stub sleep only counts the waits.
   const root = tempDir("report-pr-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "bin"));
-  writeFileSync(join(root, "bin", "gh"), `#!/bin/sh\necho ${TRUSTED}\n`, { mode: 0o755 });
+  symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(root, ".base"));
+  writeFileSync(
+    join(root, "bin", "gh"),
+    `#!/usr/bin/env bash\nn=$(($(cat "${root}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${root}/calls"\n` +
+      `if [ "$n" -le "\${FAILURES:-0}" ]; then printf 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n'; echo "HTTP 502: Bad Gateway" >&2; exit 1; fi\n` +
+      `printf 'HTTP/2.0 200 OK\\r\\n\\r\\n%s\\n' ${TRUSTED}\n`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(root, "bin", "sleep"), `#!/bin/sh\necho "$1" >>"${root}/sleeps"\n`, { mode: 0o755 });
   const run = (env) => {
     const output = join(root, "out");
     writeFileSync(output, "");
-    const result = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", read.run], { cwd: root, env: { PATH: `${join(root, "bin")}:/usr/bin:/bin`, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", GITHUB_OUTPUT: output, ...env }, encoding: "utf8" });
-    return { status: result.status, outputs: outputLines(output), log: result.stdout };
+    for (const name of ["calls", "sleeps"]) rmSync(join(root, name), { force: true });
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", read.run], { cwd: root, env: { PATH: `${join(root, "bin")}:/usr/bin:/bin`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", GITHUB_OUTPUT: output, READ_PR_FAILURE: read.env.READ_PR_FAILURE, ...env }, encoding: "utf8" });
+    const lines = (name) => (existsSync(join(root, name)) ? readFileSync(join(root, name), "utf8").split("\n").filter(Boolean) : []);
+    return { status: result.status, outputs: outputLines(output), log: result.stdout, calls: Number(lines("calls")[0] ?? 0), sleeps: lines("sleeps").length };
   };
   assert.deepEqual(run({ PR_NUMBER: "5", RUN_PR_NUMBER: "5" }).outputs, { sha: TRUSTED, number: "5" });
   assert.deepEqual(run({ PR_NUMBER: "5", RUN_PR_NUMBER: "" }).outputs, { sha: TRUSTED, number: "5" });
   const other = run({ PR_NUMBER: "5", RUN_PR_NUMBER: "6" });
   assert.deepEqual(other.outputs, { sha: TRUSTED, number: "5", "pr-mismatch": "true" });
   assert.match(other.log, /^::error::the run job's pr-number is not the PR the caller or event names/m);
+  // Outage posture element 1: a transient fault is read once more; one that
+  // stays leaves the head empty with a warning, never an error, and the job goes on.
+  const retried = run({ PR_NUMBER: "5", FAILURES: "1" });
+  assert.deepEqual([retried.status, retried.outputs, retried.calls, retried.sleeps], [0, { sha: TRUSTED, number: "5" }, 2, 1], retried.log);
+  const unread = run({ PR_NUMBER: "5", FAILURES: "2" });
+  assert.deepEqual([unread.status, unread.outputs, unread.calls], [0, { sha: "", number: "5" }, 2], unread.log);
+  assert.match(unread.log, /^::warning::the PR could not be read \(transient\)/m);
+  assert.doesNotMatch(unread.log, /::error::/);
   // The posting code: the default branch tip, never a run job output.
   const checkout = steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
   assertMainTip(steps, checkout, DEFAULT_BRANCH);
@@ -9318,6 +9390,103 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
   assert.deepEqual(readPosted(t, read, listing([{ name: "Mark a key credit stop", conclusion: "skipped" }])).outputs, { "credit-stop": "false" });
   assert.deepEqual(readPosted(t, read, listing([{ name: "Run the skill on the API key", conclusion: "success" }])).outputs, { "credit-stop": "false" });
   assert.deepEqual(readPosted(t, read, listing([], "skipped")).outputs, { "credit-stop": "false" });
+});
+
+// Every eval leg, in both workflows, runs the same policy step and the same
+// probe: the credential is the only difference, so a key leg cannot drift from
+// the subscription leg the probe was proven on. The probe reads its stream
+// line by line, so one line that is not JSON cannot hide the denials, and a
+// failed check names the probe's closed facts.
+test("every eval leg runs the same managed-policy step and the same probe", () => {
+  const legs = [
+    ["eval-hill-climb-pass.yml", ["pass", "pass-subscription", "pass-fallback"]],
+    ["eval-browser-dispatch.yml", ["eval", "eval-subscription", "eval-fallback"]],
+  ].flatMap(([file, ids]) => ids.map((id) => [file, id, workflow(file).jobs[id].steps]));
+  const step = (steps, id) => steps.find((s) => s.id === id);
+  const [, , first] = legs[0];
+  const policy = (steps) => /\{permissions: \{deny: \[[^]*?\]\}\}/.exec(step(steps, "deny").run)[0];
+  for (const [file, id, steps] of legs) {
+    const own = legs.find(([f]) => f === file)[2];
+    assert.equal(step(steps, "deny").run, step(own, "deny").run, `${file} ${id} managed-policy step`);
+    assert.equal(policy(steps), policy(first), `${file} ${id} deny rules`);
+    // The probe's messages name its workflow's run and case kind, and the
+    // dispatch probe logs its pass; nothing else differs.
+    const probeOf = (s) =>
+      step(s, "probe")
+        .run.replaceAll("no pull request case runs", "no case runs")
+        .replace("the next leg runs the eval", "the next leg runs the pass")
+        .replace(`echo "The managed policy denied the probe's Read, Grep and Glob calls."\n`, "");
+    assert.equal(probeOf(steps), probeOf(first), `${file} ${id} probe`);
+    const [denyIdx, isolateIdx, probeIdx] = ["Deny the eval's reads of process and runner state", "Isolate the runner", "Probe that the policy denies those reads"].map((n) => {
+      const i = steps.findIndex((s) => s.name === n);
+      assert.ok(i >= 0, `${file} ${id}: no step named ${n}`);
+      return i;
+    });
+    assert.ok(denyIdx < isolateIdx, `${file} ${id}: the policy is written while sudo works`);
+    assert.ok(isolateIdx < probeIdx, `${file} ${id}`);
+  }
+  const probe = step(first, "probe").run;
+  assert.match(probe, /jq -e -R -s --arg t "\$1" --arg p "\$2" '\[split\("\\n"\)\[\] \| fromjson\? \| objects\] \| last\(/);
+  assert.doesNotMatch(probe, /jq -e -s /, "a slurp fails on any line that is not JSON");
+  assert.match(probe, /so no case runs \(probe: \$\(probe_facts\)\)"; exit 1; \}/);
+});
+
+// The model can decline the probe's reads and end with no tool call,
+// which proves nothing about the policy: that session runs again,
+// three times at most. Any other shortfall stops the job on the first session.
+// Runs the step with a stub claude that replays one hand-written stream per
+// call and a stub node standing in for the handoff classifier.
+test("the policy probe reruns only a session with no tool call, at most three times", () => {
+  const step = workflow("eval-hill-climb-pass.yml").jobs.pass.steps.find((s) => s.id === "probe");
+  const root = "/runner";
+  const calls = [
+    ["Read", { file_path: "/proc/self/environ" }],
+    ["Read", { file_path: `${root}/.runner` }],
+    ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }],
+    ["Glob", { pattern: "environ", path: "/proc/self" }],
+  ];
+  const stream = (made, denials) =>
+    [
+      { type: "assistant", message: { content: made.length ? made.map(([name, input], i) => ({ type: "tool_use", id: `t${i}`, name, input })) : [{ type: "text", text: "I won't do that." }] } },
+      { type: "result", subtype: "success", is_error: false, num_turns: made.length + 1, permission_denials: denials.map(([tool_name, tool_input], i) => ({ tool_name, tool_use_id: `t${i}`, tool_input })) },
+    ]
+      .map((m) => JSON.stringify(m))
+      .join("\n");
+  const declined = stream([], []);
+  const allDenied = stream(calls, calls);
+  const readNotDenied = stream(calls.slice(0, 1), []);
+  const probe = (streams) => {
+    const dir = tempDir("policy-probe-");
+    try {
+      const bin = join(dir, "bin");
+      mkdirSync(bin);
+      streams.forEach((s, i) => writeFileSync(join(dir, `stream-${i + 1}`), `${s}\n`));
+      const stub = (name, body) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+      stub("claude", `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"\ncat "${dir}/stream-$n"`);
+      stub("node", "printf 'handoff=false\\nhandoff-reason=\\nlane-class=\\noutcome=success\\n'");
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", step.run], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { PATH: `${bin}:${process.env.PATH}`, LANE_API_KEY: "sk-test-credential", RUNNER_ROOT: root, GITHUB_OUTPUT: output },
+      });
+      return { status: result.status, stdout: result.stdout, calls: Number(readFileSync(join(dir, "calls"), "utf8")) };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const first = probe([allDenied]);
+  assert.deepEqual([first.status, first.calls], [0, 1], first.stdout);
+  const retried = probe([declined, allDenied]);
+  assert.deepEqual([retried.status, retried.calls], [0, 2], retried.stdout);
+  assert.match(retried.stdout, /^::notice::the probe's session made no tool call, so it proved nothing about the policy \(attempt 1 of 3\)$/m);
+  const never = probe([declined, declined, declined, allDenied]);
+  assert.deepEqual([never.status, never.calls], [1, 3], never.stdout);
+  assert.match(never.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=none denials=0 /m);
+  const undenied = probe([readNotDenied, allDenied]);
+  assert.deepEqual([undenied.status, undenied.calls], [1, 1], undenied.stdout);
+  assert.match(undenied.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=Read denials=0 /m);
 });
 
 // --- mutated code never runs beside a credential (#13586) ---
