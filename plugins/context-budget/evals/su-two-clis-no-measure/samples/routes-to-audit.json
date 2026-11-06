@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Measuring is /context-budget:audit's job; run it once check passes.",
+      "why": "route"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run an audit later.",
+      "why": "no route"
+    },
+    {
+      "answer": "Run /context-budget:setup again.",
+      "why": "wrong skill"
+    }
+  ]
+}

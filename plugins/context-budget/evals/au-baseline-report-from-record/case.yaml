@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: au-baseline-report-from-record
+graders:
+  - name: stamp-carried
+    type: regex
+    pattern: '^(?=[\s\S]*2\.1\.304)(?=[\s\S]*/opt/claude/bin/claude)(?=[\s\S]*\b(?:sdk|exact)\b)(?=[\s\S]*\bheadless\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: categories-reported
+    type: regex
+    pattern: '^(?=[\s\S]*\b9,?874\b)(?=[\s\S]*\b6,?412\b)(?=[\s\S]*\b3,?120\b)'
+    target: 'last_message'
+  - name: candidates-from-live-list
+    type: regex
+    pattern: '^(?=[\s\S]*\bLSP\b)(?=[\s\S]*\bMonitor\b)'
+    target: 'last_message'
+  - name: no-absent-candidate
+    type: regex
+    pattern: '(?:^|[.!?\n])(?![^.!?\n]*\b(?:not (?:in|on|among|part of|listed|a candidate|candidates)|isn''t (?:in|on|listed)|isn’t (?:in|on|listed)|aren''t (?:in|on|listed)|aren’t (?:in|on|listed)|is not (?:in|on|listed)|are not (?:in|on|listed)|absent from|missing from|left out of|no longer (?:in|listed)|(?:does|do)(?: not|n''t|n’t) appear|not present))[^.!?\n]*\b(?:WebFetch|WebSearch|TodoWrite|NotebookEdit)\b'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-per-tool-figure
+    type: regex
+    pattern: '\b(?:Agent|Bash|Edit|Glob|Grep|LSP|Monitor|ToolSearch|Write|WebFetch|WebSearch|TodoWrite|NotebookEdit)\b[^\n]{0,30}?(?:~\s*)?\b[0-9][0-9,.]*\s*[kK]?\s*(?:tokens?|tok)\b'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: figures-from-record
+    type: llm
+    criteria: 'The record the user supplied holds these token figures and no others: System prompt 3,120; System tools 9,874; System tools (deferred) 6,412; Memory files 1,205; Skills 2,840; Messages 12; totalTokens 17,051; maxTokens 200,000. PASS only if every token figure in the reply is one of these or plain arithmetic on them (a sum, a difference, or a share of 200,000). FAIL if the reply states any other token figure: a per-tool cost, an estimate, a typical or remembered value, or a figure from documentation.'
+    focus: 'last_message'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
