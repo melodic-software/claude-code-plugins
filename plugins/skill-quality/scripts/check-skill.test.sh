@@ -1750,6 +1750,54 @@ else
   fail "delegation prose should satisfy check 21 (rc=$rc): $out"
 fi
 
+# 34a. Check 21: a self-check that gates "called done" with no declaration WARNs.
+# The phrase wraps across lines the way the miss did; the second line holds it.
+make_skill fe-called-done '---
+name: fe-called-done
+description: "Fresh-eyes fixture. Use when: '"'"'fe called done fixture'"'"'."
+---
+
+## Steps
+
+Every render is checked by the script, and you read its frames back, before the video
+is called done.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-called-done 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no fresh-context delegation.*SKILL.md:9)' <<<"$out"; then
+  pass "called-done self-check warns (check 21)"
+else
+  fail "called-done self-check should WARN at SKILL.md:9 and pass (rc=$rc): $out"
+fi
+
+# 34b. Check 21: the same shape with a fresh-context judge nearby passes.
+make_skill fe-called-done-delegated '---
+name: fe-called-done-delegated
+description: "Fresh-eyes fixture. Use when: '"'"'fe called done delegated fixture'"'"'."
+---
+
+## Steps
+
+Read your own frames to fix what you see. Before calling the video done,
+dispatch a fresh-context subagent that judges the frames against the script.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-called-done-delegated 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" &&
+  grep -q 'fresh-context delegation declared nearby' <<<"$out"; then
+  pass "called-done with fresh-context judge passes (check 21)"
+else
+  fail "called-done with fresh-context judge should pass clean (rc=$rc): $out"
+fi
+
 # 35. Check 21: valid exemption directive near judgment language passes clean.
 make_skill fe-exempt-valid '---
 name: fe-exempt-valid
