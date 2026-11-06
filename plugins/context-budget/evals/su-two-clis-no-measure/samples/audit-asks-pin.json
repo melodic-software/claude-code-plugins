@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The audit asks which one to pin.",
+      "why": "pin"
+    },
+    {
+      "answer": "Pass `--binary /usr/local/bin/claude` to the audit.",
+      "why": "--binary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use whichever is first on PATH.",
+      "why": "no pin"
+    },
+    {
+      "answer": "Remove one of them.",
+      "why": "no pin"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/.mcp.json"
+          }
+        }
+      ],
+      "why": "config glob"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "/h/.claude/projects/**/*.jsonl"
+          }
+        }
+      ],
+      "why": "transcript glob"
+    }
+  ]
+}

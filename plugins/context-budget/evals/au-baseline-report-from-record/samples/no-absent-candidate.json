@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "You could attribute LSP, Monitor, ToolSearch or Bash next.",
+      "why": "only listed tools"
+    },
+    {
+      "answer": "Candidates: LSP, Monitor, Agent. WebFetch is not in this record's live tools list, so it is not a candidate.",
+      "why": "rejected in the same sentence"
+    },
+    {
+      "answer": "NotebookEdit and TodoWrite are absent from the live list.",
+      "why": "absent from"
+    },
+    {
+      "answer": "WebSearch does not appear in the record's tools.",
+      "why": "does not appear"
+    },
+    {
+      "answer": "TodoWrite is not present in this session's live list.",
+      "why": "not present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You could attribute WebFetch, NotebookEdit and Bash next.",
+      "why": "offers tools the record lacks"
+    },
+    {
+      "answer": "| Candidate |\n|---|\n| TodoWrite |\n| LSP |",
+      "why": "table row for an absent tool"
+    },
+    {
+      "answer": "Try WebSearch next. It is not cheap.",
+      "why": "a bare not in the next sentence does not exempt it"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Prefix bucket: 0. Deferred bucket: 3,000 tokens.",
+      "why": "two figures"
+    },
+    {
+      "answer": "| Tool | prefixDelta | deferredDelta |\n|---|---|---|\n| NotebookEdit | 0 | -3000 |",
+      "why": "table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Denying NotebookEdit saves 3,000 tokens.",
+      "why": "one merged figure"
+    },
+    {
+      "answer": "The deferred pool drops by 3,000.",
+      "why": "prefix bucket not stated"
+    }
+  ]
+}
