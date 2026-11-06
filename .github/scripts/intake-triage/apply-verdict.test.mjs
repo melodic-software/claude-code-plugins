@@ -20,10 +20,6 @@ import {
   MARKER,
   missedAnnotation,
   NEEDS_DECISION,
-  NEW_BASIS,
-  NEW_FOOTER,
-  OLD_BASIS,
-  OLD_FOOTER,
   parseVerdict,
   planWrites,
   raisedAt,
@@ -37,7 +33,11 @@ import {
 const TRUSTED = fileURLToPath(new URL("../work-unblock/fixtures/trusted-actors.json", import.meta.url));
 const HUMAN = 153232337;
 const LANES_APP = 337595936;
-const CLASSES = new Set(["work-class: scoped", "work-class: structural", "work-class: mechanical", "work-class: untrusted-provenance"]);
+// The labels a repository may still hold from before work classes retired.
+const CLASSES = ["work-class: scoped", "work-class: structural", "work-class: mechanical", "work-class: untrusted-provenance"];
+// The reusable's wording around a proposed class.
+const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
+const OLD_FOOTER = "<sub>Automated triage. A maintainer reviews it.</sub>";
 const OUTSIDER = 4242;
 const ACTIONS_BOT = 41898282;
 const humans = new Set([HUMAN]);
@@ -69,11 +69,10 @@ const laneBody = ({ cls = "work-class: scoped", lines = ["Size: Small", "Complex
 const ESCALATED_BODY = `${MARKER}\nProposed work class: none\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n\n${OLD_FOOTER}`;
 
 describe("parseVerdict", () => {
-  test("reads the class, the three dimensions and no flags", () => {
-    const verdict = parseVerdict(laneBody(), DIMS, CLASSES);
+  test("reads the three dimensions and no flags, and carries no work class", () => {
+    const verdict = parseVerdict(laneBody(), DIMS);
     assert.deepEqual(verdict, {
       escalated: false,
-      workClass: "work-class: scoped",
       untrusted: false,
       cost: false,
       dimensions: { size: "small", complexity: "low", uncertainty: "known" },
@@ -86,15 +85,14 @@ describe("parseVerdict", () => {
 
   test("reads the Blocked by line, ignoring a quoted one", () => {
     const lines = ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none"];
-    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "Blocked by: #12, #13"] }), DIMS, CLASSES).blockedBy, [12, 13]);
-    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "> Blocked by: #12"] }), DIMS, CLASSES).blockedBy, []);
+    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "Blocked by: #12, #13"] }), DIMS).blockedBy, [12, 13]);
+    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "> Blocked by: #12"] }), DIMS).blockedBy, []);
   });
 
   test("an unreadable Blocked by line names no blocker and holds nothing", () => {
     const verdict = parseVerdict(
       laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: 12"] }),
       DIMS,
-      CLASSES,
     );
     assert.deepEqual(verdict.blockedBy, []);
     assert.match(verdict.blockedByProblem, /not none or a list of #<number>/);
@@ -105,7 +103,6 @@ describe("parseVerdict", () => {
     const verdict = parseVerdict(
       laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: @owner `x` <b>"] }),
       DIMS,
-      CLASSES,
     );
     assert.equal(verdict.flags, null);
     assert.equal(verdict.problems.length, 1);
@@ -120,7 +117,6 @@ describe("parseVerdict", () => {
         lines: ["Size: Medium", "Complexity: High", "Uncertainty: Knowable", "Flags: cost, intent"],
       }),
       DIMS,
-      CLASSES,
     );
     assert.deepEqual(verdict.flags, ["cost", "intent"]);
     assert.deepEqual(verdict.dimensions, {
@@ -136,7 +132,6 @@ describe("parseVerdict", () => {
         lines: ["> Size: Small", "  Complexity: Low", "> Uncertainty: Known", "> Flags: none"],
       }),
       DIMS,
-      CLASSES,
     );
     assert.equal(verdict.dimensions, null);
     assert.equal(verdict.flags, null);
@@ -149,7 +144,6 @@ describe("parseVerdict", () => {
         lines: ["Size: Small", "Size: Large", "Complexity: Low", "Uncertainty: Known", "Flags: none"],
       }),
       DIMS,
-      CLASSES,
     );
     assert.equal(verdict.dimensions, null);
     assert.match(verdict.problems.join(), /more than one `Size:`/);
@@ -165,7 +159,6 @@ describe("parseVerdict", () => {
           lines: [line, "Complexity: Low", "Uncertainty: Known", "Flags: none"],
         }),
         DIMS,
-        CLASSES,
       );
       assert.equal(verdict.dimensions, null);
     });
@@ -179,45 +172,42 @@ describe("parseVerdict", () => {
             lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", flags],
           }),
           DIMS,
-          CLASSES,
         ).flags,
         null,
       );
     });
   }
 
-  test("takes the class only from the second line, and a missing one is no problem", () => {
-    const body = `${MARKER}\nThanks.\nProposed work class: work-class: scoped\nSize: Small`;
-    const verdict = parseVerdict(body, DIMS, CLASSES);
-    assert.equal(verdict.workClass, null);
+  test("reads the legacy untrusted proposal only from the second line, and a missing class line is no problem", () => {
+    const body = `${MARKER}\nThanks.\nProposed work class: work-class: untrusted-provenance\nSize: Small`;
+    const verdict = parseVerdict(body, DIMS);
+    assert.equal(verdict.untrusted, false);
     assert.doesNotMatch(verdict.problems.join(), /class/);
   });
 
-  test("an escalated run carries no class", () => {
-    const verdict = parseVerdict(ESCALATED_BODY, DIMS, CLASSES);
+  test("an escalated run reads as escalated", () => {
+    const verdict = parseVerdict(ESCALATED_BODY, DIMS);
     assert.equal(verdict.escalated, true);
-    assert.equal(verdict.workClass, null);
   });
 });
 
 describe("planWrites", () => {
-  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {}, earlierFlags = [], triageLabels = [] } = {}) =>
-    planWrites(parseVerdict(body, DIMS, CLASSES), {
+  const plan = (body, { labels = [], fields = {}, holdSetters = {}, earlierFlags = [], triageLabels = [] } = {}) =>
+    planWrites(parseVerdict(body, DIMS), {
       labels,
       fields,
       dimensionsConfig: DIMS,
       appId: LANES_APP,
       humans,
-      classSetters,
       holdSetters,
       earlierFlags,
       triageLabels,
     });
 
-  test("a clean verdict adds the class and status: ready and writes the three fields", () => {
+  test("a clean verdict adds status: ready, never its proposed class, and writes the three fields", () => {
     const result = plan(laneBody());
     assert.equal(result.ready, true);
-    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.add, [READY]);
     assert.deepEqual(result.remove, []);
     assert.deepEqual(
       result.fieldWrites.map(({ fieldId, optionId, name }) => [fieldId, optionId, name]),
@@ -231,14 +221,14 @@ describe("planWrites", () => {
 
   // Admission criteria 1 (intent), 5 (very-high security) and 6 (cost) rest on these.
   for (const flag of ["intent", "security", "cost"]) {
-    test(`a ${flag} flag sends it to needs-decision but still writes the class and fields`, () => {
+    test(`a ${flag} flag sends it to needs-decision but still writes the fields`, () => {
       const result = plan(
         laneBody({
           lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", `Flags: ${flag}`],
         }),
       );
       assert.equal(result.ready, false);
-      assert.deepEqual(result.add, ["work-class: scoped", NEEDS_DECISION]);
+      assert.deepEqual(result.add, [NEEDS_DECISION]);
       assert.equal(result.fieldWrites.length, 3);
     });
   }
@@ -248,7 +238,6 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, [NEEDS_DECISION]);
     assert.deepEqual(result.remove, [READY]);
     assert.deepEqual(result.fieldWrites, []);
-    assert.equal(result.classApplied, false);
   });
 
   for (const hold of ["needs-human", "status: needs-info", NEEDS_DECISION]) {
@@ -263,7 +252,7 @@ describe("planWrites", () => {
       test(`${hold} the lanes App set gives way to a clean verdict and is taken off`, () => {
         const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP } });
         assert.equal(result.ready, true);
-        assert.deepEqual(result.add, ["work-class: scoped", READY]);
+        assert.deepEqual(result.add, [READY]);
         assert.deepEqual(result.remove, [hold]);
       });
 
@@ -331,7 +320,7 @@ describe("planWrites", () => {
   test("needs-human this run's triage applied with no flag is refused and the verdict reaches ready", () => {
     const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
     assert.equal(result.ready, true);
-    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.add, [READY]);
     assert.deepEqual(result.remove, ["needs-human"]);
     assert.deepEqual(result.refused, ["needs-human"]);
     assert.deepEqual(result.reasons, []);
@@ -418,7 +407,7 @@ describe("planWrites", () => {
   // dimension: only the escalation guard keeps this needs-human from being refused.
   test("needs-human on an escalated run with Flags: none and readable dimensions is not refused", () => {
     const body = `${MARKER}\nProposed work class: none\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n\nSize: Small\nComplexity: Low\nUncertainty: Known\nFlags: none\n\n${OLD_FOOTER}`;
-    const verdict = parseVerdict(body, DIMS, CLASSES);
+    const verdict = parseVerdict(body, DIMS);
     assert.equal(verdict.escalated, true);
     assert.deepEqual(verdict.flags, []);
     assert.notEqual(verdict.dimensions, null);
@@ -433,7 +422,7 @@ describe("planWrites", () => {
   test("status: needs-decision this run's triage applied with no flag is refused on an otherwise ready plan", () => {
     const result = plan(laneBody(), { labels: [NEEDS_DECISION], triageLabels: [NEEDS_DECISION] });
     assert.equal(result.ready, true);
-    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.add, [READY]);
     assert.deepEqual(result.remove, [NEEDS_DECISION]);
     assert.deepEqual(result.refused, [NEEDS_DECISION]);
   });
@@ -530,7 +519,7 @@ describe("planWrites", () => {
   for (const [line, outcome] of COST_CASES) {
     test(`a ${JSON.stringify(line)} line ${outcome === "refuse" ? "refuses" : "keeps"} a needs-human this run's triage applied (${outcome})`, () => {
       const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] });
-      const verdict = parseVerdict(body, DIMS, CLASSES);
+      const verdict = parseVerdict(body, DIMS);
       const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
       assert.equal(verdict.cost, outcome === "hold");
       assert.equal(verdict.problems.includes("a Cost line is not in the `Cost: ` / `Cost decided: ` form"), outcome === "problem");
@@ -588,48 +577,29 @@ describe("planWrites", () => {
     assert.deepEqual(result.reasons, ["flagged: intent"]);
   });
 
-  // Owner decision Q85 (#9668): the work class gates nothing.
-  test("another work class a listed human added is kept and does not hold the issue", () => {
-    const result = plan(laneBody(), {
-      labels: ["work-class: structural"],
-      classSetters: { "work-class: structural": HUMAN },
-    });
-    assert.equal(result.classApplied, false);
-    assert.equal(result.ready, true);
-    assert.deepEqual(result.add, [READY]);
-    assert.deepEqual(result.remove, []);
-  });
-
-  for (const cls of ["none", "work-class: structural"]) {
-    test(`a verdict proposing ${cls} reaches ready`, () => {
+  // Work classes are retired: a proposed class is never applied, and an old
+  // class label on the issue is neither read nor taken off.
+  for (const cls of ["none", "work-class: scoped", "work-class: structural", "work-class: anything-goes"]) {
+    test(`a verdict proposing ${cls} adds no class label and reaches ready`, () => {
       const result = plan(laneBody({ cls }));
       assert.equal(result.ready, true);
-      assert.ok(result.add.includes(READY));
-      assert.ok(!result.add.includes(NEEDS_DECISION));
+      assert.deepEqual(result.add, [READY]);
+      assert.deepEqual(result.remove, []);
     });
   }
 
-  test("another work class the lanes App added gives way to the new verdict", () => {
-    const result = plan(laneBody(), {
-      labels: ["work-class: mechanical"],
-      classSetters: { "work-class: mechanical": LANES_APP },
-    });
-    assert.equal(result.ready, true);
-    assert.deepEqual(result.remove, ["work-class: mechanical"]);
-    assert.deepEqual(result.add, ["work-class: scoped", READY]);
-  });
-
   for (const [name, setter] of [
-    ["an unlisted account added", OUTSIDER],
-    ["no event names (a renamed label)", undefined],
-    ["a null actor added", null],
+    ["the lanes App", LANES_APP],
+    ["a listed human", HUMAN],
+    ["an unlisted account", OUTSIDER],
+    ["a null actor", null],
   ]) {
-    test(`another work class ${name} is kept: an unknown setter counts as a person`, () => {
-      const result = plan(laneBody(), {
+    test(`an old work-class label ${name} added is kept, gains no swap and does not hold`, () => {
+      const result = plan(laneBody({ cls: "work-class: structural" }), {
         labels: ["work-class: mechanical"],
-        classSetters: setter === undefined ? {} : { "work-class: mechanical": setter },
+        holdSetters: { "work-class: mechanical": setter },
       });
-      assert.equal(result.classApplied, false);
+      assert.equal(result.ready, true);
       assert.deepEqual(result.remove, []);
       assert.deepEqual(result.add, [READY]);
     });
@@ -639,9 +609,10 @@ describe("planWrites", () => {
     const hold = "work-class: untrusted-provenance";
     const result = plan(laneBody(), {
       labels: [hold],
-      classSetters: { [hold]: LANES_APP },
+      holdSetters: { [hold]: LANES_APP },
     });
-    assert.equal(result.classApplied, false);
+    assert.equal(result.ready, false);
+    assert.ok(result.reasons.includes("provenance: untrusted work needs a person"), result.reasons.join("; "));
     assert.deepEqual(result.remove, []);
     assert.deepEqual(result.add, [NEEDS_DECISION]);
   });
@@ -656,9 +627,8 @@ describe("planWrites", () => {
   }
 
   test("a verdict proposing the legacy work-class: untrusted-provenance writes provenance: untrusted and holds the issue", () => {
-    const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS, CLASSES);
+    const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS);
     assert.equal(verdict.untrusted, true);
-    assert.equal(verdict.workClass, null);
     const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
     assert.equal(result.ready, false);
     assert.equal(result.reason, "security");
@@ -666,25 +636,27 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
   });
 
-  test("an untrusted-provenance verdict holds even when the repository lacks the legacy label", () => {
-    const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS, new Set(["work-class: scoped"]));
+  test("an escalated run's legacy untrusted proposal is not read, and the escalation holds it", () => {
+    const verdict = parseVerdict(ESCALATED_BODY.replace("Proposed work class: none", "Proposed work class: work-class: untrusted-provenance"), DIMS);
+    assert.equal(verdict.escalated, true);
+    assert.equal(verdict.untrusted, false);
     const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
     assert.equal(result.ready, false);
-    assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
+    assert.equal(result.reason, "security");
   });
 
-  test("an untrusted-provenance verdict adds provenance: untrusted beside a class a person set", () => {
+  test("an untrusted-provenance verdict adds provenance: untrusted beside an old class label", () => {
     const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), {
       labels: ["work-class: mechanical"],
-      classSetters: { "work-class: mechanical": HUMAN },
+      holdSetters: { "work-class: mechanical": HUMAN },
     });
     assert.equal(result.ready, false);
     assert.deepEqual(result.remove, []);
     assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
   });
 
-  test("Flags: untrusted writes provenance: untrusted beside the proposed class and holds for security", () => {
-    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS, CLASSES);
+  test("Flags: untrusted writes provenance: untrusted, never the proposed class, and holds for security", () => {
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS);
     assert.equal(verdict.untrusted, true);
     assert.deepEqual(verdict.flags, []);
     assert.deepEqual(verdict.problems, []);
@@ -692,17 +664,17 @@ describe("planWrites", () => {
     assert.equal(result.ready, false);
     assert.equal(result.reason, "security");
     assert.ok(result.reasons.includes("provenance: untrusted work needs a person"), result.reasons.join("; "));
-    assert.deepEqual(result.add, ["provenance: untrusted", "work-class: scoped", NEEDS_DECISION]);
+    assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
   });
 
   test("untrusted beside other flags keeps them as flags and still holds", () => {
-    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent, untrusted"] }), DIMS, CLASSES);
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent, untrusted"] }), DIMS);
     assert.equal(verdict.untrusted, true);
     assert.deepEqual(verdict.flags, ["intent"]);
   });
 
   test("an unreadable Flags line naming untrusted still marks the verdict untrusted", () => {
-    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted, maybe"] }), DIMS, CLASSES);
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted, maybe"] }), DIMS);
     assert.equal(verdict.untrusted, true);
     assert.equal(verdict.flags, null);
     const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
@@ -714,7 +686,6 @@ describe("planWrites", () => {
     const verdict = parseVerdict(
       laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Flags: untrusted"] }),
       DIMS,
-      CLASSES,
     );
     assert.equal(verdict.untrusted, true);
     assert.equal(verdict.flags, null);
@@ -727,7 +698,6 @@ describe("planWrites", () => {
     const verdict = parseVerdict(
       laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "> Flags: untrusted"] }),
       DIMS,
-      CLASSES,
     );
     assert.equal(verdict.untrusted, false);
     assert.deepEqual(verdict.flags, []);
@@ -737,16 +707,6 @@ describe("planWrites", () => {
     const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), { labels: ["provenance: untrusted"] });
     assert.equal(result.ready, false);
     assert.deepEqual(result.add, [NEEDS_DECISION]);
-  });
-
-  test("work-class: structural the lanes App added gives way to the new verdict", () => {
-    const result = plan(laneBody(), {
-      labels: ["work-class: structural"],
-      classSetters: { "work-class: structural": LANES_APP },
-    });
-    assert.equal(result.ready, true);
-    assert.deepEqual(result.remove, ["work-class: structural"]);
-    assert.deepEqual(result.add, ["work-class: scoped", READY]);
   });
 
   for (const [name, setter] of [
@@ -778,27 +738,22 @@ describe("planWrites", () => {
     });
   }
 
-  test("a class that is not one of the repository's work-class labels is not applied and does not hold", () => {
-    const verdict = parseVerdict(laneBody({ cls: "work-class: anything-goes" }), DIMS, CLASSES);
-    assert.equal(verdict.workClass, null);
-    assert.deepEqual(verdict.problems, []);
-    const result = plan(laneBody({ cls: "work-class: anything-goes" }));
-    assert.equal(result.ready, true);
-    assert.deepEqual(result.add, [READY]);
+  test("a proposed class is no problem in the verdict", () => {
+    assert.deepEqual(parseVerdict(laneBody({ cls: "work-class: anything-goes" }), DIMS).problems, []);
   });
 
-  test("two work classes on the issue are kept and do not hold it", () => {
+  test("two old work classes on the issue are kept and do not hold it", () => {
     const result = plan(laneBody(), {
       labels: ["work-class: structural", "work-class: mechanical"],
     });
-    assert.equal(result.classApplied, false);
+    assert.deepEqual(result.remove, []);
     assert.deepEqual(result.add, [READY]);
   });
 
   test("needs-triage the triage left does not keep a clean verdict from ready, and is taken off", () => {
     const result = plan(laneBody(), { labels: ["needs-triage"] });
     assert.equal(result.ready, true);
-    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.add, [READY]);
     assert.deepEqual(result.remove, ["needs-triage"]);
   });
 
@@ -811,13 +766,14 @@ describe("planWrites", () => {
   test("area: security alone does not hold a clean verdict; only the security flag does", () => {
     const result = plan(laneBody(), { labels: ["area: security"] });
     assert.equal(result.ready, true);
-    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.add, [READY]);
   });
 
-  test("the same work class already on the issue counts as applied", () => {
+  test("the proposed class already on the issue is left as it is", () => {
     const result = plan(laneBody(), { labels: ["work-class: scoped"] });
     assert.equal(result.ready, true);
     assert.deepEqual(result.add, [READY]);
+    assert.deepEqual(result.remove, []);
   });
 
   test("a field a listed human set to another value is kept, counts for admission, and does not hold", () => {
@@ -937,8 +893,9 @@ function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events =
       }
       return blockers[other[1]];
     }
+    // Work classes are retired, so no run reads the repository's labels.
     if (method === "GET" && path.startsWith("/repos/o/r/labels")) {
-      return [...CLASSES, READY, NEEDS_DECISION].map((name) => ({ name }));
+      throw new Error(`the repository's labels were read (${path})`);
     }
     if (method === "GET" && path.startsWith("/repos/o/r/issues/7/events")) {
       return events;
@@ -1017,23 +974,29 @@ const unflagged = (text = "The latest triage verdict holds nothing: admission di
 const APP_HOLD = [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }];
 
 describe("run", () => {
-  test("writes the fields, the class and status: ready, then rewords the comment", async () => {
+  test("writes the fields and status: ready, no class, and leaves the lane comment as it is", async () => {
     const fake = fakeGitHub({ comments: [laneComment()] });
     const result = await go(fake);
     assert.equal(result.outcome, "ready");
     const done = writes(fake.calls);
     assert.deepEqual(
       done.map(({ method, path }) => `${method} ${path}`),
-      ["POST /repos/o/r/issues/7/issue-field-values", "POST /repos/o/r/issues/7/labels", "PATCH /repos/o/r/issues/comments/99"],
+      ["POST /repos/o/r/issues/7/issue-field-values", "POST /repos/o/r/issues/7/labels"],
     );
     assert.deepEqual(done[0].body.issue_field_values, [
       { field_id: 15462270, value: "Small" },
       { field_id: 48625720, value: "Low" },
       { field_id: 48625721, value: "Known" },
     ]);
-    assert.deepEqual(done[1].body.labels, ["work-class: scoped", READY]);
-    assert.ok(done[2].body.body.includes(NEW_BASIS) && done[2].body.body.includes(NEW_FOOTER));
-    assert.ok(!/maintainer/.test(done[2].body.body));
+    assert.deepEqual(done[1].body.labels, [READY]);
+    assert.ok(!fake.calls.some(({ path }) => path.startsWith("/repos/o/r/labels")), "no repository label read");
+  });
+
+  test("an issue holding only an old class label reads no events", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "work-class: mechanical" }] }, comments: [laneComment()] });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(!fake.calls.some(({ path }) => path.startsWith("/repos/o/r/issues/7/events")));
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
   test("an escalated run writes only needs-decision and its reasons, and keeps the lane comment", async () => {
@@ -1121,39 +1084,9 @@ describe("run", () => {
     );
   });
 
-  test("swaps a class the lanes App added, read from the issue's events, before adding the new one", async () => {
-    const fake = fakeGitHub({
-      issue: { labels: [{ name: "work-class: mechanical" }] },
-      comments: [laneComment()],
-      events: [
-        {
-          event: "labeled",
-          label: { name: "work-class: mechanical" },
-          actor: { id: HUMAN },
-        },
-        {
-          event: "unlabeled",
-          label: { name: "work-class: mechanical" },
-          actor: { id: HUMAN },
-        },
-        {
-          event: "labeled",
-          label: { name: "work-class: mechanical" },
-          actor: { id: LANES_APP },
-        },
-      ],
-    });
-    const result = await go(fake);
-    assert.equal(result.outcome, "ready");
-    const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
-    const removal = done.indexOf(`DELETE /repos/o/r/issues/7/labels/${encodeURIComponent("work-class: mechanical")}`);
-    assert.ok(removal >= 0 && removal < done.indexOf("POST /repos/o/r/issues/7/labels"), done.join("\n"));
-  });
-
-  test("replaces the lanes App's own earlier class and field values given real-shaped ids", async () => {
-    // The REST events API answers actor.id as a number; GraphQL answers
-    // databaseId as a number, here passed as a string to prove the type
-    // does not matter.
+  test("keeps an old class the lanes App added and replaces its own earlier field values given real-shaped ids", async () => {
+    // GraphQL answers databaseId as a number, here passed as a string to
+    // prove the type does not matter.
     const fake = fakeGitHub({
       issue: { labels: [{ name: "work-class: mechanical" }] },
       comments: [laneComment()],
@@ -1185,11 +1118,7 @@ describe("run", () => {
     });
     assert.equal(result.outcome, "ready");
     const done = writes(fake.calls);
-    assert.ok(
-      done.some(
-        ({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent("work-class: mechanical")}`,
-      ),
-    );
+    assert.ok(!done.some(({ method }) => method === "DELETE"), "the old class stays");
     const post = done.find(({ path }) => path.endsWith("/issue-field-values"));
     assert.deepEqual(post.body.issue_field_values[0], {
       field_id: 15462270,
@@ -1214,7 +1143,7 @@ describe("run", () => {
         },
       ],
     });
-    // Owner decision Q85 (#9668): the kept class no longer holds the issue.
+    // The kept class does not hold the issue.
     assert.equal((await go(fake)).outcome, "ready");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
@@ -1292,7 +1221,7 @@ describe("run", () => {
     assert.equal(ready.outcome, "ready");
     assert.equal(ready.admission.outcome, "admitted");
     assert.equal(seen.length, 1);
-    assert.equal(seen[0].workClass, "work-class: scoped");
+    assert.ok(!Object.hasOwn(seen[0], "workClass"), "admission gets no work class");
     assert.deepEqual(seen[0].dimensions, {
       size: "small",
       complexity: "low",
@@ -1341,7 +1270,7 @@ describe("run", () => {
     assert.equal(seen.length, 1);
   });
 
-  test("admits before rewording, so a refused comment edit does not stop admission", async () => {
+  test("admission reads the lane comment's write time, and the run edits no comment", async () => {
     const seen = [];
     const fake = fakeGitHub({ comments: [laneComment()] });
     const github = async (method, path, body) => {
@@ -1350,25 +1279,24 @@ describe("run", () => {
       }
       return fake.github(method, path, body);
     };
-    await assert.rejects(
-      run({
-        env: ENV,
-        github,
-        dimensionsConfig: DIMS,
-        fieldSetters: noSetters,
-        admitIssue: async (verdict) => {
-          seen.push(verdict);
-          return { outcome: "admitted", reasons: [] };
-        },
-        log: () => {},
-      }),
-    );
+    const result = await run({
+      env: ENV,
+      github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async (verdict) => {
+        seen.push(verdict);
+        return { outcome: "admitted", reasons: [] };
+      },
+      log: () => {},
+    });
+    assert.equal(result.outcome, "ready");
     assert.equal(seen.length, 1);
     // Admission refuses a body edited after the lane comment it read.
     assert.equal(seen[0].writtenAt, laneComment().updated_at);
   });
 
-  test("an admission error still rewords the comment and reports the verdict", async () => {
+  test("an admission error still reports the verdict and edits no lane comment", async () => {
     const fake = fakeGitHub({ comments: [laneComment()] });
     const result = await run({
       env: ENV,
@@ -1382,7 +1310,7 @@ describe("run", () => {
     });
     assert.equal(result.outcome, "ready");
     assert.deepEqual(result.admission, { outcome: "error", reasons: ["admission-rules.json: `types` must be a list of strings"] });
-    assert.ok(writes(fake.calls).some(({ method }) => method === "PATCH"));
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "PATCH"));
     assert.match(result.summary, /- Admission: error \(admission-rules\.json/);
   });
 
@@ -1831,12 +1759,11 @@ describe("run", () => {
         return fake.github(method, path, body);
       };
       const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
-      assert.ok(result.plan.classApplied);
       assert.ok(result.reasonsError, "the failure is on the result");
       assert.match(result.summary, /- Reasons comment: not written \(/);
       const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
       assert.deepEqual(labelWrites, [], "no hold lands without its record");
-      assert.ok(!writes(fake.calls).some(({ path }) => path === "/repos/o/r/issues/comments/99"), "no class, so no reword");
+      assert.ok(!writes(fake.calls).some(({ path }) => path === "/repos/o/r/issues/comments/99"), "the lane comment is never edited");
     });
   }
 
@@ -1871,7 +1798,7 @@ describe("run", () => {
     });
   }
 
-  test("a failed edit of the reasons comment on a ready verdict still rewords the lane comment and reports the failure", async () => {
+  test("a failed edit of the reasons comment on a ready verdict still lands the verdict and reports the failure", async () => {
     const fake = fakeGitHub({ comments: [laneComment(), unflagged()] });
     const github = async (method, path, body) => {
       if (method === "PATCH" && path === "/repos/o/r/issues/comments/51") {
@@ -1882,7 +1809,8 @@ describe("run", () => {
     };
     const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
     assert.equal(result.outcome, "ready");
-    assert.ok(writes(fake.calls).some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/99"));
+    assert.ok(!writes(fake.calls).some(({ path }) => path === "/repos/o/r/issues/comments/99"), "the lane comment is never edited");
+    assert.ok(writes(fake.calls).some(({ method, path, body }) => method === "POST" && path === "/repos/o/r/issues/7/labels" && body.labels.includes(READY)));
     assert.ok(result.reasonsError, "the failure is on the result");
     assert.match(result.summary, /- Reasons comment: not written \(/);
   });
@@ -2155,7 +2083,7 @@ describe("run", () => {
       assert.deepEqual(result.missed, [{ number: 12, status }]);
       assert.ok(!admitted, "admission reads blockers from native edges only, so it waits");
       const added = fake.calls.filter(({ method, path }) => method === "POST" && path.endsWith("/labels")).flatMap(({ body }) => body.labels);
-      assert.ok(added.includes("work-class: scoped"), added.join(", "));
+      assert.ok(!added.some((name) => name.startsWith("work-class:")), added.join(", "));
       assert.ok(!added.includes(READY), added.join(", "));
       assert.ok(fake.calls.some(({ method, path }) => method === "DELETE" && path.endsWith(`/labels/${encodeURIComponent(READY)}`)));
       assert.ok(result.summary.includes(`- Blocked by: #12 not written (GitHub answered ${status})`), result.summary);
@@ -2324,23 +2252,23 @@ describe("the triage prompt", () => {
     assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
   });
 
-  // Run 41807993284: with no meanings in the prompt, the model grepped for
-  // them outside the checkout, dontAsk denied it, and the clean triage deferred.
-  test("the Work class line names each class admission admits and points at a checkout file that defines it", () => {
+  // Work classes are retired. Run 41807993284: a model told of classes with
+  // no meanings grepped outside the checkout, dontAsk denied it, and the clean
+  // triage deferred, so the line also says not to search.
+  test("the Work class line asks for none, names no class, and keeps untrusted provenance off it", () => {
     const line = /- Work class: (.*?) - Size:/.exec(PROMPT)?.[1] ?? "";
-    const rules = JSON.parse(readFileSync(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url), "utf8"));
-    const doc = readFileSync(new URL("../../../plugins/work-items/reference/work-class-labels.md", import.meta.url), "utf8");
-    assert.match(line, /Description column of plugins\/work-items\/reference\/work-class-labels\.md from the repository root/);
-    for (const name of [...rules.classes, "work-class: structural"]) {
-      assert.ok(line.includes(`\`${name}\``), `the rubric names ${name}`);
-      assert.match(doc, new RegExp(`^\\| \`${name}\` \\| C[1-5] \\| \\S`, "m"), `the doc defines ${name}`);
+    assert.match(line, /^always none\./);
+    assert.match(line, /never search for their meanings/);
+    assert.match(line, /mark it with the untrusted flag \(Flags below\), never on the class line/);
+    for (const name of [...CLASSES, "work-class: read-only"]) {
+      assert.ok(!line.includes(`\`${name}\``), `the rubric offers ${name}`);
     }
-    assert.ok(!line.includes("`work-class: untrusted-provenance`"), "the rubric offers no untrusted class");
+    assert.doesNotMatch(PROMPT, /work-class-labels\.md/);
   });
 
   test("the prompt marks untrusted provenance on the Flags line, which the parser reads as untrusted", () => {
     assert.match(PROMPT, /Flags: none\|intent\|security\|cost\|untrusted/);
-    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS, CLASSES);
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS);
     assert.equal(verdict.untrusted, true);
   });
 
@@ -2364,7 +2292,7 @@ describe("the triage prompt", () => {
 // strongest of its causes, as the stop-reason marker and line.
 describe("held verdict reason codes", () => {
   const plan = (body, options = {}) =>
-    planWrites(parseVerdict(body, DIMS, CLASSES), { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans, earlierFlags: [], ...options });
+    planWrites(parseVerdict(body, DIMS), { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans, earlierFlags: [], ...options });
   const flags = (value, extra = []) => laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", `Flags: ${value}`, ...extra] });
 
   test("each cause maps to its code, and a ready verdict names none", () => {
