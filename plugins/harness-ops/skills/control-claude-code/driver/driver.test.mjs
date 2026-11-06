@@ -6,6 +6,7 @@
 // prerequisites checker's probe rule (the pattern is a regular expression run
 // over the probe's output).
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
@@ -930,6 +931,22 @@ test('the startup banner keeps the model and loses the plan tier', () => {
   }
 });
 
+test('the key-auth status screen has no account to hide and still loses its session id and cwd', () => {
+  const { text } = driver.maskCells(toCells(fixture('status-key-auth-screen.txt')), MASKS, []);
+  for (const absent of ['@', 'Email:', 'Organization:', 'Login method:', '00000000-0000', '/home/<user>/project']) {
+    assert.ok(!text.includes(absent), `${absent} is not on the masked screen`);
+  }
+  for (const kept of [
+    `Session ID:                 ${'*'.repeat(36)}`,
+    `cwd:                        ${'*'.repeat(20)}`,
+    'Auth token:                 none',
+    'API key:                    ANTHROPIC_API_KEY',
+    'Opus 5.5 · API Usage Billing',
+  ]) {
+    assert.ok(text.includes(kept), `${kept} stays`);
+  }
+});
+
 test('a value wrapped across rows and split by a border is masked; the rest of the row is not', () => {
   const { text } = driver.maskCells(toCells('│ team: Example\n│ Org │ ok'), MASKS, ['Example Org']);
   assert.equal(text, '│ team: *******\n│ *** │ ok');
@@ -1389,4 +1406,51 @@ test('a relative CCD_RUNTIME_DIR and a session name starting with - are usage er
     assert.rejects(main(['stop', '--session', session()]), { code: 2, message: 'CCD_RUNTIME_DIR must be an absolute path' }),
   );
   await assert.rejects(main(['stop', '--session=-x']), { code: 2, message: '--session takes 1-32 letters, digits, _ or -, not starting with -' });
+});
+
+// ---- cli/account.mjs, run against a stub claude ----
+// The stub outputs follow `claude auth status --json` from Claude Code 2.1.319: `authMethod` is
+// `api_key` under ANTHROPIC_API_KEY (no email or orgName) and `claude.ai` for a subscription login.
+
+const ACCOUNT = join(HERE, '..', 'cli', 'account.mjs');
+
+function runAccount(stdout) {
+  const box = sandbox();
+  writeFileSync(join(box.bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' '${stdout}'\n`, { mode: 0o755 });
+  try {
+    return spawnSync(process.execPath, [ACCOUNT], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${box.bin}${delimiter}${process.env.PATH}` },
+    });
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+}
+
+const KEY_AUTH = { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' };
+
+test('account prints the none: line and exits 0 under key auth with no account', posixOnly, () => {
+  const run = runAccount(JSON.stringify(KEY_AUTH));
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'none: API-key auth has no signed-in account\n');
+});
+
+test('account prints the organization under key auth that names one', posixOnly, () => {
+  const run = runAccount(JSON.stringify({ ...KEY_AUTH, orgName: 'Example Org' }));
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'Example Org\n');
+});
+
+test('account exits 1 with nothing on stdout for a subscription login with no account', posixOnly, () => {
+  const run = runAccount(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }));
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+  assert.equal(run.stderr, 'account: claude auth status names no email or organization\n');
+});
+
+test('account exits 1 with nothing on stdout when claude auth status prints no JSON', posixOnly, () => {
+  const run = runAccount('not json');
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+  assert.equal(run.stderr, 'account: claude auth status printed no JSON; cannot read the signed-in account to mask it\n');
 });

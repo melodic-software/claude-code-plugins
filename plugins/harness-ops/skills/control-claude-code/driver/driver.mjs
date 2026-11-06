@@ -573,11 +573,11 @@ export function readMasks(text) {
 }
 
 /**
- * The signed-in account's email and organization name from `claude auth status`, run in
- * `env`: the session's launch environment, else an attended launch's. The output is never
- * echoed, so no value reaches a log or an error message.
+ * The parsed `claude auth status --json`, run in `env`: the session's launch environment,
+ * else an attended launch's. The output is never echoed, so no value reaches a log or an
+ * error message.
  */
-export function accountValues(env = buildLaunch({ pluginDir: '.' }, process.env).env) {
+export function authStatus(env = buildLaunch({ pluginDir: '.' }, process.env).env) {
   const run = spawnSync('claude', ['auth', 'status', '--json'], {
     env,
     encoding: 'utf8',
@@ -585,15 +585,21 @@ export function accountValues(env = buildLaunch({ pluginDir: '.' }, process.env)
     shell: process.platform === 'win32',
   });
   if (run.error) throw new Error('claude auth status did not run; cannot read the signed-in account to mask it');
-  let status;
   try {
-    status = JSON.parse(run.stdout);
+    return JSON.parse(run.stdout);
   } catch {
     throw new Error('claude auth status printed no JSON; cannot read the signed-in account to mask it');
   }
+}
+
+/** The email and organization name an auth status names, without duplicates or blanks. */
+export function statusValues(status) {
   const values = [status?.email, status?.orgName].filter((v) => typeof v === 'string' && v.trim());
   return [...new Set(values)];
 }
+
+/** The signed-in account's email and organization name, from `authStatus(env)`. */
+export const accountValues = (env) => statusValues(authStatus(env));
 
 const unitsOf = (cell) => cell.char.length;
 
