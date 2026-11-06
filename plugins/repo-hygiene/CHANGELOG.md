@@ -3,6 +3,16 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.4] - 2026-11-06
+
+### Fixed
+
+- gate clean's worktree hand-off on source-control
+
+  The WORKTREE tier runs /source-control:worktree cleanup --dry-run only
+  when the source-control plugin is installed; otherwise it names the
+  worktree paths for the user.
+
 ## [0.21.3] - 2026-11-06
 
 ### Changed

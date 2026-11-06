@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.12.2] - 2026-11-06
+
+### Fixed
+
+- gate devils-advocate's incumbent exploration on discovery
+
+  incumbent mode's first step invokes /discovery:explore if enabled,
+  else explores directly, matching the skill's other discovery sites.
+
 ## [2.12.1] - 2026-11-06
 
 ### Fixed
