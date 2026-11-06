@@ -1226,16 +1226,17 @@ jobs:
           if [ "$DEPENDABOT" != off ]; then
             authors+=(app/dependabot)
           fi
-          # A failed read, a rate stop past the budget, or a 200 that fails the
-          # completeness check leaves the listing unknown: this step ends green
-          # with a notice and `held`, the steps that need the listing wait on
-          # `listed`, and the next scheduled run is the probe. Only the sweep
-          # summary and cost run on `held`: no step lists, demotes, files or
-          # dequeues, and a failed lane merge waits for a run that lists. 60 s of
-          # waits covers the documented minute of a secondary limit; a longer
-          # stop gains little over the next run. A listing that reaches the
-          # limit ends the step red with no retry: another try reads the same.
-          # gh goes through the shared rate guard (api-budget.bash).
+          # A failed read, a rate stop past the budget, a 200 that fails the
+          # completeness check, or a listing that reaches the limit leaves the
+          # listing unknown: this step ends green with a notice and `held`, the
+          # steps that need the listing wait on `listed`, and the next scheduled
+          # run is the probe. Only the sweep summary and cost run on `held`: no
+          # step lists, demotes, files or dequeues, and a failed lane merge
+          # waits for a run that lists. The summary's listing_held is what
+          # monitor signal 12 counts. 60 s of waits covers the documented minute
+          # of a secondary limit; a longer stop gains little over the next run.
+          # A listing at the limit is not tried again: another try reads the
+          # same. gh goes through the shared rate guard (api-budget.bash).
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           . .base/.github/scripts/pr-merge/retry-call.bash
@@ -1247,7 +1248,7 @@ jobs:
           limit=1000
           echo '[]' >"$listing"
           # A listing as long as the limit may be cut short whatever a count
-          # says, so it leaves the retry at once and ends the step red below.
+          # says, so it leaves the retry at once and holds the step below.
           # Under the limit, gh pr list --json prints no total, so the same
           # connection's totalCount is read after it.
           listing_full='' listing_fault=''
@@ -1271,17 +1272,18 @@ jobs:
               return 1
             fi
           }
+          # The reason reaches a public issue: fixed text, never a call's stderr.
+          reason=''
           if [ "${#authors[@]}" -gt 0 ] && ! retry_call --read 60 list_open_prs; then
-            # The reason reaches a public issue: fixed text, never a call's stderr.
             reason="$retry_call_unknown${listing_fault:+ ($listing_fault)}"
+          elif [ -n "$listing_full" ]; then
+            reason="listing full: gh pr list returned the limit, so it may be cut short"
+          fi
+          if [ -n "$reason" ]; then
             echo "::notice title=Merge lane hold::the open pull requests are unknown ($reason); this job gates, merges, re-readies, re-fires, files, dequeues and clears nothing; it still writes the sweep summary; the next scheduled run lists again"
             echo "held=true" >>"$GITHUB_OUTPUT"
             echo "held-reason=$reason" >>"$GITHUB_OUTPUT"
             exit 0
-          fi
-          if [ -n "$listing_full" ]; then
-            echo "::error::gh pr list returned $limit pull requests, so the listing may be cut short; no candidates listed, the gate does not run"
-            exit 1
           fi
           # A pull_request_target run gates only its own pull request, as the
           # listing holds it; the scheduled run gates every candidate.
