@@ -145,10 +145,9 @@ mocks Win32/MSFT CIM types that resolve only there:
 pwsh -NoProfile -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
 ```
 
-`evals/` holds the audit skill's plugin eval suite, the case format `claude plugin eval` runs
+`evals/` holds the plugin eval suite for both skills, the case format `claude plugin eval` runs
 (`/evals:plugin-eval` guides a run). Each case states the host and run facts in its prompt and tells
-the skill not to run anything, so no case needs Windows or runs a check. The skill's own `skills/audit/evals/evals.json` is the
-skill-creator format, which that command does not read.
+the skill not to run anything, so no case needs Windows or runs a check.
 
 ## License
 

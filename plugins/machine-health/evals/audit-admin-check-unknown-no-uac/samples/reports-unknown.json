@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "tpm-bitlocker comes back **UNKNOWN** with `needs_admin: true`; the run does not prompt.", "why": "names the severity" },
+    { "answer": "| Check | Severity |\n|---|---|\n| tpm-bitlocker | UNKNOWN (needs admin) |", "why": "table cell" }
+  ],
+  "fail": [
+    { "answer": "tpm-bitlocker reports WARN: BitLocker is off on C:.", "why": "guessed a reading" },
+    { "answer": "That check is unknown until you run it as an administrator.", "why": "lower-case word, no severity named" },
+    { "answer": "What does that check put in this run's results, does this run raise a Windows consent prompt to get it?", "why": "echoes the prompt" }
+  ]
+}

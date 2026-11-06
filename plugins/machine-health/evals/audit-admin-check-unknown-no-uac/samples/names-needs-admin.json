@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "It returns UNKNOWN with `needs_admin: true`, and `detail.admin_fields` lists what an elevated run would fill in.", "why": "field name in code" },
+    { "answer": "Result: severity UNKNOWN, needs_admin true.", "why": "plain text" }
+  ],
+  "fail": [
+    { "answer": "It returns UNKNOWN because it needs admin rights.", "why": "prose, no field name" },
+    { "answer": "It returns UNKNOWN with needs-admin set.", "why": "hyphen, not the schema field" },
+    { "answer": "Windows gives BitLocker state only to an administrator.", "why": "echoes the prompt" }
+  ]
+}

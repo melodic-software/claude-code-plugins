@@ -19,7 +19,6 @@ audit/
 │   ├── windows/                   # Windows-specific check catalog + remediation policy
 │   ├── macos/not-implemented.md   # porting stub
 │   └── linux/not-implemented.md   # porting stub
-├── evals/                         # legacy evals.json; new cases go in the plugin root's evals/ suite
 ├── scripts/
 │   ├── windows/                   # orchestrator, checks, remediations, lib helpers
 │   ├── macos/not-implemented.md   # porting stub

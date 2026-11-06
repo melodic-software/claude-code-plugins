@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: setup-report-dir-plugin-configure
+graders:
+  - name: names-plugin-configure
+    type: regex
+    pattern: '\bplugin configure machine-health@'
+    target: last_message
+  - name: names-report-dir-option
+    type: regex
+    pattern: '\breport_dir\b'
+    target: last_message
+  - name: fresh-session-recheck
+    type: regex
+    pattern: '\b(?:fresh|new|next)\s+(?:Claude(?: Code)?\s+)?session\b|\brestart\w*\s+(?:Claude(?: Code)?|the session|your session)\b'
+    flags: 'i'
+    target: last_message
+  - name: not-in-overlay-json
+    type: regex
+    pattern: '"checks"\s*:\s*\[[^\]]*?(?:report_dir|Reports\\{1,4}Health)'
+    match: not_contains
+    target: last_message
+  - name: plugin-option-not-overlay
+    type: llm
+    criteria: "PASS only if the reply treats the report folder as the report_dir plugin option kept in plugin configuration, sends the change through /plugin configure machine-health@<marketplace> or claude plugin configure (a values.json holding report_dir for --values-stdin is fine), and neither writes nor proposes writing the folder into the catalog overlay (checks.local.jsonc), approvals.json or Claude Code settings. FAIL if it puts the report folder in the overlay or another state file, edits or proposes editing settings.json or pluginConfigs directly, or says it changed the setting in this session."
