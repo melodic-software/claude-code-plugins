@@ -163,12 +163,12 @@
     },
     {
       "id": 13,
-      "name": "check-missing-work-class-labels-fails",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, gh label list returns no work-class: labels, and the schedule is present with zero rows.)",
-      "expected_output": "Probe 7 reports FAIL for the missing work-class axis — triage cannot apply autonomous-eligible outcomes until all five canonical members exist. Remediation is /work-items:setup apply on repos without label-as-code, or the repo's declared label-as-code owner. Never gh label create ad hoc when label-as-code owns writes. Nothing is written.",
+      "name": "check-missing-provenance-label-fails",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, gh label list returns no provenance: labels, and the schedule is present with zero rows.)",
+      "expected_output": "Probe 7 reports FAIL for the missing provenance: untrusted label — triage cannot mark an untrusted item until it exists. Remediation is /work-items:setup apply on repos without label-as-code, or the repo's declared label-as-code owner. Never gh label create ad hoc when label-as-code owns writes. Nothing is written.",
       "files": [],
       "expectations": [
-        "Reports the work-class label probe as FAIL when any canonical member is absent",
+        "Reports the provenance label probe as FAIL when provenance: untrusted is absent",
         "Names /work-items:setup apply or the label-as-code owner as remediation",
         "Does not create labels ad hoc",
         "Writes no file"

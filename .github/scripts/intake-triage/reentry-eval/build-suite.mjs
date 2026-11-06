@@ -36,7 +36,6 @@ const REPO_LABELS = [
   "work-class: mechanical",
   "work-class: structural",
   "work-class: read-only",
-  "work-class: untrusted-provenance",
   "provenance: untrusted",
 ];
 const ISSUE_TYPES = ["Bug", "Task", "Feature"];

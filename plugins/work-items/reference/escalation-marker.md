@@ -55,15 +55,11 @@ item plus marker comment is the escalation of record when the record write fails
 [`${CLAUDE_PLUGIN_ROOT}/skills/work-loop/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/work-loop/SKILL.md)
 "Background-job launch mode").
 
-## Proposed work class (optional body line, `kind=escalated`)
+## Proposed role-label swap (optional body, `kind=escalated`)
 
-When a lane that may not record a class proposes one on an escalated item, the comment body
-carries one line of the form
-
-```text
-Proposed work class: <label>
-```
-
-where `<label>` is exactly one live `work-class:` label string as the repository spells it (for
-example `work-class: scoped`), followed by its one-line basis. It is a proposal for
-the operator, never an admission input: no consumer admits, dispatches, or merges on it. The marker `kind` stays `escalated`.
+When a lane that may not apply the autonomous-eligible role label proposes admitting an escalated
+item, the comment body carries a one-line basis for admitting it and a ready-to-paste label edit
+that swaps the human-gated role label for the autonomous-eligible one. It is a proposal for the
+operator, never an admission input: no consumer admits, dispatches, or merges on it. The marker
+`kind` stays `escalated`. The CI intake lane's verdict comment is a separate format with its own
+`Proposed work class:` line, read by `.github/scripts/intake-triage/apply-verdict.mjs`.

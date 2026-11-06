@@ -238,16 +238,16 @@ never compress this restatement away.
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
   resolved from `config.role_labels`, never literals), an item wearing both roles is a
   contradiction. The item re-enters the worker loop's frontier on its next cycle; do not dispatch
-  it from this lane. No work class, and no missing one, blocks this flip; only
+  it from this lane. No other label blocks this flip; only
   `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) or
   `provenance: signal` does, per the branch below. The flip
   and that branch are for issues only: a pull request, whatever its row kind, never takes the
-  autonomous-eligible role or a `work-class:` label.
+  autonomous-eligible role.
 - **Untrusted provenance: reclassify or stay gated, never the plain flip.** An item carrying
   `provenance: untrusted` (C5; legacy name `work-class: untrusted-provenance`) or
   `provenance: signal` is not resolved by the plain
-  flip, whatever its `work-class:` label says: a `provenance: signal` item is C5 even when a person
-  stamped `work-class: scoped` or any other class on it ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
+  flip, whatever its other labels say: a `provenance: signal` item is C5 whatever else a person
+  stamped on it ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
   "The human-floor class excludes the autonomous-eligible role label"). It is floored:
   `list-frontier --autonomous` drops it and the work-loop's provenance hold escalates it, so
   **removing the human-gated role label strands it**, since this lane's attention view keys on that
