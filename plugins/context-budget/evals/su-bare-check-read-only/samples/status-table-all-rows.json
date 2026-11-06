@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| Claude Code CLI | PASS |\n| Agent SDK | INFO |\n| Settings-write-ask toggle | INFO |",
+      "why": "four rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| Claude Code CLI | PASS |\n| Agent SDK | INFO |",
+      "why": "toggle row missing"
+    },
+    {
+      "answer": "node PASS, CLI PASS, SDK INFO, toggle INFO",
+      "why": "no table"
+    }
+  ]
+}

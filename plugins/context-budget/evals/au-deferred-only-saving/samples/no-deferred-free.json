@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Deferred weight is not cost-free; it ships with every request.",
+      "why": "negated"
+    },
+    {
+      "answer": "The deferred pool is real recurring weight.",
+      "why": "no claim"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deferred tools are already handled, so this saving is cost-free.",
+      "why": "cost-free claim"
+    },
+    {
+      "answer": "That weight is already saved by deferral.",
+      "why": "already saved"
+    }
+  ]
+}

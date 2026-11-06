@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Against the installed plugin it prints `already installed` and still writes the value.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It prints already installed and does nothing.",
+      "why": "no write"
+    },
+    {
+      "answer": "It still writes the value.",
+      "why": "no already installed"
+    }
+  ]
+}

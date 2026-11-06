@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The context-usage headline does not move, because the deferred pool is outside it.",
+      "why": "headline does not move"
+    },
+    {
+      "answer": "Your /context headline stays the same.",
+      "why": "stays the same"
+    },
+    {
+      "answer": "No change to the headline figure.",
+      "why": "no change"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The headline drops by 3,000.",
+      "why": "claims the headline moves"
+    },
+    {
+      "answer": "Context usage falls accordingly.",
+      "why": "claims usage falls"
+    }
+  ]
+}

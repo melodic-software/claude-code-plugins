@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Preferred on Claude Code 2.1.285 or later; the convention holds the verified versions.",
+      "why": "floor only"
+    },
+    {
+      "answer": "| Claude Code CLI | PASS | /usr/bin/claude 2.1.318 |",
+      "why": "probed version"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This was verified on 2.1.297 and 2.1.301.",
+      "why": "restated record"
+    },
+    {
+      "answer": "Tested against 2.1.290.",
+      "why": "restated record"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Stamp: /usr/local/lib/claude-code/bin/claude 2.1.297, sdk, headless.\n| NotebookEdit | -913 | -1,478 |\n| TodoWrite | -622 | 0 |",
+      "why": "full report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stamp: /usr/local/lib/claude-code/bin/claude 2.1.297.\n| NotebookEdit | 2,391 |",
+      "why": "merged figure, TodoWrite missing"
+    },
+    {
+      "answer": "Run `/context-budget:audit fix` to apply trims.",
+      "why": "no report"
+    }
+  ]
+}

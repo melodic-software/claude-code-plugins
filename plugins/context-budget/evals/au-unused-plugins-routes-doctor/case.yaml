@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: au-unused-plugins-routes-doctor
+graders:
+  - name: routes-to-doctor
+    type: regex
+    pattern: '(?<!n''t )(?<!n’t )(?<!not )(?<!need to )(?<!never )(?<!I''ll )(?<!I’ll )(?<!I will )(?<!let me )(?<!I can )\b(?:run|use|try|open|invoke|type)\s+(?:the\s+)?(?:bundled\s+|built-in\s+)?`?/doctor\b|(?<![\w-])/doctor`?[^\n]{0,80}\b(?:yourself|for you to run|you (?:can|need to|have to|must|should) run)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-history-read
+    type: tool_used
+    tool: 'Read'
+    input_match: '\.claude/projects|\.jsonl\b|/history\b|history\.jsonl|/transcripts?/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-history-grep
+    type: tool_used
+    tool: 'Grep'
+    input_match: '\.claude/projects|\.jsonl\b|/history\b|history\.jsonl|/transcripts?/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-history-glob
+    type: tool_used
+    tool: 'Glob'
+    input_match: '\.claude/projects|\.jsonl\b|/history\b|history\.jsonl|/transcripts?/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: report-delivered
+    type: regex
+    pattern: '^(?=[\s\S]*2\.1\.297)(?=[\s\S]*\b(?:2,?391|1,?478|913)\b)'
+    target: 'last_message'

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No measurement is available: the engine exited 3, so there is no payload table.",
+      "why": "no figure"
+    },
+    {
+      "answer": "Measurement unavailable (exit 3). Install the SDK, then rerun.",
+      "why": "no figure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your last known payload was about 38,152 tokens.",
+      "why": "stale number"
+    },
+    {
+      "answer": "A typical startup is ~15k.",
+      "why": "estimate"
+    }
+  ]
+}
