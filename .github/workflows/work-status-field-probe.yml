@@ -1,0 +1,36 @@
+name: work-status-field-probe
+
+# Temporary probe for #13484: logs the shape of an `issues` `field_added`
+# payload, so work-resolve-issue's field trigger gates on the key names a live
+# event carries rather than on the docs' (#7577 Q563: "checked live on the
+# first trigger run"). The lanes App's Work status mirror writes fire it within
+# minutes. It holds no token and no secret, reads the event file with jq, and
+# never puts event text into a command. #13484's trigger PR deletes it.
+
+on:
+  issues:
+    types: [field_added]
+
+permissions: {}
+
+concurrency:
+  group: work-status-field-probe-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  log-shape:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Log the field_added payload shape
+        run: |
+          jq '{
+            action,
+            sender: {id: .sender.id, type: .sender.type, login: .sender.login},
+            issue: .issue.number,
+            changes,
+            issue_field,
+            issue_field_value,
+            top_level_keys: keys,
+            field_paths: [paths(scalars) | map(tostring) | join(".") | select(test("^(issue|repository|organization|sender|enterprise|installation)\\.") | not)]
+          }' "$GITHUB_EVENT_PATH"
