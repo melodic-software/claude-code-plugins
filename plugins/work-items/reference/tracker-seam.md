@@ -158,7 +158,7 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 | Category | `category:` | repo-specific | the consuming repo's domain categorization, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Ecosystem | `ecosystem:` | repo-specific | the consuming repo's language/toolchain mix, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Cadence | `cadence:` | repo-specific | e.g. `cadence:weekly`, `cadence:monthly`, members from the live set |
-| Work class | `work-class:` | universal | C1–C4 risk-class record no work-items skill stamps or reads; C5 is `provenance: untrusted`; members in [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md) |
+| Work class | `work-class:` | universal | C1–C4 risk-class record no work-items skill stamps or reads; C5 is `provenance: untrusted`; members in [`${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md) |
 | Capability tier | `capability-tier:` | universal | frontier quota-guard tier, canonical members and migration in [`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md); absent = general tier |
 
 ## Role-label resolution is an action-entry invariant

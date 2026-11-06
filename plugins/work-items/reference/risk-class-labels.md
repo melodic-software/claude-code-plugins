@@ -1,4 +1,4 @@
-# Work-class labels
+# Risk-class labels
 
 The `work-class:` labels record an item's risk class (C1 to C4). No work-items skill stamps,
 reads or gates on them: triage, the work-loop drain, the attended queue and setup ignore them, and
@@ -27,7 +27,7 @@ provisions it.
 
 | Label | Class | Description |
 |-------|-------|-------------|
-| `work-class: untrusted-provenance` | C5 | The legacy name of `provenance: untrusted`, with the same meaning. |
+| `work-class: untrusted-provenance` | C5 | The legacy name of `provenance: untrusted`, with the same meaning. Skills name it as `WIT_LEGACY_UNTRUSTED_LABEL` ([`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)). |
 
 Writers apply only `provenance: untrusted`. While the frontier floor below still holds the legacy
 name, the work-items rules that keep a floored item routable read it too: the provenance-removal
