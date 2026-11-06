@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Measurement is unavailable on this machine right now.",
+      "why": "unavailable"
+    },
+    {
+      "answer": "I couldn't take a measurement: neither mode worked.",
+      "why": "could not"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your payload table.",
+      "why": "claims a table"
+    },
+    {
+      "answer": "The engine exited 3.",
+      "why": "exit code only"
+    }
+  ]
+}

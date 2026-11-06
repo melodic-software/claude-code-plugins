@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The System tools bucket moves with the skill listing, so a delta is valid only between runs with identical listings.",
+      "why": "rule explained in one sentence"
+    },
+    {
+      "answer": "Workflow is incomparable: System tools deltas are comparable only when the skill listing is the same in both runs, and the listing changed.",
+      "why": "comparable only with the same listing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Workflow is incomparable: the skill-listing signature changed between the baseline and the deny run.",
+      "why": "echoes the reason without the System tools rule"
+    },
+    {
+      "answer": "System tools is the largest bucket. The skill listing changed.",
+      "why": "the two facts sit in separate sentences"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "node is the plugin's one hard prerequisite.",
+      "why": "hard prerequisite"
+    },
+    {
+      "answer": "It is the only requirement that blocks everything.",
+      "why": "only requirement"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node is recommended.",
+      "why": "soft"
+    },
+    {
+      "answer": "node is optional for setup.",
+      "why": "optional"
+    }
+  ]
+}

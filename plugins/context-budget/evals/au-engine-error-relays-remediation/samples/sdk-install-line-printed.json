@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "mkdir -p \"${CLAUDE_PLUGIN_DATA}/sdk\" && npm install --prefix \"${CLAUDE_PLUGIN_DATA}/sdk\" @anthropic-ai/claude-agent-sdk",
+      "why": "the SKILL.md line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install the Agent SDK for exact measurement.",
+      "why": "remediation words only"
+    },
+    {
+      "answer": "npm install @anthropic-ai/claude-agent-sdk",
+      "why": "no --prefix"
+    }
+  ]
+}

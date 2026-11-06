@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "There is no disallowedTools settings key; use permissions.deny.",
+      "why": "named, not used as a key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{ \"disallowedTools\": [\"NotebookEdit\"] }",
+      "why": "key used"
+    }
+  ]
+}
