@@ -241,6 +241,21 @@ bug_path:
     budget_minutes: 45
 ```
 
+`triage_cluster` lives only in the repository file and sets how
+`/work-items:triage` clusters items that share a signature under one parent, the
+only member that can get `agent-ready`. `signatures` lists which shared
+signatures count (`error`, `symptom`, `commit`; default all three),
+`min_members` how many open items must share one (default 2), and `parent` which
+member leads (`oldest-reproduced`, the default, or `oldest`). The defaults are
+provisional until tuned on the first 20 clusters.
+
+```yaml
+triage_cluster:
+  signatures: [error, commit]
+  min_members: 3
+  parent: oldest
+```
+
 `triage_outside_prs` (default `false`) lives only in the repository file. Set it
 to `true` when the repository takes requests as pull requests from outside
 contributors: the `/work-items:triage` attention view then lists those pull

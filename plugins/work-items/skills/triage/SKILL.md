@@ -326,6 +326,21 @@ layer only ("Stale reporter-info close candidates").
 Resolution is done when both keys have a checked value and a layer. Report both in the triage
 output as `Settings: triage_repro_count=<n> (<layer>), triage_objection_window_hours=<h> (<layer>)`.
 
+**Cluster settings.** Step 1's signature clusters read three keys of `triage_cluster`, repository
+layer only (no `userConfig` option), each through step 1 above with its `--config-ref` check
+(`--list` before the file argument for `signatures`). Empty output is the default:
+
+| Key | Default | Values |
+|---|---|---|
+| `triage_cluster.signatures` | `error`, `symptom`, `commit` | `error`: same error text or failing check; `symptom`: same reproduced symptom; `commit`: same suspect commit |
+| `triage_cluster.min_members` | `2` | open items, this one included, that must share a signature before they cluster |
+| `triage_cluster.parent` | `oldest-reproduced` | `oldest-reproduced`: oldest member with a confirmed reproduction, else the oldest; `oldest`: the oldest |
+
+A value outside these is named (file, key, value) and that key takes its default. The defaults
+are provisional until tuned on the first 20 clusters. When a cluster forms, report
+`Settings: triage_cluster.signatures=<list> (<layer>), triage_cluster.min_members=<n> (<layer>), triage_cluster.parent=<rule> (<layer>)`,
+each layer `repository` or `default`.
+
 **Outside-PR intake.** `triage_outside_prs` (boolean, default `false`) says whether the repository
 takes requests as pull requests from outside contributors. The attention view resolves it before
 it lists anything; a numbered triage does not read it. It has only the repository layer: run step 1
@@ -386,7 +401,7 @@ Then run these checks:
 - **Redundancy**. Look for code that already delivers what the item asks for, searching by the domain idea behind the request rather than its exact words, and name the places searched. A hit closes the item as already implemented (step 5).
 - **Rejected-concept ledger**, when the consuming repo keeps one (`docs/out-of-scope/`, one file per concept), compare the request with each concept file by **what it asks for, not the words it uses**. On a match, answer from the ledger instead of re-litigating: "Rejected before. `docs/out-of-scope/<concept>.md`: <reason>. Still stand?" Confirmed → append this request to the file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite) and close (step 5). Reconsidered → the ledger file gets updated or removed and triage proceeds. No `docs/out-of-scope/` directory → skip the check entirely.
 - **Cluster detection**. Cross-reference other open intake: when this item shares **one underlying decision** with other open items, do not human-gate each member individually. Designate one representative as the **decision carrier** (human-gated, with the member numbers listed in its body) and link every other member to it via the native `blocked-by` edge with a `blocked by #<carrier> decision` comment (applied in step 5). One human touch on the carrier resolves the decision for the whole cluster.
-- **Signature clusters**. When this item shares a **signature** with other open intake (the same error text or failing check, the same reproduced symptom, or the same suspect commit), they form one cluster with one **parent**: by default the oldest member with a confirmed reproduction, else the oldest. Only the parent takes a briefed outcome, so only the parent can get the autonomous-eligible role label (default `agent-ready`). Every other member closes as a duplicate of the parent and its sighting is recorded on the parent, through the seam's `add-recurrence` verb or, for a local item, a body note (applied in step 5). These defaults are provisional until tuned on the first 20 clusters.
+- **Signature clusters**. When this item shares a **signature** with other open intake (the same error text or failing check, the same reproduced symptom, or the same suspect commit), they form one cluster with one **parent**, chosen by `triage_cluster.parent` (default: the oldest member with a confirmed reproduction, else the oldest). Which signatures count and how many items a cluster needs come from `triage_cluster.signatures` and `triage_cluster.min_members` ("Cluster settings" under "Triage settings"). Only the parent takes a briefed outcome, so only the parent can get the autonomous-eligible role label (default `agent-ready`). Every other member closes as a duplicate of the parent and its sighting is recorded on the parent, through the seam's `add-recurrence` verb or, for a local item, a body note (applied in step 5).
 
 ### 2. Recommend category + state
 
