@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Without it the engine degrades to cli-parse.",
+      "why": "cli-parse"
+    },
+    {
+      "answer": "The engine falls back to parsing headless `/context` output.",
+      "why": "parsing headless /context"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Without it the audit cannot run.",
+      "why": "no fallback"
+    },
+    {
+      "answer": "It uses /context instead.",
+      "why": "no parse"
+    }
+  ]
+}

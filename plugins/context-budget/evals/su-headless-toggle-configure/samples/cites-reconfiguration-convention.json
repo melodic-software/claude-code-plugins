@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The plugin-reconfiguration convention owns the verified-version record.",
+      "why": "cited"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "See the reconfigure docs.",
+      "why": "not cited"
+    }
+  ]
+}

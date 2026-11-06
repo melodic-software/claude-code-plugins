@@ -3,6 +3,20 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.7.0] - 2026-11-06
+
+### Added
+
+- plugins `reset-refresh.sh clean`: a reset level that also discards `data/`, keeping one `~/.claude/plugins.bak-<ts>` backup it never deletes. It runs only from a terminal and refuses while an earlier backup exists. It asks before an install that displays a marketplace-declared command, then accepts it by sha256, never with `-y`. On any CLI failure, snapshot difference or settings-file `cmp` difference, it moves the backup back. `preview` also reports what `clean` would discard.
+
+### Changed
+
+- The shared `exec-bash.mjs` launcher has a `--bps-seed <hook-utils.sh>` flag. On Windows it parses a Bash or PowerShell call's command once with shfmt and jq and hands the result to the script, so Git Bash does not fork the processes of that parse. The flag is inert on other platforms, and an inherited result is always dropped (#6634).
+
+### Fixed
+
+- `/harness-ops:changelog` and its status script read the Claude Code changelog from `CHANGELOG.md` in `anthropics/claude-code` first, falling back to the docs page only when that read fails, through one new `scripts/fetch-changelog.sh`; the shared parser accepts the repository file's `## X.Y.Z` releases, and the status output names the source on a `changelog:` line. A release no longer waits for the docs page to catch up ([#7407](https://github.com/melodic-software/claude-code-plugins/issues/7407)).
+
 ## [8.6.2] - 2026-11-06
 
 ### Fixed

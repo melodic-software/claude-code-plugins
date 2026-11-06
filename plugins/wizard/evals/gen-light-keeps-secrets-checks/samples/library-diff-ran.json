@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "diff <(sed -n '1,/^# STAGES:/p' \"/p/skills/generate/template.sh\") <(sed -n '1,/^# STAGES:/p' setup-wizard.sh)"
+          }
+        }
+      ],
+      "why": "the documented diff"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n setup-wizard.sh"
+          }
+        }
+      ],
+      "why": "syntax check only"
+    }
+  ]
+}

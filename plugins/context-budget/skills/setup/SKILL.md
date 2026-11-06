@@ -13,17 +13,19 @@ shell: bash
 
 ## Pre-computed context
 
-`check`'s `node` and Claude Code CLI probes ran at load time; read these rows instead of
-re-issuing them. A path row shows the resolved path or `absent`; a version row shows what the
-first `PATH` match reports, or `unavailable` when none resolves or it fails to run:
+`check`'s `node`, Claude Code CLI and Agent SDK probes ran at load time; read these rows instead
+of re-issuing them. A path row shows the resolved path or `absent`; a version row shows what the
+first `PATH` match reports, or `unavailable` when none resolves or it fails to run; the SDK row
+shows `present`, `absent`, or `unavailable` when the plugin data directory cannot be read:
 
 - `node`: !`command -v node 2>/dev/null || echo absent`
 - `node --version`: !`node --version 2>/dev/null || echo unavailable`
 - `claude`: !`command -v claude 2>/dev/null || echo absent`
 - `claude --version`: !`claude --version 2>/dev/null || echo unavailable`
+- Agent SDK: !`d="${CLAUDE_PLUGIN_DATA}/sdk/node_modules/@anthropic-ai/claude-agent-sdk"; if [ -d "$d" ]; then echo present; elif [ -r "${CLAUDE_PLUGIN_DATA}" ]; then echo absent; else echo unavailable; fi`
 
-A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
-Bash instead.
+A `node` or `claude` row reading `[shell command execution disabled by policy]` carries no result:
+run that probe via Bash instead. The SDK row is never re-probed: read it as `unavailable`.
 
 ## Purpose
 
@@ -67,11 +69,12 @@ nothing.
 2. **The Claude Code CLI**: PASS when one resolves; report its absolute path and version, the
    stamp that makes an audit report a claim. INFO when two installs are present (the audit asks
    which to pin). FAIL when none resolves and the operator has no `--binary` path to name.
-3. **`@anthropic-ai/claude-agent-sdk`** (optional): probe whether it resolves under
-   `${CLAUDE_PLUGIN_DATA}/sdk`. Present: INFO, exact mode available. Absent: INFO, not a defect;
-   the engine degrades to parsing headless `/context` output (display-rounded, on an undocumented
-   surface, both caveats recorded), and to a structured error rather than a wrong number when
-   neither mode works.
+3. **`@anthropic-ai/claude-agent-sdk`** (optional): read the pre-computed Agent SDK row; never
+   probe `${CLAUDE_PLUGIN_DATA}` yourself, or run the audit or its engine to resolve that row.
+   Present: INFO, exact mode available. Unavailable: INFO, SDK state unknown; the row is final.
+   Absent: INFO, not a defect. Absent or unavailable: the engine degrades to parsing headless
+   `/context` output (state both caveats: display-rounded, on an undocumented surface), and to a
+   structured error rather than a wrong number when neither mode works.
 4. **Settings-write-ask toggle**: report the effective value of
    `${user_config.settings_write_ask_enabled}` (`true` or `false`; an unexpanded token or empty
    value means the manifest default `true`). INFO. The value is injected when this skill loads,
@@ -134,7 +137,7 @@ It takes the stamped baseline once `check` passes.
 
 ## What this skill does NOT do
 
-- Measure, attribute or ledger: that is `/context-budget:audit`.
+- Measure, attribute, ledger or invoke the audit, even when asked: route to `/context-budget:audit`.
 - Install `node`, the CLI, or the Agent SDK.
 - Write the plugin cache, Claude Code user settings, `pluginConfigs`, or any other settings
   surface.

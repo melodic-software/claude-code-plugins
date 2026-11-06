@@ -93,10 +93,20 @@ removes its layer in either style. Pass them to `build_edl.py` as
 7. **Frame quality control.** `RUN quality_control.py <work>/edl.json <work>/demo.mp4 <work>/quality-control`
    measures every rule from the rendered frames and exits 1 on any FAIL. The checks and where each
    threshold comes from: [reference/quality-control.md](reference/quality-control.md). A FAIL goes back to step 2 or 5.
-8. **Independent frame review.** Dispatch a fresh-context subagent that did not produce the video,
+8. **Independent frame review.** Run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin playwright --skill demo-video`
+   and copy its line into the report
+   ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+   At standard or strict, dispatch a fresh-context subagent that did not produce the video,
    with the brief in [reference/independent-review.md](reference/independent-review.md): the video,
    the quality-control sheets and the acceptance rules, and none of your reasoning about why it is fine. Fix what
    it finds and repeat 6-8. Nothing is posted on the producer's word.
+   - Under `light`, and `off`, which acts as `light` here, the secrets check still runs: it is the
+     only check for secrets and personal data in the frames before posting. Dispatch the
+     fresh-context subagent with the brief's item 7 only, and post only when it finds nothing.
+     Skip items 1-6, never judge them yourself in their place, and write
+     `verification: skipped (<level>)` with the video reported as not independently judged for
+     quality.
 9. **Post.** [reference/posting.md](reference/posting.md): verification evidence goes through
    `/source-control:pull-request evidence` when it resolves. A demo a person asked for, or
    evidence when that step does not resolve, goes locally through `gh pr comment --attach`, and in

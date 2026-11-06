@@ -403,6 +403,14 @@ instead of failing.
 
 ## Configuration
 
+A repository can commit `harness-ops.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/harness-ops.schema.json`](schemas/harness-ops.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/harness-ops:audit-install-state` dispatches its fresh-context cross-review (`strict` also for a single-agent run) and `/harness-ops:changelog` its local verifier: `light` and `off` skip both and mark what they would have checked `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+
 The per-hook kill switches, `instructions_loaded_audit_log_session_start`, and
 `stdin_read_timeout` are documented under
 [Per-hook kill switches](#per-hook-kill-switches). These further `userConfig`
