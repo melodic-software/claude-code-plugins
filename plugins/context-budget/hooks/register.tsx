@@ -96,7 +96,7 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // Answers with no text: the pane or band is the output, and nothing lands in the transcript Claude reads.
+  // Answers with no text: the pane or band is the output, so nothing lands in the transcript Claude reads.
   on('command.run', { command: COMMAND }, async ($, e) => {
     const [sub, arg, ...rest] = e.args.trim().split(/\s+/)
     if (sub !== 'live' || rest.length > 0 || (arg !== undefined && !isMode(arg))) {
