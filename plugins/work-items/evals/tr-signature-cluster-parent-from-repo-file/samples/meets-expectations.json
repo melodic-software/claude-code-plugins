@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "triage_cluster.parent=oldest (repository). #487 and #501 share ERR_ROW_OVERFLOW at export.ts:88, one cluster, and #487 is the parent as the oldest member. #501 does not get agent-ready: I run add-recurrence 487 --source-link <#501 URL> --note \"seen again: #501 70k-row export fails\" and close #501 as a duplicate of #487. No blocked-by edge.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#501 is the parent because it is the reproduced member; it gets agent-ready and #487 closes as its duplicate.",
+      "why": "ignores the repository parent rule"
+    },
+    {
+      "answer": "#487 is the parent. #501 gets agent-ready too, since its fix is delegable.",
+      "why": "gives agent-ready to a member"
+    }
+  ]
+}
