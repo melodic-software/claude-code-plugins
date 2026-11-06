@@ -44,7 +44,7 @@ so no shell on either host parses prompt text. Never add `ssh -n` to an SSH row:
 with `/dev/null` and drops the prompt. The local hops (R1, R4) keep the prompt as the last
 argument. A verb with no `<prompt>` drops the `printf` on an SSH row and the quoted prompt on R1
 and R4. `--bg` is not `-p` and takes its prompt as an argument, so a background session's prompt
-stays inside the remote command. In FLEET.md's tables `\|` is an escaped `|`: type a bare `|`.
+stays inside the remote command. In the tables here and in FLEET.md, `\|` is an escaped `|`: type a bare `|`.
 
 A script with no agent goes over the same hop with the command in place of the `claude` part; on
 R1 that is `powershell.exe -NoProfile -Command '<cmd>'` from a Windows-side directory. A Windows
