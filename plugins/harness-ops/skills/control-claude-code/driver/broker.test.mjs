@@ -47,24 +47,24 @@ const refuses = (request, pattern, b = box()) =>
 
 // ---- the verb table ----
 
-test('the broker runs exactly launch, ready and log', () => {
+test('the broker runs exactly launch, ready and log', posixOnly, () => {
   assert.deepEqual(Object.keys(VERBS).sort(), ['launch', 'log', 'ready']);
 });
 
-test('a verb outside the table is refused, inherited names and socket verbs included', () => {
+test('a verb outside the table is refused, inherited names and socket verbs included', posixOnly, () => {
   for (const verb of ['stop', 'serve', 'type', 'screenshot', 'doctor', '__proto__', 'constructor', 'toString', 42]) {
     refuses({ verb, args: [] }, /the broker runs only launch, ready, log/);
   }
 });
 
-test('a request that is not an object of a verb and a list of strings is refused', () => {
+test('a request that is not an object of a verb and a list of strings is refused', posixOnly, () => {
   refuses(null, /one JSON object/);
   refuses('launch', /one JSON object/);
   refuses({ verb: 'launch', args: '--plugin-dir /x' }, /list of strings/);
   refuses({ verb: 'launch', args: [1] }, /list of strings/);
 });
 
-test('session names outside 1-32 letters, digits, _ or - are refused; the edges pass', () => {
+test('session names outside 1-32 letters, digits, _ or - are refused; the edges pass', posixOnly, () => {
   const b = box();
   const launch = (session) => driverArgs({ verb: 'launch', args: ['--plugin-dir', b.plugin, '--session', session] }, [b.root]);
   for (const bad of ['', 'a b', 'a/b', '../x', 'x'.repeat(33), 'naïve', 'a;b']) {
@@ -74,7 +74,7 @@ test('session names outside 1-32 letters, digits, _ or - are refused; the edges 
   assert.equal(launch('a_b-9').includes('a_b-9'), true);
 });
 
-test('a plugin dir that is relative, holds .., lies outside the roots or escapes them by symlink is refused', () => {
+test('a plugin dir that is relative, holds .., lies outside the roots or escapes them by symlink is refused', posixOnly, () => {
   const b = box();
   const escape = join(b.root, 'escape');
   symlinkSync(b.outside, escape);
@@ -86,7 +86,7 @@ test('a plugin dir that is relative, holds .., lies outside the roots or escapes
   refuses(launch(join(b.root, 'missing')), /does not exist/, b);
 });
 
-test('an --out outside the roots, in a missing directory, or an existing symlink is refused', () => {
+test('an --out outside the roots, in a missing directory, or an existing symlink is refused', posixOnly, () => {
   const b = box();
   const link = join(b.root, 'link.jsonl');
   symlinkSync(join(b.outside, 'target.jsonl'), link);
@@ -97,7 +97,7 @@ test('an --out outside the roots, in a missing directory, or an existing symlink
   refuses(ready('init.jsonl'), /absolute, normalized path/, b);
 });
 
-test('options the verb does not take are refused: a client --deps-dir, --key, --ttl on ready', () => {
+test('options the verb does not take are refused: a client --deps-dir, --key, --ttl on ready', posixOnly, () => {
   const b = box();
   refuses({ verb: 'launch', args: ['--plugin-dir', b.plugin, '--deps-dir', b.deps] }, /deps-dir/, b);
   refuses({ verb: 'launch', args: ['--plugin-dir', b.plugin, '--key', 'Enter'] }, /key/, b);
@@ -105,13 +105,13 @@ test('options the verb does not take are refused: a client --deps-dir, --key, --
   refuses({ verb: 'launch', args: ['--plugin-dir', b.plugin, '--ttl', 'soon'] }, /--ttl takes a whole number/, b);
 });
 
-test('a verb without its required paths is refused', () => {
+test('a verb without its required paths is refused', posixOnly, () => {
   const b = box();
   refuses({ verb: 'launch', args: [] }, /launch needs --plugin-dir/, b);
   refuses({ verb: 'ready', args: ['--plugin-dir', b.plugin] }, /ready needs --out/, b);
 });
 
-test('log takes exactly one prompt, and one that reads as a flag is refused', () => {
+test('log takes exactly one prompt, and one that reads as a flag is refused', posixOnly, () => {
   const b = box();
   const log = (...prompts) => ({ verb: 'log', args: ['--plugin-dir', b.plugin, '--out', join(b.root, 'run.jsonl'), '--', ...prompts] });
   refuses(log(), /exactly one prompt/, b);
@@ -121,7 +121,7 @@ test('log takes exactly one prompt, and one that reads as a flag is refused', ()
   refuses({ verb: 'ready', args: ['--plugin-dir', b.plugin, '--out', join(b.root, 'o'), 'extra'] }, /Unexpected argument|positional/i, b);
 });
 
-test('an accepted request becomes the driver arguments with --unattended, the broker deps dir and the prompt last', () => {
+test('an accepted request becomes the driver arguments with --unattended, the broker deps dir and the prompt last', posixOnly, () => {
   const b = box();
   const out = join(b.root, 'run.jsonl');
   assert.deepEqual(driverArgs({ verb: 'launch', args: ['--plugin-dir', b.plugin, '--session', 's1', '--ttl', '60', '--unattended'] }, [b.root], b.deps), [
@@ -135,7 +135,7 @@ test('an accepted request becomes the driver arguments with --unattended, the br
   ]);
 });
 
-test('the driver child gets the start key and no other credential or broker socket', () => {
+test('the driver child gets the start key and no other credential or broker socket', posixOnly, () => {
   const env = { PATH: '/bin', ANTHROPIC_API_KEY: 'from-env', CLAUDE_CODE_OAUTH_TOKEN: 'sub', CCD_BROKER_SOCK: '/s', CCD_RUNTIME_DIR: '/rt' };
   assert.deepEqual(childEnv(env, 'dummy'), { PATH: '/bin', CCD_RUNTIME_DIR: '/rt', ANTHROPIC_API_KEY: 'dummy' });
   assert.equal(env.ANTHROPIC_API_KEY, 'from-env', 'the broker environment is not changed');

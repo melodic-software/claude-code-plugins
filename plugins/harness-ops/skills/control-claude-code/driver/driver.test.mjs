@@ -1123,7 +1123,7 @@ test('CCD_RUNTIME_DIR comes ahead of XDG_RUNTIME_DIR for session sockets, create
   }
 });
 
-test('a brokered request carries the options as typed, paths made absolute against the cwd, and the prompt after --', async () => {
+test('a brokered request carries the options as typed, paths made absolute against the cwd, and the prompt after --', posixOnly, async () => {
   const { tokens, positionals } = (await import('node:util')).parseArgs({
     args: ['log', 'run /demo', '--plugin-dir', 'plugins/demo', '--out=run.jsonl', '--timeout', '9', '--unattended'],
     options: { 'plugin-dir': { type: 'string' }, out: { type: 'string' }, timeout: { type: 'string' }, unattended: { type: 'boolean' } },
