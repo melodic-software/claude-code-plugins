@@ -3,6 +3,16 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-11-06
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `<home>/event-storming.yaml`, read from the default branch by `lib/read-verification.sh` and validated by `schemas/event-storming.schema.json`. Under `light` and `off`, the skill dispatches no scorer, records `verification: skipped (<level>)`, leaves every criterion `unscored` and makes no version comparison.
+
+### Changed
+
+- `/event-storming:simulation` no longer scores the boards it just ran: every rubric score (Big Picture, Process Modeling, Design-Level and `--evaluate`) comes from a fresh-context subagent given the board export (or the structured-markdown artifact), the round transcripts and the rubric, per `simulation-evaluation.md` "How to Run an Evaluation", step 3.
+
 ## [0.6.27] - 2026-11-03
 
 ### Changed

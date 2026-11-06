@@ -44,7 +44,8 @@ Conflicts entry lowers the count to match.
 **`verification:` takes one of the values** defined in
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "The `verification:` values": `pending`, `pass (research-verifier, <date>)`,
-`fail rows <n>[,<n>…] (research-verifier, <date>)`, `skipped (cost)`, `unverified (none, <date>)`.
+`fail rows <n>[,<n>…] (research-verifier, <date>)`, `skipped (cost)`, `skipped (light)`,
+`skipped (off)`, `unverified (none, <date>)`.
 The run writes `pending` in its first write, because it may not grade the verifier rows itself; the
 parent replaces it when it closes the post-dispatch boundary. `pending` left in place after that is
 the one wrong value: a later reader cannot tell it from a run still waiting. The acceptance gate

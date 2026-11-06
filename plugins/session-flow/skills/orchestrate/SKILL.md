@@ -78,7 +78,8 @@ told:
    and judge the final STATE, not the process, an uncriteriaed verifier just rubber-stamps. When
    the verdict is high-stakes, prefer a different-vendor advisor when one is set up and able to
    judge this artifact, its blind spots are uncorrelated with yours, with the fresh-context
-   same-vendor verifier as the fallback. Scope it to what ships: a process record about the work
+   same-vendor verifier as the fallback. A `light` or `off` verification level, where the session resolved
+   one, skips this verifier. Scope it to what ships: a process record about the work
    (ledger, checklist, status log) is not the work and gets no verifier, however many of them a
    batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
 4. RUN WORKERS WELL. Dispatch without blocking, and keep a worker across subtasks where the
@@ -202,6 +203,13 @@ To choose between a workflow and subagents, and the model and effort each spawn 
 <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-10-02; recheck when that
 section changes how a subagent's model is chosen; record: `context/sources.md`, "Priming addendum:
 model and effort routing").
+Resolve the repository's verification level once with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill orchestrate --file docs/conventions/session-flow.yaml`
+and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+It governs imperative 3 in this session: under `light`, and `off`, which acts as `light` here,
+hand nothing to a verifier and never self-audit in its place; write `verification: skipped
+(<level>)` where the verdict would go. An exported brief carries no level: its target resolves
+its own.
 Export modes omit this addendum, a
 pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 

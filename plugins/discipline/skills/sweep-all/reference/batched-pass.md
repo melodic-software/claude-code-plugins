@@ -165,7 +165,8 @@ unchanged and bind every member.
    suspected drift source is this context's own judgment, re-derive it in a
    fresh-context (non-fork) subagent blind to that reasoning, per the method
    doc's Non-negotiable, the batch orchestrates the correction here, it does
-   not waive that escalation. (The fork *audit* inherits context on purpose:
+   not waive that escalation; only a `light` or `off` verification level
+   (SKILL.md) skips it, as the method doc says. (The fork *audit* inherits context on purpose:
    step 2 is a same-context self-audit; this carve-out is about step 4.)
 5. **Report** one consolidated ledger: per corrector. Corrected / clean /
    open; a root-cause finding merged in step 3 is listed once, attributed to
