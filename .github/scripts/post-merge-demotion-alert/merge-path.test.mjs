@@ -128,8 +128,10 @@ test("label: a revert of an unlabeled owner-agent PR adds both labels in one wri
 
 test("label: a failed label write is counted, the rest still go", () => {
   const { gh, writes } = fakeGh({ nodes: [node(40), node(41)], failLabel: [40] });
-  const result = label({ repo: REPO, merged: [40, 41], reverted: [], config: CONFIG, gh, log: () => {} });
+  const lines = [];
+  const result = label({ repo: REPO, merged: [40, 41], reverted: [], config: CONFIG, gh, log: (l) => lines.push(l) });
   assert.equal(result.failed, 1);
+  assert.ok(lines.includes("::error::could not label #40 merge-path:owner-agent: HTTP 403"), "the error names GitHub's reason");
   assert.equal(writes.at(-1)[0], `repos/${REPO}/issues/41/labels`);
 });
 
