@@ -1588,7 +1588,7 @@ const FENCE = [
   "Read(~/.claude/**)",
   "Edit(//proc/**)",
   "Edit(/${{ runner.temp }}/**)",
-  "Edit(./.base/**)",
+  "Edit(/${{ github.workspace }}/.base/**)",
   "Edit(~/.claude/**)",
 ];
 const FILE_TOOL = /^(?:Read|Edit|Write|Glob|Grep|NotebookEdit)$/;
@@ -1640,7 +1640,7 @@ test("the driver's file tools are fenced to the head and the run directory, and 
     "run-claude-cli 4aba9be6cc58c88c132308d417ebe136dd054296 4aba9be 2026-11-06",
     "run-claude-cli 4aba9be6cc58c88c132308d417ebe136dd054296 4aba9be 2026-11-06",
   ]);
-  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Read(./.base/.claude/skills/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
+  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(/${{ github.workspace }}/head/**)", "Read(/${{ github.workspace }}/capture-run/**)", "Read(/${{ github.workspace }}/.base/plugins/**)", "Read(/${{ github.workspace }}/.base/.claude/skills/**)", "Edit(/${{ github.workspace }}/head/**)", "Edit(/${{ github.workspace }}/capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");
   for (const rule of FENCE) assert.ok(denied.includes(rule), rule);

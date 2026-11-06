@@ -11,9 +11,10 @@ Driving tool: `/harness-ops:control-claude-code`, its hub at
 Each section below hands off to the driving tool's section of the same name, with `<skill-dir>` set
 to the absolute path of `plugins/harness-ops/skills/control-claude-code` in the folder that holds
 this skill's `.claude/`, never a relative path (from a pull request's checkout it would run that
-checkout's copy of the driver), and `<plugin-dir>` set to `plugins/<module>` of the
-feature driven; timeouts come from that skill's `config/`. Run every command from the root of the
-checkout under test. The run uses the account Claude Code is already signed in with and never signs in
+checkout's copy of the driver), and `<plugin-dir>` set to the absolute path of `plugins/<module>`
+of the feature driven in the checkout under test; timeouts come from that skill's `config/`. Write
+both as literal paths, with no shell variable, and run every command from the root of the checkout
+under test. The run uses the account Claude Code is already signed in with and never signs in
 or out.
 
 ## Launch
