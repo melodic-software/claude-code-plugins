@@ -37,12 +37,12 @@ fi
 For days-overdue computation, calculate `(today - next_due)` in days. jq lacks date arithmetic, so compute this when presenting the table (parse the ISO dates and subtract).
 
 1. **Cross-reference with open items.** For each due recurring item, check if one already exists
-   (adapter: "List items", `--label <resolved recurring-maintenance label>`, bare read). Match against
-   the FULL expected title `[Maintenance] {schedule item title}`, never by the bare `[Maintenance]`
-   prefix alone (that would let any recurring item satisfy every due row), and never by a
-   prefix/substring of the title (a shorter title would spuriously match a longer item).
+   (adapter: "List items", `--label <resolved recurring-maintenance label>`, bare read), then read
+   each listed item's body and match the row whose `id` its schedule marker carries
+   ([`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
+   "Recorded postures").
 
-1. **Check for orphaned entries.** Only **due** entries can be orphaned. The recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
+1. **Check for orphaned entries.** Only **due** entries can be orphaned. A tracker item is filed for an entry only once it reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"

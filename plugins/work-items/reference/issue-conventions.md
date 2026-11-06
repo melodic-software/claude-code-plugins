@@ -23,8 +23,9 @@ membership comment on the item, post the matching membership comment on the umbr
 the `blocked-by` edge, then strip the raw marker. Never stop after the item-side comment alone
 (#633).
 
-Recurring maintenance items keep the `[Maintenance] {title}` shape owned by `track add --recurring`
-(the due / work / recheck flows exact-match that prefix); they are exempt from the two prefix dialects.
+A recurring maintenance item's title is its schedule row's `title` verbatim, written in the
+conventional-commit form. A body marker, not the title, links the item to its row
+([`label-taxonomy.md`](label-taxonomy.md) "Recorded postures").
 
 ## Body
 

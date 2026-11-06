@@ -75,12 +75,12 @@ Create a new work item with labels from the taxonomy.
 | Area | {area or "unspecified"} |
 | Ecosystem | {ecosystem or "unspecified"} |
 
-{if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}}
+{if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}\n\n<!-- recurring-schedule id={id} -->}
 ```
 
 Shape the composed body for the person who reads the item, bottom line first and no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The template's sections stay as they are, and no acceptance criterion, number, or reference is dropped to shorten it.
 
-1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). On org repos pass the resolved native Issue Type via the seam's `--type` passthrough (the adapter maps `Bug`/`Feature`/`Task` to the native GitHub Issue Type); on personal / non-org repos the type instead rode into `{labels}` in the resolve step, so omit `--type`. **When `--recurring` targets a repo with no `.github/recurring-schedule.json` yet, resolve the schedule bootstrap FIRST** (the ask-first path in the next step). If the user declines the new schedule or it cannot be written, create the item **non-recurring** (drop the `[Maintenance]` prefix and the `recurring`/`cadence:` labels) or abort; never create a `[Maintenance]` item that `due`/`recheck` can never reconcile because no schedule row backs it. If `--recurring` and the schedule is in place, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching). Write the composed body to a temp file with the Write tool and pass it argv-safe. **Never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
+1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). On org repos pass the resolved native Issue Type via the seam's `--type` passthrough (the adapter maps `Bug`/`Feature`/`Task` to the native GitHub Issue Type); on personal / non-org repos the type instead rode into `{labels}` in the resolve step, so omit `--type`. **When `--recurring` targets a repo with no `.github/recurring-schedule.json` yet, resolve the schedule bootstrap FIRST** (the ask-first path in the next step). If the user declines the new schedule or it cannot be written, create the item **non-recurring** (no schedule marker and no `recurring`/`cadence:` labels) or abort; never create a recurring item that `due`/`recheck` can never reconcile because no schedule row backs it. If `--recurring` and the schedule is in place, settle the new row's `id` and `title` (next step), confirming the `id` is not already in the schedule, before creating the item: the item's title is the row's `title` verbatim, and the body, the `--body-file` one included, ends with exactly one marker line `<!-- recurring-schedule id={id} -->`, the key `due`, `recheck` and `work` match the item by ([`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md) "Recorded postures"). Write the composed body to a temp file with the Write tool and pass it argv-safe. **Never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
 
 ```bash
 # Call 1: print a fresh temp path. Write the composed body to that path with the Write tool
@@ -89,7 +89,7 @@ Shape the composed body for the person who reads the item, bottom line first and
 mktemp
 # Call 2: every value spelled out, the temp path from call 1 included.
 "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" create-item \
-  --title "[Maintenance] {title}" \
+  --title "{title}" \
   --body-file "<temp path from call 1>" \
   --type "{type}" \
   --labels "{labels}"   # --type: org repos only (native Issue Type); on personal/non-org repos drop it, the type is already a type: label in {labels}
@@ -103,14 +103,14 @@ Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` 
 - **As of**: 2026-10-11
 - **Recheck trigger**: a Claude Code release in which the pre-#6929 snippet (tracker path fallback through `$(git rev-parse --show-toplevel)`, body through `"$(cat "$BODY_FILE")"`) runs from a worktree-isolated session.
 
-For non-recurring items, omit the `[Maintenance]` prefix. Pass `--parent '<id>'` and `--blocked-by '<id>[,<id>]'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
+A non-recurring item carries no schedule marker. Pass `--parent '<id>'` and `--blocked-by '<id>[,<id>]'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
 
 1. **If `--recurring`:** Also add the item to the consuming repo's `.github/recurring-schedule.json`. When the file does not exist yet, create it with an `{"items": []}` skeleton before appending (ask first if the repo has no recurring setup at all, since without the schedule `due`/`recheck` will never see the item):
 
 ```json
 {
   "id": "kebab-case-id",
-  "title": "Title text",
+  "title": "chore(<scope>): <lowercase summary>",
   "cadence": "quarterly",
   "area": ["<your-area>"],
   "category": "<your-category>",
@@ -122,7 +122,7 @@ For non-recurring items, omit the `[Maintenance]` prefix. Pass `--parent '<id>'`
 }
 ```
 
-Re-read the current file from disk immediately before the write, because the schedule is shared and another session may have appended since it was last in context. Then append the new item to the `items` array and write it back, preserving every existing row. Compute `next_due` from today + cadence duration. Also add the recurring-maintenance role label (default `recurring`) and the `cadence:{cadence}` label to the item.
+Re-read the current file from disk immediately before the write, because the schedule is shared and another session may have appended since it was last in context. Then append the new item to the `items` array and write it back, preserving every existing row. Its `id` is the one in the item's marker and must not already be in the file; its `title` is the item's title. Compute `next_due` from today + cadence duration. Also add the recurring-maintenance role label (default `recurring`) and the `cadence:{cadence}` label to the item.
 
 1. Confirm: "Created **#{number}**: {title} (type: {type}, labels: {labels})"
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { labelsAfter } from "../../actions/resolve-config/write-status.mjs";
 import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
-import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
+import { heldRefusalText, HOLD_ORDER, scheduleIds, strongestReason } from "./admit.mjs";
 import { parseReason, PERSON_REASONS } from "../lib/stop-reason.mjs";
 import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -700,21 +700,46 @@ describe("decide", () => {
     assert.doesNotMatch(text, /agent-ready/);
   });
 
-  // A standing recurring item links to its schedule row by `[Maintenance] {title}`.
+  // A standing recurring item links to its schedule row by its body's
+  // `<!-- recurring-schedule id=<id> -->` marker, never by its title.
   describe("a recurring item whose schedule row needs an operator", () => {
-    const row = (id, precondition) => ({ id, title: "Re-run the ablation", cadence: "quarterly", ...(precondition && { precondition }) });
-    const recurring = issueOf({ title: "[Maintenance] Re-run the ablation", labels: [{ name: READY }, { name: "recurring" }] });
+    const row = (id, precondition) => ({ id, title: "chore(evals): re-run the ablation", cadence: "quarterly", ...(precondition && { precondition }) });
+    const marked = (body) => issueOf({ title: "chore(evals): re-run the ablation", body, labels: [{ name: READY }, { name: "recurring" }] });
+    const recurring = marked(`${BODY}\n\n<!-- recurring-schedule id=ablation -->\n`);
     const CONFIRM = "its recurring schedule row ablation needs an operator's confirmation (requires_operator_confirmation)";
+    const NEEDS = { id: "frontier-release-since-last-checked", requires_operator_confirmation: true };
 
     test("is refused when its row sets requires_operator_confirmation", () => {
-      const schedule = { items: [row("ablation", { id: "frontier-release-since-last-checked", requires_operator_confirmation: true })] };
+      const schedule = { items: [row("ablation", NEEDS)] };
       assert.deepEqual(decide(facts({ issue: recurring, schedule })), { verdict: "refuse", reasons: [CONFIRM] });
     });
 
-    test("is admitted when its row has no such flag, or no row matches its title", () => {
-      for (const items of [[row("ablation")], [row("ablation", { id: "x", requires_operator_confirmation: false })], [{ ...row("other"), title: "Something else" }], []]) {
+    test("is matched by the marker whatever the title says or however the marker is spaced", () => {
+      const schedule = { items: [row("ablation", NEEDS)] };
+      for (const issue of [{ ...recurring, title: "something renamed" }, marked(`${BODY}\n<!--recurring-schedule   id=ablation-->`), marked(`${BODY}\n<!-- recurring-schedule id=ablation -->\n<!-- recurring-schedule id=ablation -->`)]) {
+        assert.deepEqual(decide(facts({ issue, schedule })), { verdict: "refuse", reasons: [CONFIRM] }, issue.body);
+      }
+    });
+
+    test("is admitted when its marked row has no such flag", () => {
+      for (const items of [[row("ablation")], [row("ablation", { id: "x", requires_operator_confirmation: false })], [row("other", NEEDS), row("ablation")]]) {
         assert.deepEqual(decide(facts({ issue: recurring, schedule: { items } })), { verdict: "admit", reasons: [] }, JSON.stringify(items));
       }
+    });
+
+    test("is admitted when its body names no row or one the schedule lacks, and refused when any named row needs an operator", () => {
+      const schedule = { items: [row("ablation", NEEDS), row("other")] };
+      for (const body of [BODY, `${BODY}\n<!-- recurring-schedule id=gone -->`, `${BODY}\n<!-- recurring-schedule id=other -->`]) {
+        assert.deepEqual(decide(facts({ issue: marked(body), schedule })), { verdict: "admit", reasons: [] }, String(body));
+      }
+      const both = marked(`${BODY}\n<!-- recurring-schedule id=other -->\n<!-- recurring-schedule id=ablation -->`);
+      assert.deepEqual(decide(facts({ issue: both, schedule })), { verdict: "refuse", reasons: [CONFIRM] });
+    });
+
+    test("scheduleIds reads each distinct marker id", () => {
+      assert.deepEqual(scheduleIds("a\n<!-- recurring-schedule id=x -->\n<!-- recurring-schedule id=y -->\n<!-- recurring-schedule id=x -->"), ["x", "y"]);
+      assert.deepEqual(scheduleIds(undefined), []);
+      assert.deepEqual(scheduleIds("<!-- recurring-schedule -->"), []);
     });
 
     test("is refused when the schedule could not be read", () => {

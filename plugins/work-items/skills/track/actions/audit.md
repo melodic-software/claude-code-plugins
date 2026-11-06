@@ -34,19 +34,21 @@ A **harness denial of the `reclaim` call itself** takes the same posture. Under 
 
 ### 2. Orphaned recurring entries
 
-Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule). Only **due** entries can be orphaned. The automation creates an item only once `next_due <= today`, so a healthy future entry legitimately has no open item and is NOT orphaned:
+Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule). Only **due** entries can be orphaned. An item is filed for a row only once `next_due <= today`, so a healthy future entry legitimately has no open item and is NOT orphaned:
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
   jq -r --arg today "$(date +%Y-%m-%d)" \
-    '.items[] | select(.next_due != null and .next_due <= $today) | .title' "$SCHEDULE"
+    '.items[] | select(.next_due != null and .next_due <= $today) | "\(.id)\t\(.title)"' "$SCHEDULE"
 fi
 ```
 
-List open recurring items (adapter: "List items", `--label <resolved recurring-maintenance label>`,
-`--state all`, bare read) and cross-reference: schedule items without a matching item are orphaned.
-The recurring workflow titles items `[Maintenance] {title}`, so strip the prefix when comparing.
+List recurring items (adapter: "List items", `--label <resolved recurring-maintenance label>`,
+`--state all`, bare read), read each body, and cross-reference by id: a due entry whose `id` no
+item's schedule marker carries is orphaned
+([`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
+"Recorded postures").
 
 ### 3. Unlabeled items + label conflicts
 

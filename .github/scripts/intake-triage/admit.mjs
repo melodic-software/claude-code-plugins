@@ -59,8 +59,8 @@
 //   sub-issue (splitChildBody); any other issue the App filed holds for a
 //   listed human to file as their own (owner decision on #10735);
 // - no body line opens with `Hold:` (BODY_HOLD), a person's hold;
-// - a `recurring` item's schedule row, read from the default branch's
-//   .github/recurring-schedule.json, does not set
+// - a `recurring` item's schedule row (named by its body's marker), read
+//   from the default branch's .github/recurring-schedule.json, does not set
 //   requires_operator_confirmation (operatorConfirmation);
 // - the body was not edited after the lane comment the verdict came from;
 // - on the work-unblock sweep, which passes no verdict comment, a deferred
@@ -248,18 +248,25 @@ export function readSchedule(path = fileURLToPath(new URL("../../recurring-sched
   }
 }
 
-// Why a `recurring` item needs a person, or null: its schedule row (the one
-// titled `[Maintenance] {title}`) sets requires_operator_confirmation, which
-// autonomous lanes must skip, or the schedule was not read. Pure.
-export function operatorConfirmation({ schedule, labels, title }) {
+// The schedule row ids a body's `<!-- recurring-schedule id=<id> -->` markers
+// name, deduplicated. The marker, never the title, links a recurring item to
+// its row. Pure.
+const SCHEDULE_MARKER = /<!--\s*recurring-schedule\s+id=([A-Za-z0-9._-]+)\s*-->/g;
+export const scheduleIds = (body) => [...new Set([...String(body ?? "").matchAll(SCHEDULE_MARKER)].map((m) => m[1]))];
+
+// Why a `recurring` item needs a person, or null: a schedule row its body's
+// marker names sets requires_operator_confirmation, which autonomous lanes
+// must skip, or the schedule was not read. Pure.
+export function operatorConfirmation({ schedule, labels, body }) {
   if (!labels.includes(RECURRING)) {
     return null;
   }
   if (!Array.isArray(schedule?.items)) {
     return "it carries recurring and .github/recurring-schedule.json could not be read, so admission cannot tell whether its schedule row needs an operator's confirmation";
   }
-  const row = schedule.items.find((item) => `[Maintenance] ${item?.title}` === title);
-  return row?.precondition?.requires_operator_confirmation === true
+  const ids = scheduleIds(body);
+  const row = schedule.items.find((item) => ids.includes(item?.id) && item.precondition?.requires_operator_confirmation === true);
+  return row
     ? `its recurring schedule row ${row.id} needs an operator's confirmation (requires_operator_confirmation)`
     : null;
 }
@@ -1608,7 +1615,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       if (lapsed.hold) holdFor(lapsed.reason.startsWith(UNTRUSTED) || lapsed.reason.startsWith(SECURITY_AREA) ? "security" : "intent");
     }
   }
-  const confirm = operatorConfirmation({ schedule, labels, title: issue.title });
+  const confirm = operatorConfirmation({ schedule, labels, body });
   if (confirm) {
     refuse.push(confirm);
   }

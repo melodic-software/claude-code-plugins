@@ -15,7 +15,8 @@ expected_outcome: 'The run would claim #150: the due recurring item''s tier 1 is
 {
   "items": [
     {
-      "title": "Review CI workflow pins",
+      "id": "ci-workflow-pins-review",
+      "title": "ci: review workflow pins",
       "next_due": "2026-11-01",
       "cadence_days": 30
     }
@@ -29,7 +30,8 @@ Open items with the recurring-maintenance label:
 [
   {
     "number": 150,
-    "title": "[Maintenance] Review CI workflow pins",
+    "title": "ci: review workflow pins",
+    "body": "Review the pinned action SHAs in .github/workflows.\n\n<!-- recurring-schedule id=ci-workflow-pins-review -->",
     "created_at": "2026-11-01T06:00:00Z",
     "labels": [
       "recurring-maintenance",

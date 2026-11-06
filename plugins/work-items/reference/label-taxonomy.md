@@ -84,18 +84,21 @@ Two strings adjacent to the `recurring-maintenance` role are **fixed by design t
 binding key remaps them (recorded posture per the consumer-configurability doctrine; #2942
 F3.7):
 
-- **`[Maintenance]` title prefix**: the exact-match key `due`/`work` use to reconcile a
-  schedule row with its open tracker item. Making it configurable is deferred until a consumer
-  asks for a different prefix; when that request lands it joins the binding as a sibling of
-  `config.role_labels` (a `config` key, not a parallel mechanism), and every reader named in
-  [`../skills/track/actions/due.md`](../skills/track/actions/due.md) and the setup
+- **Schedule marker `<!-- recurring-schedule id=<row id> -->`**: the one body line that links a
+  recurring item to its schedule row, and the match key every reader uses. A reader lists items
+  carrying the resolved recurring-maintenance label, reads each body (adapter: "View item"), and
+  matches a row when the body's marker carries that row's `id`, compared whole. A body holds
+  exactly one marker; the title is never a match key. Making the marker configurable is deferred
+  until a consumer asks for a different one; when that request lands it joins the binding as a
+  sibling of `config.role_labels` (a `config` key, not a parallel mechanism), and every reader
+  named in [`../skills/track/actions/due.md`](../skills/track/actions/due.md) and the setup
   reconciliation steps resolves it the same way role labels resolve.
 - **`.github/recurring-schedule.json` path**: the schedule file's location. Deferred on the
   same first-request trigger; a future remap is a binding `config` key resolved once per
   invocation, never a second discovery climb.
 
 Both strings participate in exact-match lookups against provider data, so a repo changing
-either today would orphan existing `[Maintenance]` items and schedules, which is why the
+either today would orphan existing recurring items and schedules, which is why the
 remap, when it comes, arrives with a reconciliation step, not as a bare string swap.
 
 ## Project-specific axes

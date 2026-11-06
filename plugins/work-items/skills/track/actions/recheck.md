@@ -52,13 +52,11 @@ Re-read the current file from disk immediately before writing (the schedule is s
 - If `next_due <= today`: set `next_due` to today + cadence days
 - If `next_due > today`: leave `next_due` unchanged (already advanced by the recurring workflow)
 
-1. **Close the associated item** (if one exists). Search for open items with the resolved
-   recurring-maintenance label (adapter: "Search items",
-   `label:<resolved recurring-maintenance label>` + the `[Maintenance]` title, bare read). Provider
-   search is substring/prefix, not exact-title equality, so **filter the results to the item whose
-   title equals `[Maintenance] {title}` exactly** before closing. Otherwise a shorter title
-   (`Review CI`) could close a longer item's issue (`[Maintenance] Review CI workflow pins`). Close
-   only the exact match, with a recheck comment (adapter: "Close item"), reason `completed`, comment
+1. **Close the associated item** (if one exists). List open items with the resolved
+   recurring-maintenance label (adapter: "List items", bare read), read each body, and close only
+   the item whose schedule marker carries the matched row's `id`
+   ([`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
+   "Recorded postures"), with a recheck comment (adapter: "Close item"), reason `completed`, comment
    "Rechecked YYYY-MM-DD. Next due: <next_due>.".
 
 1. **Confirm:** "Rechecked: **{title}**. Next due: **{next_due}**"
