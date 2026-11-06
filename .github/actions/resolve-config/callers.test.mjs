@@ -9431,8 +9431,8 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
   assert.match(probe, /so no case runs \(probe: \$\(probe_facts\)\)"; exit 1; \}/);
 });
 
-// The model can decline the probe's reads and end with no tool call (run
-// 42166675433), which proves nothing about the policy: that session runs again,
+// The model can decline the probe's reads and end with no tool call,
+// which proves nothing about the policy: that session runs again,
 // three times at most. Any other shortfall stops the job on the first session.
 // Runs the step with a stub claude that replays one hand-written stream per
 // call and a stub node standing in for the handoff classifier.

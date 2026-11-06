@@ -566,7 +566,7 @@ jobs:
       # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
       # instead of reaching a case. The prompt names the run a policy self-test:
       # asked only to read those paths, the model can decline them as credential
-      # harvesting and make no call (run 42166675433). A session that ends with
+      # harvesting and make no call. A session that ends with
       # no tool call proved nothing, so it runs again, up to three times; a call
       # made and not denied stops the job at once. The stream can hold what a
       # call returned, so it stays in a file that is never printed and is
@@ -1397,7 +1397,7 @@ jobs:
       # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
       # instead of reaching a case. The prompt names the run a policy self-test:
       # asked only to read those paths, the model can decline them as credential
-      # harvesting and make no call (run 42166675433). A session that ends with
+      # harvesting and make no call. A session that ends with
       # no tool call proved nothing, so it runs again, up to three times; a call
       # made and not denied stops the job at once. The stream can hold what a
       # call returned, so it stays in a file that is never printed and is
@@ -2182,7 +2182,7 @@ jobs:
       # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
       # instead of reaching a case. The prompt names the run a policy self-test:
       # asked only to read those paths, the model can decline them as credential
-      # harvesting and make no call (run 42166675433). A session that ends with
+      # harvesting and make no call. A session that ends with
       # no tool call proved nothing, so it runs again, up to three times; a call
       # made and not denied stops the job at once. The stream can hold what a
       # call returned, so it stays in a file that is never printed and is
