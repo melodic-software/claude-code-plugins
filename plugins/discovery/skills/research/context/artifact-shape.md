@@ -189,7 +189,7 @@ conditions Y"), the reason also names P's publisher and the product it owns that
 criterion 4. A repost of the primary is recorded under the primary's `pool`, so it never reads as a
 second source. Definition and limits: `discipline.md`'s "Single-source first-party content claims".
 
-**`sources[]` is not redundant with `tiers[]`.** It is what lets outcome-gate criterion 4, "≥2
+**`sources[]` is not redundant with `tiers[]`.** It is what lets outcome-gate criterion 4, "≥`research_corroborators`
 INDEPENDENT corroborators, not two cites of one upstream pool", be graded **by a verifier that never
 saw the run**. Independence is a property of the publishing pools behind a claim; a bare tier list
 encodes neither the URL nor the pool, so without `sources[]` the verifier can only take the run's
@@ -214,7 +214,7 @@ check".
 entry in `sources[]`; every other entry is a `corroborator`. The primary is the source criterion
 12's variable and population checks run against, so a verifier reads it off the header instead of
 guessing which source the run leaned on. A corroborator that does not measure the claim's variable
-is recorded and not counted toward criterion 4's two independent corroborators.
+is recorded and not counted toward criterion 4's independent corroborators.
 
 **`published:`, `applies_to:`, and `standing:` make criterion 13 gradeable by a script.** A quote
 can sit at its link word for word and still come from a book written for a runtime ten majors

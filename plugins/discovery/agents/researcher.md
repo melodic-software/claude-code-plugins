@@ -323,7 +323,8 @@ Run the skill's outcome gate against your own artifacts before the final write. 
 **not yours to render a verdict on**, because grading them means judging the quality of your own
 choices, and you are the context that made them:
 
-- the criterion requiring ≥2 **independent** corroborators per accepted claim (a floor below criterion 7),
+- the criterion requiring ≥2 **independent** corroborators per accepted claim (a floor below criterion 7;
+  2 is the `research_corroborators` default, and the envelope's `Research config:` line sets it),
   or a `single source` reason that holds for a first-party content claim,
 - the criterion requiring every accepted claim to be HIGH confidence, `HIGH (single source)`
   included,

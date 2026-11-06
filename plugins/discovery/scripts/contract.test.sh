@@ -788,8 +788,8 @@ assert_present 'the recency gate says it dates claims, not sources' \
   'skills/research/context/discipline.md' 'This gate dates claims, not sources'
 assert_present 'the parent contract ships an Evidence use line' \
   'reference/parent-contract.md' '^Evidence use: <internal\|publish>$'
-assert_present 'the parent contract counts two research-only lines' \
-  'reference/parent-contract.md' 'Research adds two more labeled lines'
+assert_present 'the parent contract counts three research-only lines' \
+  'reference/parent-contract.md' 'Research adds three more labeled lines'
 assert_absent 'no file says research adds only one envelope line' \
   'Research adds one more labeled line'
 assert_present 'the research parent-obligation table carries an Evidence use row' \
@@ -1230,7 +1230,7 @@ assert_present 'the deep-tier fan-out says a sub-slice is not named git' \
 # at zero an inconclusive line, which passes rather than fails.
 # ---------------------------------------------------------------------------
 assert_present 'gate row 4 is quantified over accepted claims' \
-  'skills/research/SKILL.md' '^\| 4 \| Every accepted claim has ≥2 INDEPENDENT'
+  'skills/research/SKILL.md' '^\| 4 \| Every accepted claim has ≥`research_corroborators` \(default 2\) INDEPENDENT'
 assert_absent 'no gate row 4 quantified over every claim' \
   '^\| 4 \| Every claim has'
 assert_present 'gate row 14 grades the accepted count and the inconclusive line, owned by the verifier' \
