@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/opt/eval/ws/big-picture-board-export.md"}}], "why": "absolute path"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "big-picture-board-export.md"}}], "why": "relative path"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no read"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/opt/eval/plugin/skills/simulation/SKILL.md"}}], "why": "reads the skill, not the export"}
+  ]
+}

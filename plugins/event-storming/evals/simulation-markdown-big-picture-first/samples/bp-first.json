@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Formats: Big Picture first, then Process Modeling and Design-Level on the context you pick.", "why": "Big Picture leads"},
+    {"answer": "Personas: Shopper, Picker, Driver, Store Manager, Finance.\n\nOrder: Big-Picture (all phases), then you choose a context for Process Modeling.", "why": "Big Picture before the later formats"},
+    {"answer": "Personas: Shopper, Picker, Driver, Store Manager.", "why": "no format named, nothing out of order"}
+  ],
+  "fail": [
+    {"answer": "We'll open with Process Modeling on checkout, then a Big Picture pass.", "why": "Process Modeling first"},
+    {"answer": "1. Design-Level on the order aggregate\n2. Big Picture", "why": "Design-Level first"}
+  ]
+}

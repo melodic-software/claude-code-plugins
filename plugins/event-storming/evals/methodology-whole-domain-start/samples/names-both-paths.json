@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Read the guidance with `/event-storming:methodology --big-picture`, or run it as a simulation with `/event-storming:simulation --simulate insurance-claims`.", "why": "both paths"},
+    {"answer": "Facilitation: /event-storming:methodology --big-picture\nAgentic run: /event-storming:simulation", "why": "both on separate lines"}
+  ],
+  "fail": [
+    {"answer": "Run `/event-storming:simulation --simulate insurance-claims`.", "why": "agentic path only"},
+    {"answer": "See `/event-storming:methodology --big-picture` for the facilitation guide.", "why": "reference path only"},
+    {"answer": "Use the methodology skill for Big Picture guidance and the simulation skill to run it.", "why": "names neither command"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "| # | BC Name | Key Events | Primary Personas | Heuristic Evidence |\n|---|---|---|---|---|\n| 1 | Course Authoring | Course Published | Instructor | H1 |", "why": "the skill's header"},
+    {"answer": "Analysis:\n\n| BC | Evidence |\n|---|---|", "why": "evidence column"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "| # | BC Name | Key Events | Primary Personas |\n|---|---|---|---|", "why": "no evidence column"},
+    {"answer": "Evidence: H1 and H5 fired.", "why": "evidence in prose, no table"}
+  ]
+}
