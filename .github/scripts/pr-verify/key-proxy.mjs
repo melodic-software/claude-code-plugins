@@ -299,7 +299,12 @@ export const CHECKS = Object.freeze([
   },
   async function cap(ctx) {
     if (ctx.path === COUNT_TOKENS) return null;
-    const input = await ctx.preflight(ctx);
+    const pre = await ctx.preflight(ctx);
+    // A failure the client would retry against the API itself (a 429, a
+    // 5xx, or no answer) is relayed so Claude Code's own retry covers the
+    // blip; any other failure is a refusal it does not retry (our decision).
+    if (pre.relay) return { relay: pre.relay, status: pre.relay.status, type: "relayed" };
+    const input = pre.input;
     if (!Number.isInteger(input) || input < 0) return policy("token count preflight failed");
     ctx.reservation = ctx.budget.reserve(input + ctx.body.max_tokens);
     return ctx.reservation ? null : spendLimit("per-job token cap");
@@ -349,7 +354,9 @@ export function createProxy({ key, config, log = () => {} }) {
     headers: forwardHeaders(ctx.headers, key, body.length),
   }, onResponse);
 
-  // The upstream's own input count for the checked request; null on failure.
+  // The upstream's own input count for the checked request: { input }, or
+  // { relay } for a retryable failure, or {} for any other failure.
+  const unreachable = { relay: { status: 502, headers: { "content-type": "application/json" }, body: Buffer.from('{"type":"error","error":{"type":"api_error","message":"upstream unreachable"}}') } };
   const preflight = (ctx) => new Promise((resolve) => {
     const subset = Object.fromEntries(COUNT_TOKENS_FIELDS.filter((f) => ctx.body[f] !== undefined).map((f) => [f, ctx.body[f]]));
     const body = Buffer.from(JSON.stringify(subset));
@@ -357,12 +364,14 @@ export function createProxy({ key, config, log = () => {} }) {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
-        if (res.statusCode !== 200) return resolve(null);
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")).input_tokens); } catch { resolve(null); }
+        const raw = Buffer.concat(chunks);
+        if (res.statusCode === 429 || res.statusCode >= 500) return resolve({ relay: { status: res.statusCode, headers: relayHeaders(res.headers), body: raw } });
+        if (res.statusCode !== 200) return resolve({});
+        try { resolve({ input: JSON.parse(raw.toString("utf8")).input_tokens }); } catch { resolve({}); }
       });
-      res.on("error", () => resolve(null));
+      res.on("error", () => resolve(unreachable));
     });
-    req.on("error", () => resolve(null));
+    req.on("error", () => resolve(unreachable));
     req.end(body);
   });
 
@@ -395,7 +404,10 @@ export function createProxy({ key, config, log = () => {} }) {
       const refusal = await runChecks(ctx);
       if (refusal) {
         ctx.release?.();
-        if (!clientGone) sendRefusal(res, refusal);
+        if (!clientGone && refusal.relay) {
+          res.writeHead(refusal.relay.status, { ...refusal.relay.headers, "content-length": refusal.relay.body.length });
+          res.end(refusal.relay.body);
+        } else if (!clientGone) sendRefusal(res, refusal);
         done(refusal.status, { refused: refusal.type, committed: budget.committed });
         return;
       }

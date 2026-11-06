@@ -352,7 +352,7 @@ test("a streaming 200 that ends with no message_delta commits the reservation", 
   assert.equal(budget.committed, 150); // reservation 50 + 100, above the 6 seen
 });
 
-test("the reservation is the upstream count_tokens preflight of the checked body plus max_tokens; a failed preflight refuses", async () => {
+test("the reservation is the upstream count_tokens preflight of the checked body plus max_tokens", async () => {
   let releaseHold;
   const hold = new Promise((r) => (releaseHold = r));
   const up = await stubUpstream(async (_req, body, res) => {
@@ -371,12 +371,33 @@ test("the reservation is the upstream count_tokens preflight of the checked body
   assert.deepEqual(JSON.parse(pre.body), { messages: [{ role: "user", content: "hi" }], model: "model-main", system: "s", thinking: { type: "adaptive" }, tools: [] });
   releaseHold();
   await pending;
+});
 
-  const failing = await stubUpstream(okJson(), { countTokens: (res) => res.writeHead(500).end("{}") });
-  const p2 = await startProxy(failing);
-  assertRefused(await call(p2.socket, { body: message() }), 403, "permission_error");
-  assert.equal(failing.seen.length, 0);
-  assert.equal(p2.budget.reserved, 0);
+test("a 529 preflight is relayed with its retry headers and body, takes no reservation and frees its slot", async () => {
+  const overloaded = '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}';
+  const up = await stubUpstream(okJson(), {
+    countTokens: (res) => res.writeHead(529, { "content-type": "application/json", "retry-after": "3", "x-should-retry": "true" }).end(overloaded),
+  });
+  const { socket, budget } = await startProxy(up, { maxInFlight: 1 });
+  for (let i = 0; i < 2; i++) {
+    // The second pass would get the in-flight 403 if the first kept its slot.
+    const res = await call(socket, { body: message() });
+    assert.equal(res.status, 529);
+    assert.equal(res.body, overloaded);
+    assert.equal(res.headers["retry-after"], "3");
+    assert.equal(res.headers["x-should-retry"], "true");
+  }
+  assert.equal(up.seen.length, 0);
+  assert.equal(budget.reserved, 0);
+  assert.equal(budget.committed, 0);
+});
+
+test("a 400 preflight is refused with a status that is not retried", async () => {
+  const up = await stubUpstream(okJson(), { countTokens: (res) => res.writeHead(400, { "content-type": "application/json" }).end('{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}') });
+  const { socket, budget } = await startProxy(up);
+  assertRefused(await call(socket, { body: message() }), 403, "permission_error");
+  assert.equal(up.seen.length, 0);
+  assert.equal(budget.reserved, 0);
 });
 
 test("an in-flight reservation stops concurrent requests from passing the cap together", async () => {
