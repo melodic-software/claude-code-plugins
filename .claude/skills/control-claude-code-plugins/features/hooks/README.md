@@ -30,9 +30,8 @@ what the hook shows. Pick the module from the changed files.
 
 ## Gotchas
 
-- The restricted launch removes Bash, so a hook on a Bash tool event never fires. Exercise the hook
-  on an event a restricted session raises: session start, prompt submit, or a file-tool event. A
-  hook that only matches Bash events: record the hook and its event as not driven here.
+- Drive a hook on session start, prompt submit or a file-tool event. Record a hook that only
+  matches Bash tool events as not driven here.
 - Which tools the launch removes: the `--restricted` row of
   <https://code.claude.com/docs/en/cli-reference#cli-flags> (as of 2026-11-05; recheck when that row
   changes which tools it removes).

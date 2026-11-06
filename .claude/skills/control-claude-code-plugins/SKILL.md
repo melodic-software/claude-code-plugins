@@ -4,7 +4,7 @@ disable-model-invocation: true
 ---
 
 App: claude-code-plugins, this repository's plugins. A module is one plugin, `plugins/<module>`; a
-feature is one of its skills, id `<module>/<skill>`.
+feature is one of its skills, id `<module>/<skill>`, or a cross-plugin surface keyed by its sources.
 Driving tool: `/harness-ops:control-claude-code`, its hub at
 `plugins/harness-ops/skills/control-claude-code/SKILL.md` and its driver beside it.
 
