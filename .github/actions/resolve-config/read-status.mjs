@@ -35,6 +35,28 @@ export function statusLabels(state, names, config) {
   return HOLD_STATES.includes(state) && !carried.some((name) => holds.has(fold(name))) ? [...names, ...config.labels[state]] : names;
 }
 
+// The trusted-actor list: TRUSTED_ACTORS_PATH, else under BASE_PATH (default `.base`).
+export function loadTrustedActors(env = {}) {
+  return JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH || join(env.BASE_PATH || ".base", TRUSTED_ACTORS), "utf8"));
+}
+
+// The state the issue's Work status field holds (issue-status.mjs
+// issueStatus), or null when no counted account set it; throws when the field
+// cannot be read. `issueStatus` and `fieldSetters` default to the modules'.
+export async function fieldStatus({ github, repository, number, config, trustedActors, issueStatus, fieldSetters }) {
+  const status = issueStatus ?? (await import("./issue-status.mjs")).issueStatus;
+  const setters = fieldSetters ?? (await import("./resolve-config.mjs")).fieldSetters;
+  const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
+  if (!Array.isArray(rows)) {
+    throw new Error("its field values answered something other than a list");
+  }
+  const facts = {
+    fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
+    fieldSetters: await setters(github, repository, number),
+  };
+  return status(facts, config, trustedActors);
+}
+
 // What a reader's entry point hands its run: `labels(number, names)`, the
 // issue's label names with the field's say added (statusLabels), read fresh on
 // each call, since a reader may ask again after the status changed, and at
@@ -53,7 +75,7 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
       if (!leaf) {
         return null;
       }
-      const actors = trustedActors ?? JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH || join(env.BASE_PATH || ".base", TRUSTED_ACTORS), "utf8"));
+      const actors = trustedActors ?? loadTrustedActors(env);
       return { config: leaf, trustedActors: actors, issueStatus, fieldSetters };
     } catch (error) {
       log(`::warning title=work-status::the Work status field is not read, so status labels decide: ${annotate(error?.message ?? error)}`);
@@ -62,15 +84,7 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
   };
   const read = async (number) => {
     try {
-      const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
-      if (!Array.isArray(rows)) {
-        throw new Error("its field values answered something other than a list");
-      }
-      const facts = {
-        fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
-        fieldSetters: await setup.fieldSetters(github, repository, number),
-      };
-      return setup.issueStatus(facts, setup.config, setup.trustedActors);
+      return await fieldStatus({ github, repository, number, ...setup });
     } catch (error) {
       log(`::warning title=work-status::#${number}'s Work status field could not be read, so its labels decide: ${annotate(error?.message ?? error)}`);
       return null;

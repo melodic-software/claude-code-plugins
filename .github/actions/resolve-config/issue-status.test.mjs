@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { collapseStatus, issueStatus as readStatus, statusOption } from "./issue-status.mjs";
+import { checkStatus, collapseStatus, issueStatus as readStatus, statusOption } from "./issue-status.mjs";
 import { Rejection } from "./resolve.mjs";
 
 const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8")).models[
@@ -108,4 +108,86 @@ test("read: a value no trusted account set reads null, mapped or not", () => {
 
 test("write: a state no option maps is rejected", () => {
   assert.throws(() => statusOption("blocked", CONFIG), (error) => error instanceof Rejection && error.code === "undefined-status");
+});
+
+// The owner's rule for Work status bot setters: the job token's bot and
+// the melodic- Apps count for every state but agent-ready; third-party bots
+// never count; agent-ready counts only from a listed human or the lanes App.
+const ACTIONS_BOT = 41898282;
+const MELODIC_AI = 288071998;
+const CLAUDE_BOT = 209825114;
+const LANES_APP = 337595936;
+const BOT_SETTERS = [41898282, 300666570, 288071998, 296023097, 300690090, 302525172, 315045210, 337859524];
+
+test("read: github-actions[bot] setting needs-human reads needs-human, and melodic-ai[bot] setting confirmed reads confirmed", () => {
+  assert.equal(issueStatus([{ field: FIELD, option: OPTIONS["needs-human"] }], ACTIONS_BOT), "needs-human");
+  assert.equal(issueStatus([{ field: FIELD, option: OPTIONS.confirmed }], MELODIC_AI), "confirmed");
+});
+
+test("read: every bot-setter counts for every state but agent-ready, which reads null", () => {
+  assert.deepEqual(CONFIG["bot-setters"].map((entry) => entry.id), BOT_SETTERS);
+  for (const setter of BOT_SETTERS) {
+    for (const [state, option] of Object.entries(OPTIONS)) {
+      assert.equal(issueStatus([{ field: FIELD, option }], setter), state === "agent-ready" ? null : state, `${setter} ${state}`);
+    }
+  }
+});
+
+test("read: a third-party bot's value reads null, whatever the state", () => {
+  for (const [state, option] of Object.entries(OPTIONS)) {
+    assert.equal(issueStatus([{ field: FIELD, option }], CLAUDE_BOT), null, state);
+  }
+});
+
+test("read: a listed human and the lanes App setting agent-ready read agent-ready", () => {
+  assert.equal(issueStatus([{ field: FIELD, option: OPTIONS["agent-ready"] }], LISTED), "agent-ready");
+  assert.equal(issueStatus([{ field: FIELD, option: OPTIONS["agent-ready"] }], LANES_APP), "agent-ready");
+});
+
+test("read: a bot-setter's option no entry maps fails closed, and a bot-setter with no value reads null", () => {
+  assert.throws(
+    () => issueStatus([{ field: FIELD, option: 99999999 }], ACTIONS_BOT),
+    (error) => error instanceof Rejection && error.code === "unmapped-status" && error.message.includes("99999999"),
+  );
+  assert.equal(issueStatus([{ field: 15462270, option: 27053568 }], ACTIONS_BOT), null);
+});
+
+const rejectsSetters = (setters, text) =>
+  assert.throws(
+    () => checkStatus({ ...CONFIG, "bot-setters": setters }, undefined),
+    (error) => error instanceof Rejection && error.code === "undefined-status" && error.message.includes(text),
+    text,
+  );
+
+test("check: the live bot-setters pass, and so does a config with none", () => {
+  checkStatus(CONFIG, undefined);
+  checkStatus({ ...CONFIG, "bot-setters": undefined }, undefined);
+});
+
+test("check: a third-party bot, the lanes App, a wrong id or login, and a repeated id are rejected", () => {
+  const actions = { id: ACTIONS_BOT, login: "github-actions[bot]" };
+  rejectsSetters([actions, { id: CLAUDE_BOT, login: "claude[bot]" }], "claude[bot]");
+  rejectsSetters([{ id: 49699333, login: "dependabot[bot]" }], "dependabot[bot]");
+  rejectsSetters([{ id: 199161495, login: "cursoragent" }], "cursoragent");
+  rejectsSetters([{ id: LANES_APP, login: "melodic-automation-lanes[bot]" }], "other than the lanes App");
+  rejectsSetters([{ id: 1, login: "github-actions[bot]" }], "github-actions[bot] is 41898282");
+  rejectsSetters([{ id: ACTIONS_BOT, login: "melodic-ai[bot]" }], "github-actions[bot] is 41898282");
+  rejectsSetters([actions, { id: MELODIC_AI, login: "melodic-ai[bot]" }, { id: MELODIC_AI, login: "melodic-ai[bot]" }], `id ${MELODIC_AI} twice`);
+});
+
+// The trusted-actor list may drop or rename a melodic- bot before the config
+// follows: that entry stops counting, so its value reads as unset and the
+// labels decide, and the config still loads.
+test("read: a melodic- bot-setter the trusted-actor list no longer holds as that bot is ignored, not rejected", () => {
+  const dropped = { ...TRUSTED, actors: TRUSTED.actors.filter((actor) => actor.id !== MELODIC_AI) };
+  const renamed = { ...TRUSTED, actors: TRUSTED.actors.map((actor) => (actor.id === MELODIC_AI ? { ...actor, login: "melodic-ai-2[bot]" } : actor)) };
+  const row = [{ field: FIELD, option: OPTIONS["needs-human"] }];
+  const setters = { [FIELD]: MELODIC_AI };
+  for (const [why, list] of [["dropped", dropped], ["renamed", renamed], ["no list", undefined]]) {
+    checkStatus(CONFIG, undefined);
+    assert.equal(readStatus({ fieldValues: row, fieldSetters: setters }, CONFIG, list), null, why);
+  }
+  assert.equal(readStatus({ fieldValues: row, fieldSetters: setters }, CONFIG, TRUSTED), "needs-human");
+  // github-actions[bot] is not on the list and counts without it.
+  assert.equal(readStatus({ fieldValues: row, fieldSetters: { [FIELD]: ACTIONS_BOT } }, CONFIG, { actors: [] }), "needs-human");
 });

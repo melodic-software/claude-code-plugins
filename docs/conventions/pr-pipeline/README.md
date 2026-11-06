@@ -87,7 +87,10 @@ a decision, whether admission parked it there or a person confirmed it, or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
 status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
 nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
-at `status: needs-decision`, removing that label the same way. It dispatches
+at `status: needs-decision`, removing that label the same way. A listed human's change of the Work
+status field from a hold state to none or `needs-triage`, on an issue with no status label but
+`needs-triage`, re-enters it too: `needs-triage` is added as the claim, and the field is set to
+`needs-triage` after the dispatch when the release left it empty. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
@@ -3544,12 +3547,18 @@ reader rejects a key that is not a complexity and a value that is not a profile,
 `options` mapping each single-select option id to a state (the option's name on GitHub), `labels`
 listing the issue labels each state collapses from, and `order`. An issue's labels collapse,
 without case, to the first state in `order` one of whose labels it carries, or the last state,
-`needs-triage`, when it carries none. A field value counts only under the issue-dimensions setter
-rule; a counted option no entry maps fails the read with `unmapped-status`. The config reader
-rejects two options for one state, a state with no label, a label listed twice, an `order` that
-does not list every state once or does not end on `needs-triage`, and a `field-id` that
-`models.issue-dimensions` uses (`undefined-status`). resolve-config's `issue-status.mjs` holds the
-collapse and the reader; no lane reads or writes the field yet.
+`needs-triage`, when it carries none. A field value counts under the issue-dimensions setter
+rule, and also, for every state but `agent-ready`, when its latest setter is one of `bot-setters`:
+github-actions[bot] (the job token) and the `melodic-` Apps of the trusted-actor list; a `melodic-`
+entry counts only while that list holds it as a bot with the same id and login. Third-party
+bots never count, and `agent-ready` counts only from a listed human or the lanes App. A counted
+option no entry maps fails the read with `unmapped-status`. The config reader rejects two options
+for one state, a state with no label, a label listed twice, an `order` that does not list every
+state once or does not end on `needs-triage`, a `field-id` that `models.issue-dimensions` uses,
+and a `bot-setters` entry that is neither github-actions[bot] nor a `melodic-` bot other than the
+lanes App, or repeats an id (`undefined-status`). resolve-config's `issue-status.mjs` holds the collapse and the reader. The
+label writers mirror their labels into the field, `read-status.mjs` adds a field hold to the
+labels, and intake re-entry takes a listed human's release of a hold that exists only on the field.
 
 Intake splits an issue admission parks as Size Large into native sub-issues before any run
 (owner Q93; `.github/scripts/intake-triage/refine.mjs`). The model returns either `parts`, groups

@@ -82,19 +82,24 @@ const FIELD_EVENTS = `query($owner: String!, $name: String!, $number: Int!) {
     timelineItems(last: 100, itemTypes: [ISSUE_FIELD_ADDED_EVENT, ISSUE_FIELD_CHANGED_EVENT, ISSUE_FIELD_REMOVED_EVENT]) {
       nodes {
         __typename
-        ... on IssueFieldAddedEvent { actor { ...who } issueField { ...field } }
-        ... on IssueFieldChangedEvent { actor { ...who } issueField { ...field } }
-        ... on IssueFieldRemovedEvent { actor { ...who } issueField { ...field } }
+        ... on IssueFieldAddedEvent { createdAt value actor { ...who } issueField { ...field } }
+        ... on IssueFieldChangedEvent { createdAt previousValue newValue actor { ...who } issueField { ...field } }
+        ... on IssueFieldRemovedEvent { createdAt actor { ...who } issueField { ...field } }
       }
     }
   } }
 }
-fragment who on Actor { ... on User { databaseId } ... on Bot { databaseId } }
+fragment who on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }
 fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }`;
 
-// Field id -> the account id that last set it (null after a removal or for an
-// actor with no id), from the issue's newest 100 field events, oldest first.
-export async function fieldSetters(github, repository, number) {
+// The issue's newest 100 single-select field events, oldest first, each
+// {field, removed, actorId, actorLogin, actorType, at, from, to}: `field` the
+// field id as a string, `actorId` null for an actor with no id, `actorLogin`
+// as GraphQL names it (a bot's without `[bot]`), `actorType` `User` or `Bot`,
+// `at` the event time, and `from` and `to` the option names before and after
+// (null for none). An add or a removal names no earlier value, so its `from`
+// is what the earlier events left.
+export async function fieldEvents(github, repository, number) {
   const [owner, name] = repository.split("/");
   const answer = await github("POST", "/graphql", { query: FIELD_EVENTS, variables: { owner, name, number } });
   if (Array.isArray(answer?.errors) && answer.errors.length > 0) {
@@ -108,13 +113,39 @@ export async function fieldSetters(github, repository, number) {
   if (!Array.isArray(nodes)) {
     throw new Error("the issue's field events answer holds no event list");
   }
-  const setters = Object.create(null);
+  const text = (value) => (typeof value === "string" ? value : null);
+  const held = Object.create(null);
+  const events = [];
   for (const node of nodes) {
     const field = node?.issueField?.fullDatabaseId;
-    if (typeof field === "string" && /^[1-9][0-9]*$/.test(field)) {
-      const id = node.actor?.databaseId;
-      setters[field] = node.__typename === "IssueFieldRemovedEvent" || !Number.isInteger(id) ? null : id;
+    if (typeof field !== "string" || !/^[1-9][0-9]*$/.test(field)) {
+      continue;
     }
+    const id = node.actor?.databaseId;
+    const removed = node.__typename === "IssueFieldRemovedEvent";
+    const changed = node.__typename === "IssueFieldChangedEvent";
+    const to = removed ? null : text(changed ? node.newValue : node.value);
+    events.push({
+      field,
+      removed,
+      actorId: Number.isInteger(id) ? id : null,
+      actorLogin: text(node.actor?.login),
+      actorType: text(node.actor?.__typename),
+      at: text(node.createdAt),
+      from: changed ? text(node.previousValue) : (held[field] ?? null),
+      to,
+    });
+    held[field] = to;
+  }
+  return events;
+}
+
+// Field id -> the account id that last set it (null after a removal or for an
+// actor with no id), from fieldEvents.
+export async function fieldSetters(github, repository, number) {
+  const setters = Object.create(null);
+  for (const event of await fieldEvents(github, repository, number)) {
+    setters[event.field] = event.removed ? null : event.actorId;
   }
   return setters;
 }

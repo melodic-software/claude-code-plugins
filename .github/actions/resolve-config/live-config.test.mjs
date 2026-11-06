@@ -893,3 +893,23 @@ test("live config: post-merge records the owner login's agent merges on the owne
   assert.deepEqual(paths, { "owner-agent": { mode: "record", enqueuers: ["kyle-sexton"] } });
   assert.equal(agentIdentity, "melodic-automation-lanes[bot]");
 });
+
+// The owner's rule for Work status bot setters: bot-setters is
+// github-actions[bot] and every melodic- App trusted-actors.json lists other
+// than the lanes App, with the same id and login, and no third-party bot.
+test("live config: models.issue-status bot-setters are github-actions[bot] and the listed melodic- Apps but the lanes App", () => {
+  const setters = parse(FILES.config).models["issue-status"]["bot-setters"];
+  const melodic = FILES.trustedActors.actors
+    .filter((actor) => actor.kind === "bot" && actor.login.startsWith("melodic-") && actor.login !== "melodic-automation-lanes[bot]")
+    .map(({ id, login }) => ({ id, login }));
+  assert.ok(melodic.length > 0);
+  assert.deepEqual(setters, [{ id: 41898282, login: "github-actions[bot]" }, ...melodic]);
+  for (const login of ["claude[bot]", "cursor[bot]", "cursoragent", "dependabot[bot]", "melodic-automation-lanes[bot]"]) {
+    assert.equal(setters.some((entry) => entry.login === login), false, login);
+  }
+  // issueStatus ignores an entry the list stops holding; this test is what
+  // flags that drift, so each entry must still be on the list as that bot.
+  for (const entry of setters.slice(1)) {
+    assert.ok(FILES.trustedActors.actors.some((actor) => actor.id === entry.id && actor.login === entry.login && actor.kind === "bot"), entry.login);
+  }
+});

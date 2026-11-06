@@ -29,6 +29,14 @@
 //   removals land after a status, `agent-ready` or `needs-triage`, so they
 //   stop here. `needs-triage` is the claim, since work-unblock already took
 //   the label: a second run finds it and dispatches nothing;
+// - EVENT_NAME `issues` with EVENT_ACTION `field_added` or `field_removed`: a
+//   listed human (SENDER_ID) changed the Work status field. The issue's
+//   newest Work status field event must be that person's, from a hold state
+//   (read-status.mjs HOLD_STATES) to none or needs-triage; the issue must
+//   carry no status label but `needs-triage` and intake must admit its
+//   author. `needs-triage` is the claim, added before the dispatch: a second
+//   run finds it and dispatches nothing. After the dispatch, a release that
+//   left the field empty sets it to needs-triage;
 //
 // A decision on an issue that carries `needs-human` changes nothing: only a
 // listed human removes that label (docs/contracts/loop-lane/README.md, the
@@ -49,16 +57,23 @@
 // run puts the labels back and fails, so a re-run can take the claim again; a
 // statusless answer takes back only the `needs-triage` it added. Every fact is read from the API;
 // the event supplies only the issue and comment numbers and, on `issues`, the
-// removed label. A failed call on a removal puts no status back: with no
-// `status:` label a re-run sends it on, and the triage sweep dispatches it.
+// removed label or the field change's action and sender. A failed call on a
+// removal puts no status back: with no `status:` label a re-run sends it on,
+// and the triage sweep dispatches it.
 //
 // Environment:
 //   GITHUB_TOKEN          the job's token: issues write, actions write
 //   GITHUB_REPOSITORY     owner/repo
 //   ISSUE_NUMBER, COMMENT_ID (not read when EVENT_NAME is `issues`)
-//   EVENT_NAME            `issues` for a label removal, else a comment
-//   REMOVED_LABEL         on `issues`, the label removed; `status: confirmed`
-//                         or, by default, `needs-human`
+//   EVENT_NAME            `issues` for a label removal or a field change,
+//                         else a comment
+//   EVENT_ACTION          on `issues`, `field_added` or `field_removed` for a
+//                         field change; anything else is a label removal
+//   SENDER_ID             on a field change, the account that made it
+//   REMOVED_LABEL         on a label removal, the label removed;
+//                         `status: confirmed` or, by default, `needs-human`
+//   BASE_PATH             the default branch checkout (default `.base`), whose
+//                         models.issue-status a field change is read by
 //   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
 //   LANES_APP_ID          the lanes App bot's user id, or empty
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
@@ -69,7 +84,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { HOLD_STATES, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
 export const NEEDS_INFO = "status: needs-info";
@@ -81,6 +96,8 @@ export const NEEDS_TRIAGE = "needs-triage";
 const AGENT_READY = "agent-ready";
 const DEFERRED = "admission-deferred";
 const WORKFLOW = "intake-triage.yml";
+// The issues actions a Work status field change starts this run with.
+const FIELD_ACTIONS = new Set(["field_added", "field_removed"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
@@ -210,6 +227,71 @@ async function unparkReenters({ github, base, issue, humans, lanesAppId }) {
   return authorAdmitted(issue, humans, lanesAppId) && (await lastRemover(github, base, CONFIRMED))?.id === lanesAppId;
 }
 
+// A listed human released a hold the Work status field held, on an issue no
+// status label holds or moves: the issue's newest Work status event is the
+// sender's (a listed human's, as a User), from a hold state to none or the
+// floor. Returns that event, or null when intake should not take the issue.
+async function fieldReleases({ github, repository, issue, humans, lanesAppId, senderId, config, fieldEvents }) {
+  if (issue.pull_request || issue.state !== "open" || !humans.has(senderId) || !authorAdmitted(issue, humans, lanesAppId)) {
+    return null;
+  }
+  const own = new Set(labelNames(issue).map((name) => String(name).toLowerCase()));
+  const statusLabels = Object.entries(config.labels).flatMap(([state, names]) => (state === NEEDS_TRIAGE ? [] : names));
+  if (statusLabels.some((name) => own.has(name.toLowerCase()))) {
+    return null;
+  }
+  const field = String(config["field-id"]);
+  const newest = (await fieldEvents(github, repository, Number(issue.number))).filter((event) => event.field === field).at(-1);
+  const released = newest?.actorType === "User" && newest.actorId === senderId && HOLD_STATES.includes(newest.from);
+  return released && (newest.to === null || newest.to === NEEDS_TRIAGE) ? newest : null;
+}
+
+// The Work status field path: a listed human's release (fieldReleases) adds
+// `needs-triage`, the claim a second run finds, dispatches intake once, and
+// then sets the field to needs-triage when the release left it empty. A failed
+// dispatch takes the label back so a re-run can claim again; a field write
+// that fails after the dispatch only warns, since an unset field leaves the
+// labels to decide.
+async function releaseField({ client, repository, base, issue, humans, lanesAppId, env, log }) {
+  const senderId = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
+  const { fieldEvents, issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
+  const config = issueStatusFromBase(env);
+  if (!config) {
+    throw new Error("models.issue-status is not set, so a Work status field change cannot be read");
+  }
+  const release = await fieldReleases({ github: client, repository, issue, humans, lanesAppId, senderId, config, fieldEvents });
+  if (release === null) {
+    log("intake-reenter: not a listed human's release of a Work status hold that sends an issue to intake; nothing changed");
+    return 0;
+  }
+  if (labelNames(issue).includes(NEEDS_TRIAGE)) {
+    log(`intake-reenter: ${NEEDS_TRIAGE} is already on the issue; nothing dispatched`);
+    return 0;
+  }
+  try {
+    await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
+      ref: "main",
+      inputs: { "issue-number": String(issue.number) },
+    });
+  } catch (error) {
+    await removeLabel(client, base, NEEDS_TRIAGE).catch(() => false);
+    throw error;
+  }
+  let field = "";
+  if (release.to === null) {
+    try {
+      const { statusWriter } = await import("../../actions/resolve-config/write-status.mjs");
+      await (await statusWriter({ env, github: client, repository })).set(Number(issue.number), NEEDS_TRIAGE);
+      field = `, set Work status to ${NEEDS_TRIAGE}`;
+    } catch (error) {
+      log(`::warning title=intake-reenter::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}; the labels decide`);
+    }
+  }
+  log(`intake-reenter: Work status ${release.from} released, added ${NEEDS_TRIAGE}${field}, dispatched ${WORKFLOW}`);
+  return 0;
+}
+
 async function restore({ client, base, labels, addedTriage, log }) {
   try {
     if (addedTriage) {
@@ -229,6 +311,7 @@ export async function main({ env = process.env, github, log = console.log, statu
       return 0;
     }
     const lift = env.EVENT_NAME === "issues";
+    const field = lift && FIELD_ACTIONS.has(env.EVENT_ACTION);
     if (!NUMBER.test(env.ISSUE_NUMBER ?? "") || !(lift || /^[1-9][0-9]{0,15}$/.test(env.COMMENT_ID ?? "")) || !REPOSITORY.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("ISSUE_NUMBER, COMMENT_ID or GITHUB_REPOSITORY is malformed");
     }
@@ -238,6 +321,9 @@ export async function main({ env = process.env, github, log = console.log, statu
     const repository = env.GITHUB_REPOSITORY;
     const base = `/repos/${repository}/issues/${env.ISSUE_NUMBER}`;
     const issue = await client("GET", base);
+    if (field) {
+      return await releaseField({ client, repository, base, issue, humans, lanesAppId, env, log });
+    }
     if (lift) {
       const removed = env.REMOVED_LABEL === CONFIRMED ? CONFIRMED : NEEDS_HUMAN;
       if (!(await (removed === CONFIRMED ? unparkReenters : liftReenters)({ github: client, base, issue, humans, lanesAppId }))) {
