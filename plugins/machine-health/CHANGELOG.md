@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.11] - 2026-11-06
+
+### Fixed
+
+- `/machine-health:setup` hands over the `plugin configure` and `plugin install` commands with `<marketplace>` left as written unless the owner named the marketplace, and no longer searches manifests, the plugin cache or settings for the name.
+
 ## [0.26.10] - 2026-11-06
 
 ### Changed
