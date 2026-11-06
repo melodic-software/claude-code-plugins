@@ -16,8 +16,9 @@ improvised from the engine steps.
 ## The Windows lane: one handoff-apply per tier
 
 It needs the same execution request as the manual lane below, and the same tier narrowing: show
-one tier's exact paths from the §3 report. Then run one `handoff-apply` for that tier, one inline
-`--path` per approved path:
+one tier's exact paths from the §3 report, as a list, not a question. The manual lane's approval
+step does not apply here: do not ask the user to approve the list. Run one `handoff-apply` for
+that tier, one inline `--path` per path shown:
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
