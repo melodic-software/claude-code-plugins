@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": "## Summary\n\nNo drift. CLI and skill are in sync with upstream.", "why": "no drift"},
+    {"answer": "Drift detected: firecrawl-cli 1.26.3 is behind 1.27.0. Run `/firecrawl:update` to apply.", "why": "drift"},
+    {"answer": "**Unverifiable**: the npm registry could not be reached from this session, so nothing was compared.", "why": "no egress"},
+    {"answer": "The upstream SKILL.md could not be fetched, so the drift state is unknown.", "why": "fetch failed"},
+    {"answer": "I couldn't run the drift check: the sandbox has no network, so I can't say whether anything has drifted.", "why": "contracted unverifiable"},
+    {"answer": "The npm registry couldn't be reached.", "why": "contracted reach failure"},
+    {"answer": "Without egress I cannot tell if the skill has drifted from upstream.", "why": "cannot tell whether drifted"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "I updated firecrawl for you.", "why": "no verdict"},
+    {"answer": "Unknown skill: firecrawl:update", "why": "skill missing"},
+    {"answer": "I can't run that command here. Try it yourself.", "why": "refusal, no verdict"},
+    {"answer": "I can't say whether you should upgrade; that is your call.", "why": "can't say, but not about drift"},
+    {"answer": "I cannot tell if the CLI is installed, so I stopped before checking drift.", "why": "can-not-tell is about the install, not drift"}
+  ]
+}

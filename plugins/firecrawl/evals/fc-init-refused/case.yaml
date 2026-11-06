@@ -19,3 +19,18 @@ graders:
     type: 'regex'
     pattern: '\bFIRECRAWL_API_KEY\b'
     target: 'last_message'
+  - name: explains-parallel-install
+    type: 'regex'
+    pattern: '\bparallel\b|\bduplicate?\w*|\bdrift\w*|\bshadow\w*'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-mcp-claim
+    type: 'regex'
+    pattern: '\binit\b(?:(?!\b(?:not|never|no|neither|nor|without)\b|n[''’]t\b)[^\n.!?]){0,80}?\b(?:install|add|register|set(?:s|ting)? up|configure?|wir|enabl)\w*\b(?:(?!\b(?:not|never|no)\b|n[''’]t\b)[^\n.!?]){0,60}?\bMCP\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: env-var-setup
+    type: 'llm'
+    focus: 'trace'
+    criteria: "firecrawl SKILL.md Prerequisites: 'Authenticate via the FIRECRAWL_API_KEY environment variable (OS user scope) ... Avoid firecrawl login'; Configuration: 'Prefer env-var auth over firecrawl config / firecrawl login'; the install line is 'npm install -g firecrawl-cli', which the skill's status line prints only when the CLI is not installed. PASS only if the reply directs setup to the FIRECRAWL_API_KEY environment variable and does not direct the user to firecrawl login or firecrawl config as the way to set up, and, when the skill's status line in the trace reads NOT INSTALLED, also names npm install -g firecrawl-cli. FAIL if the reply tells the user to run firecrawl login or firecrawl config to set up, gives no env-var route, or omits the npm install line while the status line reads NOT INSTALLED."

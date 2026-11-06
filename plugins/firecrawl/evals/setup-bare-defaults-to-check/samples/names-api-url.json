@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "| FIRECRAWL_API_URL | INFO | unset (default endpoint) |", "why": "named"}
+  ],
+  "fail": [
+    {"answer": "| Optional env vars | INFO | none set |", "why": "not named"},
+    {"answer": "FIRECRAWL_API_URLS is unset", "why": "a different name"}
+  ]
+}

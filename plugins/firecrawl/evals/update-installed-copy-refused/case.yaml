@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: update-installed-copy-refused
+graders:
+  - name: requires-working-tree
+    type: 'regex'
+    pattern: '\b(?:only|must|needs?|need(?:ed|ing)|requires?|required|requiring|meant|designed|intended)\b[^\n.]{0,60}?\bworking[- ]tree\b|\bworking[- ]tree\b[^\n.]{0,40}?\b(?:only|required)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-marketplace-update
+    type: 'regex'
+    pattern: '/plugin marketplace update\b'
+    target: 'last_message'
+  - name: no-upstream-write
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<![0-9&])>>?\s*(?:\\"|'')?|\btee\s+(?:-a\s+)?(?:\\"|'')?|\bsed\s+(?:-[a-zA-Z]*\s+)*-i\b(?:''[^'']*''|\\"(?:(?!\\")(?:[^"\\]|\\.))*\\"|[^"\\;&|'']|\\.)*?|\b(?:cp|mv)\s+(?:''[^'']*''|\\"(?:(?!\\")(?:[^"\\]|\\.))*\\"|[^"\\;&|'']|\\.)*?)[^\s"\\;&|]*upstream\.md\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-npm-install
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:if|elif|while|until|then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?(?:p?npm|yarn)\s+(?:(?:global\s+)?(?:install|i|add)|update|up|upgrade)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-apply-mode
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?update\.sh(?:\\"|'')?\s+(?:[^"\\;&|]*\s)?--(?:apply|record-upstream)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
