@@ -1,6 +1,6 @@
 // pr-rate-merge-risk.yml's controls (#13657), pinned on the file's text:
 // the run-name the arm side matches, a read-only job token, no pull request
-// code, base-side scripts only, the credential in two steps alone, the
+// code, base-side scripts only, one credential per leg job (#13586), the
 // model's tool cage, and the names the arm side reads.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -9,15 +9,27 @@ import { test } from "node:test";
 import { ARTIFACT_PREFIX, RATING_WORKFLOW_PATH, runTitle } from "../pr-merge/merge-risk-line.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-rate-merge-risk.yml", import.meta.url), "utf8");
-// Each step's text, by its name.
-const steps = new Map(
-  text
-    .split(/\n(?= {6}- name: )/)
-    .slice(1)
-    .map((block) => [/^ {6}- name: (.+)$/m.exec(block)[1], block]),
-);
-const step = (name) => {
-  assert.ok(steps.has(name), `no step named ${name}`);
+const LEGS = { key: "rate-merge-risk", subscription: "rate-merge-risk-subscription", fallback: "rate-merge-risk-fallback" };
+// Each job's text, by its id: from its id line to the next job's, less the
+// next job's header comment.
+const jobsText = text.split("\njobs:\n")[1];
+const starts = [...jobsText.matchAll(/^ {2}([a-z-]+):$/gm)];
+const jobs = new Map(starts.map((match, i) => [match[1], jobsText.slice(match.index, starts[i + 1]?.index).replace(/\s*(?:\n {2}#[^\n]*)*\s*$/, "\n")]));
+const job = (id) => {
+  assert.ok(jobs.has(id), `no job ${id}`);
+  return jobs.get(id);
+};
+// A job's steps' text, by step name, less the next step's comment.
+const stepsOf = (id) =>
+  new Map(
+    job(id)
+      .split(/\n(?= {6}- name: )/)
+      .slice(1)
+      .map((block) => [/^ {6}- name: (.+)$/m.exec(block)[1], block.replace(/\s*(?:\n {6}#[^\n]*)*\s*$/, "\n")]),
+  );
+const step = (id, name) => {
+  const steps = stepsOf(id);
+  assert.ok(steps.has(name), `${id} has no step named ${name}`);
   return steps.get(name);
 };
 const list = (block, key) =>
@@ -34,111 +46,146 @@ test("the run-name renders as runTitle, so a run still going is found for its he
   assert.equal(rendered, runTitle(7, "a".repeat(40)));
 });
 
-test("the job token only reads, the workflow grants nothing, and one job runs", () => {
+test("the workflow grants nothing, its three jobs are the three legs, and each job token only reads", () => {
   assert.match(text, /\npermissions: \{\}\n/);
-  assert.equal([...text.matchAll(/\n {2}[a-z-]+:\n {4}if:/g)].length, 1);
-  assert.match(text, /\n {4}permissions:\n {6}contents: read # [^\n]+\n {6}pull-requests: read # [^\n]+\n {6}actions: read # [^\n]+\n {4}steps:/);
+  assert.deepEqual([...jobs.keys()], Object.values(LEGS));
+  for (const id of Object.values(LEGS)) {
+    assert.match(job(id), /\n {4}cache-mode: read\n {4}permissions:\n {6}contents: read # [^\n]+\n {6}pull-requests: read # [^\n]+\n {6}actions: read # [^\n]+\n {4}(?:outputs|steps):/, id);
+  }
   assert.doesNotMatch(text, /^ +[a-z-]+: write\b/m);
   assert.doesNotMatch(text, /id-token|request-lane-token|create-github-app-token/);
 });
 
 test("no pull request code is checked out, and every script and local action is main's", () => {
-  const checkouts = [...text.matchAll(/uses: actions\/checkout@/g)];
-  assert.equal(checkouts.length, 1);
-  assert.match(step("Check out the default branch tip"), /ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false/);
+  for (const id of Object.values(LEGS)) {
+    assert.equal([...job(id).matchAll(/uses: actions\/checkout@/g)].length, 1, id);
+    assert.match(step(id, "Check out the default branch tip"), /ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false/, id);
+  }
   for (const [, uses] of text.matchAll(/uses: (\.\/[^\s]+)/g)) assert.match(uses, /^\.\/\.base\//, uses);
   for (const [, script] of text.matchAll(/node (\S+\.mjs)/g)) assert.match(script, /^\.base\//, script);
 });
 
-// The key, subscription and fallback legs, each on one credential.
-const LEGS = {
-  "Rate the pull request": "api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}",
-  "Rate the pull request on the subscription": "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}",
-  "Rate the pull request on the fallback token": "fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}",
-};
-
-test("each credential reaches only its presence check and its own leg", () => {
-  const holders = [...steps].filter(([, block]) => /secrets\./.test(block)).map(([name]) => name);
-  assert.deepEqual(holders, ["Check the API key", "Check the credential", ...Object.keys(LEGS)]);
-  assert.match(step("Check the API key"), /KEY: \$\{\{ secrets\.PR_VERIFY_CLAUDE_API_KEY != '' \}\}/);
-  assert.match(step("Check the credential"), /TOKEN: \$\{\{ secrets\.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' \}\}\n {10}FALLBACK: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' \}\}\n/);
-  for (const [name, credential] of Object.entries(LEGS)) {
-    assert.deepEqual([...step(name).matchAll(/secrets\.[A-Z_]+/g)].map(([ref]) => ref), [credential.match(/secrets\.[A-Z_]+/)[0]], name);
-    assert.ok(step(name).includes(`\n          ${credential}\n`), name);
+test("each leg holds one credential, in its presence check and its rating step alone", () => {
+  const credential = {
+    key: { secret: "PR_VERIFY_CLAUDE_API_KEY", input: "api-key" },
+    subscription: { secret: "PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN", input: "subscription-token" },
+    fallback: { secret: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN", input: "fallback-token" },
+  };
+  for (const [leg, id] of Object.entries(LEGS)) {
+    const { secret, input } = credential[leg];
+    const holders = [...stepsOf(id)].filter(([, block]) => /secrets\./.test(block)).map(([name]) => name);
+    assert.deepEqual(holders, ["Check the credential", "Rate the pull request"], id);
+    assert.match(step(id, "Check the credential"), new RegExp(`PRESENT: \\$\\{\\{ secrets\\.${secret} != '' \\}\\}\\n`), id);
+    const rate = step(id, "Rate the pull request");
+    assert.deepEqual([...rate.matchAll(/secrets\.([A-Z_]+)/g)].map(([, name]) => name), [secret], id);
+    assert.match(rate, new RegExp(`\\n {10}${input}: \\$\\{\\{ secrets\\.${secret} \\}\\}\\n`), id);
+    // Beyond its own, a job may only ask whether the fallback token is set.
+    const others = [...job(id).matchAll(/secrets\.([A-Z_]+)( != '')?/g)].filter(([, name]) => name !== secret);
+    assert.deepEqual(others.map(([whole]) => whole), leg === "subscription" ? ["secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != ''"] : [], id);
   }
+  assert.match(step(LEGS.subscription, "Rate the pull request"), /\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/);
 });
 
-test("the subscription leg follows a key handoff or skip, and the fallback leg a subscription handoff or empty token", () => {
-  assert.match(step("Read the key's credit history"), /key-job: rate-merge-risk\n {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \|\| '1' \}\}\n/);
-  assert.match(step("Rate the pull request"), /if: steps\.prompt\.outcome == 'success' && steps\.credential\.outputs\.key == 'true'\n/);
-  assert.match(step("Rate the pull request on the subscription"), /&& \(steps\.rate\.outcome == 'skipped' \|\| steps\.rate\.outputs\.handoff == 'true'\)\n/);
-  assert.match(step("Rate the pull request on the fallback token"), /&& \(steps\.rate-subscription\.outputs\.handoff == 'true'\n\s+\|\| steps\.credential\.outputs\.token != 'true' && \(steps\.rate\.outcome == 'skipped' \|\| steps\.rate\.outputs\.handoff == 'true'\)\)\n/);
-  // Only the key leg's credit stop writes the marker the gate reads.
-  assert.match(step("Write the key's credit-stop marker"), /'key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'\n/);
-  assert.match(step("Upload the key's credit-stop marker"), /name: key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk\n/);
+test("each leg starts only after the one before handed off or found its credential empty, and a handoff is no failure", () => {
+  assert.match(job(LEGS.subscription), /\n {4}needs: rate-merge-risk\n/);
+  assert.match(job(LEGS.subscription), /&& needs\.rate-merge-risk\.result == 'success'\n {6}&& \(needs\.rate-merge-risk\.outputs\.handoff == 'true'\n {6}\|\| needs\.rate-merge-risk\.outputs\.credential-present == 'false'\n {6}\|\| needs\.rate-merge-risk\.outputs\.skip-key == 'true'\)\n/);
+  assert.match(job(LEGS.fallback), /\n {4}needs: rate-merge-risk-subscription\n/);
+  assert.match(job(LEGS.fallback), /&& needs\.rate-merge-risk-subscription\.outputs\.fallback-ready == 'true'\n {6}&& \(needs\.rate-merge-risk-subscription\.outputs\.handoff == 'true'\n {6}\|\| needs\.rate-merge-risk-subscription\.outputs\.credential-present == 'false'\)\n/);
+  for (const id of [LEGS.subscription, LEGS.fallback]) assert.match(job(id), /\n {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/, id);
+  for (const id of Object.values(LEGS)) {
+    assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.credential\.outputs\.run == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
+  }
+  // The key leg skips a key whose credit stop is recent and marks a new one.
+  const credit = step(LEGS.key, "Read the key's credit history");
+  assert.match(credit, /uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} /);
+  assert.match(credit, /key-job: rate-merge-risk\n/);
+  assert.match(step(LEGS.key, "Check the credential"), /SKIP_KEY: \$\{\{ steps\.credit\.outputs\.skip-key \}\}\n/);
+  assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credit\.outputs\.marker == 'key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
+  assert.match(step(LEGS.key, "Upload the key's credit-stop marker"), /name: key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk\n/);
+});
+
+// Every leg is the key leg's steps but for its credential, the key's credit
+// gate and marker, and the lane record's fallback reason.
+test("the subscription and fallback legs repeat the key leg's steps exactly, step order included", () => {
+  const KEY_ONLY = ["Read the key's credit history", "Report the skipped key leg", "Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
+  const shape = (id) =>
+    [...stepsOf(id)]
+      .filter(([name]) => !KEY_ONLY.includes(name) && name !== "Check the credential")
+      .map(([name, block]) =>
+        name === "Rate the pull request"
+          ? block.replace(/\n {10}(?:api-key|subscription-token|fallback-token|fallback-ready): [^\n]+/g, "")
+          : name === "Report the rating's outcome"
+            ? block.replace(/\n {10}fallback-reason: [^\n]+/, "")
+            : block,
+      );
+  const key = shape(LEGS.key);
+  assert.ok(key.length >= 20, `the key leg has ${key.length} shared steps`);
+  assert.deepEqual(shape(LEGS.subscription), key);
+  assert.deepEqual(shape(LEGS.fallback), key);
 });
 
 test("the rating runs under dontAsk on the data directory and the review plugin's copy alone", () => {
-  // Each leg is the key leg's step but for its name, id, condition and credential.
-  const shape = (name) =>
-    step(name)
-      .replace(/^ {6}- name: .+\n {8}id: .+\n {8}if: (?:>-\n(?: {10}.+\n)+|.+\n)/, "")
-      .replace(/\n {10}(?:api-key|subscription-token|fallback-token|fallback-ready): .+(?=\n)/g, "")
-      .replace(/\n+\s*(?:#.*\n\s*)*$/, "");
-  for (const name of Object.keys(LEGS)) assert.equal(shape(name), shape("Rate the pull request"), name);
-  const rate = step("Rate the pull request");
-  assert.match(rate, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
-  assert.match(rate, /permission-mode: dontAsk\n/);
-  assert.match(rate, /continue-on-error: true\n/);
-  assert.deepEqual(list(rate, "tools"), ["Read", "Skill", "Agent"]);
-  assert.deepEqual(list(rate, "allowed-tools"), ["Read(./merge-risk-data/**)", "Read(./.lane/plugins/review/**)", "Skill(review:merge-risk *)", "Agent"]);
+  for (const id of Object.values(LEGS)) {
+    const rate = step(id, "Rate the pull request");
+    assert.match(rate, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
+    assert.match(rate, /role: pr-verify\n/);
+    assert.match(rate, /permission-mode: dontAsk\n/);
+    assert.match(rate, /continue-on-error: true\n/);
+    assert.deepEqual(list(rate, "tools"), ["Read", "Skill", "Agent"]);
+    assert.deepEqual(list(rate, "allowed-tools"), ["Read(./merge-risk-data/**)", "Read(./.lane/plugins/review/**)", "Skill(review:merge-risk *)", "Agent"]);
+    const denied = list(rate, "disallowed-tools");
+    assert.deepEqual(denied, [
+      "Read(./.base/**)",
+      "Read(/${{ runner.temp }}/**)",
+      "Read(~/.config/**)",
+      "Read(~/.git-credentials)",
+      "Read(~/.claude/**)",
+      "Read(//proc/**)",
+      "Read(//sys/**)",
+      "Read(//etc/**)",
+      "Glob",
+      "Grep",
+      "Bash",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "WebSearch",
+      "mcp__*",
+    ]);
+    // None may name the workspace or the home whole: the workspace sits under it.
+    assert.ok(!denied.some((rule) => ["Read(~/**)", "Read(./**)", "Read(//**)", "Read"].includes(rule)));
+    assert.deepEqual(list(rate, "plugin-dirs"), [".lane/plugins/review"]);
+    assert.match(rate, /CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.checker\.outputs\.force \}\}/);
+    // The managed settings and the isolation come first.
+    const order = [...stepsOf(id).keys()];
+    assert.ok(order.indexOf("Apply the Claude managed settings") < order.indexOf("Isolate the runner"), id);
+    assert.ok(order.indexOf("Isolate the runner") < order.indexOf("Rate the pull request"), id);
+    assert.match(step(id, "Stage the review plugin"), /chmod -R a-w \.lane\/plugins\/review/);
+  }
   // merge-risk's frontmatter allowed-tools pre-approves bare Read once the
   // skill runs, so these deny rules, not the allow list, bound what it reads.
-  // None may name the workspace or the home whole: the workspace sits under it.
   assert.match(readFileSync(new URL("../../../plugins/review/skills/merge-risk/SKILL.md", import.meta.url), "utf8"), /^allowed-tools: \[[^\]]*"Read"/m);
-  const denied = list(rate, "disallowed-tools");
-  assert.deepEqual(denied, [
-    "Read(./.base/**)",
-    "Read(/${{ runner.temp }}/**)",
-    "Read(~/.config/**)",
-    "Read(~/.git-credentials)",
-    "Read(~/.claude/**)",
-    "Read(//proc/**)",
-    "Read(//sys/**)",
-    "Read(//etc/**)",
-    "Glob",
-    "Grep",
-    "Bash",
-    "Edit",
-    "Write",
-    "NotebookEdit",
-    "WebFetch",
-    "WebSearch",
-    "mcp__*",
-  ]);
-  assert.ok(!denied.some((rule) => ["Read(~/**)", "Read(./**)", "Read(//**)", "Read"].includes(rule)));
   assert.match(text, /allow rules do not bound Read once the skill runs/);
-  assert.deepEqual(list(rate, "plugin-dirs"), [".lane/plugins/review"]);
-  assert.match(rate, /CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.checker\.outputs\.force \}\}/);
-  // The managed settings and the isolation come first.
-  const order = [...steps.keys()];
-  assert.ok(order.indexOf("Apply the Claude managed settings") < order.indexOf("Isolate the runner"));
-  assert.ok(order.indexOf("Isolate the runner") < order.indexOf("Rate the pull request"));
-  assert.match(step("Stage the review plugin"), /chmod -R a-w \.lane\/plugins\/review/);
 });
 
 test("the names the arm side reads match merge-risk-line.mjs", () => {
-  const resolve = step("Resolve the pull request");
-  assert.match(resolve, new RegExp(`RATED_WORKFLOW_PATH: ${RATING_WORKFLOW_PATH.replaceAll(".", "\\.")}\\n`));
-  assert.match(resolve, new RegExp(`RATED_ARTIFACT_PREFIX: ${ARTIFACT_PREFIX}\\n`));
-  assert.match(resolve, /VERIFY_AUTHORS: lane\n/);
-  assert.match(step("Upload the rating"), new RegExp(`name: ${ARTIFACT_PREFIX}-\\$\\{\\{ steps\\.pr\\.outputs\\.pr-number \\}\\}-\\$\\{\\{ steps\\.pr\\.outputs\\.head-sha \\}\\}\\n`));
-  assert.match(step("Upload the rating"), /retention-days: 7\n/);
-  assert.match(step("Upload the rating"), /steps\.scan-upload\.outputs\.clean == 'true'/);
+  for (const id of Object.values(LEGS)) {
+    const resolve = step(id, "Resolve the pull request");
+    assert.match(resolve, new RegExp(`RATED_WORKFLOW_PATH: ${RATING_WORKFLOW_PATH.replaceAll(".", "\\.")}\\n`));
+    assert.match(resolve, new RegExp(`RATED_ARTIFACT_PREFIX: ${ARTIFACT_PREFIX}\\n`));
+    assert.match(resolve, /VERIFY_AUTHORS: lane\n/);
+    const upload = step(id, "Upload the rating");
+    assert.match(upload, new RegExp(`name: ${ARTIFACT_PREFIX}-\\$\\{\\{ steps\\.pr\\.outputs\\.pr-number \\}\\}-\\$\\{\\{ steps\\.pr\\.outputs\\.head-sha \\}\\}\\n`));
+    assert.match(upload, /retention-days: 7\n/);
+    assert.match(upload, /steps\.scan-upload\.outputs\.clean == 'true'/);
+  }
 });
 
 test("the trigger is pr-verify's, judged only for a successful same-repository pull_request run on main", () => {
   assert.match(text, /\non:\n {2}# [^\n]+\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[pr-require-checks\]\n {4}types: \[completed\]\n/);
-  assert.match(text, /github\.ref == 'refs\/heads\/main'\n {6}&& github\.event\.workflow_run\.event == 'pull_request'\n {6}&& github\.event\.workflow_run\.conclusion == 'success'\n {6}&& github\.event\.workflow_run\.head_repository\.full_name == github\.repository\n/);
+  for (const id of Object.values(LEGS)) {
+    assert.match(job(id), /github\.ref == 'refs\/heads\/main'\n {6}&& github\.event\.workflow_run\.event == 'pull_request'\n {6}&& github\.event\.workflow_run\.conclusion == 'success'\n {6}&& github\.event\.workflow_run\.head_repository\.full_name == github\.repository\n/, id);
+  }
   assert.match(text, /cancel-in-progress: false\n/);
 });

@@ -9,7 +9,7 @@ import { parseDocument } from "yaml";
 
 import { checkDimensions, dimensionBudget, issueDimensions, parsePin, splitChildDims } from "./dimensions.mjs";
 import { checkStatus } from "./issue-status.mjs";
-import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
+import { MissingFact, appliesAll, factsFor, matchedPaths } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
 const CONFIG_BASENAME = "pr-pipeline.yaml";
@@ -500,7 +500,9 @@ function expand(doc, slots, parent) {
 }
 
 // Each leaf of the lane, with its activity, predicates and enabled flag.
-function laneSlots(doc, lane) {
+// pr-refine's plan job (plan-passes.mjs) reads them too, so a pass is planned
+// from the predicates its runner applies.
+export function laneSlots(doc, lane) {
   const section = laneSection(doc, lane);
   return expand(doc, section.slots ?? [], {
     ...ROOT,
@@ -612,7 +614,7 @@ function codeownersGlobs(text) {
 // what it is asked to fix. Sorted, without duplicates.
 export function changedPathTargets({
   paths,
-  predicatePaths,
+  predicate,
   edits,
   codeowners,
 }) {
@@ -623,12 +625,8 @@ export function changedPathTargets({
       posix.matchesGlob(path.toLowerCase(), glob),
     ) ||
       owned.some((glob) => posix.matchesGlob(path, glob)));
-  const kept = paths.filter(
-    (path) =>
-      isSafePath(path) &&
-      (predicatePaths === undefined ||
-        predicatePaths.some((glob) => posix.matchesGlob(path, glob))) &&
-      !notTargeted(path),
+  const kept = matchedPaths(predicate, paths).filter(
+    (path) => isSafePath(path) && !notTargeted(path),
   );
   return [...new Set(kept)].sort();
 }
@@ -816,6 +814,20 @@ export function resolveRoute(files, { route, configPath }) {
   return routeModels(loadConfig(files, { configPath }).models, route, files.roleMap);
 }
 
+// The changed paths a laneSlots entry with the changed-paths input is asked
+// to work on: those its ancestors' and its own predicates let through, less
+// what changedPathTargets keeps from it. pr-refine's plan job reads it too.
+export function slotTargets({ activity, predicate, predicates }, changedTargets, codeowners) {
+  // A composite's paths predicate narrows its leaves' targets too.
+  const ancestors = predicate === undefined ? predicates : predicates.slice(0, -1);
+  return changedPathTargets({
+    paths: ancestors.reduce((kept, outer) => matchedPaths(outer, kept), changedTargets),
+    predicate,
+    edits: activity.effect !== "read" || activity["applied-by"]?.patch !== undefined,
+    codeowners,
+  });
+}
+
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
   { effectGrants, codeowners, trustedActors, roleMap },
@@ -838,21 +850,7 @@ function resolveSlot(
     if (facts.changedTargets === undefined) {
       throw new MissingFact("changedTargets");
     }
-    // A composite's paths predicate narrows its leaves' targets too.
-    const ancestors =
-      predicate === undefined ? predicates : predicates.slice(0, -1);
-    targets = changedPathTargets({
-      paths: facts.changedTargets.filter((path) =>
-        ancestors.every(
-          (outer) =>
-            outer.paths === undefined ||
-            outer.paths.some((glob) => posix.matchesGlob(path, glob)),
-        ),
-      ),
-      predicatePaths: predicate?.paths,
-      edits: activity.effect !== "read" || activity["applied-by"]?.patch !== undefined,
-      codeowners,
-    });
+    targets = slotTargets({ activity, predicate, predicates }, facts.changedTargets, codeowners);
     if (targets.length === 0) {
       outcome = { applies: false, skipReason: "not-applicable-paths" };
     }

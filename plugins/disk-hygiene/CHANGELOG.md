@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.7] - 2026-11-06
+
+### Fixed
+
+- The Windows `handoff-apply` hook ask now says to confirm the tier and paths "the report just showed", since the Windows lane runs no preview. The Windows lane shows the tier's paths as a list and asks no separate approval question, because the hook ask is the approval in Manual and auto mode alike. Two new eval cases, `cl-windows-handoff-no-separate-approval` and its auto-mode variant, cover that lane (#9766).
+
+## [1.0.6] - 2026-11-06
+
+### Changed
+
+- The shared `exec-bash.mjs` launcher has a `--bps-seed <hook-utils.sh>` flag. On Windows it parses a Bash or PowerShell call's command once with shfmt and jq and hands the result to the script, so Git Bash does not fork the processes of that parse. The flag is inert on other platforms, and an inherited result is always dropped (#6634).
+
 ## [1.0.5] - 2026-11-06
 
 ### Changed

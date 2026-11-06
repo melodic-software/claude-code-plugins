@@ -96,6 +96,9 @@ the flag, or a repost counted as a source fails row 4. The parent's eligibility 
 matched the flag against the header's `claim_kind:` and `source_owner:`; judge whether those
 declared values are true of the claim and its primary.
 
+Row 4's count is the prompt's `Corroborators:` line, the resolved `research_corroborators`; with
+no such line it is 2, the default.
+
 Row 4 reads independence off each source's `pool`: two sources sharing one are one corroborator. A
 claim carrying `subject_pool` is a single-publisher claim. Grade it against the discipline file's
 "Single-publisher facts" in
