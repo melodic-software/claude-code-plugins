@@ -905,14 +905,18 @@ const settled = (admission) =>
 
 // One lanes App comment, edited in place, says why the verdict holds the
 // issue; a later ready verdict marks it settled, naming the status admission
-// left. None is posted for a ready verdict that stays ready and never held;
-// one admission moved or did not finish gets the record a later run reads.
+// left. None is posted for a ready verdict that stays ready and never held,
+// nor for one admission refused to a status that is no hold, since admission's
+// own comment already says so and planWrites reads the record (earlierFlags)
+// only beside a hold label; one admission moved to a hold
+// or did not finish gets the record a later run reads.
 // A missing edge GitHub answered 403 for names the permission (refused); a
 // 429 or 5xx does not, since the sweep's re-run writes it.
 async function sayReasons(github, repository, base, comments, appId, plan, admission, refused, raised = []) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
-  if (plan.ready && !own && after === null && plan.refused.length === 0) {
+  const admissionSaid = admission?.outcome === "refused" && !HOLDS.has(after);
+  if (plan.ready && !own && (after === null || admissionSaid) && plan.refused.length === 0) {
     return;
   }
   const body = plan.ready

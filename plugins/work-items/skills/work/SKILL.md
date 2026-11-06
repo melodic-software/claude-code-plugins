@@ -289,8 +289,11 @@ below. Otherwise run Step 5's root-cause gate whatever the brief's Root cause fi
 there: no fix branch, no implementation worktree (step 2's reset worktrees still run), no dispatch,
 no fix and no PR. When the diagnosis names no single cause, rank the candidates instead of
 escalating. Then post one investigation comment on the item, its first line
-`<!-- work-items:investigation outcome=<outcome> -->`; in an autonomous session the AI disclaimer,
-when the setting adds one, follows it. The comment carries four parts:
+`<!-- work-items:investigation outcome=<outcome> desired=cause-named -->`; in an autonomous session
+the AI disclaimer, when the setting adds one, follows it. The marker is a desired-state/result-state
+pair: `desired=` is the state this pre-work set out to reach and `outcome=` the state it reached,
+so a reader tells finished pre-work from pre-work that still needs a follow-up by comparing the two,
+without knowing the outcome vocabulary. Keep `outcome=` first. The comment carries four parts:
 
 1. **Outcome**: `cause-named` (one cause the evidence confirms), `causes-ranked` (candidates, none
    confirmed) or `not-reproduced` (the baseline runs did not show the broken state twice).

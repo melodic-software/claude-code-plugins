@@ -3935,6 +3935,7 @@ post as the lanes App ([Owner pull requests](#owner-pull-requests)).
 |---|---|---|
 | `idle-hours` | none | Hours both a person's PR (its activity, as the list above reads it) and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
 | `spec-from-body-apps` | `[]` | App ids whose PR bodies a script writes; such a PR closing no issue is judged against its title and body. |
+| `self-merging-apps` | `[]` | App ids that enqueue and merge their own PRs; pr-merge writes no reasons comment or risk escalation on one, and its score still holds pr-merge's own merge. |
 
 ## Review threads
 
