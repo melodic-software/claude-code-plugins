@@ -1258,6 +1258,10 @@ adoption:
   # the run that wrote the diff would also write its spec. Ids from
   # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
   spec-from-body-apps: [337859524, 300666570]
+  # Apps that enqueue and merge their own PRs: pr-merge writes no reasons
+  # comment or risk escalation on one, as no one acts on it (ADR 0048). Its
+  # score still holds pr-merge's own merge. melodic-plugin-release[bot].
+  self-merging-apps: [337859524]
 
 # Review bots, besides claude[bot] and the review lanes, whose review threads
 # pr-unblock's address-feedback works as the reviewer bot's: fix or explain,
