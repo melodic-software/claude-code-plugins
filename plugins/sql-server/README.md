@@ -195,9 +195,10 @@ What the list lets through, because it is a heuristic:
   `READ COMMITTED` read takes shared locks, releasing each row lock before it reads the next row.
   The guarantee is bounded blocking, not none: the lock timeout ends the read's own lock waits,
   and the request timeout, plus the time the server takes to act on the cancel, ends the read and
-  any wait it causes another session. It holds because the executor runs each read in autocommit
-  with `XACT_ABORT ON` and implicit transactions off; a cancel does not end an explicit
-  transaction. A read can still escalate to a table lock: escalation starts at 5,000 locks taken
+  any wait it causes another session. It rests on the executor running each read in autocommit
+  with `XACT_ABORT ON` and implicit transactions off, since a cancel does not end an explicit
+  transaction; the measurement's forced timeouts and its `XACT_ABORT` rows show a cancelled read
+  leaving no transaction open. A read can still escalate to a table lock: escalation starts at 5,000 locks taken
   by one statement on one table reference, and a read-committed bookmark lookup that uses
   `PREFETCH` can run part of a query at repeatable read
   ([locking guide](https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide),

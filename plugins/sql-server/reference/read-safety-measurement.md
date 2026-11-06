@@ -43,17 +43,35 @@ numbers leaves it accurate. If a rerun breaks one of these statements, revisit t
 
 Topology: one stdio server process per registration per client session stays the default.
 Connections grow by exactly `POOL_MAX` per busy process. The waiting-tasks table attributes every
-task that waited on another session, by waiter, blocker and wait class, and the worst-case line
-under it sums them over the runs. The guarantee it checks is bounded blocking, not none: with
-`READ_COMMITTED_SNAPSHOT` off a `READ COMMITTED` read takes shared locks, so a writer can wait on
-it. The lock timeout ends an agent's own lock waits; the request timeout ends the read, and any
-wait it causes, at the latest. The bounded-blocking check fails if an agent lock wait reaches the
-lock timeout, a wait on an agent session reaches the request timeout, or a transaction is left
-open. Compare the writer's slowest update in the topology table with its longest wait on an agent
-session in the worst-case line: any part of the slowest update that the waiting-tasks table does
-not show as a wait on an agent session was not a wait on a lock a read held, within one sampling
-interval. Which other resource it waited on (CPU, memory, I/O) this run does not record. Nothing measured here calls for a shared process (ADR 0086
-section 4); recheck if a consumer runs many concurrent sessions against one shared server.
+task that waited on another session, by waiter, blocker, whether the blocker was itself waiting,
+and wait class, and the worst-case line under it sums them over the runs. The guarantee it checks
+is bounded blocking, not none: Microsoft documents that with `READ_COMMITTED_SNAPSHOT` off a
+`READ COMMITTED` read takes shared locks, releasing each row lock before the next row
+([SET TRANSACTION ISOLATION LEVEL](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-transaction-isolation-level-transact-sql)),
+so a writer can wait on it, and that the lock timeout limits how long a statement waits for a lock
+([SET LOCK_TIMEOUT](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-lock-timeout-transact-sql)).
+The request timeout, plus the time the server takes to act on the cancel (the forced-timeout line
+below shows both), ends the read and any wait it causes. This rests on each read running in
+autocommit with `XACT_ABORT ON`, since a cancel ends the batch but not an explicit transaction
+([blocking](https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/performance/understand-resolve-blocking));
+the forced-timeout lines and the two raw-session rows of the read-controls table show it here.
+The bounded-blocking check fails if an agent lock wait reaches the lock timeout, a wait on an agent
+session that was not itself waiting reaches the request timeout, or a transaction is left open. A
+waiting task whose blocker SQL Server cannot identify can show a `blocking_session_id` of 0
+([sys.dm_exec_requests](https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-exec-requests-transact-sql)),
+so the table does not count it. The table-level lock count in the worst-case line is the
+escalation check: the locking guide starts escalation at 5,000 locks taken by one statement on one
+table reference and does not say whether locks already released count
+([locking guide](https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide)),
+so this measurement shows escalation did not happen here, not that it cannot. Compare the writer's
+slowest update in the topology table with its longest wait on an agent session in the worst-case
+line: any part of the slowest update that the waiting-tasks table does not show as a wait on an
+agent session was not a wait on a lock a read held, within one sampling interval. Which other
+resource it waited on (CPU, memory, I/O) this run does not record. Three runs is a judgment: SPEC
+CPU2017 accepts three runs per benchmark ([run rules](https://www.spec.org/cpu2017/Docs/runrules.html)),
+and no source read sets a count for a pass-or-fail bound check; three runs show the worst case,
+not the spread. Nothing measured here calls for a shared process (ADR 0086 section 4); recheck if
+a consumer runs many concurrent sessions against one shared server.
 
 The forced timeouts below ran with the shipped defaults: `grep -c 'open transactions after
 timeout: 0'` on this file counts them. The baseline rows show what the discard rule prevents: a

@@ -124,8 +124,11 @@ async function measure() {
     const lines = await runAll(lab, { image, digest, port, reader, work, runs });
     await lab.close();
 
+    // Re-read: the run takes minutes, and an edit to the prose around the block meanwhile must survive.
+    const current = readFileSync(docPath, 'utf8');
+    if (!current.includes(START) || !current.includes(END)) throw new Error(`${docPath} lost its results markers during the run`);
     const block = `${START}\n${lines.join('\n')}\n${END}`;
-    const updated = doc.slice(0, doc.indexOf(START)) + block + doc.slice(doc.indexOf(END) + END.length);
+    const updated = current.slice(0, current.indexOf(START)) + block + current.slice(current.indexOf(END) + END.length);
     writeFileSync(docPath, updated);
     console.log(lines.join('\n'));
     console.error(`wrote the results to ${docPath}`);
