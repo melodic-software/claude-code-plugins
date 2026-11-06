@@ -392,6 +392,11 @@ run
 assert_eq "a nested run-e2e value does not stop the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
 assert_contains "and is named on stderr with its file and line" "$(errs)" "$TY:2: warning: e2e_driver holds a nested value"
 assert_contains "for each key" "$(errs)" "$TY:5: warning: reuse_running_instance holds a nested value"
+# lib/read-verification.sh reads the verification keys from this file; the scan skips them.
+printf 'verification: light\nverification_skills:\n  cleanup: off\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
+run
+assert_eq "the verification keys in testing.yaml do not stop the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
+assert_eq "and print no scan record or warning" "::" "$(records verification):$(records verification_skills.cleanup):$(errs)"
 
 # --- e2e: the run-e2e keys, one line each: key, value, supplying layer ----------
 # erun [args...]: resolve the run-e2e keys; stdout in $out, stderr in $err.

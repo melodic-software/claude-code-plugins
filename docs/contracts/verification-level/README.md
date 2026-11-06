@@ -35,6 +35,9 @@ emits the results labeled unverified instead of skipping them.
 `verification: light (docs/conventions/implementation.yaml verification at origin/main, commit <sha>)`.
 
 - `verification_skills.<skill>` wins; otherwise `verification`; otherwise `standard`.
+- A plugin whose team file sits at a fixed path whatever the convention home passes it with
+  `--file <path>`, and the convention home is not read: `bugs`, `testing` and `mutation-testing`
+  pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
 - **Team layer only, read from the default branch.** Floor direction `team-only`
   ([config-cascade](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
   the file is read at `origin/<default>` after a fetch, never the working tree, so a branch cannot

@@ -287,7 +287,7 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    `model: opus`, for the reason step 4 (Classify) gives. Write its table to
    `<work>/skeptic-answer-<n>.md` and apply that file's reading rules: only a `cleared` row is a
    deletion candidate. Before the first skeptic, run
-   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin testing --skill cleanup` and copy
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin testing --skill cleanup --file docs/conventions/testing.yaml` and copy
    its line into `decisions.md` ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md));
    `standard` and `strict` are this step as written. Under `light`, and `off`, which acts as `light`
    here, dispatch no skeptic and never clear a candidate in this context instead: each row's skeptic

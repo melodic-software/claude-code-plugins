@@ -290,7 +290,7 @@ Refuted candidates are **retained with their refuting argument**: some kills are
 can overturn one, and the record stops the same dead candidate resurfacing. A gate's one-line side
 observation goes to the side observations.
 
-**Verification level.** Before the first gate, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin bugs --skill scan`
+**Verification level.** Before the first gate, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin bugs --skill scan --file docs/conventions/bugs.yaml`
 and copy its line into the run metadata ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 `standard` and `strict` are this step as written. The gate is this skill's product, so `light`,
 and `off`, which acts as `light` here, keep the candidates but label them: dispatch no gate,
