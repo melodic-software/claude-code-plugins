@@ -244,7 +244,7 @@ def strip_own_ref: sub(" *\\(#[0-9]+\\)$"; "");
 | (reduce ($all[] | {n: (.subject | capture("\\(#(?<n>[0-9]+)\\)$").n), sha, ct}) as $p ({}; .[$p.n] = $p)) as $by_pr
 | ($members | split("\n") | map(select(length > 0) | split("\t")
   | {deploy: .[0], sha: .[1], at: (.[2] | tonumber)})) as $mem
-| (reduce $scope[] as $d ({}; .[$d.sha] = $d.sha)
+| (reduce $all[] as $d ({}; .[$d.sha] = $d.sha)
    | reduce $mem[] as $m (.; .[$m.sha] //= $m.deploy)) as $owner
 | (reduce $mem[] as $m ({}; .[$m.deploy] += [$m.at])) as $member_at
 | (reduce ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")))[] as $m
@@ -277,7 +277,7 @@ def strip_own_ref: sub(" *\\(#[0-9]+\\)$"; "");
        | unique | map($by_pr[.] // empty | select(.ct <= $r.ct and .sha != $r.sha) | .sha) | unique) as $pr_targets
     # A merged commit titled as a revert counts when it names an earlier deployment.
     | ([($member_subjects[.sha] // [])[] | select(revert_form) | subject_targets(.)[]] | unique) as $member_targets
-    | (if ($named | length) > 0 then $by_sha
+    | (if ($by_sha | length) > 0 then $by_sha
        elif $own_revert and ($pr_targets | length) > 0 then $pr_targets
        elif $own_revert then subject_targets(.subject)
        else $member_targets

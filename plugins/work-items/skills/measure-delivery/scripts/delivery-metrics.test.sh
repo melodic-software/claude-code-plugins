@@ -142,6 +142,10 @@ change 1826 1826 rw.txt "revert(w): restore the old w text (#114)" -m "#113: the
 # revert still resolves a target that landed before --since.
 change 1848 1848 z.txt "feat: z (#115)"
 change 1872 1872 rz.txt "revert(z): drop z (#116)" -m "Reverts #115."
+# K lands on 2026-03-25 and its `This reverts commit` revert on 2026-03-26.
+change 1896 1896 k.txt "feat: k (#117)"
+K="$(sha HEAD)"
+change 1920 1920 rk.txt "revert(k): drop k (#118)" -m "This reverts commit $K."
 
 run() { bash "$S" --repo "$R" --branch main --since 2026-01-05 --until 2026-01-18 "$@"; }
 
@@ -211,6 +215,7 @@ revert_case "revert squash resolved by a quoted subject" 2026-03-20 '[2,1,1,0,2]
 revert_case "revert squash resolved by a 'This reverts commit' line" 2026-03-21 '[2,1,1,0,2]'
 revert_case "revert squash with no resolvable target is counted unresolved" 2026-03-22 '[2,0,1,1,null]'
 revert_case "revert squash resolves a target landed before --since" 2026-03-24 '[1,0,1,0,null]'
+revert_case "'This reverts commit' resolves a target landed before --since" 2026-03-26 '[1,0,1,0,null]'
 OUT="$(bash "$S" --repo "$R" --branch main --since 2026-03-16 --until 2026-03-22)" || fail "revert week exited non-zero"
 expect "revert week: unresolved count in the trend row" '[.trend[] | .unresolved_reverts]' '[1]'
 
