@@ -129,7 +129,12 @@ unchanged and bind every member.
    A member still unproven after its one retry is reported
    open, and the verified ledgers are kept and corrected. See the preflight's
    mid-fan-out rule; only a failed canary collapses the pass to the digest.
-2. **Collect** every ledger.
+2. **Collect** every ledger. Before step 3, each "clean (unconfirmed)"
+   ledger on load-bearing work gets the method doc's step 2 confirmation:
+   one fresh-context (non-fork) subagent per corrector, under the same level
+   rule. Its findings join that corrector's ledger, so they pass through step
+   3's dedup and step 4's rank order like any other entry. Under `light` or
+   `off` the ledger stays "clean (self-audit only)".
 3. **Dedup by root cause.** Before correcting, group ledger entries across
    correctors that name the SAME underlying finding. Distinct disciplines
    routinely surface one root cause as separate entries (e.g. a recall-based
@@ -169,11 +174,9 @@ unchanged and bind every member.
    not waive that escalation; only a `light` or `off` verification level
    (SKILL.md) skips it, as the method doc says. (The fork *audit* inherits context on purpose:
    step 2 is a same-context self-audit; this carve-out is about step 4.)
-   Each "clean (unconfirmed)" ledger on load-bearing work gets the method
-   doc's step 2 confirmation here: one fresh-context (non-fork) subagent per
-   corrector, under the same level rule; under `light` or `off` the report
-   lists it as "clean (self-audit only)".
 5. **Report** one consolidated ledger: per corrector. Corrected / clean /
    open; a root-cause finding merged in step 3 is listed once, attributed to
-   every corrector that reported it; plus which situational members ran versus
+   every corrector that reported it; a finding from the step 2 confirmation
+   is listed under the corrector whose ledger it joined, marked as found by
+   the confirmation; plus which situational members ran versus
    were skipped, and which never-members exist for direct use.
