@@ -4,7 +4,7 @@
 // list is bounded, and `get` spends the run's call budget.
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unblock/escalation-routes.mjs";
-import { HOLD_LANES, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
+import { HOLD_LANES, holdJob, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 import { stepsKnown } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
 export const LIMITS = {
@@ -40,14 +40,16 @@ export const LIMITS = {
   stalledChecks: 20,
   // Uncarried green runs per hold lane read in one window, oldest completion
   // first, unless the lane sets its own (signals.mjs HOLD_LANES holdRuns):
-  // up to holdListPages run list pages, then a jobs read and one annotation
-  // read per job that prints a hold, so at most 4 × 3 + (3 × 6 + 40) × 2
-  // calls while each run has one such job. Past it, the span stops at the
-  // last run read and the window is a gap.
+  // up to holdListPages run list pages (pr-verify's own 5, pr-review-main's
+  // 4), then a jobs read and one annotation read per job that prints a hold
+  // (for both, only a job whose `Note the hold` ran), so at most 4 × 3 + 5 +
+  // 4 + (2 × 6 + 20 + 40 + 80 + 70) × 2 calls while each run has one such job. Past it, the span stops
+  // at the last run read and the window is a gap.
   holdRuns: 6,
-  // Run list pages of 100 per hold lane: intake-triage listed up to 151 green
-  // runs over the 7-hour created span in the 7 days to 2026-11-05. A lane with
-  // more is a gap, since its oldest-created runs go unlisted.
+  // Run list pages of 100 per hold lane, unless the lane sets its own
+  // (HOLD_LANES listPages): intake-triage listed up to 151 green runs over the
+  // 7-hour created span in the 7 days to 2026-11-05. A lane with more is a
+  // gap, since its oldest-created runs go unlisted.
   holdListPages: 3,
   // Held runs the carry keeps, newest first.
   holdsKept: 300,
@@ -536,7 +538,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns, statuses = ["success"] } of HOLD_LANES) {
+      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
         // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
         for (const status of statuses) {
@@ -548,7 +550,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
               listed.add(r.id);
             }
             if (listing.workflow_runs.length < 100 || listed.size >= (listing.total_count ?? 0)) break;
-            if (page >= LIMITS.holdListPages) throw new Error(`over ${LIMITS.holdListPages * 100} ${status === "success" ? "green" : "red"} runs of ${lane} listed; the oldest were not read`);
+            if (page >= listPages) throw new Error(`over ${listPages * 100} ${status === "success" ? "green" : "red"} runs of ${lane} listed; the oldest were not read`);
           }
         }
         const unread = [...runs.values()]
@@ -561,7 +563,12 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         for (const run of unread.slice(0, cap)) {
           const key = `${lane}:${run.id}`;
           const found = [];
-          for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && jobs.includes(j.name))) {
+          // With holdStep, only a job whose listing shows that step succeeded
+          // printed a hold, so only its annotations are read; a job listed
+          // with no steps (the jobs API can list them empty) is read too.
+          const printed = (j) =>
+            holdStep === undefined || !Array.isArray(j.steps) || j.steps.length === 0 || j.steps.some((s) => s?.name === holdStep && s.conclusion === "success");
+          for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && holdJob(jobs, j.name) && printed(j))) {
             for (const a of await annotationsOf(job.id)) {
               const hold = parseHold(a.title, a.message, a.annotation_level);
               if (hold) found.push(hold);

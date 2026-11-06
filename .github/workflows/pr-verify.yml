@@ -202,14 +202,6 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
-      # A GitHub fault held the resolver green with a `held: ` notice and
-      # proceed=false (resolve-pr.mjs closing). This step marks the run so the
-      # lost-run reconciler finds it from the jobs listing and re-runs it once
-      # on its next pass (reconcile.mjs faultHeld).
-      - name: Note the hold
-        if: steps.pr.outputs.reason == 'held'
-        run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
-
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list.
       - name: Check the trigger
@@ -225,6 +217,25 @@ jobs:
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          # A stop a GitHub fault caused reads read-fault, not the refusal's
+          # reason, so the next step can mark it held; it still stops.
+          fault-reason: "true"
+
+      # A GitHub fault held the resolver green with a `held: ` notice and
+      # proceed=false (resolve-pr.mjs closing), or stopped the trigger gate
+      # with reason read-fault, which this step's notice reports. It marks the
+      # run so the lost-run reconciler finds it from the jobs listing and
+      # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
+      # gate checks the trigger again.
+      - name: Note the hold
+        if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
+        env:
+          GATE_REASON: ${{ steps.gate.outputs.reason }}
+        run: |
+          if [[ $GATE_REASON == read-fault ]]; then
+            echo "::notice title=pr-verify::held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged"
+          fi
+          echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
@@ -2255,14 +2266,6 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
-      # A GitHub fault held the resolver green with a `held: ` notice and
-      # proceed=false (resolve-pr.mjs closing). This step marks the run so the
-      # lost-run reconciler finds it from the jobs listing and re-runs it once
-      # on its next pass (reconcile.mjs faultHeld).
-      - name: Note the hold
-        if: steps.pr.outputs.reason == 'held'
-        run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
-
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list. A re-run github-actions[bot] started passes
       # only as the lost-run reconciler's recorded re-run of this run.
@@ -2279,6 +2282,25 @@ jobs:
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          # A stop a GitHub fault caused reads read-fault, not the refusal's
+          # reason, so the next step can mark it held; it still stops.
+          fault-reason: "true"
+
+      # A GitHub fault held the resolver green with a `held: ` notice and
+      # proceed=false (resolve-pr.mjs closing), or stopped the trigger gate
+      # with reason read-fault, which this step's notice reports. It marks the
+      # run so the lost-run reconciler finds it from the jobs listing and
+      # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
+      # gate checks the trigger again.
+      - name: Note the hold
+        if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
+        env:
+          GATE_REASON: ${{ steps.gate.outputs.reason }}
+        run: |
+          if [[ $GATE_REASON == read-fault ]]; then
+            echo "::notice title=pr-verify::held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged"
+          fi
+          echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
@@ -4156,14 +4178,6 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
-      # A GitHub fault held the resolver green with a `held: ` notice and
-      # proceed=false (resolve-pr.mjs closing). This step marks the run so the
-      # lost-run reconciler finds it from the jobs listing and re-runs it once
-      # on its next pass (reconcile.mjs faultHeld).
-      - name: Note the hold
-        if: steps.pr.outputs.reason == 'held'
-        run: echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
-
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list. A re-run github-actions[bot] started passes
       # only as the lost-run reconciler's recorded re-run of this run.
@@ -4180,6 +4194,25 @@ jobs:
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          # A stop a GitHub fault caused reads read-fault, not the refusal's
+          # reason, so the next step can mark it held; it still stops.
+          fault-reason: "true"
+
+      # A GitHub fault held the resolver green with a `held: ` notice and
+      # proceed=false (resolve-pr.mjs closing), or stopped the trigger gate
+      # with reason read-fault, which this step's notice reports. It marks the
+      # run so the lost-run reconciler finds it from the jobs listing and
+      # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
+      # gate checks the trigger again.
+      - name: Note the hold
+        if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
+        env:
+          GATE_REASON: ${{ steps.gate.outputs.reason }}
+        run: |
+          if [[ $GATE_REASON == read-fault ]]; then
+            echo "::notice title=pr-verify::held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged"
+          fi
+          echo "pr-verify held on a GitHub fault; the lost-run reconciler re-runs this run once"
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.

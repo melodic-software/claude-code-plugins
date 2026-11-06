@@ -11,6 +11,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { admits } from "../lib/gate-expression.mjs";
+import { heldNoted } from "../maintenance-reconcile-lost-runs/reconcile.mjs";
+import { HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
 const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf8");
@@ -921,6 +923,7 @@ test("the key leg takes the trigger job's gate only from this attempt, and every
       "head-sha=${{ steps.gate.outputs.head-sha }}",
       "base-sha=${{ steps.gate.outputs.base-sha }}",
       "judged=${{ steps.judged.outputs.judged }}",
+      "held=${{ steps.select.outputs.held }}",
       "main-sha=${{ steps.main.outputs.main-sha }}",
     ],
   );
@@ -939,7 +942,7 @@ test("the key leg takes the trigger job's gate only from this attempt, and every
   for (const job of LEGS) {
     const take = step("Take the gate's result", job);
     assert.ok(index("Select a lane-source pull request", job) < index("Take the gate's result", job), job);
-    assert.match(take, /^ {8}if: steps\.switch\.outputs\.proceed == 'true'$/m);
+    assert.match(take, /^ {8}if: steps\.switch\.outputs\.proceed == 'true' && steps\.select\.outputs\.held != 'true'$/m);
     assert.equal(input(take, "CARRIED"), job === KEY ? "${{ needs.trigger.outputs.run-attempt == github.run_attempt }}" : '"false"', job);
     // Every value is checked against a fixed shape before it leaves the step.
     assert.ok(take.includes("$review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$"), job);
@@ -1047,9 +1050,10 @@ function filesHarness() {
   return { run, remove: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-// Every select reads the files up to 3 times, and a list still unread ends
-// the step red, the failure the lost-run reconciler re-runs once.
-test("each select reads the files again after a failure and ends red on a list still unread", () => {
+// Every select reads the files up to 3 times, and a list still unread holds
+// the step green with a `held: ` notice and no review, which the lost-run
+// reconciler re-runs once (reconcile.mjs faultHeld).
+test("each select reads the files again after a failure and holds green on a list still unread", () => {
   const triggerSelect = jobText("trigger").split(/\n(?=      - name: )/).find((s) => s.startsWith("      - name: Select a lane-source pull request\n"));
   const harness = filesHarness();
   try {
@@ -1069,12 +1073,15 @@ test("each select reads the files again after a failure and ends red on a list s
       assert.equal(third.out, "review=true\n", job);
       assert.equal(third.calls.split("\n").filter(Boolean).length, 3, job);
       assert.equal(third.sleeps.split("\n").filter(Boolean).length, 2, job);
-      // Three failures: no fourth read, no result, and the step fails.
+      // Three failures: no fourth read, no review answer, and the step holds
+      // green with the notice the reconciler reads.
       const unread = harness.run(run, { PR_NUMBER: "7", GH_FAIL: "9", GH_PATHS: "README.md" });
-      assert.equal(unread.status, 1, job);
-      assert.equal(unread.out, "", job);
+      assert.equal(unread.status, 0, `${job}: ${unread.stderr}`);
+      assert.equal(unread.out, "held=true\n", job);
       assert.equal(unread.calls.split("\n").filter(Boolean).length, 3, job);
-      assert.match(unread.stdout, /^::error::the file list did not read \(failed 3 times\); no review, so the lanes stay unbound$/m, job);
+      assert.match(unread.stdout, /^::notice title=pr-review-main::held: the file list did not read \(failed 3 times\); no review, and the lost-run reconciler re-runs this run once$/m, job);
+      assert.ok(heldNoted([{ annotation_level: "notice", message: /^::notice title=pr-review-main::(.*)$/m.exec(unread.stdout)[1] }]), job);
+      assert.doesNotMatch(unread.stdout, /::error::/, job);
     }
   } finally {
     harness.remove();
@@ -1083,7 +1090,7 @@ test("each select reads the files again after a failure and ends red on a list s
 
 // The key leg's job-level skip: no leg starts when this attempt's trigger job
 // found no lane source, or a head both lanes already reviewed.
-const KEY_SKIP = "      && (needs.trigger.outputs.run-attempt != github.run_attempt\n      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true')\n";
+const KEY_SKIP = "      && (needs.trigger.outputs.run-attempt != github.run_attempt\n      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')\n";
 
 // The record job runs once a leg could have reviewed: the key leg, or a
 // subscription leg the credit gate's skip of the key leg handed every lane to.
@@ -1101,8 +1108,42 @@ test("no leg starts, and nothing records, for a head with no lane source or one 
   for (const term of GO_AHEAD) assert.ok(jobGate("review-handoffs").includes(`&& ${term}`), term);
 });
 
-// This attempt's trigger job starts the key leg: a lane-source head not yet judged.
-const GO_AHEAD = ["needs.trigger.outputs.run-attempt == github.run_attempt", "needs.trigger.outputs.proceed == 'true'", "needs.trigger.outputs.review == 'true'", "needs.trigger.outputs.judged != 'true'"];
+// A select whose file list did not read holds: Note the hold (the step the
+// reconciler's faultHeld looks for) runs, and no lane reviews after it, in
+// the trigger job or in any leg.
+test("a held file list marks the run and starts no review, in the trigger job and every leg", () => {
+  const selected = (held) => ({ steps: { switch: { outputs: { proceed: "true" } }, select: { outputs: held === undefined ? {} : { held } } } });
+  const triggerSteps = stepsOf("trigger");
+  for (const [job, steps] of [["trigger", triggerSteps], ...LEGS.map((job) => [job, STEPS[job]])]) {
+    const names = steps.map((s) => s.name);
+    // The marker is the step right after the select, under faultHeld's name.
+    assert.equal(names[names.indexOf("Select a lane-source pull request") + 1], HELD_STEP, job);
+    const marker = /^ {8}if: (.*)$/m.exec(steps.find((s) => s.name === HELD_STEP).block)[1];
+    assert.ok(admits(marker, selected("true")), job);
+    for (const held of [undefined, "", "false"]) assert.ok(!admits(marker, selected(held)), `${job}: ${held}`);
+    if (job === "trigger") continue;
+    // A held leg takes no gate result, so its diff and review never run.
+    const take = /^ {8}if: (.*)$/m.exec(step("Take the gate's result", job))[1];
+    assert.ok(admits(take, selected(undefined)), job);
+    assert.ok(!admits(take, selected("true")), job);
+  }
+  // A trigger job that held starts no key leg, even with a lane-source answer
+  // from the event's own read, and hands nothing to the subscription leg.
+  const held = { ...triggered, outputs: { ...triggered.outputs, held: "true" } };
+  const probe = { result: "success", outputs: {} };
+  const keyRuns = (trigger) => admits(jobGate(KEY), { github: upstreamRun, needs: { trigger, [PROBE]: probe } });
+  assert.ok(keyRuns(triggered));
+  assert.ok(!keyRuns(held));
+  const handsOn = (trigger) => admits(jobGate("review-handoffs"), { github: upstreamRun, needs: { trigger, review: { result: "skipped", outputs: {} }, [PROBE]: { result: "success", outputs: { "skip-key": "true" } } } });
+  assert.ok(handsOn(triggered));
+  assert.ok(!handsOn(held));
+  // A lane a person re-runs alone gates itself, so an earlier attempt's hold does not stop it.
+  assert.ok(keyRuns({ ...held, outputs: { ...held.outputs, "run-attempt": "0" } }));
+});
+
+// This attempt's trigger job starts the key leg: a lane-source head not yet
+// judged, whose file list read.
+const GO_AHEAD = ["needs.trigger.outputs.run-attempt == github.run_attempt", "needs.trigger.outputs.proceed == 'true'", "needs.trigger.outputs.review == 'true'", "needs.trigger.outputs.judged != 'true'", "needs.trigger.outputs.held != 'true'"];
 
 const jobGate = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))?.[1].replace(/\s+/g, " ").trim();
 const upstreamRun = { ref: "refs/heads/main", repository: "o/r", run_attempt: "1", event: { workflow_run: { event: "pull_request", conclusion: "success", head_repository: { full_name: "o/r" } } } };
@@ -1176,7 +1217,7 @@ test("the credit gate writes, scans and uploads the probing marker right after t
   assert.match(write, /^ {8}id: probe-marker$/m);
   const writeIf = /^ {8}if: (.*)$/m.exec(write)[1];
   // The review job's trigger terms: only a run whose key legs start probes the key.
-  assert.equal(writeIf, `always() && steps.gate.outputs.probing-marker == '${probe}' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true'`);
+  assert.equal(writeIf, `always() && steps.gate.outputs.probing-marker == '${probe}' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true'`);
   assert.equal(triggered.outputs.proceed, "true");
   // Written when the gate names this probe and the key legs start; not when it names none
   // or a renamed one, or when the trigger found no lane source or a head already judged.
@@ -1184,7 +1225,7 @@ test("the credit gate writes, scans and uploads the probing marker right after t
     admits(writeIf.replace(/^always\(\) && /, ""), { steps: { gate: { outputs: { "probing-marker": output } } }, needs: { trigger: { outputs } } });
   assert.ok(writes(probe));
   for (const output of ["", "key-credit-probing-pr-review-main.yml-other"]) assert.ok(!writes(output), output);
-  for (const outputs of [{ judged: "true" }, { review: "false" }, { proceed: "" }, { proceed: "false" }]) {
+  for (const outputs of [{ judged: "true" }, { review: "false" }, { proceed: "" }, { proceed: "false" }, { held: "true" }]) {
     assert.ok(!writes(probe, { ...triggered.outputs, ...outputs }), JSON.stringify(outputs));
   }
   assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
