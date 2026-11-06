@@ -272,8 +272,8 @@ def strip_own_ref: sub(" *\\(#[0-9]+\\)$"; "");
     | (.subject | revert_form) as $own_revert
     # Pull requests a revert names: `Reverts [owner/repo]#<n>` in its body, or a
     # `(#<n>` group in its subject other than its own trailing number.
-    | ([(.body | scan("(?i)\\breverts\\s+(?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#([0-9]+)") | .[0]),
-        (.subject | strip_own_ref | scan("\\(#([0-9]+)\\b") | .[0])]
+    | ([(.body | scan("(?i)(?:^|[^A-Za-z0-9_])reverts[ \t]+(?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#([0-9]+)") | .[0]),
+        (.subject | strip_own_ref | scan("\\(#([0-9]+)") | .[0])]
        | unique | map($by_pr[.] // empty | select(.ct <= $r.ct and .sha != $r.sha) | .sha) | unique) as $pr_targets
     # A merged commit titled as a revert counts when it names an earlier deployment.
     | ([($member_subjects[.sha] // [])[] | select(revert_form) | subject_targets(.)[]] | unique) as $member_targets
