@@ -32,6 +32,9 @@ const NATIVE_FAILURE = 'failed to load the @microsoft/tui-test native addon: Can
 // Every session socket in this file lives under a private runtime directory of its own.
 const RUNTIME = mkdtempSync(join(tmpdir(), 'ccd-rt-'));
 process.env.XDG_RUNTIME_DIR = RUNTIME;
+// A runner that exports either would move the sockets or send launch, ready and log to a broker.
+delete process.env.CCD_RUNTIME_DIR;
+delete process.env.CCD_BROKER_SOCK;
 after(() => rmSync(RUNTIME, { recursive: true, force: true }));
 let sessions = 0;
 const session = () => `t${process.pid}-${++sessions}`;
