@@ -131,8 +131,8 @@ unchanged and bind every member.
    mid-fan-out rule; only a failed canary collapses the pass to the digest.
 2. **Collect** every ledger. Before step 3, each "clean (unconfirmed)"
    ledger on load-bearing work gets the method doc's step 2 confirmation:
-   one fresh-context (non-fork) subagent per corrector, under the same level
-   rule. Its findings join that corrector's ledger, so they pass through step
+   one fresh-context (non-fork) subagent per corrector, under the level SKILL.md
+   resolves before this step. Its findings join that corrector's ledger, so they pass through step
    3's dedup and step 4's rank order like any other entry. Under `light` or
    `off` the ledger stays "clean (self-audit only)".
 3. **Dedup by root cause.** Before correcting, group ledger entries across
