@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#501 is the cluster parent: it is the reproduced member. It gets agent-ready; #487 closes as its duplicate.",
+      "why": "names #501 as the parent"
+    },
+    {
+      "answer": "One cluster on ERR_ROW_OVERFLOW. Parent: #501 (oldest member with a confirmed reproduction).",
+      "why": "names #501 as the parent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#487 is the parent as the oldest item; #501 closes as its duplicate.",
+      "why": "names the wrong parent"
+    },
+    {
+      "answer": "#487 is the cluster parent as the oldest; #501 closes as a duplicate of the parent.",
+      "why": "names the wrong parent; #501 sits near the word parent without being it"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
