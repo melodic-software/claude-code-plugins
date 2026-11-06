@@ -107,4 +107,4 @@ printf '%s' "${key: -20}" | jq -R --arg w "$HOME/w" \
 
 touch "$probe/done"
 printf '%s' "$key" | exec node "$driver/broker.mjs" --socket "$rt/broker/broker.sock" --driver "$driver/driver.mjs" \
-  --root "$ws/head" --root "$ws/capture-run" --deps-dir /opt/ccd/deps >>"$rt/log/broker.log" 2>&1
+  --root "$ws/head" --root "$ws/capture-run" --deps-dir /opt/ccd/deps --in-sandbox >>"$rt/log/broker.log" 2>&1
