@@ -843,6 +843,7 @@ class Unattended(unittest.TestCase):
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
         self.pin_lines: list[str] = []
+        self.evidence_bodies: list[str] = []
         self.rules = QUEUE_RULES
         # -1: the queue re-read is whole; any other count truncates it.
         self.entries_total: int | None = -1
@@ -994,7 +995,7 @@ class Unattended(unittest.TestCase):
         self.in_flight = mock.Mock(return_value=self.flight)
         self.read_cap = mock.Mock(return_value=self.cap)
 
-        def gh_json(args: list[str]) -> Any:
+        def gh_json(args: list[str], env: Any = None) -> Any:
             if args[:2] == ["pr", "view"]:
                 return self.pr_view
             if args[:2] == ["api", "graphql"]:
@@ -1176,6 +1177,10 @@ class Unattended(unittest.TestCase):
             self.pin_lines.append(body.removeprefix("body=").split("\n", 1)[0])
         elif "babysit-merge-risk" in joined:
             self.log.append("risk-comment:" + args[2])
+        elif "<!-- evidence-verification -->" in joined:
+            self.log.append("evidence-comment:" + args[2])
+            body = next(a for a in args if a.startswith("body="))
+            self.evidence_bodies.append(body.removeprefix("body="))
         elif "disablePullRequestAutoMerge" in joined:
             self.log.append("disarm")
         elif "dequeuePullRequest" in joined:
@@ -1475,6 +1480,123 @@ class LaneMode(Unattended):
         self.assertEqual(
             out["unattended"]["enqueue"]["killSwitch"],
             {"proceed": True, "reason": "proceed"},
+        )
+
+    def capture_artifact(self, run: dict[str, Any] | None = None) -> None:
+        """A `pr-capture-<pr>-<head>` artifact whose run is `run`, by default
+        the capture workflow's on main for this head."""
+        name = f"pr-capture-{PR}-{HEAD}"
+        listing = f"repos/owner/repo/actions/artifacts?name={name}&per_page=100"
+        self.compare_answers[listing] = {
+            "total_count": 1,
+            "artifacts": [
+                {
+                    "id": 5001,
+                    "name": name,
+                    "expired": False,
+                    "expires_at": "2026-12-06T10:00:00Z",
+                    "workflow_run": {"id": 900},
+                }
+            ],
+        }
+        self.compare_answers["repos/owner/repo/actions/runs/900"] = run or {
+            "id": 900,
+            "path": ".github/workflows/pr-verify-capture.yml",
+            "event": "workflow_run",
+            "head_branch": "main",
+            "repository": {"full_name": "owner/repo"},
+            "conclusion": "success",
+            "display_title": f"pr-verify-capture 812 {HEAD}",
+        }
+
+    def test_merge_pr_path_a_pass_and_a_capture_post_one_evidence_comment_then_enqueue(
+        self,
+    ) -> None:
+        self.capture_artifact()
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(
+            self.log,
+            ["pin", "evidence-comment:POST", f"enqueue:{HEAD}:merge_queue"],
+        )
+        self.assertEqual(out["unattended"]["enqueue"]["evidenceComment"], "created")
+        (body,) = self.evidence_bodies
+        self.assertTrue(body.startswith("<!-- evidence-verification -->\n"))
+        self.assertIn(f"Verification evidence for {HEAD}", body)
+        self.assertIn(
+            f"[pr-capture-{PR}-{HEAD}](https://github.com/owner/repo/actions/runs/"
+            "900/artifacts/5001), expires on 2026-12-06.",
+            body,
+        )
+
+    def test_merge_pr_path_an_earlier_evidence_comment_is_updated_in_place(
+        self,
+    ) -> None:
+        self.capture_artifact()
+        self.comments = [
+            {
+                "id": 77,
+                "user": {"login": IDENTITY, "type": "Bot"},
+                "body": "<!-- evidence-verification -->\n### Verification evidence for "
+                + "e" * 40,
+                "created_at": "2026-11-01T00:00:00Z",
+            }
+        ]
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(
+            self.log,
+            ["pin", "evidence-comment:PATCH", f"enqueue:{HEAD}:merge_queue"],
+        )
+
+    def test_merge_pr_path_no_capture_artifact_posts_nothing_and_enqueues(
+        self,
+    ) -> None:
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertEqual(
+            out["unattended"]["enqueue"]["evidenceComment"], "no-capture"
+        )
+
+    def test_merge_pr_path_an_artifact_from_another_workflow_is_not_linked(
+        self,
+    ) -> None:
+        # A pull request's own workflow can upload an artifact by the same name.
+        self.capture_artifact(
+            {
+                "id": 900,
+                "path": ".github/workflows/ci.yml",
+                "event": "pull_request",
+                "head_branch": "feat",
+                "repository": {"full_name": "owner/repo"},
+                "conclusion": "success",
+                "display_title": f"pr-verify-capture 812 {HEAD}",
+            }
+        )
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_merge_pr_path_a_failed_evidence_write_still_enqueues(self) -> None:
+        self.capture_artifact()
+        real = self._capture
+
+        def failing(args: list[str]) -> Any:
+            if "<!-- evidence-verification -->" in " ".join(args):
+                self.log.append("evidence-comment:failed")
+                return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
+            return real(args)
+
+        self._capture = failing  # type: ignore[method-assign]
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(
+            self.log,
+            ["pin", "evidence-comment:failed", f"enqueue:{HEAD}:merge_queue"],
+        )
+        self.assertEqual(
+            out["unattended"]["enqueue"]["evidenceComment"], "error: HTTP 502"
         )
 
     def test_the_pin_names_the_rung_the_lane_enqueued_under(self) -> None:
