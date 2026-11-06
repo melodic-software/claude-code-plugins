@@ -171,7 +171,7 @@ not flag. One entry with counts present and no warning is an ordinary success.
 Link harvest covers **post-text links only**.
 
 **Reply-chain harvest is optional and agent-lane.** When the status is the head of a thread whose
-replies carry material the digest needs, invoke `/x:read` via the Skill tool to unroll the chain
+replies carry material the digest needs, invoke `/x:read` via the Skill tool (if the `x` plugin is installed; otherwise say once that the `x` plugin would unroll the replies, and go on without them) to unroll the chain
 and fold the result in
 as companion source material (`../../context/companion-primary-sources.md`). This is a judgment call per
 watch, not a pipeline stage. The acquisition layer never walks replies.
