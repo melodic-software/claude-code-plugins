@@ -249,7 +249,7 @@ export function readRollup({ repo, since, until, identity, gh = defaultGh, today
 export const formatRollup = ({ repo, since, until, paths }) =>
   [
     `${repo} merges ${since}..${until} (UTC, both days included)`,
-    "| Path | Merges | Reverts | Escaped defects |",
+    "| Path | Merges | Reverts | Escaped defects (cited by a later fix, upper bound) |",
     "|---|---:|---:|---:|",
     ...Object.entries(paths)
       .sort(([a], [b]) => a.localeCompare(b))

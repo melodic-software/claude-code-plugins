@@ -164,7 +164,7 @@ test("rollup: merges, reverts and escapes per path for merges in the window", ()
     formatRollup(result),
     [
       "o/r merges 2026-10-17..2026-10-19 (UTC, both days included)",
-      "| Path | Merges | Reverts | Escaped defects |",
+      "| Path | Merges | Reverts | Escaped defects (cited by a later fix, upper bound) |",
       "|---|---:|---:|---:|",
       "| lanes | 2 | 1 | 1 |",
       "| other | 1 | 0 | 0 |",
