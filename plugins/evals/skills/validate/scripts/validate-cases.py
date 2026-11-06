@@ -125,9 +125,12 @@ Recheck when that table adds or drops a value.
 Drift record. CLAIM: a case.yaml `context.history_file` holding more than one
 record is a FAIL unless the records form one chain: each has a `uuid`, the
 first has `parentUuid: null`, and each later one has the previous record's
-`uuid`. A record that is not JSON is a FAIL too. BASIS: the plugin-evals page's
-case.yaml field table says only "A `.jsonl` transcript in the case directory to
-resume" (https://code.claude.com/docs/en/plugin-evals, read 2026-11-06); the
+`uuid`. A record that is not JSON is a FAIL too. A record whose `type` is not
+`user`, `assistant` or `system` and that carries no `uuid`, such as a `summary`
+or `file-history-snapshot` line, is off the chain and skipped. BASIS: the
+plugin-evals page's case.yaml field table says only "A `.jsonl` transcript in
+the case directory to resume" (https://code.claude.com/docs/en/plugin-evals,
+read 2026-11-06); the
 chain rule is the #13860 report of Claude Code 2.1.319's resume warning, which
 says the loader walks `parentUuid` back from the last record, and the adhd
 cases it found, where an unchained transcript resumed only its last record. AS
@@ -955,12 +958,34 @@ def check_plugins(case_dir, root, value, case, path, findings):
         )
 
 
+CHAIN_RECORD_TYPES = ("user", "assistant", "system")
+
+
+def on_history_chain(record):
+    """Whether a history record belongs on the uuid/parentUuid chain: every
+    message record, and any other record that carries a uuid. A non-message
+    record with no uuid (a `summary` or `file-history-snapshot` line) is off
+    the chain and skipped."""
+    if not isinstance(record, dict):
+        return True
+    return record.get("type") in CHAIN_RECORD_TYPES or "uuid" in record
+
+
+def history_chain_records(records):
+    """The (1-based record number, record) pairs on the chain."""
+    return [
+        (number, record)
+        for number, record in enumerate(records, start=1)
+        if on_history_chain(record)
+    ]
+
+
 def history_chain_break(records):
-    """The first record that breaks the uuid/parentUuid chain, as
+    """The first chain record that breaks the uuid/parentUuid chain, as
     (1-based record number, problem), or None when every link holds."""
     seen = set()
     previous = None
-    for number, record in enumerate(records, start=1):
+    for number, record in history_chain_records(records):
         uuid = record.get("uuid") if isinstance(record, dict) else None
         if not isinstance(uuid, str) or not uuid:
             return number, "has no uuid"
@@ -1005,7 +1030,7 @@ def check_history_chain(case_dir, case, history_file, findings):
                 )
             )
             return
-    if len(records) < 2:
+    if len(history_chain_records(records)) < 2:
         return
     broken = history_chain_break(records)
     if broken is None:

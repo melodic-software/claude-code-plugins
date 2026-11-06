@@ -1735,6 +1735,21 @@ class HistoryChain(ValidatorTestCase):
                 self.resumed(history_records(*links))
                 self.assert_fail(self.validate(), "history_file " + message)
 
+    def test_non_message_records_without_a_uuid_are_skipped(self):
+        summary = json.dumps({"type": "summary", "summary": "x", "leafUuid": "u2"})
+        snapshot = json.dumps({"type": "file-history-snapshot", "messageId": "m"})
+        lines = history_records(("u1", None), ("u2", "u1")).split("\n")
+        history = "\n".join([summary, lines[0], snapshot, lines[1]]) + "\n"
+        self.resumed(history)
+        self.assert_clean(self.validate())
+
+    def test_a_message_record_without_a_uuid_still_fails(self):
+        summary = json.dumps({"type": "summary", "summary": "x", "leafUuid": "u2"})
+        self.resumed(
+            summary + "\n" + history_records(("u1", None), (Ellipsis, "u1"))
+        )
+        self.assert_fail(self.validate(), "history_file record 3 has no uuid")
+
     def test_a_record_that_is_not_json_fails(self):
         self.resumed(history_records(*CHAINED) + "{not json\n")
         self.assert_fail(self.validate(), "history_file record 4 is not JSON")
