@@ -72,9 +72,13 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
   received. The same plain read pipeline that reads only there is set
-  aside the same way, also after opening `NAME=value` commands whose names it expands
-  (`F=<saved>; grep -n x "$F"`). Any other Bash call (a
-  redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside that
+  aside the same way, also after opening `NAME=value` commands whose names it expands, where a value
+  with a `/` must be a path there and any other value a plain literal such as a pattern or count
+  (`F=<saved>; N=40; head -n "$N" "$F"`), after one opening `cd` there whose directory
+  relative paths then resolve against (`cd <dir>; sed -n 1,9p <file>`), and as several such
+  pipelines joined by `;` or `&&`. Any other Bash call (a redirect, another command, a `||`, `&` or
+  subshell, a `cd` with a flag or not first, an assignment to `PATH`, `IFS` or another name that
+  changes how the shell or a reader works, an unquoted glob, brace or `$`, or a path outside that
   directory), a write, or any other
   path in the config directory (`settings.json` included) keeps the rules below. The third applies
   only under `--own-copy-search-warns`, which the broken side of a negative control passes: a
