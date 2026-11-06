@@ -707,3 +707,6 @@ lib/read-verification.sh plugins/event-storming/lib/read-verification.sh
 lib/config-root.sh plugins/event-storming/lib/config-root.sh
 lib/yaml-subset.awk plugins/event-storming/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/event-storming/lib/resolve-convention-home.sh
+lib/read-verification.sh plugins/work-items/lib/read-verification.sh
+lib/config-root.sh plugins/work-items/lib/config-root.sh
+lib/yaml-subset.awk plugins/work-items/lib/yaml-subset.awk

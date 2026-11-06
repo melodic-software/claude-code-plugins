@@ -253,16 +253,28 @@ The work skill's "Selection Priority" section says how it is read.
 `bug_path.mode` also lives only in the repository file. With `full`, the
 default, `/work-items:work` runs a bug item through to a fix and a draft pull
 request. With `investigate`, it stops after the root cause: it opens no branch,
-writes no fix and opens no pull request. Instead it posts one marker comment on
-the item with the outcome, the reproduction evidence, the ranked causes and the
-access that was missing. CI mode (`--issue <n> --ci`) does not read the key and
-runs a bug item through to a fix. The work skill's "Investigate mode" section
-says how it is read.
+writes no fix and opens no pull request. Both modes keep one report comment on
+the item, edited in place: a status line, the outcome, the reproduction
+evidence, the ranked causes, a test-gap line, an instruction to the fixing
+agent, the access that was missing and the quoted report. CI mode
+(`--issue <n> --ci`) does not read the key and runs a bug item through to a
+fix. The work skill's "Bug report" and "Investigate mode" sections say how it
+is read.
 
 ```yaml
 bug_path:
   mode: investigate
 ```
+
+`verification` and `verification_skills.<skill>` (`off`, `light`, `standard`
+or `strict`, default `standard`) also live only in the repository file, and are
+read from the default branch through `lib/read-verification.sh`, so a branch
+cannot lower them. `/work-items:work` reads them for the bug path's capture
+check: at `standard` and `strict` a fresh-context subagent confirms each
+reproduction capture shows the named broken state; `light` and `off` dispatch
+none and record `verification: skipped (<level>)`. A skill entry beats the
+plugin value
+([verification level](../../docs/contracts/verification-level/README.md)).
 
 `delivery_deploy_signal` also lives only in the repository file. It sets what
 `/work-items:measure-delivery` counts as a deployment, and its one value, the
