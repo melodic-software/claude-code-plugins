@@ -15,7 +15,7 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
    legacy repo-root JSON binding) at action entry and resolve
    `config.role_labels["recurring-maintenance"]`; use `recurring` when the file or entry is
    absent (the documented default, no warning). Stop on a malformed, empty, or non-string
-   configured value. Use the resolved string in the search below.
+   configured value. Use the resolved string in the item read below.
 
 1. **Find the item in the recurring schedule:**
 
@@ -53,13 +53,14 @@ Re-read the current file from disk immediately before writing (the schedule is s
 - If `next_due > today`: leave `next_due` unchanged (already advanced by the recurring workflow)
 
 1. **Close the associated item** (if one exists). Search for open items with the resolved
-   recurring-maintenance label (adapter: "Search items",
-   `label:<resolved recurring-maintenance label>` + the `[Maintenance]` title, bare read). Provider
-   search is substring/prefix, not exact-title equality, so **filter the results to the item whose
-   title equals `[Maintenance] {title}` exactly** before closing. Otherwise a shorter title
-   (`Review CI`) could close a longer item's issue (`[Maintenance] Review CI workflow pins`). Close
-   only the exact match, with a recheck comment (adapter: "Close item"), reason `completed`, comment
-   "Rechecked YYYY-MM-DD. Next due: <next_due>.".
+   recurring-maintenance label (adapter: "List items", `--label <resolved recurring-maintenance
+   label>`, with bodies, bare read), and **keep only the item whose body has the matched row's
+   `<!-- recurring-schedule id=<id> -->` line**, the `id` equal exactly
+   ([`reference/issue-conventions.md`](../../../reference/issue-conventions.md)
+   "Recurring marker"). Never match by title: a title search would let a row titled `Review CI`
+   close the item for `Review CI workflow pins`. Close only that item, with a recheck comment
+   (adapter: "Close item"), reason `completed`, comment "Rechecked YYYY-MM-DD. Next due:
+   <next_due>.".
 
 1. **Confirm:** "Rechecked: **{title}**. Next due: **{next_due}**"
 

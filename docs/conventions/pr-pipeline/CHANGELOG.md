@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [8.63.3] - 2026-11-06
+
+### Fixed
+
+- The pull-request unblock section names every case `fix-docs-head-held` runs for: an unread head or human-gated hold, and a plan that could not read the changed files.
+
+## [8.63.2] - 2026-11-06
+
+### Fixed
+
+- pr-merge's candidate listing matches trusted-actors.json's accounts by numeric id (`User.databaseId`, `Bot.databaseId`) instead of login, so a renamed App's pull requests stay candidates without a change to the list. It reads the open pull requests in one paginated GraphQL query, at most 10 pages of 100, with the open count on each page, which drops the separate count read: one call fewer per try. A list of exactly 1000 open pull requests now lists; more than 1000 still holds the run green.
+
 ## [8.63.1] - 2026-11-06
 
 ### Changed

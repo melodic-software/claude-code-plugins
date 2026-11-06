@@ -428,7 +428,41 @@ export const HOLD_LANES = [
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
   // windows over it, at 2 calls a run (one jobs read, one annotations read).
   { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
+  // One run per checks run: the 24 hours to 2026-11-06T12:00Z had 504 green
+  // runs, a peak of 58 created in one hour and 267 in one 7-hour created span.
+  // 80 a window and 5 list pages leave headroom over both; only a job whose
+  // `Note the hold` step ran has its annotations read, so a run costs one
+  // jobs read, plus one annotations read when it held (`holdStep`).
+  {
+    lane: "pr-verify",
+    workflow: "pr-verify.yml",
+    jobs: ["check-intent", "check-intent-subscription", "check-intent-fallback"],
+    area: "Verify lane (pr-verify)",
+    holdRuns: 80,
+    listPages: 5,
+    holdStep: "Note the hold",
+  },
+  // One run per pr-require-checks run, as pr-verify: 425 green runs on
+  // 2026-11-05. Scaled by pr-verify's measured shape (a peak hour 2.8 times
+  // its mean, a peak 7-hour created span 53% of its day), that is about 50
+  // an hour and 225 a span, so 70 a window and 4 list pages leave headroom.
+  // The legs are matrix jobs, listed as `review (claude-review, ...)`, so a
+  // job matches by name or as a matrix leg (holdJob); only a job whose
+  // `Note the hold` ran has its annotations read.
+  {
+    lane: "pr-review-main",
+    workflow: "pr-review-main.yml",
+    jobs: ["trigger", "review", "review-subscription", "review-fallback"],
+    area: "Review lanes (pr-review-main)",
+    holdRuns: 70,
+    listPages: 4,
+    holdStep: "Note the hold",
+  },
 ];
+
+// Whether a listed job is one of `jobs`: by name, or as a matrix leg of one,
+// which GitHub lists as `<job> (<matrix values>)`.
+export const holdJob = (jobs, name) => jobs.some((job) => name === job || String(name).startsWith(`${job} (`));
 const NAME = "[a-z]+(?:-[a-z]+)*";
 const HOLD_NOTICES = [
   // report-outcome.mjs: a fault stop whose counted retries were all faults.
@@ -440,8 +474,10 @@ const HOLD_NOTICES = [
   { title: "label-unblocked", pattern: /^#(\d+): (?:.*\bstatus (\d{3})\b)?.*; holding, and the next sweep reads it again$/, hold: (m) => ({ item: `#${m[1]}`, reason: `read fault${m[2] ? ` HTTP ${m[2]}` : ""}` }) },
   // handoff-evidence.sh: a fix-docs read that failed.
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
-  // pr-refine.yml fix-docs-head-held: the PR head could not be read.
+  // pr-refine.yml fix-docs-head-held: the PR head, or its human-gated hold
+  // (lane-hold.mjs), could not be read.
   { title: "PR head hold", pattern: /^the head of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR head unread" }) },
+  { title: "PR head hold", pattern: /^the human-gated hold of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR hold unread" }) },
   // pr-refine.yml fix-docs-head-held after a plan hold: the PR's changed
   // files could not be read.
   { title: "PR head hold", pattern: /^the changed files of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR files unread" }) },
@@ -453,6 +489,17 @@ const HOLD_NOTICES = [
     pattern: /^(?:WIP cap hold: the (base config) could not be read|WIP cap hold: the (open lane PRs) could not be listed|the (WIP cap check) did not finish), so the pause is unknown/,
     hold: (m) => ({ item: null, reason: m[1] ? "WIP cap base config unread" : m[2] ? "WIP cap open listing failed" : "WIP cap check unfinished" }),
   },
+  // pr-verify: resolve-pr.mjs closing, or pr-verify.yml's `Note the hold` for
+  // a trigger gate stopped with read-fault. A fixed reason per cause, and no
+  // item: the PR is the run's, read from its URL.
+  {
+    title: "pr-verify",
+    pattern: /^held: (?:pr-verify's trigger gate met a GitHub fault|pr-verify could not resolve the pull request)/,
+    hold: (m) => ({ item: null, reason: m[0].includes("trigger gate") ? "trigger gate fault" : "resolver fault" }),
+  },
+  // pr-review-main.yml's four `Select a lane-source pull request` steps: the
+  // file list did not read after retry_call's 3 reads.
+  { title: "pr-review-main", pattern: /^held: the file list did not read /, hold: () => ({ item: null, reason: "file list unread" }) },
   // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is
   // a closed set, never the fault's own text, so the finding's fingerprint
   // stays put; the issue a path names may be a blocker, so no item.
