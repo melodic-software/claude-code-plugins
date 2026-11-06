@@ -220,7 +220,9 @@ Every finding is backed by a specific bug number, doc reference, code path, or c
 argument, never training-data recall.
 
 1. **Explore the incumbent first-hand.** The fresh sub-agent (see Fresh-context requirement)
-   invokes `/discovery:explore` via the Skill tool on the incumbent: what it is, where it is used,
+   invokes `/discovery:explore` via the Skill tool (if the `discovery` plugin is installed; otherwise it explores
+   directly and the report says once that `discovery` would add a persisted exploration) on the
+   incumbent: what it is, where it is used,
    what it is coupled to, and any recorded reason it was chosen. It receives the incumbent's
    identity, never a parent conclusion about it.
 2. **Name the actual problem.** State what the incumbent solves, the real requirements, present and

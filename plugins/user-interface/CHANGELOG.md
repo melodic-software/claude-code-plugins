@@ -3,6 +3,15 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.5] - 2026-11-06
+
+### Fixed
+
+- gate the launch-scope tidy-diff pointer on code-tidying
+
+  The agent-tell section runs /code-tidying:tidy-diff when that plugin is
+  installed, otherwise reads the diff by hand.
+
 ## [0.16.4] - 2026-11-04
 
 ### Changed

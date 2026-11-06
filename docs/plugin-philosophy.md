@@ -103,8 +103,9 @@ Keep plugins horizontally decoupled:
 - Cooperation uses a documented public interface: an artifact contract, an explicit invocation
   argument, or an optional namespaced skill invocation.
 - Native manifest `dependencies` are reserved for hard requires: a plugin genuinely broken without
-  its collaborator. Optional collaboration stays presence-gated with a documented fallback. The
-  first versioned dependency brings a release-tag step with it.
+  its collaborator. Optional collaboration stays presence-gated with a documented fallback. When
+  the fallback runs, the skill says once which plugin it would use and what that plugin would add,
+  so the user can install or enable it. The first versioned dependency brings a release-tag step with it.
   - **Pointer**: when a plugin here gains its first versioned dependency, read
     [release a plugin that others depend on](https://code.claude.com/docs/en/plugins/dependencies#release-a-plugin-that-others-depend-on)
     for who tags which repository, and
