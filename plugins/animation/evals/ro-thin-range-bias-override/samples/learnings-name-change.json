@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "# Learnings\n\n- run 1: drawings 0-30 too thin; bias 0.18, blur 0.7 took XOR from 1.9% to 0.8%\n- run 2: drawings 40-55 too thin; brush bias 0.22 via overrides.json\n"
+    },
+    {
+      "answer": "- fit.py --only 40-55 set bias per drawing\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Learnings\n\n- run 1: drawings 0-30 too thin; bias 0.18, blur 0.7 took XOR from 1.9% to 0.8%\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "- drawings 40-55 still look off\n",
+      "why": "no change named"
+    },
+    {
+      "answer": "- drawings 40-55 too thin\n",
+      "why": "symptom, no change named"
+    }
+  ]
+}

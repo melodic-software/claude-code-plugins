@@ -1132,9 +1132,12 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # fix-docs runs one pr-unblock-dispatch run starts. 0 turns CI fix-docs off,
-  # the owner's decision in #7576 (D100, Q158); set 1 or more to turn it on.
-  fix-docs-per-run: 0
+  # fix-docs runs one pr-unblock-dispatch run starts; 0 turns CI fix-docs off.
+  # On for every PR not tidied in its own run (work-resolve-issue's within
+  # resolve-issue's tidy cutoffs are skipped): ADR 0089, which narrows #7576's
+  # D100 to those PRs.
+  # 2 matches fix-ci-per-run.
+  fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12

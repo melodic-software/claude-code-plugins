@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/extract.py roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/extract.py \"${CLAUDE_PLUGIN_ROOT}/work/ink-short\" --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "under the plugin root variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/extract.py /p/plugins/animation/roto --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "under the plugin path"
+    }
+  ]
+}

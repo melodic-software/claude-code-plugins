@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/title.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/styles/travel/style.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "a style pack file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/warm/STYLE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a STYLE.md"
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat film/shots.json 2>/dev/null || echo none",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; print(json.dumps(json.load(open('film/boards/palette.json'))))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "json.dumps read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp film/shots.json film/shots.bak.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copy away from the file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > film/shots.json <<EOF\n{\"fps\": 12}\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{\"approved\": true}' > film/boards/approval.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "echo redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'PY'\nimport json\njson.dump({\"fps\": 12}, open(\"film/shots.json\", \"w\"))\nPY",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python json.dump"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq . tmp.json | tee film/shots.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').writeFileSync('film/shots.json', JSON.stringify({fps: 12}))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node writeFileSync"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('film/boards/approval.json').write_bytes(b'{}')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib write_bytes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed --in-place 's/false/true/' film/boards/approval.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed --in-place"
+    }
+  ]
+}

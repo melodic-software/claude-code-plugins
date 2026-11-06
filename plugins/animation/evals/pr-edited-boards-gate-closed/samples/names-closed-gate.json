@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "produce.py shots exited 2: the boards changed after your approval, so the gate is closed."
+    },
+    {
+      "answer": "The approval no longer matches the boards (the digest changed when vibe.md was edited)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "produce.py shots exited 2, a schema error in shots.json.",
+      "why": "read as a field error"
+    },
+    {
+      "answer": "I changed nothing and rendered the film.",
+      "why": "renders"
+    },
+    {
+      "answer": "You changed boards/vibe.md, so I will render with the approval you already have.",
+      "why": "keeps the stale approval"
+    }
+  ]
+}

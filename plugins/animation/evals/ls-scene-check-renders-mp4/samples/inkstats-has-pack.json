@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py frames/harbor.mp4 --pack packs/woodcut-ink",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py --help",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/render.py scenes/harbor.js frames/harbor --fps 24 --encode mp4 --playwright-core '${user_config.playwright_core}'",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py frames/harbor.mp4 --json",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no pack"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py frames/harbor.mp4; echo --pack packs/woodcut-ink",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "pack outside the call"
+    }
+  ]
+}

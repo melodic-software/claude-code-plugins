@@ -111,7 +111,7 @@ Per-dimension audit targets. `primary-sources` (where claims live), `verificatio
 to verify), and `example-claims` (illustrative `{ claim, verify-via }` rows for the claim-extraction
 pass). Come from the consuming repo's tracked config, resolved additively across three layers:
 
-1. `~/.claude/codebase-health.md` (user-global, optional)
+1. `~/.claude/codebase-health.md` (user-global, optional): one Read of that literal path, `~` kept; never Glob for it, spell out a home directory, or search the home tree
 2. `.claude/codebase-health.md` (team, tracked)
 3. `.claude/codebase-health.local.md` (personal override, gitignored)
 
@@ -332,16 +332,16 @@ resolves to `terminal`, make no offer and print no unavailable line. Otherwise, 
 handoff. Without that plugin, say in one line that the optional view is unavailable, and never
 hand-build an HTML file, chart or extra markdown file instead.
 
-Resolve `medium` first with the shared medium resolver, passing this plugin's `medium` option; add
-`--argument` only when the run has a `--medium` value:
+Resolve `medium` first with the shared resolver. `<option>` is this plugin's `medium` option,
+`${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command. Add `--argument` only when the run has a `--medium` value:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane codebase-health:audit --option "${user_config.medium}" [--argument <the --medium value>]
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane codebase-health:audit --option "<option>" [--argument <the --medium value>]
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then any
 notice; print the report line and the notices after the report as they stand. Leave the
-rendered-views convention files to the resolver: it weighs the argument and each scope, and never
+rendered-views files to the resolver, never an audit target and never read or listed in any phase: it weighs the argument and each scope, and never
 publishes on a team file's say-so. On exit 2 with `--argument`, report the `--medium` value and
 run it again without `--argument`. On exit 2 without it, or when `node` is missing, report that in
 one line and take the `null` row.

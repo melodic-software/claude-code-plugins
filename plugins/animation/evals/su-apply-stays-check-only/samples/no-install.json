@@ -1,0 +1,179 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" run --data-dir \"/tmp/run-1/data\" -- \\\n  \"/tmp/run-1/plugin/scripts/narrate.py\" --data-dir \"/tmp/run-1/data\" \\\n  --model-dir '${user_config.model_dir}' \\\n  --script media/script.txt --out media"
+          }
+        }
+      ],
+      "why": "the narrate run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/check.py\" --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "the read-only report"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'apt install espeak-ng' plugin/README.md"
+          }
+        }
+      ],
+      "why": "quoted, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/prereq.py --playwright-core '${user_config.playwright_core}'",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "the check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/prereq.py",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "the fallback check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'npx playwright install' README.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "quoted, not run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo apt-get install -y espeak-ng"
+          }
+        }
+      ],
+      "why": "installs espeak-ng"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew install espeak-ng"
+          }
+        }
+      ],
+      "why": "installs espeak-ng with brew"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/tmp/run-1/plugin/scripts/pydeps.py\" install --data-dir \"/tmp/run-1/data\""
+          }
+        }
+      ],
+      "why": "the package repair line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pip install --user kokoro-onnx"
+          }
+        }
+      ],
+      "why": "a pip install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx playwright install chromium",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "installs Chromium"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y playwright@1.50 install --with-deps",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "installs with npx flags"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "uv add numpy==2.5.4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "uv add"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py install --data-dir \"/sb/data\"",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "runs the repair install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pip install opencv-python-headless",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "pip"
+    }
+  ]
+}
