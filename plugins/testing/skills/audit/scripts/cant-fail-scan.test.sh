@@ -1330,6 +1330,7 @@ corpus_files=(
   bash-harness/bad/deploy-source-text.test.sh.fixture
   bash-harness/bad/exec-redirect-only.test.sh.fixture
   bash-harness/bad/prints-only.test.sh.fixture
+  bash-harness/bad/rc-accumulator-not-exited.test.sh.fixture
   bash-harness/bad/rc-captured-unchecked.test.sh.fixture
   bash-harness/bad/retry-limit-restated.test.sh.fixture
   bash-harness/bad/sort-against-itself.test.sh.fixture

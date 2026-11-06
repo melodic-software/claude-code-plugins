@@ -15,10 +15,9 @@ assertion:
   # helper's failures reach the exit status.
   idioms:
     - '(echo|printf).*FAIL.*exit[[:space:]]+[1-9]'
-    - '(echo|printf).*FAIL.*(^|[[:space:];])rc=[1-9]'
     - 'FAIL"?[[:space:]]*(-eq|==)[[:space:]]*0'
     - 'exit[[:space:]]+"?\$\(\([[:space:]]*\$?FAIL[[:space:]]*>[[:space:]]*0[[:space:]]*\)\)'
-    - 'exit[[:space:]]+"?\$[{]?(FAIL(ED|S|URES)?|fail(ed|s|ures)?)[}]?"?([[:space:];]|$)'
+    - 'exit[[:space:]]+"?\$[{]?(FAIL(ED|S|URES)?|fail(ed|s|ures)?|rc)[}]?"?([[:space:];]|$)'
     - 'if[[:space:]]*\(\(?[[:space:]]*\$?[A-Za-z_]*(fail|FAIL)[A-Za-z_]*[^)]*\)\)?.*(exit[[:space:]]+[1-9]|process\.exit\([1-9])'
     - 'process\.exit\([A-Za-z_]*fail'
 # The assertions live in the suite this script runs or the helpers it loads.
