@@ -7,6 +7,10 @@
     {
       "answer": "Then `app-control:map refresh` `cart/total` with --unattended.",
       "why": "backticked id"
+    },
+    {
+      "answer": "3. `Skill(\"app-control:map\", \"refresh cart/total --unattended\")`, after drive's cleanup.",
+      "why": "Skill tool call form"
     }
   ],
   "fail": [
