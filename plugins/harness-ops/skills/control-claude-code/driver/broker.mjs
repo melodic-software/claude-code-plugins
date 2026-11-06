@@ -2,7 +2,7 @@
 // Launch broker for the control-claude-code driver: runs `launch`, `ready` and
 // `log` where the broker runs, for a driver whose CCD_BROKER_SOCK names it.
 //
-//   <key> | node broker.mjs --socket <path> --driver <abs driver.mjs> --root <dir>... [--deps-dir <dir>]
+//   <key> | node broker.mjs --socket <path> --driver <abs driver.mjs> --root <dir>... [--deps-dir <dir>] [--in-sandbox]
 //
 // Each connection sends one JSON line `{verb, args}`; the broker answers with
 // JSON lines `{stdout}` and `{stderr}` as the driver writes them, then `{exit}`.
@@ -12,6 +12,8 @@
 // one `--opt=value` argument. It runs the --driver it was started with, by
 // absolute path, with --unattended, and hands that one child the key read from
 // stdin as ANTHROPIC_API_KEY; the broker's own environment never holds it.
+// Started with --in-sandbox, it also adds --in-sandbox to every request, so
+// the driven session gets Bash and no scrub; a request cannot set it.
 //
 // It starts only on a dummy key (KEY_PREFIX), and only when it cannot write the
 // driver's directory, the driver's config directory or --deps-dir: the workflow
@@ -99,9 +101,10 @@ export const VERBS = {
 
 /**
  * The driver arguments a request maps to, after the verb's validator passes every option, or Refused.
- * `roots` are real paths. The result starts with the verb and always carries --unattended.
+ * `roots` are real paths. The result starts with the verb and always carries --unattended, and
+ * --in-sandbox when the broker was started with it.
  */
-export function driverArgs(request, roots, depsDir) {
+export function driverArgs(request, roots, depsDir, inSandbox = false) {
   if (!request || typeof request !== 'object') throw new Refused('a request is one JSON object {verb, args}');
   const { verb: name, args } = request;
   if (typeof name !== 'string' || !Object.hasOwn(VERBS, name)) throw new Refused(`the broker runs only ${Object.keys(VERBS).join(', ')}`);
@@ -125,6 +128,7 @@ export function driverArgs(request, roots, depsDir) {
     if (passed !== undefined) out.push(`--${opt}=${passed}`);
   }
   out.push('--unattended');
+  if (inSandbox) out.push('--in-sandbox');
   if (depsDir && name !== 'log') out.push(`--deps-dir=${depsDir}`);
   if (spec.prompt) {
     const [prompt] = parsed.positionals;
@@ -143,7 +147,7 @@ export function childEnv(env, key) {
 }
 
 /** Serves one connection: reads one request line, runs the driver, streams its output and exit back. */
-function answer(conn, { driver, roots, depsDir, key }) {
+function answer(conn, { driver, roots, depsDir, key, inSandbox }) {
   let buf = '';
   let started = false;
   let finished = false;
@@ -172,7 +176,7 @@ function answer(conn, { driver, roots, depsDir, key }) {
       } catch {
         throw new Refused('a request is one JSON object {verb, args}');
       }
-      args = driverArgs(request, roots, depsDir);
+      args = driverArgs(request, roots, depsDir, inSandbox);
     } catch (err) {
       send({ stderr: `launch broker: refused: ${err.message}\n` });
       return finish(2);
@@ -222,7 +226,7 @@ const writable = (dir) => {
 
 /** Checks the start options and returns what the server needs; `selfDir` is the broker's own real directory. */
 export function startConfig(values, key, selfDir = SELF_DIR) {
-  const { socket, driver, root = [], 'deps-dir': depsDir } = values;
+  const { socket, driver, root = [], 'deps-dir': depsDir, 'in-sandbox': inSandbox = false } = values;
   if (!socket || !isAbsolute(socket)) throw new Usage('--socket takes an absolute path');
   if (!driver || !isAbsolute(driver) || !existsSync(driver)) throw new Usage('--driver takes the absolute path of an existing driver.mjs');
   if (!root.length) throw new Usage('--root takes at least one directory');
@@ -251,13 +255,13 @@ export function startConfig(values, key, selfDir = SELF_DIR) {
   if (!dir.isDirectory() || dir.uid !== process.getuid() || (dir.mode & 0o077) !== 0) {
     throw new Usage(`${dirname(socket)} is not a private directory owned by you (mode 0700)`);
   }
-  return { socket, driver: realDriver, roots, depsDir, key };
+  return { socket, driver: realDriver, roots, depsDir, key, inSandbox };
 }
 
 async function main(argv) {
   const { values } = parseArgs({
     args: argv,
-    options: { socket: { type: 'string' }, driver: { type: 'string' }, root: { type: 'string', multiple: true }, 'deps-dir': { type: 'string' } },
+    options: { socket: { type: 'string' }, driver: { type: 'string' }, root: { type: 'string', multiple: true }, 'deps-dir': { type: 'string' }, 'in-sandbox': { type: 'boolean' } },
   });
   const config = startConfig(values, readFileSync(0, 'utf8').trim());
   if (existsSync(config.socket)) {

@@ -91,6 +91,13 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/mutation-testing:audit` | the Phase 4 triage, the product: `light` reports survivors as unclassified |
 | `/testing:cleanup` | the Cannot-fail-only mode's step 2 skeptic: `light` clears no row, so that mode deletes nothing |
 | `/debugging:debug` | the fresh-context outcome verifier when no outcome-verification capability is used |
+| `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) |
+| `/docs-hygiene:compress` | the semantic-diff subagent and its revert pass (Hard rules); `compare` is not governed |
+| `/docs-hygiene:audit-derivability` | the empirical spot-test and the keep-sample (Classification method) |
+| `/docs-hygiene:audit-noise` | the fresh-context verification pass over the merged verdicts |
+| `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 6, "The verification level") |
+| `/ai-slop:audit` | the fix flow's semantic-diff subagent |
+| `/attribution:audit` | the review pass, the refutation pass, and the fix flow's semantic-diff subagent; not the judges |
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
 | `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |

@@ -3,6 +3,13 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0] - 2026-11-06
+
+### Added
+
+- `/implementation:implement` reads the `verification` level at each phase boundary: `light` and `off` skip the fresh-context verifier and write `verification: skipped (<level>)` in the plan mark unless `verify_mechanical_phases` resolves `true`; `strict` turns `verify_mechanical_phases` on.
+- `/implementation:implement` and `/implementation:implement-dispatch` read the level from `docs/conventions/implementation.yaml`, beside the plugin's other keys, through `read-verification.sh --file`, whatever convention home the repository binds.
+
 ## [0.36.1] - 2026-11-06
 
 ### Changed
