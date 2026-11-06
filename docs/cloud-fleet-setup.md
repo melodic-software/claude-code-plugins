@@ -62,8 +62,9 @@ Pinned toolchains found:
   `rollForward`. **10.0.401** (github-iac, also `rollForward: disable`) is now in the fallback
   list too. The fallback list matches the fleet pins above, `10.0.400 10.0.401` (per
   `components/cloud-environment/setup.sh` in standards, verified 2026-09-15).
-- **Node 24.20.0**, the fleet fallback the setup script installs when the checked-out repo pins no
-  `.node-version`; nine repos pin that exact version and codex-plugins pins major 24. Compare it
+- **Node 24.21.0**, the fleet fallback the setup script installs when the checked-out repo pins no
+  `.node-version` (`NODE_FALLBACK_VERSION` in `components/cloud-environment/setup.sh` in
+  standards, verified 2026-11-06); this repository pins the same version. Compare it
   with the Node versions in
   [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools); the
   setup script installs it when the image lacks it.
