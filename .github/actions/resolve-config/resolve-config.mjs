@@ -435,6 +435,16 @@ export function redMainFromBase(env) {
   return { redMain: doc["red-main"] ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
 }
 
+// The base config's `post-merge.paths` as set and `merge.agent-identity`,
+// likewise, for .github/scripts/post-merge-demotion-alert/merge-path.mjs,
+// which applies them.
+export function postMergeFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
+  return { paths: doc["post-merge"]?.paths ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
+}
+
 // The hosts the issue lane (resolve-issue) may read, for intake admission:
 // its web-access domains, "any", or [] when web access is off.
 export function issueLaneWebHostsFromBase(env) {
