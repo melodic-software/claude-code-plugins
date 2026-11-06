@@ -541,6 +541,9 @@ const UNGUARDED = {
   ".github/scripts/work-resolve-issue/report-outcome.mjs": "script activity run from a directory copy",
   // pr-merge's own guard is its owner's change.
   ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
+  // A test helper no lane runs: the credential-legs tests' read of ci-workflows
+  // files at a pinned SHA from raw.githubusercontent.com, not the API.
+  ".github/scripts/lib/model-credential.mjs": "test helper reading raw.githubusercontent.com, not the API",
 };
 
 test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {
