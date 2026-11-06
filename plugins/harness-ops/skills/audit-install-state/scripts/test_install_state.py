@@ -452,6 +452,10 @@ class TestEntrySurfacePromotion(unittest.TestCase):
                 root, denied=[], probe=lambda _pid: (engine.DEAD, "x")
             )
             entries = self._entries(root)
+            self.assertTrue(
+                any(row.surface == engine.SECRET for row in rows),
+                "the tree holds at least one SECRET row",
+            )
             for row in rows:
                 if row.surface == engine.SECRET:
                     head = engine.top_level_name(row.relpath)
