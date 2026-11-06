@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Black-box contract test for measure-invocation.sh.
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/measure-invocation.sh"

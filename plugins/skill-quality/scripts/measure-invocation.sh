@@ -583,8 +583,8 @@ rel_path() {
 # skill-quality settings layers check-skill.sh reads (<home>/skill-quality.yaml,
 # then .local.yaml; <home> per lib/resolve-convention-home.sh, docs/conventions
 # when no home is bound) into RUNS and its layer into RUNS_LAYER; 3 and
-# "default" when no layer sets it. A layer with a value that is not a positive
-# integer, or that does not parse, is named in a WARN and dropped.
+# "default" when no layer sets it. A layer with a value that is not a whole
+# number from 1 to 999999, or that does not parse, is named in a WARN and dropped.
 plugin_eval_runs_setting() {
   local root="$1" home rel value status lib="$SCRIPT_DIR/../lib"
   RUNS=3
@@ -609,9 +609,9 @@ plugin_eval_runs_setting() {
       continue
     fi
     if ((status == 0)); then
-      warn "$rel: plugin_eval_runs is '$value', not a positive integer; that layer is dropped"
+      warn "$rel: plugin_eval_runs is '$value', not a whole number from 1 to 999999; that layer is dropped and plugin_eval_runs resolves to 3 unless a later layer sets it"
     else
-      warn "$rel does not parse; that layer is dropped for plugin_eval_runs"
+      warn "$rel does not parse; that layer is dropped and plugin_eval_runs resolves to 3 unless a later layer sets it"
     fi
     RUNS=3
     RUNS_LAYER=default
