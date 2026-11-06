@@ -24,7 +24,7 @@ readonly WIT_DEFAULT_CONTAINER_LABEL="work-map"
 readonly WIT_WAYFIND_LABEL_PREFIX="wayfind:"
 
 # Human-floor work class: human-gated even beside the autonomous-eligible label
-# (reference/risk-class-labels.md). Fixed string; the work-class axis has no binding key.
+# (reference/work-class-labels.md). Fixed string; the work-class axis has no binding key.
 # No work class floors an item now; the one entry is the legacy name of the
 # untrusted-provenance marker, held until the label source drops it. Skills name
 # it as WIT_LEGACY_UNTRUSTED_LABEL rather than restating the string.

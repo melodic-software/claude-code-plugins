@@ -1,4 +1,4 @@
-# Risk-class labels
+# Work-class labels
 
 The `work-class:` labels record an item's risk class (C1 to C4). No work-items skill stamps,
 reads or gates on them: triage, the work-loop drain, the attended queue and setup ignore them, and

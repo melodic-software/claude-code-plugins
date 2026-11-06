@@ -333,7 +333,7 @@ The gate does not decide by work class. A candidate that passes the in-flight ch
 window, the labeler precondition and the hard gates below is admitted, whatever its other labels.
 Of the provenance labels, only `provenance: signal` or `provenance: untrusted` holds a
 candidate for a person: `list-frontier --autonomous` already drops each
-([`${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md)),
+([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)),
 and a candidate found carrying any of them is escalated through step 5, never dispatched. A candidate
 whose latest removal of any of them came from an actor below `write` is held the same way (the provenance-removal hold below).
 

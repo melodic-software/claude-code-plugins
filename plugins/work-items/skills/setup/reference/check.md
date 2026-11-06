@@ -115,7 +115,7 @@ check.
 7. **Provenance label**, when probe 2 found a present, shape-valid binding whose provider
    exposes label listing (the `github` adapter: `gh label list`), verify the canonical
    `provenance: untrusted` member from
-   [`reference/risk-class-labels.md`](../../../reference/risk-class-labels.md)
+   [`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
    exists. Absent is FAIL. Triage cannot mark an untrusted item until the
    label is provisioned; remediation is `/work-items:setup apply` on repos without label-as-code,
    or the repo's declared label-as-code owner when one exists (never `gh label create` ad hoc there).

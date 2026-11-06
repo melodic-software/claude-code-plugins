@@ -37,7 +37,7 @@ It binds every step below, hardest at step 1.
 
 **Classification vocabulary.** Triage stamps no work class. It marks C5 (the autonomy plugin's
 untrusted class) as `provenance: untrusted`
-([`${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md)).
+([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)).
 No other label an item carries gates the autonomous-eligible role label; only
 `provenance: untrusted` and `provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
 `simple`/`medium`/`complex` are not classification metadata (loop-lane status lines may report

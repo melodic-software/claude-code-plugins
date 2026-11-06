@@ -347,7 +347,7 @@ unambiguous; ask only where an item genuinely needs the user.
 
 `apply` runs this pass at **step 3** of its numbered flow, after the role-label pass and before any
 schedule work. Triage marks an untrusted item with `provenance: untrusted`, the canonical member in
-[`${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md).
+[`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
 
 1. **Skip when no binding exists**, nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`), report

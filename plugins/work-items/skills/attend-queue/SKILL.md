@@ -247,8 +247,8 @@ never compress this restatement away.
   `provenance: untrusted` (C5; legacy name `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)) or
   `provenance: signal` is not resolved by the plain
   flip, whatever its other labels say: a `provenance: signal` item is C5 whatever else a person
-  stamped on it ([`${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/risk-class-labels.md)
-  "The human-floor class excludes the autonomous-eligible role label"). It is floored:
+  stamped on it ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
+  "Provenance" row and the class-labels reference it links, section "The human-floor class excludes the autonomous-eligible role label"). It is floored:
   `list-frontier --autonomous` drops it and the work-loop's provenance hold escalates it, so
   **removing the human-gated role label strands it**, since this lane's attention view keys on that
   role label plus a marker comment and nothing lists the item again. Resolve such a row one of two
