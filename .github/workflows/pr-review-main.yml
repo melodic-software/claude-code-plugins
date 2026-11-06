@@ -458,7 +458,7 @@ jobs:
       # actions: read.
       - name: Write the key's probing marker
         id: probe-marker
-        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true'
+        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true'
         continue-on-error: true
         timeout-minutes: 1
         run: |
