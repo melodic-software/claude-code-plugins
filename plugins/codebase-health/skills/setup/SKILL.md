@@ -49,8 +49,10 @@ FAIL. Modify nothing, and do NOT run an audit. That is `/codebase-health:audit`.
 
 ## `apply` (idempotent)
 
-Run `check`, then interview and write the config. Proceed non-interactively where the invocation and
-the repo make the values unambiguous; ask only where a dimension's targets genuinely need the user.
+Run `check`, then interview and write the config. Never create, write, edit or rewrite
+`.claude/codebase-health.md`, by any tool (Write, Edit, or a Bash redirect, `tee`, `sed -i` or
+interpreter), until the user confirms the proposed changes in a later turn. Even when every value
+looks unambiguous, the turn that drafts the config ends by presenting it and asking, not by writing.
 
 1. **Start from the effective config `check` just reported.** This step writes only the *team* file,
    so name what the local or user-global layer contributes. When a local or user-global opt-out zeroes a dimension,
@@ -76,7 +78,7 @@ the repo make the values unambiguous; ask only where a dimension's targets genui
 4. **Draft example-claims.** For each accepted dimension, read one or two representative
    primary-source files and propose 2–4 concrete `{ claim, verify-via }` rows drawn from real
    sentences in them. Concrete rows teach the discovery pass what drift looks like in THIS repo, the highest-value part of the config. The user approves or edits each row.
-5. **Write the config.** Materialize `.claude/codebase-health.md` following the structure in
+5. **Write the config, once the user has confirmed it.** Materialize `.claude/codebase-health.md` following the structure in
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md) (replace every placeholder comment
    with real values; drop unused placeholder rows).
 6. **Verify after remediation.** Re-run the `check` probes on the written file. Dimension source lists
