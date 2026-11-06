@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "2. **Focus** (recommended): readability. Other lenses: performance, naming, standards, currency.", "why": "focus then readability" },
+    { "answer": "Readability as the focus, since the loop is hard to follow.", "why": "readability before focus" }
+  ],
+  "fail": [
+    { "answer": "Focus (recommended): performance.", "why": "wrong lens" },
+    { "answer": "Readability matters here.", "why": "no focus question" }
+  ]
+}

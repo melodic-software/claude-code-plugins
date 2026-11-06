@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/.work/improvement/feature-payments-cleanup/20261106T100000Z-clone-growth.md", "content": "x" } }], "why": "improvement path" },
+    { "answer": [], "why": "proposed only" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/.work/reviews/feature-payments-cleanup/20261106T100000Z-clone-growth.md", "content": "x" } }], "why": "under reviews/" }
+  ]
+}

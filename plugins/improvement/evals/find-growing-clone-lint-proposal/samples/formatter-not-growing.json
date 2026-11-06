@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "The date formatter class is not growing, so it gets no lint proposal.", "why": "not growing" },
+    { "answer": "Stable: date formatter (2 copies).", "why": "stable before formatter" },
+    { "answer": "The date-formatter clone is neither new nor grown.", "why": "neither new nor grown" }
+  ],
+  "fail": [
+    { "answer": "The date formatter is growing too.", "why": "wrong verdict" },
+    { "answer": "The date formatter appears in neither trend list.", "why": "echoes the prompt without a verdict" },
+    { "answer": "Date formatter: 60 lines, 2 copies.", "why": "no verdict" }
+  ]
+}

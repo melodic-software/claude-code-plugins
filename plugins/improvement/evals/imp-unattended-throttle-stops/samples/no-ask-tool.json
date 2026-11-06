@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/src/checkout.js" } }], "why": "no question tool" },
+    { "answer": [], "why": "no tool calls" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "AskUserQuestion", "input": { "questions": [{ "question": "File both items?" }] } }], "why": "asks the absent user" }
+  ]
+}

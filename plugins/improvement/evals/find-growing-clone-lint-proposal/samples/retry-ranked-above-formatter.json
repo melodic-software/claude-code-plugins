@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "| Rank | Candidate | Size |\n|---|---|---|\n| 1 | Lint proposal for the retry helper clone (6 copies) | S |\n| 2 | Extract the date formatter (2 copies) | S |", "why": "table, retry first" },
+    { "answer": "The 60-line date formatter is longer, but copies rank first.\n\n1. **Retry helper** (6 copies, growing)\n2. **Date formatter** (2 copies)", "why": "prose mentions the formatter before the list" },
+    { "answer": "### 1. Retry helper clone class\n\n### 2. Date-formatter clone", "why": "headings" }
+  ],
+  "fail": [
+    { "answer": "| 1 | Extract the date formatter (60 lines) | M |\n| 2 | Retry helper (6 copies) | S |", "why": "formatter first" },
+    { "answer": "1. **Date formatter**, the longest clone.\n2. **Retry helper**.", "why": "formatter first in a list" },
+    { "answer": "Rank the retry helper above the date formatter.", "why": "no ranked rows" }
+  ]
+}

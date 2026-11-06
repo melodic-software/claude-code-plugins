@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Stopped: 3 open improve PRs (#12, #15, #19), at the limit of 3. Nothing changed.", "why": "count and limit" },
+    { "answer": "Throttled. Three improve pull requests are already open, so this run ships nothing.", "why": "throttled" },
+    { "answer": "Open improve PRs: three or more, so the run stops and reports.", "why": "three or more" }
+  ],
+  "fail": [
+    { "answer": "Opened fix/improve-report-strict-mode as a draft.", "why": "ships past the throttle" },
+    { "answer": "There are open pull requests #12, #15 and #19.", "why": "lists them without the stop reason" },
+    { "answer": "" }
+  ]
+}

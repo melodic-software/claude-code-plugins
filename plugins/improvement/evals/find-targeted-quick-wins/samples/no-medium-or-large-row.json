@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "| Rank | Candidate | Dimension | Size | Evidence |\n|---|---|---|---|---|\n| 1 | Time buildSummary and each fetch | Performance | S | nothing measures checkout (rung 4) |\n| 2 | Encode the SKU once per item | Code | S | src/pricing.js:4 (rung 4) |\n\nLeft out by the small band: running the item lookups concurrently (M).", "why": "only S rows; the M note sits outside the list" },
+    { "answer": "1. **Add timing around buildSummary** (S, rung 4).\n2. **Check response.ok before parsing** (S, rung 4).", "why": "list of S items" },
+    { "answer": "### 1. Instrument checkout\n\n- Size: S\n\n## Evidence gaps\n\n- gap: no CI history (would rank a M-sized fix)\n\n**Filtered out (M):** concurrent lookups.", "why": "M mentions after a non-row heading and a bold note" }
+  ],
+  "fail": [
+    { "answer": "| 1 | Time buildSummary | Performance | S | rung 4 |\n| 2 | Run lookups concurrently | Performance | M | sequential awaits (rung 4) |", "why": "an M row in the ranked list" },
+    { "answer": "1. **Instrument checkout** (S).\n2. **Move pricing to a batch endpoint** (L, rung 4).", "why": "an L list item" },
+    { "answer": "### 1. Instrument checkout\n\n- Size: S\n\n### 2. Batch the fetches\n\n- Size: Medium", "why": "Size: Medium under a heading row" }
+  ]
+}

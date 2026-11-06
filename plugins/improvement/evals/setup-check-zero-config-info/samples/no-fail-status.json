@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "| Check | Status |\n|---|---|\n| Layer presence | INFO |\n\nStatuses are PASS/FAIL/INFO; nothing failed.", "why": "legend only" },
+    { "answer": "0 FAIL, 1 INFO.", "why": "a zero count" }
+  ],
+  "fail": [
+    { "answer": "| Layer presence | FAIL |", "why": "FAIL table cell" },
+    { "answer": "FAIL: no team file.", "why": "FAIL line" },
+    { "answer": "- Status: **FAIL**", "why": "status field" }
+  ]
+}

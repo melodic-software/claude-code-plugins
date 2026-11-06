@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Moving all 20 modules touches 20 files, past the hard cap of 15 files.", "why": "hard cap" },
+    { "answer": "That is about 520 lines across 20 files; the scope budget allows 400 lines.", "why": "scope budget, 400 lines" }
+  ],
+  "fail": [
+    { "answer": "The request package is deprecated; I'll move checkout to fetch.", "why": "no size check" },
+    { "answer": "It touches all 20 files under src/checkout/.", "why": "echoes the size without the cap" }
+  ]
+}

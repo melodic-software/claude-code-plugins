@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Glob", "input": { "pattern": "**/*" } }, { "tool": "Read", "input": { "file_path": "/tmp/ws/src/checkout.js" } }, { "tool": "Read", "input": { "file_path": "/tmp/ws/src/pricing.js" } }], "why": "lists the tree, reads checkout files only" },
+    { "answer": [{ "tool": "Grep", "input": { "pattern": "checkout", "path": "/tmp/ws" } }], "why": "grep to map surfaces is not a read" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/tmp/ws/src/checkout.js" } }, { "tool": "Read", "input": { "file_path": "/tmp/ws/src/reporting/monthly-report.js" } }], "why": "reads the reporting module" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": "src/reporting/README.md" } }], "why": "relative path into reporting" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": "C:\\ws\\src\\reporting\\monthly-report.js" } }], "why": "Windows path" }
+  ]
+}

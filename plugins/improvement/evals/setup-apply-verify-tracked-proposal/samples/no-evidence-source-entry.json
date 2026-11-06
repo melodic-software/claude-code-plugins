@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```yaml\nchurn_window: \"90 days ago\"\n```",
+      "why": "no evidence_sources key"
+    },
+    {
+      "answer": "```yaml\nchurn_window: \"90 days ago\"\nevidence_sources: {}\n```",
+      "why": "empty mapping"
+    },
+    {
+      "answer": "```yaml\nchurn_window: \"90 days ago\"\nevidence_sources:\n```\n\nTier 2 stays a gap.",
+      "why": "empty key at the end of the block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```yaml\nchurn_window: \"90 days ago\"\nevidence_sources:\n  app-telemetry:\n    mcp_server: my-observability-mcp\n```",
+      "why": "an evidence source the user declined"
+    },
+    {
+      "answer": "```yaml\nevidence_sources:\n  # placeholder\n  errors:\n    mcp_server: sentry\n```",
+      "why": "entry after a comment"
+    }
+  ]
+}

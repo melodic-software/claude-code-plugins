@@ -1,0 +1,54 @@
+schema_version: "1.1"
+name: find-targeted-quick-wins
+description: 'Legacy find case targeted-prompt-narrows-scope-and-size. A find run narrowed in prose to the checkout flow and quick wins maps checkout to its files and reads nothing under the unrelated src/reporting/ module (no-out-of-scope-read), ranks only small candidates (rank1-row-sized-small, no-medium-or-large-row), and, because nothing measures checkout, puts an instrument-first proposal at rank 1 (top-candidate-instruments). cites-evidence-instrument-first (llm) checks that every row cites its evidence and that rank 1 is explained as measurement before prioritization. Makes no Write or Edit call. Needs --scaffold and --allow-tools Write Edit so the no-write and no-edit graders can fail.'
+tags: [find, narrowing, size-band, instrument-first, no-network]
+expected_outcome: 'The run reads only checkout surfaces (src/checkout.js, src/pricing.js, src/inventory.js, README.md), never src/reporting/, ranks only S-sized candidates, puts an instrument-checkout candidate first with its reason, cites evidence on every row, and edits nothing.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/improvement:find improve the checkout flow, quick wins only'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 900
+graders:
+  - name: no-out-of-scope-read
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?src[\\/]+reporting[\\/]'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: rank1-row-sized-small
+    type: regex
+    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?\d{1,2}\b))[\s\S]){0,900}?(?:\|\s*\**S\**\s*\||\b[Ss]ize\**\s*[:=]?\s*\**\s*\(?(?:S|[Ss]mall)\b|\((?:[^()\n]{0,40}[,;]\s*)?S(?:\s*[,;][^()\n]{0,40})?\))'
+    flags: 'm'
+    target: last_message
+    arm: both
+  - name: no-medium-or-large-row
+    type: regex
+    pattern: '^[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?\d{1,2}\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,6}\s)|\n[ \t]*\n(?=\**(?!(?:Size|Evidence|Confidence|Dimension|Value|Rung|Rationale)\b)[A-Za-z`]))[\s\S]){0,900}?(?:\|\s*\**[ML]\**\s*\||\b[Ss]ize\**\s*[:=]?\s*\**\s*\(?(?:M|L|[Mm]edium|[Ll]arge)\b|\((?:[^()\n]{0,40}[,;]\s*)?[ML](?:\s*[,;][^()\n]{0,40})?\))'
+    flags: 'm'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: top-candidate-instruments
+    type: regex
+    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))[\s\S]){0,600}?\b(?:instrument|add (?:timing|tracing|metrics|telemetry|latency|logging|spans?)|baseline|measure(?: it| this| that| them)? (?:first|before|checkout|latency|the|each|where|how)|capture (?:timing|latency|durations?)|time (?:`?buildSummary|checkout|each|every|the (?:checkout|whole|pricing|inventory|calls?|requests?|fetch))|(?:record|track|log) (?:timings?|latency|durations?)|start (?:by|with) measuring)'
+    flags: 'im'
+    target: last_message
+    arm: both
+  - name: cites-evidence-instrument-first
+    type: llm
+    criteria: 'PASS only if every ranked candidate in the reply cites its evidence (a file and line, or a named source) together with its evidence-ladder rung or its confidence, and the rank-1 candidate is a concrete instrument-or-baseline proposal for checkout (what to measure and where the signal lands) that the reply explains as coming first because nothing measures checkout yet. FAIL if any ranked row has no evidence citation, if the rank-1 candidate is a speed fix presented as if measured, or if guesses are stated as measurements.'

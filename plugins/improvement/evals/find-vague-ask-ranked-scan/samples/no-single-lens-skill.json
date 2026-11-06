@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:find" } }], "why": "find only" },
+    { "answer": [], "why": "no skill call" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "architecture:improve" } }], "why": "architecture lens" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "code-tidying:tidy" } }], "why": "tidy lens" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "review:fanout" } }], "why": "review skill" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:find" } }, { "tool": "Skill", "input": { "skill": "improvement:improve" } }], "why": "find, then improve one thing" }
+  ]
+}

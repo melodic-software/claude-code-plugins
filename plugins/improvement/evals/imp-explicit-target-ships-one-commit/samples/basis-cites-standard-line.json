@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "1. No strict mode. Basis: `docs/standards/bash.md:5`.\n2. Unquoted `$report_file`. Basis: `docs/standards/bash.md:9`.", "why": "file:line" },
+    { "answer": "Basis: bash.md, line 9 (Quoting).", "why": "comma and line" },
+    { "answer": "Basis: docs/standards/bash.md#L5", "why": "#L anchor" }
+  ],
+  "fail": [
+    { "answer": "Basis: docs/standards/bash.md (Strict mode).", "why": "file with no line" },
+    { "answer": "Basis: judgment.", "why": "judgment, though a standard exists" },
+    { "answer": "" }
+  ]
+}

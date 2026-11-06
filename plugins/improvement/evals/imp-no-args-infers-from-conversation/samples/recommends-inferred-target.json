@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "1. **Target** (recommended): the pricing loop in `src/orders/OrderService.cs` (`PriceOrder`).", "why": "recommended label before the target" },
+    { "answer": "- Target: `OrderService.PriceOrder` pricing loop, inferred from what we were editing.", "why": "inferred after the target" },
+    { "answer": "Suggested target: src/orders/OrderService.cs, the pricing loop.", "why": "suggested" }
+  ],
+  "fail": [
+    { "answer": "Which file should I improve?", "why": "no inferred target" },
+    { "answer": "Recommended target: src/Program.cs (most recently changed).", "why": "ignores the conversation" },
+    { "answer": "I refactored the pricing loop in OrderService.cs.", "why": "acts instead of recommending" }
+  ]
+}

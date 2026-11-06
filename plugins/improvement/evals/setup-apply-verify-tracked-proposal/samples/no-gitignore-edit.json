@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/.gitignore"
+          }
+        }
+      ],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/.gitignore",
+            "old_string": "node_modules/\n",
+            "new_string": "node_modules/\n.claude/**/*.local.*\n"
+          }
+        }
+      ],
+      "why": "edits the consumer's .gitignore"
+    }
+  ]
+}

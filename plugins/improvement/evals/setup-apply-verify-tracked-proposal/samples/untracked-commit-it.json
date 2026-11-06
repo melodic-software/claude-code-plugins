@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Report: written but untracked, commit it to share with the team.",
+      "why": "untracked then commit"
+    },
+    {
+      "answer": "Commit it: right after the write the file is untracked.",
+      "why": "commit then untracked"
+    },
+    {
+      "answer": "The file is not yet tracked; teammates get it once you commit.",
+      "why": "not yet tracked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both checks pass: the file is configured and shared.",
+      "why": "reports success"
+    },
+    {
+      "answer": "git ls-files exits 1, which is expected.",
+      "why": "no commit instruction"
+    }
+  ]
+}

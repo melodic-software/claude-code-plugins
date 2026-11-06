@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: imp-no-args-infers-from-conversation
+description: 'Legacy improve case no-args-asks-target-and-focus. The prompt carries the conversation context first and ends with a bare /improvement:improve, so the run takes Step 1''s no-arguments branch with something to infer from. The reply asks once, in one message, for target, focus and done (asks-target-focus-done), offering the pricing loop in src/orders/OrderService.cs as the recommended target (recommends-inferred-target) and readability as the recommended focus (recommends-readability-focus), and makes no Write or Edit call before the answer. Whether a slash token after prose loads the skill is unverified, so the case grades the reply and carries no Skill grader. Needs --scaffold and --allow-tools Write Edit so the no-write and no-edit graders can fail.'
+tags: [improve, no-args, conversation-context, no-network]
+expected_outcome: 'One message asks the user to confirm or correct the target (recommended: the pricing loop in src/orders/OrderService.cs), the focus (recommended: readability) and one sentence on what done looks like, and nothing is edited, branched, committed or opened before the answer.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'We''ve been editing src/orders/OrderService.cs for a while and the pricing loop is getting hard to read. /improvement:improve'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 900
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-target-focus-done
+    type: regex
+    pattern: '(?=[\s\S]*\btarget\b)(?=[\s\S]*\bfocus\b)(?=[\s\S]*(?:\bdone\b|\b(?:success|successful)\b|\bgood outcome\b))[\s\S]*(?:\?|\bplease (?:confirm|choose|pick|reply)\b|\bconfirm or (?:redirect|change|correct)\b|\breply with\b|\breply to confirm\b)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: recommends-inferred-target
+    type: regex
+    pattern: '\b(?:recommend\w*|suggest\w*|default|propos\w*|inferred|my (?:pick|guess|read))\b[^\n]{0,200}?(?:OrderService|pricing loop|PriceOrder)|(?:OrderService|pricing loop|PriceOrder)[^\n]{0,200}?\b(?:recommend\w*|suggest\w*|default|propos\w*|inferred)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: recommends-readability-focus
+    type: regex
+    pattern: '\bfocus\b[^\n]{0,160}?\breadab\w*|\breadab\w*[^\n]{0,160}?\bfocus\b'
+    flags: 'i'
+    target: last_message
+    arm: both

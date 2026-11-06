@@ -1,0 +1,8 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/docs/standards/bash.md" } }], "why": "no fetch" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "WebFetch", "input": { "url": "https://www.gnu.org/software/bash/manual/", "prompt": "strict mode" } }], "why": "fetches upstream" }
+  ]
+}

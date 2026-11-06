@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "git branch --show-current" } }, { "tool": "Bash", "input": { "command": "git log --oneline -10" } }, { "tool": "Bash", "input": { "command": "git status --porcelain | head -20" } }], "why": "the gather block only" },
+    { "answer": [], "why": "no shell" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "git checkout -b fix/improve-report-strict-mode" } }], "why": "creates a branch" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "git add plugins/example/scripts/report.sh && git commit -m x" } }], "why": "commits" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "git switch -c refactor/improve-x" } }], "why": "switch -c" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "gh pr create --draft --title x --body-file /tmp/b" } }], "why": "opens a PR" }
+  ]
+}

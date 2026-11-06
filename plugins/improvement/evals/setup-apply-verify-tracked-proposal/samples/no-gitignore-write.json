@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/.gitignore"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [],
+      "why": "no tool calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.gitignore",
+            "content": ".claude/**/*.local.*\n"
+          }
+        }
+      ],
+      "why": "writes the consumer's .gitignore"
+    }
+  ]
+}
