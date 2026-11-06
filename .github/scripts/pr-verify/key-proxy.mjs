@@ -66,6 +66,8 @@ const SOURCE_TYPES = Object.freeze(["base64", "text", "content"]);
 // Refused beta names logged and returned, at most (our decision); the header
 // is client-controlled.
 const MAX_NAMED_BETAS = 10;
+// How long an oversized upload is drained after its 413 before the socket is closed.
+const DRAIN_MS = 10_000;
 // Body fields the count_tokens preflight forwards.
 // Pointer: https://platform.claude.com/docs/en/api/messages-count-tokens (Body parameters)
 // As of: 2026-11-06. Recheck trigger: that section adds or removes a parameter.
@@ -441,12 +443,24 @@ export function createProxy({ key, config, log = () => {} }) {
         return;
       }
       tooLarge = true;
-      sendRefusal(res, refuse(413, "request_too_large", "request body exceeds the proxy's size limit"));
-      req.destroy();
-      done(413, { refused: "request_too_large" });
+      // Read and drop the rest, answering the 413 once the body ends: the server closes a
+      // `connection: close` socket when the response ends, so answering now would leave a client
+      // still uploading with a reset, which it retries. A client still sending after DRAIN_MS gets
+      // the 413 and the socket is closed (our decision: the drain stays bounded).
+      drainTimer = setTimeout(() => { refuseTooLarge(); req.destroy(); }, DRAIN_MS);
+      drainTimer.unref();
     });
+    let drainTimer;
+    let answered = false;
+    const refuseTooLarge = () => {
+      if (answered) return;
+      answered = true;
+      clearTimeout(drainTimer);
+      sendRefusal(res, refuse(413, "request_too_large", "request body exceeds the proxy's size limit"));
+      done(413, { refused: "request_too_large" });
+    };
     req.on("end", async () => {
-      if (tooLarge) return;
+      if (tooLarge) return refuseTooLarge();
       const ctx = { method: req.method, path, query, headers: req.headers, raw: Buffer.concat(chunks), config, budget, state, preflight };
       const refusal = await runChecks(ctx);
       if (refusal) {

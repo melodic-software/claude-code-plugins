@@ -655,6 +655,37 @@ test("an oversized body gets a 413 that is not retried, and never reaches upstre
   assert.equal(up.seen.length + up.counts.length, 0);
 });
 
+test("an oversized body still uploading in chunks is drained to its end, with no socket error", async () => {
+  const up = await stubUpstream(okJson());
+  const { socket } = await startProxy(up, { maxBodyBytes: 2000 });
+  let res;
+  let writeError = null;
+  let written = 0;
+  await new Promise((resolve) => {
+    const req = http.request({ socketPath: socket, method: "POST", path: "/v1/messages", headers: { "content-type": "application/json" } }, (r) => {
+      const chunks = [];
+      r.on("data", (c) => chunks.push(c));
+      r.on("end", () => { res = { status: r.statusCode, headers: r.headers, body: Buffer.concat(chunks).toString("utf8") }; });
+    });
+    req.on("error", (e) => { writeError = e; resolve(); });
+    req.on("close", resolve);
+    // 40 chunks of 64 KiB, 5 ms apart: more than a socket buffer holds, so the client is still
+    // writing when the limit trips on the first chunk. Over TCP (the socat bridge) a socket closed
+    // with unread data answers the remaining writes with a reset.
+    const next = (err) => {
+      if (err) return;
+      if (written === 40) return req.end();
+      written++;
+      req.write("x".repeat(65536), (e) => setTimeout(() => next(e), 5));
+    };
+    next();
+  });
+  assert.equal(writeError, null);
+  assert.equal(written, 40);
+  assertRefused(res, 413, "request_too_large");
+  assert.equal(up.seen.length + up.counts.length, 0);
+});
+
 test("past the cap the refusal is a 429 spend limit with x-should-retry false", async () => {
   const up = await stubUpstream(okJson({ input_tokens: 450, output_tokens: 450 }), { countTokens: 10 });
   // The first request commits 900; the second reserves 10 + 100 more.
