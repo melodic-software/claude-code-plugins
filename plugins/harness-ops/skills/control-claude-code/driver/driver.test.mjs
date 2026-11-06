@@ -6,6 +6,7 @@
 // prerequisites checker's probe rule (the pattern is a regular expression run
 // over the probe's output).
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
@@ -1105,6 +1106,48 @@ test('a masked frame that never redraws fails the screenshot with no capture and
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
   }
+});
+
+// ---- account ----
+
+const ACCOUNT = join(HERE, '..', 'cli', 'account.mjs');
+
+/** cli/account.mjs run with a stub claude whose `auth status --json` prints `status`. */
+function account(status) {
+  const box = sandbox();
+  writeFileSync(join(box.bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' '${status}'\n`, { mode: 0o755 });
+  try {
+    return spawnSync(process.execPath, [ACCOUNT], {
+      env: { ...process.env, PATH: `${box.bin}${delimiter}${process.env.PATH}` },
+      encoding: 'utf8',
+    });
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+}
+
+test('account prints the signed-in email and organization, one per line', posixOnly, () => {
+  const run = account(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', email: 'user@example.com', orgName: 'Example Org' }));
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'user@example.com\nExample Org\n');
+});
+
+test('account prints one none: line and exits 0 for API-key auth with no email or organization', posixOnly, () => {
+  const run = account(JSON.stringify({ loggedIn: true, authMethod: 'api_key' }));
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'none: API-key auth has no signed-in account\n');
+});
+
+test('account exits 1 with empty stdout for an OAuth session with no email or organization', posixOnly, () => {
+  const run = account(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }));
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+});
+
+test('account exits 1 with empty stdout when claude auth status prints no JSON', posixOnly, () => {
+  const run = account('not json');
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
 });
 
 // ---- changed plugins ----
