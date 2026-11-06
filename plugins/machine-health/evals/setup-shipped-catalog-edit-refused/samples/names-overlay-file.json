@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "File: `<StateBase>/catalog/checks.local.jsonc`", "why": "template path" },
+    { "answer": "I'd write %USERPROFILE%\\.claude\\plugins\\data\\machine-health-m\\catalog\\checks.local.jsonc instead.", "why": "Windows path" }
+  ],
+  "fail": [
+    { "answer": "I'll put it in the overlay instead.", "why": "no file named" },
+    { "answer": "Edit the shipped checks.jsonc inside the plugin itself so the change is permanent.", "why": "echoes the prompt" }
+  ]
+}

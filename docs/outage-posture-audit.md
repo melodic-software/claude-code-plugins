@@ -83,10 +83,10 @@ element 1, but only pr-merge uses it.
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/scripts/lib/handoff-evidence.sh:58`, `.github/workflows/pr-refine.yml:141` | `handoff-evidence` makes up to 6 reads on fixed delays with no jitter, and the head-SHA read is never retried. |
-| 2 | gap | `.github/workflows/pr-refine.yml:142`, `.github/scripts/lib/handoff-evidence.sh:127` | A failed read exits 1 instead of holding green. |
+| 1 | met | `.github/workflows/pr-refine.yml:184`, `.github/workflows/pr-run-activity-read.yml:3827`, `.github/scripts/pr-unblock/read-pr-head.bash:32` (lines at the later change below) | Part 2 gave `handoff-evidence.sh` full-jitter waits. Both PR head reads, fix-docs-head's and the read runner's report job's, read a transient fault once more after a full-jitter wait and never a rate limit. The tip step's `git ls-remote` is shared by every workflow (see Remaining). |
+| 2 | gap | `.github/workflows/pr-refine.yml:184`, `.github/workflows/pr-refine.yml:223`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:197` (lines at the later change below) | A head fix-docs-head cannot read holds green with a notice and starts nothing, and the dispatcher counts the held run toward `limit-stops-per-head`. Part 2 holds the `fix-docs` handoff reads. What is left is a script: a failed `lane-hold.mjs` read still ends fix-docs-head red (see Remaining). |
 | 3 | gap | `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:178`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:258` | The dispatcher counts any completed run, including a red outage run, as done, so the next tick never re-dispatches it. |
-| 4 | gap | `.github/actions/report-check-run/decide.mjs:104`, `.github/workflows/pr-run-activity-read.yml:3661` | A run with no verdict, such as an outage-caused broker failure, posts a `failure` check, and nothing closes it later. |
+| 4 | met | `.github/actions/report-check-run/decide.mjs:105`, `.github/workflows/pr-run-activity-read.yml:3880` (lines at the later change below) | `decide.mjs` still posts `failure` for a run with no verdict, kept on evidence as the retry signal (see Remaining). No workflow step files or demotes on an incomplete read: with `post-decline: false` the report job posts no check on a run whose run job set no head, and fix-docs-head's hold files nothing. |
 | 5 | met | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-unblock-dispatch.yml:184` | The lane's only automatic starter skips the whole dispatch while the status page lists an outage. That is a stop, and the page starts nothing. |
 | 6 | gap | `.github/scripts/lib/handoff-evidence.sh:105` | The repeated job-listing poll sends no `etag`. Concurrency (`.github/workflows/pr-refine.yml:47`) is fine. |
 
@@ -433,7 +433,7 @@ most `FAULT_HELD_READS` a pass. At about 700 succeeded runs a day that is about 
 hour, plus one or two listing reads a pass. Monitor signal 13 does not count these holds.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
-`retry-spent` fault hold, work-resolve-issue's `WIP cap hold`, work-unblock's held listings and issue reads, pr-refine's held `fix-docs` reads and
+`retry-spent` fault hold, work-resolve-issue's `WIP cap hold`, work-unblock's held listings and issue reads, pr-refine's held `fix-docs` reads and unread heads, and
 intake-triage's held verdicts (`apply-verdict.mjs` `closing`). A
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
@@ -450,8 +450,9 @@ stay unset, and `callers.test.mjs` keeps the opt-in off workflow and job level a
 
 pr-refine's element 4 row is kept on evidence: the failure check `decide.mjs` posts for a run with
 no verdict is the retry signal. `fix-docs-dispatch.mjs` `docsRunsEnded`
-(`.github/scripts/pr-unblock/fix-docs-dispatch.mjs:180-186`) dispatches again after a red run but
-counts a green run that did not hold on a handoff read as done, so a green hold that posts nothing
+(`.github/scripts/pr-unblock/fix-docs-dispatch.mjs:188-199`, lines at the later change below)
+dispatches again after a red run but counts a green run that did not hold on a handoff read or an
+unread head as done, so a green hold that posts nothing
 would stop the retry a red run gets. pr-unblock's `fix-ci-unreported` reads the same failure
 (`.github/workflows/pr-unblock.yml`, `fix-ci-unreported`). A neutral check is no fix either, since
 babysit counts neutral as passing. A broker failure on pr-refine does not reach `decide.mjs`: off
@@ -502,6 +503,29 @@ head, not `222d8023`.
   work-resolve-issue entry reads `pick-slot` too (`signals.mjs` `HOLD_LANES`), so a permanent fault,
   such as a token that cannot search, raises the signal's issue.
 
+A later change fixed pr-refine's workflow gaps, with tests. Its pr-refine rows cite that change's
+head. `pr-unblock-dispatch.yml` needed nothing: its dispatch step holds a refused call
+(`API_BUDGET_HOLD` at `:257`), a run listing or jobs read that fails warns and dispatches nothing
+(`fix-docs-dispatch.mjs:273`, `:283`), and its trigger check is a gate, which stays red.
+
+- **pr-refine, element 1.** The read runner's report job reads the PR head through
+  `read-pr-head.bash`, as fix-docs-head does: a transient fault is read once more, never a rate
+  limit, and a read that still fails warns and leaves the head empty, as before. The helper's wait
+  before that second read is now drawn from 0 to 10 s (full jitter), for pr-unblock's callers too.
+- **pr-refine, element 2.** When fix-docs-head cannot read the head (a failed read, a rate limit
+  past the guard's budget under the step's `API_BUDGET_HOLD`, or an answer with no SHA), the step
+  logs a notice, sets `unread`, and ends green. Nothing after it starts but `fix-docs-head-held`,
+  a job with no grant whose `PR head hold` notice monitor signal 13 counts (`signals.mjs`
+  `HOLD_LANES`). `fix-docs-dispatch.mjs` `heldHead` reads that job's conclusion, which no head code
+  can write, and counts the run as it counts a handoff hold, so the PR is dispatched again until
+  `limit-stops-per-head` runs went red or held. A person's hold also ends the run green with
+  fix-docs skipped, but has no such job, so it still ends the PR. A bad `pr-number` and a failed
+  `lane-hold.mjs` read still end red.
+- **pr-refine, element 4.** Nothing to change: no workflow step files or demotes on an incomplete
+  read. A cancelled run whose report-time head read fails still posts `failure` on the gated head,
+  but the cancel itself (a timeout, since `cancel-in-progress` is false) is the evidence, and for
+  fix-docs any check on the PR's last 50 commits ends the PR either way (`historyHasRun`).
+
 A later change fixed pr-review's and pr-review-security's file-list reads, with tests. Their rows
 cite that change's head, not `222d8023`.
 
@@ -519,8 +543,9 @@ The other script rows below are still open.
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
 | work-unblock | 3 | kept | `.github/scripts/work-unblock/label-unblocked.mjs` keeps its breaker-trip records: they are the lane's own comments, read from GitHub each run, and bound kill-switch re-fires that start a lane run or a model turn (see above); they gate no cron tick, so the next sweep is still the probe |
-| pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:180-186` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs` |
-| pr-refine | 1, 2, 4 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
+| pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:188-199` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs`, and the later pr-refine change above the workflow's elements 1, 2 and 4 |
+| pr-refine | 2 | script | `.github/scripts/pr-unblock/lane-hold.mjs` (a failed label or timeline read ends fix-docs-head red, a run the dispatcher counts; pr-unblock's `resolve-conflicts-select` shares the script) |
+| shared | 1 | workflow | every workflow's `Resolve main's tip` step: its one `git ls-remote` is never retried, and `callers.test.mjs` pins the step's text across more than 70 jobs (`TIP_RUN`) |
 | pr-review, pr-review-security, pr-verify | 3 | kept | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` keeps its one-time re-run record, the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`), and its status-page idle, a stop element 5 allows |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
 | pr-review, pr-review-security | 2 | larger | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs`: read a pr-review-main hold, as `faultHeld` reads pr-verify's, before `pr-review-main.yml` holds an unread file list or a run with no verdict green; until then that red is the kept re-run's signal |

@@ -63,6 +63,7 @@ export const TRANSCRIPT_JOB_IDS = {
   "maintenance-audit-lane-runs.yml": legs("judge", AUDIT_UNITS),
   "maintenance-measure-skill-edit.yml": ["propose-key", "propose", "propose-fallback"],
   "maintenance-tidy-code-upkeep.yml": legs("model"),
+  "post-merge-test-mutation.yml": [...legs("generate"), ...legs("triage")],
   "pr-review-main.yml": legs("review", REVIEW_CHUNKS),
   // Its job-id holds the issue number, which no fixed list can name, so the
   // pull does not reach these transcripts.

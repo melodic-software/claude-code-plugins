@@ -116,7 +116,12 @@
         { "id": "model", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "model-subscription", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "model-fallback", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "audit", "workflow": "post-merge-test-mutation.yml", "launcher": "claude-code-action", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "generate", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "generate-subscription", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "generate-fallback", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "triage", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "triage-subscription", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "triage-fallback", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {

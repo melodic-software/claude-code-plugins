@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "values.json: {\"report_dir\": \"D:\\\\Reports\\\\Health\"}. The overlay stays as it is.", "why": "headless values file, no overlay entry" },
+    { "answer": "Nothing goes into checks.local.jsonc; its shape is { \"checks\": [ ... ] } and holds checks only.", "why": "names the overlay shape without the path" }
+  ],
+  "fail": [
+    { "answer": "```jsonc\n{ \"checks\": [ { \"id\": \"report\", \"report_dir\": \"D:\\\\Reports\\\\Health\" } ] }\n```", "why": "report_dir inside an overlay entry" },
+    { "answer": "{ \"checks\": [ { \"id\": \"output\", \"path\": \"D:\\\\Reports\\\\Health\" } ] }", "why": "the folder inside an overlay entry" }
+  ]
+}

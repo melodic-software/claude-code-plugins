@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "1. `D:\\HealthReports\\reports\\health-2026-10-27T101500123Z.md`, the run's report.", "why": "Windows path under the configured root" },
+    { "answer": "The report: D:/HealthReports/reports/health-<UTC timestamp>.md", "why": "forward slashes" }
+  ],
+  "fail": [
+    { "answer": "The report goes to `<OutputBase>/reports/health-<UTC-timestamp>.md`.", "why": "template root, not the configured one" },
+    { "answer": "`%USERPROFILE%\\Documents\\MachineHealth\\reports\\health-2026-10-27T101500123Z.md`", "why": "default root although report_dir is set" },
+    { "answer": "the report root is D:\\HealthReports", "why": "echoes the prompt" }
+  ]
+}

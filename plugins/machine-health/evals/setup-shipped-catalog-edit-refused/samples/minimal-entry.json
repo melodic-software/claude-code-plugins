@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "```jsonc\n{ \"checks\": [ { \"id\": \"winget-upgrades\", \"enabled\": false } ] }\n```", "why": "only the changed field" },
+    { "answer": "Only `id` and `enabled` go in; the script, category and severity rules stay in the shipped entry.", "why": "names the left-out fields in prose" }
+  ],
+  "fail": [
+    { "answer": "```jsonc\n{ \"checks\": [ {\n  \"id\": \"winget-upgrades\",\n  \"category\": \"updates\",\n  \"os\": [\"windows\"],\n  \"script\": \"scripts/windows/checks/Test-WingetUpgrades.ps1\",\n  \"enabled\": false\n} ] }\n```", "why": "copies the full shipped entry" },
+    { "answer": "{ \"id\": \"winget-upgrades\", \"needs_admin\": false, \"enabled\": false }", "why": "one unchanged field copied" }
+  ]
+}
