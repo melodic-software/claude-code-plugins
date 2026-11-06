@@ -286,7 +286,12 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with
    `model: opus`, for the reason step 4 (Classify) gives. Write its table to
    `<work>/skeptic-answer-<n>.md` and apply that file's reading rules: only a `cleared` row is a
-   deletion candidate.
+   deletion candidate. Before the first skeptic, run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin testing --skill cleanup` and copy
+   its line into `decisions.md` ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md));
+   `standard` and `strict` are this step as written. Under `light`, and `off`, which acts as `light`
+   here, dispatch no skeptic and never clear a candidate in this context instead: each row's skeptic
+   verdict reads `verification: skipped (<level>)`, no row is `cleared`, and this mode deletes nothing.
 3. **Propose.** Fill `decisions.md` with one row per candidate: test, rule, quoted line, skeptic
    verdict, action, approved-by. A `cleared` row is a row 4 deletion whose no-contract statement is
    the skeptic's reason, unless a reference it quotes as naming a symbol elsewhere lies inside

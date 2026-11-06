@@ -209,9 +209,9 @@ values it can take are read at
 [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
 As of: 2026-10-11. Recheck trigger: that section renames the variable or changes its values.
 
-Effort scales the **recall stage only**. The gate never relaxes: every candidate faces a separate
-fresh-context refuting subagent at every level, and "if uncertain, it is NOT a finding" binds at
-`low` exactly as at `max`.
+Effort scales the **recall stage only**. The gate never relaxes with effort: every candidate faces a separate
+fresh-context refuting subagent at every effort level, and "if uncertain, it is NOT a finding" binds at
+`low` exactly as at `max`. Only the `verification` level can turn the gate off (Step 4).
 
 | Effort | Lenses dispatched (step 2) | Refill waves | Stop condition |
 |---|---|---|---|
@@ -289,6 +289,15 @@ or `verified-by-reading` (established from the source, with the reproduction arg
 Refuted candidates are **retained with their refuting argument**: some kills are wrong, a human
 can overturn one, and the record stops the same dead candidate resurfacing. A gate's one-line side
 observation goes to the side observations.
+
+**Verification level.** Before the first gate, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin bugs --skill scan`
+and copy its line into the run metadata ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` and `strict` are this step as written. The gate is this skill's product, so `light`,
+and `off`, which acts as `light` here, keep the candidates but label them: dispatch no gate,
+never grade a candidate in this context instead, write `verification: skipped (<level>)` in the
+run metadata, and report every gated-set candidate in the per-finding shape with
+`**Evidence**: unverified`. An `unverified` finding is a lead for a person: it never counts toward
+the effort table's stop condition and `--track` never files it.
 
 **Done when** every candidate carries a verdict and a label or a refuting argument, and on an
 attended run each proposed check was approved and run, declined, or left unanswered.
