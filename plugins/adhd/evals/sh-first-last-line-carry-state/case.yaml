@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: sh-first-last-line-carry-state
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: state-in-first-or-last-line
+    type: regex
+    pattern: '^\s*[^\n]*(?:\bfail(?:ed|s|ure)\b|\b(?:was|is|were|got|been|gets) denied\b|AccessDenied|not authorized|\b(?:is|was|are|were) missing\b|\b(?:has|had) no\b|\blacks\b|\bbecause\b|\bcaused\b|\bbroke\b|\b(?:doesn(?:''|’)t|does not|didn(?:''|’)t|did not) (?:allow|grant|include|have)\b|\bonly (?:allows|grants)\b)[^\n]*(?:\n|$)|(?:\bfail(?:ed|s|ure)\b|\b(?:was|is|were|got|been|gets) denied\b|AccessDenied|not authorized|\b(?:is|was|are|were) missing\b|\b(?:has|had) no\b|\blacks\b|\bbecause\b|\bcaused\b|\bbroke\b|\b(?:doesn(?:''|’)t|does not|didn(?:''|’)t|did not) (?:allow|grant|include|have)\b|\bonly (?:allows|grants)\b)[^\n]*(?:\n[ \t]*```[^\n]*)?\s*$'
+    flags: i
+    arm: both
+    target: last_message
+  - name: cause-found
+    type: regex
+    pattern: 's3:PutObject|PutObject'
+    flags: i
+    arm: both
+    target: last_message
