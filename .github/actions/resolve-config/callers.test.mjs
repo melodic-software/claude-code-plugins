@@ -2230,11 +2230,54 @@ test("a job reads a Claude API key only when its catalog lane runs on run-claude
   }
 });
 
+// The one step outside a launcher that may read a Claude credential:
+// pr-verify-capture.yml's key proxy start, which pipes pr-verify's key on
+// stdin to a proxy running as its own OS user before the runner is isolated,
+// so the driven Claude Code and the pull request code beside it reach the API
+// with a dummy key (owner decision Q6, option A). Only in this shape: that
+// job, that step name, the key as its one env value PROXY_KEY, and no other
+// secret reference anywhere in the step.
+const KEY_PROXY_START = {
+  key: "pr-verify-capture.yml capture",
+  name: "Start the key proxy",
+  env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}" },
+};
+const isKeyProxyStart = (key, step) =>
+  key === KEY_PROXY_START.key &&
+  step.name === KEY_PROXY_START.name &&
+  step.uses === undefined &&
+  step.with === undefined &&
+  JSON.stringify(step.env) === JSON.stringify(KEY_PROXY_START.env) &&
+  [...secretRefs({ ...step, env: undefined })].length === 0;
+
 test("a Claude credential reaches only the launcher step of its catalog lane", () => {
   const jobs = claudeSecretJobs();
   for (const { lane, key } of catalogLanes()) {
-    assert.deepEqual(strayClaudeReaders(jobs.get(key), lane.launcher), [], key);
+    const { doc, job } = jobs.get(key);
+    const steps = (job.steps ?? []).filter((step) => !isKeyProxyStart(key, step));
+    assert.deepEqual(strayClaudeReaders({ doc, job: { ...job, steps } }, lane.launcher), [], key);
   }
+});
+
+test("the key proxy's start is the one step outside a launcher that reads a key, and only in its exact shape", () => {
+  const steps = workflow("pr-verify-capture.yml").jobs.capture.steps;
+  const start = steps.find((step) => step.name === KEY_PROXY_START.name);
+  assert.ok(start);
+  assert.equal(steps.filter((step) => isKeyProxyStart(KEY_PROXY_START.key, step)).length, 1);
+  // Without the exception it is a stray reader, so the exception is what lets it pass.
+  assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [start] } }, "run-claude-cli"), [`step ${KEY_PROXY_START.name}`]);
+  const stillStray = {
+    "another job": [KEY_PROXY_START.key.replace(" capture", " capture-subscription"), start],
+    "another workflow": [KEY_PROXY_START.key.replace("pr-verify-capture.yml", "pr-verify.yml"), start],
+    "another step name": [KEY_PROXY_START.key, { ...start, name: "Start the proxy" }],
+    "the key under another name": [KEY_PROXY_START.key, { ...start, env: { KEY: KEY_PROXY_START.env.PROXY_KEY } }],
+    "another secret as PROXY_KEY": [KEY_PROXY_START.key, { ...start, env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}" } }],
+    "a second env value": [KEY_PROXY_START.key, { ...start, env: { ...start.env, OTHER: "x" } }],
+    "a secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho "\${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"` }],
+    "every secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho '\${{ toJSON(secrets) }}'` }],
+    "an action": [KEY_PROXY_START.key, { ...start, uses: "./x" }],
+  };
+  for (const [why, [key, step]] of Object.entries(stillStray)) assert.equal(isKeyProxyStart(key, step), false, why);
 });
 
 test("the Claude credential scan sees every form a secret can be read in", () => {
@@ -3155,7 +3198,6 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-merge.yml merge: List the candidate PRs",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
-    "pr-verify-capture.yml capture-fallback: Resolve the pull request",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
     "pr-verify.yml check-intent-fallback: Resolve the pull request",
@@ -9619,11 +9661,20 @@ function missingLegs(catalog, launched) {
   }
   return missing;
 }
-// Lanes that cannot take every leg yet (#13586): each names the exact legs it
-// waives and why. The test fails when an exempt lane lacks a leg its entry
+// Lanes that cannot take every leg yet (#13586), or never can by the owner's
+// decision (#12232): each names the exact legs it waives and why, ending in
+// its tracking issue. The test fails when an exempt lane lacks a leg its entry
 // does not name, or runs a leg its entry waives, so an entry never covers
 // more than it says and goes once its lane gains the leg.
-const LEG_EXEMPTIONS = {};
+const LEG_EXEMPTIONS = {
+  "pr-verify-capture.yml pr-verify capture": {
+    legs: ["subscription", "fallback"],
+    reason:
+      "the capture runs on the key alone and records blocked otherwise (owner decision Q5): its driven Claude Code reaches the API only through a key proxy we run, and a subscription token may not be routed through one, so the lane never takes these legs (#12232)",
+  },
+};
+// The issues an exemption may name: the full-chain tracker, or the capture's permanent key-only decision.
+const EXEMPTION_ISSUE = /\(#(?:13586|12232)\)$/;
 // A secret name's leg: the role's API key, its subscription token, or the
 // central fallback token.
 const legOf = (name) => (name === FALLBACK_SECRET ? "fallback" : /_CLAUDE_API_KEY$/.test(name) ? "key" : "subscription");
@@ -9636,7 +9687,7 @@ function exemptionProblems(missing, exemptions, lanes) {
   }
   for (const [key, { legs, reason }] of Object.entries(exemptions)) {
     if (!lanes.has(key)) problems.push(`${key} is not a catalog lane`);
-    if (!/\(#13586\)$/.test(reason ?? "")) problems.push(`${key} names no reason and tracking issue`);
+    if (!EXEMPTION_ISSUE.test(reason ?? "")) problems.push(`${key} names no reason and tracking issue`);
     const lacking = new Set((missing.get(key) ?? []).map(legOf));
     for (const leg of legs) if (!lacking.has(leg)) problems.push(`${key} now runs its ${leg} leg: drop it from the exemption`);
   }

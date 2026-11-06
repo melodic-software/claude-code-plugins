@@ -1308,6 +1308,86 @@
               "maximum": 30,
               "default": 30,
               "description": "Days each capture artifact lasts. At most 30, the pr-capture-* row's days in .github/artifact-retention.json (README.md, Verifier verdict)."
+            },
+            "proxy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["claude-code-version", "driven-model", "driven-small-model", "models", "token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
+              "description": "The key proxy the capture's driven Claude Code reaches the API through, and the driven session's models (README.md, Verifier verdict).",
+              "properties": {
+                "claude-code-version": {
+                  "type": "string",
+                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                  "description": "The Claude Code version the capture installs, equal to package-lock.json's pin; betas and body-keys were measured on it (README.md, Verifier verdict)."
+                },
+                "driven-model": {
+                  "type": "string",
+                  "pattern": "^claude-[a-z0-9-]+$",
+                  "description": "The driven session's main model, one of models (README.md, Verifier verdict)."
+                },
+                "driven-small-model": {
+                  "type": "string",
+                  "pattern": "^claude-[a-z0-9-]+$",
+                  "description": "The driven session's small model (titles and the like), one of models (README.md, Verifier verdict)."
+                },
+                "models": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "type": "string", "pattern": "^claude-[a-z0-9-]+$" },
+                  "description": "The model ids the proxy forwards; any other is refused (README.md, Verifier verdict)."
+                },
+                "token-cap": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Tokens one capture job may spend through the proxy, input, cache and output counted in full; past it the proxy refuses (README.md, Verifier verdict)."
+                },
+                "max-tokens-ceiling": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The largest max_tokens a request may ask for, also the driven session's CLAUDE_CODE_MAX_OUTPUT_TOKENS (README.md, Verifier verdict)."
+                },
+                "max-body-bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The largest request body the proxy accepts (README.md, Verifier verdict)."
+                },
+                "max-in-flight": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "description": "Requests the proxy forwards at once; at least 2, since the main and title requests run together (README.md, Verifier verdict)."
+                },
+                "max-count-tokens-requests": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Client count_tokens requests the proxy forwards per job (README.md, Verifier verdict)."
+                },
+                "upstream-timeout-ms": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Idle milliseconds after which the proxy aborts a stalled upstream request; longer than the longest non-streaming generation and gap between stream pings (README.md, Verifier verdict)."
+                },
+                "betas": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "minLength": 1 },
+                  "description": "The anthropic-beta values a request may name, measured from the driven session on claude-code-version (README.md, Verifier verdict)."
+                },
+                "body-keys": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "type": "string", "minLength": 1 },
+                  "description": "The top-level request body keys a request may carry, measured from the driven session (README.md, Verifier verdict)."
+                },
+                "block-types": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "type": "string", "minLength": 1 },
+                  "description": "The content block types a request may carry in messages and system (README.md, Verifier verdict)."
+                }
+              }
             }
           }
         },
