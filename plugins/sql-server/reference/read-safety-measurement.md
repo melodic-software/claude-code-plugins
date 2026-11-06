@@ -221,8 +221,9 @@ session's own parallel tasks are classed apart, not as blocking by another sessi
 | 3 | 8 | agent | agent | yes | lock | LCK_M_S | 2 | 12 |
 
 Worst case over 3 runs: writer max 204 ms; longest wait the writer spent on an agent session
-0 ms; longest wait any session spent on an agent session 16 ms; longest agent lock wait
-66 ms; open transactions after a topology run 0; table-level locks an agent session held at once
+0 ms (0 ms on one not itself waiting); longest wait any session spent on an agent
+session 54 ms (16 ms on one not itself waiting); longest agent lock wait 66 ms; open
+transactions after a topology run 0; table-level locks an agent session held at once
 0. Median over the runs of the writer's slowest update, by process count: 1: 60 ms, 2: 59 ms, 4: 91 ms, 8: 148 ms.
 3 runs show the worst case; they support no estimate of run-to-run spread.
 
