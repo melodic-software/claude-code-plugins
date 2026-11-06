@@ -77,7 +77,7 @@ full convention: [recommendation-basis](https://github.com/melodic-software/clau
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit),
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result),
 both at an explicit choice-time AND over choices already embedded in the
 work in flight:
 

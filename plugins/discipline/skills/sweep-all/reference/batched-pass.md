@@ -44,7 +44,8 @@ unchanged and bind every member.
    ledger. Each ledger entry carries the
    concrete located finding AND the remedy this corrector would apply for it
    (the shared loop's step-3 corrective action, *described* not performed. The
-   fork still writes nothing), or an honest "clean". Capturing the proposed
+   fork still writes nothing), or "clean (unconfirmed)", since a fork cannot
+   spawn the method doc's step 2 confirmation. Capturing the proposed
    remedy in the audit is what gives step 3 the reporter→remedy data to key on;
    a ledger of bare violations would leave the dedup with nothing to preserve.
 
@@ -128,7 +129,12 @@ unchanged and bind every member.
    A member still unproven after its one retry is reported
    open, and the verified ledgers are kept and corrected. See the preflight's
    mid-fan-out rule; only a failed canary collapses the pass to the digest.
-2. **Collect** every ledger.
+2. **Collect** every ledger. Before step 3, each "clean (unconfirmed)"
+   ledger on load-bearing work gets the method doc's step 2 confirmation:
+   one fresh-context (non-fork) subagent per corrector, under the level SKILL.md
+   resolves before this step. Its findings join that corrector's ledger, so they pass through step
+   3's dedup and step 4's rank order like any other entry. Under `light` or
+   `off` the ledger stays "clean (self-audit only)".
 3. **Dedup by root cause.** Before correcting, group ledger entries across
    correctors that name the SAME underlying finding. Distinct disciplines
    routinely surface one root cause as separate entries (e.g. a recall-based
@@ -170,5 +176,7 @@ unchanged and bind every member.
    step 2 is a same-context self-audit; this carve-out is about step 4.)
 5. **Report** one consolidated ledger: per corrector. Corrected / clean /
    open; a root-cause finding merged in step 3 is listed once, attributed to
-   every corrector that reported it; plus which situational members ran versus
+   every corrector that reported it; a finding from the step 2 confirmation
+   is listed under the corrector whose ledger it joined, marked as found by
+   the confirmation; plus which situational members ran versus
    were skipped, and which never-members exist for direct use.

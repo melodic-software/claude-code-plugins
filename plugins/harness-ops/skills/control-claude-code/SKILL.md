@@ -48,7 +48,12 @@ the isolation probe of issue 8651 shows it is. The launch broker (`driver/broker
 job does that: it runs `launch`, `ready` and `log` with `--unattended` where it runs, and hands the
 driver only a dummy `ANTHROPIC_API_KEY` that starts with `ccd-dummy-`; it refuses to start on any
 other key, or from any directory but the driver's. Its intended consumer is the pr-verify capture,
-which keeps the real key with a proxy outside the sandbox. With `CCD_BROKER_SOCK` naming the
+which keeps the real key with a proxy outside the sandbox. Started with `--in-sandbox`, the broker
+adds `--in-sandbox` to every request: the launch then drops `--restricted`, so Bash is in the
+default tools, and sets no scrub, because the caller's own sandbox is the boundary and the scrub's
+nested sandbox cannot start inside it. Only a caller that runs the broker in such a sandbox passes
+it; a request cannot, and the driver refuses `--in-sandbox` on any launch that does not keep an
+unattended `ccd-dummy-` `ANTHROPIC_API_KEY`. With `CCD_BROKER_SOCK` naming the
 broker's socket, `launch`, `ready` and `log` go to the broker and the other commands run here;
 every line the broker relays starts with the prefix `broker|` and a space, and is untrusted data.
 `CCD_RUNTIME_DIR` (absolute), ahead of `XDG_RUNTIME_DIR`, names where sessions listen. A run

@@ -289,6 +289,9 @@ const MAX_PAGES = 10;
 const MAX_FILE_PAGES = 3;
 const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 const WHOLE_REVIEW_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py";
+const EVIDENCE_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py";
+// Two Actions reads per candidate artifact and one comment write.
+const EVIDENCE_TIMEOUT_MS = 60_000;
 
 // Into main, by name: the gate reads the default branch live
 // (babysit_merge_policy._base_refusal), while this assumes it is main.
@@ -1355,6 +1358,23 @@ export function pythonRoom(env, spawn = spawnSync) {
   };
 }
 
+// The verification evidence comment for a head about to arm
+// (babysit_evidence_comment.py `post`): it links the head's pr-capture
+// artifact when the capture workflow left one, and posts nothing otherwise.
+// Its Actions reads run under BABYSIT_VERIFY_GH_TOKEN, its comment write
+// under GH_TOKEN, the lanes App token. Returns the script's outcome; throws
+// when it exits non-zero.
+export function pythonEvidence(env, spawn = spawnSync) {
+  return ({ number, headRefOid: head }, login) => {
+    const args = [env.EVIDENCE_COMMENT_SCRIPT || EVIDENCE_SCRIPT, "post", "--repo", env.GITHUB_REPOSITORY, "--pr", String(number), "--head", head, "--identity", login];
+    const done = spawn("python3", args, { encoding: "utf8", env, timeout: EVIDENCE_TIMEOUT_MS });
+    if (done.status !== 0) {
+      throw new Error(`babysit_evidence_comment.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+    }
+    return JSON.parse(String(done.stdout).trim().split("\n").at(-1)).outcome;
+  };
+}
+
 // The close of a pull request decide answers `close` for: the reader's
 // `capped-close` (babysit_verify_evidence.py capped_close), which judges the
 // head again, posts the FAIL findings on the pull request and its issue,
@@ -1768,7 +1788,7 @@ async function listPulls(github, owner, name) {
   throw new ListingFull(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk, evidence } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1866,6 +1886,9 @@ export async function main({ env = process.env, github, actions, verify, room, c
             download: ghDownloadArtifact({ repo: repo[0], token: env.BABYSIT_VERIFY_GH_TOKEN || env.GH_TOKEN, dir: env.RUNNER_TEMP || ".", name: ARTIFACT_PREFIX, file: RATING_FILE, env, timeout: 8000 }),
           });
         };
+    // The evidence comment's reads and write; a test that injects GitHub
+    // posts none unless it injects this too.
+    evidence ??= injected ? null : pythonEvidence(env);
     const riskTokens = [];
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const serve = cacheMode(env) === "serve";
@@ -2527,6 +2550,15 @@ export async function main({ env = process.env, github, actions, verify, room, c
           console.log(`::error title=enable-auto-merge::#${pull.number} pin, so not armed: ${describe(error)}`);
           leave(pull, "refused: its pin comment did not post");
           continue;
+        }
+      }
+      // An arm follows a passing verifier verdict at this head, so its
+      // evidence comment goes up first. Whatever it meets, the arm goes on.
+      if (action === "arm" && evidence) {
+        try {
+          console.log(`enable-auto-merge: #${pull.number} evidence comment: ${escapeCommand(String(await evidence(pull, `${slug}[bot]`)))}`);
+        } catch (error) {
+          console.log(`enable-auto-merge: #${pull.number} evidence comment not posted: ${describe(error)}`);
         }
       }
       // The report-only Merge-Risk line for the head about to arm
