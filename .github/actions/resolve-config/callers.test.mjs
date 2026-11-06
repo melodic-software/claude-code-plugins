@@ -9934,6 +9934,8 @@ test("the leg check fails a lane that lacks a leg and passes one that has all th
 // until its lane moves to select-model-credential.
 const KEY_CREDIT_WINDOW = "${{ vars.KEY_CREDIT_WINDOW_HOURS }}";
 const KEY_CREDIT_WINDOW_OLD_GATE = "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}";
+// The time the key was last replaced, which every gated reusable call also passes.
+const KEY_CREDIT_RESET_AT = "${{ vars.KEY_CREDIT_RESET_AT }}";
 const OLD_GATE = "melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 ";
 const SELECT_ACTION = "melodic-software/ci-workflows/.github/actions/select-model-credential@";
 // The lane not yet on select-model-credential: pr-unblock.yml's 4-leg
@@ -9952,7 +9954,10 @@ function creditWindowProblems(files, load, readText, rawText = readText) {
     let oldGate = false;
     for (const [id, job] of Object.entries(load(file).jobs ?? {})) {
       const passed = job?.with?.["key-credit-window-hours"];
-      if (GATED_REUSABLE.test(String(job?.uses ?? "")) && passed !== KEY_CREDIT_WINDOW) problems.push(`${file} ${id} passes key-credit-window-hours ${passed}`);
+      if (GATED_REUSABLE.test(String(job?.uses ?? ""))) {
+        if (passed !== KEY_CREDIT_WINDOW) problems.push(`${file} ${id} passes key-credit-window-hours ${passed}`);
+        if (job.with?.["key-credit-reset-at"] !== KEY_CREDIT_RESET_AT) problems.push(`${file} ${id} passes key-credit-reset-at ${job.with?.["key-credit-reset-at"]}`);
+      }
       for (const step of (job?.steps ?? []).filter(isCreditGate)) {
         const want = isOldGate(step) ? KEY_CREDIT_WINDOW_OLD_GATE : KEY_CREDIT_WINDOW;
         oldGate ||= isOldGate(step);
@@ -9987,7 +9992,7 @@ function keyLegGate(doc, id, job) {
   return gated ? "needs" : null;
 }
 
-test("every credit read and gated reusable call reads the one credit window", () => {
+test("every credit read and gated reusable call reads the one credit window, and each gated call the reset time", () => {
   const files = workflowFiles();
   assert.deepEqual(creditWindowProblems(files, workflow, (file) => read(`../../workflows/${file}`)), []);
   const gates = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).flatMap((job) => (job?.steps ?? []).filter(isCreditGate)));
@@ -10002,7 +10007,8 @@ test("the credit window check names a drifted default, a missing input, an old g
   const OLD = `${OLD_GATE.trim()} # b8bdd7f`;
   const gate = (hours, uses = OLD) => ({ name: "Read the key's credit history", uses, with: { "key-job": "j", "window-hours": hours } });
   const start = (hours) => gate(hours, `${SELECT_ACTION}${"0".repeat(40)} # 0000000`);
-  const call = (hours) => ({ uses: "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main", with: hours === undefined ? {} : { "key-credit-window-hours": hours } });
+  // A second argument, undefined included, replaces the reset time the call passes.
+  const call = (hours, ...reset) => ({ uses: "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main", with: { ...(hours === undefined ? {} : { "key-credit-window-hours": hours }), ...((reset.length ? reset[0] : KEY_CREDIT_RESET_AT) === undefined ? {} : { "key-credit-reset-at": reset.length ? reset[0] : KEY_CREDIT_RESET_AT }) } });
   const check = (jobs, text = "") => creditWindowProblems(["f.yml"], () => ({ jobs }), () => text);
   assert.deepEqual(check({ s: { steps: [start(KEY_CREDIT_WINDOW)] }, r: call(KEY_CREDIT_WINDOW) }, KEY_CREDIT_WINDOW), []);
   assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW_OLD_GATE)] } }, KEY_CREDIT_WINDOW_OLD_GATE), [], "an old gate keeps its default written out");
@@ -10012,6 +10018,8 @@ test("the credit window check names a drifted default, a missing input, an old g
   assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW)] } }), [`f.yml g Read the key's credit history: window-hours ${KEY_CREDIT_WINDOW}`], "an empty window fails the old gate");
   assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW_OLD_GATE, "melodic-software/ci-workflows/.github/actions/check-key-credit@abc")] } }), ["f.yml g Read the key's credit history: check-key-credit at another pin; move it to select-model-credential"]);
   assert.deepEqual(check({ r: call(undefined) }), ["f.yml r passes key-credit-window-hours undefined"], "the reusable's own default ignores the variable");
+  assert.deepEqual(check({ r: call(KEY_CREDIT_WINDOW, undefined) }), ["f.yml r passes key-credit-reset-at undefined"], "a call that drops the reset time");
+  assert.deepEqual(check({ r: call(KEY_CREDIT_WINDOW, "2026-11-06T00:00:00Z") }), ["f.yml r passes key-credit-reset-at 2026-11-06T00:00:00Z"], "a literal reset time ignores the variable");
   assert.deepEqual(check({ r: call(KEY_CREDIT_WINDOW_OLD_GATE) }), [`f.yml r passes key-credit-window-hours ${KEY_CREDIT_WINDOW_OLD_GATE}`], "a written-out default overrides the reusable's own");
   assert.deepEqual(check({}, KEY_CREDIT_WINDOW_OLD_GATE), [`f.yml reads ${KEY_CREDIT_WINDOW_OLD_GATE}`], "the old gate's text where no old gate runs");
   assert.deepEqual(check({}, "WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"), ["f.yml reads ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"]);

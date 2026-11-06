@@ -9,7 +9,8 @@
 // a handoff from the first chunk or a later one, and every launcher outcome
 // run-claude-cli's own handoffReason can produce, beside a few fixed shapes
 // of the second lane. It holds each state to the expressions the workflow
-// used before the action (quoted from 5599e627fc): the same jobs and lanes
+// used before the action (quoted from main before this change, a6a9c686f3,
+// with #13836's held terms, so held runs vary too): the same jobs and lanes
 // start, the same skipped key legs are reported, and each leg gets the same
 // model run, fallback-ready and fallback-reason. A leg's `present` is
 // compared as whether its model runs: the action writes `false` where the
@@ -64,11 +65,12 @@ const named = memo((job, name) => {
 // The handoff step's own reason check (its run: case), from the workflow.
 const CASE = /case "\$REASON" in\n\s+([a-z| -]+)\) ;;/.exec(named(KEY, "Hand the lane on").run)[1].split("|").map((r) => r.trim());
 
-// The old conditions, reasons and route env, at 5599e627fc.
+// The old conditions, reasons and route env, at a6a9c686f3 (main before this
+// change, with #13836's held terms).
 const OLD = {
-  key: "needs.review-handoffs-credit.outputs.skip-key != 'true' && !cancelled() && needs.trigger.result == 'success' && github.ref == 'refs/heads/main' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && (needs.trigger.outputs.run-attempt != github.run_attempt || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true')",
-  report: (sw) => `steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && vars.${sw} != 'true'`,
-  route: "!cancelled() && github.ref == 'refs/heads/main' && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != '' || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true')",
+  key: "needs.review-handoffs-credit.outputs.skip-key != 'true' && !cancelled() && needs.trigger.result == 'success' && github.ref == 'refs/heads/main' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && (needs.trigger.outputs.run-attempt != github.run_attempt || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')",
+  report: (sw) => `steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.${sw} != 'true'`,
+  route: "!cancelled() && github.ref == 'refs/heads/main' && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != '' || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')",
   routeEnv: (lane, sw) => `\${{ needs.review.outputs.${lane} || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && vars.${sw} != 'true' && 'credit-stop' || '' }}`,
   handoffIf: `${SLOTS.map((k) => `steps.review-${k}.outputs.handoff == 'true'`).join(" || ")} || steps.credential.outputs.present == 'false'`,
   handoffReason: `\${{ steps.credential.outputs.present == 'false' && 'no-key' || ${SLOTS.map((k) => `steps.review-${k}.outputs.handoff-reason`).join(" || ")} }}`,
@@ -167,6 +169,7 @@ function chain(version, s) {
     "needs.trigger.outputs.proceed": "true",
     "needs.trigger.outputs.review": "true",
     "needs.trigger.outputs.judged": "",
+    "needs.trigger.outputs.held": s.held,
     "needs.trigger.outputs.main-sha": SHA,
     ...Object.fromEntries(s.lanes.map((l, i) => [`vars.${LANES[i].sw}`, l.off ? "true" : ""])),
   };
@@ -259,6 +262,7 @@ const SECOND = [
 ];
 
 function* states() {
+  for (const held of ["", "true"])
   for (const gate of ["ok", "skip", "failed"])
     for (const key of [true, false])
       for (const sub of [true, false])
@@ -266,7 +270,7 @@ function* states() {
           for (const first of firstLane())
             for (const second of SECOND) {
               const secrets = { [`secrets.${SECRETS.key}`]: key ? "set" : "", [`secrets.${SECRETS.sub}`]: sub ? "set" : "", [`secrets.${SECRETS.fallback}`]: fallback ? "set" : "" };
-              yield { gate, key, sub, fallback, secrets, lanes: [first, second] };
+              yield { held, gate, key, sub, fallback, secrets, lanes: [first, second] };
             }
 }
 

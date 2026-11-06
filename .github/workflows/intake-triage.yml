@@ -274,8 +274,11 @@ jobs:
       claude-args: ${{ needs.born-triaged.outputs.claude-args }}
       lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
       # The key's credit window every model lane reads (callers.test.mjs
-      # KEY_CREDIT_WINDOW_REUSABLE); empty runs the reusable's 1-hour default.
+      # KEY_CREDIT_WINDOW); empty runs the reusable's 1-hour default.
       key-credit-window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+      # The time the key was last replaced: a credit stop before it no longer
+      # holds the key off.
+      key-credit-reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
       issue-number: ${{ inputs.issue-number }}
       allowed-author-ids: ${{ needs.born-triaged.outputs.human-ids }}
       allowed-bot-sender-ids: ${{ needs.born-triaged.outputs.bot-ids }}
