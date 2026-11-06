@@ -4,6 +4,10 @@ Shared by the fan-out tiers of `do-your-research` and `recheck-against-upstream`
 Each one enumerates its own inventory (the skill says what counts as an item) and hands every item to a
 fresh-context subagent; this file owns how that dispatch runs.
 
+- **The `verification` level gates the dispatch.** The SKILL.md that chose the fan-out tier
+  resolved it. Under `light`, and `off`, which acts as `light` here, dispatch no subagent and
+  never resolve an item from this context in its place: every item the fan-out would have
+  covered gets a ledger row with the verdict `verification: skipped (<level>)`.
 - **Blind subagents, or it is not fresh context.** Hand each subagent the item
   and the requirement, never the reasoning or assumption that produced it; an
   agent given that reasoning re-derives the same error.

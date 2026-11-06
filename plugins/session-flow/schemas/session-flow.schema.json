@@ -35,6 +35,16 @@
       "enum": ["1", "3"],
       "default": "1",
       "description": "How many review passes /session-flow:retro session mode runs to produce its Phase 2 findings. 1 runs one pass. 3 runs three subagents in parallel, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, and merges their findings before scoring. No session-length threshold applies. The setup check compares the value's text, so an unquoted 3 is valid and 2 is not."
+    },
+    "verification": {
+      "enum": ["off", "light", "standard", "strict"],
+      "default": "standard",
+      "description": "How much independent checking this plugin's skills run: off, light (skip the verifier dispatch), standard (today's behavior) or strict (run the passes that are optional today). Read from the default branch's committed copy only, so a branch cannot lower it. Levels: docs/contracts/verification-level/README.md."
+    },
+    "verification_skills": {
+      "type": "object",
+      "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
+      "description": "Per-skill verification level, keyed by skill name (for example orchestrate); an entry beats this file's verification value."
     }
   }
 }
