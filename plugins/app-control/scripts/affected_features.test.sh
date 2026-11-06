@@ -172,6 +172,20 @@ run "${PROJECT[@]}" --project-dir "$P/shop"
 expect "globs resolve against --project-dir, not the repository root" \
   '([f["id"] for f in d["features"]], d["note"])' "([], 'control skill present, 5 files unmatched')"
 
+# --- a link left at affected.json: the write replaces the link, never its target ----------------
+for kind in symbolic hard; do
+  rm -rf "$T/out" && mkdir -p "$T/out"
+  printf 'keep\n' >"$T/victim-$kind"
+  if [[ $kind == symbolic ]]; then ln -s "$T/victim-$kind" "$T/out/affected.json"; else ln "$T/victim-$kind" "$T/out/affected.json"; fi
+  rc=0
+  python3 -I "$AFFECTED" --out "$T/out" "${PROJECT[@]}" 2>"$T/stderr" >/dev/null || rc=$?
+  if [[ $rc == 0 && "$(cat "$T/victim-$kind")" == keep && ! -L "$T/out/affected.json" ]] && python3 -I -c 'import json, sys; json.load(open(sys.argv[1]))' "$T/out/affected.json"; then
+    pass "a $kind link at affected.json is replaced and its target left unchanged"
+  else
+    fail "a $kind link at affected.json is replaced and its target left unchanged" "rc=$rc victim=$(cat "$T/victim-$kind") $(cat "$T/stderr")"
+  fi
+done
+
 if ((FAILED)); then
   printf '%d failed\n' "$FAILED" >&2
   exit 1
