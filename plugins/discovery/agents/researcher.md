@@ -103,6 +103,12 @@ load-time machinery, no user turn, no unresolved scope.
   only the parent replaces. If the line is absent, write `internal`, say in the index
   that the default was taken, and mention the omission in `open_questions`. Under `publish` the
   research skill's discipline file tightens two rules ("Evidence the user will publish").
+- **Research config**: `corroborators=<n> recency=<active>/<standard>/<guide>`, the values the
+  parent resolved under the research skill's "Tunable defaults". Aim each claim at `<n>`
+  independent corroborators, and apply the three windows to the recency gate (outcome-gate row 6)
+  in place of the discipline file's default days. If the line is absent, resolve the keys from
+  `docs/conventions/discovery.yaml` and the defaults (2, 14/30/90), state the values used in the
+  index, and mention the omission in `open_questions`.
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
   one a parent can establish before dispatching. In particular **your own ability to write is not a
   flag**. The parent's pre-dispatch `mkdir`/baseline proves the *parent* can write there, not you.
@@ -323,7 +329,8 @@ Run the skill's outcome gate against your own artifacts before the final write. 
 **not yours to render a verdict on**, because grading them means judging the quality of your own
 choices, and you are the context that made them:
 
-- the criterion requiring ≥2 **independent** corroborators per accepted claim (a floor below criterion 7),
+- the criterion requiring ≥2 **independent** corroborators per accepted claim (a floor below criterion 7;
+  2 is the `research_corroborators` default, and the envelope's `Research config:` line sets it),
   or a `single source` reason that holds for a first-party content claim,
 - the criterion requiring every accepted claim to be HIGH confidence, `HIGH (single source)`
   included,

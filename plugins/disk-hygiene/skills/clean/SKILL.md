@@ -385,8 +385,9 @@ it is, why removable and risk from your step 3 report (the preview repeats the p
 there), whether it is an empty directory, the single tier, and only then logical
 / reclaimable bytes, plus the preview's approval token. The `apply` call's hook `ask` (§6) lists
 that tier, the count and every path, and is the [confirmation gate](#confirmation-gate)'s removal
-question, so ask nothing separately before it. Where a hook `ask` would not prompt in the session's
-mode (the PowerShell-lane pointer in Gotchas), ask the gate's removal question first. The approval
+question, so in Manual and auto mode ask nothing separately before it. Only in `dontAsk`, or a
+`-p` run with no prompt tool (the PowerShell-lane pointer in Gotchas), ask the gate's removal
+question first. The approval
 must name **exactly that tier and list**. Process another tier only with a new plan, preview, and
 question.
 
@@ -481,7 +482,7 @@ and what the guard does when no Python resolves → "Hook launch form".
   rule behaves in each mode, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
   [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
-  live. **As of:** 2026-10-11. **Recheck trigger:** a section changes whether either kind of `ask`
+  live. **As of:** 2026-11-06. **Recheck trigger:** a section changes whether either kind of `ask`
   prompts in a mode, or a release note names hook permission decisions.
   The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain

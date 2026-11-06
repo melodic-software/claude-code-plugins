@@ -3,6 +3,13 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.21] - 2026-11-06
+
+### Fixed
+
+- `/fleet:reach` uses the manifest's `/mnt/c` paths as given, never checking them with file tools or asking a subagent to.
+- `/fleet:reach` says that each agent-starting command prompts under auto mode, whether it runs, delegates or hands the command over.
+
 ## [0.2.20] - 2026-11-06
 
 ### Fixed

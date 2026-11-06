@@ -434,6 +434,36 @@ assert_absent "benign Bash dispatcher never sources ps-command.sh" \
 # trace lines into the middle of another's.
 assert_eq "benign Bash dispatcher forks only the shared parse (five BASHPIDs in the xtrace)" \
   "5" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
+# --- a parse seeded by exec-bash.mjs --bps-seed --------------------------------
+# The pair is trusted only under --bps-seeded, which only the hooks.json row
+# passes. A forged pair that gives a refused command the list of a benign one is
+# ignored without the flag, and a seeded call runs no shfmt or jq in bash.
+# shellcheck disable=SC2016  # the child shell expands these
+seed_list() { bash -c 'source "$1/hook-utils.sh"; hook::_bps_shfmt_to l "$2" && printf %s "$l"' -- "$HOOK_DIR" "$1"; }
+LS_LIST=$(seed_list 'ls')
+att_seed() { # att_seed <flag or ""> <command> <seed key> <seed list>: the shipped row, seeded
+  local p
+  p=$(jq -nc --arg c "$2" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+  RC=0
+  OUT=$(env CLAUDE_CODE_SESSION_ATTENDED=1 HOOK_BPS_SEED_KEY="$3" HOOK_BPS_SEED_VAL="$4" PATH="$SHIM:$PATH" \
+    bash "$DISPATCH" ${1:+"$1"} --lib lib/powershell/ps-command.sh \
+    block-no-verify.sh block-dangerous-git.sh block-noncanonical-commit.sh \
+    block-root-delete-target.sh block-credential-read.sh <<<"$p" 2>"$TEST_TMPDIR/err") || RC=$?
+}
+if [[ -n "$LS_LIST" && -x "$SHIM/jq" ]]; then
+  att_seed "" 'git reset --hard' 'git reset --hard' "$LS_LIST"
+  assert_eq "a forged seed without --bps-seeded is ignored: reset --hard still asks" ask "$(hsd permissionDecision)"
+  : >"$SPAWN_LOG"
+  att_seed --bps-seeded 'git status' 'git status' "$(seed_list 'git status')"
+  assert_eq "a seeded call allows as before" "" "$(hsd permissionDecision)"
+  assert_eq "a seeded call runs no jq in bash (no parse)" "" "$(cat "$SPAWN_LOG")"
+  : >"$SPAWN_LOG"
+  att_seed --bps-seeded 'git reset --hard' 'git status' "$(seed_list 'git status')"
+  assert_eq "a seed keyed to other text is not used: reset --hard asks" ask "$(hsd permissionDecision)"
+  assert_eq "a seed keyed to other text: bash parses (one jq)" "jq" "$(cat "$SPAWN_LOG")"
+else
+  bad "need the seed list and the jq shim to test --bps-seeded"
+fi
 # --- PostToolUse verifiers: one path read, one root, one unprimed jq ------------
 # The three verifiers each read the file path and the repository root, and two
 # of them ask for the unprimed `replace_all` filter. Through the dispatcher the
@@ -985,7 +1015,7 @@ guards_of() { # <hooks.json command> -> the guard file names it dispatches
   local i=0 tok
   while ((i < ${#toks[@]})); do
     tok="${toks[i]}"
-    if [[ "$tok" == "--lib" ]]; then
+    if [[ "$tok" == "--lib" || "$tok" == "--bps-seed" ]]; then
       ((i += 2))
       continue
     fi
