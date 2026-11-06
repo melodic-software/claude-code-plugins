@@ -164,7 +164,8 @@ export const REFINE_FOOTERS = {
 // Opens the lanes App's comment saying why apply-verdict's verdict holds the
 // issue.
 export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
-// The flags a triage verdict may list.
+// The flags a triage verdict may list that name an owner reason; the
+// untrusted entry (apply-verdict.mjs UNTRUSTED_FLAG) is read apart from them.
 export const VERDICT_FLAGS = new Set(["intent", "security", "cost"]);
 // Marks a flag carried over from an earlier verdict.
 export const EARLIER = "(an earlier verdict)";

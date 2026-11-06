@@ -213,14 +213,16 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   }
 
   let flags = null;
-  let flaggedUntrusted = false;
+  // Any Flags line naming it counts, so an unreadable or repeated line still
+  // marks the issue untrusted.
+  const flaggedUntrusted = lines.some(
+    (line) => line.startsWith("Flags: ") && line.slice("Flags: ".length).split(",").some((flag) => flag.trim() === UNTRUSTED_FLAG),
+  );
   const flagText = lineValue("Flags");
   if (flagText === "none") {
     flags = [];
   } else if (flagText !== null) {
     const list = flagText.split(",").map((flag) => flag.trim());
-    // Read before the list is judged, so an unreadable list still holds it.
-    flaggedUntrusted = list.includes(UNTRUSTED_FLAG);
     if (list.every((flag) => FLAGS.has(flag) || flag === UNTRUSTED_FLAG) && new Set(list).size === list.length) {
       flags = list.filter((flag) => flag !== UNTRUSTED_FLAG);
     } else {

@@ -710,6 +710,29 @@ describe("planWrites", () => {
     assert.equal(result.ready, false);
   });
 
+  test("two Flags lines, one naming untrusted, still write provenance: untrusted", () => {
+    const verdict = parseVerdict(
+      laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Flags: untrusted"] }),
+      DIMS,
+      CLASSES,
+    );
+    assert.equal(verdict.untrusted, true);
+    assert.equal(verdict.flags, null);
+    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
+    assert.ok(result.add.includes("provenance: untrusted"), result.add.join(", "));
+    assert.equal(result.ready, false);
+  });
+
+  test("a quoted Flags line naming untrusted marks nothing", () => {
+    const verdict = parseVerdict(
+      laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "> Flags: untrusted"] }),
+      DIMS,
+      CLASSES,
+    );
+    assert.equal(verdict.untrusted, false);
+    assert.deepEqual(verdict.flags, []);
+  });
+
   test("an untrusted verdict does not add provenance: untrusted again when the issue carries it", () => {
     const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), { labels: ["provenance: untrusted"] });
     assert.equal(result.ready, false);
