@@ -75,3 +75,10 @@ A skill that is itself the independent check when invoked does not read the leve
 |---|---|
 | `/verification:confirm` | the fresh-context verifier for the Stage 2 verdict ("Independence of the verdict") |
 | `/implementation:implement-dispatch` | the phase verifier and the post-phase source commit verifier (Gates, Phase boundaries) |
+| `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) |
+| `/docs-hygiene:compress` | the semantic-diff subagent and its revert pass (Hard rules); `compare` is not governed |
+| `/docs-hygiene:audit-derivability` | the empirical spot-test and the keep-sample (Classification method) |
+| `/docs-hygiene:audit-noise` | the fresh-context verification pass over the merged verdicts |
+| `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 7) |
+| `/ai-slop:audit` | the fix flow's semantic-diff subagent |
+| `/attribution:audit` | the review pass, the refutation pass, and the fix flow's semantic-diff subagent; not the judges |

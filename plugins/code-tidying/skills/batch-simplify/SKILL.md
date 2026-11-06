@@ -277,6 +277,8 @@ After all groups complete, run final verification across all affected ecosystems
 
 In the diff-scoped modes, time window and branch, simplification is behavior-preserving and this objective cross-ecosystem pass is verification enough: a fresh-context verifier is the rule only where a verdict is subjective, not where the check is a mechanical pass/fail. That exemption is scoped to those modes and does not carry into repo mode, where no human reads the diff before it merges; there a per-group refutation verifier is mandatory ([context/repo-mode.md](context/repo-mode.md)). A change that passes only because it altered behavior is a regression this final verification exists to catch (Gotchas). Files with no mapped test suite are common in any repository: report them as unmapped rather than as passing. In repo mode they fall through to the per-group refutation verifier plus this end-of-run pass, which are then the only checks behind them.
 
+**The verification level** changes the verifier, never this pass. Resolve it before Phase 6's first spawn with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin code-tidying --skill batch-simplify` and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). `strict` drops the diff-scoped exemption: every group in every mode gets the refutation verifier. Under `light`, and `off`, which acts as `light` here, no mode dispatches a refutation verifier and none is replaced by a self-check: each group's `Verification` cell reads `verification: skipped (<level>)`, and this final pass still runs and gates.
+
 Report the final verification results as a summary table.
 
 ### Phase 8: Summary report

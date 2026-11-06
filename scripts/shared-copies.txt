@@ -686,3 +686,9 @@ lib/read-verification.sh plugins/implementation/lib/read-verification.sh
 lib/config-root.sh plugins/implementation/lib/config-root.sh
 lib/yaml-subset.awk plugins/implementation/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/implementation/lib/resolve-convention-home.sh
+lib/read-verification.sh plugins/docs-hygiene/lib/read-verification.sh
+lib/config-root.sh plugins/docs-hygiene/lib/config-root.sh
+lib/read-verification.sh plugins/code-tidying/lib/read-verification.sh
+lib/config-root.sh plugins/code-tidying/lib/config-root.sh
+lib/read-verification.sh plugins/ai-slop/lib/read-verification.sh
+lib/read-verification.sh plugins/attribution/lib/read-verification.sh

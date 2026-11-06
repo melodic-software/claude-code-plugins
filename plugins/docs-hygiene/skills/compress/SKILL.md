@@ -86,7 +86,7 @@ The tempdir contains caveman's hardcoded `<file>.original.md` backup write; the 
 
 Apply Edit ops directly on `$target` per the `context/flavor-vs-content-matrix.md` taxonomy. Under `cut`: the full matrix, including restatement deletion. Under `keep`: word-level cuts only, every article kept, no sentence or restatement deleted.
 
-**Step C+ unchanged:** semantic-diff dispatch (mandatory hard rule, with the resolved `compress_articles` value as the prompt's `{ARTICLES}`, so under `keep` a dropped article is SEMANTIC LOSS and is restored), revert pass for SEMANTIC LOSS / AMBIGUITY / UNCERTAIN findings, markdownlint-cli2, summary.
+**Step C+ unchanged:** semantic-diff dispatch (mandatory hard rule, skipped only by a `light` or `off` verification level, with the resolved `compress_articles` value as the prompt's `{ARTICLES}`, so under `keep` a dropped article is SEMANTIC LOSS and is restored), revert pass for SEMANTIC LOSS / AMBIGUITY / UNCERTAIN findings, markdownlint-cli2, summary.
 
 ## Action router
 
@@ -143,14 +143,15 @@ Non-interactive contexts skip the offer and take the no-op branch. The fallback 
 
 ## Hard rules
 
-- **Semantic-diff dispatch is mandatory for default action.** Audit is read-only. No dispatch. Compare is read-only and always dispatches its labeler.
+- **Semantic-diff dispatch is mandatory for default action** at the `standard` and `strict` verification levels. Audit is read-only. No dispatch. Compare is read-only and always dispatches its labeler, whatever the level: the labels are its output.
+- **The verification level.** Before the first default-action target, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin docs-hygiene --skill compress` once and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). Under `light`, and `off`, which acts as `light` here, dispatch no semantic-diff subagent and never audit the edit inline in its place: the target's summary line carries `verification: skipped (<level>)` in place of the `semantic_loss`, `ambiguity` and `false_positive` counts, no revert pass runs, and the `<3%` auto-revert applies on compression alone. `markdownlint-cli2` still gates every level.
 - **Post-edit `markdownlint-cli2` MUST pass** (with the consuming repository's markdownlint config when present). Non-zero exit blocks ship; revert and surface failures. It is the ship gate, so it is **required for correctness**: if the binary is absent (neither on `PATH` nor as the repo's `node_modules/.bin/markdownlint-cli2`), STOP at the entry point before compressing anything and surface the remediation. Install it explicitly (`npm install --save-dev markdownlint-cli2` or a global install); never treat absence as a lint failure and never ship unverified output.
 - **Default `<3% AND 0 semantic-loss → REVERT`.** Proven safe in the authoring repo's empirical baseline (always-loaded instruction files: 3/3 attempts reverted). `--force` bypasses.
 - **Summary output deterministic.** No timestamps; filenames sort lexically.
 - **Snapshot default = ephemeral** (`mktemp -d`, deleted post-dispatch). `--keep-snapshot` persists to `${CLAUDE_PLUGIN_DATA}/snapshots/` instead.
 - **Always-loaded instruction-file policy: SOFT-BLOCK.** Default reverts <3%/0SL on ANY file including `.claude/rules/**` / `AGENTS.md` / `CLAUDE.md` / `**/SKILL.md`. `--force` bypasses on ANY file; the user owns the result. `audit` emits an informational SKIP recommendation on always-loaded paths citing the 2-3% empirical baseline; not a structural gate.
 - **Subagent dispatch follows `context/semantic-diff-prompt.md` template.** Findings must carry verifiable citations; training-recall citation tokens are forbidden: `[known]` / `[from memory]` / `[context]` / `[obvious]` / `[standard]` / `[usual]`.
-- **Backend choice does NOT bypass semantic-diff dispatch.** When the caveman backend is absent or unwanted, `/docs-hygiene:compress` falls back to in-session Edit compression. Backend selection determines only the mechanical-compression path; semantic-diff, revert pass and markdownlint apply regardless, and the revert pass structurally catches LLM-compression fabrication from either backend.
+- **Backend choice does NOT bypass semantic-diff dispatch.** When the caveman backend is absent or unwanted, `/docs-hygiene:compress` falls back to in-session Edit compression. Backend selection determines only the mechanical-compression path; semantic-diff, revert pass and markdownlint apply regardless (the verification level alone can skip the first two), and the revert pass structurally catches LLM-compression fabrication from either backend.
 
 ## Output schema (default action, per target)
 
