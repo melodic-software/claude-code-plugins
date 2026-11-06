@@ -638,7 +638,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     const steps = job.steps.map((s) => s.name);
     const next = job.steps.find((s) => s.id === "next");
     assert.match(next.uses, SELECT);
-    assert.equal(next.if, "${{ !cancelled() }}", "a step that failed after a handoff still hands on");
+    assert.equal(next.if, "${{ always() }}", "a step that failed after a handoff still hands on");
     assert.equal(next["continue-on-error"], true);
     assert.deepEqual(next.with, { state: "${{ steps.credential.outputs.state }}", handoff: "${{ steps.run.outputs.handoff }}", "handoff-reason": "${{ steps.run.outputs.handoff-reason }}" });
     assert.equal(steps.indexOf("Pick the next leg"), steps.indexOf("Log the API budget at the end") - 1, "after every other step but the budget log");
@@ -9440,7 +9440,7 @@ for (const [file, gateId, [keyId, subId, fbId], marker] of [
     // decision and judge, whatever failed after it; the fallback leg is last.
     for (const id of [keyId, subId]) {
       const next = jobs[id].steps.find((s) => s.id === "next");
-      assert.equal(next.if, "${{ !cancelled() }}", id);
+      assert.equal(next.if, "${{ always() }}", id);
       assert.deepEqual(next.with, { state: "${{ steps.credential.outputs.state }}", handoff: "${{ steps.judge.outputs.handoff }}", "handoff-reason": "${{ steps.judge.outputs.handoff-reason }}" }, id);
     }
     assert.equal(jobs[fbId].steps.find((s) => s.id === "next"), undefined);
@@ -10081,6 +10081,22 @@ test("every select-model-credential call names one pin, and every credit read th
   for (const [file, , inputs] of calls) {
     if (inputs["key-job"] !== undefined) assert.equal(inputs["reset-at"], "${{ vars.KEY_CREDIT_RESET_AT }}", file);
   }
+});
+
+// A next-leg call either has no if: (its next job also needs this job's
+// success) or always(): a job that hits its own timeout is cancelled, so a
+// !cancelled() call would skip after a handoff the old job outputs kept.
+test("every select-model-credential next-leg call runs bare or under always(), never !cancelled()", () => {
+  const states = [];
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        if (String(step.uses ?? "").startsWith(SELECT_ACTION) && step.with?.state !== undefined) states.push([`${file} ${id}`, step.if ?? ""]);
+      }
+    }
+  }
+  assert.ok(states.length >= 20, `found ${states.length} next-leg calls`);
+  for (const [where, condition] of states) assert.ok(condition === "" || condition === "${{ always() }}", `${where}: ${condition}`);
 });
 
 // GitHub refuses an action whose metadata holds an expression where none is

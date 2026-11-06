@@ -1261,11 +1261,12 @@ jobs:
 
       # The leg the next job runs for this lane, from this leg's credential
       # decision and any chunk's launcher handoff (select-model-credential).
-      # !cancelled(), as the route's own if: is; the step after it writes the
-      # answer only when every step before it succeeded, as before.
+      # always(), so it decides even in a job that hit its own timeout; the
+      # step after it writes the answer only when every step before it
+      # succeeded, as before.
       - name: Pick the next leg
         id: next
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
@@ -2169,11 +2170,12 @@ jobs:
 
       # The leg the next job runs for this lane, from this leg's credential
       # decision and any chunk's launcher handoff (select-model-credential).
-      # !cancelled(), as the route's own if: is; the step after it writes the
-      # answer only when every step before it succeeded, as before.
+      # always(), so it decides even in a job that hit its own timeout; the
+      # step after it writes the answer only when every step before it
+      # succeeded, as before.
       - name: Pick the next leg
         id: next
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06

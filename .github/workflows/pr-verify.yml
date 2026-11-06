@@ -4076,14 +4076,15 @@ jobs:
           exit 1
 
   # The fallback leg, the central fallback subscription, as its own job on a
-  # new VM, only after the subscription job handed off (a limit stop, a
-  # credit stop, or a 401 or 402, with the fallback token set) with no
-  # permission denial. Its steps repeat the subscription job's but for the
-  # credential, the leg check and the fallback reason (workflow.test.mjs holds
-  # them equal). It reads three outputs of the subscription job, each compared
-  # to a fixed string in its `if` or the fallback-reason expression, never
-  # written into a `run:` script. It is the last leg and never hands off: an
-  # empty subscription token fails the subscription job instead.
+  # new VM, only when the subscription job named it the next leg: a clean
+  # handoff (a limit stop, a credit stop, or a 401 or 402, with the fallback
+  # token set and no permission denial), or an empty subscription token with
+  # the fallback token set. Its steps repeat the subscription job's but for
+  # the credential, the leg check and the fallback reason (workflow.test.mjs
+  # holds them equal). It reads the subscription job's next-leg, compared to
+  # a fixed string in its `if`, and next-reason, which its credential call
+  # checks against a closed list; neither is written into a `run:` script. It
+  # is the last leg and never hands off.
   # !cancelled(): the implicit success() also needs every ancestor, so a
   # check-intent the credit gate skipped would skip this job too.
   check-intent-fallback:

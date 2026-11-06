@@ -51,7 +51,9 @@ export async function loadSelect(pin) {
 // One expression, `${{ }}` or bare, over `context` (a flat map of
 // `needs.x.outputs.y`-style names to strings; a missing name reads as '').
 // `&&` and `||` return an operand, as GitHub's do; `==` and `!=` compare
-// strings; `!cancelled()` and `always()` read the run as not cancelled.
+// strings; `always()` is true, and `cancelled()` is true only when the
+// context sets `cancelled()` (a job that hit its own timeout, or a cancelled
+// run), so a state can model a step that runs after a job timed out.
 const TOKENS = new Map();
 function tokenize(expression) {
   if (!TOKENS.has(expression)) {
@@ -84,7 +86,7 @@ export function evaluate(expression, context) {
       return !truthy(operand());
     }
     const token = take();
-    if (token === "cancelled()") return false;
+    if (token === "cancelled()") return context["cancelled()"] === true;
     if (token === "always()") return true;
     if (/^'.*'$/.test(token)) return token.slice(1, -1);
     assert.ok(/^(?:needs|steps|github|vars|inputs|secrets)\./.test(token), `a context name: ${token} in ${text}`);

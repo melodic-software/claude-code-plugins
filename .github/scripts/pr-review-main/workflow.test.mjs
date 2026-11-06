@@ -1762,7 +1762,7 @@ test("the handoff step names its lane and a closed reason, and a handed-off leg 
     const slots = Array.from({ length: SLOTS }, (_, i) => i + 1);
     const next = step("Pick the next leg", job);
     assert.match(next, /^ {8}id: next$/m);
-    assert.match(next, /^ {8}if: \$\{\{ !cancelled\(\) \}\}$/m);
+    assert.match(next, /^ {8}if: \$\{\{ always\(\) \}\}$/m);
     assert.match(next, /^ {8}continue-on-error: true$/m);
     assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}");
     assert.equal(input(next, "handoff"), `\${{ ${slots.map((k) => `steps.review-${k}.outputs.handoff == 'true'`).join(" || ")} }}`);

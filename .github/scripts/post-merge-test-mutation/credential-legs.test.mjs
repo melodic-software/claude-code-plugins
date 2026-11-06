@@ -135,7 +135,7 @@ function newLeg(id, legName, ctx, failAt, outcome) {
   const result = { outputs, model, failed };
   if (legName !== "fallback") {
     const next = wf.step(id, "next");
-    assert.equal(next.if, "${{ !cancelled() }}", `${id} hands on whatever failed after its credential`);
+    assert.equal(next.if, "${{ always() }}", `${id} hands on whatever failed after its credential`);
     assert.match(next.text, /^ {8}continue-on-error: true$/m, `${id} next-leg call`);
     const decided = S.next({ state: value(next.inputs.state, stepCtx), handoff: value(next.inputs.handoff, stepCtx), handoffReason: value(next.inputs["handoff-reason"], stepCtx) });
     const jobOutputs = wf.outputs(id);

@@ -131,7 +131,7 @@ function parts(wf, id, name) {
     const call = wf.step(id, "credential");
     assert.equal(call.inputs.leg, name, `${id} credential leg`);
     const next = name === "fallback" ? null : wf.step(id, "next");
-    if (next) assert.equal(next.if, "${{ !cancelled() }}", `${id} hands on whatever failed after its credential`);
+    if (next) assert.equal(next.if, "${{ always() }}", `${id} hands on whatever failed after its credential`);
     PARTS.set(id, {
       call,
       stop: /^ {8}id: no-credential$/m.test(job) ? wf.step(id, "no-credential") : null,

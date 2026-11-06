@@ -88,8 +88,12 @@ function newLeg(id, legName, ctx, s, outcome, launcher) {
   const result = { outputs };
   if (legName !== "fallback") {
     const next = wf.step(id, "next");
-    assert.equal(next.if, "${{ !cancelled() }}", `${id} hands on whatever failed after its credential`);
-    const decided = S.next({ state: value(next.inputs.state, stepCtx), handoff: value(next.inputs.handoff, stepCtx), handoffReason: value(next.inputs["handoff-reason"], stepCtx) });
+    assert.equal(next.if, "${{ always() }}", `${id} hands on whatever failed after its credential`);
+    // A job that hit its own timeout after the leg is cancelled: only a step
+    // whose if: still holds then runs. The job outputs the old shape read
+    // survived it.
+    const nextCtx = { ...stepCtx, "cancelled()": s.failAt === "timeout" };
+    const decided = runs(next.if, nextCtx) ? S.next({ state: value(next.inputs.state, stepCtx), handoff: value(next.inputs.handoff, stepCtx), handoffReason: value(next.inputs["handoff-reason"], stepCtx) }) : {};
     const jobOutputs = wf.outputs(id);
     result.needs = Object.fromEntries(["next-leg", "next-reason"].map((name) => [`needs.${id}.outputs.${name}`, value(jobOutputs[name], { ...stepCtx, ...prefixed("steps.next.outputs", decided) })]));
   }
@@ -141,7 +145,7 @@ function* states() {
         for (const key of [true, false])
           for (const sub of [true, false])
             for (const fallback of [true, false])
-              for (const failAt of ["none", "before-run", "after-run"])
+              for (const failAt of ["none", "before-run", "after-run", "timeout"])
                 for (const keyOutcome of launcherOutcomes(S.handoffReason, "api-key", false))
                   for (const subOutcome of launcherOutcomes(S.handoffReason, "subscription", fallback))
                     yield { proceed, gate, applies, key, sub, fallback, failAt, keyOutcome, subOutcome };
@@ -169,5 +173,10 @@ for (const chain of CHAINS) {
 
 test("a step that fails after a handoff still starts the next leg, as the old job outputs did", () => {
   const s = { proceed: "true", gate: "ok", applies: true, key: true, sub: true, fallback: true, failAt: "after-run", keyOutcome: { handoff: "true", reason: "credit-stop" }, subOutcome: { handoff: "false", reason: "" } };
+  for (const chain of CHAINS) assert.deepEqual(newChain(chain, s).started, chain.legs.slice(0, 2));
+});
+
+test("a job that hits its own timeout after a handoff still starts the next leg, as the old job outputs did", () => {
+  const s = { proceed: "true", gate: "ok", applies: true, key: true, sub: true, fallback: true, failAt: "timeout", keyOutcome: { handoff: "true", reason: "credit-stop" }, subOutcome: { handoff: "false", reason: "" } };
   for (const chain of CHAINS) assert.deepEqual(newChain(chain, s).started, chain.legs.slice(0, 2));
 });

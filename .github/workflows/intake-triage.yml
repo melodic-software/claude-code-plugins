@@ -1217,12 +1217,13 @@ jobs:
           exit 1
 
       # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). !cancelled(), as
-      # the next job's own if: is, so a step that failed after a handoff or
-      # an empty credential still hands on, as the job outputs did before.
+      # the launcher's handoff (select-model-credential). always(), so a step
+      # that failed, or a job that hit its own timeout, after a handoff or an
+      # empty credential still hands on, as the job outputs did before; the
+      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
@@ -1600,12 +1601,13 @@ jobs:
           exit 1
 
       # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). !cancelled(), as
-      # the next job's own if: is, so a step that failed after a handoff or
-      # an empty credential still hands on, as the job outputs did before.
+      # the launcher's handoff (select-model-credential). always(), so a step
+      # that failed, or a job that hit its own timeout, after a handoff or an
+      # empty credential still hands on, as the job outputs did before; the
+      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06

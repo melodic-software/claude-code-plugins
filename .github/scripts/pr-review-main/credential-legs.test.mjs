@@ -132,7 +132,7 @@ function legInstance(version, job, legName, s, l, reason) {
     let reasonExpr = OLD.handoffReason;
     if (version === "new") {
       const next = wf.step(job, "next");
-      assert.equal(next.if, "${{ !cancelled() }}", `${job} picks the next leg whatever failed before`);
+      assert.equal(next.if, "${{ always() }}", `${job} picks the next leg whatever failed before`);
       const decided = S.next({ state: val(next.inputs.state, ctx), handoff: val(next.inputs.handoff, ctx), handoffReason: val(next.inputs["handoff-reason"], ctx) });
       Object.assign(ctx, prefixed("steps.next.outputs", decided));
       const hand = named(job, "Hand the lane on");
