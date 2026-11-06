@@ -4852,7 +4852,8 @@ jobs:
     steps:
       # GH_READ IS THE ONE RETRY LAYER, AND A RATE-LIMITED READ WAITS FOR THE
       # RESET. The fail-closed steps below read through gh_read, which runs
-      # `gh api` at most 3 times. A failure that is no rate limit is read again
+      # `gh api` at most 3 times. A 4xx that is no rate limit fails at once; any
+      # other failure (a 5xx, a network error, no HTTP status) is read again
       # after a full-jitter wait of up to 5, then 10 s; a rate limit waits once
       # for its reset and reads again. The rate limit and its reset
       # come from the api-budget gh wrapper's rate guard (API_BUDGET_SH): it
@@ -4872,7 +4873,8 @@ jobs:
       # call. Nothing here re-runs the job: the next review lane's
       # rerun-ci-status, or a person, re-runs it after the reset. A second rate
       # limit after the wait, a jitter wait that would end past the deadline, or
-      # a third failure returns 1, and the caller fails closed with its own
+      # a third failure returns 1 (a third that is a rate limit with a header
+      # reset names it, as above), and the caller fails closed with its own
       # error; callers read once and never loop around gh_read, so its 3 sends
       # are the read's only sends. The cost-hold step keeps plain `gh api`: an
       # unreadable input keeps its hold, and a wait there would act on reads
@@ -4897,7 +4899,18 @@ jobs:
               cat "$err" >&2
               until=
               ! declare -F api_budget_stop_until >/dev/null || until=$(api_budget_stop_until "$pool")
+              # A 4xx that is no rate limit (404, 422, a 403 the token lacks)
+              # answers every send the same, so it is not sent again.
+              if grep -qE '(^|[^0-9])HTTP 4[0-9]{2}([^0-9]|$)' "$err" &&
+                ! grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$err"; then
+                rm -f "$err"
+                return 1
+              fi
               if [ "$attempt" -ge 3 ]; then
+                if [[ $until =~ ^[0-9]+$ ]] && ! api_budget_guessed "$until"; then
+                  at=$(jq -rn --argjson t "$until" '$t | todate')
+                  echo "::error::GitHub's $pool API rate limit blocks 'gh api $*' until $at, and this read has made its 3 sends; a re-run after $at is needed." >&9
+                fi
                 rm -f "$err"
                 return 1
               fi

@@ -368,9 +368,10 @@ expect "a transient label read failure is retried" 1 2 "needs-human" 1
 # A paginated read's rate limit stops every pool (the api-budget rate guard):
 # for an hour on a primary limit, for the documented minute on a secondary
 # one. Its headers are unseen, so the stop is a guess and gh_read takes no
-# wait: the read fails closed at once, with no sleep and no second call. Any
-# other error is read again inside gh_read, 3 sends at most, after full-jitter
-# waits of at most 5, then 10 s; the step itself does not loop.
+# wait: the read fails closed at once, with no sleep and no second call. So
+# does a 4xx that is no rate limit. Any other error is read again inside
+# gh_read, 3 sends at most, after full-jitter waits of at most 5, then 10 s;
+# the step itself does not loop.
 sleeps() { paste -sd' ' "$TMP_ROOT/sleeps"; }
 for STUB_FAIL_TEXT in 'gh: API rate limit exceeded for installation. (HTTP 403)' 'gh: You have exceeded a secondary rate limit. (HTTP 403)'; do
   export STUB_FAIL_TEXT
@@ -383,12 +384,11 @@ for STUB_FAIL_TEXT in 'gh: API rate limit exceeded for installation. (HTTP 403)'
   fi
 done
 export STUB_FAIL_TEXT='gh: Resource not accessible by integration (HTTP 403)'
-expect "a 403 that is not a rate limit fails closed after 3 sends, without a rate wait" 1 3 "" 3 "::error::could not read the labels of #6419" "rate limited"
-read -r s1 s2 s3 <<<"$(sleeps)"
-if [[ "$s1" =~ ^[0-9]+$ && "$s2" =~ ^[0-9]+$ && -z "$s3" && "$s1" -le 5 && "$s2" -le 10 ]]; then
-  ok "a 403 that is not a rate limit takes gh_read's two jittered waits only ($s1 s, $s2 s)"
+expect "a 403 that is not a rate limit fails closed after one send" 1 1 "" 3 "::error::could not read the labels of #6419" "rate limited"
+if [[ -z "$(sleeps)" ]]; then
+  ok "a 403 that is not a rate limit is not waited on"
 else
-  fail "a 403 that is not a rate limit slept '$(sleeps)', not two waits of at most 5 and 10 s"
+  fail "a 403 that is not a rate limit slept '$(sleeps)'"
 fi
 unset STUB_FAIL_TEXT
 expect "an unreadable label list fails closed, though a 4th send would read it" 1 3 "" 3 "::error::could not read the labels of #6419"

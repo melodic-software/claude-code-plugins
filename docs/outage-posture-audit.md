@@ -162,11 +162,11 @@ The lane has no workflow or script in this repository. It is declared at
 
 `ci-status` is the repository's only required check, so it is a gate: a read it cannot complete
 ends it red, and that red is correct. Rows 2 to 6 cite commit `91414684`, not `222d8023`; row 1
-cites the head of the change that made `gh_read` the one retry layer.
+cites #13671's head, the change that made `gh_read` the one retry layer.
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/workflows/pr-require-checks.yml:4885`, `.github/workflows/pr-require-checks.yml:4900` | `gh_read` is the job's one retry layer: 3 sends at most. A failure that is no rate limit is sent again after a full-jitter wait of up to 5, then 10 s (`:4908`), unless that wait would end past the job's deadline. A rate limit waits once, to a second past a reset a header gave, inside the deadline; a guessed stop, such as a secondary limit with no `retry-after`, fails at once (`:4918`). Its callers read once and fail closed with their own error (`:5061`, `:5728`, `:5804`, `:5813`, `:5987`, `:6441`, `:7005`, `:7028`). The cost-hold loop takes no rate wait on purpose (`:5384`). The `mark-lanes` status POST (`:916`) posts the same pending status each time, so a resend changes nothing. The gap left is the pinned composites' own reads (still-open table). |
+| 1 | gap | `.github/workflows/pr-require-checks.yml:4887`, `.github/workflows/pr-require-checks.yml:4909` | `gh_read` is the job's one retry layer: 3 sends at most. A 4xx that is no rate limit, such as a 404 or a 403 the token lacks, fails at once (`:4904`). A 5xx, a network error or a failure with no HTTP status is sent again after a full-jitter wait of up to 5, then 10 s (`:4921`), unless that wait would end past the job's deadline. A rate limit waits once, to a second past a reset a header gave, inside the deadline; a guessed stop, such as a secondary limit with no `retry-after`, fails at once (`:4931`). A third send rate limited with a header reset names that reset in its error (`:4910`). Its callers read once and fail closed with their own error (`:5074`, `:5741`, `:5817`, `:5826`, `:6000`, `:6456`, `:7020`, `:7041`). The cost-hold loop takes no rate wait on purpose (`:5397`). The `mark-lanes` status POST (`:916`) posts the same pending status each time, so a resend changes nothing. The gap left is the pinned composites' own reads (still-open table). |
 | 2 | gap | `.github/workflows/pr-require-checks.yml:3`, `.github/workflows/pr-require-checks.yml:4865`, `.github/actions/resolve-config/callers.test.mjs:3137` | Kept: a read that fails ends red, never neutral, and no step sets `API_BUDGET_HOLD`, which `callers.test.mjs` keeps off every gate step. Holding green would pass what the gate could not read. |
 | 3 | gap | `.github/workflows/pr-require-checks.yml:4868`, `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:67` | The workflow keeps no breaker: the `ci-lanes` status is the last full run's verdict, marked pending by each full run (`:916`) and written again at its end. A red `ci-status` recovers on the next push or label event, on `rerun-ci-status` when a review completes, or on the reconciler's one-time recorded re-run (its Switch and Pending kinds), the re-arm the owner kept (still-open table). The cron at `:35` is the whole-tree run, not the probe. |
 | 4 | met | `.github/workflows/pr-require-checks.yml:7354`, `.github/workflows/pr-require-checks.yml:7340` | `ci-status` files and demotes nothing. A review lane with no run on the head, one still running past the wait, or one a stop ended fails the check on a complete read of the head's runs, since the gate passes only on positive evidence of a review. The next `ci-status` run replaces that red, and `rerun-ci-status` and the reconciler's Pending kind start it once the review completes. |
@@ -543,15 +543,16 @@ cite that change's head, not `222d8023`.
   table).
 
 A later audit of pr-require-checks' workflow changed no step; its rows 2 to 6 cite commit
-`91414684`. A change after it rewrote the job's read retries; row 1 cites that change's head.
+`91414684`. A change after it, #13671, rewrote the job's read retries; row 1 cites #13671's head.
 
 - **pr-require-checks, element 1.** `retry_call --read` could not wrap these reads. Wrapped
   around `gh_read`, its rate wait ran inside each of the 3 tries, so the sends stacked, and
   `gh-read.sh` is written before the `.base` checkout that carries `retry-call.bash`. `gh_read`
-  now holds the retry itself: 3 sends, full jitter, and a header-given reset waited out. It is
-  written inline rather than as a verbatim copy, since it reads its own pool's stop, fails a
-  guessed one at once, and measures each wait against the job's deadline instead of a seconds
-  budget. The callers' loops are gone, and each still fails closed when `gh_read` gives up.
+  now holds the retry itself: 3 sends, full jitter, and a header-given reset waited out; a 4xx
+  that is no rate limit is not sent again. It is written inline rather than as a verbatim copy,
+  since it reads its own pool's stop, fails a guessed one at once, and measures each wait against
+  the job's deadline instead of a seconds budget. The callers' loops are gone, and each still
+  fails closed when `gh_read` gives up.
 - **pr-require-checks, elements 2, 4 and 6.** Kept on evidence: the gate fails closed, its red on
   a missing review is a complete read's result, and the scheduled group never holds two runs.
   Element 3's only re-arm is the reconciler's kept record, and element 5 is met.
