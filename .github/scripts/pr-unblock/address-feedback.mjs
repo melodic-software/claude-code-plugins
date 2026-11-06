@@ -48,7 +48,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
-import { trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
@@ -599,9 +598,26 @@ export const reviewFixers = ({ reviewComments, trustedHumans = new Set(), permis
     permission,
   });
 
+// The tracker binding at `path` as JSON text, as merge-holds.mjs
+// trackerBindingText reads it: the `tracker` mapping of a .yaml file through
+// yq (`null` when the file binds none), else the file's own text. A missing
+// file throws fs's ENOENT; a yq failure throws a plain error. Its own copy:
+// the write runner loads this directory without ../pr-merge.
+export function trackerBindingText(path) {
+  const text = readFileSync(path, "utf8");
+  if (!String(path).endsWith(".yaml")) {
+    return text;
+  }
+  try {
+    return execFileSync("yq", ["-o=json", "-I=0", ".tracker", "-"], { input: text, encoding: "utf8", timeout: 30_000, maxBuffer: 1 << 20 });
+  } catch (error) {
+    // A missing yq binary also raises ENOENT; callers read ENOENT as "no binding file".
+    throw new Error(`yq could not read ${path}: ${error.code ?? error.message}`);
+  }
+}
+
 // The base's human-gated role label: config.role_labels["human-gated"] of
-// the tracker binding at `path` (merge-holds.mjs trackerBindingText),
-// needs-human when the file or entry is absent.
+// the tracker binding at `path`, needs-human when the file or entry is absent.
 export function humanGatedLabelFrom(path) {
   let config;
   try {
