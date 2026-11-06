@@ -26,17 +26,25 @@ each machine.
 
 `<agent>` is the headless turn from [Verbs](#verbs): `claude` in a WSL lane, `<claude-exe>` in a
 Windows lane. "Tested" means a real run of that exact shape; what each run showed is in
-[reference/relay.md](reference/relay.md#verified-behavior).
+[reference/relay.md](reference/relay.md#verified-behavior). The R2 and R3 runs passed the prompt
+as an argument; their stdin form below has not been re-probed.
 
 | # | From | To | Command shape | Status |
 |---|---|---|---|---|
 | R0 | any | same lane | Built-in `ListAgents` / `SendMessage`. Not this skill | n/a |
-| R1 | WSL | this machine, Windows | `cd <win-dir> && <claude-exe> <agent-args> < /dev/null` | tested: script (`powershell.exe`), list, multi-turn, message a `-n` receiver |
-| R2 | WSL | other machine, WSL | `<ssh> <wsl-alias> 'claude <agent-args> < /dev/null'` | tested: script, multi-turn, stream-json, `--bg`, message an interactive session and a `-p` receiver across accounts |
-| R3 | WSL | other machine, Windows | `<ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | reaches `claude.exe`; needs `/login` at that machine's console |
-| R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude <agent-args> < /dev/null'` | tested: script from a native-Windows `claude.exe` (its Bash tool, Git Bash); list |
-| R5 | Windows | other machine, WSL | `ssh.exe <wsl-alias> 'claude <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R2) |
-| R6 | Windows | other machine, Windows | `ssh.exe <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R3) |
+| R1 | WSL | this machine, Windows | `cd <win-dir> && <claude-exe> <agent-args> "<prompt>" < /dev/null` | tested: script (`powershell.exe`), list, multi-turn, message a `-n` receiver |
+| R2 | WSL | other machine, WSL | `printf '%s\n' '<prompt>' \| <ssh> <wsl-alias> 'claude <agent-args>'` | tested: script, multi-turn, stream-json, `--bg`, message an interactive session and a `-p` receiver across accounts |
+| R3 | WSL | other machine, Windows | `printf '%s\n' '<prompt>' \| <ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args>'` | reaches `claude.exe`; needs `/login` at that machine's console |
+| R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude <agent-args> "<prompt>" < /dev/null'` | tested: script from a native-Windows `claude.exe` (its Bash tool, Git Bash); list |
+| R5 | Windows | other machine, WSL | `printf '%s\n' '<prompt>' \| ssh.exe <wsl-alias> 'claude <agent-args>'` | untested from a Windows origin (same hop as R2) |
+| R6 | Windows | other machine, Windows | `printf '%s\n' '<prompt>' \| ssh.exe <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args>'` | untested from a Windows origin (same hop as R3) |
+
+Over SSH a `-p` turn's prompt goes on stdin, and the quoted remote command carries only the flags,
+so no shell on either host parses prompt text. Never add `ssh -n` to an SSH row: it replaces stdin
+with `/dev/null` and drops the prompt. The local hops (R1, R4) keep the prompt as the last
+argument. A verb with no `<prompt>` drops the `printf` on an SSH row and the quoted prompt on R1
+and R4. `--bg` is not `-p` and takes its prompt as an argument, so a background session's prompt
+stays inside the remote command. In FLEET.md's tables `\|` is an escaped `|`: type a bare `|`.
 
 A script with no agent goes over the same hop with the command in place of the `claude` part; on
 R1 that is `powershell.exe -NoProfile -Command '<cmd>'` from a Windows-side directory. A Windows
@@ -73,8 +81,9 @@ on every lane; no `Bash(ssh …)` rule is added, and the posture below stands fo
 
 ## Verify the hop before you trust it
 
-Run the row with `hostname && <agent> -p "echo ok"` as the agent part: the hostname proves which
-machine answered, `ok` that its Claude is signed in. A Windows lane answering with an
+Run the row with `hostname &&` before the agent, `-p` as `<agent-args>` and `echo ok` as
+`<prompt>`, for example `printf '%s\n' 'echo ok' | <ssh> <wsl-alias> 'hostname && claude -p'`: the
+hostname proves which machine answered, `ok` that its Claude is signed in. A Windows lane answering with an
 expired-OAuth-session authentication error routed correctly and is signed out: someone runs
 `/login` at that machine's console (or over RDP). Nothing remote fixes it, and no credential
 travels in a prompt.
@@ -85,22 +94,22 @@ travels in a prompt.
 
 ## Verbs
 
-Each verb fills `<agent-args>` in a matrix row. Every verb but the first starts an agent, and each
-agent turn costs real usage, even a one-line turn
+Each verb fills `<agent-args>` and `<prompt>` in a matrix row. Every verb but the first starts an
+agent, and each agent turn costs real usage, even a one-line turn
 ([Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs); the Cost
 row of [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior) holds the
 dated measurement and how to re-measure it). When a script can do the job, run the script.
 
-| Verb | `<agent-args>` | Status |
-|---|---|---|
-| Run a script | none: the command itself replaces `claude ...` over the same hop | tested on R1, R2, R4; port 22 untested |
-| Prompt | `-p "<prompt>"` | tested on R1, R2, R4 |
-| Multi-turn | `-p --session-id <uuid> "<prompt>"`, then `-p --resume <uuid> "<prompt>"` against the same lane | tested on R1, R2 |
-| One open pipe | `-p --input-format stream-json --output-format stream-json --verbose`, user messages as NDJSON on stdin | tested on R2 |
-| List sessions | `-p "List the sessions you can reach"` | tested on R1, R4 |
-| Message a session | `-p "SendMessage to <name>: <text>"` | tested on R1, R2 |
-| Named receiver | `-p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>"` | tested on R1, R2 |
-| Background session | `--bg --name <name> "<prompt>"`, not `-p`; manage with `claude agents --json --all`, `stop <id>`, `rm <id>` | tested on R2, trusted directory only |
+| Verb | `<agent-args>` | `<prompt>` | Status |
+|---|---|---|---|
+| Run a script | none: the command itself replaces `claude ...` over the same hop | none | tested on R1, R2, R4; port 22 untested |
+| Prompt | `-p` | the task | tested on R1, R2, R4 |
+| Multi-turn | `-p --session-id <uuid>`, then `-p --resume <uuid>` against the same lane | each turn's prompt | tested on R1, R2 |
+| One open pipe | `-p --input-format stream-json --output-format stream-json --verbose` | none: user messages as NDJSON on stdin | tested on R2 |
+| List sessions | `-p` | `List the sessions you can reach` | tested on R1, R4 |
+| Message a session | `-p` | `SendMessage to <name>: <text>` | tested on R1, R2 |
+| Named receiver | `-p -n <name> --settings '{"crossSessionInbound":"accept"}'` | the standing instructions | tested on R1, R2 |
+| Background session | `--bg --name <name> "<prompt>"`, not `-p`, with `< /dev/null` on an SSH row; manage with `claude agents --json --all`, `stop <id>`, `rm <id>` | none: it is in `<agent-args>` | tested on R2, trusted directory only |
 
 - Give every prompt the whole task: what done looks like, and what should make it stop and report.
   Nobody answers a question a headless turn asks.
@@ -204,8 +213,9 @@ on-demand tasks FLEET.md lists.
   both take the distro out from under whatever else uses it. The one exception is a start
   `fleet-converge` makes itself, under the guard its pointer names; never run `wsl -d` on its
   behalf.
-- The prompt travels in the command line, visible to the target's process table and shell history.
-  No secret belongs in one.
+- On R1 and R4 the prompt travels in the command line, visible to the process table and shell
+  history; over SSH it travels on stdin, and the local shell history still records it. No secret
+  belongs in one.
 
 ## Boundary
 
@@ -223,21 +233,25 @@ on-demand tasks FLEET.md lists.
 - **Use the Windows OpenSSH client.** It is agent-backed and is what `~/.ssh/config` is wired to.
   Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which reads
   like a key problem and is not one.
-- **Redirect stdin, always.** Give every `claude -p` turn `< /dev/null` (or `ssh -n`). How print
-  mode takes piped input is in the `--print` row of
-  [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) and the
-  piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands)
-  (as of 2026-11-03; recheck when either row changes how `-p` reads stdin).
-- **Escape apostrophes in `<prompt>`.** Every row except R1 wraps the remote command in single
-  quotes on the LOCAL shell, so a `'` in the prompt ("what's") closes that quote early. The rule
-  follows the origin shell, not the lane:
+- **Give every `claude -p` turn a closed stdin.** Over SSH the piped prompt is stdin, and it ends
+  when `printf` does. On R1 and R4 redirect `< /dev/null`. A `-p` run reads stdin as its input, so
+  with no prompt argument the piped text is the prompt: see "Pipe data through Claude" and the
+  stdin-only example under "Customize the system prompt" in
+  [Run Claude Code programmatically](https://code.claude.com/docs/en/headless#pipe-data-through-claude),
+  and the piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands)
+  (as of 2026-11-06; recheck when either changes how `-p` reads stdin).
+- **Escape apostrophes in `<prompt>`.** Every SSH row single-quotes the prompt in
+  `printf '%s\n' '<prompt>'`, and R4 single-quotes the whole command, on the LOCAL shell, so a `'`
+  in the prompt ("what's") closes that quote early. The rule follows the origin shell, not the
+  lane:
   - **bash, zsh, and Git Bash** (a native-Windows Claude's Bash tool, R4 to R6): replace each `'`
-    with `'\''`, or wrap the command in `$'...'` and write `\'`. Doubling (`''`) silently drops the
+    with `'\''`, or wrap the prompt argument (on R4, the command) in `$'...'` and write `\'`. Doubling (`''`) silently drops the
     apostrophe here: `'what''s'` arrives as `whats`.
   - **PowerShell**, Windows PowerShell 5.1 or pwsh 7 (a native-Windows Claude's PowerShell tool,
-    or a PowerShell window): keep the prompt in doubled single quotes (`-p ''...''`) and write an
-    apostrophe as `''\''''`. Never use `-p "..."` from PowerShell, with or without a doubled `''`
-    apostrophe. This form ran correctly on every version probed.
+    or a PowerShell window): on R4, keep the prompt in doubled single quotes (`-p ''...''`) and
+    write an apostrophe as `''\''''`. Never use `-p "..."` from PowerShell, with or without a
+    doubled `''` apostrophe. This form ran correctly on every version probed. Run the SSH rows
+    from bash, zsh or Git Bash, whose `printf` is a builtin.
     - **Probe**: [PowerShell quoting to wsl.exe](https://github.com/melodic-software/claude-code-plugins/issues/12908#issuecomment-6624493777).
       **As of**: 2026-11-04. **Recheck trigger**: the
       [about_Parsing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing?view=powershell-7.6#passing-arguments-that-contain-quote-characters)
