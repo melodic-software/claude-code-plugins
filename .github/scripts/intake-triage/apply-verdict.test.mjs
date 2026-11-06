@@ -650,32 +650,70 @@ describe("planWrites", () => {
     test(`${hold} on the issue holds it whatever class the verdict proposes`, () => {
       const result = plan(laneBody(), { labels: [hold] });
       assert.equal(result.ready, false);
-      assert.ok(result.reasons.includes("work-class: untrusted-provenance work needs a person"), result.reasons.join("; "));
+      assert.ok(result.reasons.includes("provenance: untrusted work needs a person"), result.reasons.join("; "));
       assert.deepEqual(result.remove, []);
     });
   }
 
-  test("a verdict proposing work-class: untrusted-provenance applies it and holds the issue", () => {
-    const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }));
+  test("a verdict proposing the legacy work-class: untrusted-provenance writes provenance: untrusted and holds the issue", () => {
+    const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS, CLASSES);
+    assert.equal(verdict.untrusted, true);
+    assert.equal(verdict.workClass, null);
+    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
     assert.equal(result.ready, false);
-    assert.deepEqual(result.add, ["work-class: untrusted-provenance", NEEDS_DECISION]);
+    assert.equal(result.reason, "security");
+    assert.ok(result.reasons.includes("provenance: untrusted work needs a person"), result.reasons.join("; "));
+    assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
   });
 
-  test("an untrusted-provenance verdict holds even when the repository lacks the label", () => {
+  test("an untrusted-provenance verdict holds even when the repository lacks the legacy label", () => {
     const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS, new Set(["work-class: scoped"]));
     const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
     assert.equal(result.ready, false);
-    assert.ok(result.add.includes(NEEDS_DECISION));
+    assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
   });
 
-  test("an untrusted-provenance verdict adds the label beside a class a person set", () => {
+  test("an untrusted-provenance verdict adds provenance: untrusted beside a class a person set", () => {
     const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), {
       labels: ["work-class: mechanical"],
       classSetters: { "work-class: mechanical": HUMAN },
     });
     assert.equal(result.ready, false);
     assert.deepEqual(result.remove, []);
-    assert.deepEqual(result.add, ["work-class: untrusted-provenance", NEEDS_DECISION]);
+    assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
+  });
+
+  test("Flags: untrusted writes provenance: untrusted beside the proposed class and holds for security", () => {
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS, CLASSES);
+    assert.equal(verdict.untrusted, true);
+    assert.deepEqual(verdict.flags, []);
+    assert.deepEqual(verdict.problems, []);
+    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
+    assert.equal(result.ready, false);
+    assert.equal(result.reason, "security");
+    assert.ok(result.reasons.includes("provenance: untrusted work needs a person"), result.reasons.join("; "));
+    assert.deepEqual(result.add, ["provenance: untrusted", "work-class: scoped", NEEDS_DECISION]);
+  });
+
+  test("untrusted beside other flags keeps them as flags and still holds", () => {
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent, untrusted"] }), DIMS, CLASSES);
+    assert.equal(verdict.untrusted, true);
+    assert.deepEqual(verdict.flags, ["intent"]);
+  });
+
+  test("an unreadable Flags line naming untrusted still marks the verdict untrusted", () => {
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted, maybe"] }), DIMS, CLASSES);
+    assert.equal(verdict.untrusted, true);
+    assert.equal(verdict.flags, null);
+    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
+    assert.ok(result.add.includes("provenance: untrusted"), result.add.join(", "));
+    assert.equal(result.ready, false);
+  });
+
+  test("an untrusted verdict does not add provenance: untrusted again when the issue carries it", () => {
+    const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), { labels: ["provenance: untrusted"] });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.add, [NEEDS_DECISION]);
   });
 
   test("work-class: structural the lanes App added gives way to the new verdict", () => {
@@ -2253,10 +2291,17 @@ describe("the triage prompt", () => {
     const rules = JSON.parse(readFileSync(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url), "utf8"));
     const doc = readFileSync(new URL("../../../plugins/work-items/reference/work-class-labels.md", import.meta.url), "utf8");
     assert.match(line, /Description column of plugins\/work-items\/reference\/work-class-labels\.md from the repository root/);
-    for (const name of [...rules.classes, "work-class: structural", "work-class: untrusted-provenance"]) {
+    for (const name of [...rules.classes, "work-class: structural"]) {
       assert.ok(line.includes(`\`${name}\``), `the rubric names ${name}`);
       assert.match(doc, new RegExp(`^\\| \`${name}\` \\| C[1-5] \\| \\S`, "m"), `the doc defines ${name}`);
     }
+    assert.ok(!line.includes("`work-class: untrusted-provenance`"), "the rubric offers no untrusted class");
+  });
+
+  test("the prompt marks untrusted provenance on the Flags line, which the parser reads as untrusted", () => {
+    assert.match(PROMPT, /Flags: none\|intent\|security\|cost\|untrusted/);
+    const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS, CLASSES);
+    assert.equal(verdict.untrusted, true);
   });
 
   // #13197: the issue lane's blocked-by-issue stop names its blocker for

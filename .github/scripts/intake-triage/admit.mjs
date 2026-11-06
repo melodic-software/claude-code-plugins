@@ -212,7 +212,7 @@ export const EXTERNAL_STATE = "External state: ";
 // Refuse-labels that hold for a person; any other listed label is mechanical.
 const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
-// The one work class that holds an issue for a person (owner Q85, #9668);
+// The provenance label that holds an issue for a person (owner Q85, #9668);
 // any of UNTRUSTED_LABELS on an issue holds it the same way.
 export const UNTRUSTED = UNTRUSTED_LABEL;
 // Marks a standing item linked to a .github/recurring-schedule.json row.
@@ -1451,7 +1451,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
   }
-  if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
+  if (verdict.untrusted || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
     holdFor("security");
   }

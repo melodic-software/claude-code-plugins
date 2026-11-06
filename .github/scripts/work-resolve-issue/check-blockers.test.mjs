@@ -184,7 +184,7 @@ for (const label of [UNTRUSTED, "provenance: untrusted"]) {
     assert.equal(code, 0);
     assert.deepEqual(outputs, FINAL);
     assert.ok(!calls.some((call) => call.includes("/dependencies/")));
-    assert.match(lines.find((line) => line.startsWith("::notice")), /untrusted-provenance/);
+    assert.match(lines.find((line) => line.startsWith("::notice")), /`provenance: untrusted` holds the issue/);
   });
 }
 
