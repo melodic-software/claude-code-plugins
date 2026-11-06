@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Seeds the eval workspace with the find skill's disconnected-admin-export fixture, plus an
+# Seeds the eval workspace with the disconnected-admin-export fixture, plus an
 # approved greenfield export plan that claims nothing exports orders today, so the
 # disconnected export is less visible than the plan.
 set -euo pipefail
 
 mkdir -p evals/fixtures
-cp -R "$(dirname "${BASH_SOURCE[0]}")/../../skills/find/evals/fixtures/disconnected-admin-export" evals/fixtures/
+cp -R "$(dirname "${BASH_SOURCE[0]}")/../fixtures/disconnected-admin-export" evals/fixtures/
 
 mkdir -p evals/fixtures/disconnected-admin-export/docs
 cat > evals/fixtures/disconnected-admin-export/docs/bulk-export-plan.md <<'EOF'
