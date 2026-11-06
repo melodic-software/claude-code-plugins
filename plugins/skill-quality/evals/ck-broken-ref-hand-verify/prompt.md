@@ -11,4 +11,4 @@ The skill-quality check on skill-x (`.claude/skills/skill-x`) returned this line
 
 `FAIL: broken skill-internal ref: reference/big-picture.md (no such file under the skill dir; cited at SKILL.md:42 — hand-verify the line before fixing, may be an illustrative example)`
 
-Interpret it and decide what to do. Do not change any file yet; tell me what you would do.
+Interpret it and decide what to do. Read anything you need, but do not change any file.

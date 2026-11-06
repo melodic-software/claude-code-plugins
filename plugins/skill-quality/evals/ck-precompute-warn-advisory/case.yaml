@@ -10,6 +10,7 @@ graders:
     pattern: '\bcheck\s*#?\s*18\b'
     flags: 'i'
     target: last_message
+    arm: with-only
   - name: not-blocking
     type: regex
     pattern: '(?<!not )(?<!n[''’]t )(?<!never )\badvisory\b|\bnot\s+(?:a\s+)?FAIL\b|\b(?:does(?:n[''’]t| not)|won[''’]t|will not|never)\s+(?:fail|block)\w*\b|\bnon-?blocking\b'
