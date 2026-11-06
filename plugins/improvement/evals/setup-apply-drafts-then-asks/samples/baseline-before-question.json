@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Effective config today: no layer exists, so the bundled defaults apply (churn_window 90 days ago).\n\nDrafts: exclude src/generated/; evidence source acme-telemetry.\n\nQuestion 1: keep the churn window at 90 days ago (recommended)?", "why": "baseline, then the question" },
+    { "answer": "Bundled defaults are in effect across all layers. Keep them?", "why": "bundled defaults first" }
+  ],
+  "fail": [
+    { "answer": "Keep the churn window at 90 days ago?\n\nEffective config: bundled defaults.", "why": "question before the baseline" },
+    { "answer": "Should I exclude src/generated/?", "why": "no baseline at all" }
+  ]
+}

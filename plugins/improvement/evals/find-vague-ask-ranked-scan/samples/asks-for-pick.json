@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "| 1 | Extract roundAmount | Code | S | rung 3 |\n\nWhich candidate do you want to take forward?", "why": "which candidate?" },
+    { "answer": "Pick one and I'll start the interview on it. Which number?", "why": "which number?" },
+    { "answer": "Reply with the rank you want to pursue and I'll hand it to /planning:interview.", "why": "reply with the rank" }
+  ],
+  "fail": [
+    { "answer": "| 1 | Extract roundAmount | Code | S | rung 3 |\n\nStarting on rank 1 now.", "why": "no question, proceeds" },
+    { "answer": "Those are the candidates.", "why": "no ask" },
+    { "answer": "Why is roundAmount copied?", "why": "a question, but not for a pick" }
+  ]
+}

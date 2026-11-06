@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/ws/plugins/example/scripts/report.sh", "old_string": "#!/usr/bin/env bash\n", "new_string": "#!/usr/bin/env bash\nset -euo pipefail\n" } }], "why": "edits the target" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/plugins/example/scripts/report.sh" } }], "why": "reads only, ships nothing" },
+    { "answer": [], "why": "no tool calls" }
+  ]
+}

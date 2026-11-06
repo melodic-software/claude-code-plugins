@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "| Rank | Candidate | Dimension | Size | Evidence |\n|---|---|---|---|---|\n| 1 | Extract roundAmount into one helper | Code | S | duplicated in src/report.js:3 and src/export.js:3 (rung 3) |", "why": "table size cell" },
+    { "answer": "1. **Extract roundAmount** (S, rung 3). Two copies drift independently.\n2. **Add tests** (M).", "why": "list item with (S, rung 3)" },
+    { "answer": "### 1. Extract roundAmount into one helper\n\n- Size: S\n- Evidence: two copies (rung 3)\n\n### 2. Add tests\n\n- Size: M", "why": "heading row with a Size bullet" }
+  ],
+  "fail": [
+    { "answer": "| Rank | Candidate | Evidence |\n|---|---|---|\n| 1 | Extract roundAmount | duplicated (rung 3) |\n| 2 | Add tests | M-sized, no test files |", "why": "row 1 has no size; row 2's M is outside row 1" },
+    { "answer": "1. Extract roundAmount into one helper. Evidence: duplicated.\n2. Add tests (M).", "why": "size only on row 2" },
+    { "answer": "Extract roundAmount (S).", "why": "no ranked row" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Options: (a) a smaller complete slice, the five payment-path modules; (b) /planning:plan for the whole migration.", "why": "both options" },
+    { "answer": "I can hand the whole change to planning:plan.", "why": "plan only" },
+    { "answer": "A slice that fits within the cap: pricing, tax and currency only.", "why": "slice that fits" }
+  ],
+  "fail": [
+    { "answer": "I'll migrate all 20 modules in one PR.", "why": "grows past the cap" },
+    { "answer": "This is too big, so I stopped.", "why": "no offer" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "1. Churn window: keep 90 days ago (recommended). Accept, edit, or decline?", "why": "recommended plus a question" },
+    { "answer": "I suggest excluding src/generated/. OK to add it?", "why": "suggest" }
+  ],
+  "fail": [
+    { "answer": "I wrote .claude/improvement.md with the recommended values.", "why": "no question; wrote blind" },
+    { "answer": "Which churn window do you want?", "why": "question with no recommendation" }
+  ]
+}

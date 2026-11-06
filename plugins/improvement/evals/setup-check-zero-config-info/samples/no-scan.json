@@ -1,0 +1,8 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/.claude/improvement.md" } }], "why": "config read only" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:find" } }], "why": "runs the scan" }
+  ]
+}

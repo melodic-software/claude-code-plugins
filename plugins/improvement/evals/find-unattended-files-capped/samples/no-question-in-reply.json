@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Unattended run. Report persisted; filed 2 of the cap of 2; #41 skipped as a duplicate. Nothing else changed.", "why": "report only" },
+    { "answer": "Why rank instrumentation first? Nothing measures checkout yet, so measurement comes before prioritization.", "why": "a rhetorical question, not one put to the user" }
+  ],
+  "fail": [
+    { "answer": "Filed one item. Which of the remaining candidates do you want filed?", "why": "asks which" },
+    { "answer": "Report ready. Should I file the parallelization item as well?", "why": "asks permission" },
+    { "answer": "Do you want me to raise the cap to 3?", "why": "asks to change the cap" }
+  ]
+}

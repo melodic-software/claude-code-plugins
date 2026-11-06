@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```yaml\nchurn_window: \"90 days ago\"\nchurn_exclude_defaults: true\n```",
+      "why": "churn keys"
+    },
+    {
+      "answer": "```yaml\n  churn_exclude:\n    - '(^|/)generated/'\n```",
+      "why": "indented churn_exclude"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```yaml\nevidence_sources: {}\n```",
+      "why": "no churn key"
+    },
+    {
+      "answer": "I would keep the churn window at its default.",
+      "why": "prose only, no file content"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "```yaml\nchurn_exclude:\n  - '(^|/)src/generated/'\n```", "why": "yaml draft" },
+    { "answer": "src/generated/ holds protoc output; I propose adding it as a churn exclusion.", "why": "prose draft" }
+  ],
+  "fail": [
+    { "answer": "```yaml\nchurn_exclude:\n  - '(^|/)dist/'\n```", "why": "drafts a tree the defaults already cover, not generated/" },
+    { "answer": "No exclusions needed.", "why": "no draft" }
+  ]
+}

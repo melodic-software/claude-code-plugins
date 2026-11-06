@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No evidence_sources, so Tier 2 stays a declared evidence gap.",
+      "why": "Tier 2 then gap"
+    },
+    {
+      "answer": "gap: Tier 2 telemetry, none declared.",
+      "why": "gap then Tier 2"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No telemetry sources yet.",
+      "why": "echoes the prompt"
+    },
+    {
+      "answer": "Tier 2 is configured.",
+      "why": "no gap"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:find" } }], "why": "find only" },
+    { "answer": [], "why": "no skill call" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:improve" } }], "why": "improve one thing" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:find" } }, { "tool": "Skill", "input": { "skill": "improve", "args": "src/report.js" } }], "why": "find, then bare improve" }
+  ]
+}
