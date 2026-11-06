@@ -593,10 +593,12 @@ the non-draft, same-repository ones into `main`, whoever opened them, except Dep
 49699333, whose own rebases a lane commit stops), the release App (337859524) and the
 standards-sync App (300666570), whose files are generated or synced, and `work-resolve-issue`
 PRs tidied in their own run (within the tidy cutoffs): the lanes App's on a lane branch
-(`work-resolve-issue/issue-<n>-<run>-<attempt>`) whose change is within `resolve-issue`'s
-`tidy.cutoffs` in the base config, read from the PR's file count, added plus removed lines,
-changed paths and their areas as the [`tidy` entry](#activities) defines them. A lane PR over
-any cutoff, or whose file list is cut off, was not tidied and is listed, and so are the lanes
+(`work-resolve-issue/issue-<n>-<run>-<attempt>`) whose one commit is the App's API
+commit (a valid signature, the App as author, GitHub as committer), and whose change is within
+`resolve-issue`'s `tidy.cutoffs` in the base config, read from the PR's file count, added plus
+removed lines, changed paths and their areas as the [`tidy` entry](#activities) defines them. A
+lane PR with any other commit (a later push its tidy never saw), over any cutoff, or whose file
+list is cut off, was not tidied and is listed, and so are the lanes
 App's other PRs and a person's PR on a branch with a lane name. An author with no account id is
 skipped. It keeps
 those with no `do-not-merge` or `needs-human`

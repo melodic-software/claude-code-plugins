@@ -208,6 +208,21 @@ test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches, an
     changedFiles: 1,
     additions: lines,
     deletions: 0,
+    // The lane run's one API commit, as GraphQL lists one.
+    commits: {
+      totalCount: 1,
+      nodes: [
+        {
+          commit: {
+            oid: docsPull(number).headRefOid,
+            signature: { isValid: true },
+            author: { user: { login: "melodic-automation-lanes[bot]" } },
+            committer: { email: "noreply@github.com" },
+            statusCheckRollup: { contexts: { nodes: [] } },
+          },
+        },
+      ],
+    },
   });
   const pulls = [lanePull(58, 301), lanePull(60, 300), docsPull(61), docsPull(62), docsPull(63)];
   assert.match(LIVE, /^ {2}fix-docs-per-run: 2$/m, "the live config turns CI fix-docs on at 2 a run (#13717)");

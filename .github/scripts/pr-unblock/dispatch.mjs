@@ -485,6 +485,9 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
           nodes {
             commit {
               oid committedDate
+              signature { isValid }
+              author { user { login } }
+              committer { email }
               statusCheckRollup {
                 contexts(first: 100) {
                   nodes {

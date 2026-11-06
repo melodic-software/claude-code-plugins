@@ -59,9 +59,10 @@ Lowest first:
 
 A policy-floor key may only be tightened. The team layer sets the floor and the personal layer and
 `userConfig` may move the value only in the key's floor direction. The seven fixed floors (D79,
-T10-7, D96, D88, D100, Q131, the C13 intent gate) may only be tightened.
-The owner reversed D100 (CI `fix-docs` off) for pull requests not tidied in their own run, in
-[#13717](https://github.com/melodic-software/claude-code-plugins/issues/13717#issuecomment-6692723687).
+T10-7, D96, D88, D100, Q131, the C13 intent gate) may only be tightened. D100 keeps CI `fix-docs`
+off only for pull requests tidied in their own run and on for the rest, by the owner's Q11
+decision of 2026-11-06
+([#13717](https://github.com/melodic-software/claude-code-plugins/issues/13717#issuecomment-6692723687)).
 
 **`Floor direction` values.** The direction is a machine-readable column in the Implementers table of
 [the config-cascade contract](../contracts/config-cascade/README.md), the one source of each

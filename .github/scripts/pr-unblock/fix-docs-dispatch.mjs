@@ -4,7 +4,8 @@
 // put it on: gate-source.mjs prHold), and has never had a fix-docs check run under
 // either lane fix-docs has run in, whoever opened it except the accounts in
 // excludedAuthorIds, and is not a work-resolve-issue PR (the lanes App's, on a
-// lane branch) tidied in its own run (within the tidy cutoffs). It runs from
+// lane branch, whose one commit is the lane run's) tidied in its own run
+// (within the tidy cutoffs). It runs from
 // the same dispatcher run as dispatch.mjs (pr-unblock-dispatch.yml), so the
 // trigger gate and the broker check it as they check a resolve-conflicts
 // dispatch.
@@ -49,7 +50,7 @@
 // is gone does.
 
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
+import { allLaneCommits, laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 
@@ -134,6 +135,25 @@ export function withinTidyCutoffs(node, cutoffs) {
   return new Set(paths.map(areaOf)).size <= cutoffs["max-areas"];
 }
 
+// Whether the PR's head is the lane run's own commit, which its tidy saw: the
+// PR has one commit, the listed one, and it is the lanes App's API commit
+// (report-outcome.mjs allLaneCommits). A listed commit other than the head is
+// left to the head check below, which lists the PR as no candidate. The listing's GraphQL fields go
+// into the REST shape that helper reads; GitHub records web-flow, whose email
+// is noreply@github.com, as the committer of a commit it signs for the API.
+function laneRunHead(node) {
+  const commit = node.commits?.nodes?.[0]?.commit;
+  if (node.commits?.totalCount !== 1 || !commit) {
+    return false;
+  }
+  const rest = {
+    commit: { verification: { verified: commit.signature?.isValid === true } },
+    author: { login: commit.author?.user?.login },
+    committer: { login: commit.committer?.email === "noreply@github.com" ? "web-flow" : undefined },
+  };
+  return allLaneCommits([rest], `${node.author.login}[bot]`);
+}
+
 // Why a listed PR is not a candidate, or "" when it is one.
 // The human-gated gateLabel is left to dispatchDocsFixes's prHold read.
 export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null, appSenderId, tidyCutoffs = null }) {
@@ -148,11 +168,12 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
     return "opened by an excluded account";
   }
   // work-resolve-issue tidies its own change in its run when the change is
-  // within its tidy cutoffs (its `tidy` key, #8485). All three terms: the
-  // App's other PRs never tidied, anyone can name a branch, and a lane change
-  // over the cutoffs was not tidied. author is a safe integer, so an unset or
-  // malformed id skips none.
-  if (author === appSenderId && laneBranchIssue(node.headRefName) !== null && withinTidyCutoffs(node, tidyCutoffs)) {
+  // within its tidy cutoffs (its `tidy` key, #8485). Every term: the App's
+  // other PRs never tidied, anyone can name a branch, a later push (a
+  // person's, fix-ci's, resolve-conflicts') was never tidied, and a lane
+  // change over the cutoffs was not tidied. author is a safe integer, so an
+  // unset or malformed id skips none.
+  if (author === appSenderId && laneBranchIssue(node.headRefName) !== null && laneRunHead(node) && withinTidyCutoffs(node, tidyCutoffs)) {
     return "a work-resolve-issue PR, tidied in its own run";
   }
   if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name) && label?.name !== gateLabel)) {
