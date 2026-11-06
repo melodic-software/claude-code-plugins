@@ -127,8 +127,8 @@ scoring:
   quality
 - **Mixed.** Score each task individually, then aggregate
 
-The scores come from a fresh-context subagent, never from the session scoring itself, unless the
-verification level is `light` or `off` (Phase 2, "Review lenses").
+With one review lens, a fresh-context subagent proposes the scores and the session never scores
+itself, unless the verification level is `light` or `off` (Phase 2, "Review lenses").
 
 ---
 
@@ -157,10 +157,13 @@ layer that supplied it, for example `retro_lenses: 3 (docs/conventions/session-f
 
 **Under `1`**, first resolve the verification level with
 `bash "<plugin-root>/lib/read-verification.sh" --plugin session-flow --skill retro --file docs/conventions/session-flow.yaml`
-and report its line. At `standard` or `strict`, dispatch one fresh-context subagent with the
-inputs and brief the three lenses get below; it runs 2A, 2B, 2D and 2E as one pass and returns
-the same rows plus a proposed score and note per Phase 5 dimension. 2C stays with you; the Phase 5
-table uses its scores. At `light` or `off`, run 2A to 2E as one pass yourself and the report notes
+(run from the git root; the reader reads that file at the default branch) and report its line.
+At `standard` or `strict`, dispatch one fresh-context subagent with the inputs and brief that
+"Under `3`" below gives each lens. It runs 2A, 2B, 2D and 2E as one pass and returns
+`| Severity | Finding | Evidence | Impact |` rows plus a proposed score and note per Phase 5
+dimension. You keep 2C and Phases 3 and 4, discard any row the transcript does not support, and
+write the Phase 5 table from its proposed scores; a 2C regression may lower a score, and the note
+says so. At `light` or `off`, run 2A to 2E as one pass yourself and the report notes
 `verification: skipped (<level>)`.
 
 **Under `3`**, the analysis is split across three subagents, launched together in one turn so

@@ -183,7 +183,8 @@ failures to root cause.
 Quality checks before verification: self-review the diff against the consuming repo's conventions
 and review criteria as the floor, then delegate to a fresh-context reviewer. The stage is done only
 when that reviewer has returned, unless the `verification` level is `light` or `off`
-(`context/pre-pr.md` step 2).
+(`context/pre-pr.md` step 2). Resolve the level first if this session has not, as `SKILL.md`
+("The verification level") says, on this route too.
 
 - The fresh-context reviewer, not the author, closes the stage, because the author's reasoning
   cannot color what that reviewer concludes
@@ -206,8 +207,9 @@ Prove the change achieved its intent, with evidence.
 - Then outcome confirmation: does the result match the Brief and plan? Exercise the affected flow,
   not just the compiler. The verdict comes from a fresh-context verifier, not the author
   (an outcome-verification capability, if installed, e.g. /verification:confirm, dispatches one
-  at the level it reads; without one, dispatch the verifier with the Brief and the diff unless
-  this skill's level is `light` or `off`)
+  at the level it reads; without one, dispatch the verifier with the Brief and the diff, except
+  under this skill's `light` or `off` level (Stage 10), where the report notes
+  `verification: skipped (<level>)`)
 - **Never claim improvement without before/after measurements.** Baselines first, measure deltas,
   report with data
 - **Effort:** proving the outcome with evidence before the work is called done
