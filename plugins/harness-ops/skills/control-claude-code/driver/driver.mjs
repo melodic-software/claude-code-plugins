@@ -393,7 +393,7 @@ export function endpoint(session, platform = process.platform, { fresh = false }
   if (platform !== 'win32') {
     const sock = join(dir, `${session}.sock`);
     if (Buffer.byteLength(sock) > SOCK_MAX) {
-      throw new Error(`the socket path ${sock} is too long for a Unix socket; set XDG_RUNTIME_DIR to a short private directory`);
+      throw new Error(`the socket path ${sock} is too long for a Unix socket; set ${process.env.CCD_RUNTIME_DIR ? 'CCD_RUNTIME_DIR' : 'CCD_RUNTIME_DIR or XDG_RUNTIME_DIR'} to a short private directory`);
     }
     return { sock, dir };
   }

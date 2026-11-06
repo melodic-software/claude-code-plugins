@@ -1126,6 +1126,17 @@ test('CCD_RUNTIME_DIR comes ahead of XDG_RUNTIME_DIR for session sockets, create
   }
 });
 
+test('a socket path too long under CCD_RUNTIME_DIR names CCD_RUNTIME_DIR as the variable to shorten', posixOnly, async () => {
+  const ccd = join(mkdtempSync(join(tmpdir(), 'ccd-long-')), 'x'.repeat(120));
+  try {
+    await withEnv({ CCD_RUNTIME_DIR: ccd, CCD_BROKER_SOCK: undefined }, () =>
+      assert.throws(() => driver.endpoint('s', 'linux'), /; set CCD_RUNTIME_DIR to a short private directory$/),
+    );
+  } finally {
+    rmSync(dirname(ccd), { recursive: true, force: true });
+  }
+});
+
 test('a brokered request carries the options as typed, paths made absolute against the cwd, and the prompt after --', posixOnly, async () => {
   const { tokens, positionals } = (await import('node:util')).parseArgs({
     args: ['log', 'run /demo', '--plugin-dir', 'plugins/demo', '--out=run.jsonl', '--timeout', '9', '--unattended'],
