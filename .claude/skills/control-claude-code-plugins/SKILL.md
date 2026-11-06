@@ -4,7 +4,7 @@ disable-model-invocation: true
 ---
 
 App: claude-code-plugins, this repository's plugins. A module is one plugin, `plugins/<module>`; a
-feature is one of its skills, id `<module>/<skill>`.
+feature is one of its skills, id `<module>/<skill>`, or a cross-plugin surface keyed by its sources.
 Driving tool: `/harness-ops:control-claude-code`, its hub at
 `plugins/harness-ops/skills/control-claude-code/SKILL.md` and its driver beside it.
 
@@ -92,6 +92,7 @@ has nothing to stop.
 - harness-config | features/harness-config/README.md | entry points: 4 | sources: plugins/harness-config/skills/*/SKILL.md
 - harness-memory | features/harness-memory/README.md | entry points: 4 | sources: plugins/harness-memory/skills/*/SKILL.md
 - harness-ops | features/harness-ops/README.md | entry points: 4 | sources: plugins/harness-ops/skills/*/SKILL.md
+- hooks | features/hooks/README.md | entry points: 3 | sources: plugins/*/hooks/**
 - implementation | features/implementation/README.md | entry points: 4 | sources: plugins/implementation/skills/*/SKILL.md
 - improvement | features/improvement/README.md | entry points: 4 | sources: plugins/improvement/skills/*/SKILL.md
 - instruction-placement | features/instruction-placement/README.md | entry points: 4 | sources: plugins/instruction-placement/skills/*/SKILL.md
@@ -101,6 +102,7 @@ has nothing to stop.
 - markdown-format | features/markdown-format/README.md | entry points: 4 | sources: plugins/markdown-format/skills/*/SKILL.md
 - mcp-tools | features/mcp-tools/README.md | entry points: 4 | sources: plugins/mcp-tools/skills/*/SKILL.md
 - miro | features/miro/README.md | entry points: 4 | sources: plugins/miro/skills/*/SKILL.md
+- mods | features/mods/README.md | entry points: 3 | sources: plugins/*/hooks/*.ts, plugins/*/hooks/*.tsx
 - multi-agent | features/multi-agent/README.md | entry points: 4 | sources: plugins/multi-agent/skills/*/SKILL.md
 - mutation-testing | features/mutation-testing/README.md | entry points: 4 | sources: plugins/mutation-testing/skills/*/SKILL.md
 - naming | features/naming/README.md | entry points: 4 | sources: plugins/naming/skills/*/SKILL.md
