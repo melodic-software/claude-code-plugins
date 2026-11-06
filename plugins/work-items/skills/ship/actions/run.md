@@ -21,6 +21,11 @@ One container per run. A topic slug resolves the container the way SKILL.md Step
 landing on the default branch. Invoked from a loop, a lane, a scheduled or background session, or
 any run with no human to answer, STOP before any claim and report that `run` is attended only.
 
+## Requires the implementation plugin
+
+`run` hands every item to `/implementation:implement-dispatch`. When the `implementation` plugin
+is not installed, STOP before any claim and tell the user to install it; `run` has no other route.
+
 ## Workflow
 
 1. **Resolve and read.** SKILL.md Steps 1 to 3: the container, its rollup and container-scoped
