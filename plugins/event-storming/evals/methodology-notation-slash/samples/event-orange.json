@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "- Domain events: orange stickies, past tense.", "why": "event first"},
+    {"answer": "| Orange | Domain Event |", "why": "table row"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "- Domain events: blue stickies.\n- Orange is for opportunities.", "why": "wrong color on the event line"}
+  ]
+}

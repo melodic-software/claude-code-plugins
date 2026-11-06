@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "What are you trying to accomplish?\n\n1. Explore a whole business\n2. Design a process", "why": "Step 2 question"},
+    {"answer": "Which goal fits best: exploring a domain, designing a process, or designing software?", "why": "goal choice"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Here is the full Big Picture facilitation guide.", "why": "no question"},
+    {"answer": "Which domain is this?", "why": "a question, but not about the goal"}
+  ]
+}

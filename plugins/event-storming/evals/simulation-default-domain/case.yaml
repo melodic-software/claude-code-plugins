@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: simulation-default-domain
+description: "Legacy simulation no-domain-defaults-to-developer-conference. --simulate with no domain and, as in every run, no Miro tool. simulation SKILL.md line 22: 'Domain defaults to \"Developer Conference\" if not specified'; 'Miro availability & graceful degradation': when Miro is absent, 'do NOT fail', say so and offer structured-markdown mode or installing the miro plugin. Slash-invoked, so no Skill grader. names-developer-conference needs the default domain; names-miro-absent and offers-markdown (the patterns of simulation-miro-absent) need the preflight's absent branch; no-write fails any Write before the user picks a path, and no-agent-dispatch any Agent call. Needs --allow-tools Write so no-write can fail."
+tags: [event-storming, simulation, outcome, degradation, no-network]
+expected_outcome: "The reply names Developer Conference as the domain, says Miro is not available, offers the structured-markdown mode, and writes nothing and dispatches no agent before the user chooses."
+execution:
+  prompt: "/event-storming:simulation --simulate"
+  allowed_tools: [Read, Glob, Grep, Skill, Write]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: names-developer-conference
+    type: regex
+    pattern: '\bdeveloper[- ]conference\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-miro-absent
+    type: regex
+    pattern: '\bmiro\b[^\n]{0,80}\b(?:not|isn''t|is not|no|absent|unavailable|missing|disabled)\b|\b(?:no|not|without|absent|unavailable|missing)\b[^\n]{0,80}\bmiro\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: offers-markdown
+    type: regex
+    pattern: '\bstructured[- ]markdown\b|\bmarkdown\b[^\n]{0,60}\b(?:mode|artifact|output|timeline|rendering|version)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

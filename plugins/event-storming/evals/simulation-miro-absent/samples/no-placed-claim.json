@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "I have not placed any stickies.", "why": "negated"},
+    {"answer": "No Miro board exists here, so nothing was placed.", "why": "no claim"},
+    {"answer": "I'll place stickies once the miro plugin is enabled.", "why": "future, conditional"},
+    {"answer": "Use /event-storming:simulation to run it on a board.", "why": "route only"}
+  ],
+  "fail": [
+    {"answer": "I've placed 42 orange stickies on the board.", "why": "claims placement"},
+    {"answer": "I created a new Miro board for the conference.", "why": "claims a board"},
+    {"answer": "The stickies have been placed on the timeline.", "why": "passive claim"}
+  ]
+}

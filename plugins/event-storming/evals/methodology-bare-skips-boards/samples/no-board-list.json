@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "No Miro tools here, so I skipped board discovery. What are you trying to accomplish?", "why": "skips discovery"},
+    {"answer": "What are you trying to accomplish?", "why": "straight to the goal"}
+  ],
+  "fail": [
+    {"answer": "I found these EventStorming boards:\n- Claims Big Picture", "why": "Step 1 board list"},
+    {"answer": "Would you like to continue working with one of these boards?", "why": "Step 1 continue option"}
+  ]
+}
