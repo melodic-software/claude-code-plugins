@@ -25,16 +25,13 @@
 #      not an apply, and reading bodies reported applies that never happened.
 #   3. none.
 #
-# Changelog source: --changelog <file>; else the plugin's scripts/fetch-docs.sh
-# fetches the `changelog` page (raw markdown, resolved through the docs index) into a
-# temp dir through the docs cache with --max-age 0, so the server is always asked and a
-# failed fetch is unread, never a stale cached copy; its manifest says whether the page
-# was read; --no-fetch skips the fetch.
-# Whichever source is used, the body's first heading must read
-# "# Claude Code changelog": a retired slug can serve another page's bytes under a
-# 200, so identity is checked before any count is trusted. A body with the heading
-# but no release markers is a parse failure, not an empty range. In both cases the
-# range is reported as not computed, with the reason.
+# Changelog source: --changelog <file>; else the plugin's scripts/fetch-changelog.sh,
+# which decides the source and checks its identity (its header); a failed fetch is
+# unread, never a stale cached copy; --no-fetch skips the fetch.
+# A --changelog file's first heading must be one fetch-changelog.sh --check accepts,
+# so identity is checked before any count is trusted. A body with the heading but no
+# release markers is a parse failure, not an empty range. In both cases the range is
+# reported as not computed, with the reason.
 #
 # Range: the default is every release newer than the marker, oldest first, up to
 # the newest published release. --range A..B (v prefix optional) is inclusive at
@@ -52,6 +49,7 @@
 #   source: ledger:<path> | git-subject | none
 #   ledger: <path> (present|absent)
 #   installed: <X.Y.Z|unknown>
+#   changelog: <url read | --changelog path>   (only when a changelog was read)
 #   latest: <X.Y.Z|unknown>
 #   range: <A..B> (<n> releases, <m> core items) | up to date | not computed (<reason>)
 #   releases: <space-separated versions in range, oldest first>   (only with a range;
@@ -66,7 +64,6 @@
 
 set -uo pipefail
 
-CHANGELOG_HEADING="# Claude Code changelog"
 VERSION_RE='[0-9]+\.[0-9]+\.[0-9]+'
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
@@ -230,30 +227,24 @@ trap '[[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"' EXIT
 
 changelog=""
 not_computed=""
+fetch_changelog="$plugin_root/scripts/fetch-changelog.sh"
 if [[ -n "$changelog_arg" ]]; then
-  changelog="$changelog_arg"
+  if bash "$fetch_changelog" --check "$changelog_arg"; then
+    changelog="$changelog_arg"
+    printf 'changelog: %s\n' "$changelog"
+  else
+    first_heading="$(grep -m1 -E '^# ' "$changelog_arg" | tr -d '\r')"
+    not_computed="body is not the changelog (first heading: ${first_heading:-none})"
+  fi
 elif ((no_fetch)); then
   not_computed="no changelog source: --no-fetch and no --changelog"
-elif ! command -v jq >/dev/null 2>&1; then
-  not_computed="jq is not installed; pass --changelog <file>"
 else
   tmp_dir="$(mktemp -d)"
-  # The status script never reads the manifest's claude_version, so the fetcher runs no claude.
-  # --max-age 0: the range is computed from fresh bytes, never a cached copy.
-  if FETCH_DOCS_CLAUDE_BIN='' bash "$plugin_root/scripts/fetch-docs.sh" --out "$tmp_dir" --cache --max-age 0 changelog >/dev/null 2>&1 &&
-    [[ "$(jq -r '.pages[0].state' "$tmp_dir/manifest.json" 2>/dev/null)" == "read" ]]; then
+  if fetched="$(bash "$fetch_changelog" --out "$tmp_dir")"; then
     changelog="$tmp_dir/changelog.md"
+    printf '%s\n' "$fetched"
   else
-    reason="$(jq -r '.pages[0].reason // empty' "$tmp_dir/manifest.json" 2>/dev/null)"
-    not_computed="fetch of the changelog page failed (${reason:-no manifest}); pass --changelog <file> or retry"
-  fi
-fi
-
-if [[ -n "$changelog" ]]; then
-  first_heading="$(grep -m1 -E '^# ' "$changelog" | tr -d '\r')"
-  if [[ "$first_heading" != "$CHANGELOG_HEADING" ]]; then
-    not_computed="body is not the changelog page (first heading: ${first_heading:-none})"
-    changelog=""
+    not_computed="fetch of the changelog failed (${fetched#unread: }); pass --changelog <file> or retry"
   fi
 fi
 

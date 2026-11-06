@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.0.5] - 2026-11-06
+
+### Changed
+
+- The audit and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Nine legacy cases become new cases: `au-baseline-report-from-record` (a baseline record's report carries the stamp and measured totals, and attribution candidates come only from its live tools list), `au-engine-error-relays-remediation` (an exit-3 error record yields no number, the measurement gap, and the SDK install line left to the operator), `au-deferred-only-saving` (a deferred-only saving is reported per bucket as request weight that leaves the context-usage headline unchanged), `au-bare-apply-prints-config` (a bare audit asked to apply a trim prints a bare-name `permissions.deny` entry and offers the ledger loop), `au-unused-plugins-routes-doctor` (unused plugins and MCP servers go to `/doctor`, with no usage-history scan), `au-aside-apply-names-fix` (an aside asking to apply trims names the explicit `fix` route and applies nothing), `au-fix-one-lever-at-a-time` (fix asked for three levers shows one exact diff and refuses the batch on attribution grounds), `su-node-absent-both-dependents` (missing node FAILs with both dependents named) and `su-two-clis-no-measure` (two CLIs are INFO with both stamps, and setup routes the measurement to the audit). Four more setup cases (bare check, true toggle with a silent hook, SDK install request, headless toggle) are held out: setup's SDK probe reads the plugin-data directory, which an eval run denies, so they cannot read VALID until [#13751](https://github.com/melodic-software/claude-code-plugins/issues/13751) restores them. The other two were already covered and gain graders: `au-attribution-record-report` gains `listing-rule-explained` (the incomparable row's reason is explained: System tools deltas are valid only between runs with identical skill listings), and `au-fix-user-global-print-only` gains `classifier-reason` (the auto-mode classifier is the stated reason for print-only). Both `evals.json` files are deleted.
+
 ## [1.0.4] - 2026-11-05
 
 ### Fixed

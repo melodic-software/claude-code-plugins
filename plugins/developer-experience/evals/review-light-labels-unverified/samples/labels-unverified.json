@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Rule 3 | `bin/greet:2` | no --help | unverified |",
+      "why": "a gap labeled unverified"
+    },
+    {
+      "answer": "All gaps below are **Unverified**: the author reviewed its own tool.",
+      "why": "capitalized label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| Rule 3 | `bin/greet:2` | no --help | verified |",
+      "why": "labeled verified"
+    },
+    {
+      "answer": "The tool was not independently reviewed.",
+      "why": "no review results labeled"
+    }
+  ]
+}

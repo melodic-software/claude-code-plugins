@@ -55,6 +55,16 @@ full record stays below it or one link away.
 - AI-writing tells are `ai-slop:audit`. This plugin adds no punctuation rule and
   inherits whatever that plugin's config says.
 
+## Configuration
+
+A repository can commit `writing.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/writing.schema.json`](schemas/writing.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/writing:be-concise` runs its fresh-context semantic diff: `strict` runs it on every rewrite, `light` and `off` skip it and say the meaning was not independently checked. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+
 ## Sources
 
 The rules are paraphrased with drift stamps from Nielsen Norman Group's

@@ -563,7 +563,8 @@ starts never commits. Default `false`. It resolves like `worker_continuation`, f
 `/session-flow:setup apply wip_commit=true` writes it.
 
 **`retro_lenses`.** Read by `/session-flow:retro` session mode before its Phase 2 analysis. `1`
-(default) runs one pass. `3` runs three subagents in parallel, one on the calls the session made
+(default) runs one pass, in a fresh-context subagent that also proposes the scores unless the
+`verification` level is `light` or `off`. `3` runs three subagents in parallel, one on the calls the session made
 and why, one on the tools and steps it used, one on the approaches it did not try, and merges their
 findings before anything is scored; it applies to short sessions too. It resolves like
 `worker_continuation`, from the same `docs/conventions/session-flow.yaml`, where an unquoted `3`
