@@ -5,7 +5,7 @@ context:
 graders:
   - name: get-report-c6-fail
     type: regex
-    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*\bC6\b[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*(?:\bget_report\b[^\n]*\bC6\b|\bC6\b[^\n]*\bget_report\b|\breportId\b))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*\bC6\b[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*(?:\bget_report\b[^\n]*\bC6\b|\bC6\b[^\n]*\bget_report\b|\breportId\b))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)|(?:^|\n)\|\s*Criterion\s*\|\s*`?get_report\b[^|\n]*\|\s*`?delete_workspace\b[^|\n]*\|\s*`?list_items\b[^|\n]*\|[^\n]*\n(?:[^\n]*\n){0,40}?\|\s*C6\b[^|\n]*\|\s*\**FAIL\b'
     flags: 'i'
     target: last_message
   - name: get-report-c12-warn
@@ -15,7 +15,7 @@ graders:
     target: last_message
   - name: get-report-c12-not-fail
     type: regex
-    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC12\b|readOnlyHint)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*\bget_report\b)(?=[^\n]*(?:\bC12\b|readOnlyHint)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b))|\bget_report\b[^\n.;|]{0,60}?(?:\bC12\b|readOnlyHint)[^\n.;|]{0,30}?(?<!\bnot)(?<!\bno)(?:\s|→|->|:|=)\s*\**FAIL\b'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC12\b|readOnlyHint)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*\bget_report\b)(?=[^\n]*(?:\bC12\b|readOnlyHint)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b))|\bget_report\b[^\n.;|]{0,60}?(?:\bC12\b|readOnlyHint)[^\n.;|]{0,30}?(?<!\bnot)(?<!\bno)(?:\s|→|->|:|=)\s*\**FAIL\b|(?:^|\n)\|\s*Criterion\s*\|\s*`?get_report\b[^|\n]*\|\s*`?delete_workspace\b[^|\n]*\|\s*`?list_items\b[^|\n]*\|[^\n]*\n(?:[^\n]*\n){0,40}?\|\s*(?:C12|readOnlyHint)\b[^|\n]*\|\s*\**FAIL\b'
     match: 'not_contains'
     target: last_message
   - name: get-report-when-returns-gap
@@ -25,12 +25,12 @@ graders:
     target: last_message
   - name: delete-workspace-c5-leak
     type: regex
-    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bdelete_workspace\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*\bC5\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\||(?:^|\n)(?=[^\n]*(?:\bdelete_workspace\b|\bC5\b))(?=[^\n]*\b(?:Cosmos|tombstone|partition\s+key)\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bdelete_workspace\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*\bC5\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\||(?:^|\n)(?=[^\n]*(?:\bdelete_workspace\b|\bC5\b))(?=[^\n]*\b(?:Cosmos|tombstone|partition\s+key)\b)|(?:^|\n)\|\s*Criterion\s*\|\s*`?get_report\b[^|\n]*\|\s*`?delete_workspace\b[^|\n]*\|\s*`?list_items\b[^|\n]*\|[^\n]*\n(?:[^\n]*\n){0,40}?\|\s*C5\b[^|\n]*\|[^|\n]*\|\s*\**(?:WARN|FAIL)\b'
     flags: 'i'
     target: last_message
   - name: list-items-no-c10-flag
     type: regex
-    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\blist_items\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*\bC10\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\||(?:^|\n)(?=[^\n]*\blist_items\b)(?=[^\n]*\bC10\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\|)|\blist_items\b[^\n.;|]{0,60}?\bC10\b[^\n.;|]{0,30}?(?<!\bnot)(?<!\bno)(?:\s|→|->|:|=)\s*\**(?:WARN|FAIL)\b'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\blist_items\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*\bC10\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\||(?:^|\n)(?=[^\n]*\blist_items\b)(?=[^\n]*\bC10\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\|)|\blist_items\b[^\n.;|]{0,60}?\bC10\b[^\n.;|]{0,30}?(?<!\bnot)(?<!\bno)(?:\s|→|->|:|=)\s*\**(?:WARN|FAIL)\b|(?:^|\n)\|\s*Criterion\s*\|\s*`?get_report\b[^|\n]*\|\s*`?delete_workspace\b[^|\n]*\|\s*`?list_items\b[^|\n]*\|[^\n]*\n(?:[^\n]*\n){0,40}?\|\s*C10\b[^|\n]*\|[^|\n]*\|[^|\n]*\|\s*\**(?:WARN|FAIL)\b'
     match: 'not_contains'
     target: last_message
   - name: fail-first

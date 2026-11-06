@@ -21,7 +21,7 @@ graders:
     target: last_message
   - name: resource-not-claimed-audited
     type: regex
-    pattern: '\b(?:the\s+)?(?:snippet\s+)?resources?\s+(?:(?:is|are|was|were)\s+(?:also\s+)?)?(?:audited|evaluated|scored|passes|passed)\b'
+    pattern: '\b(?<![Nn]o )(?<![Nn]o MCP )(?<!\b0 )(?<!\b0 MCP )(?<![Zz]ero )(?<![Zz]ero MCP )(?<![Nn]one of )(?<![Nn]one of the )(?:the\s+)?(?:snippet\s+)?resources?\s+(?:(?:is|are|was|were)\s+(?:also\s+)?)?(?:audited|evaluated|scored|passes|passed)\b'
     flags: 'i'
     match: 'not_contains'
     target: last_message

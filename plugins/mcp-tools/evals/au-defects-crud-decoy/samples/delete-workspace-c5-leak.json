@@ -7,6 +7,10 @@
     {
       "answer": "delete_workspace leaks storage internals (Cosmos DB partition key).",
       "why": "prose"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C5 No implementation leak | PASS | WARN | PASS |\n",
+      "why": "matrix: verdict in this tool's column"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "delete_workspace lacks a readOnlyHint, which is fine for a destructive tool.",
       "why": "no leak mentioned"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C5 No implementation leak | WARN | PASS | PASS |\n",
+      "why": "near miss: verdict only in another tool's column"
     }
   ]
 }

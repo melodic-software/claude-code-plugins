@@ -7,6 +7,18 @@
     {
       "answer": "The snippet resource is out of scope.",
       "why": "out of scope"
+    },
+    {
+      "answer": "No MCP resources were evaluated; resources are out of scope.",
+      "why": "negated by a leading quantifier (claude-review finding)"
+    },
+    {
+      "answer": "0 resources audited, by design.",
+      "why": "negated by a leading quantifier (claude-review finding)"
+    },
+    {
+      "answer": "None of the resources were evaluated.",
+      "why": "negated by a leading quantifier (claude-review finding)"
     }
   ],
   "fail": [
@@ -17,6 +29,10 @@
     {
       "answer": "Resources are also audited below.",
       "why": "claims resources audited"
+    },
+    {
+      "answer": "Two resources were evaluated alongside the tool.",
+      "why": "near miss: a count that is not zero"
     }
   ]
 }

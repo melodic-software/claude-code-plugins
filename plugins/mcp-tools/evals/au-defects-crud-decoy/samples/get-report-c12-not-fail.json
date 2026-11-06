@@ -7,6 +7,10 @@
     {
       "answer": "get_report: C6: FAIL; C12 readOnlyHint: WARN",
       "why": "C6 fails, C12 warns, same line"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C12 readOnlyHint | WARN | PASS | PASS |\n",
+      "why": "matrix: criterion clean in this tool's column"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "get_report: readOnlyHint -> FAIL",
       "why": "prose FAIL"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C12 readOnlyHint | FAIL | PASS | PASS |\n",
+      "why": "matrix: the guard's criterion flagged in this tool's column"
     }
   ]
 }

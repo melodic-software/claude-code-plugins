@@ -7,6 +7,10 @@
     {
       "answer": "list_items: C10 PASS, no WARN; get_report: C10 WARN",
       "why": "no WARN on list_items, WARN on another tool"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C10 Not CRUD-named | PASS | PASS | PASS |\n",
+      "why": "matrix: criterion clean in this tool's column"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "list_items C10 WARN: rename to an outcome",
       "why": "prose flag"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C10 Not CRUD-named | PASS | PASS | WARN (CRUD name) |\n",
+      "why": "matrix: the guard's criterion flagged in this tool's column"
     }
   ]
 }

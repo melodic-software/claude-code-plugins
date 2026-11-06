@@ -7,6 +7,10 @@
     {
       "answer": "1. get_report: C6 FAIL, reportId has no description.",
       "why": "prose line"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C6 Params described | FAIL | FAIL | PASS |\n",
+      "why": "matrix: verdict in this tool's column"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "get_report: C1 FAIL, the description is generic.",
       "why": "a different criterion fails"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C6 Params described | PASS | FAIL | PASS |\n",
+      "why": "near miss: verdict only in another tool's column"
     }
   ]
 }
