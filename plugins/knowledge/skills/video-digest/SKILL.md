@@ -71,7 +71,7 @@ Read a spoke **only when its condition holds**. These are mutually exclusive by 
 | `context/gotchas.md` | when a run failed and you need the recovery path |
 
 **Optional, agent-lane:** when an X status heads a thread whose replies carry material the digest
-needs, invoke `/x:read` via the Skill tool to unroll the reply chain and fold it in as companion
+needs, invoke `/x:read` via the Skill tool (if the `x` plugin is installed; otherwise say the replies were not read) to unroll the reply chain and fold it in as companion
 source material. This is
 a per-watch judgment call, never a pipeline stage. See `reference/sources/x.md`.
 

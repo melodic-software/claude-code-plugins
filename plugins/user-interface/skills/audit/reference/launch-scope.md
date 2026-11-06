@@ -253,7 +253,7 @@ Comments that narrate the code (`// Set the state to loading`), comments that ta
 (`// Updated per your feedback`), `try/catch` that logs and continues around code that can't fail,
 one-call wrapper functions, duplicate helpers, unused imports and exports. None of them break
 anything. All of them make the next bug harder to find. Run `/code-tidying:tidy-diff` on the diff
-after launch.
+after launch (if the `code-tidying` plugin is installed; otherwise read the diff for these by hand).
 
 **Audit: Suggestion.** An agent tell in shipped code; one line naming `/code-tidying:tidy-diff`, not
 a finding per instance.

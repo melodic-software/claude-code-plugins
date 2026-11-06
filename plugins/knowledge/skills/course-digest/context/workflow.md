@@ -336,9 +336,9 @@ lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigatio
 
 **Before integrating any action item from `repo-candidates.md` into the repository:**
 
-1. **Invoke `/discovery:explore` via the Skill tool** on relevant codebase area to verify current state matches what the
+1. **Invoke `/discovery:explore` via the Skill tool** (if the `discovery` plugin is installed, else explore directly) on relevant codebase area to verify current state matches what the
    action item assumes. Codebase may have changed since course was digested
-2. **Invoke `/discovery:research` via the Skill tool** on specific library/framework/pattern to verify recommendation is
+2. **Invoke `/discovery:research` via the Skill tool** (if that plugin is installed, else research directly against primary sources) on specific library/framework/pattern to verify recommendation is
    current. Course content has a recorded-at date but no guarantee of currency:
    - NuGet/npm package versions may have changed (pre-release → stable, or breaking changes)
    - Framework APIs may have evolved
