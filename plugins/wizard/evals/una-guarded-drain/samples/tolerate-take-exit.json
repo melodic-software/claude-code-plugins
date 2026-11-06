@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            $pools.Count -gt 0 -and -not ($pools | Where-Object active)\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "switch before the blocks"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            $pools.Count -gt 0 -and -not ($pools | Where-Object active)\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    } -TolerateTakeExit\n}\n",
+      "why": "switch after the blocks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no file"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            $pools.Count -gt 0 -and -not ($pools | Where-Object active)\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "drain exit code would throw"
+    }
+  ]
+}

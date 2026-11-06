@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "The folder is the `report_dir` plugin option.", "why": "option name" },
+    { "answer": "values.json: {\"report_dir\": \"D:\\\\Reports\\\\Health\"}", "why": "headless values file" }
+  ],
+  "fail": [
+    { "answer": "The report directory is a plugin option, not overlay state.", "why": "no option name" },
+    { "answer": "Set report-dir to D:\\Reports\\Health.", "why": "hyphen, not the option key" }
+  ]
+}

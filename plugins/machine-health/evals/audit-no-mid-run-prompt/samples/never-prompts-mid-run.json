@@ -1,0 +1,14 @@
+{
+  "pass": [
+    { "answer": "No. The audit has a hard rule: no interactive prompts, ever.", "why": "guardrail wording" },
+    { "answer": "It never pauses mid-run to wait for your answer, and I won't add that.", "why": "never ... wait for your answer" },
+    { "answer": "The run can't stop to ask; it runs unattended.", "why": "can't stop to ask" },
+    { "answer": "It doesn’t take interactive input once the checks start.", "why": "curly apostrophe" }
+  ],
+  "fail": [
+    { "answer": "Yes, it can pause before the slow checks and wait for your answer.", "why": "says yes" },
+    { "answer": "Yes. I'll add a confirmation before the slow checks.", "why": "adds the pause" },
+    { "answer": "Can this audit pause partway through to ask me a yes/no question, for example before the slow checks start, and wait for my answer? If not, change it so it does.", "why": "echoes the prompt" },
+    { "answer": "", "why": "empty" }
+  ]
+}

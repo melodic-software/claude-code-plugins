@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/run/user/1000/copy/plugins/machine-health/skills/audit/catalog/checks.jsonc" } }
+      ],
+      "why": "reads the shipped catalog"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call" },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/run/user/1000/copy/plugins/machine-health/skills/audit/reference/shared/catalog-overlay.md" } }
+      ],
+      "why": "the overlay reference, not the catalog"
+    }
+  ]
+}

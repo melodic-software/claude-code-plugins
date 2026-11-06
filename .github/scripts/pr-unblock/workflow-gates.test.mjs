@@ -1353,7 +1353,8 @@ esac
       assert.equal(run.status, 0, `${text}: ${run.stdout}`);
       assert.equal(run.calls, 2, text);
       assert.equal(run.sleeps.length, 1, text);
-      assert.ok(run.sleeps[0] >= 5 && run.sleeps[0] <= 10, `${text}: waited ${run.sleeps[0]}`);
+      // Full jitter (outage posture element 1): a wait drawn from 0 to the 10 s cap.
+      assert.ok(/^(?:[0-9]|10)$/.test(run.sleeps[0]), `${text}: waited ${run.sleeps[0]}`);
       assert.match(run.stdout, /^::warning::reading #7 failed \(transient\): /m, text);
       assert.equal(run.written, `sha=${sha}\ndefault-base=true\n`, text);
     }

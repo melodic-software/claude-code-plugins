@@ -28,8 +28,8 @@
 // being the probe (outage posture element 3):
 //   - one lost run (LOST: cancelled, timed_out or startup_failure);
 //   - fewer than maxRunsPerHead runs that went red, or that ended green on a
-//     failed or lagging handoff read (heldHandoff, the one green run whose jobs
-//     are read).
+//     failed or lagging handoff read (heldHandoff) or an unread PR head
+//     (heldHead), the one green run whose jobs are read.
 //     A red run that posted its check is ended by that check. Red alone names no
 //     cause, a read that failed or a broker that refused, so the count is what
 //     ends a refusal, and an outage past that many runs still ends the PR.
@@ -168,12 +168,20 @@ export function heldHandoff(run, activity = DEFAULTS.activity) {
   });
 }
 
+// Whether a run held on an unread PR head: pr-refine.yml's <activity>-head-held
+// job, which runs only on fix-docs-head's unread output, succeeded. A green run
+// without it, such as one a human-gated hold skipped, still ends the PR.
+export function heldHead(run, activity = DEFAULTS.activity) {
+  return (run?.jobs ?? []).some((job) => job?.name === `${activity}-head-held` && job.conclusion === "success");
+}
+
 // The run-name the workflow gives a dispatch: its file stem, the activity
 // and the PR (pr-refine.yml's run-name).
 const runTitle = (workflow, activity, number) => `${workflow.replace(/\.ya?ml$/, "")} ${activity} #${number}`;
 
 // Whether the PR's completed runs among the listed ones make it done: any that
-// ended the PR, a second lost one, or maxRuns red or held ones.
+// ended the PR, a second lost one, or maxRuns red or held ones. A held run is a
+// green one whose jobs show a handoff hold or an unread head.
 async function docsRunsEnded(runs, title, readRunJobs, activity, maxRuns) {
   const ended = runs.filter((run) => run.status === "completed" && run.display_title === title);
   const lost = ended.filter((run) => LOST.has(run.conclusion)).length;
@@ -182,7 +190,11 @@ async function docsRunsEnded(runs, title, readRunJobs, activity, maxRuns) {
     if (LOST.has(run.conclusion) || run.conclusion === "failure") {
       continue;
     }
-    if (run.conclusion !== "success" || !heldHandoff(await readRunJobs(run.id), activity)) {
+    if (run.conclusion !== "success") {
+      return true;
+    }
+    const jobs = await readRunJobs(run.id);
+    if (!heldHandoff(jobs, activity) && !heldHead(jobs, activity)) {
       return true;
     }
     again += 1;

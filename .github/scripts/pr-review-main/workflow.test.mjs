@@ -895,8 +895,10 @@ test("only a lane-source pull request is reviewed, by the gate's own predicate",
   for (const select of [triggerFiles, triggerSelect, ...LEGS.map((job) => step("Select a lane-source pull request", job))]) {
     assert.match(select, /import babysit_review_evidence as ev/);
     assert.match(select, /ev\.lane_source\(p\)/);
-    // The files read goes through the api-budget gh wrapper, so it is counted.
-    assert.match(select, /\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true\n {10}gh api --paginate /);
+    // The files read goes through the api-budget gh wrapper, so it is
+    // counted, and through retry_call, so it is read up to 3 times.
+    assert.match(select, /^ {10}\. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash\n {10}\. \.base\/\.github\/scripts\/pr-merge\/rate-stop\.bash\n {10}\. \.base\/\.github\/scripts\/pr-merge\/retry-call\.bash\n {10}api_budget_wrap_gh github-token\n/m);
+    assert.match(select, /retry_call --read 60 read_files/);
   }
   for (const job of LEGS) assert.match(step("Write the diff", job), /^ {8}if: steps\.trigger\.outputs\.review == 'true'$/m);
 });
@@ -977,29 +979,13 @@ test("the trigger job reads the files first and gates every lane-source pull req
   const run = /^ {8}run: \|\n((?: {10}.*\n)+)/m.exec(`${files}\n`)[1].replace(/^ {10}/gm, "");
   // Event values reach the script only through env.
   assert.doesNotMatch(run, /\$\{\{/);
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-files-"));
+  const harness = filesHarness();
   try {
-    // A .base with the scripts the predicate imports and no api-budget
-    // wrapper, so the stub gh below answers.
-    mkdirSync(path.join(dir, ".base"));
-    symlinkSync(new URL("../../../plugins", import.meta.url).pathname, path.join(dir, ".base", "plugins"));
-    const bin = path.join(dir, "bin");
-    mkdirSync(bin);
-    writeFileSync(path.join(bin, "gh"), '#!/bin/bash\necho "$*" >>"$GH_LOG"\n[ -n "$GH_FAIL" ] && exit 1\nprintf "%s\\n" $GH_PATHS\n');
-    chmodSync(path.join(bin, "gh"), 0o755);
     const pull = (number, sha = SHA_A, repo = 42) => ({ number, head: { sha }, base: { repo: { id: repo } } });
     const runWith = (pulls, extra = {}) => {
-      const out = path.join(dir, "out");
-      const log = path.join(dir, "gh.log");
-      writeFileSync(out, "");
-      writeFileSync(log, "");
-      const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], {
-        cwd: dir,
-        encoding: "utf8",
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, PULLS: JSON.stringify(pulls), HEAD_SHA: SHA_A, REPO_ID: "42", FILES: path.join(dir, "files.txt"), GH_PATHS: "", GH_FAIL: "", ...extra },
-      });
+      const result = harness.run(run, { PULLS: JSON.stringify(pulls), HEAD_SHA: SHA_A, REPO_ID: "42", ...extra });
       assert.equal(result.status, 0, result.stderr);
-      return { out: readFileSync(out, "utf8"), calls: readFileSync(log, "utf8") };
+      return result;
     };
     // A lane-source PR: review=true, so the gate's `!= 'false'` runs it.
     const lane = runWith([pull(7)], { GH_PATHS: ".github/workflows/x.yml README.md" });
@@ -1014,9 +1000,84 @@ test("the trigger job reads the files first and gates every lane-source pull req
       assert.equal(none.out, "", JSON.stringify(pulls));
       assert.equal(none.calls, "", JSON.stringify(pulls));
     }
-    assert.equal(runWith([pull(7)], { GH_FAIL: "1", GH_PATHS: "README.md" }).out, "");
+    // One failed read is read again after a jittered wait, and the second
+    // answer counts.
+    const again = runWith([pull(7)], { GH_FAIL: "1", GH_PATHS: ".github/workflows/x.yml" });
+    assert.equal(again.out, "pr-number=7\nreview=true\n");
+    assert.equal(again.calls.split("\n").filter(Boolean).length, 2);
+    assert.equal(again.sleeps.split("\n").filter(Boolean).length, 1);
+    // A list unread after 3 reads leaves no result, so the gate runs.
+    const unread = runWith([pull(7)], { GH_FAIL: "9", GH_PATHS: "README.md" });
+    assert.equal(unread.out, "");
+    assert.equal(unread.calls.split("\n").filter(Boolean).length, 3);
+    assert.match(unread.stdout, /^::warning::the file list did not read \(failed 3 times\); the trigger gate runs$/m);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    harness.remove();
+  }
+});
+
+// A temporary .base with the predicate's scripts and the real api-budget,
+// rate-stop and retry-call helpers, a stub gh that fails its first GH_FAIL
+// calls and prints GH_PATHS, and a sleep that only logs its wait.
+function filesHarness() {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-files-"));
+  mkdirSync(path.join(dir, ".base"));
+  mkdirSync(path.join(dir, "tmp"));
+  symlinkSync(new URL("../../../plugins", import.meta.url).pathname, path.join(dir, ".base", "plugins"));
+  symlinkSync(new URL("../../../.github", import.meta.url).pathname, path.join(dir, ".base", ".github"));
+  const bin = path.join(dir, "bin");
+  mkdirSync(bin);
+  writeFileSync(path.join(bin, "gh"), '#!/bin/bash\necho "$*" >>"$GH_LOG"\n[ "$(wc -l <"$GH_LOG")" -le "${GH_FAIL:-0}" ] && { echo "HTTP 502: Bad Gateway" >&2; exit 1; }\nprintf "%s\\n" $GH_PATHS\n');
+  writeFileSync(path.join(bin, "sleep"), '#!/bin/bash\necho "$1" >>"$SLEEP_LOG"\n');
+  chmodSync(path.join(bin, "gh"), 0o755);
+  chmodSync(path.join(bin, "sleep"), 0o755);
+  const run = (script, extra = {}) => {
+    const out = path.join(dir, "out");
+    const log = path.join(dir, "gh.log");
+    const sleeps = path.join(dir, "sleep.log");
+    for (const file of [out, log, sleeps]) writeFileSync(file, "");
+    rmSync(path.join(dir, "tmp", "api-budget"), { recursive: true, force: true });
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: path.join(dir, "tmp"), GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, SLEEP_LOG: sleeps, FILES: path.join(dir, "files.txt"), GH_PATHS: "", GH_FAIL: "0", ...extra },
+    });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr, out: readFileSync(out, "utf8"), calls: readFileSync(log, "utf8"), sleeps: readFileSync(sleeps, "utf8") };
+  };
+  return { run, remove: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+// Every select reads the files up to 3 times, and a list still unread ends
+// the step red, the failure the lost-run reconciler re-runs once.
+test("each select reads the files again after a failure and ends red on a list still unread", () => {
+  const triggerSelect = jobText("trigger").split(/\n(?=      - name: )/).find((s) => s.startsWith("      - name: Select a lane-source pull request\n"));
+  const harness = filesHarness();
+  try {
+    for (const [job, block] of [["trigger", triggerSelect], ...LEGS.map((job) => [job, step("Select a lane-source pull request", job)])]) {
+      const run = /^ {8}run: \|\n((?: {10}.*\n)+)/m.exec(`${block}\n`)[1].replace(/^ {10}/gm, "");
+      assert.doesNotMatch(run, /\$\{\{/, job);
+      // A good read: one call, and the predicate's answer.
+      const good = harness.run(run, { PR_NUMBER: "7", GH_PATHS: ".github/workflows/x.yml" });
+      assert.equal(good.status, 0, `${job}: ${good.stderr}`);
+      assert.equal(good.out, "review=true\n", job);
+      assert.match(good.calls, /^api --paginate repos\/o\/r\/pulls\/7\/files\?per_page=100 /, job);
+      assert.equal(good.calls.split("\n").filter(Boolean).length, 1, job);
+      assert.equal(harness.run(run, { PR_NUMBER: "7", GH_PATHS: "README.md" }).out, "review=false\n", job);
+      // Two failures, then an answer: three reads, two jittered waits.
+      const third = harness.run(run, { PR_NUMBER: "7", GH_FAIL: "2", GH_PATHS: ".github/workflows/x.yml" });
+      assert.equal(third.status, 0, `${job}: ${third.stderr}`);
+      assert.equal(third.out, "review=true\n", job);
+      assert.equal(third.calls.split("\n").filter(Boolean).length, 3, job);
+      assert.equal(third.sleeps.split("\n").filter(Boolean).length, 2, job);
+      // Three failures: no fourth read, no result, and the step fails.
+      const unread = harness.run(run, { PR_NUMBER: "7", GH_FAIL: "9", GH_PATHS: "README.md" });
+      assert.equal(unread.status, 1, job);
+      assert.equal(unread.out, "", job);
+      assert.equal(unread.calls.split("\n").filter(Boolean).length, 3, job);
+      assert.match(unread.stdout, /^::error::the file list did not read \(failed 3 times\); no review, so the lanes stay unbound$/m, job);
+    }
+  } finally {
+    harness.remove();
   }
 });
 

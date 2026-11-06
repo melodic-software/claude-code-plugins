@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "After the run I can offer the **elevated pass**: I show you the script and its hash, and it starts only on your yes.", "why": "names the pass" },
+    { "answer": "Run the Elevated-pass step after step 8 if you want the reading.", "why": "hyphen and capital" }
+  ],
+  "fail": [
+    { "answer": "Rerun the whole audit from an elevated terminal.", "why": "elevated, but not the pass" },
+    { "answer": "I will prompt for UAC now so the check can read BitLocker.", "why": "raises a prompt, names no pass" },
+    { "answer": "How would I get the BitLocker reading? Say, then stop.", "why": "echoes the prompt" }
+  ]
+}
