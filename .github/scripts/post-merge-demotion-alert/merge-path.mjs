@@ -157,9 +157,10 @@ export function label({ repo, merged, reverted, config, gh = defaultGh, log = co
     try {
       gh(["api", "-X", "POST", `repos/${repo}/issues/${number}/labels`, ...labels.flatMap((l) => ["-f", `labels[]=${l}`])]);
       log(`labeled #${number}: ${labels.join(", ")}`);
-    } catch {
+    } catch (e) {
       failed += 1;
-      log(`::error::could not label #${number} ${labels.join(", ")}`);
+      const reason = String(e.stderr || e.message || "").trim().split("\n")[0].slice(0, 300);
+      log(`::error::could not label #${number} ${labels.join(", ")}: ${reason}`);
     }
   }
   if (!plan.length) log(`no record-path merge among #${numbers.join(", #")} needs a label`);
