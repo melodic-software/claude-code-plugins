@@ -295,6 +295,7 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py
+        plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py

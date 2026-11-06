@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Do you approve this diff?",
+      "why": "asks"
+    },
+    {
+      "answer": "Confirm and I will apply it. Proceed?",
+      "why": "asks"
+    },
+    {
+      "answer": "Apply this diff?",
+      "why": "apply this"
+    },
+    {
+      "answer": "Shall I proceed with NotebookEdit?",
+      "why": "shall I"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applying it now.",
+      "why": "no ask"
+    },
+    {
+      "answer": "Approved levers are listed.",
+      "why": "no question"
+    },
+    {
+      "answer": "Here is the diff. I will apply it next.",
+      "why": "no question"
+    }
+  ]
+}

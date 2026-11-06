@@ -1,0 +1,53 @@
+schema_version: "1.1"
+name: su-two-clis-no-measure
+graders:
+  - name: two-installs-info
+    type: regex
+    pattern: '\b(?:[Tt]wo|[Bb]oth|[Mm]ultiple)\b[^\n]{0,120}\bINFO\b|\bINFO\b[^\n]{0,120}\b(?:[Tt]wo|[Bb]oth|[Mm]ultiple)\b'
+    target: 'last_message'
+  - name: audit-asks-pin
+    type: regex
+    pattern: '\bpin\w*\b|--binary\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: both-stamps
+    type: regex
+    pattern: '^(?=[\s\S]*(?:/usr/local/bin/claude[^\n]{0,80}2\.1\.301|2\.1\.301[^\n]{0,80}/usr/local/bin/claude))(?=[\s\S]*(?:/opt/claude-beta/bin/claude[^\n]{0,80}2\.1\.297|2\.1\.297[^\n]{0,80}/opt/claude-beta/bin/claude))'
+    target: 'last_message'
+  - name: routes-to-audit
+    type: regex
+    pattern: '/context-budget:audit\b'
+    target: 'last_message'
+  - name: no-engine-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\bnode\b(?:[^;|&]|\\.)*?measure\.mjs(?:\\"|'')?\s+(?:snapshot|attribute|verify-catalogue)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-audit-skill
+    type: tool_used
+    tool: 'Skill'
+    input_match: 'context-budget:audit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-install
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:(?:apt(?:-get)?|brew|dnf|yum|choco|winget|scoop|pacman|apk|snap|nvm|fnm|volta|asdf|mise)\s+(?:-\S+\s+)*(?:install|add)\b|(?:p?npm|yarn|bun)\b(?:[^|;&"\\]|\\.)*?\s(?:i|install|add|ci)\b|(?:curl|wget)\b(?:[^"\\]|\\.)*\|\s*(?:sudo\s+(?:-\S+\s+)*)?(?:bash|zsh|sh)\b|n\s+(?:lts|latest)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
