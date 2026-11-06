@@ -18,9 +18,11 @@ const TIP_REF = "${{ github.event.repository.default_branch }}";
 const TIP_STEP_REF = "${{ steps.tip.outputs.sha }}";
 const TIP_BRANCHES = new Set(["main", TIP_REF]);
 const TIP_RUN = [
-  'sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
-  "  awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }')",
-  '[[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  'until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
+  "    awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
+  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  '  sleep "$((RANDOM % (2 * i + 1)))"',
+  "done",
   'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
   "",
 ].join("\n");
