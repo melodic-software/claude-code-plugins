@@ -138,11 +138,11 @@ The lane runs from `.github/workflows/pr-review-security-hosted.yml` and the
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
 | 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:215` | The shared client sends up to 3 attempts with full jitter, and the rate latch waits out a reset within 60 s, then refuses (a notice under the hold opt-in). Writes go out once. |
-| 2 | gap | `.github/scripts/pr-verify/resolve-pr.mjs` `closing`, `.github/scripts/pr-verify/resolve-pr.mjs` `incomplete` | A fault or a 200 whose completeness check fails (`incomplete`: a list shorter than its count, a missing field) holds green with the `held:` notice and `reason=held`. A malformed input, a GraphQL error other than `NOT_FOUND`, a list past what the query reads (`shortList`) and the page cap stay red. The pr-verify workflow row under Remaining stays open. |
-| 3 | gap | `.github/workflows/pr-verify.yml:130`, `.github/workflows/maintenance-reconcile-lost-runs.yml:9` | A stopped run fails on purpose so the reconciler re-runs it once, from an attempt record. That is a re-arm, which the owner kept as attempt 2's trust proof. |
+| 2 | gap | `.github/scripts/pr-verify/resolve-pr.mjs:1185`, `.github/workflows/pr-verify.yml:209`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:663` (lines at the later change below) | A fault or a 200 whose completeness check fails (`incomplete`: a list shorter than its count, a missing field) holds the resolver green with the `held:` notice and `reason=held`, and `Note the hold` marks the run. A malformed input, a GraphQL error other than `NOT_FOUND`, a list past what the query reads (`shortList`) and the page cap stay red. The workflow's other reads still end red, kept so the reconciler re-runs the run (see Remaining). A read fault in the trigger gate ends the run green with no notice and no re-run. |
+| 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:702`, `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:750`, `.github/workflows/pr-verify.yml:168` (lines at the later change below) | A red run whose verdict write never started, the kill switch's stop included, and a held green run are each re-run once by the reconciler, from an attempt record. That is a re-arm, which the owner kept as attempt 2's trust proof, and it is the lane's whole element 3. |
 | 4 | met | `.github/workflows/pr-verify.yml:51`, `.github/scripts/pr-verify/resolve-pr.mjs:46` | A FAIL needs a complete judgment, and a later pass supersedes it. |
 | 5 | met | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:128` | The reconciler idles while the status page shows Actions as anything but operational, and re-runs only once it is and its own reads succeed. The page stops the resume path but starts nothing. |
-| 6 | met | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` `verifyRecordedRerun` (`readListing`), `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` `createGitHub` (`ETAG`) | The re-run record listing's re-read sends the page's `etag` (`If-None-Match`), and a 304 gives back the body it came with. Concurrency (`.github/workflows/pr-verify.yml:82`) and serial reads are fine. |
+| 6 | met | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` `verifyRecordedRerun` (`readListing`), `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` `createGitHub` (`ETAG`) | The re-run record listing's re-read sends the page's `etag` (`If-None-Match`), and a 304 gives back the body it came with. Concurrency (`.github/workflows/pr-verify.yml:102`) and serial reads are fine. |
 
 ## pr-explain
 
@@ -554,6 +554,28 @@ A later audit of pr-require-checks' workflow changed no step; its rows cite comm
   a missing review is a complete read's result, and the scheduled group never holds two runs.
   Element 3's only re-arm is the reconciler's kept record, and element 5 is met.
 
+A later change reviewed pr-verify's workflow row. Its pr-verify rows 2 and 3 cite that change's head.
+Only the workflow header's account of the resolver changed: no step was made to hold.
+
+- **pr-verify, element 2.** Every read before the verdict write other than the resolver's still
+  ends red: main's tip (`.github/workflows/pr-verify.yml:137`), the checkout (`:147`), the trusted
+  PR text (`:245`), the diff fetch (`:264`), the upstream run's jobs (`:303`) and the model config
+  (`:367`), with the same steps in the two later jobs. That is kept. The reconciler re-runs a red
+  first attempt whose verdict write never started (`reconcile.mjs:236`, `holdReason` at `:702`),
+  and it re-runs a green one only when the job ran `Note the hold` with a `held:` notice
+  (`faultHeld`, `reconcile.mjs:750`). A step held green any other way would end that re-run unseen.
+  After the write starts, a red run is held for a person, so a head is never judged twice
+  (`reconcile.mjs:738`). wake-pr-merge cannot fail the run (`continue-on-error`): a failed read dispatches
+  anyway and a failed dispatch warns, and pr-merge's schedule arms the PR (`pr-verify.yml:5804`). A
+  rate limit past the guard's budget still prints the gh wrapper's `::error::` there, since the
+  step sets no `API_BUDGET_HOLD` (`api-budget.bash:409`). The trigger gate turns a read fault into
+  `proceed=false` with reason `no-pr` (`check-trusted-trigger.mjs:663`, `:687`) or, for an actor
+  read, `untrusted-actor` or `untrusted-rerunner` (`readOrRefuse`, `:704`), the reasons a real
+  refusal gets, so the job skips every later step and ends green with no notice and no re-run. The
+  workflow cannot tell that fault from a real refusal, so the gate's script row below records it.
+- **pr-verify, element 3.** It is the kept re-run alone. The next pr-require-checks completion is
+  the only other start, and a run held again at attempt 2 waits for it.
+
 The other script rows below are still open.
 
 | Lane | Element | Kind | File to change |
@@ -567,7 +589,8 @@ The other script rows below are still open.
 | pr-review, pr-review-security | 2 | larger | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs`: read a pr-review-main hold, as `faultHeld` reads pr-verify's, before `pr-review-main.yml` holds an unread file list or a run with no verdict green; until then that red is the kept re-run's signal |
 | pr-review, pr-review-security | 1, 6 | workflow | `.github/workflows/pr-review-main.yml`: retry the judged-head pre-filter's reads, and read the trusted PR text once per run for both lanes, which changes what the model reads |
 | pr-review, pr-review-security | 1, 2, 6 | larger | the hosted review's own reads, in `melodic-software/ci-workflows` `pr-review-cli.yml` |
-| pr-verify | 2, 3 | workflow | `.github/workflows/pr-verify.yml`; part 2 set `API_BUDGET_HOLD` on the resolver steps |
+| pr-verify | 2 | kept | `.github/workflows/pr-verify.yml` keeps its non-resolver reads red: the reconciler re-runs a red run whose verdict write never started, and sees a green hold only through `Note the hold` and a `held:` notice (`reconcile.mjs` `faultHeld`) (see above) |
+| pr-verify | 2 | script | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` (a read fault stops with `no-pr` or an `untrusted-*` reason, the reasons a real refusal gets, so pr-verify ends green with no notice and no re-run; a separate fault reason the workflow can mark with `Note the hold`, plus a pr-verify entry in `signals.mjs` `HOLD_LANES`, would make it a counted hold) |
 | pr-require-checks | 2, 4, 6 | kept | `.github/workflows/pr-require-checks.yml` keeps its red on a read it could not complete and on a head with no counted review, since a gate that held green would pass what it could not read; scheduled runs keep their own groups, which two ticks 7 hours apart never contend for |
 | pr-require-checks | 1 | workflow | `.github/workflows/pr-require-checks.yml`: make `gh_read` the one retry layer (3 sends, full jitter, a header-given reset waited out inside the job's deadline) on verbatim copies of `retry-call.bash` and `rate-stop.bash` in the job env, checked as `API_BUDGET_SH` is (`log-api-budget.test.mjs`), and drop the callers' loops; `scripts/ci-gh-read.test.sh` and the per-step `scripts/ci-*.test.sh` suites pin these bodies |
 | pr-require-checks | 6 | script | a shell read that sends `If-None-Match` for one URL (only `.github/scripts/lib/handoff-evidence.sh` has one, for job listings), then the review wait's run poll (`pr-require-checks.yml:7344`) |
