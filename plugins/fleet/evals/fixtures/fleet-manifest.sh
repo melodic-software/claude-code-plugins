@@ -39,7 +39,7 @@ cat >"$f" <<'MD'
 
 Rendered for desk-01. Machines are addressed by hostname over the tailnet.
 
-The Windows profiles under `/mnt/c` named below are not reachable from this session.
+The paths under `/mnt/c` named below exist on the machines but cannot be read with this session's file tools; commands that use them still run there.
 
 ## desk-01 (desktop, this machine)
 
