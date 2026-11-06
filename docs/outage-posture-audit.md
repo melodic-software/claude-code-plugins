@@ -115,7 +115,7 @@ The lane runs from `.github/workflows/pr-review-hosted.yml`, a caller of the ext
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
 | 1 | gap | `.github/workflows/pr-review-main.yml:188`, `.github/workflows/pr-review-main.yml:369`, `.github/workflows/pr-review-main.yml:246` | Every file-list read goes through `retry_call --read` (`.github/scripts/pr-merge/retry-call.bash`): 3 reads at most, full jitter, a rate stop waited out within 60 s (see Remaining). So does each read of the judged-head pre-filter (`try_read`: the verdict listing, the run, the verdict zip, the head's check runs and the fetch of a run's main commit); one still unread after 3 runs the review with a `::notice::`, fail open, so nothing is lost but a review's cost. The shared client sends up to 3 attempts with full jitter. Still open: the hosted review's own reads are in ci-workflows' `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:246`). |
-| 2 | gap | `.github/workflows/pr-review-main.yml:369`, `.github/workflows/pr-review-main.yml:1342`, `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:333` | A list unread after 3 reads, or "no verdict", still ends red, on evidence: that red is what the reconciler's kept one-time re-run reads (`RECORDED_LANES`, a run lost before or during its review), and the merge gate binds a verdict only from a run that completed with success (`babysit_review_evidence.py:507` `_main_bound`). A green hold needs the reconciler to read it, as `faultHeld` does for pr-verify (still-open table). |
+| 2 | met | `.github/workflows/pr-review-main.yml:377`, `.github/workflows/pr-review-main.yml:394`, `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:758` (lines at the later change below) | A file list unread after 3 reads holds the select green with a `held:` notice and no review, and `Note the hold` marks the run; the reconciler re-runs it once (`faultHeld`, as for pr-verify). "No verdict" still ends red, kept: that red is what the reconciler's one-time re-run reads (`RECORDED_LANES`), and the merge gate binds a verdict only from a run that completed with success (`babysit_review_evidence.py:507` `_main_bound`). |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:333`, `.github/workflows/pr-review-hosted.yml:214` | The rest is met; the one re-arm is kept (still-open table). Recovery is the reconciler's next pass: a recorded one-time re-run, idle while the status page lists an outage (element 5 allows that stop). The one-time record is a re-arm the owner kept: it is the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`). No other re-arm runs: the key-credit probing marker (`pr-review-main.yml` `review-handoffs-credit`) gates which credential runs, not when a review restarts. |
 | 4 | gap | `.github/workflows/pr-review-main.yml:3068`, `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py:507` | A later clean review never clears a CRITICAL check run, by design: the merge gate keeps the most CRITICAL findings any review of the tree reported, so a re-run cannot clear a security hold. Changing that is the merge gate's (still-open table, larger). |
 | 5 | met | `.github/workflows/pr-review-hosted.yml:214`, `.github/workflows/pr-review-main.yml:619` | `check-upstream-status` stops the review with exit 1. That is a stop, and the page starts nothing. The red stays: the reconciler re-runs on that failed step (`reconcile.mjs:250` `UPSTREAM_STOP_STEP`) and the merge gate binds the re-run on its error (`babysit_review_evidence.py:262` `UPSTREAM_STOP_RE`). |
@@ -129,7 +129,7 @@ The lane runs from `.github/workflows/pr-review-security-hosted.yml` and the
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
 | 1 | gap | `.github/workflows/pr-review-main.yml:188`, `.github/workflows/pr-review-main.yml:369`, `.github/workflows/pr-review-main.yml:246`, `.github/workflows/pr-review-security-hosted.yml:251` | It shares pr-review's code, so its file-list and judged-head reads retry, and the hosted review's own reads stay open. |
-| 2 | gap | `.github/workflows/pr-review-main.yml:369`, `.github/workflows/pr-review-main.yml:1342` | A list still unread, or "no verdict", makes the run red, the signal the reconciler's kept re-run reads, as for pr-review. |
+| 2 | met | `.github/workflows/pr-review-main.yml:377`, `.github/workflows/pr-review-main.yml:394` (lines at the later change below) | It shares pr-review's code: a list still unread holds green for the reconciler's `faultHeld` re-run, and "no verdict" stays red, as for pr-review. |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:333`, `.github/workflows/pr-review-security-hosted.yml:219` | As for pr-review, the rest is met and the re-arm is kept. Resume is the reconciler's next pass and its one-time recorded re-run, a re-arm the owner kept as attempt 2's trust proof, as for pr-review. |
 | 4 | gap | `.github/workflows/pr-review-main.yml:3068`, `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py:507` | A later complete read never closes a filed CRITICAL count, by the merge gate's design, as for pr-review. |
 | 5 | met | `.github/workflows/pr-review-security-hosted.yml:219`, `.github/workflows/pr-review-main.yml:619` | The status page gates the run and turns it red. That is a stop, and the page starts nothing; the red is what the reconciler and the merge gate read, as for pr-review. |
@@ -431,12 +431,13 @@ and the lost-run reconciler's next pass reads that job's annotations for the `he
 run gets (`reconcile.mjs` `faultHeld`). That happens only at attempt 1 and only while the status
 page shows Actions operational, so outside an outage a held verdict is retried within about 30
 minutes (the cron runs at minutes 4 and 34). A run held again at attempt 2 waits for the head's
-next checks run. The reconciler lists pr-verify's succeeded runs from `FAULT_HELD_HOURS` back, or
+next checks run. The reconciler lists pr-verify's and pr-review-main's succeeded runs from `FAULT_HELD_HOURS` back, or
 from the last pass that read when that is earlier, since a pass idle through an outage reads
 nothing, or from the oldest first attempt that pass saw still going, since a run's three jobs can
 take about 17 hours. That pass already lists the runs still going, so this adds no read. Each run's jobs are read once, since a run with no hold is carried as settled, and at
-most `FAULT_HELD_READS` a pass. At about 700 succeeded runs a day that is about 30 jobs reads an
-hour, plus one or two listing reads a pass. Monitor signal 13 does not count these holds.
+most `FAULT_HELD_READS` a pass across both lanes. pr-verify's about 700 succeeded runs a day and
+pr-review-main's 425 on 2026-11-05 make about 47 jobs reads an hour, plus one or two listing reads
+per lane a pass. Monitor signal 13 does not count these holds.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
 `retry-spent` fault hold, work-resolve-issue's `WIP cap hold`, work-unblock's held listings and issue reads, pr-refine's held `fix-docs` reads and unread heads, and
@@ -539,12 +540,25 @@ tests. Their rows cite the latest of those heads, not `222d8023`.
   select read go through `retry_call --read 60` (`.github/scripts/pr-merge/retry-call.bash`): up to
   3 reads, a capped backoff with full jitter, and a rate stop waited out within 60 s of waits. A
   trigger read still unread leaves no result and the gate runs, as before; a select read still
-  unread ends the step red, the failure the reconciler's kept one-time re-run reads. The
+  unread holds green (element 2, below). The
   judged-head pre-filter's reads and its fetch go through it too (`try_read`); one still unread
-  runs the review with a notice, the safe side: nothing is lost but a review's cost. Element 2 is
-  kept red on that evidence (`reconcile.mjs:25-28`: a lane run that failed before its verdict write
-  is re-run once), element 3's one re-arm is kept, and element 5 is met as it stands (still-open
-  table).
+  runs the review with a notice, the safe side: nothing is lost but a review's cost. Element 3's
+  one re-arm is kept, and element 5 is met as it stands (still-open table).
+
+A later change held pr-review-main's unread file lists green, with tests. The pr-review and
+pr-review-security rows 2 cite its head.
+
+- **pr-review and pr-review-security, element 2.** Each of the four `Select a lane-source pull
+  request` steps (the trigger job's and each leg's) that cannot read the list after 3 reads prints
+  a `held:` notice, sets `held`, and exits 0 (`.github/workflows/pr-review-main.yml:377`). `Note
+  the hold` follows it, as in pr-verify. A held trigger job starts no leg: its `held` output skips
+  the key leg, the credit gate's skipped-leg reports and the credit-stop handoff. A held leg takes
+  no gate result, so it reviews nothing and leaves no verdict. The reconciler's `faultHeld` now
+  lists pr-review-main's succeeded runs beside pr-verify's (`FAULT_HELD_LANES`,
+  `reconcile.mjs:351`) and re-runs a held first attempt once, with the lane record. It waits while
+  the upstream gate reads an outage, as a lost pr-review-main run does (`:1398`). A held run in
+  which any job's verdict write started is held for a person, as `holdReason` holds a red one,
+  since a whole-run re-run would review the written lane again. "No verdict" stays red.
 
 A later audit of pr-require-checks' workflow changed no step; its rows 2 to 6 cite commit
 `91414684`. A change after it, #13671, rewrote the job's read retries; row 1 cites #13671's head.
@@ -632,7 +646,6 @@ The other script rows below are still open.
 | pr-refine | 2 | script | `.github/scripts/pr-unblock/lane-hold.mjs` (a failed label or timeline read ends fix-docs-head red, a run the dispatcher counts; pr-unblock's `resolve-conflicts-select` shares the script) |
 | pr-review, pr-review-security, pr-verify, pr-require-checks | 3 | kept | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` keeps its one-time re-run record, the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`), and its status-page idle, a stop element 5 allows |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
-| pr-review, pr-review-security | 2 | larger | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs`: read a pr-review-main hold, as `faultHeld` reads pr-verify's, before `pr-review-main.yml` holds an unread file list or a run with no verdict green; until then that red is the kept re-run's signal |
 | pr-review, pr-review-security | 6 | larger | `.github/workflows/pr-review-main.yml` and `.github/artifact-retention.json`: one job reads the trusted PR text per run, gated as the legs are (upstream status included), and uploads it under its own retention family after a leak scan, with a sha256 job output; each leg uses it only when the hash, its main commit, PR number, head and run attempt match, else reads its own; the later legs get `needs` edges to that job, which must not turn the run red |
 | pr-review, pr-review-security | 1, 2, 6 | larger | the hosted review's own reads, in `melodic-software/ci-workflows` `pr-review-cli.yml` |
 | pr-verify | 2 | kept | `.github/workflows/pr-verify.yml` keeps its non-resolver reads red: the reconciler re-runs a red run whose verdict write never started, and sees a green hold only through `Note the hold` and a `held:` notice (`reconcile.mjs` `faultHeld`) (see above) |

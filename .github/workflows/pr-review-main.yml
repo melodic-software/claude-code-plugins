@@ -42,8 +42,9 @@ name: pr-review-main
 # lane no leg leaves a verdict for (a kill switch, a failure, the last leg
 # stopping) stays unbound, as it was before this workflow. A run that failed
 # before any lane's verdict write started is re-run once, recorded, by the
-# lost-run reconciler (maintenance-reconcile-lost-runs.yml); otherwise the
-# next push reviews again.
+# lost-run reconciler (maintenance-reconcile-lost-runs.yml), and so is a
+# first attempt held green on a file list it could not read (Note the hold);
+# otherwise the next push reviews again.
 #
 # The trigger job reads the PR's files, then runs the trigger gate only for a
 # lane-source PR whose head both lanes have not already reviewed (a verdict the
@@ -56,9 +57,11 @@ name: pr-review-main
 # self-repository advice (`$/...`) is ignored on those lines, as in
 # pr-verify.yml.
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it: a failed read or no verdict ends the
-# review red, since that red is what the lost-run reconciler re-runs once
-# (reconcile.mjs RECORDED_LANES), and a green hold would end the retry.
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it. A file
+# list still unread holds green with a `held: ` notice and Note the hold, which
+# the lost-run reconciler reads to re-run the run once (reconcile.mjs
+# faultHeld); any other failed read or no verdict ends the review red, which it
+# re-runs once too (RECORDED_LANES).
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -115,6 +118,7 @@ jobs:
       head-sha: ${{ steps.gate.outputs.head-sha }}
       base-sha: ${{ steps.gate.outputs.base-sha }}
       judged: ${{ steps.judged.outputs.judged }}
+      held: ${{ steps.select.outputs.held }}
       main-sha: ${{ steps.main.outputs.main-sha }}
     steps:
       - name: Resolve main's tip
@@ -357,9 +361,10 @@ jobs:
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
           # retry_call reads the list up to 3 times (full jitter, a rate stop
-          # waited out within 60 s of waits). A list still unread ends the step
-          # red: a run that stops before its review is the one the lost-run
-          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          # waited out within 60 s of waits). A list still unread holds the
+          # step green with a `held: ` notice and no review: Note the hold marks
+          # the run, and the lost-run reconciler re-runs it once (reconcile.mjs
+          # faultHeld).
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           . .base/.github/scripts/pr-merge/retry-call.bash
@@ -369,8 +374,9 @@ jobs:
               --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           }
           retry_call --read 60 read_files || {
-            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
-            exit 1
+            echo "::notice title=pr-review-main::held: the file list did not read ($retry_call_unknown); no review, and the lost-run reconciler re-runs this run once"
+            echo "held=true" >>"$GITHUB_OUTPUT"
+            exit 0
           }
           review=$(python3 -I -c '
           import sys
@@ -382,6 +388,12 @@ jobs:
           ' "$FILES")
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
+
+      # Runs only on a held select: the step the lost-run reconciler reads
+      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
+      - name: Note the hold
+        if: steps.select.outputs.held == 'true'
+        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
 
       - name: Log the API budget
         if: always()
@@ -476,7 +488,7 @@ jobs:
       # Each skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped claude-review key leg
-        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -488,7 +500,7 @@ jobs:
           handoff: "true"
 
       - name: Report the skipped claude-security-review key leg
-        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -522,7 +534,7 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && (needs.trigger.outputs.run-attempt != github.run_attempt
-      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true')
+      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -652,9 +664,10 @@ jobs:
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
           # retry_call reads the list up to 3 times (full jitter, a rate stop
-          # waited out within 60 s of waits). A list still unread ends the step
-          # red: a run that stops before its review is the one the lost-run
-          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          # waited out within 60 s of waits). A list still unread holds the
+          # step green with a `held: ` notice and no review: Note the hold marks
+          # the run, and the lost-run reconciler re-runs it once (reconcile.mjs
+          # faultHeld).
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           . .base/.github/scripts/pr-merge/retry-call.bash
@@ -664,8 +677,9 @@ jobs:
               --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           }
           retry_call --read 60 read_files || {
-            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
-            exit 1
+            echo "::notice title=pr-review-main::held: the file list did not read ($retry_call_unknown); no review, and the lost-run reconciler re-runs this run once"
+            echo "held=true" >>"$GITHUB_OUTPUT"
+            exit 0
           }
           review=$(python3 -I -c '
           import sys
@@ -678,12 +692,19 @@ jobs:
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
+      # Runs only on a held select: the step the lost-run reconciler reads
+      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
+      - name: Note the hold
+        if: steps.select.outputs.held == 'true'
+        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+
       # One source for the gate's result: the trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
-      # other text leaves this step.
+      # other text leaves this step. A held select leaves none, so the lane
+      # reviews nothing.
       - name: Take the gate's result
         id: trigger
-        if: steps.switch.outputs.proceed == 'true'
+        if: steps.switch.outputs.proceed == 'true' && steps.select.outputs.held != 'true'
         env:
           # The trigger job's result, only from this run attempt.
           CARRIED: ${{ needs.trigger.outputs.run-attempt == github.run_attempt }}
@@ -1362,7 +1383,7 @@ jobs:
       && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != ''
       || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true'
       && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true'
-      && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true')
+      && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -1538,9 +1559,10 @@ jobs:
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
           # retry_call reads the list up to 3 times (full jitter, a rate stop
-          # waited out within 60 s of waits). A list still unread ends the step
-          # red: a run that stops before its review is the one the lost-run
-          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          # waited out within 60 s of waits). A list still unread holds the
+          # step green with a `held: ` notice and no review: Note the hold marks
+          # the run, and the lost-run reconciler re-runs it once (reconcile.mjs
+          # faultHeld).
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           . .base/.github/scripts/pr-merge/retry-call.bash
@@ -1550,8 +1572,9 @@ jobs:
               --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           }
           retry_call --read 60 read_files || {
-            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
-            exit 1
+            echo "::notice title=pr-review-main::held: the file list did not read ($retry_call_unknown); no review, and the lost-run reconciler re-runs this run once"
+            echo "held=true" >>"$GITHUB_OUTPUT"
+            exit 0
           }
           review=$(python3 -I -c '
           import sys
@@ -1564,12 +1587,19 @@ jobs:
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
+      # Runs only on a held select: the step the lost-run reconciler reads
+      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
+      - name: Note the hold
+        if: steps.select.outputs.held == 'true'
+        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+
       # One source for the gate's result: the trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
-      # other text leaves this step.
+      # other text leaves this step. A held select leaves none, so the lane
+      # reviews nothing.
       - name: Take the gate's result
         id: trigger
-        if: steps.switch.outputs.proceed == 'true'
+        if: steps.switch.outputs.proceed == 'true' && steps.select.outputs.held != 'true'
         env:
           CARRIED: "false"
           GATE_PROCEED: ${{ steps.gate.outputs.proceed }}
@@ -2391,9 +2421,10 @@ jobs:
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
           # retry_call reads the list up to 3 times (full jitter, a rate stop
-          # waited out within 60 s of waits). A list still unread ends the step
-          # red: a run that stops before its review is the one the lost-run
-          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          # waited out within 60 s of waits). A list still unread holds the
+          # step green with a `held: ` notice and no review: Note the hold marks
+          # the run, and the lost-run reconciler re-runs it once (reconcile.mjs
+          # faultHeld).
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           . .base/.github/scripts/pr-merge/retry-call.bash
@@ -2403,8 +2434,9 @@ jobs:
               --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           }
           retry_call --read 60 read_files || {
-            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
-            exit 1
+            echo "::notice title=pr-review-main::held: the file list did not read ($retry_call_unknown); no review, and the lost-run reconciler re-runs this run once"
+            echo "held=true" >>"$GITHUB_OUTPUT"
+            exit 0
           }
           review=$(python3 -I -c '
           import sys
@@ -2417,12 +2449,19 @@ jobs:
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
+      # Runs only on a held select: the step the lost-run reconciler reads
+      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
+      - name: Note the hold
+        if: steps.select.outputs.held == 'true'
+        run: echo "pr-review-main held on an unread file list; the lost-run reconciler re-runs this run once"
+
       # One source for the gate's result: the trigger job's, or this leg's
       # own gate when it ran. Each value must have its fixed shape, so no
-      # other text leaves this step.
+      # other text leaves this step. A held select leaves none, so the lane
+      # reviews nothing.
       - name: Take the gate's result
         id: trigger
-        if: steps.switch.outputs.proceed == 'true'
+        if: steps.switch.outputs.proceed == 'true' && steps.select.outputs.held != 'true'
         env:
           CARRIED: "false"
           GATE_PROCEED: ${{ steps.gate.outputs.proceed }}
