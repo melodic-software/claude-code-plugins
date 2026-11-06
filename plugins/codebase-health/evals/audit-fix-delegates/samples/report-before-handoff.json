@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\nNext: run /implementation:implement with these findings, then /verification:confirm."
+    },
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\nThe implementation and verification plugins are not installed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /implementation:implement first.\n\nNeeds you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n",
+      "why": "handoff before the table"
+    },
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n",
+      "why": "no handoff"
+    },
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\nThe optional view is unavailable.",
+      "why": "only the rendered-view line after the table"
+    }
+  ]
+}

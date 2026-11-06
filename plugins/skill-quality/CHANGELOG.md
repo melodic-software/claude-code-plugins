@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.8] - 2026-11-06
+
+### Fixed
+
+- Check 21 (fresh-eyes declarations) now also matches the completion gate a self-check closes, "called done" or "calling it done", so a step where the maker reads its own output back before the work is called done WARNs unless a fresh-context judge is declared nearby. It matches the gate phrase, not "read back", which far more often names a mechanical read of written data.
+
 ## [1.0.7] - 2026-11-06
 
 ### Changed

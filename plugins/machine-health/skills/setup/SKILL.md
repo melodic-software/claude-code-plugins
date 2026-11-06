@@ -259,7 +259,9 @@ Reject an argument targeting an unknown check id, remediation or muted key with 
    plugin-reconfiguration convention
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
    which owns the verified-version record): interactive `/plugin configure machine-health@<marketplace>`
-   any time. Headless, preferred: run
+   any time. `<marketplace>` is the owner's installed marketplace name: fill it in only when the
+   owner gave it in this conversation, else hand the commands over with `<marketplace>` as written.
+   Never search, list or read files (manifests, the plugin cache, settings) to find it. Headless, preferred: run
    `claude plugin configure machine-health@<marketplace> --values-stdin < values.json` from the
    project the plugin is installed in, with `values.json` holding `{"report_dir": "<path>"}`
    (every value a string; keys left out keep their saved values; write a Windows path with `\\`

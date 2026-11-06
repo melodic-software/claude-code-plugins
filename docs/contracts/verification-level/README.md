@@ -78,6 +78,11 @@ A skill that is itself the independent check when invoked does not read the leve
 |---|---|
 | `/verification:confirm` | the fresh-context verifier for the Stage 2 verdict ("Independence of the verdict") |
 | `/implementation:implement-dispatch` | the phase verifier and the post-phase source commit verifier (Gates, Phase boundaries) |
+| `/discovery:research`, `/discovery:explore`, `/discovery:trace-intent` | the sibling verifier (parent contract, "The sibling verifier, stated once"); `strict` widens research's grading to every row and claim |
+| `/discipline:do-your-research`, `/discipline:recheck-against-upstream`, `/discipline:sweep-all` | the fresh-context re-derivation (shared method, step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
+| `/education:quiz-me` | the fresh-context answer-key pass |
+| `/planning:plan` | the plan-reviewer dispatch in Step 3 |
+| `/session-flow:orchestrate`, `/session-flow:workflow` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, which `strict` always dispatches |
 | `/harness-config:audit-automation-gaps` | the fresh-context refusal gate (2.3), whose verdicts `light` lists as `unverified`, and the Phase 4 step 6 reviewer |
 | `/harness-config:audit-instructions` | the Phase C verifiers (per lane, B2 and I33) |
 | `/harness-config:audit-pass` | the Phase 5 apply-verify dispatch and the Phase 6 main-session verification |
@@ -86,3 +91,6 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/mutation-testing:audit` | the Phase 4 triage, the product: `light` reports survivors as unclassified |
 | `/testing:cleanup` | the Cannot-fail-only mode's step 2 skeptic: `light` clears no row, so that mode deletes nothing |
 | `/debugging:debug` | the fresh-context outcome verifier when no outcome-verification capability is used |
+| `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
+| `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
+| `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |

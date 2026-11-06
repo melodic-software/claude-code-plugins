@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is no longer read (it sets medium: artifact)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is retired but still keeps the view local",
+      "why": "the terminal notice"
+    },
+    {
+      "answer": "view: auto (plugin default)",
+      "why": "report line only"
+    }
+  ]
+}

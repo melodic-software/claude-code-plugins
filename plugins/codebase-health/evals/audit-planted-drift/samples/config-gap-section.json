@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "### Drift patterns\nOne stale script name.\n\n### Fix priority\n1. Doc drift: README.md:9.\n\n### Enforcement escalation\n- #1: a CI script check that every `npm run <x>` in the docs exists in package.json.\n\n### Config-gap observations\nNo gaps beyond the defaults; /codebase-health:setup apply can persist them.\n"
+    },
+    {
+      "answer": "**Settings worth persisting:** README.md as the documentation source."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No config gaps.",
+      "why": "rejected"
+    },
+    {
+      "answer": "### Fix priority\n1. README.md:9",
+      "why": "no section"
+    }
+  ]
+}

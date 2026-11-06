@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Audit README.md",
+            "prompt": "Extract claims from README.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Audit MCP",
+            "prompt": "Extract claims from .mcp.json and verify them"
+          }
+        }
+      ],
+      "why": ".mcp.json fan-out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Audit settings",
+            "prompt": "Check .claude/settings.json hooks"
+          }
+        }
+      ],
+      "why": "settings fan-out"
+    }
+  ]
+}

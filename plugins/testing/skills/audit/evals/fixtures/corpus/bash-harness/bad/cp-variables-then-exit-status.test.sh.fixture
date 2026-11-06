@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# expect: rule-zero-assertion
+# Both quoted variables are cp's arguments: the script exits with cp's status,
+# which says nothing about what sort produced.
+a="$(mktemp)"
+b="$(mktemp)"
+printf 'b\na\n' | sort >"$a"
+  cp "$a" "$b"
+exit $?

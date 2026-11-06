@@ -924,12 +924,12 @@ function py_assert_inert(r,    rest) {
 # bats: `run cmd` leaves the status in $status, so a run nothing checks before
 # the next run or the end of the test passes whatever cmd did; `! cmd` fails
 # the test only as its last command. Harness (file model): a [ ] test on its
-# own line whose status the next line does not read, in a file with no set -e
-# and no sourced helper that might set it.
+# own line whose status the next line does not read ($? or a bare exit, which
+# returns it), in a file with no set -e and no sourced helper that might set it.
 function sh_inert(s, r) {
   if (MODEL == "file") {
     if (s == "" || s ~ /^(fi|done|esac|else|elif|then|do|\}|\)|;;)/) { if (s != "") BRK_PEND = ""; return }
-    if (BRK_PEND != "" && r !~ /\$\?/) BRK_OUT = BRK_OUT BRK_PEND
+    if (BRK_PEND != "" && r !~ /\$\?/ && s !~ /^exit[[:space:]]*;?$/) BRK_OUT = BRK_OUT BRK_PEND
     BRK_PEND = ""
     if (s ~ /^\[\[?[[:space:]][^;&|]*[[:space:]]\]\]?[[:space:]]*;?$/)
       BRK_PEND = FNR "\t" line_kind() "\t" snippet(r) "\n"
@@ -1911,7 +1911,8 @@ function seg_add(m, r, a, b,    n) {
 }
 
 # block_raw: an idiom or a delegation matched the raw text of this line and
-# the two before it, which counts as an assertion. The per-line rules that
+# the two before it, joined by newlines so a pattern can anchor a line start,
+# which counts as an assertion. The per-line rules that
 # need to know they are inside a test run from here.
 function append_block(m, r,    bm, br) {
   bm = m; br = r
@@ -1937,7 +1938,7 @@ function append_block(m, r,    bm, br) {
   if (SIG_OPEN) { SIG = SIG " " m; if (index(SIG, "(") && delta(SIG, "(", ")") <= 0) SIG_OPEN = 0 }
   if (r ~ R_EXEMPT) block_exempt = 1
   if (R_RAW != "" && !block_raw) {
-    if ((BW2 " " BW1 " " br) ~ R_RAW) block_raw = 1
+    if ((BW2 "\n" BW1 "\n" br) ~ R_RAW) block_raw = 1
     BW2 = BW1; BW1 = br
   }
   # cs, python and go have cut the start line's signature to its body. The

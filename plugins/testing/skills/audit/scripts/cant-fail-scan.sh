@@ -22,8 +22,9 @@
 #                                            benign case, so this rule is advisory
 #                                            in --check unless --strict.
 #
-# Eight report-only rules print and count, and never gate --check, --strict
-# included:
+# Eight more rules print and count. inert-assertion and conditional-assertion
+# gate --check as zero-assertion does; the other six are report-only and never
+# gate, --strict included:
 #
 #   testing/audit/rule-inert-assertion       an assertion statement that never
 #                                            evaluates: an async matcher nothing
@@ -111,7 +112,8 @@
 #   (default)    human-readable findings + coverage denominator; exit 0 on a
 #                completed scan (advisory), 2 on an environment/scan gap
 #   --check      gate mode, fail closed: exit 1 when a gating rule fired
-#                (zero-assertion / recomputed-expectation; --strict adds
+#                (zero-assertion / recomputed-expectation /
+#                conditional-assertion / inert-assertion; --strict adds
 #                mock-only-oracle), exit 2 when the scan could not run, could
 #                not fully read its inputs (unreadable files, walk errors), or
 #                examined 0 test files (a wrong or empty root and a healthy
@@ -192,12 +194,12 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [[--blocks] [--brief] 
               configured rule level; an excluded or unclaimed path prints nothing else
 
 Rules v1: testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation,
-testing/audit/rule-mock-only-oracle, and over each Playwright config found,
+testing/audit/rule-conditional-assertion, testing/audit/rule-inert-assertion, testing/audit/rule-mock-only-oracle, and over each Playwright config found,
 testing/audit/rule-flaky-passes-suite and testing/audit/rule-only-not-forbidden, and
 rule-flaky-passes-suite over pytest and Vitest configs and Jest retryTimes calls.
-Report-only, never gating: testing/audit/rule-inert-assertion,
+Report-only, never gating:
 testing/audit/rule-constant-restatement, testing/audit/rule-source-text-read,
-testing/audit/rule-conditional-assertion, testing/audit/rule-recomputed-derived,
+testing/audit/rule-recomputed-derived,
 testing/audit/rule-snapshot-only, testing/audit/rule-weak-oracle,
 testing/audit/rule-throw-only-oracle.
 Exempt a deliberate case with `cant-fail-ok: <reason>` in the test, or anywhere in the
@@ -764,7 +766,8 @@ x_cfg1=0
 x_cfg2=0
 d_cfg1=0
 d_cfg2=0
-# Report-only rules: counted, printed, never in gating, advisory or n_adv.
+# Report-only rules: counted, printed, never in gating, advisory or n_adv;
+# n_ca (conditional-assertion) and n_ia (inert-assertion) gate as n_cf1 does.
 n_ia=0
 n_cr=0
 n_st=0
@@ -868,7 +871,7 @@ scan_one() {
       if [[ ${#rule_level[@]} -gt 0 ]]; then
         gates=0
         case "$slug" in
-        zero-assertion | recomputed-expectation) [[ -z "${a_advisory[${file_adapter[$file]}]:-}" || "$strict" -eq 1 ]] && gates=1 ;;
+        zero-assertion | recomputed-expectation | conditional-assertion | inert-assertion) [[ -z "${a_advisory[${file_adapter[$file]}]:-}" || "$strict" -eq 1 ]] && gates=1 ;;
         mock-only-oracle) [[ "$strict" -eq 1 ]] && gates=1 ;;
         *) ;;
         esac
@@ -892,9 +895,9 @@ scan_one() {
       throw-only-oracle) n_to=$((n_to + 1)) ;;
       *) printf 'engine drift: unknown finding rule %s\n' "$slug" >>"$WALK_ERR" ;;
       esac
-      # An advisory adapter's findings of the two gating rules stay out of the gate.
+      # An advisory adapter's findings of the four gating rules stay out of the gate.
       case "$slug" in
-      zero-assertion | recomputed-expectation) [[ -n "${a_advisory[${file_adapter[$file]}]:-}" ]] && n_adv=$((n_adv + 1)) ;;
+      zero-assertion | recomputed-expectation | conditional-assertion | inert-assertion) [[ -n "${a_advisory[${file_adapter[$file]}]:-}" ]] && n_adv=$((n_adv + 1)) ;;
       *) ;;
       esac
       ;;
@@ -1124,9 +1127,9 @@ done
 
 cfg_findings=$((n_cfg1 + n_cfg2 + n_rcfg))
 advisory=$((n_cf3 + cfg_findings + n_adv))
-report_only=$((n_ia + n_cr + n_st + n_ca + n_rd + n_so + n_wo + n_to))
-total=$((n_cf1 + n_cf2 + n_cf3 + cfg_findings + report_only))
-gating=$((n_cf1 + n_cf2 - n_adv))
+report_only=$((n_cr + n_st + n_rd + n_so + n_wo + n_to))
+total=$((n_cf1 + n_cf2 + n_ca + n_ia + n_cf3 + cfg_findings + report_only))
+gating=$((n_cf1 + n_cf2 + n_ca + n_ia - n_adv))
 [[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings + n_adv))
 gating=$((gating + tc_gate - tc_ungate))
 # Lines with a field in awk's default sense: some byte other than space or tab.
@@ -1313,9 +1316,9 @@ retry_counts() {
 }
 
 surfaces_line() {
-  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; report-only findings (never gate --check): testing/audit/rule-inert-assertion %d, testing/audit/rule-constant-restatement %d, testing/audit/rule-source-text-read %d, testing/audit/rule-conditional-assertion %d, testing/audit/rule-recomputed-derived %d, testing/audit/rule-snapshot-only %d, testing/audit/rule-weak-oracle %d, testing/audit/rule-throw-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d; retry settings: %s; retry-setting findings: testing/audit/rule-flaky-passes-suite %d, declined %d, exempted %d]. Returned no result: [%s].\n' \
+  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-conditional-assertion %d, testing/audit/rule-inert-assertion %d, testing/audit/rule-mock-only-oracle %d; report-only findings (never gate --check): testing/audit/rule-constant-restatement %d, testing/audit/rule-source-text-read %d, testing/audit/rule-recomputed-derived %d, testing/audit/rule-snapshot-only %d, testing/audit/rule-weak-oracle %d, testing/audit/rule-throw-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d; retry settings: %s; retry-setting findings: testing/audit/rule-flaky-passes-suite %d, declined %d, exempted %d]. Returned no result: [%s].\n' \
     "$examined" "$enum_js" "$enum_py" "$enum_cs" "$enum_sh" "$enum_ps" "$enum_go" "$blocks" \
-    "$n_cf1" "$n_cf2" "$n_cf3" "$n_ia" "$n_cr" "$n_st" "$n_ca" "$n_rd" "$n_so" "$n_wo" "$n_to" "$declined_cf1" "$declined_cf3" "$exempted" \
+    "$n_cf1" "$n_cf2" "$n_ca" "$n_ia" "$n_cf3" "$n_cr" "$n_st" "$n_rd" "$n_so" "$n_wo" "$n_to" "$declined_cf1" "$declined_cf3" "$exempted" \
     "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable" \
     "$n_cfg1" "$n_cfg2" "$d_cfg1" "$d_cfg2" "$x_cfg1" "$x_cfg2" \
     "$(retry_counts)" "$n_rcfg" "$d_rcfg" "$x_rcfg" \
@@ -1392,8 +1395,8 @@ advisory_note() {
   fi
   # A rule raised to error in the testing config gates, so it is not listed.
   local pair n=0 list=""
-  for pair in "inert-assertion $n_ia" "constant-restatement $n_cr" "source-text-read $n_st" \
-    "conditional-assertion $n_ca" "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo" "throw-only-oracle $n_to"; do
+  for pair in "constant-restatement $n_cr" "source-text-read $n_st" \
+    "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo" "throw-only-oracle $n_to"; do
     [[ "${rule_level[${pair% *}]:-}" != error ]] || continue
     n=$((n + ${pair#* }))
     list+="${list:+, }$pair"

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Audit README.md",
+            "prompt": "Extract claims from README.md"
+          }
+        }
+      ],
+      "why": "a dispatch"
+    }
+  ]
+}

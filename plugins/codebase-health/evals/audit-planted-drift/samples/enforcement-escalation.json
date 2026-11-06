@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "### Drift patterns\nOne stale script name.\n\n### Fix priority\n1. Doc drift: README.md:9.\n\n### Enforcement escalation\n- #1: a CI script check that every `npm run <x>` in the docs exists in package.json.\n\n### Config-gap observations\nNo gaps beyond the defaults; /codebase-health:setup apply can persist them.\n"
+    },
+    {
+      "answer": "**4. Enforcement escalation**\n- #1: a markdown linter rule could flag unknown npm scripts."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "### Enforcement escalation\nNone.",
+      "why": "no check named"
+    },
+    {
+      "answer": "### Enforcement escalation\nNone.\n\n### Config-gap observations\nAdd `test/` as a verification source.",
+      "why": "check word only in the next section"
+    },
+    {
+      "answer": "**Enforcement escalation:** None.\n**Config-gap observations:** add the test root.",
+      "why": "check word only in the next bold section"
+    },
+    {
+      "answer": "Enforcement is up to you; a test could help.",
+      "why": "no section"
+    }
+  ]
+}

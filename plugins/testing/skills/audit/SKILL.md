@@ -45,10 +45,10 @@ states the fired condition in the run's own values.
 | `testing/audit/rule-mock-only-oracle` | a mock-constructing test whose every assertion is a mock-interaction assertion | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-flaky-passes-suite` | a runner set to retry a failing test with nothing that fails the run on a retry-earned pass, so a test passing on a retry leaves the run green: a Playwright config with retries and `failOnFlakyTests` absent or literal `false`; a pytest config with `--reruns`, `--force-reruns` or `reruns` and no `--fail-on-flaky` in `addopts`; a Vitest config with `retry` (or `retry.count`) under a `test` key; a Jest `jest.retryTimes(n)` call. A literal `0` never fires | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-only-not-forbidden` | a Playwright config with `forbidOnly` absent or literal `false`, so a committed `test.only` shrinks the suite to one test | IMPORTANT | omitted | no | yes |
-| `testing/audit/rule-inert-assertion` | an assertion that never evaluates: an unawaited async matcher, a Python tuple assert or mock attribute, a bare `.Should();`, a constant C# oracle (`Assert.True(true)`, `Assert.NotNull(typeof(T))`, or `Equal`, `NotEqual` or `Same` on two `typeof` operands, which can also be a constant fail), a bats `run` nothing checks | IMPORTANT | `high` | report-only in Release 1 | report-only in Release 1 |
+| `testing/audit/rule-inert-assertion` | an assertion that never evaluates: an unawaited async matcher, a Python tuple assert or mock attribute, a bare `.Should();`, a constant C# oracle (`Assert.True(true)`, `Assert.NotNull(typeof(T))`, or `Equal`, `NotEqual` or `Same` on two `typeof` operands, which can also be a constant fail), a bats `run` nothing checks | IMPORTANT | `high` | yes | yes |
 | `testing/audit/rule-constant-restatement` | a constant, or a literal the test bound, compared to a literal with no call before it | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-source-text-read` | a tracked non-test source file read by a static path and searched as text | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
-| `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check; in C#, a bare `return;` before every assertion (one inside a `catch ... when (...)` guard is left alone) | IMPORTANT | omitted | report-only in Release 1 | report-only in Release 1 |
+| `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check; in C#, a bare `return;` before every assertion (one inside a `catch ... when (...)` guard is left alone) | IMPORTANT | omitted | yes | yes |
 | `testing/audit/rule-recomputed-derived` | an expected value rebuilt from the call's own arguments with an operator or aggregate (`reduce`, `sum(`, `a + b`); a property test (a marker such as `fc.assert(`, `@given(` or `Prop.ForAll` in its body or its decorator or attribute stack) and Playwright are exempt, while an example test in the same file is still judged | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-snapshot-only` | every assertion is a snapshot call ("snapshot is the only oracle: review it as code"); an image comparison never counts | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-weak-oracle` | every assertion is a weak matcher (`toBeDefined`, `is not None`, `Assert.NotNull`) or an over-broad exception check (`toThrow()`, `pytest.raises(Exception)`) | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
@@ -59,8 +59,9 @@ states the fired condition in the run's own values.
   flag, SUGGESTION for the six whose test can fail (change detectors, derived expectations,
   snapshots, weak oracles, throw-only oracles). Each mapping's argument lives in the crosswalk row;
   the rule-keyed lookup forbids a per-finding tier choice.
-- **The eight report-only rules print, count and persist, and never gate `--check`, `--strict`
-  included**, until a precision run shows them free of false positives. The coverage block and the
+- **The six report-only rules print, count and persist, and never gate `--check`, `--strict`
+  included**, until a precision run shows them free of false positives, as one did for
+  `conditional-assertion` and `inert-assertion`. The coverage block and the
   `--check` note count them apart.
 - **`mock-only-oracle` omits `Confidence` and is advisory by default.** The match is certain; its
   defect-hood is not. Deliberate interaction-style (London-school) tests are the known benign case.
@@ -133,9 +134,10 @@ project, and a value the evidence does not settle is `unknown`, never a guess.
 The machine-checkable gate the [liveness-assertion contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/liveness-assertion/README.md)
 "Core contract" fail-loud limb requires of an advisory surface's gating form:
 
-- exit **1**, a gating rule fired (`zero-assertion`, `recomputed-expectation`; `--strict` adds
+- exit **1**, a gating rule fired (`zero-assertion`, `recomputed-expectation`,
+  `conditional-assertion`, `inert-assertion`; `--strict` adds
   `mock-only-oracle` and both config rules). **`--strict` is one switch for all three**, no finer grain.
-  The eight report-only rules never set exit 1, `--strict` included.
+  The six report-only rules never set exit 1, `--strict` included.
 - exit **2**, the scan could not run, could not fully read its inputs (unresolved root, unreadable
   test files, walk errors), or examined **0 test files**: a wrong or empty scan root and a healthy
   suite must not share an exit code. A config is not a test file, so a tree of configs alone still

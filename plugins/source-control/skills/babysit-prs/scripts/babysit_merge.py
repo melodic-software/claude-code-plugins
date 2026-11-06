@@ -4429,8 +4429,13 @@ def unattended_writes(
     except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
         report["errors"].append(f"dequeue: {exc}")
     # A stopped path (demoted, capped off, switched off) merges nothing, so a
-    # reasons comment would only say so on every pull request.
-    if not stopped and risk is not None and babysit_risk.holds(risk):
+    # reasons comment would only say so on every pull request. Nor does one
+    # whose author App merges it itself (`adoption.self-merging-apps`): the
+    # score holds only this lane's merge, so a comment or label is noise.
+    config = inputs.get("config")
+    author = json_object(json_object(inputs.get("pr")).get("user")).get("id")
+    quiet = stopped or (config is not None and author in config.self_merging_apps)
+    if not quiet and risk is not None and babysit_risk.holds(risk):
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         body = risk_comment_body(risk, head)
         try:
@@ -4443,7 +4448,6 @@ def unattended_writes(
             # An earlier run's reasons comment saying the same thing at this
             # head for long enough means the refusal persisted: escalate it.
             # A shorter stand may be a review still running at the head.
-            config = inputs.get("config")
             minutes = (
                 config.risk_escalation_minutes
                 if config is not None
@@ -4496,7 +4500,7 @@ def unattended_writes(
     # A score that no longer holds ends the refusal at this head: the identity's refusal
     # comment naming it says so once, from comments already read. An
     # escalated one stays beside the label it explains.
-    elif not stopped and risk is not None and inputs.get("comments") is not None:
+    elif not quiet and risk is not None and inputs.get("comments") is not None:
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
         text = _normalized((prior or {}).get("body"))
@@ -4533,7 +4537,6 @@ def unattended_writes(
     # A lanes App pull request the verifier refuses for good closes for a
     # fresh attempt at its issue (`verify_evidence.capped_close`, which judges
     # it again and leaves a held one alone); no person's label.
-    config = inputs.get("config")
     if (
         not stopped
         and verify.get("refusal") in verify_evidence.VERIFY_FINAL
