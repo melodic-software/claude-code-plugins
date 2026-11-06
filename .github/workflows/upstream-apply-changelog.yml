@@ -168,7 +168,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: start
           key-job: model
@@ -290,7 +290,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: key
           role: issue-lane
@@ -583,7 +583,7 @@ jobs:
         if: ${{ !cancelled() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.run.outputs.handoff }}
@@ -673,7 +673,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: subscription
           role: issue-lane
@@ -928,7 +928,7 @@ jobs:
         if: ${{ !cancelled() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.run.outputs.handoff }}
@@ -1013,7 +1013,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: fallback
           role: issue-lane
@@ -1310,7 +1310,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: key
           role: issue-lane
@@ -1465,7 +1465,7 @@ jobs:
         if: ${{ !cancelled() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.probe.outputs.handoff }}
@@ -1530,7 +1530,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: subscription
           role: issue-lane
@@ -1688,7 +1688,7 @@ jobs:
         if: ${{ !cancelled() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.probe.outputs.handoff }}
@@ -1750,7 +1750,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@e6e5227b11ace6c800999e6081314feaa867b300 # e6e5227 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
           leg: fallback
           role: issue-lane

@@ -52,10 +52,19 @@ export async function loadSelect(pin) {
 // `needs.x.outputs.y`-style names to strings; a missing name reads as '').
 // `&&` and `||` return an operand, as GitHub's do; `==` and `!=` compare
 // strings; `!cancelled()` and `always()` read the run as not cancelled.
+const TOKENS = new Map();
+function tokenize(expression) {
+  if (!TOKENS.has(expression)) {
+    const text = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").trim();
+    const tokens = text.match(/\|\||&&|==|!=|!|\(|\)|'[^']*'|cancelled\(\)|always\(\)|[A-Za-z_][\w.-]*/g) ?? [];
+    assert.equal(tokens.join(""), text.replace(/\s+/g, ""), `only known tokens in ${text}`);
+    TOKENS.set(expression, { text, tokens });
+  }
+  return TOKENS.get(expression);
+}
+
 export function evaluate(expression, context) {
-  const text = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").trim();
-  const tokens = text.match(/\|\||&&|==|!=|!|\(|\)|'[^']*'|cancelled\(\)|always\(\)|[A-Za-z_][\w.-]*/g) ?? [];
-  assert.equal(tokens.join(""), text.replace(/\s+/g, ""), `only known tokens in ${text}`);
+  const { text, tokens } = tokenize(expression);
   let at = 0;
   const peek = () => tokens[at];
   const take = (expected) => {
