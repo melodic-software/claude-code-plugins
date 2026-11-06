@@ -32,7 +32,7 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
     r"|not loadable|schema_version|is required|requires|no prompt|sample"
-    r"|JavaScript|is not a value)",
+    r"|JavaScript|is not a value|history_file)",
     re.MULTILINE,
 )
 
@@ -1652,6 +1652,92 @@ class JavaScriptSyntax(ValidatorTestCase):
         result = self.validate_without_node()
         self.assert_clean(result)
         self.assertNotIn("JavaScript", result.stdout)
+
+
+def history_records(*links):
+    """One user/assistant record per (uuid, parentUuid) pair; a pair member
+    of Ellipsis leaves that key out of the record."""
+    records = []
+    for number, (uuid, parent) in enumerate(links, start=1):
+        record = {"type": "user" if number % 2 else "assistant"}
+        if uuid is not Ellipsis:
+            record["uuid"] = uuid
+        if parent is not Ellipsis:
+            record["parentUuid"] = parent
+        record["message"] = {"role": record["type"], "content": "turn %d" % number}
+        records.append(json.dumps(record))
+    return "\n".join(records) + "\n"
+
+
+CHAINED = (("u1", None), ("u2", "u1"), ("u3", "u2"))
+
+
+class HistoryChain(ValidatorTestCase):
+    HISTORY_CASE = """\
+    schema_version: "1.1"
+    name: resumed
+    context:
+      history_file: turn-1.jsonl
+    """
+
+    def resumed(self, history):
+        case_dir = self.case(
+            "resumed",
+            prompt=CLEAN_PROMPT,
+            case_yaml=self.HISTORY_CASE,
+            graders={"criteria": REGEX_GRADER},
+        )
+        self.samples("resumed", "criteria", ["conftest.py"], ["no"])
+        (case_dir / "turn-1.jsonl").write_text(history, encoding="utf-8")
+
+    def test_a_chained_history_file_passes(self):
+        self.resumed(history_records(*CHAINED))
+        self.assert_clean(self.validate())
+
+    def test_a_single_record_needs_no_chain(self):
+        self.resumed(history_records((Ellipsis, Ellipsis)))
+        self.assert_clean(self.validate())
+
+    def test_an_unchained_history_file_fails(self):
+        self.resumed(history_records((Ellipsis, Ellipsis), (Ellipsis, Ellipsis)))
+        result = self.validate()
+        self.assert_fail(
+            result,
+            "FAIL resumed/turn-1.jsonl: history_file record 1 has no uuid",
+            "every record before the break is dropped",
+        )
+
+    def test_each_broken_link_names_its_record(self):
+        broken = {
+            "a missing first parentUuid": (
+                (("u1", Ellipsis), ("u2", "u1")),
+                "record 1 is the first record and needs parentUuid null",
+            ),
+            "a first record with a parent": (
+                (("u1", "u0"), ("u2", "u1")),
+                "record 1 is the first record and needs parentUuid null",
+            ),
+            "a later record off the chain": (
+                (("u1", None), ("u2", "u1"), ("u3", "u1")),
+                'record 3 needs parentUuid "u2", the previous record\'s uuid',
+            ),
+            "a later record with no uuid": (
+                (("u1", None), (Ellipsis, "u1")),
+                "record 2 has no uuid",
+            ),
+            "a repeated uuid": (
+                (("u1", None), ("u1", "u1")),
+                'record 2 repeats uuid "u1"',
+            ),
+        }
+        for label, (links, message) in broken.items():
+            with self.subTest(label):
+                self.resumed(history_records(*links))
+                self.assert_fail(self.validate(), "history_file " + message)
+
+    def test_a_record_that_is_not_json_fails(self):
+        self.resumed(history_records(*CHAINED) + "{not json\n")
+        self.assert_fail(self.validate(), "history_file record 4 is not JSON")
 
 
 class PilotSuite(unittest.TestCase):
