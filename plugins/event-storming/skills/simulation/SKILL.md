@@ -119,6 +119,13 @@ When invoked with `--evaluate`, run the iteration workflow against existing boar
 
 **Execution:** Follow `iteration-workflow.md` steps 2-7 (SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY). Read board data via Miro MCP, have it scored against the rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3), compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines.
 
+## Scoring in a fresh context
+
+Every rubric score above comes from a fresh-context subagent, never the context that ran the
+simulation. Before scoring, resolve the level with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin event-storming --skill simulation`;
+what each level does is in `simulation-evaluation.md` "How to Run an Evaluation", step 3.
+
 ## Bounded Context Discovery Protocol (`--discover-bcs`)
 
 When invoked with `--discover-bcs [board-url]`, run Brandolini's 6 heuristics (Ch. 6) against an existing Big Picture board. This is the architect's post-workshop homework. Reproducible and evidence-based. The board data can arrive two ways: a board URL (live Miro read. Requires Miro per the availability gate) or a directly-supplied board export (a structured-markdown board dump), which substitutes for the live read and needs no Miro.

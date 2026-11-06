@@ -352,8 +352,8 @@ Examples: `bp-v7-chaotic-exploration.png`, `bp-v7-enforce-timeline.png`, `pm-v7-
 1. **Complete the simulation**: all 3 formats (BP, PM, DL) or the subset being evaluated
 2. **Read ALL boards**: one `miro_list_board_items` call per board with `limit=1000`. Export item lists with colors, positions, and content
 3. **Score each rubric section in a fresh context**: the context that ran the simulation never
-   scores it. Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin event-storming --skill simulation`
-   and copy its line into the evaluation report
+   scores it. Run the plugin's `lib/read-verification.sh --plugin event-storming --skill simulation`
+   (the full command is in SKILL.md, "Scoring in a fresh context") and copy its line into the evaluation report
    ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
    - At standard or strict, dispatch a fresh-context subagent with the board export from
      step 2 (in structured-markdown mode, the markdown artifact), the round transcripts a
