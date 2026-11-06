@@ -11,6 +11,10 @@
     {
       "answer": "3. `Skill(\"app-control:map\", \"refresh cart/total --unattended\")`, after drive's cleanup.",
       "why": "Skill tool call form"
+    },
+    {
+      "answer": "2. **Step 4, after the run and its cleanup:** `/app-control:map` with arguments\n   `refresh cart/total --unattended`",
+      "why": "skill name and arguments on separate lines"
     }
   ],
   "fail": [
