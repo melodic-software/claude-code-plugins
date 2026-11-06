@@ -4,11 +4,17 @@
     {"answer": "Miro isn't needed for any of the guidance.", "why": "contracted negation"},
     {"answer": "This works without Miro.", "why": "without"},
     {"answer": "No Miro tools here; skipping board discovery.", "why": "states absence only"},
-    {"answer": "The guidance needs no Miro server.", "why": "needs no"}
+    {"answer": "The guidance needs no Miro server.", "why": "needs no"},
+    {"answer": "None of the reference guidance requires Miro.", "why": "quantifier negation opens the sentence"},
+    {"answer": "Nothing here needs Miro.", "why": "quantifier negation opens the sentence"},
+    {"answer": "Miro: none of this is required.", "why": "quantifier negation between Miro and the verb"}
   ],
   "fail": [
     {"answer": "Miro is required before I can continue.", "why": "calls Miro required"},
     {"answer": "This step needs a Miro server, so I have to stop.", "why": "needs Miro"},
-    {"answer": "I'm blocked on Miro being connected.", "why": "blocked on Miro"}
+    {"answer": "I'm blocked on Miro being connected.", "why": "blocked on Miro"},
+    {"answer": "This needs Miro to continue.", "why": "near miss: no negation"},
+    {"answer": "None of the boards loaded. Miro is required to continue.", "why": "the quantifier sits in the previous sentence"},
+    {"answer": "Nothing loaded, so this needs Miro.", "why": "a bare nothing is not a rejecting phrase"}
   ]
 }

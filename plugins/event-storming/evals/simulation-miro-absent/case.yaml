@@ -26,7 +26,7 @@ graders:
     target: 'last_message'
   - name: markdown-default
     type: regex
-    pattern: '\b(?:default|recommended|recommend|recommends)\b[^\n]{0,80}\bmarkdown\b|\bmarkdown\b[^\n]{0,80}\b(?:default|recommended)\b'
+    pattern: '\brecommend\w*\s+(?:the\s+|using\s+)?(?:structured[- ])?markdown\b|\bmarkdown\b(?:(?!\bmiro\b)[^\n.,;]){0,40}\b(?:default|recommended)\b|\b(?:default|recommended)\b[^\n.,;]{0,10}\b(?:structured[- ])?markdown\b'
     flags: 'i'
     target: 'last_message'
   - name: offers-install-miro

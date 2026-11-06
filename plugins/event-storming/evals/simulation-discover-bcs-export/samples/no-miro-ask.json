@@ -3,12 +3,22 @@
     {"answer": "Working from the supplied export, so no live board read is needed.", "why": "no Miro ask"},
     {"answer": "This ran without connecting Miro; there is no board to label.", "why": "without"},
     {"answer": "No need to connect Miro for an export.", "why": "no need to"},
-    {"answer": "Miro is not available, so step 4 (board labels) is skipped.", "why": "states absence only"}
+    {"answer": "Miro is not available, so step 4 (board labels) is skipped.", "why": "states absence only"},
+    {"answer": "No need to install or connect Miro for an export.", "why": "no need to opens the clause and governs the whole verb list"},
+    {"answer": "This ran without installing or enabling Miro.", "why": "without opens the clause and governs the whole verb list"},
+    {"answer": "No need to install, enable or connect Miro for an export.", "why": "comma-separated verb list under one no need to"},
+    {"answer": "You don't need to set up or configure Miro here.", "why": "n't need to opens the clause"},
+    {"answer": "I can't run step 4 (board labels) without Miro.", "why": "the clause names only the board-label step"},
+    {"answer": "I can't run the board-label step without Miro, so the table stands alone.", "why": "the clause names only the board-label step"}
   ],
   "fail": [
     {"answer": "Please connect the Miro MCP server so I can read the board.", "why": "asks to connect"},
     {"answer": "If you connect Miro, I can place the BC labels on the board.", "why": "conditional ask to connect"},
     {"answer": "I cannot proceed without a live Miro connection.", "why": "claims it cannot proceed"},
-    {"answer": "Install and enable the miro plugin first.", "why": "asks to install"}
+    {"answer": "Install and enable the miro plugin first.", "why": "asks to install"},
+    {"answer": "Without a board read, please connect Miro.", "why": "without governs an earlier clause; the ask follows the comma"},
+    {"answer": "No need to worry. Please install Miro first.", "why": "no need to sits in the previous sentence"},
+    {"answer": "I can't run the discovery without Miro.", "why": "near miss: names the whole discovery, not the board-label step"},
+    {"answer": "I can't run step 4 (board labels) or the table without Miro.", "why": "the clause names more than the board-label step"}
   ]
 }

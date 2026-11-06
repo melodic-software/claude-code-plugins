@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: methodology-notation-slash
-description: "Legacy methodology notation-reference-no-interactive-flow. Slash-invoked with --notation (methodology SKILL.md line 25), so no Skill grader and the interactive discovery flow (line 29: only when no filter is given) must not start. The Notation Quick Reference (lines 143-155) gives Orange for a Domain Event and Blue for a Command / Action; line 48 says every --<format> action works with no Miro. event-orange and command-blue need those pairs; no-discovery-flow fails any goal, domain-scoping or clarifying question (Steps 2 and 3, lines 108-112), in any wording; no-miro-block fails a reply calling Miro required, needed or blocking (rejecting phrases exempt)."
+description: "Legacy methodology notation-reference-no-interactive-flow. Slash-invoked with --notation (methodology SKILL.md line 25), so no Skill grader and the interactive discovery flow (line 29: only when no filter is given) must not start. The Notation Quick Reference (lines 143-155) gives Orange for a Domain Event and Blue for a Command / Action; line 48 says every --<format> action works with no Miro. event-orange and command-blue need those pairs; no-discovery-flow fails any goal, domain-scoping or clarifying question (Steps 2 and 3, lines 108-112), in any wording; no-miro-block fails a reply calling Miro required, needed or blocking (rejecting phrases exempt, a 'none of', 'nothing here' or 'no part of' in the same sentence included)."
 tags: [event-storming, methodology, outcome, reference, no-network]
 expected_outcome: "The reply gives the color-to-building-block mapping with orange for domain events and blue for commands, asks none of the discovery questions, and needs no Miro."
 execution:
@@ -27,7 +27,7 @@ graders:
     target: 'last_message'
   - name: no-miro-block
     type: regex
-    pattern: '(?<!\bno )(?<!\bwithout )(?<!\bnot )\bmiro\b[^\n.]{0,40}?(?<!n''t )(?<!not )(?<!never )(?<!no )\b(?:is |are )?(?:required|needed|necessary|blocking|blocks|blocked)\b|(?<!n''t )(?<!not )(?<!never )\b(?:requires?|needs?|blocked on|waiting on|waits for|wait for)\s+(?:a\s+|the\s+|your\s+)?miro\b'
+    pattern: '(?<!\bno )(?<!\bwithout )(?<!\bnot )\bmiro\b(?:(?!\b(?:none of|nothing (?:here|in|of|about)|no part of)\b)[^\n.]){0,40}?(?<!n''t )(?<!not )(?<!never )(?<!no )\b(?:is |are )?(?:required|needed|necessary|blocking|blocks|blocked)\b|(?:^|[\n.!?;:]\s*)(?:(?!\b(?:none of|nothing (?:here|in|of|about)|no part of)\b)[^\n.!?;:])*?(?<!n''t )(?<!not )(?<!never )\b(?:requires?|needs?|blocked on|waiting on|waits for|wait for)\s+(?:a\s+|the\s+|your\s+)?miro\b'
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'

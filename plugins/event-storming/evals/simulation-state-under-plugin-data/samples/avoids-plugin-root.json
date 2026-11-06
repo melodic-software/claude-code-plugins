@@ -4,7 +4,8 @@
     {"answer": "`${CLAUDE_PLUGIN_ROOT}` is read-only under cache isolation.", "why": "read-only"},
     {"answer": "Keep it outside CLAUDE_PLUGIN_ROOT.", "why": "outside"},
     {"answer": "- **Where not to write:** Don't write generated state into the plugin's install directory (`/opt/eval/plugins/event-storming`) or into your project tree.", "why": "the smoke run es1n: the install directory named by line 200's phrase, its path resolved"},
-    {"answer": "Never write generated state inside the plugin's own installed directory.", "why": "line 200's wording"}
+    {"answer": "Never write generated state inside the plugin's own installed directory.", "why": "line 200's wording"},
+    {"answer": "The plugin root (`${CLAUDE_PLUGIN_ROOT}`) is never written to.", "why": "the negation describes the root itself"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
@@ -12,6 +13,9 @@
     {"answer": "Store it under `${CLAUDE_PLUGIN_ROOT}/sessions/`.", "why": "puts it in the install dir"},
     {"answer": "Write it under the plugin's install directory, not the project tree.", "why": "the negation follows the install dir and rejects the project tree"},
     {"answer": "Do not use the project tree. Store it in the plugin's installed directory.", "why": "the negation sits in the previous sentence"},
-    {"answer": "Keep it outside your project tree, in the plugin's install directory.", "why": "outside governs the project tree; the install dir is the target"}
+    {"answer": "Keep it outside your project tree, in the plugin's install directory.", "why": "outside governs the project tree; the install dir is the target"},
+    {"answer": "Store it under `${CLAUDE_PLUGIN_ROOT}/sessions/`, not in the project tree.", "why": "the negation follows the root and rejects the project tree"},
+    {"answer": "Do not use the project tree. Store it in ${CLAUDE_PLUGIN_ROOT}/sessions/.", "why": "the negation sits in the previous sentence"},
+    {"answer": "Write it under ${CLAUDE_PLUGIN_DATA} or ${CLAUDE_PLUGIN_ROOT}, not the project tree.", "why": "the root is offered as a target; the negation rejects the project tree"}
   ]
 }

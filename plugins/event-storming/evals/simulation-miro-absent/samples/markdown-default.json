@@ -2,11 +2,16 @@
   "pass": [
     {"answer": "1. **Structured-markdown mode (default, recommended):** same workshop, rendered as markdown.", "why": "the skill's own label"},
     {"answer": "I recommend the structured-markdown mode.", "why": "recommends markdown"},
-    {"answer": "Markdown is the default here.", "why": "markdown first"}
+    {"answer": "Markdown is the default here.", "why": "markdown first"},
+    {"answer": "Option 1 (recommended): structured markdown.", "why": "the marker precedes the markdown option"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
     {"answer": "Option A: markdown. Option B: install Miro.", "why": "neither marked default"},
-    {"answer": "I recommend installing the miro plugin first.", "why": "recommends the other path"}
+    {"answer": "I recommend installing the miro plugin first.", "why": "recommends the other path"},
+    {"answer": "I recommend connecting Miro; markdown also works.", "why": "the recommendation is for Miro; markdown follows"},
+    {"answer": "Markdown works, but installing Miro is the default here.", "why": "the default marker belongs to the Miro path"},
+    {"answer": "Markdown works but installing Miro is the default here.", "why": "the same with no comma: Miro sits between markdown and the marker"},
+    {"answer": "Miro is the default, markdown the fallback.", "why": "the marker belongs to Miro; markdown follows the comma"}
   ]
 }
