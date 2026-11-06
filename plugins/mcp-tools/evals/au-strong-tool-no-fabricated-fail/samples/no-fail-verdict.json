@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Overall:** 14 pass, 0 warn, 0 fail, 1 info\n\n| C6 Every parameter has a description | ANTHROPIC | PASS | |",
+      "why": "no FAIL verdict"
+    },
+    {
+      "answer": "A missing annotation is never a FAIL here, and none is missing.",
+      "why": "FAIL word in prose without a verdict marker"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C11 Service-namespaced | ANTHROPIC | FAIL | |",
+      "why": "invented FAIL cell"
+    },
+    {
+      "answer": "C16 -> FAIL: the schema is too thin",
+      "why": "invented prose FAIL"
+    }
+  ]
+}

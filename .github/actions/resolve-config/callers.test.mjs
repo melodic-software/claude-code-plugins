@@ -396,7 +396,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "born-triaged": { contents: "read", issues: "read" },
     "kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
-    "intake-triage": { contents: "read", issues: "write" },
+    "intake-triage": { actions: "read", contents: "read", issues: "write" },
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-key-credit": { actions: "read" },
@@ -734,7 +734,7 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   const intake = workflow("intake-triage.yml").jobs["intake-triage"];
   const allowed = intake.with["allowed-labels"].trim().split("\n");
   assert.ok(!allowed.includes("good first issue") && !allowed.includes("help wanted"));
-  for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost"]) {
+  for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost|untrusted"]) {
     assert.ok(intake.with.instructions.includes(`\n${line}\n`), line);
   }
 });
@@ -3153,6 +3153,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
   assert.deepEqual(held.sort(), [
     "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
+    "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
     "pr-verify-capture.yml capture-fallback: Resolve the pull request",
@@ -9431,6 +9432,64 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
   assert.match(probe, /so no case runs \(probe: \$\(probe_facts\)\)"; exit 1; \}/);
 });
 
+// The model can decline the probe's reads and end with no tool call,
+// which proves nothing about the policy: that session runs again,
+// three times at most. Any other shortfall stops the job on the first session.
+// Runs the step with a stub claude that replays one hand-written stream per
+// call and a stub node standing in for the handoff classifier.
+test("the policy probe reruns only a session with no tool call, at most three times", () => {
+  const step = workflow("eval-hill-climb-pass.yml").jobs.pass.steps.find((s) => s.id === "probe");
+  const root = "/runner";
+  const calls = [
+    ["Read", { file_path: "/proc/self/environ" }],
+    ["Read", { file_path: `${root}/.runner` }],
+    ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }],
+    ["Glob", { pattern: "environ", path: "/proc/self" }],
+  ];
+  const stream = (made, denials) =>
+    [
+      { type: "assistant", message: { content: made.length ? made.map(([name, input], i) => ({ type: "tool_use", id: `t${i}`, name, input })) : [{ type: "text", text: "I won't do that." }] } },
+      { type: "result", subtype: "success", is_error: false, num_turns: made.length + 1, permission_denials: denials.map(([tool_name, tool_input], i) => ({ tool_name, tool_use_id: `t${i}`, tool_input })) },
+    ]
+      .map((m) => JSON.stringify(m))
+      .join("\n");
+  const declined = stream([], []);
+  const allDenied = stream(calls, calls);
+  const readNotDenied = stream(calls.slice(0, 1), []);
+  const probe = (streams) => {
+    const dir = tempDir("policy-probe-");
+    try {
+      const bin = join(dir, "bin");
+      mkdirSync(bin);
+      streams.forEach((s, i) => writeFileSync(join(dir, `stream-${i + 1}`), `${s}\n`));
+      const stub = (name, body) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+      stub("claude", `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"\ncat "${dir}/stream-$n"`);
+      stub("node", "printf 'handoff=false\\nhandoff-reason=\\nlane-class=\\noutcome=success\\n'");
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", step.run], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { PATH: `${bin}:${process.env.PATH}`, LANE_API_KEY: "sk-test-credential", RUNNER_ROOT: root, GITHUB_OUTPUT: output },
+      });
+      return { status: result.status, stdout: result.stdout, calls: Number(readFileSync(join(dir, "calls"), "utf8")) };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const first = probe([allDenied]);
+  assert.deepEqual([first.status, first.calls], [0, 1], first.stdout);
+  const retried = probe([declined, allDenied]);
+  assert.deepEqual([retried.status, retried.calls], [0, 2], retried.stdout);
+  assert.match(retried.stdout, /^::notice::the probe's session made no tool call, so it proved nothing about the policy \(attempt 1 of 3\)$/m);
+  const never = probe([declined, declined, declined, allDenied]);
+  assert.deepEqual([never.status, never.calls], [1, 3], never.stdout);
+  assert.match(never.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=none denials=0 /m);
+  const undenied = probe([readNotDenied, allDenied]);
+  assert.deepEqual([undenied.status, undenied.calls], [1, 1], undenied.stdout);
+  assert.match(undenied.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=Read denials=0 /m);
+});
+
 // --- mutated code never runs beside a credential (#13586) ---
 
 // Owner constraint on #13586: no job that runs mutants holds a Claude
@@ -9565,7 +9624,12 @@ function missingLegs(catalog, launched) {
 // waives and why. The test fails when an exempt lane lacks a leg its entry
 // does not name, or runs a leg its entry waives, so an entry never covers
 // more than it says and goes once its lane gains the leg.
-const LEG_EXEMPTIONS = {};
+const LEG_EXEMPTIONS = {
+  "pr-rate-merge-risk.yml pr-verify rate-merge-risk": {
+    legs: ["subscription", "fallback"],
+    reason: "a report-only rating (#13657, owner decision Q57): a key-leg stop records the Merge-Risk line unrated, which a subscription or fallback leg would not change for any merge (#13586)",
+  },
+};
 // A secret name's leg: the role's API key, its subscription token, or the
 // central fallback token.
 const legOf = (name) => (name === FALLBACK_SECRET ? "fallback" : /_CLAUDE_API_KEY$/.test(name) ? "key" : "subscription");

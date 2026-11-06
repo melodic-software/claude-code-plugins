@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: au-meta-json-type-overloads
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: grant-c18-fail
+    type: regex
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bgrant_repo_access\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*\bgrant_repo_access\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: approve-payout-c18-fail
+    type: regex
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\b(?:ApprovePayout|approve_payout)\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*\b(?:ApprovePayout|approve_payout)\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: revoke-c18-pass
+    type: regex
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\brevoke_repo_access\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)|(?:^|\n)(?=[^\n]*\brevoke_repo_access\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)|(?:^|\n)\*\*`?revoke_repo_access\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,8}?(?![^\n]*\b(?:string|not\s+a\s+(?:real\s+)?boolean)\b)[^\n]*(?:\ball\s+criteria\s+pass\b|\bC18\b[^\n]*\bPASS(?:es|ed)?\b|requiresUserInteraction`?\s+is\s+a\s+(?:real\s+|proper\s+|JSON\s+)?boolean\b)|(?:^|\n)\|[^\n]*`?revoke_repo_access`?[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)(?![^\n]*(?:\bC18\b|requiresUserInteraction))[^\n]*(?:\n|$)'
+    flags: 'i'
+    target: last_message
+  - name: cancel-payout-c18-pass
+    type: regex
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\b(?:CancelPayout|cancel_payout)\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)|(?:^|\n)(?=[^\n]*\b(?:CancelPayout|cancel_payout)\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)|(?:^|\n)\*\*`?(?:CancelPayout|cancel_payout)\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,8}?(?![^\n]*\b(?:string|not\s+a\s+(?:real\s+)?boolean)\b)[^\n]*(?:\ball\s+criteria\s+pass\b|\bC18\b[^\n]*\bPASS(?:es|ed)?\b|requiresUserInteraction`?\s+is\s+a\s+(?:real\s+|proper\s+|JSON\s+)?boolean\b)|(?:^|\n)\|[^\n]*`?(?:CancelPayout|cancel_payout)`?[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)(?![^\n]*(?:\bC18\b|requiresUserInteraction))[^\n]*(?:\n|$)'
+    flags: 'i'
+    target: last_message
+  - name: says-gate-ignored
+    type: regex
+    pattern: '(?:^|\n)(?![^\n]*\b(?:not|never|doesn''t|won''t)\s+(?:be\s+)?ignore?)(?=[^\n]*\b(?:ignore?\w*|silently|never\s+(?:fires|applies|appears|triggers|shows|prompts))\b)(?=[^\n]*(?:\bstring\b|\"true\"|\bJSON\b|\bconsent\b|\bprompt\b|\bgate\b))'
+    flags: 'i'
+    target: last_message
+  - name: fail-first
+    type: llm
+    criteria: "PASS only if the reply's fix guidance (what to fix first, a priority list, or a recommended order) puts every FAIL item ahead of every WARN and info item, or explicitly labels the FAIL items as the first to fix. FAIL if a WARN or info item is recommended before a FAIL item, or the reply gives no fix order at all (legacy expectation: FAIL items are prioritized ahead of WARN and info items)."
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

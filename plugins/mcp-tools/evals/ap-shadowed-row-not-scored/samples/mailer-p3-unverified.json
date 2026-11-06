@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| mailer | P3 Publisher provenance | WARN (unverified) | unscoped name for a vendor |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| mailer | P3 Publisher provenance | WARN | |",
+      "why": "label missing"
+    },
+    {
+      "answer": "| mailer | P1 Floating version | FAIL | unverified |",
+      "why": "P1 not P3"
+    }
+  ]
+}

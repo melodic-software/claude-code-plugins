@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mcp-tools:audit"
+          }
+        }
+      ],
+      "why": "routes"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "runs the inventory"
+    }
+  ]
+}

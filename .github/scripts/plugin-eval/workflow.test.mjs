@@ -40,7 +40,7 @@ test("a pull request run proves the policy denies the reads before any case runs
   }
   // The leak check looks for the leg's own credential, whichever leg runs.
   assert.match(probe, /credential=\$\{ANTHROPIC_API_KEY:-\$\{CLAUDE_CODE_OAUTH_TOKEN:-\}\}\n {10}\[ -n "\$credential" \] \|\| /);
-  assert.match(probe, /if grep -qF "\$credential" "\$out"; then\n[^\n]*\n {12}exit 1/);
+  assert.match(probe, /if grep -qF "\$credential" "\$out"; then\n[^\n]*\n {14}exit 1/);
   assert.match(probe, /trap 'rm -f "\$out"' EXIT/);
   // A probe the credential's own stop ended hands off before the denial checks, never past them.
   assert.ok(probe.indexOf("eval-handoff.mjs") < probe.indexOf("denied Read /proc/self/environ"));

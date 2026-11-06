@@ -1227,7 +1227,8 @@ the rules that only tighten in
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
-  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing, and one on a
+  record-mode path gets labels only ([Merge paths](#merge-paths)). The alert job
   finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
   token holds `issues: write` alone; that job re-reads the revert records and files nothing when
   one already lists every revert commit. A commit names it
@@ -1778,7 +1779,9 @@ except six:
   (or the aliases `C2` and `C3`) caps the rung;
   a missing flag or any other value holds the rung at `off`.
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
-  merge by a person or by another App, such as a release pull request, is not the lane's.
+  merge by a person or by another App, such as a release pull request, is not the lane's. An
+  agent session's merge through the owner login is recorded on its own path and changes no lane
+  state ([Merge paths](#merge-paths)).
 
 Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
 review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
@@ -2375,6 +2378,72 @@ unwritten and fails the step. It reads and rewrites only check runs carrying its
 external id, since every workflow's `GITHUB_TOKEN` posts as the same GitHub Actions app. The check
 is display-only: it is never required and is not part of `ci-status`, and the gate reads neutral as
 passing, so it holds no merge. Not while `merge.report-only` is true.
+
+#### The Merge-Risk line
+
+Each arm records the head's merge-risk rating as the pull request body's last line, so the squash
+commit carries it (owner decision Q57, #13657: record ratings so revert rates per risk level can
+be measured, and wire `demote` into no gate yet):
+
+```text
+Merge-Risk: max=<level> demote=<bool> head=<sha> rubric=<review plugin version> rater=<model> checker=<model>
+Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-budget>
+```
+
+- **Where the rating comes from.** `pr-rate-merge-risk.yml` runs on pr-verify's trigger as its own
+  run, so a PASS never waits on it, for each open, non-draft lanes App head that passes
+  pr-require-checks. It reads the pull request with pr-verify's base-side steps
+  (`resolve-pr.mjs` with `RATED_WORKFLOW_PATH` and `RATED_ARTIFACT_PREFIX`, the trigger gate,
+  `select-trusted-text`), writes `/review:merge-risk`'s `--dir` files (`pr-merge-risk/input.mjs`),
+  and runs the skill and its blind checker on `run-claude-cli` under `dontAsk`, as the `pr-verify` role on
+  `PR_VERIFY_CLAUDE_API_KEY`, key leg only. `pr-merge-risk/write-rating.mjs` checks the result's
+  shape, recomputes `max` (the highest `level` or `checker_level`) and `demote` (`max` HIGH or
+  CRITICAL), takes `rater` and `checker` from the execution file's main-thread and subagent
+  models, and uploads `pr-merge-risk-<pr>-<head>` for 7 days. A head already rated by a run of
+  that file on main is not rated again. The skill's frontmatter pre-approves bare Read once it
+  runs, so the workflow's deny rules bound what the model reads: `.base`, the runner's temp
+  directory, the home's credential and Claude files, and `/proc`, `/sys` and `/etc`.
+  `--restricted` keeps the file tools inside the workspace, which holds only the data directory,
+  the plugin copy and `.base`.
+- **Its model.** The `merge-risk` route of [Models](#models). The profile's `subagent-model` sets
+  the checker's model with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`, over the agent file's pin; the
+  checker's effort stays its agent file's (owner decision Q1).
+- **How the arm writes it.** Just before an arm, after the pin, `enable-auto-merge.mjs`
+  (`merge-risk-line.mjs` `recordMergeRisk`) finds that artifact by exact name, counts it only from
+  a run of `pr-rate-merge-risk.yml` on main started by `workflow_run` in this repository, checks
+  it again, and builds the line from closed values alone. With no artifact, a run of that file
+  still going for the head is `pending`, a finished one `no-rating`, none `no-run`. It writes
+  only a body the lanes App alone wrote: its author and every editor, the edit list read whole.
+  Any other body is left alone and logged `merge-risk=skipped write=untrusted-body`, so the App's
+  edit never makes an untrusted editor's text read as trusted (`select-trusted-text` keeps a body
+  by its last editor). It reads the body again and writes only when the body is unchanged since
+  the listing and the line differs. Only the trailing run of `Merge-Risk:` lines at the body's
+  end, outside a fence, is replaced; the format quoted elsewhere in a body stays as written.
+- **Why the body.** A merge queue ignores a commit body given at arm time: GraphQL's
+  `enablePullRequestAutoMerge` documents `commitBody` with "when merging with a merge queue any
+  input value for commit message is ignored"
+  ([Pull requests, EnablePullRequestAutoMergeInput](https://docs.github.com/en/graphql/reference/pulls),
+  read 2026-11-06). The pull request body is the only text this repository's squash commit takes
+  (`squash_merge_commit_message=PR_BODY`).
+- **What it costs the merge.** The arm itself waits at most about 40 seconds: the reads have 15
+  seconds, the body write 5, and the artifact download runs `gh` and `unzip`, each capped at 8
+  seconds, which that timer cannot cut short. Any error or timeout records `unrated` or skips the
+  write, and the arm goes on. The body write itself is a `pull_request: edited` event, which
+  starts a contract-only pr-require-checks run, and the queue takes the pull request only once
+  that run's `ci-status` reports. That run is short: run 42173684490 (2026-11-06, every lane job
+  skipped) reported `ci-status` 50 seconds after it started. The 11 short successful pull request
+  runs in that hour's listing took 37 to 58 seconds, so about a minute is added to each arm whose
+  checks were already green. That run is a new chance for a transient fault in
+  `ci-status` to hold the merge. One write per head is the most the arm makes. Nothing reads the
+  line back: no gate, hold or rung. Not while `merge.report-only` is true.
+- **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
+  `durationMs`, `costUsd`, models), and each arm logs a `merge-risk` notice
+  (`pr=<n> head=<sha> merge-risk=<rated|unrated:reason> read-ms=<n>`) and adds the token to the
+  step summary.
+- **In the squash commit.** GitHub wraps a squash message line over 72 characters
+  ([Fail a body line that would break the squash signature](../../../.github/workflows/pr-require-checks.yml)),
+  so the rated line arrives as one `Merge-Risk:` line and the `key=value` lines after it. A reader
+  joins them up to the next blank line. No wrapped row starts with the word committer.
 
 #### Review-only dependencies
 
@@ -3365,7 +3434,8 @@ model ID or the frontier tier. `resolve-config` also writes an `applied-by-patch
 only when the selected activity sets `applied-by.patch`.
 
 `models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
-activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and
+activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `merge-risk` for
+the [Merge-Risk line](#the-merge-risk-line)'s rating, `review-code` and
 `review-security` for the code and security review lanes, `triage-issue` for intake triage, and
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
@@ -3886,6 +3956,44 @@ and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absen
 | Key | Default | Meaning |
 |---|---|---|
 | `reviewer-ids` | `[]` | Account ids of the extra review bots whose threads `address-feedback` works. |
+
+## Merge paths
+
+The post-merge accounting sorts each merge into a path, so the paths roll up and compare per
+window (owner decision Q1 (a) on
+[#7531](https://github.com/melodic-software/claude-code-plugins/issues/7531)). `lanes` is a merge
+the agent identity enqueued, the merges the post-merge check and the revert breaker act on. Each
+path under `post-merge.paths` in `pr-pipeline.yaml` names the logins whose merge-queue actor or
+enqueuer puts a merge on it, for a pull request an agent session wrote: its body carries
+`<!-- session: … -->` or `Generated with [Claude Code]`, and one of its commits a
+`Co-Authored-By: Claude` trailer (`isAgentAuthored` in
+[`merge-path.mjs`](../../../.github/scripts/post-merge-demotion-alert/merge-path.mjs)). This
+repository sets one, `owner-agent`, for agent sessions merging through the owner login.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `paths.<name>.mode` | none | `record`: the path's merges and reverts are labeled, and nothing demotes the lane, trips the revert breaker or holds a pull request. The only mode built. |
+| `paths.<name>.enqueuers` | none | Logins (at least one) whose merge-queue actor or enqueuer puts an agent-authored merge on the path. |
+
+On every canary push run, the alert workflow's `label-paths` job (`issues: write`, after the
+alert job) reads the push's merges and the pull requests it reverts, and labels each one on a record path `merge-path:<name>` and
+each reverted one also `post-merge:reverted`, creating a label that is missing. It files no issue
+and posts no comment, and its `GITHUB_TOKEN` writes start no workflow run. A lane merge gets no
+label; a push that reverts a lane pull request still files the revert demotion record, and
+labels any record-path pull request it also reverts. A failed label write fails the job.
+
+The rollup counts, per path, the merges in a window, how many were reverted (labeled
+`post-merge:reverted` or named on a lane revert record) and how many escaped (a pull request with a
+`fix:` title merged later cites it as `#N` or by URL). That escape count is an upper bound, since
+a fix also cites pull requests it did not repair. A merge with no path label is `lanes` by
+its enqueuer, else `other`, so record-path merges before the labels count as `other`:
+
+```bash
+npm ci --prefix .github/actions/resolve-config && node .github/scripts/post-merge-demotion-alert/merge-path.mjs rollup --since 2026-11-06 --until 2026-11-12
+```
+
+It prints a Markdown table (`--json` for JSON, `--repo <owner/repo>` for another repository),
+reading every pull request merged from `--since` to today, a day per search.
 
 ## Red main
 

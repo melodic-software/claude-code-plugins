@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| notes | P1 Floating version | WARN | floating tag on docker |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| notes | P1 Floating version | FAIL | |",
+      "why": "fail"
+    },
+    {
+      "answer": "| notes | P4 OCI image | n/a | |",
+      "why": "other criterion"
+    }
+  ]
+}

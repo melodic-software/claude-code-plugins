@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| file | docs | yes | http | remote | https://docs.example.com | n/a | docs.example.com | n/a | - |\nSandboxed reads n/a on remote rows, which is expected.",
+      "why": "not flagged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| docs | Sandboxed | WARN | not sandboxed |",
+      "why": "flagged"
+    },
+    {
+      "answer": "Sandboxed n/a on events: FAIL",
+      "why": "prose"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ import { parse } from "yaml";
 
 import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
-import { ownedBranchesFromBase } from "./resolve-config.mjs";
+import { ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
 import { resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -827,4 +827,12 @@ test("live config: pr-merge's re-fire step skips the release branch release-publ
 test("live config: fix-ci reads the owned branches, the release branch among them, from the base", () => {
   const branches = ownedBranchesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
   assert.ok(branches.includes("release/plugins"), JSON.stringify(branches));
+});
+
+// The canary pass records owner-login agent merges on their own path, record
+// only (owner decision Q1 (a) on #7531; README.md, "Merge paths").
+test("live config: post-merge records the owner login's agent merges on the owner-agent path, record only", () => {
+  const { paths, agentIdentity } = postMergeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
+  assert.deepEqual(paths, { "owner-agent": { mode: "record", enqueuers: ["kyle-sexton"] } });
+  assert.equal(agentIdentity, "melodic-automation-lanes[bot]");
 });

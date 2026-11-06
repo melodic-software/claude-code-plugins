@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/plugins/mcp-tools/skills/audit-posture/reference/checklist.md"
+          }
+        }
+      ],
+      "why": "reads the checklist"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reruns the script"
+    }
+  ]
+}

@@ -564,10 +564,14 @@ jobs:
       # credential anywhere. Claude Code applies Read deny rules to Glob and
       # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
       # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
-      # instead of reaching a case. The stream can hold what a call returned,
-      # so it stays in a file that is never printed and is removed after the
-      # check. A probe that the credential's own stop ended hands off instead
-      # (eval-handoff.mjs), so the next leg runs the eval.
+      # instead of reaching a case. The prompt names the run a policy self-test:
+      # asked only to read those paths, the model can decline them as credential
+      # harvesting and make no call. A session that ends with
+      # no tool call proved nothing, so it runs again, up to three times; a call
+      # made and not denied stops the job at once. The stream can hold what a
+      # call returned, so it stays in a file that is never printed and is
+      # removed after the check. A probe that the credential's own stop ended
+      # hands off instead (eval-handoff.mjs), so the next leg runs the eval.
       - name: Probe that the policy denies those reads
         id: probe
         if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
@@ -587,20 +591,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          status=0
-          claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
-            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
-          if grep -qF "$credential" "$out"; then
-            echo "::error::the probe's result holds the credential, so no pull request case runs"
-            exit 1
-          fi
-          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
-            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
-          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          if grep -qx 'handoff=true' <<<"$verdict"; then
-            echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
-            exit 0
-          fi
           probe_facts() {
             jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
               [split("\n")[] | select(. != "")] as $lines
@@ -620,6 +610,27 @@ jobs:
             jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
               { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs (probe: $(probe_facts))"; exit 1; }
           }
+          for attempt in 1 2 3; do
+            status=0
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+              --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+            if grep -qF "$credential" "$out"; then
+              echo "::error::the probe's result holds the credential, so no pull request case runs"
+              exit 1
+            fi
+            verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+              { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+            if grep -qx 'handoff=true' <<<"$verdict"; then
+              printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
+              echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
+              exit 0
+            fi
+            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
+              | $r != null and $r.subtype == "success"
+              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
+            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+          done
+          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
           denied Read /proc/self/environ
           denied Read "$RUNNER_ROOT/.runner"
           denied Grep /proc/self
@@ -1384,10 +1395,14 @@ jobs:
       # credential anywhere. Claude Code applies Read deny rules to Glob and
       # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
       # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
-      # instead of reaching a case. The stream can hold what a call returned,
-      # so it stays in a file that is never printed and is removed after the
-      # check. A probe that the credential's own stop ended hands off instead
-      # (eval-handoff.mjs), so the next leg runs the eval.
+      # instead of reaching a case. The prompt names the run a policy self-test:
+      # asked only to read those paths, the model can decline them as credential
+      # harvesting and make no call. A session that ends with
+      # no tool call proved nothing, so it runs again, up to three times; a call
+      # made and not denied stops the job at once. The stream can hold what a
+      # call returned, so it stays in a file that is never printed and is
+      # removed after the check. A probe that the credential's own stop ended
+      # hands off instead (eval-handoff.mjs), so the next leg runs the eval.
       - name: Probe that the policy denies those reads
         id: probe
         if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
@@ -1407,20 +1422,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          status=0
-          claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
-            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
-          if grep -qF "$credential" "$out"; then
-            echo "::error::the probe's result holds the credential, so no pull request case runs"
-            exit 1
-          fi
-          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
-            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
-          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          if grep -qx 'handoff=true' <<<"$verdict"; then
-            echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
-            exit 0
-          fi
           probe_facts() {
             jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
               [split("\n")[] | select(. != "")] as $lines
@@ -1440,6 +1441,27 @@ jobs:
             jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
               { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs (probe: $(probe_facts))"; exit 1; }
           }
+          for attempt in 1 2 3; do
+            status=0
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+              --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+            if grep -qF "$credential" "$out"; then
+              echo "::error::the probe's result holds the credential, so no pull request case runs"
+              exit 1
+            fi
+            verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+              { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+            if grep -qx 'handoff=true' <<<"$verdict"; then
+              printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
+              echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
+              exit 0
+            fi
+            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
+              | $r != null and $r.subtype == "success"
+              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
+            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+          done
+          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
           denied Read /proc/self/environ
           denied Read "$RUNNER_ROOT/.runner"
           denied Grep /proc/self
@@ -2158,10 +2180,14 @@ jobs:
       # credential anywhere. Claude Code applies Read deny rules to Glob and
       # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
       # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
-      # instead of reaching a case. The stream can hold what a call returned,
-      # so it stays in a file that is never printed and is removed after the
-      # check. A probe that the credential's own stop ended hands off instead
-      # (eval-handoff.mjs), so the next leg runs the eval.
+      # instead of reaching a case. The prompt names the run a policy self-test:
+      # asked only to read those paths, the model can decline them as credential
+      # harvesting and make no call. A session that ends with
+      # no tool call proved nothing, so it runs again, up to three times; a call
+      # made and not denied stops the job at once. The stream can hold what a
+      # call returned, so it stays in a file that is never printed and is
+      # removed after the check. A probe that the credential's own stop ended
+      # hands off instead (eval-handoff.mjs), so the next leg runs the eval.
       - name: Probe that the policy denies those reads
         id: probe
         if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
@@ -2181,20 +2207,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          status=0
-          claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
-            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
-          if grep -qF "$credential" "$out"; then
-            echo "::error::the probe's result holds the credential, so no pull request case runs"
-            exit 1
-          fi
-          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
-            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
-          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          if grep -qx 'handoff=true' <<<"$verdict"; then
-            echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
-            exit 0
-          fi
           probe_facts() {
             jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
               [split("\n")[] | select(. != "")] as $lines
@@ -2214,6 +2226,27 @@ jobs:
             jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
               { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs (probe: $(probe_facts))"; exit 1; }
           }
+          for attempt in 1 2 3; do
+            status=0
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+              --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+            if grep -qF "$credential" "$out"; then
+              echo "::error::the probe's result holds the credential, so no pull request case runs"
+              exit 1
+            fi
+            verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+              { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+            if grep -qx 'handoff=true' <<<"$verdict"; then
+              printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
+              echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
+              exit 0
+            fi
+            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
+              | $r != null and $r.subtype == "success"
+              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
+            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+          done
+          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
           denied Read /proc/self/environ
           denied Read "$RUNNER_ROOT/.runner"
           denied Grep /proc/self

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C4 Server `instructions` within size budget | OPINION | WARN | never FAIL |",
+      "why": "warn"
+    },
+    {
+      "answer": "C4 is WARN, not FAIL.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C4 Within the length floor | OPINION | FAIL | |",
+      "why": "fail cell"
+    },
+    {
+      "answer": "The server instructions are rated as FAIL.",
+      "why": "prose fail"
+    }
+  ]
+}

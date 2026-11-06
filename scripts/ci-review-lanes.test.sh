@@ -251,7 +251,11 @@ case "$*" in
 *) exit 1 ;;
 esac
 EOF
-printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
+# sleep logs its seconds.
+cat >"$TMP_ROOT/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_LOG.sleeps"
+EOF
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
 HEAD=0123456789abcdef0123456789abcdef01234567
@@ -276,6 +280,7 @@ jobs() { local IFS=,; printf '{"jobs":[%s]}' "$*"; }
 expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
+  : >"$TMP_ROOT/log.sleeps"
   # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
   rm -rf "$TMP_ROOT/pr-files.json" "$TMP_ROOT/pr-reads"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
@@ -884,11 +889,36 @@ STUB_AUTHOR="$APP" expect "an App's pull request with no trust-gate path and no 
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 STUB_FILES='[]' STUB_CHANGED=0 STUB_AUTHOR=
 
+# gh_read is the only retry layer: a run-list read is sent 3 times at most,
+# after full-jitter waits of at most 5 and then 10 s, and the step reads it
+# once, in the review wait and again for the judgment.
+runs_reads() { grep -c "/actions/workflows/$CODE/runs?" "$TMP_ROOT/log"; }
+# waits_within <ceiling>...: one logged sleep per ceiling, each 0 to it.
+waits_within() {
+  local -a got want=("$@")
+  local i
+  mapfile -t got <"$TMP_ROOT/log.sleeps"
+  [[ "${#got[@]}" -eq "${#want[@]}" ]] || return 1
+  for i in "${!want[@]}"; do
+    [[ "${got[$i]}" =~ ^[0-9]+$ && "${got[$i]}" -le "${want[$i]}" ]] || return 1
+  done
+}
 export STUB_RUNS_FAILS=1
 expect "a transient run-list failure is retried" 0 "'$CODE_CHECK' passed"
-# Three failed reads end the review wait; three more fail the judgment closed.
+if [[ "$(runs_reads)" -eq 3 ]] && waits_within 5; then
+  ok "a run list that fails once is read on gh_read's second send, after one jittered wait"
+else
+  fail "a run list that fails once took $(runs_reads) reads and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 3 reads and one wait of 0 to 5 s"
+fi
+# Three failed sends end the review wait; three more fail the judgment closed,
+# though a 7th send would read the list.
 export STUB_RUNS_FAILS=6
 expect "an unreadable run list fails closed" 1 "::error::could not read the $CODE runs on $HEAD; re-run this run."
+if [[ "$(runs_reads)" -eq 6 ]] && waits_within 5 10 5 10; then
+  ok "each failed run-list read is sent 3 times, after waits of 0 to 5 and 0 to 10 s"
+else
+  fail "the failed run-list reads took $(runs_reads) sends and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 6 sends and waits within 5 10 5 10"
+fi
 unset STUB_RUNS_FAILS
 export STUB_JOBS_FAIL=1
 expect "an unreadable job list fails closed" 1 "::error::could not read the jobs of run 10; re-run this run."
