@@ -127,6 +127,9 @@ scoring:
   quality
 - **Mixed.** Score each task individually, then aggregate
 
+With one review lens, a fresh-context subagent proposes the scores and the session never scores
+itself, unless the verification level is `light` or `off` (Phase 2, "Review lenses").
+
 ---
 
 ## Phase 2: Analyze (qualitative assessment)
@@ -152,7 +155,16 @@ key and the value, and that layer is dropped: a valid higher layer still wins, o
 never a lower layer's value. The retro never stops on it. Report one line naming the value and the
 layer that supplied it, for example `retro_lenses: 3 (docs/conventions/session-flow.yaml)`.
 
-**Under `1`**, run 2A to 2E below as one pass.
+**Under `1`**, first resolve the verification level with
+`bash "<plugin-root>/lib/read-verification.sh" --plugin session-flow --skill retro --file docs/conventions/session-flow.yaml`
+(run from the git root; the reader reads that file at the default branch) and report its line.
+At `standard` or `strict`, dispatch one fresh-context subagent with the inputs and brief that
+"Under `3`" below gives each lens. It runs 2A, 2B, 2D and 2E as one pass and returns
+`| Severity | Finding | Evidence | Impact |` rows plus a proposed score and note per Phase 5
+dimension. You keep 2C and Phases 3 and 4, discard any row the transcript does not support, and
+write the Phase 5 table from its proposed scores; a 2C regression may lower a score, and the note
+says so. At `light` or `off`, run 2A to 2E as one pass yourself and the report notes
+`verification: skipped (<level>)`.
 
 **Under `3`**, the analysis is split across three subagents, launched together in one turn so
 they run side by side. A short session still gets all three. Each subagent owns one lens:

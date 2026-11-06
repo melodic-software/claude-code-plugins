@@ -21,15 +21,18 @@ approval. `W` is `.work/repo-sweep/` in the worktree root (create it when filing
    executing-agent error, harness issue.
 3. Merge the reviewer's list with the user's report.
 4. Sort each problem by class:
-   - Skill defect: invoke `/plugin-quality:audit` via the Skill tool on that skill, passing the
-     problem as the evidence. Draft an issue against the plugin that owns the skill.
+   - Skill defect: invoke `/plugin-quality:audit` via the Skill tool (if the `plugin-quality`
+     plugin is installed) on that skill, passing the problem as the evidence; otherwise draft from
+     the reviewer's evidence and say once that the `plugin-quality` plugin would audit the skill. Draft an issue against the plugin that
+     owns the skill.
    - Catalog defect (order, membership, arguments, applies-when, override text): draft an issue
      against `melodic-software/claude-code-plugins` for the `playbooks` plugin's repo-sweep
      catalog. Keep it separate from skill defects.
    - Executing-agent error: report it to the user and file nothing. When it traces to unclear
      repo-sweep procedure text (its SKILL.md, reference files, or scripts), it is a repo-sweep
-     defect instead: invoke `/plugin-quality:audit` via the Skill tool on `playbooks:repo-sweep`,
-     passing the problem as the evidence, and draft an issue against
+     defect instead: invoke `/plugin-quality:audit` via the Skill tool (if that plugin is
+     installed; otherwise draft from the reviewer's evidence and say once that the `plugin-quality` plugin would audit it) on
+     `playbooks:repo-sweep`, passing the problem as the evidence, and draft an issue against
      `melodic-software/claude-code-plugins` for the `playbooks` plugin, separate from catalog
      defects.
    - Harness issue: report it to the user and file nothing here. A Claude Code defect goes to

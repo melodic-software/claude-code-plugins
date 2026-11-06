@@ -221,6 +221,20 @@ else
   fail "a --lib value is not treated as a guard (rc=$rc): $out"
 fi
 
+# A `--bps-seed` value is the parse library the launcher reads, not a guard.
+new_fixture f
+guard "$f" demo "run-guards.sh" '#!/usr/bin/env bash
+exit 0'
+guard "$f" demo "alpha.sh" "$HOISTED"
+hooks_json "$f" demo 'node exec-bash.mjs --bps-seed "${CLAUDE_PLUGIN_ROOT}"/hooks/hook-utils.sh "${CLAUDE_PLUGIN_ROOT}"/hooks/run-guards.sh alpha.sh'
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a --bps-seed value is not treated as a guard"
+else
+  fail "a --bps-seed value is not treated as a guard (rc=$rc): $out"
+fi
+
 # A non-shell PreToolUse handler is REPORTED, not silently passed.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"

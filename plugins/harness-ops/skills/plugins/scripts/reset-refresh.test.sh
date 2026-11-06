@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Black-box contract tests for reset-refresh.sh. Each case builds a throwaway
-# HOME from fixtures/reset-refresh/ and puts stub `claude`, `pgrep`, `uname` and
-# `tasklist.exe` commands first on PATH (STUB_UNAME picks the platform). The committed fixtures are only copied, never written.
+# HOME from fixtures/reset-refresh/ and puts stub `claude`, `pgrep`, `uname`,
+# `tasklist.exe` and `chezmoi` commands first on PATH (STUB_UNAME picks the
+# platform). `clean` cases run under util-linux `script`, which gives the run the
+# terminal clean requires. The committed fixtures are only copied, never written.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,6 +43,9 @@ fi
 # disable on a plugin already in that state exit 1, and marketplace update
 # re-creates a missing clone. STUB_DROP_AUTOUPDATE=1 makes marketplace update
 # drop the marketplace's autoUpdate, the difference a refresh must catch.
+# STUB_REORDER_SETTINGS=1 makes install reorder settings.json's keys, which only a
+# byte compare sees. For STUB_ACCEPT_ID, an install without `--accept-command abc123`
+# only displays a marketplace-declared command, as a `--json` failure result.
 write_stubs() {
   local stubs="$1"
   mkdir -p "$stubs"
@@ -64,6 +69,13 @@ case "${1:-} ${2:-}" in
   ;;
 "plugin install")
   id="$3"
+  if [[ "$id" == "${STUB_ACCEPT_ID:-}" && "$*" != *"--accept-command abc123"* ]]; then
+    printf '{"command":"install","outcome":"failed","message":"command only displayed","shownCommand":{"plugin":"%s","command":"npx setup","sha256":"abc123"}}\n' "$id"
+    exit 1
+  fi
+  if [[ -n "${STUB_REORDER_SETTINGS:-}" ]]; then
+    jq '{theme} + .' "$s" >"$s.next" && mv "$s.next" "$s"
+  fi
   mkdir -p "$p/cache/${id#*@}/${id%@*}/1.0.0"
   [[ "$(enabled_of "$id")" != "false" ]] || set_enabled "$id" true
   echo "Successfully installed plugin: $id (scope: user)"
@@ -105,7 +117,11 @@ else
   printf 'INFO: No tasks are running which match the specified criteria.\r\n'
 fi
 STUB
-  chmod +x "$stubs/claude" "$stubs/pgrep" "$stubs/uname" "$stubs/tasklist.exe"
+  cat >"$stubs/chezmoi" <<'STUB'
+#!/usr/bin/env bash
+printf '.bashrc\n.claude/plugins/data/alpha-market1/state.txt\n'
+STUB
+  chmod +x "$stubs/claude" "$stubs/pgrep" "$stubs/uname" "$stubs/tasklist.exe" "$stubs/chezmoi"
 }
 
 # CASE_NUM is incremented by the caller: this runs in a subshell.
@@ -125,13 +141,26 @@ new_case() {
   echo "$dir"
 }
 
+# Sets ENV_CMD to the case's environment: its HOME, the stubs first on PATH, EXTRA_ENV.
+env_cmd() {
+  ENV_CMD=(env -u CLAUDE_CODE_REMOTE -u RESET_REFRESH_RUN_DIR -u STUB_PGREP_PID -u STUB_DROP_AUTOUPDATE
+    -u STUB_UNAME -u STUB_TASKLIST_PID -u STUB_REORDER_SETTINGS -u STUB_ACCEPT_ID
+    HOME="$1/home" PATH="$1/stubs:$PATH" STUB_LOG="$1/claude.log" ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"})
+}
 run_script() {
   local dir="$1"
   shift
-  env -u CLAUDE_CODE_REMOTE -u RESET_REFRESH_RUN_DIR -u STUB_PGREP_PID -u STUB_DROP_AUTOUPDATE \
-    -u STUB_UNAME -u STUB_TASKLIST_PID \
-    HOME="$dir/home" PATH="$dir/stubs:$PATH" STUB_LOG="$dir/claude.log" \
-    ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"} bash "$SCRIPT" "$@" 2>"$dir/stderr.txt"
+  env_cmd "$dir"
+  "${ENV_CMD[@]}" bash "$SCRIPT" "$@" 2>"$dir/stderr.txt"
+}
+# Runs the script on a pseudo-terminal whose input is $2; stdout loses the terminal's `\r`.
+run_tty() {
+  local dir="$1" input="$2" cmd
+  shift 2
+  env_cmd "$dir"
+  cmd=$(printf '%q ' "${ENV_CMD[@]}" bash "$SCRIPT" "$@")
+  printf '%s' "$input" | env SHELL="$BASH" script -qec "$cmd 2>$(printf '%q' "$dir/stderr.txt")" /dev/null | tr -d '\r'
+  return "${PIPESTATUS[1]}"
 }
 
 tree_state() { (cd "$1" && find . -print | LC_ALL=C sort && find . -type f -exec cksum {} + | LC_ALL=C sort); }
@@ -153,6 +182,8 @@ assert_contains "preview: user-scope ids to reinstall" "$out" "Reinstall at user
 assert_contains "preview: @builtin left out" "$out" "Left out (@builtin): 1 id(s)"
 assert_contains "preview: names the project/local records it does not reinstall" "$out" \
   "cache moved but not reinstalled: 2 id(s)"
+assert_contains "preview: counts what clean also discards" "$out" "clean also discards data/: 1 entries"
+assert_eq "preview: no earlier backup to name" "0" "$(grep -c 'earlier backup' <<<"$out")"
 
 # ============================================================================
 # Case: refresh leaves marketplaces, installs and enabledPlugins identical
@@ -240,6 +271,142 @@ dir=$(new_case)
 EXTRA_ENV=(STUB_UNAME=MINGW64_NT-10.0-26300 STUB_PGREP_PID=4242)
 run_script "$dir" refresh --journal-root "$dir/journal" >/dev/null
 assert_eq "windows no claude.exe: refresh runs to exit 0 (pgrep is not consulted)" "0" "$?"
+
+# ============================================================================
+# clean: every case below runs on a pseudo-terminal from util-linux `script`
+# ============================================================================
+if ! script -qec true /dev/null </dev/null >/dev/null 2>&1; then
+  echo "SKIP: clean cases need util-linux script for a terminal" >&2
+else
+  bak_count() { find "$1/home/.claude" -mindepth 1 -maxdepth 1 -name 'plugins.bak-*' | wc -l | tr -d ' '; }
+  has() { [[ -e "$1" ]] && echo yes || echo no; }
+
+  # Case: clean discards data/ too, keeps the backup, and reports it
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  EXTRA_ENV=()
+  out=$(run_tty "$dir" "" clean --journal-root "$dir/journal")
+  assert_eq "clean: exit 0" "0" "$?"
+  assert_contains "clean: no failure and no difference" "$out" "CLI failures: 0; snapshot differences: 0"
+  plugins="$dir/home/.claude/plugins"
+  same_file "clean: settings.json is byte-identical" "$FIXTURES/settings.json" "$dir/home/.claude/settings.json"
+  same_file "clean: every project and local record is unchanged" "$FIXTURES/installed_plugins.json" "$plugins/installed_plugins.json"
+  same_file "clean: known_marketplaces.json is unchanged" "$FIXTURES/known_marketplaces.json" "$plugins/known_marketplaces.json"
+  assert_eq "clean: installs run with --json at user scope" "3" "$(grep -c '^plugin install .* --scope user --json$' "$dir/claude.log")"
+  assert_eq "clean: never passes -y" "0" "$(grep -c -e ' -y' -e '--yes' "$dir/claude.log")"
+  assert_eq "clean: data/ is discarded" "no" "$(has "$plugins/data")"
+  assert_eq "clean: one backup is kept" "1" "$(bak_count "$dir")"
+  bak=$(find "$dir/home/.claude" -mindepth 1 -maxdepth 1 -name 'plugins.bak-*' | head -n 1)
+  assert_eq "clean: the backup holds data/" "keep" "$(cat "$bak/data/alpha-market1/state.txt" 2>/dev/null)"
+  assert_eq "clean: the backup holds the cache and the clone" "cached clone" \
+    "$(cat "$bak/cache/market1/alpha/0.9.0/file.txt" "$bak/marketplaces/market1/marketplace.json" 2>/dev/null | paste -sd ' ' -)"
+  assert_contains "clean: reports the backup path" "$out" "Backup: $bak ("
+  assert_contains "clean: names the plugins whose setup reruns" "$out" "their data/ discarded: 1"
+  assert_contains "clean: lists the discarded data/ entry" "$out" "  alpha-market1"
+  assert_contains "clean: lists dotfile-managed paths under the plugin root" "$out" "  ~/.claude/plugins/data/alpha-market1/state.txt"
+  assert_eq "clean: leaves out managed paths outside the plugin root" "0" "$(grep -c 'bashrc' <<<"$out")"
+  assert_contains "clean: says to restart" "$out" "Restart Claude Code"
+  run_dir=$(find "$dir/journal" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  assert_eq "clean: a pass deletes the run's snapshot files" "0" \
+    "$(find "$run_dir" -maxdepth 1 \( -name 'before.*' -o -name 'after.*' -o -name 'settings.*' \) | wc -l | tr -d ' ')"
+  assert_eq "clean: the journal stays" "yes" "$(has "$run_dir/journal.log")"
+
+  # Case: a comparison failure moves the backup back
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  EXTRA_ENV=(STUB_DROP_AUTOUPDATE=1)
+  out=$(run_tty "$dir" "" clean --journal-root "$dir/journal")
+  assert_eq "clean mismatch: exit 1" "1" "$?"
+  assert_contains "clean mismatch: names the differing snapshot" "$out" "differs: marketplaces"
+  assert_contains "clean mismatch: says it moved the backup back" "$out" "Moved back:"
+  plugins="$dir/home/.claude/plugins"
+  assert_eq "move-back: the original cache is back" "cached" "$(cat "$plugins/cache/market1/alpha/0.9.0/file.txt" 2>/dev/null)"
+  assert_eq "move-back: the original data/ is back" "keep" "$(cat "$plugins/data/alpha-market1/state.txt" 2>/dev/null)"
+  assert_eq "move-back: the original clone is back" "clone" "$(cat "$plugins/marketplaces/market1/marketplace.json" 2>/dev/null)"
+  assert_eq "move-back: no rebuilt content stays in plugins/" "no" "$(has "$plugins/cache/market1/alpha/1.0.0")"
+  assert_eq "move-back: the emptied backup is gone" "0" "$(bak_count "$dir")"
+  run_dir=$(find "$dir/journal" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  assert_eq "move-back: the rebuilt copies are kept in the run directory" "yes" "$(has "$run_dir/rebuilt/cache/market1/alpha/1.0.0")"
+  assert_eq "move-back: the snapshots stay for the operator" "yes" "$(has "$run_dir/after.marketplaces.json")"
+
+  # Case: the move-back leaves a target absent before the run absent after it
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  plugins="$dir/home/.claude/plugins"
+  rm -rf "${plugins:?}/cache" "${plugins:?}/marketplaces/market1"
+  EXTRA_ENV=(STUB_DROP_AUTOUPDATE=1)
+  out=$(run_tty "$dir" "" clean --journal-root "$dir/journal")
+  assert_eq "absent before: exit 1" "1" "$?"
+  assert_contains "absent before: says it moved the backup back" "$out" "Moved back:"
+  assert_eq "absent before: the rebuilt cache is not left live" "no" "$(has "$plugins/cache")"
+  assert_eq "absent before: the recreated clone is not left live" "no" "$(has "$plugins/marketplaces/market1")"
+  assert_eq "absent before: the original data/ is back" "keep" "$(cat "$plugins/data/alpha-market1/state.txt" 2>/dev/null)"
+  assert_eq "absent before: the clone that existed is back" "yes" "$(has "$plugins/marketplaces/market2")"
+  assert_eq "absent before: the emptied backup is gone" "0" "$(bak_count "$dir")"
+  run_dir=$(find "$dir/journal" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  assert_eq "absent before: the rebuilt cache and clone are in the run directory" "yes yes" \
+    "$(has "$run_dir/rebuilt/cache/market1/alpha/1.0.0") $(has "$run_dir/rebuilt/marketplaces/market1")"
+
+  # Case: a settings file that differs only in byte order fails the cmp check
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  EXTRA_ENV=(STUB_REORDER_SETTINGS=1)
+  out=$(run_tty "$dir" "" clean --journal-root "$dir/journal")
+  assert_eq "clean settings cmp: exit 1" "1" "$?"
+  assert_contains "clean settings cmp: names the settings file" "$out" "differs: settings file $dir/home/.claude/settings.json"
+  assert_eq "clean settings cmp: the sorted enabledPlugins compare passes" "0" "$(grep -c 'differs: enabled' <<<"$out")"
+  assert_eq "clean settings cmp: the backup is moved back" "keep" \
+    "$(cat "$dir/home/.claude/plugins/data/alpha-market1/state.txt" 2>/dev/null)"
+
+  # Case: an earlier backup refuses the run before anything moves
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  mkdir -p "$dir/home/.claude/plugins.bak-20260101T000000Z"
+  printf 'old\n' >"$dir/home/.claude/plugins.bak-20260101T000000Z/marker"
+  before=$(tree_state "$dir/home")
+  EXTRA_ENV=()
+  out=$(run_script "$dir" preview)
+  assert_contains "preview: names the earlier backup" "$out" "clean refuses while this earlier backup exists: $dir/home/.claude/plugins.bak-20260101T000000Z"
+  run_tty "$dir" "" clean --journal-root "$dir/journal" >/dev/null
+  assert_eq "earlier backup: exit 2" "2" "$?"
+  assert_contains "earlier backup: says why" "$(cat "$dir/stderr.txt")" "REFUSED: an earlier backup exists"
+  assert_eq "earlier backup: no CLI call" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
+  assert_eq "earlier backup: the HOME tree is unchanged, the backup included" "$before" "$(tree_state "$dir/home")"
+
+  # Case: clean aborts when run autonomously, with no terminal
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  before=$(tree_state "$dir/home")
+  EXTRA_ENV=()
+  run_script "$dir" clean --journal-root "$dir/journal" </dev/null >/dev/null
+  assert_eq "autonomous: exit 2" "2" "$?"
+  assert_contains "autonomous: says why" "$(cat "$dir/stderr.txt")" "never autonomously"
+  assert_eq "autonomous: no CLI call" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
+  assert_eq "autonomous: the HOME tree is unchanged" "$before" "$(tree_state "$dir/home")"
+
+  # Case: an install that displays a command asks, and a yes accepts it by sha256
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  EXTRA_ENV=(STUB_ACCEPT_ID=alpha@market1)
+  out=$(run_tty "$dir" $'y\n' clean --journal-root "$dir/journal")
+  assert_eq "accept: exit 0" "0" "$?"
+  assert_contains "accept: shows the command" "$out" '"command": "npx setup"'
+  assert_contains "accept: asks first" "$(cat "$dir/stderr.txt")" "Run this command for alpha@market1? [y/N]"
+  assert_eq "accept: re-runs with --accept-command and the sha256" "1" \
+    "$(grep -c '^plugin install alpha@market1 --scope user --json --accept-command abc123$' "$dir/claude.log")"
+  assert_eq "accept: never passes -y" "0" "$(grep -c -e ' -y' -e '--yes' "$dir/claude.log")"
+
+  # Case: a no declines the install, which fails the run and moves the backup back
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  EXTRA_ENV=(STUB_ACCEPT_ID=alpha@market1)
+  out=$(run_tty "$dir" $'n\n' clean --journal-root "$dir/journal")
+  assert_eq "decline: exit 1" "1" "$?"
+  assert_contains "decline: says it was declined" "$out" "declined: alpha@market1"
+  assert_eq "decline: no --accept-command call" "0" "$(grep -c -e '--accept-command' "$dir/claude.log")"
+  assert_eq "decline: the backup is moved back" "keep" \
+    "$(cat "$dir/home/.claude/plugins/data/alpha-market1/state.txt" 2>/dev/null)"
+fi
 
 if ((FAILED > 0)); then
   echo "$FAILED assertion(s) failed" >&2
