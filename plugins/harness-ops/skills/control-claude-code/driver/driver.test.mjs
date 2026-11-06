@@ -1091,3 +1091,137 @@ test('plugins with no changed file names the configured plugin dir', async () =>
   assert.equal(result, 0);
   assert.equal(text, defaults.pluginDir);
 });
+
+// ---- the runtime directory variable and broker mode ----
+
+/** Sets each variable (undefined unsets it) for the run of `fn`, then puts back what was there. */
+async function withEnv(vars, fn) {
+  const saved = Object.fromEntries(Object.keys(vars).map((name) => [name, process.env[name]]));
+  const put = (values) => {
+    for (const [name, value] of Object.entries(values)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  };
+  put(vars);
+  try {
+    return await fn();
+  } finally {
+    put(saved);
+  }
+}
+
+test('CCD_RUNTIME_DIR comes ahead of XDG_RUNTIME_DIR for session sockets, created private', posixOnly, async () => {
+  const ccd = mkdtempSync(join(tmpdir(), 'ccd-own-'));
+  try {
+    await withEnv({ CCD_RUNTIME_DIR: ccd, CCD_BROKER_SOCK: undefined }, () =>
+      assert.rejects(main(['stop', '--session', session()]), { code: 3 }),
+    );
+    assert.equal(statSync(join(ccd, 'ccd')).mode & 0o777, 0o700);
+  } finally {
+    rmSync(ccd, { recursive: true, force: true });
+  }
+});
+
+test('a brokered request carries the options as typed, paths made absolute against the cwd, and the prompt after --', async () => {
+  const { tokens, positionals } = (await import('node:util')).parseArgs({
+    args: ['log', 'run /demo', '--plugin-dir', 'plugins/demo', '--out=run.jsonl', '--timeout', '9', '--unattended'],
+    options: { 'plugin-dir': { type: 'string' }, out: { type: 'string' }, timeout: { type: 'string' }, unattended: { type: 'boolean' } },
+    allowPositionals: true,
+    tokens: true,
+  });
+  assert.deepEqual(driver.brokerRequest('log', tokens, positionals.slice(1), '/work'), {
+    verb: 'log',
+    args: ['--plugin-dir', '/work/plugins/demo', '--out', '/work/run.jsonl', '--timeout', '9', '--unattended', '--', 'run /demo'],
+  });
+});
+
+/** A one-connection server at a fresh socket that records the request line and answers with `lines`. */
+async function fakeBroker(lines, { end = true } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'ccd-fb-'));
+  const sock = join(dir, 'b.sock');
+  const seen = [];
+  const server = (await import('node:net')).default.createServer((conn) => {
+    conn.once('data', (d) => {
+      seen.push(String(d));
+      for (const line of lines) conn.write(`${line}\n`);
+      if (end) conn.end();
+    });
+  });
+  await new Promise((r) => server.listen(sock, r));
+  return { sock, seen, close: () => (server.close(), rmSync(dir, { recursive: true, force: true })) };
+}
+
+const sink = () => {
+  const chunks = [];
+  return { chunks, write: (s) => chunks.push(s) };
+};
+
+test('broker mode relays stdout and stderr chunks and resolves with the exit status', posixOnly, async () => {
+  const fb = await fakeBroker([JSON.stringify({ stdout: 'a\n' }), JSON.stringify({ stderr: 'b\n' }), JSON.stringify({ stdout: 'c\n' }), JSON.stringify({ exit: 4 })]);
+  try {
+    const out = sink();
+    const err = sink();
+    assert.equal(await driver.viaBroker(fb.sock, { verb: 'ready', args: [] }, { stdout: out, stderr: err }), 4);
+    assert.deepEqual(out.chunks, ['a\n', 'c\n']);
+    assert.deepEqual(err.chunks, ['b\n']);
+    assert.deepEqual(fb.seen, [`${JSON.stringify({ verb: 'ready', args: [] })}\n`]);
+  } finally {
+    fb.close();
+  }
+});
+
+test('broker replies are untrusted: a malformed line, an out-of-range exit or no exit at all fails the verb', posixOnly, async () => {
+  const cases = [
+    [['not json'], /not a stream chunk or an exit/],
+    [[JSON.stringify({ stdout: 42 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ exit: 256 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ exit: -1 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ exit: 1.5 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ stdout: 'partial' })], /closed the connection without an exit status/],
+  ];
+  for (const [lines, pattern] of cases) {
+    const fb = await fakeBroker(lines);
+    try {
+      await assert.rejects(driver.viaBroker(fb.sock, { verb: 'ready', args: [] }, { stdout: sink(), stderr: sink() }), pattern, lines[0]);
+    } finally {
+      fb.close();
+    }
+  }
+});
+
+test('with CCD_BROKER_SOCK set, launch, ready and log go to the broker; socket verbs, doctor and plugins do not', posixOnly, async () => {
+  const fb = await fakeBroker([JSON.stringify({ exit: 0 })]);
+  const missing = join(fb.sock, '..', 'none.sock');
+  try {
+    await withEnv({ CCD_BROKER_SOCK: missing }, async () => {
+      await assert.rejects(main(['ready', '--plugin-dir', 'p', '--out', 'o']), /the launch broker at .*none\.sock did not answer \(ENOENT\)/);
+      await assert.rejects(main(['stop', '--session', session()]), { code: 3, message: /no session/ });
+      assert.equal((await quietly(() => main(['plugins']))).result, 0);
+    });
+    await withEnv({ CCD_BROKER_SOCK: fb.sock }, () => main(['launch', '--plugin-dir', '/p', '--session', 'brk']));
+    assert.deepEqual(JSON.parse(fb.seen[0]), { verb: 'launch', args: ['--plugin-dir', '/p', '--session', 'brk'] });
+  } finally {
+    fb.close();
+  }
+});
+
+test('without CCD_BROKER_SOCK, log runs claude here and prints exactly its one line', posixOnly, async () => {
+  // A broker listening at a known path is never contacted when the variable is unset.
+  const fb = await fakeBroker([JSON.stringify({ exit: 9 })]);
+  const box = sandbox();
+  stubClaude(box, 'none', `printf '%s\\n' '{"type":"result"}'\nexit 0`);
+  const out = join(box.root, 'run.jsonl');
+  try {
+    const { result, text } = await withEnv({ CCD_BROKER_SOCK: undefined }, () =>
+      withPath(box.bin, () => quietly(() => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', out]))),
+    );
+    assert.equal(result, 0);
+    assert.equal(text, `log: ${out} (claude exit 0, apiKeySource none)`);
+    assert.equal(readFileSync(join(box.root, 'key'), 'utf8'), 'unset');
+    assert.deepEqual(fb.seen, []);
+  } finally {
+    fb.close();
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});

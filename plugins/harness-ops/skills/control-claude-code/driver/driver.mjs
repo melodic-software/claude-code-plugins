@@ -39,6 +39,12 @@
 // stopping Claude Code early only when the init event names another key source. Both
 // stop Claude Code at --timeout (ready 120000, log 600000 by default).
 //
+// Broker mode: with CCD_BROKER_SOCK naming a launch broker's socket (broker.mjs),
+// `launch`, `ready` and `log` send their arguments there, paths made absolute,
+// relay what the broker streams back and exit with its status; the other verbs
+// run as they do without it. Sessions listen under CCD_RUNTIME_DIR, else
+// XDG_RUNTIME_DIR, else the home cache directory.
+//
 // Exit: 0 done, 1 the step failed, 2 usage, 3 no session, 4 broken install
 // (the message carries the repair line), 5 a directory others can write.
 import { spawn, spawnSync } from 'node:child_process';
@@ -354,11 +360,16 @@ export function ensureInstalled(explicit) {
 
 // ---- session transport ----
 
-/** The per-user directory for sockets, pipe names and holder logs; no other account can create it first. */
+/**
+ * The per-user directory for sockets, pipe names and holder logs; no other account can create it first.
+ * CCD_RUNTIME_DIR, read ahead of XDG_RUNTIME_DIR, names the same base for a driving session whose
+ * Bash does not see XDG_RUNTIME_DIR.
+ */
 function runtimeDir(platform) {
   const env = process.env;
   if (platform === 'win32') return join(env.LOCALAPPDATA || join(os.homedir(), 'AppData', 'Local'), 'ccd');
-  return env.XDG_RUNTIME_DIR ? join(env.XDG_RUNTIME_DIR, 'ccd') : join(os.homedir(), '.cache', 'ccd');
+  const base = env.CCD_RUNTIME_DIR || env.XDG_RUNTIME_DIR;
+  return base ? join(base, 'ccd') : join(os.homedir(), '.cache', 'ccd');
 }
 
 const checkSession = (session) => {
@@ -1142,6 +1153,73 @@ async function log(opts, prompt) {
   return { text: lines.join('\n'), status: clean ? 0 : 1 };
 }
 
+// ---- broker mode: launch, ready and log run where the launch broker runs ----
+
+export const BROKERED = ['launch', 'ready', 'log'];
+const PATH_OPTIONS = ['plugin-dir', 'out', 'deps-dir'];
+const REPLY_LINE_MAX = 1 << 20;
+
+/** The one-line request a brokered verb sends: the options as typed, paths made absolute here, then `--` and the positionals. */
+export function brokerRequest(verb, tokens, positionals, cwd = process.cwd()) {
+  const args = [];
+  for (const token of tokens) {
+    if (token.kind !== 'option') continue;
+    args.push(`--${token.name}`);
+    if (token.value !== undefined) args.push(PATH_OPTIONS.includes(token.name) ? resolve(cwd, token.value) : token.value);
+  }
+  return { verb, args: positionals.length ? [...args, '--', ...positionals] : args };
+}
+
+/**
+ * Sends one request to the broker at `sock` and relays its streamed stdout and stderr until the
+ * final exit status, which it resolves with. The replies are untrusted data: anything that is not a
+ * string chunk or a whole exit status from 0 to 255 fails the verb.
+ */
+export function viaBroker(sock, req, { stdout = process.stdout, stderr = process.stderr } = {}) {
+  return new Promise((done, fail) => {
+    const conn = net.createConnection(sock);
+    conn.setEncoding('utf8');
+    let buf = '';
+    let exit;
+    const stopWith = (err) => {
+      conn.destroy();
+      fail(err);
+    };
+    const take = (line) => {
+      let reply;
+      try {
+        reply = JSON.parse(line);
+      } catch {
+        reply = undefined;
+      }
+      if (typeof reply?.stdout === 'string') stdout.write(reply.stdout);
+      else if (typeof reply?.stderr === 'string') stderr.write(reply.stderr);
+      else if (Number.isInteger(reply?.exit) && reply.exit >= 0 && reply.exit <= 255) exit = reply.exit;
+      else return false;
+      return true;
+    };
+    conn.on('connect', () => conn.write(`${JSON.stringify(req)}\n`));
+    conn.on('data', (d) => {
+      buf += d;
+      for (let nl = buf.indexOf('\n'); nl >= 0 && exit === undefined; nl = buf.indexOf('\n')) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        if (!take(line)) return stopWith(new Error(`the launch broker sent a reply that is not a stream chunk or an exit: ${line.slice(0, 200)}`));
+      }
+      if (exit !== undefined) {
+        conn.destroy();
+        done(exit);
+      } else if (buf.length > REPLY_LINE_MAX) stopWith(new Error('the launch broker sent a reply line over 1 MiB'));
+    });
+    conn.on('end', () => {
+      if (exit === undefined) fail(new Error('the launch broker closed the connection without an exit status'));
+    });
+    conn.on('error', (err) => {
+      if (exit === undefined) fail(new Error(`the launch broker at ${sock} did not answer (${err.code ?? err.message})`));
+    });
+  });
+}
+
 // ---- CLI ----
 
 const OPTIONS = {
@@ -1189,7 +1267,7 @@ const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2, log: 1, plugin
 async function main(argv) {
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, tokens: true });
   } catch (err) {
     throw new UsageError(err.message);
   }
@@ -1197,6 +1275,8 @@ async function main(argv) {
   const run = VERBS[verb];
   if (!run) throw new UsageError(`verbs: ${Object.keys(VERBS).filter((v) => v !== 'serve').join(', ')}`);
   if (rest.length > (ARITY[verb] ?? 0)) throw new UsageError(`${verb} got extra arguments: ${rest.join(' ')}`);
+  const broker = process.env.CCD_BROKER_SOCK;
+  if (broker && BROKERED.includes(verb)) return viaBroker(broker, brokerRequest(verb, parsed.tokens, rest));
   const out = await run(parsed.values, rest);
   if (out && typeof out === 'object') {
     if (out.text) console.log(out.text);

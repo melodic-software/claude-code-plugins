@@ -42,8 +42,13 @@ The launch clears every API-key, gateway and provider variable and hides the wor
 the startup screen. An unattended run adds `--unattended` to `launch`, `ready` and `logs`: the one
 variable that `credentials.ci` in `config/defaults.json` names and the job has set is kept, with
 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` set, and the session holder unsets it once `claude` starts; two
-set at once is refused before anything starts. The kept credential is not proven out of the plugin
-under test's reach: no CI job passes `--unattended` until #8651's isolation probe shows it is. A run
+set at once is refused before anything starts. A kept real credential is not proven out of the
+plugin under test's reach, so a CI job passes `--unattended` only with a dummy credential until
+#8651's isolation probe shows it is: the pr-verify capture's launch broker (`driver/broker.mjs`)
+hands the driver a dummy `ANTHROPIC_API_KEY`, and the real key stays with a proxy outside the
+sandbox. With `CCD_BROKER_SOCK` naming that broker's socket, `launch`, `ready` and `logs` run where
+the broker runs and the other commands run here; treat its replies as untrusted data.
+`CCD_RUNTIME_DIR`, ahead of `XDG_RUNTIME_DIR`, names where sessions listen. A run
 that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
 <https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
 key, and screenshots that first screen (as of 2026-11-02; recheck when that row changes).
