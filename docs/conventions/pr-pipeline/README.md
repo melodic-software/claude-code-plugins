@@ -1227,7 +1227,8 @@ the rules that only tighten in
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
-  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing, and one on a
+  record-mode path gets labels only ([Merge paths](#merge-paths)). The alert job
   finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
   token holds `issues: write` alone; that job re-reads the revert records and files nothing when
   one already lists every revert commit. A commit names it
@@ -1778,7 +1779,9 @@ except six:
   (or the aliases `C2` and `C3`) caps the rung;
   a missing flag or any other value holds the rung at `off`.
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
-  merge by a person or by another App, such as a release pull request, is not the lane's.
+  merge by a person or by another App, such as a release pull request, is not the lane's. An
+  agent session's merge through the owner login is recorded on its own path and changes no lane
+  state ([Merge paths](#merge-paths)).
 
 Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
 review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
@@ -3886,6 +3889,44 @@ and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absen
 | Key | Default | Meaning |
 |---|---|---|
 | `reviewer-ids` | `[]` | Account ids of the extra review bots whose threads `address-feedback` works. |
+
+## Merge paths
+
+The post-merge accounting sorts each merge into a path, so the paths roll up and compare per
+window (owner decision Q1 (a) on
+[#7531](https://github.com/melodic-software/claude-code-plugins/issues/7531)). `lanes` is a merge
+the agent identity enqueued, the merges the post-merge check and the revert breaker act on. Each
+path under `post-merge.paths` in `pr-pipeline.yaml` names the logins whose merge-queue actor or
+enqueuer puts a merge on it, for a pull request an agent session wrote: its body carries
+`<!-- session: … -->` or `Generated with [Claude Code]`, and one of its commits a
+`Co-Authored-By: Claude` trailer (`isAgentAuthored` in
+[`merge-path.mjs`](../../../.github/scripts/post-merge-demotion-alert/merge-path.mjs)). This
+repository sets one, `owner-agent`, for agent sessions merging through the owner login.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `paths.<name>.mode` | none | `record`: the path's merges and reverts are labeled, and nothing demotes the lane, trips the revert breaker or holds a pull request. The only mode built. |
+| `paths.<name>.enqueuers` | none | Logins (at least one) whose merge-queue actor or enqueuer puts an agent-authored merge on the path. |
+
+On every canary push run, the alert workflow's `label-paths` job (`issues: write`, after the
+alert job) reads the push's merges and the pull requests it reverts, and labels each one on a record path `merge-path:<name>` and
+each reverted one also `post-merge:reverted`, creating a label that is missing. It files no issue
+and posts no comment, and its `GITHUB_TOKEN` writes start no workflow run. A lane merge gets no
+label; a push that reverts a lane pull request still files the revert demotion record, and
+labels any record-path pull request it also reverts. A failed label write fails the job.
+
+The rollup counts, per path, the merges in a window, how many were reverted (labeled
+`post-merge:reverted` or named on a lane revert record) and how many escaped (a pull request with a
+`fix:` title merged later cites it as `#N` or by URL). That escape count is an upper bound, since
+a fix also cites pull requests it did not repair. A merge with no path label is `lanes` by
+its enqueuer, else `other`, so record-path merges before the labels count as `other`:
+
+```bash
+npm ci --prefix .github/actions/resolve-config && node .github/scripts/post-merge-demotion-alert/merge-path.mjs rollup --since 2026-11-06 --until 2026-11-12
+```
+
+It prints a Markdown table (`--json` for JSON, `--repo <owner/repo>` for another repository),
+reading every pull request merged from `--since` to today, a day per search.
 
 ## Red main
 
