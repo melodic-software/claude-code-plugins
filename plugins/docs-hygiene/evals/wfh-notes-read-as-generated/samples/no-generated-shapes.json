@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n# stash\n\nstash takes a snapshot of a project directory in under a second and restores it later. It needs no config files and runs no daemon.\n\nEvery chunk is checksummed with BLAKE3, and stash verifies each checksum on restore. stash prunes snapshots older than 30 days unless you tag them with `--keep`. That holds for a small project and for a 500-person monorepo.\n\n## Install\n\n```bash\nbrew install stash\nstash init\n```\n````",
+      "why": "facts kept in plain sentences, none of the generated shapes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "````markdown\n# stash\n\nHere's the thing: losing a day of work costs more than any tool.\n````",
+      "why": "keeps the opener"
+    },
+    {
+      "answer": "````markdown\n# stash\n\nstash isn't a backup tool, it's an undo button for your project.\n````",
+      "why": "keeps the negative parallelism"
+    },
+    {
+      "answer": "````markdown\n# stash\n\nNo config files. No daemons. No surprises.\n````",
+      "why": "keeps the staccato triad"
+    },
+    {
+      "answer": "````markdown\n# stash\n\nFrom side projects to large monorepos, stash takes a snapshot in under a second.\n````",
+      "why": "keeps the From X to Y sweep"
+    }
+  ]
+}
