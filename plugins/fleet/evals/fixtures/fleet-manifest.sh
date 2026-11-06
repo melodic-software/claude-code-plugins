@@ -39,6 +39,8 @@ cat >"$f" <<'MD'
 
 Rendered for desk-01. Machines are addressed by hostname over the tailnet.
 
+The Windows profiles under `/mnt/c` named below are not reachable from this session.
+
 ## desk-01 (desktop, this machine)
 
 | Lane | Role | ssh alias | Port | Account | Shell |
