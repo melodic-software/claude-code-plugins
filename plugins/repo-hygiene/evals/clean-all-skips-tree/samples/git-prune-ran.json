@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-prune.sh --dry-run",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-branch-audit.sh",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

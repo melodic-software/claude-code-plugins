@@ -1,0 +1,90 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/resolve-clean-action.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "resolver"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "gather"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -5",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "gather"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /run/eval/plugin/skills/clean/scripts/scan.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reads a script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/scan.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "guesses scan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /run/eval/plugin/skills/clean/scripts/clean-caches.sh --dry-run",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "caches dry-run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain\n/run/eval/plugin/skills/clean/scripts/git-prune.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a newline"
+    }
+  ]
+}

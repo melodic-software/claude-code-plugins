@@ -429,8 +429,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends fonts-noto-core >/dev/null
-          fonts=$(fc-list ':charset=23f8' family)
-          [[ $fonts == *"Noto Sans Symbols 2"* ]] || { echo "::error::no installed font has U+23F8"; exit 1; }
+          fonts=$(fc-list ':charset=23f8' family file)
+          [[ -n $fonts ]] || { echo "::error::no installed font has U+23F8"; exit 1; }
+          printf '%s\n' "$fonts"
 
       # A root-owned copy of main's driver and launch broker (the broker
       # refuses a driver, config or deps directory it can write), with the

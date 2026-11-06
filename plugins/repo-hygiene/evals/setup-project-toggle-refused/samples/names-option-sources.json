@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Plugin option values are read from user, --settings and managed settings only, never from a project's .claude/settings.json, so a project value is inert."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Values come from user and managed settings, so a project value is inert.",
+      "why": "no --settings"
+    },
+    {
+      "answer": "Values come from user, --settings and managed settings.",
+      "why": "project value not called inert"
+    }
+  ]
+}

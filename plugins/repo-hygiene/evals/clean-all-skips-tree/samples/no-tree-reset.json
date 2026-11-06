@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/clean-build.sh --include-caches --dry-run",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "build tier"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n tree /run/eval/plugin/skills/clean/scripts/../SKILL.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-tree-reset.sh --help",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "help"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-tree-reset.sh --dry-run",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tree dry-run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /run/eval/plugin/skills/clean/scripts/git-tree-reset-batch.sh --repo /ws",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tree batch"
+    }
+  ]
+}

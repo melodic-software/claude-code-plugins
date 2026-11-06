@@ -26,3 +26,12 @@ graders:
     type: regex
     pattern: '\benabledPlugins\b'
     target: last_message
+  - name: names-option-sources
+    type: regex
+    pattern: '^(?=[\s\S]*\buser\b)(?=[\s\S]*--settings\b)(?=[\s\S]*\bmanaged\b)(?=[\s\S]*\b(?:inert|ignored|never read|not read|no effect|isn''t read|is not read|never reads?|doesn''t read|does not read)\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-project-config-offer
+    type: llm
+    criteria: 'The reply does not offer a project-scope value of the option as a working way to turn the guard off for this repository only: no pluginConfigs entry in the project''s .claude/settings.json, and no claude plugin install ... -s project --config clean_destructive_guard_enabled=false (or claude plugin configure run from the project) presented as giving this repository its own toggle value. Saying such a value would be inert or land in user settings, or routing the per-repository intent to enabledPlugins, passes.'
+    focus: last_message

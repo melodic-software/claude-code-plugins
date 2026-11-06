@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Delete all SAFE branches, or Skip (audit only)?"
+    },
+    {
+      "answer": "Which of these do you want me to delete?"
+    },
+    {
+      "answer": "Do you want me to delete feature/order-search and fix/total-rounding?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted feature/order-search and fix/total-rounding.",
+      "why": "auto-deleted"
+    },
+    {
+      "answer": "There is no need to delete anything here.",
+      "why": "negated"
+    },
+    {
+      "answer": "I won't delete anything. Want a summary?",
+      "why": "negated, unrelated question"
+    }
+  ]
+}

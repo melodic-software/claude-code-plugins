@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-11-06
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `docs/conventions/mutation-testing.yaml`, read from the default branch by `lib/read-verification.sh`. Under `light` and `off`, `/mutation-testing:audit` dispatches no Phase 4 triage subagent and reports every survivor unclassified with the reason `verification: skipped (<level>)`.
+
 ## [0.15.0] - 2026-11-06
 
 ### Added

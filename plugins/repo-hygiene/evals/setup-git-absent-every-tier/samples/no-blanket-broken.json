@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "That does not mean the plugin is broken; each tier loses something specific."
+    },
+    {
+      "answer": "Rather than saying the plugin is broken, here is what each tier loses."
+    },
+    {
+      "answer": "caches and build lose the tracked-file guard."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Without git the plugin is broken.",
+      "why": "blanket"
+    },
+    {
+      "answer": "In short, the plugin is unusable there.",
+      "why": "blanket"
+    }
+  ]
+}
