@@ -102,7 +102,7 @@ has nothing to stop.
 - markdown-format | features/markdown-format/README.md | entry points: 4 | sources: plugins/markdown-format/skills/*/SKILL.md
 - mcp-tools | features/mcp-tools/README.md | entry points: 4 | sources: plugins/mcp-tools/skills/*/SKILL.md
 - miro | features/miro/README.md | entry points: 4 | sources: plugins/miro/skills/*/SKILL.md
-- mods | features/mods/README.md | entry points: 2 | sources: plugins/*/hooks/register.tsx
+- mods | features/mods/README.md | entry points: 3 | sources: plugins/*/hooks/*.ts, plugins/*/hooks/*.tsx
 - multi-agent | features/multi-agent/README.md | entry points: 4 | sources: plugins/multi-agent/skills/*/SKILL.md
 - mutation-testing | features/mutation-testing/README.md | entry points: 4 | sources: plugins/mutation-testing/skills/*/SKILL.md
 - naming | features/naming/README.md | entry points: 4 | sources: plugins/naming/skills/*/SKILL.md
