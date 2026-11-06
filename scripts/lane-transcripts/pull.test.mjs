@@ -7,7 +7,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { generate } from "../../.github/actions/open-lane-output/keygen.mjs";
 import { parsePublicKey, sealRecord } from "../../.github/actions/seal-lane-output/seal.mjs";
 import { tempDir } from "../../lib/test-tmp.mjs";
-import { ENTRY, main, MAX_LIST_CALLS, PAYLOAD, REPO, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
+import { ENTRY, main, PAYLOAD, REPO, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
 import { CAP_BYTES, parseArtifactName, paths, prune, query, readRows, transcriptMetrics, writeRows } from "./store.mjs";
 
 const MARKER = "plaintext-marker-5d21";
@@ -138,7 +138,6 @@ test("a pull lists every name built from the job-ids by attempts 1 to 3, one cal
   for (const name of ["lane-transcript-check-intent-spec-3", "lane-transcript-judge-fallback-d8-1", "lane-transcript-review-subscription-claude-security-review-4-2", "lane-transcript-adjudicate-feedback-2-fallback-1"]) {
     assert.ok(TRANSCRIPT_NAMES.includes(name), name);
   }
-  assert.ok(MAX_LIST_CALLS >= TRANSCRIPT_NAMES.length * 2, "the cap leaves two pages a name");
 });
 
 test("a name's listing pages until an artifact older than the last successful pull, less the overlap, then the next name is listed", () => {
@@ -170,23 +169,60 @@ test("a re-run's attempt-2 artifact of a run created before the cutoff is pulled
   assert.deepEqual({ id: row.artifact_id, attempt: row.run_attempt, job: row.job_id }, { id: 77, attempt: 2, job: "check-intent" });
 });
 
-test("a pull that hits the listing call cap before the cutoff fails with call-cap and keeps the last success", () => {
-  const { publicLine, privateText } = generate();
+const backlogState = (resumeAgeHours) => ({ last_success_at: iso(NOW - 3600_000), last_error: null, budget_exhausted: true, resume_cutoff_at: iso(NOW - resumeAgeHours * 3600_000) });
+
+test("status alerts when a budget-stopped backlog's cutoff is more than 5 days old, though the last success is fresh", () => {
   const sink = sinkDir();
-  const last = iso(NOW - 3 * 86400_000);
-  seedState(sink, { last_success_at: last });
-  const deps = { ...fakeDeps([artifact(8, { record: sealed(publicLine) })]), maxListCalls: 2 };
-  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  seedState(sink, backlogState(6 * 24));
+  const result = run(["status", "--sink", sink], { deps: fakeDeps([]) });
   assert.equal(result.code, 1);
-  assert.match(result.err, /pull failed: call-cap: 2 listing calls/);
-  assert.equal(listings(deps).length, 2);
-  assert.equal(stateOf(sink).last_success_at, last);
-  assert.equal(stateOf(sink).last_error, "call-cap: 2 listing calls did not reach the last pull's cutoff");
+  assert.equal(JSON.parse(result.out).stale, true);
+  assert.match(result.err, /^ALERT: /m);
+});
+
+test("status stays quiet while a budget-stopped backlog's cutoff is 1 day old", () => {
+  const sink = sinkDir();
+  seedState(sink, backlogState(24));
+  const result = run(["status", "--sink", sink], { deps: fakeDeps([]) });
+  assert.equal(result.code, 0, result.err);
+  assert.equal(JSON.parse(result.out).stale, false);
+  assert.equal(result.err, "");
+});
+
+test("the backlog alert turns on at 5 days, before the 7-day listing floor passes the kept cutoff, and a budget-stopped pull exits with it", () => {
+  const stale = (hours) => {
+    const sink = sinkDir();
+    seedState(sink, backlogState(hours));
+    return JSON.parse(run(["status", "--sink", sink], { deps: fakeDeps([]) }).out).stale;
+  };
+  assert.deepEqual([stale(5 * 24 - 1), stale(5 * 24 + 1), stale(7 * 24 - 1)], [false, true, true]);
+  const { privateText } = generate();
+  const sink = sinkDir();
+  seedState(sink, backlogState(6 * 24));
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: { ...fakeDeps([]), ghCallBudget: 1 } });
+  assert.equal(result.code, 1);
+  assert.match(result.err, /^ALERT: /m);
+});
+
+test("a budget-stopped pull's successor starts listing at the name it stopped on and wraps, so two pulls together list every name", () => {
+  const { privateText } = generate();
+  const sink = sinkDir();
+  seedState(sink, { last_success_at: iso(NOW - 86400_000) });
+  const listedNames = (deps) => listings(deps).map((c) => /name=([^&]+)&/.exec(c)[1]);
+  const budget = 300;
+  const first = { ...fakeDeps([]), ghCallBudget: budget };
+  run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: first });
+  const second = { ...fakeDeps([]), ghCallBudget: budget };
+  run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: second });
+  assert.ok(budget < TRANSCRIPT_NAMES.length && 2 * budget > TRANSCRIPT_NAMES.length, "one pull lists only part of the names");
+  assert.equal(listedNames(second)[0], TRANSCRIPT_NAMES[budget], "the second pull starts where the first stopped");
+  assert.deepEqual(new Set([...listedNames(first), ...listedNames(second)]), new Set(TRANSCRIPT_NAMES));
 });
 
 test("a pull stops at its gh call budget, records a success that says so, and the next pull a day later still reaches what it left", () => {
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
+  seedState(sink, { last_success_at: iso(NOW - 3 * 86400_000) });
   const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
   // Three artifacts under the first listed name, each its own run, two days old.
   const backlog = [301, 302, 303].map((id) => artifact(id, { jobId: "refine-issue", runId: id, createdAt: NOW - 2 * 86400_000, record: sealed(publicLine, { runId: id, jobId: "refine-issue" }) }));
@@ -200,7 +236,7 @@ test("a pull stops at its gh call budget, records a success that says so, and th
   const state = stateOf(sink);
   assert.deepEqual({ at: state.last_success_at, error: state.last_error, exhausted: state.budget_exhausted, calls: state.gh_calls }, { at: new Date(NOW).toISOString(), error: null, exhausted: true, calls: 5 });
   const shown = JSON.parse(run(["status", "--sink", sink], { deps: fakeDeps([]) }).out);
-  assert.deepEqual({ stale: shown.stale, exhausted: shown.budget_exhausted, resume: shown.resume_cutoff_at }, { stale: false, exhausted: true, resume: new Date(NOW - 7 * 86400_000).toISOString() });
+  assert.deepEqual({ stale: shown.stale, exhausted: shown.budget_exhausted, resume: shown.resume_cutoff_at }, { stale: false, exhausted: true, resume: new Date(NOW - 78 * 3600_000).toISOString() });
 
   const second = fakeDeps(backlog, { now: NOW + 86400_000 });
   const resumed = run(["pull", "--sink", sink], { env: env(), deps: second });

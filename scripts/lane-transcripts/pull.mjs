@@ -85,10 +85,6 @@ export const TRANSCRIPT_JOB_IDS = {
 // Two workflows can share a job-id (model), so each name is listed once.
 export const ATTEMPTS = 3;
 export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flatMap((ids) => ids.flatMap((id) => Array.from({ length: ATTEMPTS }, (_, i) => `lane-transcript-${id}-${i + 1}`))))];
-// Listing calls one pull may spend: two pages a name plus 25%, and never under
-// 400, out of the user token's 5,000 REST requests an hour. Reaching it before
-// every name reaches the cutoff fails the pull, so the window stays.
-export const MAX_LIST_CALLS = Math.max(400, Math.ceil(TRANSCRIPT_NAMES.length * 2 * 1.25));
 
 const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
@@ -177,15 +173,14 @@ function sealedRecord(deps, sink, zip) {
 // Each transcript artifact created since the cutoff: every name's listing,
 // newest first, paged until an artifact older than the cutoff or a short page.
 // The cutoff is by artifact created_at, so a re-run attempt of an older run is
-// still reached.
-function* listed(deps, repo, cutoff) {
-  const maxCalls = deps.maxListCalls ?? MAX_LIST_CALLS;
-  let calls = 0;
-  for (const name of TRANSCRIPT_NAMES) {
+// still reached. Names are listed from `at.name` (where a budget-stopped pull
+// stopped), wrapping round, so the names late in the list cannot starve.
+function* listed(deps, repo, cutoff, at) {
+  const start = Math.max(0, TRANSCRIPT_NAMES.indexOf(at.name));
+  for (let i = 0; i < TRANSCRIPT_NAMES.length; i++) {
+    const name = TRANSCRIPT_NAMES[(start + i) % TRANSCRIPT_NAMES.length];
+    at.name = name;
     for (let page = 1; ; page++) {
-      // Stopping short of the cutoff would record a success that skipped
-      // artifacts, so it fails and the window stays.
-      if (++calls > maxCalls) throw new PullError(`call-cap: ${maxCalls} listing calls did not reach the last pull's cutoff`);
       const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?name=${name}&per_page=${PER_PAGE}&page=${page}`], true));
       const fresh = artifacts.filter((artifact) => Date.parse(artifact.created_at) >= cutoff);
       yield* fresh;
@@ -220,10 +215,11 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
   const tally = { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0, fetch_failed: 0 };
   const failedKinds = new Set();
   let exhausted = false;
+  const at = { name: state.resume_name ?? null };
   writeState(sink, { ...state, last_attempt_at: new Date(now).toISOString() });
 
   try {
-    for (const artifact of listed(deps, repo, cutoff)) {
+    for (const artifact of listed(deps, repo, cutoff, at)) {
       const named = parseArtifactName(artifact.name);
       const wf = artifact.workflow_run ?? {};
       if (!named) tally.unnamed++;
@@ -254,10 +250,12 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
   const pruned = prune(sink, now);
   // A pull that missed an artifact keeps the last success, so the next pull's
   // cutoff still reaches it; the artifact's 7-day expiry bounds how long.
-  // A pull stopped at its budget is a success that keeps its cutoff for the next.
+  // A pull stopped at its budget is a success that keeps its cutoff and the name
+  // it stopped on for the next. The 7-day floor can pass that cutoff and drop
+  // what is left; status alerts at 5 days, before it does.
   const finished = tally.fetch_failed > 0 ? { last_error: `fetch-failed: ${tally.fetch_failed} transcript(s) (${[...failedKinds].join(", ")})` } : { last_success_at: new Date(now).toISOString(), last_error: null, resume_cutoff_at: null };
   if (exhausted) finished.resume_cutoff_at = new Date(cutoff).toISOString();
-  writeState(sink, { ...readState(sink), ...finished, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls });
+  writeState(sink, { ...readState(sink), ...finished, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls, resume_name: exhausted ? at.name : null });
   log(`pulled ${tally.pulled} transcript(s); skipped ${JSON.stringify(tally)}; pruned ${JSON.stringify(pruned)}${exhausted ? `; stopped at the gh call budget of ${deps.meter.budget}` : ""}`);
   return tally;
 }
@@ -311,7 +309,10 @@ export function status(sink, now = Date.now()) {
   return { sink, ...staleness(state, now), budget_exhausted: state.budget_exhausted ?? false, resume_cutoff_at: state.resume_cutoff_at ?? null, rows: rows.length, transcripts: rows.filter((r) => r.transcript).length, bytes: sinkBytes(sink) };
 }
 
-const alert = (s) => `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
+const alert = (s) =>
+  s.backlog_stale
+    ?`ALERT: budget-stopped pulls have not drained the lane transcript backlog in 5 days (cutoff: ${s.resume_cutoff_at})`
+    : `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
 
 // Exit codes: 0 done, 1 failed or stale, 2 usage.
 export function main(argv = process.argv.slice(2), env = process.env, deps = undefined, io = { out: (s) => process.stdout.write(s), err: (s) => process.stderr.write(s) }) {
@@ -356,8 +357,9 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     return 1;
   }
   try {
-    const tally = pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
-    if (tally.fetch_failed === 0) return 0;
+    // A complete pull is fresh; one that missed an artifact or stopped at its
+    // budget is stale once its kept window is.
+    pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
     const s = status(sink, d.now());
     if (s.stale) io.err(`${alert(s)}\n`);
     return s.stale ? 1 : 0;

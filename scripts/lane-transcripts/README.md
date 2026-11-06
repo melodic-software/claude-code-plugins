@@ -14,8 +14,8 @@ node scripts/lane-transcripts/pull.mjs prune
 
 | Command | Does | Exit |
 |---|---|---|
-| `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too) |
-| `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days |
+| `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too), or when a budget-stopped backlog is over 5 days old |
+| `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days, or a budget-stopped backlog is over 5 days old |
 | `query` | Prints the metrics rows matching every filter given, as JSONL with the transcript's absolute path | 0 |
 | `prune` | Applies retention alone | 0 |
 
@@ -73,19 +73,20 @@ last success is therefore the last complete pull: an artifact that keeps failing
 the artifact expires at 7 days, and the 5-day alert can fire first. `last_error` names the count
 and the calls that failed (`artifact-zip`, `artifact-unzip`, `run-read`).
 
-Four outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
+Three outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
 a rate limit on any `gh` call, which is not retried (`rate-limited`), a listing page that still
-fails after its tries (`artifact-list`, since skipping it would lose artifacts for good),
-`MAX_LIST_CALLS` listing calls spent before every name reached the cutoff (`call-cap`: two pages a
-name plus 25%, at least 400, out of the 5,000 REST requests an hour a user token gets), and a
-window where
-records failed to open and none opened or was already held (`key-mismatch`: the vault key and the
-repository variable differ).
+fails after its tries (`artifact-list`, since skipping it would lose artifacts for good), and a
+window where records failed to open and none opened or was already held (`key-mismatch`: the vault
+key and the repository variable differ).
 
 A pull makes at most `GH_CALL_BUDGET` (1,000) `gh` calls, retries included, so one run cannot
 spend the login's shared hourly budget. At the budget it stops fetching, keeps what it has, and
-records a success with `budget_exhausted: true` and its cutoff as `resume_cutoff_at`, which the
-next pull lists back to. Every pull, failed or not, ends with a `gh calls: N of 1000` line.
+records a success with `budget_exhausted: true`, its cutoff as `resume_cutoff_at` and the name it
+stopped on as `resume_name`; the next pull lists back to that cutoff, starting at that name and
+wrapping round, so no name starves. When that kept cutoff is more than 5 days old, `pull` and
+`status` alert and exit 1 although the last success is fresh, two days before the 7-day listing
+floor would pass it and drop the rest. Every pull, failed or not, ends with a
+`gh calls: N of 1000` line.
 
 ## Retention
 
