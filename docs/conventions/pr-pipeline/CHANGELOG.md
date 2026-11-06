@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [8.63.3] - 2026-11-06
+
+### Fixed
+
+- The pull-request unblock section names every case `fix-docs-head-held` runs for: an unread head or human-gated hold, and a plan that could not read the changed files.
+
 ## [8.63.2] - 2026-11-06
 
 ### Fixed
