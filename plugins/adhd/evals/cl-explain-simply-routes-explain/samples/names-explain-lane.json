@@ -13,6 +13,9 @@
     },
     {
       "answer": "Basically, the old nightly job is moving to a newer system, a bit like switching from a paper calendar to a phone reminder. Then there are some retry settings, an old column to clean up, and a question about alerts."
+    },
+    {
+      "answer": "Here's the short version. Your team is deciding how to run a nightly job that checks the ledger numbers add up (the \"reconciliation job\").\n\n**Q12: Where should the job run?**\n- Now it runs on **cron**, a basic timer on a server.\n- Proposal: move it to **`ledger-scheduler`**, a job queue, and keep the same time (02:30 UTC).\n- The alternative is to stay on cron and add a **lockfile**, so two copies can't run at once.\n- This one is a judgment call. No data settles it.\n\n**Q13: What if the job fails?**\n- This only matters if Q12 goes ahead.\n- Retry up to **4 times**, waiting **90 seconds** between tries.\n- That number comes from an incident review (IR-2291, section 4).\n- If the job stays on cron, this question goes away.\n\n**Q14: Remove an old database column**\n- Drop the `legacy_rates` column in migration 0057.\n- **Only after Q12 is done**, because the old cron script still reads that column.\n- The alternative is to keep the column read-only until release 3.2.0.\n\n**Q15: Still undecided**\n- Should the system **page the on-call person** when the reconciliation numbers are off by more than 0.5%?\n- No recommendation yet. Running the alerts silently for a week (\"shadow alerts\") would show how noisy they'd be.\n\n**The caveat:** `ledger-scheduler` has no Windows worker yet. That only affects developers running the job on Windows laptops.\n\n**How they depend on each other:** Q12 comes first. Q13 and Q14 both wait on it, and Q15 is separate."
     }
   ]
 }

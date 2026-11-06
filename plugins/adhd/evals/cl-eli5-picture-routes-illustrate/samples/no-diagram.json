@@ -13,6 +13,9 @@
     },
     {
       "answer": "┌──────┐\n│ cron │\n└──────┘"
+    },
+    {
+      "answer": "# The picture version\n\nThink of the nightly reconciliation job as a **night-shift worker**.\n\n```\n Q12: WHO WAKES THE WORKER AT 02:30 UTC?\n\n   Old way: alarm clock (cron)         New way: a to-do line (ledger-scheduler queue)\n        ⏰ ──► 🧑‍🔧                           📋📋📋 ──► 🧑‍🔧\n                                           ◄── recommended direction (judgment call)\n   Alternative: keep the alarm clock\n   and add a \"do not disturb\" sign\n   (a lockfile) so two workers never\n   run at once.\n```\n\n```\n Q13: IF THE WORKER TRIPS (only if Q12 = queue)\n\n   try 1 ✗ ──90s──► try 2 ✗ ──90s──► try 3 ✗ ──90s──► try 4 ✗ ──► give up\n                                                          (max_attempts: 4)\n   If you keep the alarm clock, this question disappears.\n   Reason: incident review IR-2291 §4.\n```\n\n```\n Q14: THROW OUT THE OLD RATES COLUMN (legacy_rates, migration 0057)\n\n   The old alarm-clock script still reads it.\n\n   Q12 done? ──yes──► 🗑️ drop it\n       │\n       no ──► 🔒 don't drop yet\n   Alternative: keep it as read-only until release 3.2.0\n```\n\n```\n Q15: PAGE SOMEONE AT 3AM IF NUMBERS DRIFT OVER 0.5%?\n\n          🤷 still undecided, no recommendation yet\n\n   Way to settle it: run a week of \"shadow alerts\".\n   They log what would have paged, but no one gets woken up.\n   Then you check whether it would have been useful or just noisy.\n```\n\n```\n ⚠️ Caveat\n   The new to-do line has no Windows worker yet.\n   That only affects dev laptops running Windows.\n```\n\n**Order of dominoes:** Q12 comes first. Q13 and Q14 both depend on it. Q15 is separate and waits for data."
     }
   ]
 }

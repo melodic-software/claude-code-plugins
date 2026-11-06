@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Conflict: two output styles are active, and I haven't applied `/adhd:shape` yet.\n\n- **Caveman mode** (SessionStart hook): drops words to save tokens.\n- **`adhd:shape`**: adds structure for the reader, such as numbered steps, a restated state line, and a closing next action.\n\nThey pull in opposite directions on the same axis, structure for the reader versus stripping words for the budget. Mixing them would give unpredictable output.\n\nWhich one do you want for this session?\n1. `adhd:shape`: I'd follow it and ignore the caveman style.\n2. Caveman: I'd skip the ADHD shaping.\n\nI can't turn the hook off from here. Your pick decides which instruction I follow.\n\nNext: reply `1` or `2`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shaping is on for the rest of the session. Conflict: two output styles are active.\n\n- **Caveman mode** (SessionStart hook): drops words to save tokens.\n- **`adhd:shape`**: adds structure for the reader, such as numbered steps, a restated state line, and a closing next action.\n\nThey pull in opposite directions on the same axis, structure for the reader versus stripping words for the budget. Mixing them would give unpredictable output.\n\nWhich one do you want for this session?\n1. `adhd:shape`: I'd follow it and ignore the caveman style.\n2. Caveman: I'd skip the ADHD shaping.\n\nI can't turn the hook off from here. Your pick decides which instruction I follow.\n\nNext: reply `1` or `2`."
+    }
+  ]
+}
