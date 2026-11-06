@@ -1,6 +1,6 @@
 # Resolve plugin settings through one four-layer cascade and a bound convention home
 
-- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below)
+- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below); the D100 floor is narrowed by [ADR 0089](0089-narrow-d100-to-pull-requests-tidied-in-their-own-run.md)
 - Date: 2026-10-18
 - Supersedes: [ADR 0061](0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)
   for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
@@ -59,10 +59,7 @@ Lowest first:
 
 A policy-floor key may only be tightened. The team layer sets the floor and the personal layer and
 `userConfig` may move the value only in the key's floor direction. The seven fixed floors (D79,
-T10-7, D96, D88, D100, Q131, the C13 intent gate) may only be tightened. D100 keeps CI `fix-docs`
-off only for pull requests tidied in their own run and on for the rest, by the owner's Q11
-decision of 2026-11-06
-([#13717](https://github.com/melodic-software/claude-code-plugins/issues/13717#issuecomment-6692723687)).
+T10-7, D96, D88, D100, Q131, the C13 intent gate) may only be tightened.
 
 **`Floor direction` values.** The direction is a machine-readable column in the Implementers table of
 [the config-cascade contract](../contracts/config-cascade/README.md), the one source of each
