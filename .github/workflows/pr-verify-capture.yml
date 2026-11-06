@@ -412,9 +412,14 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends fonts-noto-core >/dev/null
           fonts=$(fc-list ':charset=23f8' family file)
+          if [[ -z $fonts ]]; then
+            # Bounded network waits, so a stalled mirror retries instead of
+            # outlasting the step timeout.
+            sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=20
+            sudo apt-get install -y --no-install-recommends fonts-noto-core -o Acquire::Retries=3 -o Acquire::http::Timeout=20 >/dev/null
+            fonts=$(fc-list ':charset=23f8' family file)
+          fi
           [[ -n $fonts ]] || { echo "::error::no installed font has U+23F8"; exit 1; }
           printf '%s\n' "$fonts"
 
@@ -672,9 +677,11 @@ jobs:
       - name: Check the sibling sandbox
         id: sibling-check
         if: steps.credential.outputs.present == 'true'
-        timeout-minutes: 3
+        timeout-minutes: 6
         env:
-          WAIT_SECONDS: "60"
+          # Above sibling-init.sh's 90-second socket scan, with room for its
+          # other probes.
+          WAIT_SECONDS: "150"
         run: |
           d="$HOME/.ccd/probe"
           for _ in $(seq "$WAIT_SECONDS"); do
@@ -682,6 +689,8 @@ jobs:
             sleep 1
           done
           if ! [ -f "$d/done" ]; then
+            ls -la "$d" || true
+            tail -n 40 "$HOME/.ccd/log/sibling.log" || true
             echo "::error::the sibling sandbox did not report; no pull request code runs"
             exit 1
           fi
@@ -1067,13 +1076,15 @@ jobs:
       # main's driver, by its absolute path, one rule per verb the control
       # skill uses, the git commands run-e2e and drive run on the head, and
       # the other commands those skills name: main's testing config and
-      # browser-driver scripts, `claude plugin list --json`, cmp (it only
+      # browser-driver scripts, drive's affected_features.py under
+      # `python3 -I`, `claude plugin list --json`, cmp (it only
       # reads), and the default branch's ls-remote and fetch, each exact,
       # since `fetch *` or `ls-remote *` would admit --upload-pack, which
       # runs a program. Every path is absolute: the leg runs from the head
       # checkout, where a relative .base/ or head path names files the pull
-      # request controls. The skills name absolute paths already, since
-      # run-claude-cli resolves each plugin-dirs entry to one. A head copy
+      # request controls. The plugin skills name absolute paths, since
+      # run-claude-cli resolves each plugin-dirs entry to one, and the
+      # control skill makes <skill-dir> absolute. A head copy
       # of the driver or a script matches none of them.
       # File-tool fence: --restricted confines the file tools to the working
       # directories (the workspace and add-dirs); dontAsk denies any edit no
@@ -1142,6 +1153,7 @@ jobs:
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh" e2e *)
             Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh --user *)
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh" --user *)
+            Bash(python3 -I ${{ github.workspace }}/.base/plugins/app-control/scripts/affected_features.py *)
             Bash(claude plugin list --json)
             Bash(cmp *)
             Skill(testing:run-e2e *)
