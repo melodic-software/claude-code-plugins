@@ -147,8 +147,9 @@ setter. `write-status.mjs` holds the label mirror (`statusMirror`, which warns o
 and the state writer (`statusWriter`, whose `set` and `leaveAgentReady` throw `StatusWriteError`). `read-status.mjs` hands the
 status-label readers outside resolve (the WIP cap, born-triaged, intake re-entry, the triage
 sweep, work-unblock) the issue's labels as that field decides them: a trusted field state replaces
-the queue labels, hold labels and agent-ready stay. An unset field or a failed read
-leaves the labels. Its `statusEvents` adds the field's changes to the REST events as label events,
+the queue labels, hold labels and agent-ready stay. An unset field leaves the labels, and so does
+an unset `models.issue-status`; a failed read, a read past the reader's limit, or a config that
+cannot be loaded throws `StatusReadError`. Its `statusEvents` adds the field's changes to the REST events as label events,
 and `resolve-config.mjs`'s `issuesByStatus` lists open issues by trusted field state, or by label
 where the field is unset. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` resolves
 to the config's own list, with nothing added.

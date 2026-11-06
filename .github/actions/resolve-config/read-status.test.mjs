@@ -116,6 +116,15 @@ test("an unreadable trusted-actor list warns once and makes every read throw, na
   assert.equal(lines.length, 1);
 });
 
+test("a base models.issue-status that cannot be loaded makes every read throw, naming the load cause", async () => {
+  const { labels, lines, calls } = reader({ 7: { state: "needs-human" } }, { config: undefined, env: { BASE_PATH: "/nonexistent/base" } });
+  const loadFailed = (error) => error instanceof StatusReadError && error.number === 7 && /no schema at .* under base-path/.test(error.message);
+  await assert.rejects(() => labels(7, ["agent-ready"]), loadFailed);
+  await assert.rejects(() => labels.events(7), loadFailed);
+  assert.deepEqual(calls, []);
+  assert.equal(lines.length, 1);
+});
+
 test("each call reads the field fresh, and a read past the limit throws", async () => {
   const fields = { 7: { state: "ready" }, 8: { state: "ready" } };
   const { labels, calls } = reader(fields, { limit: 2 });
