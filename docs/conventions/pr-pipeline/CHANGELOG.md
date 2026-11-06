@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [8.60.0] - 2026-11-06
+
+### Added
+
+- `adoption.self-merging-apps`: App ids that enqueue and merge their own pull requests (here the release App); pr-merge writes no reasons comment or risk escalation on one.
+
 ## [8.59.0] - 2026-11-06
 
 ### Added

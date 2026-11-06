@@ -1308,8 +1308,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read # check out main's tip for the config and merge-path.mjs
-      issues: write # create the merge-path labels and add them to pull requests
-      pull-requests: read # read each pull request's body, commits and merge-queue event
+      issues: write # create the merge-path labels
+      pull-requests: write # add them to pull requests (GITHUB_TOKEN answers 403 with issues: write alone); read each one's body, commits and merge-queue event
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| node | FAIL | absent on that workstation |",
+      "why": "table row"
+    },
+    {
+      "answer": "FAIL: node is not on PATH there.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| node | INFO | absent |",
+      "why": "INFO"
+    },
+    {
+      "answer": "node is missing there.",
+      "why": "no verdict"
+    }
+  ]
+}

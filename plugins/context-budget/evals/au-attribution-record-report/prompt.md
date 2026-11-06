@@ -1,11 +1,11 @@
 ---
-description: "Given an attribution record, the audit's per-tool report carries the binary stamp, keeps prefix and deferred apart, reports the incomparable row by reason without numbers, and prices a basket per bucket"
-tags: [context-budget, audit, outcome, report-contract]
+description: "Given an attribution record, the audit's per-tool report carries the binary stamp, keeps prefix and deferred apart, reports the incomparable row by reason without numbers, explains the comparability rule (listing-rule-explained: System tools deltas are valid only between runs with identical skill listings, audit SKILL.md lines 332-333 and 344-346), and prices a basket per bucket"
+tags: [context-budget, audit, outcome, report-contract, no-network]
 runs: 3
 max_turns: 15
 timeout_seconds: 600
 allowed_tools: [Skill, Read, Glob, Grep]
-expected_outcome: "The reply states the stamp (path, 2.1.297, sdk/exact, headless); lists prefixDelta and deferredDelta separately for WebFetch, NotebookEdit and TodoWrite; reports Workflow as incomparable with the skill-listing reason and none of its numbers; gives the deferred basket saving as the sum 3,742 and calls the prefix sum 2,922 only an upper bound."
+expected_outcome: "The reply states the stamp (path, 2.1.297, sdk/exact, headless); lists prefixDelta and deferredDelta separately for WebFetch, NotebookEdit and TodoWrite; reports Workflow as incomparable with the skill-listing reason and none of its numbers, explaining that System tools moves with the skill listing so its delta is valid only between runs with identical listings; gives the deferred basket saving as the sum 3,742 and calls the prefix sum 2,922 only an upper bound."
 ---
 
 /context-budget:audit Here is the attribution record from the run I did on this machine this morning. Write the per-tool section of the report from it, and tell me what denying WebFetch, NotebookEdit and TodoWrite together would save.

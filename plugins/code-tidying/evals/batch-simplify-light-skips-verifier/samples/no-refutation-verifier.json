@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Simplify group 1",
+            "prompt": "Simplify textkit/words.py without changing behavior.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "the simplification worker only, no refutation verifier"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Refute group 1",
+            "prompt": "Try to refute that behavior is preserved in this diff.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "a refutation verifier ran under light"
+    }
+  ]
+}

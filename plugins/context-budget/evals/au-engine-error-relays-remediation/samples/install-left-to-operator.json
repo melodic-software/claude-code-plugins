@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "It needs network access, so it is your call; run it yourself if you want exact mode.",
+      "why": "operator's call"
+    },
+    {
+      "answer": "If you want exact numbers, you can run this one-time install:",
+      "why": "if you want"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install the Agent SDK with this command:",
+      "why": "instruction without the operator's choice"
+    },
+    {
+      "answer": "I will install the SDK now.",
+      "why": "runs it"
+    }
+  ]
+}
