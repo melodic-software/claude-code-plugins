@@ -1,11 +1,14 @@
 {
   "pass": [
     { "answer": "**my-skill: FAIL**\n\n- `FAIL: broken skill-internal ref: reference/style-guide.md (no such file under the skill dir; cited at SKILL.md:8 — hand-verify the line before fixing, may be an illustrative example)`", "why": "quoted in a code span" },
-    { "answer": "FAIL: broken skill-internal ref: reference/style-guide.md (no such file under the skill dir; cited at SKILL.md:8)", "why": "bare line" }
+    { "answer": "FAIL: broken skill-internal ref: reference/style-guide.md (no such file under the skill dir; cited at SKILL.md:8)", "why": "bare line" },
+    { "answer": "**my-skill: FAIL** (exit 1, 1 error, 3 warnings)\n\n**FAIL**\n- `broken skill-internal ref: reference/style-guide.md (no such file under the skill dir; cited at SKILL.md:8 — hand-verify the line before fixing, may be an illustrative example)`", "why": "smoke 2 reply: message verbatim under a FAIL heading" },
+    { "answer": "**FAIL (1)**\n- `broken skill-internal ref: reference/style-guide.md (no such file under the skill dir; cited at SKILL.md:8 — hand-verify the line before fixing, may be an illustrative example)`", "why": "smoke 2 reply: counted FAIL heading" }
   ],
   "fail": [
     { "answer": "my-skill fails: SKILL.md line 8 links reference/style-guide.md, which does not exist.", "why": "paraphrased, not verbatim" },
     { "answer": "FAIL: broken ref reference/style-guide.md", "why": "reworded line" },
+    { "answer": "**FAIL**\n- broken skill-internal ref: reference/style-guide.md is missing; line 8 links it.", "why": "near miss: FAIL heading, message paraphrased after the path" },
     { "answer": "/skill-quality:check check my-skill", "why": "echoes the prompt" }
   ]
 }

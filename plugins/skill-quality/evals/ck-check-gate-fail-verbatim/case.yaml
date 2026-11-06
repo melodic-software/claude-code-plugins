@@ -10,7 +10,7 @@ graders:
     arm: with-only
   - name: fail-line-verbatim
     type: regex
-    pattern: 'FAIL: broken skill-internal ref: reference/style-guide\.md'
+    pattern: 'FAIL: broken skill-internal ref: reference/style-guide\.md|\bFAIL\b[^\n]*\n(?:[^\n]*\n){0,3}?[^\n]*broken skill-internal ref: reference/style-guide\.md \(no such file under the skill dir; cited at SKILL\.md:8'
     target: last_message
   - name: reports-fail-verdict
     type: regex
@@ -18,7 +18,7 @@ graders:
     target: last_message
   - name: warns-after-fails
     type: regex
-    pattern: 'FAIL: broken skill-internal ref[\s\S]*?(?:\bWARN\b|\b[Ww]arnings?\b|\b[Aa]dvisory\b)[\s\S]*?(?:\bGotchas\b|\bdisable-model-invocation\b)'
+    pattern: 'broken skill-internal ref: reference/style-guide\.md[\s\S]*?(?:\bWARN\b|\b[Ww]arnings?\b|\b[Aa]dvisory\b)[\s\S]*?(?:\bGotchas\b|\bdisable-model-invocation\b)'
     target: last_message
   - name: no-edit
     type: tool_used

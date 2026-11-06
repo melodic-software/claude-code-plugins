@@ -6,7 +6,7 @@ graders:
   - name: ran-score
     type: tool_used
     tool: Bash
-    input_match: 'measure-invocation\.sh(?:\\?"|'')?\s+score\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?measure-invocation\.sh(?:[^"\\]|\\.)*?\bscore\b'
     arm: with-only
   - name: no-contract-gate
     type: tool_used

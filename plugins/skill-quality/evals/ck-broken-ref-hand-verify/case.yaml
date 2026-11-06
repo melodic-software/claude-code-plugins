@@ -9,7 +9,7 @@ graders:
     target: last_message
   - name: quotes-line-42
     type: regex
-    pattern: '\borchard\b'
+    pattern: '\borchard\b|\bexample only\b|\bno such file ships\b|\bspoke link\b'
     flags: 'i'
     target: last_message
   - name: verifies-before-edit

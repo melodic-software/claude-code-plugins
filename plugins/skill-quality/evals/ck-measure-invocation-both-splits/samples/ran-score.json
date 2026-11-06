@@ -1,10 +1,12 @@
 {
   "pass": [
     { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/p/scripts/measure-invocation.sh\" score probes" } }], "why": "score" },
-    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh validate probes && bash /p/scripts/measure-invocation.sh score probes" } }], "why": "validate then score in one call" }
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh validate probes && bash /p/scripts/measure-invocation.sh score probes" } }], "why": "validate then score in one call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "S=/p/plugins/skill-quality/scripts/measure-invocation.sh; bash $S validate ./probes; echo \"exit=$?\"; bash $S score ./probes; echo \"exit=$?\"", "description": "Validate and score invocation probes" } }], "why": "smoke 2 reply: script path in a variable" }
   ],
   "fail": [
     { "answer": [], "why": "no call" },
-    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh validate probes" } }], "why": "validate only" }
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh validate probes" } }], "why": "validate only" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "S=/p/scripts/measure-invocation.sh; bash $S validate ./probes", "description": "Validate and score probe set" } }], "why": "near miss: validate only, score named only in the description" }
   ]
 }
