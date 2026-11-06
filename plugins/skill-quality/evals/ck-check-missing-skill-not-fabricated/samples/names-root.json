@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Looked in `.claude/skills/my-skill`; it is not there.", "why": "default root path" },
+    { "answer": "Set CHECK_SKILL_SKILLS_ROOT, or skill-quality's skills_root, to the directory that contains my-skill.", "why": "checker's own remedy" }
+  ],
+  "fail": [
+    { "answer": "I could not find my-skill.", "why": "no place named" },
+    { "answer": "/skill-quality:check check my-skill", "why": "echoes the prompt" }
+  ]
+}

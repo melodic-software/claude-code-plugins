@@ -185,7 +185,7 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
 | 3 | gap | `.github/scripts/pr-unblock/dispatch.mjs:229`, `.github/scripts/pr-unblock/limit-stop.mjs:21` | Failed runs use up a cap for each head that blocks re-dispatch until a new push. That is a stored breaker. Part 2 took out a run whose model never started (`limit-stop.mjs` `faultStop`: class `install-failed` or `sandbox-unavailable`): it neither handles the head nor counts, so the next tick dispatches again. A `no-credential` stop still counts, since a missing secret fails every tick the way `auth` does, and so does an `overloaded`, `no-outcome`, `rate-limit` or `auth` stop or a red run with no record, because a model turn may have run, the bound the work-unblock note keeps. |
 | 4 | gap | `.github/scripts/pr-unblock/escalation-routes.json:27`, `.github/scripts/pr-unblock/report-escalation.sh:106` | A job fault, such as a lane token that was not obtained, files a fail route, and an unlisted reason holds the PR for a person. Its `clear` mode (`:74`) does clear its own status. |
 | 5 | met | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-feedback-dispatch.yml:388` | `degraded` gates the dispatch steps. That is a stop, and the page starts nothing. |
-| 6 | gap | `.github/scripts/pr-unblock/gate-source.mjs:447`, `.github/workflows/pr-feedback-dispatch.yml:111` | `Promise.all` reads in parallel, and the sweep group uses `queue: max` (`:114`). The `etag` use (`request-budget.mjs:86`) and the cron at minutes 9 and 39 are fine. |
+| 6 | met | `.github/workflows/pr-unblock-dispatch.yml:77`, `.github/workflows/pr-unblock-dispatch.yml:228`, `.github/workflows/pr-feedback-dispatch.yml:111` (lines at the later change below) | The dispatcher keeps the default single pending run, and only a push cancels the run going. Its cron at minutes 9 and 39 (`:61`) is off minute 0 and used by no other workflow. The FAIL-cap reader's Python and PyYAML installs (`:228`, `:237`) take the dispatch step's gate, so a paced tick installs nothing. Neither workflow has a matrix or a background read, and the scripts read serially (see Remaining). Repeated reads send an `etag`: `request-budget.mjs:74` and rerun-ci-status's poll (`pr-feedback-dispatch.yml:875`). pr-feedback-dispatch's `queue: max` is kept: every pr-unblock-dispatch completion, push runs included, shares the `sweep` group, so the default would let a push run's completion, which dispatches nothing (`:321`), replace a waiting scheduled sweep; the per-head groups need it too (`:105`, `workflow-gates.test.mjs`). The upstream-status check fails open, as element 5 allows, and a failed pace read runs the tick as before (`pr-unblock-dispatch.yml:182`). |
 
 ## pr-merge
 
@@ -581,6 +581,15 @@ Only the workflow header's account of the resolver changed: no step was made to 
 - **pr-verify, element 3.** It is the kept re-run alone. The next pr-require-checks completion is
   the only other start, and a run held again at attempt 2 waits for it.
 
+A later change audited pr-unblock's two dispatcher workflows, with tests. Its pr-unblock row 6
+cites that change's head.
+
+- **pr-unblock, element 6.** `pr-unblock-dispatch.yml`'s Python and PyYAML installs now take the
+  dispatch step's gate, so a tick the burn-rate pacer paces installs nothing. The rest is kept on
+  evidence: the cron, the single pending dispatcher run, the conditional reads, and
+  pr-feedback-dispatch's `queue: max`, which keeps a scheduled sweep from being replaced by a push
+  run's completion.
+
 A later change fixed pr-merge's listing-full gap, with tests. Its pr-merge rows 2 and 6 cite that
 change's head, not `222d8023`.
 
@@ -631,7 +640,6 @@ The other script rows below are still open.
 | pr-require-checks | 6 | script | a shell read that sends `If-None-Match` for one URL (only `.github/scripts/lib/handoff-evidence.sh` has one, for job listings), then the review wait's run poll (`pr-require-checks.yml:7344`) |
 | pr-require-checks | 1, 6 | larger | the `check-contract` and `aggregate-results` composites in `melodic-software/ci-workflows` (`pr-require-checks.yml:5012`, `:6892`): their own reads, own-gate retries and 60 s rate-limit waits |
 | pr-unblock | 3, 4 | script | `.github/scripts/pr-unblock/limit-stop.mjs` (a stop where a model turn may have run still counts toward the cap), `escalation-routes.json` (`feedback-publish-failed` still files a failing status: withholding it strands the head, since only a workflow-modified refusal is sent again, `feedback-dispatch.mjs` `sweepRefused`); part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, the lane's parallel reads, the dispatchers' failed reads, and the cap's count of fault stops whose model never started |
-| pr-unblock | 6 | workflow | `.github/workflows/pr-unblock-dispatch.yml`, `pr-feedback-dispatch.yml` |
 | pr-merge | 2, 6 | kept | `.github/workflows/pr-merge.yml` keeps its rate-limit stops red (the red skips the rest of the job, and signal 3 reads it), the failed cover read's uncapped dispatch (a verification run, bounded by pr-require-checks' main-dispatch group) and its three `queue: max` groups (a cancelled run leaves a CANCELLED check) (see above) |
 | pr-merge | 6 | script | a shell read that sends `If-None-Match` for one URL (as in the pr-require-checks row), then the re-run read-back poll (`.github/workflows/pr-merge.yml:695`) |
 | pr-merge | 3 | larger | the hub's lane breaker and kill switch, outside this repository |

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "It is a factual-consistency defect in the listing surface.", "why": "both terms" },
+    { "answer": "The listing says one thing and the verb another.", "why": "listing" }
+  ],
+  "fail": [
+    { "answer": "The description lead advertises mutation.", "why": "the prompt's own words" },
+    { "answer": "FAIL: description/verb-contract mismatch: leaf verb 'audit' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override", "why": "echoes the prompt" }
+  ]
+}

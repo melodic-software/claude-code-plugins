@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "skill-quality checks skills; it does not write them. Use /playbooks:skill-authoring.", "why": "no draft" },
+    { "answer": "Once written, its frontmatter needs a name and description; then run the check.\n\n---\n\nNext: /playbooks:skill-authoring.", "why": "a rule line and prose, no frontmatter block" }
+  ],
+  "fail": [
+    { "answer": "```markdown\n---\nname: parse-csv\ndescription: \"Parse CSV files. Use when: 'parse this CSV'.\"\n---\n\n## Steps\n```", "why": "drafts a SKILL.md" },
+    { "answer": "Here is a start:\n---\ndescription: Parse CSV files\n---", "why": "bare frontmatter" }
+  ]
+}

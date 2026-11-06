@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "That is check 18, the precompute-opportunity heuristic.", "why": "check 18" },
+    { "answer": "Check #18 (precompute opportunity) is advisory.", "why": "hash form" }
+  ],
+  "fail": [
+    { "answer": "It is the precompute-opportunity check.", "why": "no number" },
+    { "answer": "Check 1 flags it.", "why": "wrong number" },
+    { "answer": "WARN: precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via !-injection ...", "why": "echoes the prompt" }
+  ]
+}

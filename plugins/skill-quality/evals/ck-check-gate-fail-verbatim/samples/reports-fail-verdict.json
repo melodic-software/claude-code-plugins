@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "CHECK-SKILL my-skill: FAIL — 2 error(s), 2 warning(s)", "why": "the gate's own verdict line" },
+    { "answer": "## my-skill — FAIL (exit 1)", "why": "heading verdict" },
+    { "answer": "| my-skill | FAIL | 1 error |", "why": "table cell" },
+    { "answer": "**Verdict: FAIL** (exit code 1)", "why": "verdict label" }
+  ],
+  "fail": [
+    { "answer": "FAIL: broken skill-internal ref: reference/style-guide.md (no such file under the skill dir)", "why": "the FAIL line alone, no verdict for the skill" },
+    { "answer": "my-skill: PASS", "why": "wrong verdict" },
+    { "answer": "/skill-quality:check check my-skill", "why": "echoes the prompt" }
+  ]
+}
