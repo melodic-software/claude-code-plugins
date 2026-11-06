@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: get_report\n\n| C2 Description has \"when\" | ANTHROPIC | WARN | No usage context |\n",
+      "why": "C2 row"
+    },
+    {
+      "answer": "get_report's description says nothing about when to use it and lacks returns context.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: get_report\n\n| C2 Description has \"when\" | ANTHROPIC | PASS | |\n| C3 Description has \"returns\" | ANTHROPIC | PASS | |\n",
+      "why": "both pass"
+    },
+    {
+      "answer": "list_items explains when to use it and what it returns.",
+      "why": "other tool"
+    }
+  ]
+}

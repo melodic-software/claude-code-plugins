@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Resources are not audited; only tools are.",
+      "why": "negated"
+    },
+    {
+      "answer": "The snippet resource is out of scope.",
+      "why": "out of scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The snippet resource passed every check.",
+      "why": "claims a resource verdict"
+    },
+    {
+      "answer": "Resources are also audited below.",
+      "why": "claims resources audited"
+    }
+  ]
+}

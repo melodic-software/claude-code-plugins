@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: list_reports\n\n| C20 x-mcp-header constraints | SPEC-MUST + SPEC-SHOULD | PASS | none declared |\n",
+      "why": "pass"
+    },
+    {
+      "answer": "list_reports C20 PASS, no WARN; export_report C20 WARN",
+      "why": "WARN on another tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: list_reports\n\n| C20 x-mcp-header constraints | SPEC-MUST + SPEC-SHOULD | WARN | no header |\n",
+      "why": "flagged"
+    },
+    {
+      "answer": "list_reports C20 WARN: declares no header",
+      "why": "prose flag"
+    }
+  ]
+}

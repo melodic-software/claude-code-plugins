@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: run_query\n\n| C20 x-mcp-header constraints | SPEC-MUST + SPEC-SHOULD | PASS | string parameter |\n",
+      "why": "section"
+    },
+    {
+      "answer": "run_query passes C20.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: run_query\n\n| C20 x-mcp-header constraints | SPEC-MUST + SPEC-SHOULD | WARN | |\n",
+      "why": "warn"
+    },
+    {
+      "answer": "#### Tool: list_reports\n\n| C20 x-mcp-header constraints | SPEC-MUST + SPEC-SHOULD | PASS | |\n",
+      "why": "wrong tool"
+    }
+  ]
+}

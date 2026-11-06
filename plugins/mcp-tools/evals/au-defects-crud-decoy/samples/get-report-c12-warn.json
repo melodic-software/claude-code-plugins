@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: get_report\n\n| C12 readOnlyHint set | SPEC-OPTIONAL | WARN | Read-only tool lacks the hint |\n",
+      "why": "section row"
+    },
+    {
+      "answer": "- get_report: readOnlyHint missing (C12 WARN)",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: get_report\n\n| C12 readOnlyHint set | SPEC-OPTIONAL | FAIL | missing |\n",
+      "why": "rated FAIL"
+    },
+    {
+      "answer": "#### Tool: list_items\n\n| C12 readOnlyHint set | SPEC-OPTIONAL | WARN | |\n",
+      "why": "WARN on the wrong tool"
+    }
+  ]
+}

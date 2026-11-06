@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: au-defects-crud-decoy
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: get-report-c6-fail
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*\bC6\b[^\n]*\|\s*\**FAIL\**\s*\||(?:^|\n)(?=[^\n]*(?:\bget_report\b[^\n]*\bC6\b|\bC6\b[^\n]*\bget_report\b|\breportId\b))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: get-report-c12-warn
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC12\b|readOnlyHint)[^\n]*\|\s*\**WARN\**\s*\||(?:^|\n)(?=[^\n]*\bget_report\b)(?=[^\n]*(?:\bC12\b|readOnlyHint))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: get-report-c12-not-fail
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC12\b|readOnlyHint)[^\n]*\|\s*\**FAIL\**\s*\||(?:^|\n)(?=[^\n]*\bget_report\b)(?=[^\n]*(?:\bC12\b|readOnlyHint)[^\n]*\|\s*\**FAIL\**\s*\|)|\bget_report\b[^\n.;|]{0,60}?(?:\bC12\b|readOnlyHint)[^\n.;|]{0,30}?(?<!\bnot)(?<!\bno)(?:\s|→|->|:|=)\s*\**FAIL\b'
+    match: 'not_contains'
+    target: last_message
+  - name: get-report-when-returns-gap
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*\bget_report\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*\bC[23]\b[^\n]*\|\s*\**WARN\**\s*\||(?:^|\n)(?=[^\n]*\bget_report\b)(?=[^\n]*(?:\bC[23]\b|\bwhen\b|\breturns?\b))(?=[^\n]*\b(?:WARN|lacks?|lacking|missing|no|without|doesn''t\s+say|does\s+not\s+say)\b)'
+    flags: 'i'
+    target: last_message
+  - name: delete-workspace-c5-leak
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*\bdelete_workspace\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*\bC5\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\||(?:^|\n)(?=[^\n]*(?:\bdelete_workspace\b|\bC5\b))(?=[^\n]*\b(?:Cosmos|tombstone|partition\s+key)\b)'
+    flags: 'i'
+    target: last_message
+  - name: list-items-no-c10-flag
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*\blist_items\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*\bC10\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\||(?:^|\n)(?=[^\n]*\blist_items\b)(?=[^\n]*\bC10\b[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\|)|\blist_items\b[^\n.;|]{0,60}?\bC10\b[^\n.;|]{0,30}?(?<!\bnot)(?<!\bno)(?:\s|→|->|:|=)\s*\**(?:WARN|FAIL)\b'
+    match: 'not_contains'
+    target: last_message
+  - name: fail-first
+    type: llm
+    criteria: "PASS only if the reply's fix guidance (what to fix first, a priority list, or a recommended order) puts every FAIL item ahead of every WARN and info item, or explicitly labels the FAIL items as the first to fix. FAIL if a WARN or info item is recommended before a FAIL item, or the reply gives no fix order at all (legacy expectation: FAIL items are prioritized ahead of WARN and info items)."
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

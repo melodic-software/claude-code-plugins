@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C3 Description has \"returns\" | ANTHROPIC | PASS | Returns the id and status |",
+      "why": "row"
+    },
+    {
+      "answer": "C3: PASS",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C3 Description has \"returns\" | ANTHROPIC | WARN | |",
+      "why": "warn"
+    },
+    {
+      "answer": "C3 no PASS",
+      "why": "negated"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C7 Descriptions guide to the right value | ANTHROPIC | PASS | Format example given |",
+      "why": "row"
+    },
+    {
+      "answer": "C6/C7 PASS: boardId has a format example",
+      "why": "range"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C7 Descriptions guide to the right value | ANTHROPIC | WARN | |",
+      "why": "warn"
+    },
+    {
+      "answer": "| C6 Every parameter has a description | ANTHROPIC | PASS | |",
+      "why": "C6 only"
+    }
+  ]
+}

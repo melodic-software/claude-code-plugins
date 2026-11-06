@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: ap-remote-only-no-fabricated-fail
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-inventory-with-config
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?audit-posture/scripts/inventory\.sh\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--config(?:\s+|=)\\?["\'']?(?:[^\s"\''\\]*/)?remote\.mcp\.json'
+    min: 1
+  - name: no-fail-verdict
+    type: regex
+    pattern: '\|\s*\**FAIL\**\s*\||(?:→|->|=|:)\s*\**FAIL\b'
+    match: 'not_contains'
+    target: last_message
+  - name: p1-na-every-row
+    type: regex
+    pattern: '^(?=[\s\S]*?(?:^|\n)(?=[^\n]*\bdocs\b)(?=[^\n]*\bP1\b)(?=[^\n]*\bn/a\b))(?=[\s\S]*?(?:^|\n)(?=[^\n]*\btracker\b)(?=[^\n]*\bP1\b)(?=[^\n]*\bn/a\b))(?=[\s\S]*?(?:^|\n)(?=[^\n]*\bevents\b)(?=[^\n]*\bP1\b)(?=[^\n]*\bn/a\b))|(?:^|\n)(?=[^\n]*\b(?:all|every|each|three)\b)(?=[^\n]*\bP1\b)(?=[^\n]*\bn/a\b)'
+    flags: 'i'
+    target: last_message
+  - name: p1-not-flagged
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bP1\b)(?=[^\n]*\|\s*\**(?:WARN|FAIL)\**\s*\|)'
+    match: 'not_contains'
+    target: last_message
+  - name: sandboxed-not-defect
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*[Ss]andbox)(?=[^\n]*(?:\|\s*\**(?:WARN|FAIL)\**\s*\||\b(?:WARN|FAIL)\b))'
+    match: 'not_contains'
+    target: last_message
+  - name: coverage-not-read
+    type: regex
+    pattern: '\bnot\s+read\b[\s\S]{0,400}?\bclaude\.ai\s+connectors\b'
+    flags: 'i'
+    target: last_message
+  - name: coverage-not-evaluated
+    type: regex
+    pattern: '\bnot\s+evaluated\b[\s\S]{0,400}?\ballowedMcpServers\b'
+    flags: 'i'
+    target: last_message

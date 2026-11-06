@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: list_items\n\n| C10 Outcome-driven name | OPINION | PASS | CRUD naming is acceptable for a generic entity |\n",
+      "why": "C10 passes"
+    },
+    {
+      "answer": "list_items: C10 PASS, no WARN; get_report: C10 WARN",
+      "why": "no WARN on list_items, WARN on another tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: list_items\n\n| C10 Outcome-driven name | OPINION | WARN | CRUD name |\n",
+      "why": "flagged in section"
+    },
+    {
+      "answer": "list_items C10 WARN: rename to an outcome",
+      "why": "prose flag"
+    }
+  ]
+}

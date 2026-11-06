@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: CancelPayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | bool overload |\n",
+      "why": "section"
+    },
+    {
+      "answer": "CancelPayout: C18 PASS, the bool overload yields JSON true",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: ApprovePayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | |\n\n#### Tool: CancelPayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | |\n",
+      "why": "swapped attribution"
+    },
+    {
+      "answer": "CancelPayout: C18 FAIL",
+      "why": "fails"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: revoke_repo_access\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | JSON boolean |\n",
+      "why": "section"
+    },
+    {
+      "answer": "revoke_repo_access passes C18 (JSON true).",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: grant_repo_access\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | |\n\n#### Tool: revoke_repo_access\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | |\n",
+      "why": "swapped attribution"
+    },
+    {
+      "answer": "revoke_repo_access: C18 FAIL",
+      "why": "fails"
+    }
+  ]
+}

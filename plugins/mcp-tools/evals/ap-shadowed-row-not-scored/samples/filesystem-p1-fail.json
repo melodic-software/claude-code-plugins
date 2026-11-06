@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| filesystem | P1 Floating version | FAIL | unversioned npx |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| project | filesystem | yes | stdio | npx | @modelcontextprotocol/server-filesystem | floating-unversioned | @modelcontextprotocol | no | - |",
+      "why": "inventory row only"
+    },
+    {
+      "answer": "| filesystem | P1 Floating version | WARN | |",
+      "why": "warn"
+    }
+  ]
+}

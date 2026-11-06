@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: au-long-description-c4-warn
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: export-ledger-c4-warn
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*\bexport_ledger\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC4\b|2,?048|\blength\b|\blong\b)[^\n]*\|\s*\**WARN\**\s*\||(?:^|\n)(?=[^\n]*\bexport_ledger\b)(?=[^\n]*(?:\bC4\b|2,?048|\blength\b|\blong\b))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: server-instructions-c4-warn
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\binstructions\b)(?=[^\n]*(?:\bC4\b|2,?048|\blength\b|\bbudget\b|\bfloor\b|\blong\b|\bcharacters\b))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: c4-not-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC4\b|\bserver\s+`?instructions`?|2,?048))(?=[^\n]*(?:\|\s*\**FAIL\**\s*\||(?:→|->|=|\bis\b|\bas\b)\s*\**FAIL\b))'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: c4-own-rule
+    type: regex
+    pattern: '\bC4\b[^\n]*\|\s*`?OPINION`?\s*\||\bnot\s+(?:an?\s+)?(?:MCP\s+)?spec(?:ification)?(?:\s+|-)(?:rule|requirement|violation|limit|mandate)\b|\b(?:this\s+skill(?:''s)?|the\s+skill(?:''s)?|the\s+audit(?:''s)?)\s+own\s+(?:rule|floor|limit|threshold)\b|\bbuilt\s+on\s+client\s+behav(?:io|iou)r\b'
+    flags: 'i'
+    target: last_message
+  - name: c4-not-called-spec
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC4\b|2,?048))(?=[^\n]*(?:\b(?:violates|violation\s+of|breaks|breach\w*)\s+(?:the\s+)?(?:MCP\s+)?spec|\|\s*`?SPEC-))'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: front-load-advice
+    type: llm
+    criteria: "PASS only if the reply advises keeping the critical details near the start (front-loading them, where truncation cannot reach them) for BOTH the export_ledger tool description AND the server instructions. FAIL if that advice covers only one of the two, or neither (legacy expectations: the advice is given for the description and for the server instructions)."
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

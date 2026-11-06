@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Fix first: resize_cluster (C20 FAIL): drop the header from scale and rename one of Cluster/cluster. Then export_report's C20 WARN.",
+      "why": "FAIL first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fix first: stop mirroring partnerApiKey (WARN). Then resize_cluster's FAIL.",
+      "why": "WARN first"
+    },
+    {
+      "answer": "See the report above.",
+      "why": "no order"
+    }
+  ]
+}

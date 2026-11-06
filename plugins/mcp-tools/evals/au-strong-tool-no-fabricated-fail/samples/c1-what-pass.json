@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C1 Description has \"what\" | ANTHROPIC | PASS | Archives a board |",
+      "why": "row"
+    },
+    {
+      "answer": "C1 PASS: states what it does",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C1 Description has \"what\" | ANTHROPIC | WARN | |",
+      "why": "warn"
+    },
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | PASS | |",
+      "why": "C12 is not C1"
+    }
+  ]
+}
