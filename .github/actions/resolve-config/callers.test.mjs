@@ -734,7 +734,7 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   const intake = workflow("intake-triage.yml").jobs["intake-triage"];
   const allowed = intake.with["allowed-labels"].trim().split("\n");
   assert.ok(!allowed.includes("good first issue") && !allowed.includes("help wanted"));
-  for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost"]) {
+  for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost|untrusted"]) {
     assert.ok(intake.with.instructions.includes(`\n${line}\n`), line);
   }
 });
