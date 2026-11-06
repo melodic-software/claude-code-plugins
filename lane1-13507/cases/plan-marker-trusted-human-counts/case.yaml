@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: plan-marker-trusted-human-counts
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: marker-counted
+    type: llm
+    focus: trace
+    criteria: 'PASS if the run counts dana-m''s comment as confirming the problem: it says the problem is confirmed or pre-confirmed by that comment, `### Problem` carries no unconfirmed status, and the problem confirmation is not left as a blocker for a person. FAIL if it says the comment does not count (for example because no label is set), marks the problem unconfirmed, or leaves its confirmation to a person.'

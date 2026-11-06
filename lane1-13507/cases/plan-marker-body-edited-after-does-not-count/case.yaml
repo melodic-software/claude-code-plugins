@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: plan-marker-body-edited-after-does-not-count
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: marker-not-counted
+    type: llm
+    focus: trace
+    criteria: 'PASS if the run does not count the comment as problem confirmation: `### Problem` is marked unconfirmed, or the problem confirmation is left as a blocker for a person (USER-RESERVED). FAIL if the run treats the problem as confirmed or pre-confirmed on the strength of the comment.'
+  - name: names-failed-check
+    type: llm
+    focus: trace
+    criteria: 'PASS if the output says the marker did not count because the issue body was last edited at 2026-10-30T08:12:57Z, after the comment was written at 2026-10-28T14:02:11Z. FAIL if it gives no reason, or only a different one.'
