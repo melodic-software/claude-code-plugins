@@ -2,9 +2,12 @@
 # Team layer for the attribution plugin (schema: plugins/attribution/schemas/attribution.schema.json).
 # Every key is optional; an absent key keeps the shipped default.
 #
-# The eval fixtures are excluded as config, never in a script, so the eval harness's own config
-# isolation lifts the exclusion and the fixtures report their real findings. The trigger-less
-# stamp check, off in the portable baseline, is on here.
+# Test-fixture trees are excluded as config, never in a script, so the eval harness's own config
+# isolation lifts the exclusion and the fixtures report their real findings. This list replaces
+# the bundled default whole, so it carries the default's globs. The trigger-less stamp check, off
+# in the portable baseline, is on here.
 excluded_paths:
-  - "**/evals/fixtures/**"
+  - "**/fixtures/**"
+  - "**/__fixtures__/**"
+  - "**/testdata/**"
 trigger_less_stamp_check: true
