@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Parked: delete legacy/? Recommendation: approve, nothing links to it. If unanswered: worker B and worker C stay blocked; worker A carries on.",
+      "why": "names the unanswered consequence"
+    },
+    {
+      "answer": "Decision: approve deleting legacy/. Recommend yes. Until you answer, B and C wait.",
+      "why": "until-you-answer wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Worker B needs approval to delete legacy/. Recommend yes.",
+      "why": "no consequence of waiting"
+    }
+  ]
+}

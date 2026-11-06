@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: oc-coordinator-quiet-tick-parked-gate
+description: 'An armed coordinator runs two loop ticks from stated facts. Tick 1 has a worker blocked on a human approval, which the coordinator parks with its three parts (decision, recommendation, what happens if unanswered). Tick 2 has no change, so it sends no catch-up: at most one line saying nothing changed. Rules: skills/orchestrate/context/coordinator.md, rules 2 and 3.'
+tags: [orchestrate, coordinator, loop-tick, approval-gate]
+plugins: ["../.."]
+expected_outcome: 'Under "Tick 1" the reply parks the legacy/ deletion approval as an item that states the decision, a recommendation, and what happens if it stays unanswered. Under "Tick 2" it says at most one line that nothing changed, with no re-listed worker status and no repeated parked item.'
+execution:
+  prompt: '/session-flow:orchestrate coordinator docs-cleanup. Then handle two loop ticks from these facts, each under its own heading "Tick 1" and "Tick 2". There is no repository here; work from the facts. Tick 1: worker A pushed two commits to branch docs/a and its pull request went green since the last tick; worker B stopped because deleting the legacy/ folder needs my approval, and worker C waits on B. Tick 2: you checked again and nothing changed: same branch heads, same check states, same output files, and the legacy/ approval is still unanswered.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: names-if-unanswered
+    type: regex
+    pattern: 'unanswered|no answer|until you (?:answer|decide|approve)|while (?:it|this) waits'
+    flags: 'i'
+    arm: with-only
+  - name: parked-gate-three-parts
+    type: llm
+    criteria: 'PASS only if the Tick 1 section parks the approval to delete legacy/ as one item that states all three: the decision the user is asked to make, a recommendation for it, and what happens while it stays unanswered (for example that worker B and worker C stay blocked while worker A carries on). FAIL if any of the three is missing, or if the reply deletes legacy/ or treats the approval as given.'
+    focus: last_message
+    arm: both
+  - name: quiet-tick
+    type: llm
+    criteria: 'PASS only if the Tick 2 section is at most one short line saying nothing changed, or is empty. FAIL if Tick 2 re-lists any worker status, repeats the parked legacy/ item, restates the standing orders, or gives any other catch-up.'
+    focus: last_message
+    arm: both
