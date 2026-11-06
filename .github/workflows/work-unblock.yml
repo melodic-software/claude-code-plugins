@@ -64,27 +64,27 @@ name: work-unblock
 # flight. These share the five-a-run cap.
 #
 # New agent-ready labels are paced by the issue lane's queued cap
-# (check-wip-cap): past its room an issue gets admission-deferred instead, and
+# (check-wip-cap): past its room an issue's Work status becomes deferred, and
 # each hourly sweep admits the deferred issues oldest first. Restarts,
 # re-fires and relabels are never paced. Its label-unblocked job runs one at
 # a time, so two runs cannot each admit the whole room.
 #
 # A blocked issue admission parked at status: confirmed is never labeled: when
-# a blocker closes after it parked, the App removes status: confirmed, which
-# starts intake-reenter.yml, so intake judges it again. An issue in a
-# `cordoned-milestones` milestone of admission-rules.json stays parked.
+# a blocker closes after it parked, the App sets its Work status to
+# needs-triage with a hand-back comment, and the hourly triage sweep sends it
+# to intake, which judges it again. An issue in a `cordoned-milestones`
+# milestone of admission-rules.json stays parked.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed
 # until it is marked `status: ready` again.
 #
-# Its sync-status job writes an issue's Work status field after a listed human
-# adds or removes a status label; the hourly run does so for every open issue
-# updated in the last two hours, and the daily 04:47 UTC run for every open issue
-# (.github/scripts/work-unblock/sync-status.mjs).
+# Its sync-status job writes the state of a status label a listed human adds
+# into the issue's Work status field, and never resets the field from a
+# removal (.github/scripts/work-unblock/sync-status.mjs).
 
 # API_BUDGET_HOLD (outage posture element 2): only the label-unblocked step sets it; --check-closer
-# is a gate, and the sync-status mirror is not yet shown to hold.
+# is a gate, and sync-status is not yet shown to hold.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -96,8 +96,6 @@ on:
   # Off the top of the hour, at a minute no other schedule here uses.
   schedule:
     - cron: "47 0-3,5-23 * * *"
-    # The daily full status sweep (sync-status). Its own entry, so a late start
-    # still runs the full sweep.
     - cron: "47 4 * * *"
   # A finished issue lane run may free a slot, so the sweep runs at once and
   # admits the next deferred issue instead of waiting for the hour. It runs
@@ -294,24 +292,23 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # Mirrors an issue's status labels into its Work status field after a person
-  # adds or removes one, hourly for issues updated in the last two hours, and
-  # daily (the 47 4 * * * entry) for every open issue
+  # Writes the state of a status label a person adds into the issue's Work
+  # status field, never from a removal but agent-ready's
   # (.github/scripts/work-unblock/sync-status.mjs). It writes with the lanes
   # App token: the field's reader counts only a value a listed human or the App
-  # set. A label change by a bot (the lanes App, whose scripts mirror their own
-  # writes) starts no job; one by an account not listed as a human gets no
-  # token, which the hourly sweep makes good.
+  # set. A label change by a bot (the lanes App, whose scripts write the field
+  # themselves) starts no job; one by an account not listed as a human gets no
+  # token and writes nothing.
   sync-status:
     if: >-
-      (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
-      || (github.event_name == 'issues' && github.event.action != 'closed'
-      && github.event.sender.type != 'Bot' && !github.event.issue.pull_request)
-    # One run per issue: a later label event replaces a waiting one, and the
-    # run that goes ahead reads the labels fresh.
+      github.event_name == 'issues' && github.event.action != 'closed'
+      && github.event.sender.type != 'Bot' && !github.event.issue.pull_request
+    # One run per issue at a time, and each label event's run waits in line
+    # (`queue: max`): each translates its own event, so a dropped waiting run
+    # would lose its write.
     concurrency:
-      group: work-unblock-sync-status-${{ github.event.issue.number || 'sweep' }}
-      cancel-in-progress: false
+      group: work-unblock-sync-status-${{ github.event.issue.number }}
+      queue: max
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -357,21 +354,18 @@ jobs:
 
       # The broker mints on a label event only for a listed human (the
       # trusted-actor list on main, by id), so anyone else stops here quietly,
-      # before the token request; the hourly sweep writes that issue's field.
-      # The scheduled sweep has no labeler to check.
+      # before the token request.
       - name: Check who changed the label
         id: who
         if: steps.kill.outputs.proceed == 'true'
         env:
           ACTOR_ID: ${{ github.actor_id }}
-          EVENT_NAME: ${{ github.event_name }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
-          if [ "$EVENT_NAME" = schedule ] ||
-            jq -e --arg id "$ACTOR_ID" 'any(.actors[]; .kind == "human" and (.id | tostring) == $id)' "$TRUSTED_ACTORS_PATH" >/dev/null; then
+          if jq -e --arg id "$ACTOR_ID" 'any(.actors[]; .kind == "human" and (.id | tostring) == $id)' "$TRUSTED_ACTORS_PATH" >/dev/null; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
           else
-            echo "::notice::the label was changed by an account not listed as a human; the hourly sweep writes this issue's Work status field"
+            echo "::notice::the label was changed by an account not listed as a human; its Work status field is not written"
           fi
 
       # Reads the lane's rules from main: the sync-status activity's effect
@@ -407,19 +401,18 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: work-unblock
           activity: sync-status
-          # The sweep names no issue; a label event names its issue, which the
-          # broker needs on an issues event.
-          issue-number: ${{ github.event_name == 'issues' && format('{0}', github.event.issue.number) || '' }}
+          # The broker needs the issue on an issues event.
+          issue-number: ${{ format('{0}', github.event.issue.number) }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # The script reads the issue's labels and field back from the API;
-      # nothing is taken from the event but the issue number, the label name
-      # and whether it is a pull request. The sweep makes at most CALL_BUDGET
-      # calls, a short pause apart.
-      - name: Mirror the status labels into the Work status field
+      # The script reads the issue's field (and, when agent-ready comes off,
+      # its labels) from the API; nothing is taken from the event but the
+      # action, the issue number, the label name and whether it is a pull
+      # request.
+      - name: Write the added status label into the Work status field
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -427,8 +420,6 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
-          CALL_BUDGET: "800"
-          SCHEDULE: ${{ github.event.schedule }}
         run: node ".base/$SCRIPT"
 
       # The token is cancelled as soon as the job is done; it would otherwise
