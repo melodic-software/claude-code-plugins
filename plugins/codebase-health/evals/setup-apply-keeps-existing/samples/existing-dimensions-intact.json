@@ -2,6 +2,9 @@
   "pass": [
     {
       "answer": "# codebase-health configuration\n\n## documentation\n\n**primary-sources:**\n\n- `docs/**/*.md`\n- `README.md`\n\n**verification-sources:**\n\n- `package.json`\n- `src/**/*.js`\n\n## api-contracts\n\n**primary-sources:**\n\n- `contracts/*.yaml`\n\n**verification-sources:**\n\n- `src/**/*.js`\n\n**example-claims:**\n\n- claim: \"The OpenAPI info.version matches package.json version\"\n  - verify-via: \"Read contracts/ledger.openapi.yaml info.version and package.json version\"\n"
+    },
+    {
+      "answer": "# codebase-health configuration\n\n## documentation\n\n**primary-sources:**\n\n- `docs/**/*.md`\n- `README.md`\n\n**verification-sources:**\n\n- `package.json`\n- `src/**/*.js`\n\n## api-contracts\n\n**primary-sources:**\n\n- `contracts/*.yaml`\n\n**verification-sources:**\n\n- `src/**/*.js`\n\n**example-claims:**\n\n- claim: \"The OpenAPI info.version matches package.json version\"\n  - verify-via: \"Read contracts/ledger.openapi.yaml info.version and package.json version\"\n\n## dependencies\n\n**primary-sources:**\n\n- `package.json`\n"
     }
   ],
   "fail": [
@@ -10,8 +13,8 @@
       "why": "docs glob dropped without confirmation"
     },
     {
-      "answer": "# codebase-health configuration\n\n## documentation\n\n**primary-sources:**\n\n- `docs/**/*.md`\n- `README.md`\n\n**verification-sources:**\n\n- `package.json`\n- `src/**/*.js`\n\n## api-contracts\n\n**primary-sources:**\n\n- `contracts/*.yaml`\n\n**verification-sources:**\n\n- `src/**/*.js`\n\n**example-claims:**\n\n- claim: \"The OpenAPI info.version matches package.json version\"\n  - verify-via: \"Read contracts/ledger.openapi.yaml info.version and package.json version\"\n\n## dependencies\n\n**primary-sources:**\n\n- `package.json`\n",
-      "why": "dimension appended without confirmation"
+      "answer": "# codebase-health configuration\n\n## documentation\n\n**primary-sources:**\n\n- `docs/**/*.md`\n- `README.md`\n\n**verification-sources:**\n\n- `package.json`\n- `src/**/*.js`\n\n## dependencies\n\n**primary-sources:**\n\n- `package.json`\n",
+      "why": "api-contracts dimension overwritten by a fresh inference"
     }
   ]
 }

@@ -36,9 +36,10 @@ graders:
     pattern: '^## api-contracts$'
     flags: 'm'
     target: { source: file, path: .claude/codebase-health.md }
-  - name: config-unchanged
+  - name: existing-dimensions-intact
     type: regex
-    pattern: '^# codebase-health configuration\n\n## documentation\n\n\*\*primary-sources:\*\*\n\n- `docs/\*\*/\*\.md`\n- `README\.md`\n\n\*\*verification-sources:\*\*\n\n- `package\.json`\n- `src/\*\*/\*\.js`\n\n## api-contracts\n\n\*\*primary-sources:\*\*\n\n- `contracts/\*\.yaml`\n\n\*\*verification-sources:\*\*\n\n- `src/\*\*/\*\.js`\n\n\*\*example-claims:\*\*\n\n- claim: "The OpenAPI info\.version matches package\.json version"\n  - verify-via: "Read contracts/ledger\.openapi\.yaml info\.version and package\.json version"\n(?![\s\S])'
+    pattern: '^(?=[\s\S]*^## documentation\n\n\*\*primary-sources:\*\*\n\n- `docs/\*\*/\*\.md`\n- `README\.md`\n\n\*\*verification-sources:\*\*\n\n- `package\.json`\n- `src/\*\*/\*\.js`\n)(?=[\s\S]*^## api-contracts\n\n\*\*primary-sources:\*\*\n\n- `contracts/\*\.yaml`\n\n\*\*verification-sources:\*\*\n\n- `src/\*\*/\*\.js`\n\n\*\*example-claims:\*\*\n\n- claim: "The OpenAPI info\.version matches package\.json version"\n  - verify-via: "Read contracts/ledger\.openapi\.yaml info\.version and package\.json version"\n)'
+    flags: 'm'
     target: { source: file, path: .claude/codebase-health.md }
   - name: no-plugin-dir-write
     type: tool_used
