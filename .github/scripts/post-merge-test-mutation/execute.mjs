@@ -22,7 +22,7 @@
 // error or a generation that is not valid JSON.
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, matchesGlob } from "node:path";
+import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -50,12 +50,34 @@ export function readConfig(text) {
   return { globs, timeoutMs: timeout ? Number(timeout[1]) : 0 };
 }
 
+// A glob as an anchored regular expression, with `**` crossing every directory,
+// dot directories included: path.matchesGlob skips a leading `.github/` for
+// `**/*.mjs`, and the trigger's paths filter, which lists the same globs,
+// matches it. `**/` is zero or more whole segments, `*` one segment's
+// characters, `?` one of them.
+export function globPattern(glob) {
+  let source = "";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (glob.startsWith("**/", i)) {
+      source += "(?:.*/)?";
+      i += 2;
+    } else if (glob.startsWith("**", i)) {
+      source += ".*";
+      i += 1;
+    } else if (c === "*") source += "[^/]*";
+    else if (c === "?") source += "[^/]";
+    else source += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${source}$`);
+}
+
 export function inScope(path, globs) {
   let kept = false;
   for (const glob of globs) {
     if (glob.startsWith("!")) {
-      if (matchesGlob(path, glob.slice(1))) kept = false;
-    } else if (matchesGlob(path, glob)) {
+      if (globPattern(glob.slice(1)).test(path)) kept = false;
+    } else if (globPattern(glob).test(path)) {
       kept = true;
     }
   }

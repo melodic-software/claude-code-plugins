@@ -1,6 +1,6 @@
 ---
 description: "Mutation analysis that reports surviving mutants, on the diff or, with `--exercised`, on the production code the changed tests call. Use when: the user asks to run mutation testing or for a mutation score on a change ('run mutation testing'), doubts a suite whose coverage looks healthy ('my coverage is high but I do not trust it'), asks whether the tests, including ones just written, actually check the code, asks to audit test quality, or wants the survivors persisted for the fix pass; after tests go green and before review."
-argument-hint: "--exercised --paths --max --no-suppress --persist-findings --record-mutants --replay-mutants --phase"
+argument-hint: "--exercised --full --paths --max --no-suppress --persist-findings --record-mutants --replay-mutants"
 user-invocable: true
 disable-model-invocation: false
 metadata:

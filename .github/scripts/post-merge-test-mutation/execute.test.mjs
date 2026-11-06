@@ -12,7 +12,7 @@ import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { assemble } from "./assemble.mjs";
-import { applyProblem, execute, inScope, readConfig, stateOf } from "./execute.mjs";
+import { applyProblem, execute, globPattern, inScope, readConfig, stateOf } from "./execute.mjs";
 
 const CONFIG = 'tool: manual\nmutate:\n  - "**/*.sh"\n  - "**/*.mjs"\n  - "!**/*.test.*"\n  - "!docs/conventions/**"\noperators: default\ntimeout-ms: 115000\n';
 
@@ -24,6 +24,27 @@ test("the config's mutate globs and timeout are read, and a negated glob wins wh
   assert.equal(inScope("scripts/a.test.mjs", globs), false);
   assert.equal(inScope("docs/conventions/x.mjs", globs), false);
   assert.equal(inScope("README.md", globs), false);
+});
+
+// The repository's own config: a source under a dot directory is in scope the
+// way the trigger's paths filter puts it in scope, and the excluded trees stay out.
+test("the repository's mutate globs take sources under dot directories and leave out its excluded trees", () => {
+  const { globs } = readConfig(readFileSync(new URL("../../../docs/conventions/mutation-testing.yaml", import.meta.url), "utf8"));
+  for (const path of [".github/scripts/post-merge-test-mutation/execute.mjs", ".github/actions/check-kill-switch/check-kill-switch.mjs", "scripts/run-covering-tests.sh", "lib/test-tmp.mjs", "plugins/a/scripts/x.py"]) {
+    assert.equal(inScope(path, globs), true, path);
+  }
+  for (const path of [".github/scripts/post-merge-test-mutation/execute.test.mjs", ".claude/hooks/x.sh", "docs/conventions/x.mjs", "plugins/a/evals/c/x.sh", "a/tests/x.py", "README.md"]) {
+    assert.equal(inScope(path, globs), false, path);
+  }
+});
+
+test("a glob's ** crosses any directory, * stays in one segment", () => {
+  assert.equal(globPattern("**/*.mjs").test(".github/x/y.mjs"), true);
+  assert.equal(globPattern("**/*.mjs").test("y.mjs"), true);
+  assert.equal(globPattern("*.mjs").test("a/y.mjs"), false);
+  assert.equal(globPattern(".claude/**").test(".claude/a/b"), true);
+  assert.equal(globPattern("**/tests/**").test("tests/x.py"), true);
+  assert.equal(globPattern("**/*.sh").test("a.shx"), false);
 });
 
 test("a mutant applies only to one exact span of a tracked in-scope file that covers its line", () => {

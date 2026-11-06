@@ -263,8 +263,8 @@ test("only the model-free report job writes, the model jobs read contents only, 
   assert.equal(LANE.match(/actions\/checkout@/g).length, LANE.match(/persist-credentials: false/g).length);
 });
 
-// Each model leg's Bash runs read-only git, and the triage legs also the
-// plugin's suppression lint; no leg may edit or write a file.
+// Each model leg's Bash runs read-only git and the plugin's suppression lint,
+// which Phase 1 step 3 runs in generate and Phase 4 in triage; no leg edits a file.
 test("the model's Bash allows git reads only and its git reads stay in the checkout", () => {
   const jobs = jobsOf(LANE);
   for (const id of MODEL_JOBS) {
@@ -273,7 +273,7 @@ test("the model's Bash allows git reads only and its git reads stay in the check
     const git = allowed.flatMap((rule) => [.../^Bash\(git ([a-z-]+)/.exec(rule) ?? []].slice(1));
     assert.ok(git.length > 0, id);
     assert.deepEqual(git.filter((verb) => !["status", "diff", "branch", "rev-parse"].includes(verb)), [], id);
-    assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(") && !rule.startsWith("Bash(git ")), id.startsWith("triage") ? ["Bash(bash ${{ steps.prompt.outputs.lint }} *)"] : [], id);
+    assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(") && !rule.startsWith("Bash(git ")), ["Bash(bash ${{ steps.prompt.outputs.lint }} *)"], id);
     const denied = literal(run, "disallowed-tools");
     for (const rule of ["Edit", "Write", "NotebookEdit", "Bash(git log *)", "Bash(git show *)", "Bash(git diff *--no-index*)", "Bash(git diff *--output*)", "Bash(git diff *~*)", "Bash(git diff * /*)", "Bash(git diff *../*)", "Bash(git diff *$*)"]) {
       assert.ok(denied.includes(rule), `${id} ${rule}`);

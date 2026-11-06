@@ -360,7 +360,7 @@ jobs:
           install-subprocess-isolation: "true"
 
       # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git.
+      # own code, and no mutant runs in this job. Bash runs read-only git and the plugin's suppression lint.
       - name: Run the generate leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -391,6 +391,7 @@ jobs:
             Bash(git diff *)
             Bash(git branch *)
             Bash(git rev-parse *)
+            Bash(bash ${{ steps.prompt.outputs.lint }} *)
           disallowed-tools: |
             Edit
             Write
@@ -686,7 +687,7 @@ jobs:
           install-subprocess-isolation: "true"
 
       # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git.
+      # own code, and no mutant runs in this job. Bash runs read-only git and the plugin's suppression lint.
       - name: Run the generate leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -718,6 +719,7 @@ jobs:
             Bash(git diff *)
             Bash(git branch *)
             Bash(git rev-parse *)
+            Bash(bash ${{ steps.prompt.outputs.lint }} *)
           disallowed-tools: |
             Edit
             Write
@@ -972,7 +974,7 @@ jobs:
           install-subprocess-isolation: "true"
 
       # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git.
+      # own code, and no mutant runs in this job. Bash runs read-only git and the plugin's suppression lint.
       - name: Run the generate leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -1003,6 +1005,7 @@ jobs:
             Bash(git diff *)
             Bash(git branch *)
             Bash(git rev-parse *)
+            Bash(bash ${{ steps.prompt.outputs.lint }} *)
           disallowed-tools: |
             Edit
             Write
