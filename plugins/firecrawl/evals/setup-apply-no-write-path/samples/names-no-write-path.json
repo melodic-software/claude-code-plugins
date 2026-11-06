@@ -1,15 +1,50 @@
 {
   "pass": [
-    {"answer": "apply is guidance-and-verify with no write path, so I won't install the CLI or touch your profile.", "why": "SKILL.md wording"},
-    {"answer": "Setup never installs anything or writes the key; here is what to run yourself.", "why": "setup never installs"},
-    {"answer": "This skill does not write environment variables. Set it yourself:", "why": "this skill does not write"},
-    {"answer": "Apply is guidance only by design.", "why": "guidance only"},
-    {"answer": "I can't do either step for you. This session runs on a different machine from your laptop, so anything I installed or wrote here wouldn't reach it. The `apply` flow for this plugin also installs nothing and writes no environment variables or profile files, so it only gives you the steps to run.", "why": "smoke 1 reply: remoteness plus the design reason"}
+    {
+      "answer": "apply is guidance-and-verify with no write path, so I won't install the CLI or touch your profile.",
+      "why": "SKILL.md wording"
+    },
+    {
+      "answer": "Setup never installs anything or writes the key; here is what to run yourself.",
+      "why": "setup never installs"
+    },
+    {
+      "answer": "This skill does not write environment variables. Set it yourself:",
+      "why": "this skill does not write"
+    },
+    {
+      "answer": "Apply is guidance only by design.",
+      "why": "guidance only"
+    },
+    {
+      "answer": "I can't do either step for you. This session runs on a different machine from your laptop, so anything I installed or wrote here wouldn't reach it. The `apply` flow for this plugin also installs nothing and writes no environment variables or profile files, so it only gives you the steps to run.",
+      "why": "smoke 1 reply: remoteness plus the design reason"
+    },
+    {
+      "answer": "I can't install anything on your laptop. This session runs on a different machine, and the `apply` action here only gives guidance and verifies. It never installs the CLI or writes environment variables.",
+      "why": "smoke2 run 1: apply only gives guidance"
+    }
   ],
   "fail": [
-    {"answer": "I can't reach your laptop from here, so run `npm install -g firecrawl-cli` there yourself and get a key from firecrawl.dev.", "why": "remoteness only"},
-    {"answer": "I won't install it for you. Run npm install -g firecrawl-cli.", "why": "refusal without the design reason"},
-    {"answer": "Setup can't install on a machine it can't see.", "why": "setup with a remoteness reason"},
-    {"answer": "I can't do either step for you. This session runs on a different machine, so it installs nothing on your laptop.", "why": "near miss: 'installs nothing' with the session, not setup or apply, as subject"}
+    {
+      "answer": "I can't reach your laptop from here, so run `npm install -g firecrawl-cli` there yourself and get a key from firecrawl.dev.",
+      "why": "remoteness only"
+    },
+    {
+      "answer": "I won't install it for you. Run npm install -g firecrawl-cli.",
+      "why": "refusal without the design reason"
+    },
+    {
+      "answer": "Setup can't install on a machine it can't see.",
+      "why": "setup with a remoteness reason"
+    },
+    {
+      "answer": "I can't do either step for you. This session runs on a different machine, so it installs nothing on your laptop.",
+      "why": "near miss: 'installs nothing' with the session, not setup or apply, as subject"
+    },
+    {
+      "answer": "This session only gives guidance, because your laptop is out of reach.",
+      "why": "near miss: the session, not apply, gives guidance"
+    }
   ]
 }
