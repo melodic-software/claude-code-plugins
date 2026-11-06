@@ -406,7 +406,7 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
       closed.push({ number: pull.number, holds, ...(reason !== "verify" && { reason }) });
       return options.closeAnswer ? options.closeAnswer(pull) : { closed: true, restarted: [], parked: [] };
     };
-    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), close, whole, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)), mainInputs: options.mainInputs });
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), close, whole, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)), mainInputs: options.mainInputs, mergeRisk: options.mergeRisk });
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
@@ -4294,4 +4294,67 @@ test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
   assert.equal(vetoLabelOwned(reveto, login), true);
   // A non-member's do-not-merge text after the label still keeps it.
   assert.equal(vetoLabelOwned([...ownedTimeline, { ...restSaid(KYLE, "do not merge", "2026-10-23T09:40:00Z"), author_association: "CONTRIBUTOR" }], login), false);
+});
+
+// #13657 done-when 2: the Merge-Risk line is report-only, so a rating that
+// fails, a read that hangs and a body edit that fails each leave the arm as
+// it was. recordMergeRisk runs on fakes of its own; the world's GitHub sees
+// only the arm.
+import { recordMergeRisk, unratedLine } from "./merge-risk-line.mjs";
+
+const riskWriter = ({ failPatch = false } = {}) => {
+  const sent = [];
+  const github = async (method, path, payload) => {
+    sent.push({ method, path, payload });
+    if (method === "PATCH" && failPatch) throw new Error("PATCH /pulls failed with status 502");
+    return method === "GET" ? { body: "" } : {};
+  };
+  return { github, sent };
+};
+const failingReads = async () => {
+  throw new Error("GET /actions failed with status 502");
+};
+
+test("a rating whose reads and body edit both fail still arms, and records unrated", async () => {
+  const writer = riskWriter({ failPatch: true });
+  const mergeRisk = (target) => recordMergeRisk({ pull: { ...target, body: "" }, repository: "o/r", actions: failingReads, github: writer.github, download: () => "" });
+  const { code, writes, lines } = await run([pull(1)], {}, { mergeRisk });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+  assert.ok(lines.some((line) => line.startsWith(`::notice title=merge-risk::pr=1 head=${HEAD} merge-risk=unrated:unreadable read-ms=`) && line.endsWith(" write=write-failed")), lines.join("\n"));
+  assert.equal(writer.sent.filter((call) => call.method === "PATCH").length, 1);
+});
+
+test("a rating read that hangs is cut off at its deadline, recorded over-budget, and the pull request arms", async () => {
+  const writer = riskWriter();
+  const mergeRisk = (target) => recordMergeRisk({ pull: { ...target, body: "" }, repository: "o/r", actions: () => new Promise(() => {}), github: writer.github, download: () => "", readMs: 20 });
+  const { code, writes } = await run([pull(1)], {}, { mergeRisk });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.equal(writer.sent.find((call) => call.method === "PATCH").payload.body, unratedLine("over-budget"));
+});
+
+test("a merge-risk step that throws outright still arms", async () => {
+  const { code, writes, lines } = await run([pull(1)], {}, {
+    mergeRisk: async () => {
+      throw new Error("boom");
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.ok(lines.includes("enable-auto-merge: #1 merge-risk line not written: boom"));
+});
+
+test("the Merge-Risk line is written only before an arm, never under report-only or for a held pull request", async () => {
+  const seen = [];
+  const mergeRisk = async (target) => {
+    seen.push(target.number);
+    return { token: "unrated:pending", readMs: 0, wrote: true };
+  };
+  await run([pull(1)], { REPORT_ONLY: "true" }, { mergeRisk });
+  await run([pull(2, { labels: ["do-not-merge"] })], {}, { mergeRisk });
+  assert.deepEqual(seen, []);
+  await run([pull(3)], {}, { mergeRisk });
+  assert.deepEqual(seen, [3]);
 });

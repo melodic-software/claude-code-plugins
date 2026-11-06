@@ -167,6 +167,12 @@
 // and the run goes on to the rest, then exits 1. While
 // merge.report-only is true it reports
 // each decision and writes nothing.
+// Just before an arm, after its pin, the run sets the report-only Merge-Risk
+// line as the body's last line (merge-risk-line.mjs recordMergeRisk): the
+// rating pr-rate-merge-risk.yml uploaded for the head, or `unrated` with a
+// closed reason, read and written within about 20 seconds; whatever happens,
+// the arm goes on, and no rule here or in ci-status reads the line. It logs a
+// `merge-risk` notice per arm and adds its token to the step summary.
 //
 // Environment:
 //   GH_TOKEN             the lane App token (contents and pull-requests write)
@@ -206,6 +212,7 @@
 //                        an unarmed pull request; anything else is `shadow`,
 //                        which reads in full and logs how a kept answer
 //                        compares (VERIFY_CACHE_PREFIX)
+//   RUNNER_TEMP          where the Merge-Risk rating artifact is downloaded
 //   GITHUB_API_URL
 //
 // A reader run takes the human-gated label off a pull request whose newest
@@ -1755,7 +1762,7 @@ async function listPulls(github, owner, name) {
   throw new ListingFull(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1835,6 +1842,24 @@ export async function main({ env = process.env, github, actions, verify, room, c
     };
     verify ??= pythonVerify(env);
     whole ??= pythonWholeReview(env);
+    // The Merge-Risk line's reads on the job token, its body edit on the
+    // lanes App token; a test that injects GitHub writes none unless it
+    // injects this too. Imported here, not at the top: ci-status loads this
+    // module from a sparse checkout (clear-escalations.mjs) that holds none
+    // of merge-risk-line.mjs's imports, and a failed import only skips the line.
+    mergeRisk ??= injected
+      ? null
+      : async (pull) => {
+          const [{ ARTIFACT_PREFIX, RATING_FILE, recordMergeRisk }, { ghDownloadArtifact }] = await Promise.all([import("./merge-risk-line.mjs"), import("./rotation.mjs")]);
+          return recordMergeRisk({
+            pull,
+            repository: repo[0],
+            actions,
+            github,
+            download: ghDownloadArtifact({ repo: repo[0], token: env.BABYSIT_VERIFY_GH_TOKEN || env.GH_TOKEN, dir: env.RUNNER_TEMP || ".", name: ARTIFACT_PREFIX, file: RATING_FILE, env, timeout: 8000 }),
+          });
+        };
+    const riskTokens = [];
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const serve = cacheMode(env) === "serve";
     // A pull_request_target run handles only the pull request its event
@@ -2497,6 +2522,19 @@ export async function main({ env = process.env, github, actions, verify, room, c
           continue;
         }
       }
+      // The report-only Merge-Risk line for the head about to arm
+      // (merge-risk-line.mjs): read and written within its own deadline, and
+      // whatever it meets, the arm below goes on. Nothing reads it back.
+      if (action === "arm" && mergeRisk) {
+        try {
+          const risk = await mergeRisk(pull);
+          const write = risk.skipped && risk.skipped !== "exact" ? ` write=${risk.skipped}` : "";
+          console.log(`::notice title=merge-risk::pr=${pull.number} head=${pull.headRefOid} merge-risk=${risk.token} read-ms=${risk.readMs}${write}`);
+          riskTokens.push(`#${pull.number} merge-risk=${risk.token} read-ms=${risk.readMs}`);
+        } catch (error) {
+          console.log(`enable-auto-merge: #${pull.number} merge-risk line not written: ${describe(error)}`);
+        }
+      }
       if (action === "disarm" && disarmStop() !== null) {
         failed += 1;
         leave(pull, `refused: ${reason}`);
@@ -2619,7 +2657,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no pull request is read, noted or armed after it this run, and each armed lanes App pull request is disarmed`);
     }
     // Each verifier read's cost too, so a run's spend reads per pull request.
-    const summary = [...lines.map(([, text]) => text), ...unblockSkips, ...(verify.costs ?? []).map(costLine)];
+    const summary = [...lines.map(([, text]) => text), ...unblockSkips, ...(verify.costs ?? []).map(costLine), ...riskTokens];
     if (summary.length > 0 && env.GITHUB_STEP_SUMMARY) {
       try {
         appendFileSync(env.GITHUB_STEP_SUMMARY, summary.map((text) => `enable-auto-merge: ${text}\n`).join(""));
