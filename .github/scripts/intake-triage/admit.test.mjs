@@ -446,6 +446,12 @@ describe("decide", () => {
     assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
   });
 
+  test("a hard refusal leaves out the pending split, which never runs while the refusal stands", () => {
+    const dimensions = { ...VERDICT.dimensions, size: "large", uncertainty: "bogus" };
+    const result = decide(facts({ verdict: { ...VERDICT, dimensions } }));
+    assert.deepEqual(result, { verdict: "refuse", reasons: [`Uncertainty bogus is not one of ${RULES.uncertainty.join(", ")}`] });
+  });
+
   // A run's patch over the scan job's cap (scan-refused-patch) splits the
   // issue whatever Size re-triage or a listed human set (patchCapStopped).
   describe("a scan-refused-patch stop", () => {
@@ -527,10 +533,11 @@ describe("decide", () => {
     });
   });
 
-  test("Size Large beside a real refusal reason still refuses, and names both", () => {
+  test("Size Large beside a real refusal reason still refuses, and names only the refusal", () => {
     const result = decide(facts({ issue: issueOf({ user: { id: OUTSIDER } }), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
     assert.equal(result.verdict, "refuse");
-    assert.match(result.reasons.join("; "), /author.*Size large/);
+    assert.match(result.reasons.join("; "), /author/);
+    assert.ok(!result.reasons.includes(SIZE_SPLIT_PENDING));
   });
 
   // The title names the subject, so it is not read; a body that asks to edit
@@ -3030,7 +3037,8 @@ describe("size split sub-issues", () => {
         assert.equal(at("small").verdict, "refuse", vector.expect.reason);
         assert.ok(at("small").reasons.includes(NO_SPEC), vector.expect.reason);
         assert.equal(at("large").verdict, "refuse", vector.expect.reason);
-        assert.ok(at("large").reasons.some((reason) => /^Size large/.test(reason)), vector.expect.reason);
+        assert.ok(at("large").reasons.includes(NO_SPEC), vector.expect.reason);
+        assert.ok(!at("large").reasons.includes(SIZE_SPLIT_PENDING), vector.expect.reason);
       }
     });
   }

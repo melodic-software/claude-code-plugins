@@ -1664,7 +1664,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     // beside a hold for a person, another refusal, a wait or a pending split.
     return {
       verdict: "refuse",
-      reasons: [...refuse, ...parked],
+      reasons: refuse,
       ...(hold && { hold, reason: strongestReason(holdCodes) }),
       ...(attended && { attended }),
       ...(!hold && refuse.every((reason) => hostWork.has(reason)) && wait.length === 0 && parked.length === 0 && { hostRun: true }),
