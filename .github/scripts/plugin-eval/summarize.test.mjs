@@ -1,9 +1,11 @@
 // Expected verdicts come from /evals:plugin-eval's reference/ci.md parser: a
 // partial document, a run with skippedPaidGraders or a non-null error, and a
-// two-arm case with no delta are each NOT COMPARABLE, never a score.
+// two-arm case with no delta are each NOT COMPARABLE, never a score. The
+// single-arm-by-design rule (context.history_file set, no without-arm key) is
+// run-validity.py's row count rule.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -88,6 +90,74 @@ test("under --ablation none a case needs no delta and is judged on its score", (
   delete doc.cases[0].aggregates.delta;
   doc.cases[0].aggregates.score = 0.5;
   assert.deepEqual([verdicts(doc)[0].verdict, verdicts(doc)[0].score], ["FAIL", 0.5]);
+});
+
+const HISTORY_YAML = "name: writes-a-test\ncontext:\n  scaffold_script: scaffold.sh\n  history_file: secret-history.jsonl\n";
+const singleArmDoc = (score) => {
+  const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
+  delete doc.cases[0].arms.without;
+  delete doc.cases[0].aggregates.delta;
+  delete doc.cases[0].aggregates.scoreWithout;
+  doc.cases[0].aggregates.score = score;
+  return doc;
+};
+const judged = (doc, yaml) => {
+  const [row] = verdicts(doc, { caseYaml: () => yaml });
+  return [row.verdict, row.score, row.reason];
+};
+
+test("a history_file case with no without-arm key is scored alone against the threshold", () => {
+  assert.deepEqual(judged(singleArmDoc(1), HISTORY_YAML), ["PASS", 1, "ran single-arm by design (context.history_file), so no delta: score 1.00 against threshold 0.80"]);
+  assert.deepEqual(judged(singleArmDoc(0.5), HISTORY_YAML), ["FAIL", 0.5, "ran single-arm by design (context.history_file), so no delta: score 0.50 against threshold 0.80"]);
+  assert.equal(judged(singleArmDoc(1), "context: { history_file: h.jsonl }  # flow\n")[0], "PASS");
+});
+
+test("a case not single-arm by design keeps the no-delta NOT COMPARABLE", () => {
+  const emptyWithout = singleArmDoc(1);
+  emptyWithout.cases[0].arms.without = [];
+  for (const [doc, yaml, why] of [
+    [emptyWithout, HISTORY_YAML, "an empty without-arm"],
+    [singleArmDoc(1), "context:\n  scaffold_script: scaffold.sh\n", "no history_file"],
+    [singleArmDoc(1), null, "no case.yaml"],
+    [singleArmDoc(1), "context:\n  history_file:\n    nested: x\n", "an empty value continued below"],
+    [singleArmDoc(1), "# history_file: h.jsonl\ncontext:\n  scaffold_script: s.sh\n", "a commented mention"],
+    [singleArmDoc(1), "history_file: h.jsonl\n", "the key outside context"],
+  ]) {
+    assert.deepEqual(judged(doc, yaml), ["NOT COMPARABLE", null, "the arms are not comparable: the case carries no delta"], why);
+  }
+});
+
+test("a single-arm-by-design case with an errored run is still NOT COMPARABLE", () => {
+  const doc = singleArmDoc(1);
+  doc.cases[0].arms.with[0].error = "timeout";
+  assert.deepEqual(judged(doc, HISTORY_YAML).slice(0, 2), ["NOT COMPARABLE", null]);
+});
+
+test("summarize reads case.yaml at <suite.root>/<dir>, a relative root against the result's directory", () => {
+  const dir = mkdtempSync(join(tmpdir(), "summarize-"));
+  try {
+    mkdirSync(join(dir, "plugin", "evals", "with-history"), { recursive: true });
+    mkdirSync(join(dir, "plugin", "evals", "no-yaml"), { recursive: true });
+    writeFileSync(join(dir, "plugin", "evals", "with-history", "case.yaml"), HISTORY_YAML);
+    const doc = singleArmDoc(1);
+    doc.suite.root = "plugin";
+    const text = (caseDir) => {
+      doc.cases[0].dir = caseDir;
+      return summarize(doc, { plugin: "testing", base: dir }).text;
+    };
+    assert.match(text("evals/with-history"), /\| PASS: ran single-arm by design/);
+    assert.match(text("evals/no-yaml"), /\| NOT COMPARABLE: the arms are not comparable: the case carries no delta \|/);
+    assert.match(text("evals/absent-dir"), /Result: NOT COMPARABLE$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--redact keeps a single-arm-by-design case's name and history_file out of the summary", () => {
+  const { text, result } = summarize(singleArmDoc(1), { plugin: "testing", base: join(HERE, "fixtures"), redact: true, caseYaml: () => HISTORY_YAML });
+  assert.equal(result, "PASS");
+  assert.match(text, /\| case 1 \| 1\.00 \| – \| – \| PASS: ran single-arm by design/);
+  assert.doesNotMatch(text, /writes-a-test|secret-history/);
 });
 
 test("a result with no case is not a pass", () => {
