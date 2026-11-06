@@ -1,0 +1,10 @@
+{
+  "name": "pr-refine",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "resolve-config": "file:../../actions/resolve-config"
+  }
+}

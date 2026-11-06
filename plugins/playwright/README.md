@@ -116,10 +116,18 @@ Then verify prerequisites with `/playwright:setup check` or
 
 ## Configuration
 
-This plugin has no `userConfig`. Behavior tuning happens through
+The `demo_*` options below tune `/playwright:demo-video`. Browser behavior tuning happens through
 `@playwright/cli`'s own flags and config file (documented in the upstream
 README inside the npm package); the skill deliberately recommends upstream
 defaults.
+
+A repository can commit `playwright.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/playwright.schema.json`](schemas/playwright.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | How much of `/playwright:demo-video`'s independent frame review (step 8) runs: `light` and `off` skip the quality judgment and report the video as not independently judged for quality, but the fresh-context check for secrets and personal data in the frames still runs and still gates posting. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

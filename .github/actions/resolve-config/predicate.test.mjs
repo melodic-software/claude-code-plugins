@@ -5,6 +5,7 @@ import {
   applies,
   appliesAll,
   factsFor,
+  matchedPaths,
   MissingFact,
   pipelineEvent,
 } from "./predicate.mjs";
@@ -31,6 +32,29 @@ test("a paths miss gives not-applicable-paths", () => {
     applies: false,
     skipReason: "not-applicable-paths",
   });
+});
+
+test("paths-ignore drops matched paths, and one path must pass both lists", () => {
+  const predicate = { paths: ["docs/**"], "paths-ignore": ["docs/generated/**"] };
+  const run = (changedPaths) => applies(predicate, { changedPaths });
+  assert.deepEqual(run(["docs/generated/api.md"]), { applies: false, skipReason: "not-applicable-paths" });
+  assert.deepEqual(run(["docs/generated/api.md", "docs/guide.md"]), { applies: true, skipReason: null });
+  // A path outside paths does not rescue an ignored one.
+  assert.deepEqual(run(["src/app.js", "docs/generated/api.md"]), { applies: false, skipReason: "not-applicable-paths" });
+});
+
+test("paths-ignore alone matches any changed path it does not ignore", () => {
+  const predicate = { "paths-ignore": ["docs/**"] };
+  assert.equal(applies(predicate, { changedPaths: ["docs/a.md"] }).skipReason, "not-applicable-paths");
+  assert.equal(applies(predicate, { changedPaths: ["docs/a.md", "src/b.js"] }).applies, true);
+  assert.deepEqual(factsFor(predicate), ["changedPaths"]);
+  assert.throws(() => applies(predicate, {}), MissingFact);
+});
+
+test("matchedPaths keeps the paths a predicate lets through", () => {
+  const predicate = { paths: ["**/*.md"], "paths-ignore": ["docs/archive/**"] };
+  assert.deepEqual(matchedPaths(predicate, ["a.md", "docs/archive/b.md", "c.js", "docs/d.md"]), ["a.md", "docs/d.md"]);
+  assert.deepEqual(matchedPaths(undefined, ["a.md", "c.js"]), ["a.md", "c.js"]);
 });
 
 test("a labels miss gives not-applicable", () => {

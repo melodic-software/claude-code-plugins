@@ -239,6 +239,15 @@ its own docs, with the fresh-context same-vendor subagent as the stated fallback
 a command that may not resolve. Fence each validator to read-only (its findings' files +
 verification-sources).
 
+**The verification level decides the separate validator.** Run
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin codebase-health --skill audit` and
+copy its line into the report
+([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` is the rule above. `strict` dispatches the separate validator even when Phase 1 ran
+inline. Under `light`, and `off`, which acts as `light` here, dispatch no validator and never grade
+the findings yourself in its place: report them as `unverified` with
+`verification: skipped (<level>)` in the summary.
+
 ### External research (required when the tooling exists)
 
 When your setup provides documentation-research tools (MCP docs servers, library-docs lookers-up, web

@@ -1,0 +1,20 @@
+ ▐▛███▛█   Claude Code v2.1.319
+▝▜██████▀  Opus 5.5 · API Usage Billing
+ ▝▝   ▝▝   ~/project
+
+   Settings  Status   Config   Usage   Stats
+
+   Version:                    2.1.319
+   Session name:               /rename to add a name
+   Session ID:                 00000000-0000-4000-8000-000000000000
+   Session kind:               interactive
+   Peer address:               uds:/tmp/cc-socks/12345.sock
+   cwd:                        /home/<user>/project
+   Auth token:                 none
+   API key:                    ANTHROPIC_API_KEY
+
+   Model:                      Default (claude-opus-5-5)
+   Setting sources:            Project local settings
+   Auto mode server:           Enabled
+
+   Esc to cancel

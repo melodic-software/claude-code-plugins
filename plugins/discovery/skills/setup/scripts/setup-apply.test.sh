@@ -3,7 +3,8 @@
 #
 # Self-contained and cwd-independent; mutates only its own mktemp dir.
 # Expected values come from the key contract in reference/config.md:
-# explore_output takes auto, change-prep or explain, and the file is
+# explore_output takes auto, change-prep or explain, the research_* keys take
+# whole numbers of 1 or more, and the file is
 # docs/conventions/discovery.yaml at the repository root.
 # test-scope: plugins/discovery/lib/resolve-convention-home.sh
 set -uo pipefail
@@ -256,6 +257,20 @@ default_ok=0
 [[ "$CODE" -eq 0 && "$(grep -c '^  explore_output: default$' "$repo/docs/conventions/discovery.yaml")" -eq 1 ]] && default_ok=1
 if [[ "$record_ok" -eq 1 ]]; then pass 'the file records written_against and a chosen entry'; else fail 'the file records written_against and a chosen entry'; fi
 if [[ "$default_ok" -eq 1 ]]; then pass '--default records a default entry'; else fail '--default records a default entry'; fi
+
+# --- The research keys: whole numbers of 1 or more (reference/config.md) ---
+repo="$(new_repo)"
+run "$repo" research_corroborators=3 research_recency_active_days=7 research_recency_standard_days=45 research_recency_guide_days=180
+f="$repo/docs/conventions/discovery.yaml"
+if [[ "$CODE" -eq 0 && "$(bash "$READER" "$f" research_corroborators)" == "3" && "$(bash "$READER" "$f" research_recency_guide_days)" == "180" ]]; then pass 'the research keys are written and read back'; else fail 'the research keys are written and read back'; fi
+for bad in research_corroborators=0 research_corroborators=two research_recency_active_days=1.5 research_recency_standard_days=-30; do
+  repo="$(new_repo)"
+  run "$repo" "$bad"
+  if [[ "$CODE" -eq 1 && "$OUT" == *"$bad"* && ! -e "$repo/docs" ]]; then pass "$bad is refused and writes nothing"; else fail "$bad is refused and writes nothing"; fi
+done
+repo="$(new_repo)"
+run "$repo" --default research_corroborators
+if [[ "$CODE" -eq 0 && "$(bash "$READER" "$repo/docs/conventions/discovery.yaml" research_corroborators)" == "2" ]]; then pass '--default writes the corroborator default 2'; else fail '--default writes the corroborator default 2'; fi
 
 if ((fails)); then
   printf '%d failure(s)\n' "$fails" >&2
