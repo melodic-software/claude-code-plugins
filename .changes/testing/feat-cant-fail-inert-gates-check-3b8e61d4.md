@@ -8,4 +8,4 @@ bump: minor
 
 ### Fixed
 
-- **audit:** the can't-fail scan reads a bash-harness test that runs `bash`, `sh`, `node`, a Python, `pwsh` or a variable command and then exits with `exit $?` as delegation, the way it reads `exec`, so such a test is no longer reported as `rule-zero-assertion`. The same command followed by `exit 0` is still reported. New corpus pairs pin both.
+- **audit:** the can't-fail scan reads a bash-harness test that runs `bash`, `sh`, `node`, a Python, `pwsh` or a variable command and then exits with `exit $?` as delegation, the way it reads `exec`, so such a test is no longer reported as `rule-zero-assertion`. The command must start its line or follow `;`, `&` or `|`, so a quoted variable in argument position (`echo "$out"`, `cp "$a" "$b"`) before `exit $?` is still reported, as is the same command followed by `exit 0`. New corpus fixtures pin each case.

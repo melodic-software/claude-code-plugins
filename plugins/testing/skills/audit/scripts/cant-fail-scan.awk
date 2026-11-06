@@ -1911,7 +1911,8 @@ function seg_add(m, r, a, b,    n) {
 }
 
 # block_raw: an idiom or a delegation matched the raw text of this line and
-# the two before it, which counts as an assertion. The per-line rules that
+# the two before it, joined by newlines so a pattern can anchor a line start,
+# which counts as an assertion. The per-line rules that
 # need to know they are inside a test run from here.
 function append_block(m, r,    bm, br) {
   bm = m; br = r
@@ -1937,7 +1938,7 @@ function append_block(m, r,    bm, br) {
   if (SIG_OPEN) { SIG = SIG " " m; if (index(SIG, "(") && delta(SIG, "(", ")") <= 0) SIG_OPEN = 0 }
   if (r ~ R_EXEMPT) block_exempt = 1
   if (R_RAW != "" && !block_raw) {
-    if ((BW2 " " BW1 " " br) ~ R_RAW) block_raw = 1
+    if ((BW2 "\n" BW1 "\n" br) ~ R_RAW) block_raw = 1
     BW2 = BW1; BW1 = br
   }
   # cs, python and go have cut the start line's signature to its body. The

@@ -29,8 +29,9 @@ delegation:
   # exec of only redirections or a file descriptor runs nothing.
   - '(^|[[:space:];&|])exec[[:space:]]+(bash|sh|node|python3?|pwsh|"?\$)[[:space:]"{A-Za-z_]'
   # The same commands run and then exited on with `exit $?` pass their status
-  # on as exec does.
-  - '(^|[[:space:];&|])(bash|sh|node|python3?|pwsh|"?\$[{]?[A-Za-z_][A-Za-z0-9_]*[}]?"?)[[:space:]][^;&|]*[[:space:]]exit[[:space:]]+"?\$\?"?([[:space:];]|$)'
+  # on as exec does. The command starts its line or follows ; & |, so a
+  # variable in argument position (echo "$out", cp "$a" "$b") is not one.
+  - '(^|\n|[;&|])[[:space:]]*(bash|sh|node|python3?|pwsh|"?\$[{]?[A-Za-z_][A-Za-z0-9_]*[}]?"?)([[:space:]][^;&|\n]*)?(\n|;)[[:space:]]*exit[[:space:]]+"?\$\?"?([[:space:];]|$)'
   - '(^|[[:space:];&|])"\$(PYTHON|PY)"[[:space:]]'
 equality:
   call2: [assert_eq, assert_equal, assert_equals, assert_same]

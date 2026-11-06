@@ -1327,7 +1327,9 @@ corpus_files=(
   bash-harness/bad/bracket-status-dropped.test.sh.fixture
   bash-harness/bad/bracket-then-exit-zero.test.sh.fixture
   bash-harness/bad/check-helper-never-exits.test.sh.fixture
+  bash-harness/bad/cp-variables-then-exit-status.test.sh.fixture
   bash-harness/bad/deploy-source-text.test.sh.fixture
+  bash-harness/bad/echo-variable-then-exit-status.test.sh.fixture
   bash-harness/bad/exec-redirect-only.test.sh.fixture
   bash-harness/bad/prints-only.test.sh.fixture
   bash-harness/bad/rc-accumulator-not-exited.test.sh.fixture
