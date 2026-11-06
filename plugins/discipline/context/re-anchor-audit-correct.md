@@ -41,14 +41,19 @@ Run these in order. Skip a step only when its input is genuinely absent
    name CONCRETE, located findings, not a generic mea culpa. Each finding
    points at a specific turn, claim, or artifact and at the specific part
    of the discipline it breaks. If there are none, say so plainly. Do not
-   invent findings to look diligent. For load-bearing work (anything the
-   user will act on or the work rests on), a clean self-audit is not yet
-   the verdict: dispatch a fresh-context subagent with the discipline's
-   source and the work, not your audit, to confirm "no findings" before
-   step 4 reports clean; what it finds goes to step 3. The `verification`
-   level governs this subagent as it governs step 3's; under `light` or
-   `off`, report "clean (self-audit only)" with
-   `verification: skipped (<level>)`.
+   invent findings to look diligent. For load-bearing work (code, config,
+   a recommendation, or a claim something downstream cites; when in doubt,
+   treat it as load-bearing), a clean self-audit is not yet the verdict:
+   dispatch a fresh-context subagent with the discipline's source and the
+   work, not your audit, to audit it independently and report findings
+   before step 4 reports clean; what it finds goes to step 3. The
+   `verification` level governs this subagent as it governs step 3's: a
+   corrector that resolves no level dispatches it, and under `light`, or
+   `off`, which acts as `light` here, report "clean (self-audit only)" with
+   `verification: skipped (<level>)`. A context that cannot spawn (a
+   batched fork) returns "clean (unconfirmed)"; the pass that dispatched it
+   runs the confirmation. A corrector whose step 2 already runs in a
+   fresh-context subagent (a declared delta) has met this.
 3. **Correct forward now.** For each finding, do the missing work THIS
    turn rather than merely noting it: edit the file, fix the config,
    re-derive the choice, in the working tree, now. Where your own
@@ -75,7 +80,8 @@ Run these in order. Skip a step only when its input is genuinely absent
    explicit opt-in (see the Non-negotiable below). In-tree correction is
    not an outward artifact and stays on the do-it-now side of this line.
 4. **Report.** One short list: what was corrected, what remains open, and
-   an honest "clean" where the audit found nothing. When the audit changed
+   an honest "clean" where the audit found nothing, labelled
+   "(self-audit only)" when step 2's confirmation did not run. When the audit changed
    a recommendation the user still has pending, re-state it as old → new →
    why, where new may be a withheld open question, per
    [`recommendation-basis.md`](recommendation-basis.md).

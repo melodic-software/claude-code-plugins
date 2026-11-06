@@ -44,7 +44,8 @@ unchanged and bind every member.
    ledger. Each ledger entry carries the
    concrete located finding AND the remedy this corrector would apply for it
    (the shared loop's step-3 corrective action, *described* not performed. The
-   fork still writes nothing), or an honest "clean". Capturing the proposed
+   fork still writes nothing), or "clean (unconfirmed)", since a fork cannot
+   spawn the method doc's step 2 confirmation. Capturing the proposed
    remedy in the audit is what gives step 3 the reporter→remedy data to key on;
    a ledger of bare violations would leave the dedup with nothing to preserve.
 
@@ -168,6 +169,10 @@ unchanged and bind every member.
    not waive that escalation; only a `light` or `off` verification level
    (SKILL.md) skips it, as the method doc says. (The fork *audit* inherits context on purpose:
    step 2 is a same-context self-audit; this carve-out is about step 4.)
+   Each "clean (unconfirmed)" ledger on load-bearing work gets the method
+   doc's step 2 confirmation here: one fresh-context (non-fork) subagent per
+   corrector, under the same level rule; under `light` or `off` the report
+   lists it as "clean (self-audit only)".
 5. **Report** one consolidated ledger: per corrector. Corrected / clean /
    open; a root-cause finding merged in step 3 is listed once, attributed to
    every corrector that reported it; plus which situational members ran versus
