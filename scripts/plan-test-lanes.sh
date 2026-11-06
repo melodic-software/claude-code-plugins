@@ -236,6 +236,7 @@ declare -A OUTSIDE_TRIGGERS=(
   [.github/scripts/maintenance-audit-lane-runs]=".github/workflows/maintenance-audit-lane-runs.yml .github/scripts/lib/"
   [.github/scripts/maintenance-measure-skill-edit]=".github/workflows/maintenance-measure-skill-edit.yml .github/scripts/lib/"
   [.github/scripts/maintenance-tidy-code-upkeep]=".github/workflows/maintenance-tidy-code-upkeep.yml .github/scripts/lib/"
+  [.github/scripts/intake-triage]=".github/workflows/intake-triage.yml .github/scripts/lib/"
   [scripts/lane-transcripts]=".github/workflows/"
 )
 

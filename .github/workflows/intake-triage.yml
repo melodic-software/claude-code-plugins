@@ -757,13 +757,13 @@ jobs:
         with:
           tokens: github-token
 
-  # The key-credit gate, before the key leg (ci-workflows check-key-credit,
-  # gate.cjs: one artifact-list call for the marker refine-issue uploads after
-  # a credit stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour
-  # unset) skips refine-issue, so refine-issue-subscription refines on the
+  # Whether the key is still out of credit, and so which leg runs first,
+  # before the key leg (ci-workflows select-model-credential, its start call:
+  # check-key-credit's one artifact-list call for the marker refine-issue
+  # uploads after a credit stop). A credit stop inside the window names the
+  # subscription leg, so refine-issue-subscription refines on the
   # subscription token without a refused key attempt first. It holds no
-  # secret and runs no model; every failure runs the key (skip-key empty).
-  # Probing is off.
+  # secret and runs no model; every failure runs the key. Probing is off.
   refine-key-credit:
     needs: [refine-select]
     if: ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline' }}
@@ -772,23 +772,26 @@ jobs:
     permissions:
       actions: read # list this repository's credit-stop markers
     outputs:
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
+      next-reason: ${{ steps.credit.outputs.next-reason }}
       marker: ${{ steps.credit.outputs.marker }}
     steps:
       - name: Read the key's credit history
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: refine-issue
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -806,7 +809,7 @@ jobs:
   # run-claude-cli runs the CLI with --restricted, so no user, project or
   # local settings load. refine-issue holds only the API key. When its key
   # leg hands off (a credit stop, or class auth with API status 401 or 402),
-  # the key is empty, or refine-key-credit skipped the key,
+  # the key is empty, or refine-key-credit named the subscription leg first,
   # refine-issue-subscription runs the same steps on a new VM on the
   # subscription token alone, and refine-issue-fallback on the central
   # fallback token after that. Its structured output is the result; it posts
@@ -815,7 +818,7 @@ jobs:
     needs: [refine-select, refine-key-credit]
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
-      && needs.refine-key-credit.outputs.skip-key != 'true' }}
+      && needs.refine-key-credit.outputs.next-leg != 'subscription' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -825,9 +828,8 @@ jobs:
     permissions:
       contents: read # check out main
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       refined: ${{ steps.upload.outcome == 'success' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
@@ -902,13 +904,11 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.INTAKE_CLAUDE_API_KEY != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::warning::INTAKE_CLAUDE_API_KEY is empty; refine-issue-subscription refines on the subscription token"
-          fi
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: intake
+          credential-set: ${{ secrets.INTAKE_CLAUDE_API_KEY != '' }}
 
       # Files, not step outputs: run-claude-cli reads both. A `default` model
       # resolves to an empty model, which the launcher cannot pass.
@@ -1114,7 +1114,8 @@ jobs:
           echo "::notice::refine-issue-subscription refines on the subscription token"
 
       # Read by the next runs' credit gate (refine-key-credit): the artifact
-      # its `marker` output names (check-key-credit gate.cjs markerName),
+      # its start call's `marker` output names (check-key-credit gate.cjs
+      # markerName),
       # uploaded only after the key leg's credit-stop handoff. The name is
       # written out so its retention row (.github/artifact-retention.json)
       # claims it; one day's retention covers windows up to 24 hours.
@@ -1212,6 +1213,21 @@ jobs:
           echo "::error::the refinement left no output for this issue"
           exit 1
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). !cancelled(), as
+      # the next job's own if: is, so a step that failed after a handoff or
+      # an empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -1227,17 +1243,16 @@ jobs:
   # the handoff report, the key leg's credit-stop marker, the leg record's
   # fallback reason and the last step's `if` (callers.test.mjs holds every
   # other step and field equal). It runs after refine-issue handed off, found
-  # its key empty, or was skipped by the key-credit gate, reading only those
-  # outputs, each compared to a fixed string in its `if`. Only this job
-  # references the subscription token. With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-  # set, its leg hands off (a limit stop, a credit stop, or a 401 or 402) to
-  # refine-issue-fallback.
+  # its key empty, or was skipped by the key-credit gate: when refine-issue's
+  # or refine-key-credit's next-leg names this leg, each compared to a fixed
+  # string in its `if`. Only this job references the subscription token.
+  # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, its leg hands off (a limit
+  # stop, a credit stop, or a 401 or 402) to refine-issue-fallback.
   refine-issue-subscription:
     needs: [refine-select, refine-key-credit, refine-issue]
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
-      && (needs.refine-issue.outputs.handoff == 'true' || needs.refine-issue.outputs.credential-present == 'false'
-      || needs.refine-key-credit.outputs.skip-key == 'true') }}
+      && (needs.refine-issue.outputs.next-leg == 'subscription' || needs.refine-key-credit.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -1247,10 +1262,8 @@ jobs:
     permissions:
       contents: read # check out main
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       refined: ${{ steps.upload.outcome == 'success' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
@@ -1319,20 +1332,13 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          # Whether the fallback leg can run, never the token.
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" = true ]; then
-              echo "::warning::INTAKE_CLAUDE_CODE_OAUTH_TOKEN is empty; refine-issue-fallback refines on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
-            else
-              echo "::notice::INTAKE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs"
-            fi
-          fi
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
-          echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: intake
+          credential-set: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.refine-issue.outputs.next-reason || needs.refine-key-credit.outputs.next-reason }}
 
       - name: Write the prompt and schema
         id: prompt
@@ -1542,7 +1548,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.refine-issue.outputs.handoff-reason || needs.refine-issue.outputs.credential-present == 'false' && 'no-key' || needs.refine-key-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Collect the refinement
         id: collect
@@ -1579,9 +1585,9 @@ jobs:
           if-no-files-found: error
 
       # A handoff hands the refinement on, and an empty token either hands it
-      # to the fallback leg or, with no fallback token, ends with the notice
-      # above; any other run that passed the context check and uploaded
-      # nothing fails here.
+      # to the fallback leg or, with no fallback token, ends with the
+      # credential step's warning; any other run that passed the context
+      # check and uploaded nothing fails here.
       - name: Fail without a refinement
         if: >-
           always() && steps.context.outcome == 'success' && steps.upload.outcome != 'success' && steps.run.outputs.handoff != 'true'
@@ -1589,6 +1595,21 @@ jobs:
         run: |
           echo "::error::the refinement left no output for this issue"
           exit 1
+
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). !cancelled(), as
+      # the next job's own if: is, so a step that failed after a handoff or
+      # an empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
 
       - name: Log the API budget at the end
         if: always()
@@ -1601,17 +1622,17 @@ jobs:
   # The fallback leg, on the central fallback subscription's token alone, as
   # its own job on a new VM. It runs only after refine-issue-subscription's
   # leg handed off (a limit stop, a credit stop, or a 401 or 402) or found
-  # its token empty, reading those outputs against fixed strings. Its steps repeat
+  # its token empty with the fallback token set: when its next-leg names
+  # this leg, compared to a fixed string. Its steps repeat
   # refine-issue-subscription's but for the credential check, the launcher's
-  # credential input, the handoff report, the leg record's fallback reason
-  # and the last step's `if` (callers.test.mjs holds the rest equal). It is
-  # the last leg and never hands off.
+  # credential input, the handoff report, the leg record's fallback reason,
+  # the next-leg call and the last step's `if` (callers.test.mjs holds the
+  # rest equal). It is the last leg and never hands off.
   refine-issue-fallback:
     needs: [refine-select, refine-issue-subscription]
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
-      && needs.refine-issue-subscription.outputs.fallback-ready == 'true'
-      && (needs.refine-issue-subscription.outputs.handoff == 'true' || needs.refine-issue-subscription.outputs.credential-present == 'false') }}
+      && needs.refine-issue-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -1689,13 +1710,12 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty; nothing refines this issue"
-          fi
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: intake
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.refine-issue-subscription.outputs.next-reason }}
 
       - name: Write the prompt and schema
         id: prompt
@@ -1891,7 +1911,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.refine-issue-subscription.outputs.handoff-reason || needs.refine-issue-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Collect the refinement
         id: collect
