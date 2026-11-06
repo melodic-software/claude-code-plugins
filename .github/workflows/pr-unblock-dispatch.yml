@@ -17,8 +17,8 @@ name: pr-unblock-dispatch
 # also dispatches pr-refine.yml's fix-docs once per open, ready PR into main
 # that changes a Markdown file, carries no hold label and never had a fix-docs
 # check run, whoever opened it except Dependabot, the release App and the
-# standards-sync App, and not for a work-resolve-issue PR, which tidied in its
-# own run, at most limits.fix-docs-per-run per run, from its own logged GraphQL
+# standards-sync App, and not for a work-resolve-issue PR tidied in its own run
+# (within the tidy cutoffs), at most limits.fix-docs-per-run per run, from its own logged GraphQL
 # listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs);
 # limits.fix-docs-per-run 0 turns it off.
 #

@@ -476,7 +476,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
     ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
-        number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles
+        number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles additions deletions
         author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         files(first: 100) { nodes { path } pageInfo { hasNextPage } }
@@ -773,6 +773,15 @@ export async function loadBaseOwnedBranches(env) {
   return ownedBranchesFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// The base config's resolve-issue tidy cutoffs, the same way, or null: the
+// fix-docs dispatcher skips a lane PR within them, which tidied in its run.
+export async function loadBaseTidyCutoffs(env) {
+  const { tidyCutoffsFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return tidyCutoffsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+}
+
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
 // returns, so a run cancelled mid-step still records what it sent.
 function wrapRunIds(base, env) {
@@ -815,6 +824,7 @@ export async function main(
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
     loadOwnedBranches = loadBaseOwnedBranches,
+    loadTidyCutoffs = loadBaseTidyCutoffs,
     // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
     // workflow names it in VERIFY_EVIDENCE_SCRIPT.
     verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
@@ -837,7 +847,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, loadTidyCutoffs, verifyCapped, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -845,10 +855,11 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, loadTidyCutoffs, verifyCapped, now }) {
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
   const ownedBranches = await loadOwnedBranches(env);
+  const tidyCutoffs = await loadTidyCutoffs(env);
   // Every dispatcher reads this listing's pages, so one that cannot be read
   // holds the whole run: nothing dispatched, nothing recorded.
   let listed;
@@ -930,6 +941,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     record,
     maxDispatch: limits["fix-docs-per-run"] ?? 2,
     maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
+    tidyCutoffs,
     ...gate,
   });
   const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, limits, now, ...gate });

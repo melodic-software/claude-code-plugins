@@ -514,7 +514,7 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -544,7 +544,7 @@ test("a person's inline review-thread reply since another lane's escalation hold
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -794,7 +794,7 @@ async function runMain(apiOptions, limits = LIMIT_DEFAULTS, now = undefined) {
         GITHUB_OUTPUT: output,
         APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], now },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null, now },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -946,7 +946,7 @@ async function mainWithFailedListing(error) {
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
     );
     return { api, code, lines };
   } finally {
@@ -981,7 +981,7 @@ test("main ends green, dispatching and recording nothing, on an open pull reques
     const out = join(dir, "out");
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: out, APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
     );
     assert.equal(code, 0);
     assert.deepEqual(api.calls.dispatch, []);
@@ -1017,7 +1017,7 @@ async function mainWithHistoryAnswers(answers, pulls) {
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
     );
     return { api, code, lines, sent };
   } finally {
@@ -1087,7 +1087,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
     writeFileSync(output, "");
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: output },
-      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
     );
     assert.equal(code, 1);
     assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
@@ -1109,7 +1109,7 @@ test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns",
     };
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), RUN_IDS_FILE: file },
-      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
     );
     assert.deepEqual(seen, ["", "9160\n"], "the first id is on disk before the second dispatch");
     assert.equal(readFileSync(file, "utf8"), "9160\n", "an id that is not a run id is not recorded");
@@ -1444,7 +1444,7 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
   };
   // A recorded head no open PR carries any more is dropped.
   writeFileSync(path, JSON.stringify({ version: 6, handled: { [CHECK_NAME]: ["f".repeat(40)] }, bases: { ["f".repeat(40)]: "b".repeat(40) }, dispatched: {} }));
-  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] });
+  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
@@ -1518,7 +1518,7 @@ test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns o
       checked: new Map([[fixCi.headRefOid, [notApplicable, notApplicable, notApplicable]]]),
     });
     const lines = [];
-    return { api, lines, options: { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] } };
+    return { api, lines, options: { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null } };
   };
   const warning = `::warning::#151: head ${fixCi.headRefOid}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`;
   try {

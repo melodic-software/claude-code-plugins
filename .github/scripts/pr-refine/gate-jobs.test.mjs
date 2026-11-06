@@ -173,3 +173,12 @@ test("every pr-refine job has a timeout: its own, or its reusable workflow's tim
     assert.ok(own || passed, `${name} sets timeout-minutes`);
   }
 });
+
+// The plan reads the base config through resolve-config's own loader, the one
+// plan-passes.test.mjs and live-config.test.mjs run, not a yq conversion.
+test("the plan step runs write-pass-plan.mjs on the base checkout, with no yq conversion", () => {
+  const plan = jobs(TEXT).get("plan");
+  assert.ok(plan.includes("          BASE_PATH: .base"));
+  assert.ok(plan.includes("        run: node .base/.github/scripts/pr-refine/write-pass-plan.mjs"));
+  assert.ok(!plan.some((line) => /\byq\b/.test(line)), "no yq in the plan job");
+});

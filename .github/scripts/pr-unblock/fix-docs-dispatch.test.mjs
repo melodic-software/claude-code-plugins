@@ -6,8 +6,9 @@
 // Dependabot's, the release App's and the standards-sync App's, and once per
 // PR, as pr-refine.yml's old trigger ran it when a PR opened or turned ready.
 // work-resolve-issue's PRs, the lanes App's on a lane branch
-// (work-resolve-issue/issue-<n>-<run>-<attempt>), are skipped: they tidied in
-// their own run (#13717 issuecomment-6692723687).
+// (work-resolve-issue/issue-<n>-<run>-<attempt>), are skipped when tidied in
+// their own run (within the tidy cutoffs: README, Activities, `tidy`), and
+// dispatched over them (#13717 issuecomment-6692723687).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -235,23 +236,42 @@ test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the 
 });
 
 const LANES_BOT = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP };
+// Small cutoffs in resolve-issue's tidy.cutoffs shape (pr-pipeline.yaml), so
+// each bound sits a step from its value; areas as the README's tidy entry
+// defines them.
+const CUTOFFS = { "max-files": 2, "max-lines": 10, "max-areas": 1, "shared-paths": [".github/", "AGENTS.md"] };
+// A lane PR exactly at the cutoffs: 2 files, 6 + 4 lines, one area
+// (plugins/x with its .changes/x fragment).
+const lanePr = (number, { paths = ["plugins/x/a.md", ".changes/x/f.md"], ...overrides } = {}) =>
+  pr(number, { author: LANES_BOT, headRefName: "work-resolve-issue/issue-12-345-1", paths, changedFiles: paths.length, additions: 6, deletions: 4, ...overrides });
+const lane = { appSenderId: LANES_APP, tidyCutoffs: CUTOFFS, maxDispatch: 20 };
 
-test("a work-resolve-issue PR (the lanes App's, on a lane branch) is skipped; the App's other PRs and a person's lane-named branch are not", async () => {
-  const pulls = [
-    pr(30, { author: LANES_BOT, headRefName: "work-resolve-issue/issue-12-345-1" }),
-    pr(31, { author: LANES_BOT, headRefName: "chore/x" }),
-    pr(32, { headRefName: "work-resolve-issue/issue-12-345-1" }),
-    pr(33, { author: LANES_BOT, headRefName: "work-resolve-issue/issue-1-x" }),
-  ];
-  const { api, record } = await run({ pages: [pulls] }, { appSenderId: LANES_APP, maxDispatch: 5 });
+test("a work-resolve-issue PR (the lanes App's, on a lane branch) within the tidy cutoffs is skipped; the App's other PRs and a person's lane-named branch are not", async () => {
+  const pulls = [lanePr(30), lanePr(31, { headRefName: "chore/x" }), lanePr(32, { author: pr(32).author }), lanePr(33, { headRefName: "work-resolve-issue/issue-1-x" })];
+  const { api, record } = await run({ pages: [pulls] }, lane);
   assert.deepEqual(numbers(api), ["31", "32", "33"]);
   assert.equal(isHandled(record, CHECK, pr(30).headRefOid), false, "a skipped lane PR is not recorded as handled");
 });
 
-test("without a valid lanes App id no PR is skipped as a work-resolve-issue PR", async () => {
-  for (const appSenderId of [undefined, Number.NaN, "337595936"]) {
-    const pulls = [pr(34, { author: LANES_BOT, headRefName: "work-resolve-issue/issue-12-345-1" })];
-    assert.deepEqual(numbers((await run({ pages: [pulls] }, { appSenderId })).api), ["34"], String(appSenderId));
+test("a work-resolve-issue PR over any tidy cutoff was not tidied in its run and is dispatched", async () => {
+  const pulls = [
+    lanePr(40, { paths: ["plugins/x/a.md"], changedFiles: 3 }),
+    lanePr(41, { additions: 7 }),
+    lanePr(42, { paths: [".github/x.md"] }),
+    lanePr(43, { paths: ["AGENTS.md"] }),
+    lanePr(44, { paths: ["plugins/x/a.md", "plugins/y/b.md"] }),
+    lanePr(45, { paths: ["docs/a/x.md", "docs/b/y.md"] }),
+    lanePr(46, { more: true }),
+    // Within: a shared file's name elsewhere, and two files of one docs dir.
+    lanePr(47, { paths: ["plugins/x/AGENTS.md"] }),
+    lanePr(48, { paths: ["docs/a/x.md", "docs/a/y.md"] }),
+  ];
+  assert.deepEqual(numbers((await run({ pages: [pulls] }, lane)).api), ["40", "41", "42", "43", "44", "45", "46"]);
+});
+
+test("without a valid lanes App id or tidy cutoffs no PR is skipped as a work-resolve-issue PR", async () => {
+  for (const options of [{ appSenderId: undefined }, { appSenderId: Number.NaN }, { appSenderId: "337595936" }, { tidyCutoffs: null }]) {
+    assert.deepEqual(numbers((await run({ pages: [[lanePr(34)]] }, { ...lane, ...options })).api), ["34"], JSON.stringify(options));
   }
 });
 

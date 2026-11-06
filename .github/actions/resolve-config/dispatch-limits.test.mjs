@@ -198,13 +198,22 @@ test("an unreadable base tracker config holds adopted owner PRs only, and no ado
 });
 
 test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches, and a work-resolve-issue PR is skipped", async () => {
-  // The lanes App's PR on a lane branch tidied in its own run (#13717 issuecomment-6692723687).
-  const lanePull = { ...docsPull(60), author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP }, headRefName: "work-resolve-issue/issue-12-345-1" };
-  const pulls = [lanePull, docsPull(61), docsPull(62), docsPull(63)];
+  // The lanes App's PRs on a lane branch: one within the live tidy cutoffs
+  // (resolve-issue's max-lines 300), tidied in its own run and skipped, and
+  // one a line over them, dispatched (#13717 issuecomment-6692723687).
+  const lanePull = (number, lines) => ({
+    ...docsPull(number),
+    author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP },
+    headRefName: "work-resolve-issue/issue-12-345-1",
+    changedFiles: 1,
+    additions: lines,
+    deletions: 0,
+  });
+  const pulls = [lanePull(58, 301), lanePull(60, 300), docsPull(61), docsPull(62), docsPull(63)];
   assert.match(LIVE, /^ {2}fix-docs-per-run: 2$/m, "the live config turns CI fix-docs on at 2 a run (#13717)");
-  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
+  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40", "58", "61"] });
   const one = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 1");
-  assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "61"] });
+  assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "58"] });
   const off = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 0");
   assert.deepEqual(await run(off, [], pulls), { code: 0, dispatched: ["40"] });
 });

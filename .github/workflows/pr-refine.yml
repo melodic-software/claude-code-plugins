@@ -8,8 +8,8 @@ name: pr-refine
 # workflow_dispatch only. fix-docs: pr-unblock-dispatch.yml sends one per
 # ready PR that changes a Markdown file and never had a fix-docs run, whoever
 # opened it except Dependabot, the release App and the standards-sync App,
-# and not for a work-resolve-issue PR, which tidied in its own run
-# (fix-docs-dispatch.mjs). It sets dispatcher-run-id; a trusted human may
+# and not for a work-resolve-issue PR tidied in its own run (within the tidy
+# cutoffs) (fix-docs-dispatch.mjs). It sets dispatcher-run-id; a trusted human may
 # dispatch with pr-number and activity alone. Every job trusts the default
 # branch tip, as the dispatcher runs from the tip.
 #
@@ -215,8 +215,8 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # write-pass-plan.mjs expands the lane's slots through the base's
-      # resolve.mjs, which needs its dependencies.
+      # write-pass-plan.mjs loads the base config and expands the lane's slots
+      # through the base's resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         if: steps.files.outputs.held == 'false'
         timeout-minutes: 5
@@ -226,13 +226,11 @@ jobs:
         id: plan
         if: steps.files.outputs.held == 'false'
         env:
-          CONFIG_FILE: ${{ runner.temp }}/pr-pipeline.json
+          BASE_PATH: .base
           PATHS_FILE: ${{ runner.temp }}/changed-paths.txt
           CODEOWNERS_FILE: .base/.github/CODEOWNERS
           TRUNCATED: ${{ steps.files.outputs.truncated }}
-        run: |
-          yq -o=json '.' .base/docs/conventions/pr-pipeline.yaml >"$CONFIG_FILE"
-          node .base/.github/scripts/pr-refine/write-pass-plan.mjs
+        run: node .base/.github/scripts/pr-refine/write-pass-plan.mjs
 
       - name: Log the API budget at the end
         if: always()

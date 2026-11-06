@@ -12,7 +12,7 @@ import { parse, stringify } from "yaml";
 import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
-import { ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
+import { configFromBase, ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
 import { laneSlots, resolve, resolveGrant, slotTargets } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -722,6 +722,9 @@ test("live config: fix-docs applies to a Markdown change and waits on do-not-mer
   );
 });
 
+// The config as pr-refine's plan job reads it (write-pass-plan.mjs).
+const PLAN_CONFIG = configFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
+
 // The issue's rule (#13717): a changelog fragment alone does not qualify.
 test("live config: fix-docs skips a PR whose only Markdown is a changelog fragment, and the planner agrees", () => {
   const fragmentOnly = { changedPaths: [".changes/pr-pipeline/x.md", "src/a.js"], changedTargets: [".changes/pr-pipeline/x.md", "src/a.js"] };
@@ -730,7 +733,7 @@ test("live config: fix-docs skips a PR whose only Markdown is a changelog fragme
   const slot = selected("pr-refine", "fix-docs", withDoc);
   assert.equal(slot.applies, true);
   assert.deepEqual(slot["changed-paths"], ["docs/guide.md"]);
-  const slots = laneSlots(parse(FILES.config), "pr-refine");
+  const slots = laneSlots(PLAN_CONFIG, "pr-refine");
   assert.deepEqual(planPasses({ slots, changedPaths: fragmentOnly.changedPaths }).batches, []);
   assert.deepEqual(planPasses({ slots, changedPaths: withDoc.changedPaths }).batches, [["fix-docs"]]);
 });
@@ -739,7 +742,7 @@ test("live config: fix-docs skips a PR whose only Markdown is a changelog fragme
 // each path list, the plan holds the pass exactly when the runner's resolve
 // of the same PR (ready, unlabeled) applies it.
 test("live config: the Refine plan agrees with resolve's applies for every pr-refine pass", () => {
-  const slots = laneSlots(parse(FILES.config), "pr-refine");
+  const slots = laneSlots(PLAN_CONFIG, "pr-refine");
   const refine = slots.filter((slot) => slot.activity.stage === "refine").map((slot) => slot.name);
   assert.ok(refine.includes("fix-docs"));
   // write-pass-plan.mjs's targetsOf, with no CODEOWNERS as FILES carries none.

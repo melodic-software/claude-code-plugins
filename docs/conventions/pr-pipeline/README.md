@@ -180,7 +180,7 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown, never had `fix-docs` and is not a `work-resolve-issue` PR, after a push to the default branch or at the dispatcher's half-hourly tick, or a trusted human's dispatch; `limits.fix-docs-per-run: 0` turns the dispatches off |
+| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown, never had `fix-docs` and is not a `work-resolve-issue` PR tidied in its own run (within the tidy cutoffs), after a push to the default branch or at the dispatcher's half-hourly tick, or a trusted human's dispatch; `limits.fix-docs-per-run: 0` turns the dispatches off |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
@@ -592,9 +592,13 @@ request: one GraphQL query per page of 50 open pull requests, its `rateLimit.cos
 the non-draft, same-repository ones into `main`, whoever opened them, except Dependabot (account
 49699333, whose own rebases a lane commit stops), the release App (337859524) and the
 standards-sync App (300666570), whose files are generated or synced, and `work-resolve-issue`
-PRs: the lanes App's on a lane branch (`work-resolve-issue/issue-<n>-<run>-<attempt>`), which
-tidied in their own run (its `tidy` key). The lanes App's other PRs are listed, and so is a
-person's PR on a branch with a lane name. An author with no account id is skipped. It keeps
+PRs tidied in their own run (within the tidy cutoffs): the lanes App's on a lane branch
+(`work-resolve-issue/issue-<n>-<run>-<attempt>`) whose change is within `resolve-issue`'s
+`tidy.cutoffs` in the base config, read from the PR's file count, added plus removed lines,
+changed paths and their areas as the [`tidy` entry](#activities) defines them. A lane PR over
+any cutoff, or whose file list is cut off, was not tidied and is listed, and so are the lanes
+App's other PRs and a person's PR on a branch with a lane name. An author with no account id is
+skipped. It keeps
 those with no `do-not-merge` or `needs-human`
 label (a lane escalation's aside, as above; a held PR is not recorded), that change at least one `.md` file, and whose head has no `pr-refine / fix-docs` or
 `pr-unblock / fix-docs` (the lane `fix-docs` ran in before) check run from the GitHub Actions
