@@ -212,6 +212,9 @@ guard::abort_boundary run-guards "" open 0 2
 [[ -z "${EXEC_BASH_VERDICT_FILE-}" ]] || guard::abort_boundary run-guards "" closed 0 2
 # shellcheck source=hook-utils.sh
 source "$_RG_DIR/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+# Several guards' callbacks re-read the same inner text (a `bash -c` body):
+# keep each shfmt parse for this call (lib/hook-utils.sh hook::_bps_shfmt_to).
+HOOK_BPS_MEMO=1
 
 case "$_RG_DIR" in
 /* | ?:[/\\]*) HOOK_DIR="$_RG_DIR" ;;

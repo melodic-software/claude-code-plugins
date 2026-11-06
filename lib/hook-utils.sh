@@ -4681,10 +4681,26 @@ HOOK_BPS_FAIL_OPEN=0
 # shfmt when none comes. No `timeout` command (stock macOS lacks it), no
 # `wait -n` (Bash 3.2 lacks it), and no timer process, so a parse that answers
 # in time always runs the same processes: shfmt, jq and the pipeline subshells.
+# A list is a function of the command text alone, so with HOOK_BPS_MEMO=1 each
+# one is kept for the rest of the process (HOOK_BPS_MEMO_*) and the same text is
+# not parsed twice. The guardrails dispatcher sets it: a `bash -c '<text>'`
+# hands <text> to several guards' callbacks, and each parse is seven process
+# creations, each a Win32 process on Git Bash (#6634). A failed parse is not kept.
+HOOK_BPS_MEMO=0
+HOOK_BPS_MEMO_KEY=()
+HOOK_BPS_MEMO_VAL=()
 # shellcheck disable=SC2030,SC2031  # pipefail belongs to this subshell
 hook::_bps_shfmt_to() {
-  local __hu_bs_out __hu_bs_st
+  local __hu_bs_out __hu_bs_st __hu_bs_i
   HOOK_BPS_FAIL=""
+  if ((HOOK_BPS_MEMO)); then
+    for ((__hu_bs_i = 0; __hu_bs_i < ${#HOOK_BPS_MEMO_KEY[@]}; __hu_bs_i++)); do
+      if [[ "${HOOK_BPS_MEMO_KEY[__hu_bs_i]}" == "$2" ]]; then
+        printf -v "$1" '%s' "${HOOK_BPS_MEMO_VAL[__hu_bs_i]}"
+        return 0
+      fi
+    done
+  fi
   # A cloud session's install lands in ~/.local/bin, which a hook's PATH may lack.
   hash shfmt 2>/dev/null || { [[ -x "${HOME:-}/.local/bin/shfmt" ]] && hash -p "$HOME/.local/bin/shfmt" shfmt; } || {
     HOOK_BPS_FAIL="shfmt is not on PATH"
@@ -4726,7 +4742,12 @@ hook::_bps_shfmt_to() {
     fi
     return 1
   }
-  printf -v "$1" '%s' "${__hu_bs_out%$'\r'}"
+  __hu_bs_out=${__hu_bs_out%$'\r'}
+  if ((HOOK_BPS_MEMO)); then
+    HOOK_BPS_MEMO_KEY+=("$2")
+    HOOK_BPS_MEMO_VAL+=("$__hu_bs_out")
+  fi
+  printf -v "$1" '%s' "$__hu_bs_out"
 }
 
 # Where the guardrails cloud SessionStart step (hooks/cloud-shfmt.sh) records why
