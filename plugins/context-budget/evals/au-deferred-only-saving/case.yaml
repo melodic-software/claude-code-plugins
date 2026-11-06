@@ -18,7 +18,7 @@ graders:
     target: 'last_message'
   - name: no-deferred-free
     type: regex
-    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!never )\b(?:already (?:saved|handled|free)|cost[- ]free|free of charge)\b'
+    pattern: '(?:^|[.!?;\n])(?:(?!n[''’]t\b|\bnot\b|\bnever\b)[^.!?;\n])*?\b(?:already (?:saved|handled|free)|cost[- ]free|free of charge)\b'
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'
