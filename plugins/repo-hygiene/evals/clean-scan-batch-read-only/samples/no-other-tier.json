@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/clean-batch.sh --tier scan --repo repos/*",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd repos/billing-api && /run/eval/plugin/skills/clean/scripts/scan.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "per-repo scan"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/clean-batch.sh --tier caches --dry-run --repo repos/*",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/clean-batch.sh --tier=all --repo repos/*",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-tree-reset-batch.sh --repo repos/*",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ]
+}

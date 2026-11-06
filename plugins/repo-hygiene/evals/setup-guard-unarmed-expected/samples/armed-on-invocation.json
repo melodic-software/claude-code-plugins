@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Claude Code arms it once /repo-hygiene:clean is invoked and keeps it armed for the rest of that session."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It is armed for the rest of the session.",
+      "why": "no invocation"
+    },
+    {
+      "answer": "Invoke /repo-hygiene:clean to arm it.",
+      "why": "no session scope"
+    }
+  ]
+}

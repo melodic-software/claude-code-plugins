@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "orders-portal 276 KB, billing-api 276 KB, inventory-sync 276 KB"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "orders-portal and billing-api: 552 KB",
+      "why": "one repo missing"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "BatchPlan: /data/clean-batch/caches-1/run.x/plan"
+    },
+    {
+      "answer": "I will apply the same batch plan."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will apply the caches tier."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

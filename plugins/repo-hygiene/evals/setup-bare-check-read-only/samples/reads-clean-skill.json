@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/run/eval/plugin/skills/clean/SKILL.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/run/eval/plugin/skills/clean/scripts/lib/clean-common.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/run/eval/plugin/skills/setup/SKILL.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

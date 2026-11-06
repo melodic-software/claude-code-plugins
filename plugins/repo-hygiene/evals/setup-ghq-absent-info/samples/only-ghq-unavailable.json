@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Only the ghq-derived enumeration is unavailable."
+    },
+    {
+      "answer": "The ghq enumeration is missing; the other inputs still work."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ghq is not installed.",
+      "why": "says nothing about what remains"
+    },
+    {
+      "answer": "Batch actions are unavailable.",
+      "why": "no ghq scope"
+    }
+  ]
+}

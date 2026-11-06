@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "// LOCAL-EDIT-7731: try a currency prefix\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "module.exports = render;\n",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

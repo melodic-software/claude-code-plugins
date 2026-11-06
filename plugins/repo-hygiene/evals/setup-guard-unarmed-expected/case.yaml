@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: setup-guard-unarmed-expected
+graders:
+  - name: no-hooks-manifest
+    type: regex
+    pattern: '\b(?:no|not|none|without|doesn''t|does not|never)\b[^\n.]{0,80}(?:hooks/hooks\.json|\bhooks\.json|\bhooks manifest|\bplugin-level hooks?)|(?:hooks/hooks\.json|\bhooks\.json|\bhooks manifest|\bplugin-level hooks?)\b[^\n.]{0,80}\b(?:none|absent|not shipped|doesn''t exist|does not exist|isn''t shipped|is not shipped)\b'
+    flags: 'i'
+    target: last_message
+  - name: frontmatter-hooks
+    type: regex
+    pattern: '\bhooks?\b[^\n]{0,120}\bfrontmatter\b|\bfrontmatter\b[^\n]{0,120}\bhooks?\b'
+    flags: 'i'
+    target: last_message
+  - name: armed-on-invocation
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b(?:invok|run|load|arm|call)\w*\b[^\n]{0,80}/repo-hygiene:clean|/repo-hygiene:clean\b[^\n]{0,80}\b(?:invok|run|load|arm|call)\w*))(?=[\s\S]*(?:\b(?:rest|remainder) of (?:that|the|this) session\b|\bstays? armed\b|\buntil the session ends\b))'
+    flags: 'i'
+    target: last_message
+  - name: unarmed-info-expected
+    type: regex
+    pattern: '^(?=[\s\S]*\bINFO\b)(?=[\s\S]*(?:\b(?:Expected|expected)\b|\b(?:Not|not) a (?:defect|bug)\b|\b(?:Nothing|nothing) (?:is )?wrong\b|\b(?:By|by) design\b|\b(?:Working|working) as (?:intended|designed)\b))'
+    target: last_message
+  - name: no-fix-prescribed
+    type: llm
+    criteria: 'The reply does not prescribe reinstalling the plugin, editing any settings file, or adding or repairing a hooks manifest (hooks.json) as the remedy for the unarmed guard. Saying such a step is not needed passes; recommending any of them as something to do fails.'
+    focus: last_message

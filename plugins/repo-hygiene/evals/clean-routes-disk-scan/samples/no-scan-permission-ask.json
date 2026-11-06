@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "dist/ is 196 KB. Want me to run the caches tier next? It dry-runs first."
+    },
+    {
+      "answer": "Scan done."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shall I run the scan?",
+      "why": "asks leave to scan"
+    },
+    {
+      "answer": "Do you want me to run a read-only scan first?",
+      "why": "asks leave"
+    },
+    {
+      "answer": "Please confirm I can scan the repository?",
+      "why": "confirm question"
+    }
+  ]
+}

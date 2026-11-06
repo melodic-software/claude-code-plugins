@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/clean-batch.sh --tier caches --dry-run --data-dir /d --repo repos/orders-portal",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /run/eval/plugin/skills/clean/scripts/clean-batch.sh --dry-run --tier=caches --repo repos/*",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/clean-batch.sh --tier scan --repo repos/*",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "scan tier"
+    },
+    {
+      "answer": []
+    }
+  ]
+}
