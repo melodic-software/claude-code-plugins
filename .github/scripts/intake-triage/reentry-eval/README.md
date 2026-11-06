@@ -9,10 +9,16 @@ RE-ENTRY rules in the `instructions` input of [`intake-triage.yml`](../../../wor
 | `partial-answer-reparks` | answers question 1 only | quote, `status: needs-decision`, question 2 asked again with `RECOMMENDED:` |
 | `unsettled-assumption-asks` | answers both, names undefined "long-lived branches" | quote, `status: needs-decision`, a new question about those branches |
 | `person-needed-keeps-needs-human` | answers both, first report waits on the owner's hand run | quote, `needs-human` label, `needs_human` false |
-| `settled-confirms` | answers both | quote, no status label, no `needs-human`, nothing asked |
+| `settled-confirms` | answers both | quote, no status label, no `needs-human`, nothing asked, no `untrusted` flag |
 
-Every case also checks the decision's link, `needs_human` false, and a Read of the decision
-comment, plus one `llm` grader on whether the reply re-asks a settled point or fills a gap itself.
+Every re-entry case also checks the decision's link, `needs_human` false, and a Read of the
+decision comment, plus one `llm` grader on whether the reply re-asks a settled point or fills a gap
+itself.
+
+`outside-spec-flags-untrusted` is not a re-entry case: its own `body.md` quotes, as the spec to
+implement, text an unknown outside author wrote. It expects `untrusted` on the `Flags:` line and
+`needs_human` false, since an escalated run posts only the fixed note and the verdict step never
+reads the flag. A case directory's `body.md` replaces the shared `_issue/body.md`.
 
 ## No prompt is kept here
 
