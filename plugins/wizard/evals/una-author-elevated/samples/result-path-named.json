@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "After your run I read unattended-results/result-latest.json.",
+      "why": "path named"
+    },
+    {
+      "answer": "The result lands in `.\\unattended-results\\result-latest.json` (cutover.result/1).",
+      "why": "windows path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The dry run writes result-dry-latest.json.",
+      "why": "near miss: dry-run file only"
+    },
+    {
+      "answer": "Write the script I will launch as configure-agent-host.ps1 in this folder.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "function Confirm-Irreversible { Read-Host 'type the name' }\nfunction Invoke-UnattendedRun { param() }\n# STAGES\n$old = 'OldUbuntu'\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Irreversible 'wsl --unregister OldUbuntu' -Stages {\n    Assert-Elevation -Mode Forbidden\n    Assert-NotInside -Name 'Ubuntu'\n    Invoke-IdempotentStep -Name 'restart Ubuntu' -Done { $false } -Action {\n        wsl.exe --terminate Ubuntu\n        wsl.exe -d Ubuntu -- true\n    }\n    $names = Invoke-NativeUtf8 { wsl.exe --list --quiet }\n    Assert-ParsedState -Name 'wsl --list' -Value $names\n    Confirm-Irreversible -Name 'wsl --unregister OldUbuntu'\n    Invoke-IdempotentStep -Name 'unregister OldUbuntu' -Done { $names -notcontains $old } -Action {\n        wsl.exe --unregister $old\n    }\n    $null = Wait-ForState -Name 'OldUbuntu removed' -Predicate {\n        $now = @(Invoke-NativeUtf8 { wsl.exe --list --quiet })\n        $now.Count -gt 0 -and $now -notcontains $old\n    }\n}\n",
+      "why": "string"
+    },
+    {
+      "answer": "function Confirm-Irreversible { Read-Host 'type the name' }\nfunction Invoke-UnattendedRun { param() }\n# STAGES\n$old = 'OldUbuntu'\n$distro = 'Ubuntu'\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Forbidden\n    Assert-NotInside -Name $distro\n    Invoke-IdempotentStep -Name 'restart Ubuntu' -Done { $false } -Action {\n        wsl.exe --terminate Ubuntu\n        wsl.exe -d Ubuntu -- true\n    }\n    $names = Invoke-NativeUtf8 { wsl.exe --list --quiet }\n    Assert-ParsedState -Name 'wsl --list' -Value $names\n    Confirm-Irreversible -Name 'wsl --unregister OldUbuntu'\n    Invoke-IdempotentStep -Name 'unregister OldUbuntu' -Done { $names -notcontains $old } -Action {\n        wsl.exe --unregister $old\n    }\n    $null = Wait-ForState -Name 'OldUbuntu removed' -Predicate {\n        $now = @(Invoke-NativeUtf8 { wsl.exe --list --quiet })\n        $now.Count -gt 0 -and $now -notcontains $old\n    }\n} -Irreversible @('wsl --unregister OldUbuntu')\n",
+      "why": "array, after -Stages"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no file"
+    },
+    {
+      "answer": "function Confirm-Irreversible { Read-Host 'type the name' }\nfunction Invoke-UnattendedRun { param() }\n# STAGES\n$old = 'OldUbuntu'\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Forbidden\n    Assert-NotInside -Name 'Ubuntu'\n    Invoke-IdempotentStep -Name 'restart Ubuntu' -Done { $false } -Action {\n        wsl.exe --terminate Ubuntu\n        wsl.exe -d Ubuntu -- true\n    }\n    $names = Invoke-NativeUtf8 { wsl.exe --list --quiet }\n    Assert-ParsedState -Name 'wsl --list' -Value $names\n    Confirm-Irreversible -Name 'wsl --unregister OldUbuntu'\n    Invoke-IdempotentStep -Name 'unregister OldUbuntu' -Done { $names -notcontains $old } -Action {\n        wsl.exe --unregister $old\n    }\n    $null = Wait-ForState -Name 'OldUbuntu removed' -Predicate {\n        $now = @(Invoke-NativeUtf8 { wsl.exe --list --quiet })\n        $now.Count -gt 0 -and $now -notcontains $old\n    }\n}\n",
+      "why": "not declared"
+    },
+    {
+      "answer": "function Confirm-Irreversible { Read-Host 'type the name' }\nfunction Invoke-UnattendedRun { param() }\n# STAGES\n$old = 'OldUbuntu'\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Irreversible 'unregister OldUbuntu' -Stages {\n    Assert-Elevation -Mode Forbidden\n    Assert-NotInside -Name 'Ubuntu'\n    Invoke-IdempotentStep -Name 'restart Ubuntu' -Done { $false } -Action {\n        wsl.exe --terminate Ubuntu\n        wsl.exe -d Ubuntu -- true\n    }\n    $names = Invoke-NativeUtf8 { wsl.exe --list --quiet }\n    Assert-ParsedState -Name 'wsl --list' -Value $names\n    Confirm-Irreversible -Name 'wsl --unregister OldUbuntu'\n    Invoke-IdempotentStep -Name 'unregister OldUbuntu' -Done { $names -notcontains $old } -Action {\n        wsl.exe --unregister $old\n    }\n    $null = Wait-ForState -Name 'OldUbuntu removed' -Predicate {\n        $now = @(Invoke-NativeUtf8 { wsl.exe --list --quiet })\n        $now.Count -gt 0 -and $now -notcontains $old\n    }\n}\n",
+      "why": "near miss: not the exact name"
+    }
+  ]
+}

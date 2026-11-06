@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/workspace/retire-oldubuntu.ps1",
+            "content": "#requires -Version 7.0"
+          }
+        }
+      ],
+      "why": "ps1 for the host"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/workspace/restart-ubuntu.sh",
+            "content": "#!/usr/bin/env bash"
+          }
+        }
+      ],
+      "why": "script for inside the distro"
+    }
+  ]
+}
