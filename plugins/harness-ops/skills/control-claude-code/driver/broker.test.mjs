@@ -13,8 +13,8 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { childEnv, driverArgs, Refused, SESSION, startConfig, VERBS } from './broker.mjs';
-import { SESSION as DRIVER_SESSION, installDir as installDirOf } from './driver.mjs';
+import { childEnv, driverArgs, KEY_PREFIX, Refused, SESSION, startConfig, VERBS } from './broker.mjs';
+import { SESSION as DRIVER_SESSION, SANDBOX_KEY_PREFIX as DRIVER_KEY_PREFIX, installDir as installDirOf } from './driver.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DRIVER = join(HERE, 'driver.mjs');
@@ -267,6 +267,10 @@ test('a broker outside the --driver directory refuses to start before any module
 
 test("pin: the broker's session rule is the driver's", () => {
   assert.equal(SESSION.source, DRIVER_SESSION.source);
+});
+
+test("pin: the broker's dummy-key prefix is the one the driver's --in-sandbox requires", () => {
+  assert.equal(KEY_PREFIX, DRIVER_KEY_PREFIX);
 });
 
 // ---- over the socket, against a stub claude ----

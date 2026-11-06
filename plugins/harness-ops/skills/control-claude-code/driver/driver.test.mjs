@@ -184,6 +184,18 @@ test('in-sandbox drops --restricted and the scrub, and still keeps the one CI cr
   assert.equal(keySource, 'ANTHROPIC_API_KEY');
 });
 
+test('in-sandbox refuses unless the launch keeps a broker dummy key: --restricted and the scrub never drop around a real one', () => {
+  for (const [config, env] of [
+    [{ pluginDir: '/p', inSandbox: true }, {}],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, {}],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, { ANTHROPIC_API_KEY: 'sk-ant-x' }],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, { ANTHROPIC_API_KEY: 'ccd-dummy-' }],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, { CLAUDE_CODE_OAUTH_TOKEN: 'ccd-dummy-x' }],
+  ]) {
+    assert.throws(() => buildLaunch(config, env), /--in-sandbox/, JSON.stringify(env));
+  }
+});
+
 test('unattended refuses two CI credentials set at once, before anything runs', async () => {
   const saved = { ...process.env };
   process.env.ANTHROPIC_API_KEY = 'fake';

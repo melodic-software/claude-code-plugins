@@ -106,6 +106,9 @@ export const LAUNCH_FLAGS = ['--restricted', '--strict-mcp-config'];
 // boundary, so the launch drops --restricted, leaving Bash in the default tools, and sets no scrub,
 // whose nested PID-namespace bwrap that sandbox cannot start (ENOSPC, #13711 probe run 42247376450).
 export const IN_SANDBOX_FLAGS = ['--strict-mcp-config'];
+// The launch broker's dummy-key prefix (broker.mjs KEY_PREFIX, pinned equal by broker.test.mjs):
+// --in-sandbox runs only on the unattended ANTHROPIC_API_KEY the broker hands its driver child.
+export const SANDBOX_KEY_PREFIX = 'ccd-dummy-';
 export const UNSET_VARS = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
@@ -154,6 +157,10 @@ export function buildLaunch(config, env) {
   const set = config.unattended ? (config.credentials ?? []).filter((n) => env[n]) : [];
   if (set.length > 1) throw new Refused(`refused: ${set.join(' and ')} are both set; an unattended run takes one credential`);
   const [kept] = set;
+  const key = kept === 'ANTHROPIC_API_KEY' ? env[kept] : '';
+  if (config.inSandbox && !(key.startsWith(SANDBOX_KEY_PREFIX) && key.length > SANDBOX_KEY_PREFIX.length)) {
+    throw new Refused(`refused: --in-sandbox runs only under the launch broker, on an unattended ANTHROPIC_API_KEY starting with ${SANDBOX_KEY_PREFIX}`);
+  }
   for (const name of [...UNSET_VARS, ...(config.credentials ?? [])]) if (name !== kept) delete childEnv[name];
   if (kept && !config.inSandbox) childEnv.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = '1';
   return {

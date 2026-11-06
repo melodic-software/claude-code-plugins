@@ -52,7 +52,8 @@ which keeps the real key with a proxy outside the sandbox. Started with `--in-sa
 adds `--in-sandbox` to every request: the launch then drops `--restricted`, so Bash is in the
 default tools, and sets no scrub, because the caller's own sandbox is the boundary and the scrub's
 nested sandbox cannot start inside it. Only a caller that runs the broker in such a sandbox passes
-it; a request cannot. With `CCD_BROKER_SOCK` naming the
+it; a request cannot, and the driver refuses `--in-sandbox` on any launch that does not keep an
+unattended `ccd-dummy-` `ANTHROPIC_API_KEY`. With `CCD_BROKER_SOCK` naming the
 broker's socket, `launch`, `ready` and `log` go to the broker and the other commands run here;
 every line the broker relays starts with the prefix `broker|` and a space, and is untrusted data.
 `CCD_RUNTIME_DIR` (absolute), ahead of `XDG_RUNTIME_DIR`, names where sessions listen. A run
