@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "To keep the session model, set `roles.worker.workloads.mechanical.model: inherit`.",
+      "why": "yaml form"
+    },
+    {
+      "answer": "Opt out with roles.worker.workloads.mechanical.model=inherit.",
+      "why": "setup form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set roles.worker.model: inherit to keep the session model.",
+      "why": "role key, not the workload key"
+    },
+    {
+      "answer": "The mechanical workload defaults to sonnet.",
+      "why": "no opt-out"
+    }
+  ]
+}

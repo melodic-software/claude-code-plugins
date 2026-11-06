@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| owner | key | value | verdict |\n|---|---|---|---|\n| fanout | model | opus | unread |",
+      "why": "unread"
+    },
+    {
+      "answer": "| fanout | frontier_guard | true | unread | the current page could not load |",
+      "why": "current inside prose cell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| fanout | model | opus | current |",
+      "why": "current verdict"
+    },
+    {
+      "answer": "| fanout | frontier | fable | `current` | workflows#cost |",
+      "why": "code-span current"
+    }
+  ]
+}

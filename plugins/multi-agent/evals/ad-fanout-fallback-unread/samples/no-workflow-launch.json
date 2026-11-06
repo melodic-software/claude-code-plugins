@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh fanout"
+          }
+        }
+      ],
+      "why": "fallback"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Workflow",
+          "input": {
+            "name": "multi-agent:drift-audit",
+            "args": {
+              "mode": "defaults"
+            }
+          }
+        }
+      ],
+      "why": "launched"
+    }
+  ]
+}

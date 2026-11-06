@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "would write: docs/conventions/multi-agent.yaml (team layer)",
+      "why": "path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "would write: .claude/multi-agent.local.yaml",
+      "why": "local path"
+    },
+    {
+      "answer": "It writes the team file.",
+      "why": "no path"
+    }
+  ]
+}

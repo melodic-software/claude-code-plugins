@@ -1,0 +1,76 @@
+schema_version: "1.1"
+name: 'su-apply-team-preview-asks'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'no-write-flag'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?--write\b'
+    min: 0
+    max: 0
+  - name: 'no-shell-write-layer'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?[^\s;|&"\\]*multi-agent[\w.]*\.yaml|(?:\btee\b|\bsed\s+-i|\bcp\b|\bmv\b|\binstall\b|\bdd\b)(?:[^"\\]|\\.)*?multi-agent[\w.]*\.yaml|multi-agent[\w.]*\.yaml(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)|\btee\b(?:[ \t]+-a)?)[ \t]*(?:\\")?\$)'
+    min: 0
+    max: 0
+  - name: 'no-write-tool-layer'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: 'multi-agent[\w.]*\.yaml'
+    min: 0
+    max: 0
+  - name: 'no-edit-tool-layer'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: 'multi-agent[\w.]*\.yaml'
+    min: 0
+    max: 0
+  - name: 'ran-check'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup\.sh(?:\\")?(?:(?:[^"\\]|\\.)*?\$\{?\w+\}?(?:\\")?)?[ \t]+check\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'preview-team-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?!(?:[^"\\]|\\.)*--write\b)(?=(?:[^"\\]|\\.)*?--layer[ \t]+team\b)(?=(?:[^"\\]|\\.)*?roles\.verifier\.effort=xhigh\b)(?:[^"\\]|\\.)*?setup\.sh(?:\\")?(?:(?:[^"\\]|\\.)*?\$\{?\w+\}?(?:\\")?)?[ \t]+apply\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'shows-before-map'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*?\borchestrator\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bworker\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bverifier\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bretrieval\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'recommends-team'
+    type: 'regex'
+    pattern: '--layer[ \t]+team\b|\bteam\b[^\n]{0,40}?\blayer\b|\blayer\b[^\n]{0,20}?\bteam\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-target-path'
+    type: 'regex'
+    pattern: 'docs/conventions/multi-agent\.yaml'
+    target: 'last_message'
+  - name: 'shows-diff'
+    type: 'regex'
+    pattern: '^[ \t]*\+[ \t]*effort:[ \t]*xhigh\b'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'asks-yes'
+    type: 'regex'
+    pattern: '(?:^|[.!:][ \t]+)[*_]*(?:Shall|Should|Do you|Would you|Want|Proceed|Confirm|OK|Okay|Ready|Go ahead|Write|Apply)\b[^\n?]*\?|\b(?:reply|say|answer)[ \t]+(?:with[ \t]+)?["''`*]*yes\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'no-git-commit'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))git[ \t]+(?:-C[ \t]+\S+[ \t]+)?(?:add|commit)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'team-file-absent'
+    type: 'file_exists'
+    path: 'docs/conventions/multi-agent.yaml'
+    exists: false

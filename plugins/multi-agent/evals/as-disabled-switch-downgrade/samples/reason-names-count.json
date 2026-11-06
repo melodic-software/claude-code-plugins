@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 60 independent scripts; disableWorkflows is set\nshape: sections",
+      "why": "count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: many independent scripts; disableWorkflows is set\nshape: sections",
+      "why": "no count"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 600 scripts\nshape: sections",
+      "why": "wrong count"
+    }
+  ]
+}

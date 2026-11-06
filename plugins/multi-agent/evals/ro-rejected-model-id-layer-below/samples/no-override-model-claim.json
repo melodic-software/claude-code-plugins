@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Your override sets claude-opus-5-5, which is rejected; the worker does not run on claude-opus-5-5.",
+      "why": "negated"
+    },
+    {
+      "answer": "worker: single inherit: omit the model option @ medium; fanout inherit: omit the model option @ medium",
+      "why": "inherit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The worker uses claude-opus-5-5 at medium effort.",
+      "why": "claims the id"
+    },
+    {
+      "answer": "worker: single claude-opus-5-5 @ medium; fanout claude-opus-5-5 @ medium",
+      "why": "role line with the id"
+    }
+  ]
+}

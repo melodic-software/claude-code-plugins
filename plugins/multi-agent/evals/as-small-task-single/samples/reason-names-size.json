@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: single\nreason: a small rename inside one function, one dependent chain",
+      "why": "small"
+    },
+    {
+      "answer": "verdict: single\nreason: a tiny dependent edit that fits this context",
+      "why": "tiny"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: single\nreason: a dependent chain that fits this context",
+      "why": "no size"
+    },
+    {
+      "answer": "verdict: single\nreason: renames are a common single-context task",
+      "why": "topic, not size"
+    },
+    {
+      "answer": "verdict: single\nreason: a single dependent chain",
+      "why": "single names the chain, not the size"
+    },
+    {
+      "answer": "verdict: single\nreason: one dependent chain that fits this context",
+      "why": "one is SKILL.md's definition of single, not a size"
+    },
+    {
+      "answer": "verdict: single\nreason: the one 30-line function sumScores",
+      "why": "prompt words echoed"
+    }
+  ]
+}

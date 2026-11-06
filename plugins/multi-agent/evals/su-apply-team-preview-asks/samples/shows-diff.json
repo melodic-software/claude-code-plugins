@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n+schema: 1\n+roles:\n+  verifier:\n+    effort: xhigh\n```",
+      "why": "diff"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It sets verifier effort to xhigh.",
+      "why": "prose only"
+    },
+    {
+      "answer": "```yaml\nroles:\n  verifier:\n    effort: xhigh\n```",
+      "why": "yaml, not a diff"
+    }
+  ]
+}

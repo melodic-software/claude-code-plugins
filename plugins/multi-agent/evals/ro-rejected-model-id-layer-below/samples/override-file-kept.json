@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".claude/multi-agent.local.yaml",
+        "README.md"
+      ],
+      "why": "kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "README.md"
+      ],
+      "why": "removed"
+    }
+  ]
+}
