@@ -101,10 +101,12 @@ removes its layer in either style. Pass them to `build_edl.py` as
    with the brief in [reference/independent-review.md](reference/independent-review.md): the video,
    the quality-control sheets and the acceptance rules, and none of your reasoning about why it is fine. Fix what
    it finds and repeat 6-8. Nothing is posted on the producer's word.
-   - Under `light`, and `off`, which acts as `light` here, dispatch no reviewer and never judge the
-     frames yourself in its place. Write `verification: skipped (<level>)`, report the video path
-     as not independently reviewed, and skip step 9: the review is the check for secrets and
-     personal data in the frames that posting requires.
+   - Under `light`, and `off`, which acts as `light` here, the secrets check still runs: it is the
+     only check for secrets and personal data in the frames before posting. Dispatch the
+     fresh-context subagent with the brief's item 7 only, and post only when it finds nothing.
+     Skip items 1-6, never judge them yourself in their place, and write
+     `verification: skipped (<level>)` with the video reported as not independently judged for
+     quality.
 9. **Post.** [reference/posting.md](reference/posting.md): verification evidence goes through
    `/source-control:pull-request evidence` when it resolves. A demo a person asked for, or
    evidence when that step does not resolve, goes locally through `gh pr comment --attach`, and in
