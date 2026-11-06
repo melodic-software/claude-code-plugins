@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# expect: rule-zero-assertion
+# rc records the exit status of the code under test, and nothing reads it:
+# the script exits 0 whatever sort returned.
+set -uo pipefail
+
+out="$(printf 'b\na\n' | sort)"
+rc=$?
+echo "sort exited $rc: $out"

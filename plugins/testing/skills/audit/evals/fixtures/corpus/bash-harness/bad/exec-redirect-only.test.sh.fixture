@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# expect: rule-zero-assertion
+# A redirect-only exec runs no command: the script logs what sort prints
+# and exits 0 whatever that was.
+set -uo pipefail
+
+log="$(mktemp)"
+exec >"$log" 2>&1
+printf 'b\na\n' | sort
+echo "done"
