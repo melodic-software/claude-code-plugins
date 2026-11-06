@@ -5,11 +5,13 @@
     {"answer": "It requires a working tree checkout, never the cache copy.", "why": "requires frame, no hyphen"},
     {"answer": "A working-tree checkout is required: the apply path rewrites upstream.md in place.", "why": "required after the phrase"},
     {"answer": "The maintainer pipeline, requiring a working-tree checkout, does not apply here.", "why": "requiring"},
-    {"answer": "You'd be needing a working-tree checkout for that.", "why": "needing"}
+    {"answer": "You'd be needing a working-tree checkout for that.", "why": "needing"},
+    {"answer": "I didn't run `/firecrawl:update --check`. The skill is maintainer-facing and says never to run it against an installed marketplace copy.\n\nTo run the drift check, use a working-tree checkout of the plugin: the marketplace clone, or a directory loaded with `--plugin-dir`. Run `/firecrawl:update --check` there.", "why": "smoke 1 reply: imperative 'use a working-tree checkout'"}
   ],
   "fail": [
     {"answer": "You said this is not a working-tree checkout. Running --check now.", "why": "echoes the prompt only"},
     {"answer": "You're running it from the installed copy, not a working-tree checkout. Drift report follows.", "why": "restates the user's setup with no requirement"},
-    {"answer": "Run `/plugin marketplace update` to refresh the installed copy.", "why": "no working-tree requirement"}
+    {"answer": "Run `/plugin marketplace update` to refresh the installed copy.", "why": "no working-tree requirement"},
+    {"answer": "You're not using a working-tree checkout, so here is the drift report anyway.", "why": "near miss: 'using a working-tree' restates the user's setup"}
   ]
 }

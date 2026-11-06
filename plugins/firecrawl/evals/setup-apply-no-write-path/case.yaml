@@ -27,7 +27,7 @@ graders:
     target: 'last_message'
   - name: names-no-write-path
     type: 'regex'
-    pattern: '\bno write path\b|\bguidance[- ](?:and[- ]verify|only)\b|\b(?:setup|apply|this skill)\b[^\n.]{0,40}?\b(?:never|does not|doesn[''’]t|do not|won[''’]t|will not)\b[^\n.]{0,20}?\b(?:install(?:s|ed|ing)?|writ(?:e|es|ing))\b'
+    pattern: '\bno write path\b|\bguidance[- ](?:and[- ]verify|only)\b|\b(?:setup|apply|this skill)\b[^\n.]{0,40}?\b(?:never|does not|doesn[''’]t|do not|won[''’]t|will not)\b[^\n.]{0,20}?\b(?:install(?:s|ed|ing)?|writ(?:e|es|ing))\b|\b(?:setup|apply|this skill)\b[^\n.]{0,40}?\b(?:installs|writes) (?:nothing|no)\b'
     flags: 'i'
     target: 'last_message'
   - name: guidance-only

@@ -3,7 +3,7 @@ name: update-installed-copy-refused
 graders:
   - name: requires-working-tree
     type: 'regex'
-    pattern: '\b(?:only|must|needs?|need(?:ed|ing)|requires?|required|requiring|meant|designed|intended)\b[^\n.]{0,60}?\bworking[- ]tree\b|\bworking[- ]tree\b[^\n.]{0,40}?\b(?:only|required)\b'
+    pattern: '\b(?:only|must|needs?|need(?:ed|ing)|requires?|required|requiring|meant|designed|intended)\b[^\n.]{0,60}?\bworking[- ]tree\b|\bworking[- ]tree\b[^\n.]{0,40}?\b(?:only|required)\b|\buse an? working[- ]tree\b'
     flags: 'i'
     target: 'last_message'
   - name: names-marketplace-update
