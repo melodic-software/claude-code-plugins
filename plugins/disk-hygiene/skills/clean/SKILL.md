@@ -385,10 +385,9 @@ it is, why removable and risk from your step 3 report (the preview repeats the p
 there), whether it is an empty directory, the single tier, and only then logical
 / reclaimable bytes, plus the preview's approval token. The `apply` call's hook `ask` (§6) lists
 that tier, the count and every path, and is the [confirmation gate](#confirmation-gate)'s removal
-question, so ask nothing separately before it. An interactive session shows that prompt in Manual
-and auto mode alike, so ask nothing first in auto mode either. Only where a hook `ask` would not
-prompt (`dontAsk`, or a `-p` run with no prompt tool; the PowerShell-lane pointer in Gotchas), ask
-the gate's removal question first. The approval
+question, so in Manual and auto mode ask nothing separately before it. Only in `dontAsk`, or a
+`-p` run with no prompt tool (the PowerShell-lane pointer in Gotchas), ask the gate's removal
+question first. The approval
 must name **exactly that tier and list**. Process another tier only with a new plan, preview, and
 question.
 

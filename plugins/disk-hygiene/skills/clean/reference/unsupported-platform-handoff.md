@@ -17,7 +17,8 @@ improvised from the engine steps.
 
 It needs the same execution request as the manual lane below, and the same tier narrowing: show
 one tier's exact paths from the §3 report, as a list, not a question. The manual lane's approval
-step does not apply here: do not ask the user to approve the list. Run one `handoff-apply` for
+step does not apply here: do not ask the user to approve the list (outside the no-prompt modes
+below). Run one `handoff-apply` for
 that tier, one inline `--path` per path shown:
 
 ```text
@@ -32,10 +33,8 @@ The guard answers this command with a hook `ask` whose prompt lists the tier, th
 path. That prompt is the tier's removal question at the
 [confirmation gate](../SKILL.md#confirmation-gate), so ask nothing separately before it. Confirm it
 only when it names exactly the tier and paths you just showed; a declined prompt runs nothing.
-In an interactive session the hook `ask` prompts in Manual and auto mode alike: auto mode still
-shows a prompt a hook forces, so in auto mode too ask nothing before it. It does not prompt only
-where nobody can answer it (`dontAsk`, which denies the call, or a `-p` run with no prompt tool);
-only there ask the gate's removal question first. Pointer and recheck: [the PowerShell guard
+In Manual and auto mode, ask nothing before it. Only in `dontAsk`, or a `-p` run with no prompt
+tool, ask the gate's removal question first. Pointer and recheck: [the PowerShell guard
 lane](#the-powershell-guard-lane).
 
 The engine then removes nothing at all when `--tier` ranks above the lowest `confidence_ceiling`
