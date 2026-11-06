@@ -7,6 +7,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .claude/codebase-health.md; for f in README.md package.json src/config.js src/server.js test/config.test.js contracts/ledger.openapi.yaml; do echo \\\"=== $f\\\"; cat $f; done; echo ---; git ls-files --error-unmatch .claude/codebase-health.md; ls .claude/codebase-health.local.md 2>&1; git status --short\",\"description\":\"Read existing config and repo files\"}}]}}",
       "why": "smoke-1 run: the config read with cat"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Bash\", \"input\": {\"command\": \"for f in .claude/codebase-health.md README.md package.json; do echo \\\"=== $f\\\"; cat $f; done\"}}]}}",
+      "why": "loop that cats the config (smoke 3 run 3)"
     }
   ],
   "fail": [
@@ -29,6 +33,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i 's/docs/doc/' .claude/codebase-health.md\"}}]}}",
       "why": "near miss: an in-place edit, not a read"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Bash\", \"input\": {\"command\": \"for f in .claude/codebase-health.md README.md; do ls -l $f; done\"}}]}}",
+      "why": "near miss: loop lists the config without reading it"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Bash\", \"input\": {\"command\": \"for f in README.md package.json; do cat $f; done; git check-ignore -v .claude/codebase-health.md\"}}]}}",
+      "why": "near miss: loop reads other files, config only named afterwards"
     }
   ]
 }
