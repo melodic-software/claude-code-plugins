@@ -36,8 +36,8 @@
       "area": [],
       "category": "general",
       "triggers": [],
-      "last_checked": "2026-08-08",
-      "next_due": "2026-11-06",
+      "last_checked": "2026-11-06",
+      "next_due": "2027-02-04",
       "notes": "Report-only self-maintenance routine (digest menu #9 pilot). Sweep docs/ and top-level repo docs for references to files/checks/skills that no longer exist, stale version claims, and moved official-docs.md pages (review:doc-drift-detector or docs-hygiene audits); verify generated CATALOG/skill-cheat-sheet freshness on a scratch branch. File one issue per confirmed drift cluster or comment no-drift on the open [Maintenance] issue (#2024 is the first instance). Never edits docs directly from the routine.",
       "close_previous": true
     },

@@ -3716,9 +3716,12 @@ the sweep again, so stopping is safe and costs at most one sweep.
 The merge job's candidate listing goes through `.github/scripts/pr-merge/retry-call.bash` with
 `--read`: at most three tries, waiting out a recorded rate stop or a capped, fully jittered backoff,
 within 60 s of waits in all. Without `--read` a command runs once, so a write is never repeated.
-Each try reads `gh pr list` and the open count, and passes only when the two agree.
-A listing that reaches its limit of 1000 may be cut short whatever the count says, and another try
-reads the same, so it is not tried again and is unknown at once. A listing still unknown ends the
+Each try reads the open pull requests through GraphQL, 100 a page with the open count on each
+page, and passes only when every page's count agrees and the listing holds that many. A listing
+with more than 10 pages (1000 pull requests) is cut short, and another try reads the same, so it is
+not tried again and is unknown at once. The trusted actors' pull requests are kept by numeric
+account id (`User.databaseId` or `Bot.databaseId` against trusted-actors.json's `id`), so a renamed
+account still matches; the lanes App and Dependabot are kept by their own switches. A listing still unknown ends the
 step green with a `::notice::` hold: every step that needs the listing waits on the step's `listed`
 output, so the job lists, gates, merges, files, dequeues, re-fires and clears nothing, and the next
 scheduled run lists again. A failed read, a past-budget rate stop and a full listing leave this job
