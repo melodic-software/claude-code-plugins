@@ -8,12 +8,12 @@ graders:
     target: 'last_message'
   - name: auth-info
     type: 'regex'
-    pattern: '^[^\n]*(?:\bauth\w*|\bFIRECRAWL_API_KEY\b|\bAPI key\b)[^\n]*\b(?:INFO|Info)\b|^[^\n]*\b(?:INFO|Info)\b[^\n]*(?:\bauth\w*|\bFIRECRAWL_API_KEY\b|\bAPI key\b)|^(?:#{1,4}[ \t]+|\*\*)[^\n]*(?:\bauth\w*|\bFIRECRAWL_API_KEY\b|\bAPI key\b)[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:INFO|Info)\b'
-    flags: 'im'
+    pattern: '^[^\n]*(?:\b[Aa]uth\w*|\bFIRECRAWL_API_KEY\b|\b(?:API|[Aa]pi) [Kk]ey\b)[^\n]*\b(?:INFO|Info)\b|^[^\n]*\b(?:INFO|Info)\b[^\n]*(?:\b[Aa]uth\w*|\bFIRECRAWL_API_KEY\b|\b(?:API|[Aa]pi) [Kk]ey\b)|^(?:#{1,4}[ \t]+|\*\*)[^\n]*(?:\b[Aa]uth\w*|\bFIRECRAWL_API_KEY\b|\b(?:API|[Aa]pi) [Kk]ey\b)[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:INFO|Info)\b'
+    flags: 'm'
     target: 'last_message'
   - name: no-fail-verdict
     type: 'regex'
-    pattern: '\|\s*(?:\*\*)?\s*FAIL\b[^|\n]*\||\*\*FAIL\*\*|^\s*(?:[-*]|\d+\.)\s+(?:\*\*)?FAIL\b|^\s*(?:#{1,4}\s+)?FAIL\b'
+    pattern: '\|\s*(?:\*\*)?\s*(?:FAIL|Fail)\b[^|\n]*\||\*\*(?:FAIL|Fail)\*\*|^\s*(?:[-*]|\d+\.)\s+(?:\*\*)?(?:FAIL|Fail)\b|^\s*(?:#{1,4}\s+)?(?:FAIL|Fail)\b'
     flags: 'm'
     match: 'not_contains'
     target: 'last_message'

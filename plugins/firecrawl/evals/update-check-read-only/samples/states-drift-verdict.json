@@ -14,6 +14,7 @@
     {"answer": "Unknown skill: firecrawl:update", "why": "skill missing"},
     {"answer": "I can't run that command here. Try it yourself.", "why": "refusal, no verdict"},
     {"answer": "I can't say whether you should upgrade; that is your call.", "why": "can't say, but not about drift"},
-    {"answer": "I cannot tell if the CLI is installed, so I stopped before checking drift.", "why": "can-not-tell is about the install, not drift"}
+    {"answer": "I cannot tell if the CLI is installed, so I stopped before checking drift.", "why": "can-not-tell is about the install, not drift"},
+    {"answer": "I couldn't read the update script, so I stopped.", "why": "couldn't read, not about a drift source (claude-review)"}
   ]
 }

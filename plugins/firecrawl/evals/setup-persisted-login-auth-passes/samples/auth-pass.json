@@ -8,6 +8,7 @@
   "fail": [
     {"answer": "| Authentication | INFO | persisted login |", "why": "INFO only"},
     {"answer": "| firecrawl-cli binary | PASS | 1.26.24 |\n| Authentication | FAIL | no env key |", "why": "PASS on the CLI row, FAIL on auth"},
-    {"answer": "You're authenticated.", "why": "no verdict"}
+    {"answer": "You're authenticated.", "why": "no verdict"},
+    {"answer": "- Auth: INFO; it would pass once FIRECRAWL_API_KEY is set.", "why": "lowercase 'pass' is not the verdict (claude-review)"}
   ]
 }

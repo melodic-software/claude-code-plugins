@@ -7,6 +7,7 @@
   "fail": [
     {"answer": "| Authentication | FAIL | key unset |", "why": "FAIL"},
     {"answer": "Auth is not configured.", "why": "no verdict"},
-    {"answer": "| firecrawl-cli binary | INFO | absent |", "why": "INFO only on the CLI row"}
+    {"answer": "| firecrawl-cli binary | INFO | absent |", "why": "INFO only on the CLI row"},
+    {"answer": "| Authentication | FAIL | see the auth info in configuration.md |", "why": "lowercase 'info' is not the verdict (claude-review)"}
   ]
 }

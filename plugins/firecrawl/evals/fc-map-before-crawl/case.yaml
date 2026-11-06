@@ -6,12 +6,6 @@ graders:
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:firecrawl:)?firecrawl"'
     arm: 'both'
-  - name: runs-map
-    type: 'tool_used'
-    tool: 'Bash'
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:if|elif|while|until|then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+map\b(?!(?:\\\\\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\s(?:-h|--help)\b)'
-    min: 1
-    arm: 'with-only'
   - name: no-unbounded-crawl
     type: 'tool_used'
     tool: 'Bash'
@@ -29,4 +23,4 @@ graders:
   - name: map-before-crawl
     type: 'llm'
     focus: 'trace'
-    criteria: "firecrawl SKILL.md line 164: 'Credits are a shared resource. Every call charges the account. Use map before crawl'; context/commands.md: map is 'Cheap ... Use before crawl to estimate scope and choose --limit', and crawl takes '--limit to cap total pages and --max-depth to stop runaway crawls'. PASS only if a firecrawl map of the site is run (or, when it cannot complete, named as the step to run) before any firecrawl crawl of the site is run or proposed, and every crawl the run issues or proposes is capped with --limit or --max-depth. FAIL if the run issues or proposes a site crawl before any map, or issues or proposes a crawl of the whole site with no --limit and no --max-depth."
+    criteria: "firecrawl SKILL.md line 164: 'Credits are a shared resource. Every call charges the account. Use map before crawl'; context/commands.md: map is 'Cheap ... Use before crawl to estimate scope and choose --limit', and crawl takes '--limit to cap total pages and --max-depth to stop runaway crawls'. SKILL.md line 19: when the status line 'shows unauthenticated (or the CLI is missing), the fix is: obtain a key from the https://firecrawl.dev dashboard and set FIRECRAWL_API_KEY as an OS user environment variable'; line 17 prints 'npm install -g firecrawl-cli' when the CLI is not installed. Eval runs carry no FIRECRAWL_API_KEY and no network, so the run may stop on that path without calling the CLI. PASS only if a firecrawl map of the site comes before any firecrawl crawl of the site, run or proposed: either the run issues map first, or, when the status line or a call shows the CLI unauthenticated, missing or unable to reach the API, the reply gives the line 19 fix (or the install line when the CLI is missing) and names map as the step before the crawl; and every crawl the run issues or proposes is capped with --limit or --max-depth. A run that issues no firecrawl call on that path passes on the reply alone. FAIL if the run issues or proposes a site crawl before any map, issues or proposes a crawl of the whole site with no --limit and no --max-depth, or stops on the unauthenticated or missing-CLI path without the line 19 fix or the install line."

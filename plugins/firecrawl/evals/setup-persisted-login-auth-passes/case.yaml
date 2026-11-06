@@ -3,8 +3,8 @@ name: setup-persisted-login-auth-passes
 graders:
   - name: auth-pass
     type: 'regex'
-    pattern: '^[^\n]*(?:\bauth\w*|\bfirecrawl --status\b)[^\n]*\b(?:PASS|Pass)\b|^[^\n]*\b(?:PASS|Pass)\b[^\n]*(?:\bauth\w*|\bfirecrawl --status\b)|^(?:#{1,4}[ \t]+|\*\*)[^\n]*\bauth\w*[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:PASS|Pass)\b'
-    flags: 'im'
+    pattern: '^[^\n]*(?:\b[Aa]uth\w*|\bfirecrawl --status\b)[^\n]*\b(?:PASS|Pass)\b|^[^\n]*\b(?:PASS|Pass)\b[^\n]*(?:\b[Aa]uth\w*|\bfirecrawl --status\b)|^(?:#{1,4}[ \t]+|\*\*)[^\n]*\b[Aa]uth\w*[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:PASS|Pass)\b'
+    flags: 'm'
     target: 'last_message'
   - name: names-second-source
     type: 'regex'

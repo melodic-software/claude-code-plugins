@@ -9,6 +9,8 @@
     {"answer": "| Authentication | **FAIL** | key unset |", "why": "bold cell"},
     {"answer": "- FAIL: FIRECRAWL_API_KEY unset", "why": "bullet opens with FAIL"},
     {"answer": "Auth: **FAIL**", "why": "bold verdict"},
-    {"answer": "FAIL - firecrawl not installed", "why": "line opens with FAIL"}
+    {"answer": "FAIL - firecrawl not installed", "why": "line opens with FAIL"},
+    {"answer": "| firecrawl-cli binary | Fail | not on PATH |", "why": "mixed-case table cell (claude-review)"},
+    {"answer": "Auth: **Fail**", "why": "mixed-case bold verdict"}
   ]
 }
