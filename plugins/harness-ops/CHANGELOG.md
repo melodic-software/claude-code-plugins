@@ -3,6 +3,16 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.6.2] - 2026-11-06
+
+### Fixed
+
+- gate audit-plugin-landscape's docs reads on the discovery plugin
+
+  Step 3 reads pages through /discovery:read-docs or /discovery:research
+  only when the discovery plugin is installed; otherwise it uses
+  WebFetch and says so.
+
 ## [8.6.1] - 2026-11-06
 
 ### Changed

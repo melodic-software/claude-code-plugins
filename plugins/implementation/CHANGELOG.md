@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.1] - 2026-11-06
+
+### Fixed
+
+- gate the phase-boundary review on the review plugin being installed
+
+  /implementation:implement and /implementation:implement-dispatch now
+  run /review:quality-gate for a `Review:`-tagged phase only when the
+  review plugin is installed. Without it, a fresh-context subagent
+  handed only the phase diff and the tag reviews the phase, and the
+  report says the review plugin would run that review.
+
 ## [0.37.0] - 2026-11-06
 
 ### Added
