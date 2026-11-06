@@ -1,7 +1,9 @@
-// Plans a PR's Refine passes from docs/conventions/pr-pipeline.yaml: the
-// activities with `stage: refine` whose applies-when paths and paths-ignore
-// let at least one changed path through. Pure: the caller reads the config
-// and the changed paths.
+// Plans a PR's Refine passes from the pr-refine lane's slots as resolve.mjs
+// laneSlots expands them: each enabled leaf with `stage: refine` whose
+// predicates (a slot's replaced applies-when and any composite's, as the
+// runner reads them) let at least one changed path through, by the
+// predicates' paths and paths-ignore. Pure: the caller reads the config and
+// the changed paths.
 //
 // Passes run in batches, one batch after another. A pass joins the batch
 // before it when it is not `serial`, shares that batch's group, and matched
@@ -12,21 +14,31 @@ import { matchedPaths } from "../../actions/resolve-config/predicate.mjs";
 
 export const SERIAL = "serial";
 
-// activities: the config's `activities` map. changedPaths: the PR's changed
-// files. truncated: the list may be missing files, so every pass runs and its
-// runner's own applies-when decides.
+// slots: laneSlots's entries, { name, activity, predicates, enabled }.
+// changedPaths: the PR's changed files. targetsOf(slot, changedPaths): the
+// files the runner would hand the slot (resolve.mjs slotTargets), or null
+// when it takes no changed-paths input. truncated: the list may be missing
+// files, so every pass runs and its runner's own applies-when decides.
 // Returns { passes: [{ name, order, group, files }], batches: [[name, ...]] }.
-export function planPasses({ activities, changedPaths, truncated = false }) {
-  const passes = Object.entries(activities ?? {})
-    .filter(([, activity]) => activity?.stage === "refine")
-    .map(([name, activity], index) => ({
-      name,
-      order: activity.order,
-      group: activity.group,
-      index,
-      matched: matchedPaths(activity["applies-when"], changedPaths),
-    }))
-    .filter((pass) => truncated || pass.matched.length > 0)
+export function planPasses({ slots, changedPaths, targetsOf = () => null, truncated = false }) {
+  const passes = (slots ?? [])
+    .filter((slot) => slot.enabled && slot.activity?.stage === "refine")
+    .map((slot, index) => {
+      // Each predicate's paths keys must pass on their own, as resolve's
+      // appliesAll reads them; a slot with targets also needs one left.
+      const pathsPass = slot.predicates.every((predicate) => matchedPaths(predicate, changedPaths).length > 0);
+      const targets = targetsOf(slot, changedPaths);
+      const matched = targets ?? slot.predicates.reduce((kept, predicate) => matchedPaths(predicate, kept), changedPaths);
+      return {
+        name: slot.name,
+        order: slot.activity.order,
+        group: slot.activity.group,
+        index,
+        matched,
+        applies: pathsPass && (targets === null || targets.length > 0),
+      };
+    })
+    .filter((pass) => truncated || pass.applies)
     .sort((a, b) => a.order - b.order || a.index - b.index);
   const batches = [];
   for (const pass of passes) {

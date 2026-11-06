@@ -3242,6 +3242,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-merge.yml merge: List the candidate PRs",
     "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
+    "pr-refine.yml plan: List the PR's changed files",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
@@ -3305,7 +3306,9 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   assert.deepEqual([bad.status, bad.output, bad.calls], [1, "", 0]);
   assert.match(bad.stdout, /^::error::pr-number is not a PR number$/m);
   // Nothing after the read runs on an unread head but the hold marker job,
-  // which needs fix-docs-head alone, holds no grant, and logs signal 13's notice.
+  // which needs only jobs that run no head code (plan, whose unread changed
+  // files it also marks, and fix-docs-head), holds no grant, and logs signal
+  // 13's notice.
   const { jobs } = workflow("pr-refine.yml");
   assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread }}");
   for (const id of ["setup-node", "hold"]) {
@@ -3313,11 +3316,14 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
     assert.equal(later.if, "steps.head.outputs.sha != ''", id);
   }
   const held = jobs["fix-docs-head-held"];
-  assert.equal(held.needs, "fix-docs-head");
+  assert.deepEqual(held.needs, ["plan", "fix-docs-head"]);
   assert.deepEqual(held.permissions, {});
-  assert.equal(evaluate(held.if, { "needs.fix-docs-head.outputs.unread": "true" }), true);
-  assert.equal(evaluate(held.if, { "needs.fix-docs-head.outputs.unread": "" }), false);
-  assert.match(held.steps[0].run, /^echo "::notice title=PR head hold::the head of #\$PR_NUMBER could not be read/);
+  const holds = (unread, planHeld) => evaluate(held.if, { "needs.fix-docs-head.outputs.unread": unread, "needs.plan.outputs.held": planHeld });
+  assert.equal(holds("true", ""), true);
+  assert.equal(holds("", "true"), true);
+  assert.equal(holds("", "false"), false);
+  assert.equal(holds("", ""), false);
+  assert.match(held.steps[0].run, /echo "::notice title=PR head hold::the head of #\$PR_NUMBER could not be read/);
   assert.equal(held.steps[0].env.PR_NUMBER, "${{ inputs.pr-number }}");
   // fix-docs-dispatch.mjs heldHead reads this job's name.
   assert.match(readFileSync(new URL("../../scripts/pr-unblock/fix-docs-dispatch.mjs", import.meta.url), "utf8"), /`\$\{activity\}-head-held`/);

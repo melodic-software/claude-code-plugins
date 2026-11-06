@@ -6,7 +6,13 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { laneSlots } from "../../actions/resolve-config/resolve.mjs";
 import { planPasses } from "./plan-passes.mjs";
+
+// The slots resolve.mjs expands for a pr-refine lane holding these
+// activities, one slot each unless `slots` replaces them.
+const slotsOf = (activities, slots = Object.keys(activities).map((activity) => ({ activity })), lane = {}) =>
+  laneSlots({ activities, lanes: { "pr-refine": { stage: "refine", ...lane, slots } } }, "pr-refine");
 
 // fix-docs as docs/conventions/pr-pipeline.yaml sets it, beside an activity of
 // another stage that a planner must never pick.
@@ -19,7 +25,7 @@ const FIX_DOCS = {
 const LIVE = { "fix-docs": FIX_DOCS, "resolve-conflicts": { "applies-when": { paths: ["**/*.md"] } } };
 
 test("a markdown-only PR gets fix-docs, with the files it matched", () => {
-  const plan = planPasses({ activities: LIVE, changedPaths: ["README.md", "docs/guide.md"] });
+  const plan = planPasses({ slots: slotsOf(LIVE), changedPaths: ["README.md", "docs/guide.md"] });
   assert.deepEqual(plan, {
     passes: [{ name: "fix-docs", order: 10, group: "docs", files: 2 }],
     batches: [["fix-docs"]],
@@ -27,7 +33,7 @@ test("a markdown-only PR gets fix-docs, with the files it matched", () => {
 });
 
 test("a PR with only changelog fragments gets no pass", () => {
-  const plan = planPasses({ activities: LIVE, changedPaths: [".changes/pr-pipeline/a.md", ".changes/review/b.md"] });
+  const plan = planPasses({ slots: slotsOf(LIVE), changedPaths: [".changes/pr-pipeline/a.md", ".changes/review/b.md"] });
   assert.deepEqual(plan, { passes: [], batches: [] });
 });
 
@@ -36,25 +42,25 @@ test("a PR with only changelog fragments gets no pass", () => {
 // the file.
 test("paths-ignore drops a file the paths glob matched", () => {
   const activities = { "fix-docs": { ...FIX_DOCS, "applies-when": { paths: ["**/*.md"], "paths-ignore": ["docs/archive/**"] } } };
-  assert.deepEqual(planPasses({ activities, changedPaths: ["docs/archive/old.md"] }).passes, []);
-  assert.deepEqual(planPasses({ activities, changedPaths: ["docs/archive/old.md", "docs/new.md"] }).passes, [
+  assert.deepEqual(planPasses({ slots: slotsOf(activities), changedPaths: ["docs/archive/old.md"] }).passes, []);
+  assert.deepEqual(planPasses({ slots: slotsOf(activities), changedPaths: ["docs/archive/old.md", "docs/new.md"] }).passes, [
     { name: "fix-docs", order: 10, group: "docs", files: 1 },
   ]);
 });
 
 test("a code-only PR gets no pass", () => {
-  assert.deepEqual(planPasses({ activities: LIVE, changedPaths: ["src/app.js", "package.json"] }), { passes: [], batches: [] });
+  assert.deepEqual(planPasses({ slots: slotsOf(LIVE), changedPaths: ["src/app.js", "package.json"] }), { passes: [], batches: [] });
 });
 
 test("a fragment beside code still gets no pass, and one beside a doc counts the doc alone", () => {
-  assert.deepEqual(planPasses({ activities: LIVE, changedPaths: ["src/app.js", ".changes/x/a.md"] }).passes, []);
-  assert.deepEqual(planPasses({ activities: LIVE, changedPaths: ["docs/a.md", ".changes/x/a.md"] }).passes, [
+  assert.deepEqual(planPasses({ slots: slotsOf(LIVE), changedPaths: ["src/app.js", ".changes/x/a.md"] }).passes, []);
+  assert.deepEqual(planPasses({ slots: slotsOf(LIVE), changedPaths: ["docs/a.md", ".changes/x/a.md"] }).passes, [
     { name: "fix-docs", order: 10, group: "docs", files: 1 },
   ]);
 });
 
 test("a listing that may be cut off runs every pass", () => {
-  assert.deepEqual(planPasses({ activities: LIVE, changedPaths: ["src/app.js"], truncated: true }).batches, [["fix-docs"]]);
+  assert.deepEqual(planPasses({ slots: slotsOf(LIVE), changedPaths: ["src/app.js"], truncated: true }).batches, [["fix-docs"]]);
 });
 
 // Two synthetic passes in one group: disjoint files run together, shared files
@@ -63,13 +69,13 @@ const pass = (order, group, paths) => ({ stage: "refine", order, group, "applies
 
 test("two passes on disjoint globs land in one parallel batch", () => {
   const activities = { "format-code": pass(20, "tidy", ["**/*.js"]), "fix-docs": pass(10, "tidy", ["**/*.md"]) };
-  const plan = planPasses({ activities, changedPaths: ["a.md", "b.js"] });
+  const plan = planPasses({ slots: slotsOf(activities), changedPaths: ["a.md", "b.js"] });
   assert.deepEqual(plan.batches, [["fix-docs", "format-code"]]);
 });
 
 test("overlapping passes run serially in order, whatever their file order", () => {
   const activities = { "format-docs": pass(20, "tidy", ["docs/**"]), "fix-docs": pass(10, "tidy", ["**/*.md"]) };
-  const plan = planPasses({ activities, changedPaths: ["docs/a.md"] });
+  const plan = planPasses({ slots: slotsOf(activities), changedPaths: ["docs/a.md"] });
   assert.deepEqual(plan.batches, [["fix-docs"], ["format-docs"]]);
 });
 
@@ -79,7 +85,7 @@ test("a serial pass runs alone, and a different group starts a new batch", () =>
     "format-all": pass(30, "serial", ["**/*.yaml"]),
     "lint-code": pass(20, "code", ["**/*.js"]),
   };
-  const plan = planPasses({ activities, changedPaths: ["a.md", "b.js", "c.yaml"] });
+  const plan = planPasses({ slots: slotsOf(activities), changedPaths: ["a.md", "b.js", "c.yaml"] });
   assert.deepEqual(plan.batches, [["fix-docs"], ["lint-code"], ["format-all"]]);
 });
 
@@ -89,7 +95,24 @@ test("a pass that matches nothing leaves no batch between two that run together"
     "fix-yaml": pass(20, "tidy", ["**/*.yaml"]),
     "format-code": pass(30, "tidy", ["**/*.js"]),
   };
-  assert.deepEqual(planPasses({ activities, changedPaths: ["a.md", "b.js"] }).batches, [["fix-docs", "format-code"]]);
+  assert.deepEqual(planPasses({ slots: slotsOf(activities), changedPaths: ["a.md", "b.js"] }).batches, [["fix-docs", "format-code"]]);
+});
+
+// The lane's slots decide, as the runner's resolve reads them.
+test("a disabled slot or lane plans no pass, and a slot's applies-when replaces its activity's", () => {
+  const activities = { "fix-docs": FIX_DOCS };
+  assert.deepEqual(planPasses({ slots: slotsOf(activities, [{ activity: "fix-docs", enabled: false }]), changedPaths: ["a.md"] }).passes, []);
+  assert.deepEqual(planPasses({ slots: slotsOf(activities, undefined, { enabled: false }), changedPaths: ["a.md"] }).passes, []);
+  const replaced = slotsOf(activities, [{ activity: "fix-docs", "applies-when": { paths: ["docs/**"] } }]);
+  assert.deepEqual(planPasses({ slots: replaced, changedPaths: ["a.md"] }).passes, []);
+  assert.deepEqual(planPasses({ slots: replaced, changedPaths: ["docs/x.js"] }).passes, [{ name: "fix-docs", order: 10, group: "docs", files: 1 }]);
+});
+
+test("a composite's predicate narrows its refine leaves' files", () => {
+  const activities = { tidy: { children: [{ activity: "fix-docs" }], "applies-when": { paths: ["docs/**"] } }, "fix-docs": FIX_DOCS };
+  const slots = slotsOf(activities, [{ activity: "tidy" }]);
+  assert.deepEqual(planPasses({ slots, changedPaths: ["README.md"] }).passes, []);
+  assert.deepEqual(planPasses({ slots, changedPaths: ["README.md", "docs/a.md"] }).passes, [{ name: "fix-docs", order: 10, group: "docs", files: 1 }]);
 });
 
 // The plan job's step: the outputs each pass's first job and record-passes read.
@@ -97,11 +120,11 @@ test("write-pass-plan.mjs writes the plan's outputs, and only planned passes get
   const dir = mkdtempSync(join(tmpdir(), "write-pass-plan-"));
   try {
     const plan = (paths) => {
-      writeFileSync(join(dir, "activities.json"), JSON.stringify(LIVE));
+      writeFileSync(join(dir, "config.json"), JSON.stringify({ activities: LIVE, lanes: { "pr-refine": { stage: "refine", slots: [{ activity: "fix-docs" }] } } }));
       writeFileSync(join(dir, "paths.txt"), paths.join("\n"));
       writeFileSync(join(dir, "out"), "");
       const run = spawnSync(process.execPath, [fileURLToPath(new URL("./write-pass-plan.mjs", import.meta.url))], {
-        env: { PATH: process.env.PATH, ACTIVITIES_FILE: join(dir, "activities.json"), PATHS_FILE: join(dir, "paths.txt"), TRUNCATED: "false", GITHUB_OUTPUT: join(dir, "out") },
+        env: { PATH: process.env.PATH, CONFIG_FILE: join(dir, "config.json"), PATHS_FILE: join(dir, "paths.txt"), TRUNCATED: "false", GITHUB_OUTPUT: join(dir, "out") },
         encoding: "utf8",
       });
       assert.equal(run.status, 0, run.stderr);

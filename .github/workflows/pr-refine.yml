@@ -116,20 +116,24 @@ jobs:
           tokens: github-token
 
   # Plans the Refine passes (.github/scripts/pr-refine/plan-passes.mjs): each
-  # activity with `stage: refine` in the base config whose applies-when paths
-  # and paths-ignore let one of the PR's changed files through, in batches by
-  # order and group. A pass's first job starts only on its plan output, so a
+  # enabled leaf of the base config's pr-refine slots, as resolve.mjs
+  # laneSlots expands them, with `stage: refine` and predicates whose paths
+  # and paths-ignore let one of the PR's changed files through (for a pass
+  # taking changed-paths, one resolve.mjs slotTargets keeps, as its runner
+  # does), in batches by order and group. A pass's first job starts only on its plan output, so a
   # PR that matches no pass ends here, every later job skipped, with no model
   # turn. Only base code and a read-only token. A file list at the REST cap of
   # 3000 may be cut off, so it plans every pass and each runner's own
-  # applies-when decides.
+  # applies-when decides. A file list it cannot read holds (outage posture
+  # element 2): one notice, held=true and no passes, and fix-docs-head-held
+  # logs the hold the dispatcher reads to send the PR again.
   plan:
     needs: dispatcher-current
     if: >-
       inputs.pr-number != ''
       && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read # check out main
       pull-requests: read # the PR's changed files
@@ -138,11 +142,17 @@ jobs:
       batches: ${{ steps.plan.outputs.batches }}
       files: ${{ steps.plan.outputs.files }}
       started-at: ${{ steps.start.outputs.at }}
+      held: ${{ steps.files.outputs.held }}
       fix-docs: ${{ steps.plan.outputs.fix-docs }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Note the start
         id: start
@@ -165,12 +175,6 @@ jobs:
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
-          sparse-checkout: |
-            .github/scripts/pr-refine
-            .github/actions/resolve-config/predicate.mjs
-            .github/actions/log-api-budget
-            docs/conventions/pr-pipeline.yaml
-          sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - name: List the PR's changed files
@@ -178,31 +182,54 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
+          # A rate limit past the guard's budget refuses the read with a notice
+          # (api-budget.bash), and the step holds.
+          API_BUDGET_HOLD: "1"
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr-number is not a PR number"; exit 1; }
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename' >"$RUNNER_TEMP/changed-paths.txt"
+          # A failed read (a 5xx, a network error, a refused rate limit) is
+          # read once more, then holds.
+          until gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename' >"$RUNNER_TEMP/changed-paths.txt"; do
+            ((++i < 2)) || {
+              echo "::notice::the changed files of #$PR_NUMBER could not be read; no Refine pass runs"
+              echo "held=true" >>"$GITHUB_OUTPUT"
+              exit 0
+            }
+            sleep 5
+          done
+          echo "held=false" >>"$GITHUB_OUTPUT"
           truncated=false
           (($(wc -l <"$RUNNER_TEMP/changed-paths.txt") < 3000)) || truncated=true
           echo "truncated=$truncated" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
+        if: steps.files.outputs.held == 'false'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           package-manager-cache: false
 
+      # write-pass-plan.mjs expands the lane's slots through the base's
+      # resolve.mjs, which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: steps.files.outputs.held == 'false'
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
       - name: Plan the passes
         id: plan
+        if: steps.files.outputs.held == 'false'
         env:
-          ACTIVITIES_FILE: ${{ runner.temp }}/activities.json
+          CONFIG_FILE: ${{ runner.temp }}/pr-pipeline.json
           PATHS_FILE: ${{ runner.temp }}/changed-paths.txt
+          CODEOWNERS_FILE: .base/.github/CODEOWNERS
           TRUNCATED: ${{ steps.files.outputs.truncated }}
         run: |
-          yq -o=json '.activities // {}' .base/docs/conventions/pr-pipeline.yaml >"$ACTIVITIES_FILE"
+          yq -o=json '.' .base/docs/conventions/pr-pipeline.yaml >"$CONFIG_FILE"
           node .base/.github/scripts/pr-refine/write-pass-plan.mjs
 
       - name: Log the API budget at the end
@@ -318,15 +345,18 @@ jobs:
         with:
           tokens: github-token
 
-  # Job-level evidence that fix-docs-head held on an unread head: the run ends
-  # green, and fix-docs-dispatch.mjs (heldHead) reads this job's conclusion, as
-  # it reads a handoff hold, to dispatch the PR again until
-  # limit-stops-per-head runs went red or held. Monitor signal 13 counts its
-  # titled notice (signals.mjs HOLD_LANES). It needs fix-docs-head alone, a job
-  # that runs no head code, so nothing forges it.
+  # Job-level evidence that fix-docs-head held on an unread head, or the plan
+  # on unread changed files: the run ends green, and fix-docs-dispatch.mjs
+  # (heldHead) reads this job's conclusion, as it reads a handoff hold, to
+  # dispatch the PR again until limit-stops-per-head runs went red or held.
+  # Monitor signal 13 counts its titled notice (signals.mjs HOLD_LANES). It
+  # needs plan and fix-docs-head alone, jobs that run no head code, so nothing
+  # forges it.
   fix-docs-head-held:
-    needs: fix-docs-head
-    if: needs.fix-docs-head.outputs.unread == 'true'
+    needs: [plan, fix-docs-head]
+    if: >-
+      ${{ !cancelled() && (needs.fix-docs-head.outputs.unread == 'true'
+      || needs.plan.outputs.held == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -334,8 +364,13 @@ jobs:
       - name: Note the hold
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
+          PLAN_HELD: ${{ needs.plan.outputs.held }}
         run: |
-          echo "::notice title=PR head hold::the head of #$PR_NUMBER could not be read; fix-docs did not run, and the next dispatcher tick sends the PR again"
+          if [[ $PLAN_HELD != true ]]; then
+            echo "::notice title=PR head hold::the head of #$PR_NUMBER could not be read; fix-docs did not run, and the next dispatcher tick sends the PR again"
+          else
+            echo "::notice title=PR head hold::the changed files of #$PR_NUMBER could not be read; no Refine pass ran, and the next dispatcher tick sends the PR again"
+          fi
 
   # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
@@ -723,11 +758,14 @@ jobs:
   # which monitor signal 13 counts as a pr-refine hold, on this job of a red
   # run too (signals.mjs HOLD_LANES). Each outcome comes from the jobs'
   # results and the push job's outputs, which only its base script sets,
-  # never from a model call's run job, which runs head code. No token but a
-  # read-only one for the checkout.
+  # never from a model call's run job, which runs head code. A plan job that
+  # failed logs refine-failed for pass=plan, since no pass's job ran. No token
+  # but a read-only one for the checkout.
   record-passes:
     needs: [plan, fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff, fix-docs-fallback, apply-docs-patch]
-    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.passes != '[]' }}
+    if: >-
+      ${{ !cancelled() && (needs.plan.result == 'failure'
+      || needs.plan.result == 'success' && needs.plan.outputs.held != 'true' && needs.plan.outputs.passes != '[]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -757,6 +795,7 @@ jobs:
 
       - name: Record each pass
         env:
+          PLAN_RESULT: ${{ needs.plan.result }}
           PASSES: ${{ needs.plan.outputs.passes }}
           FILES: ${{ needs.plan.outputs.files }}
           STARTED_AT: ${{ needs.plan.outputs.started-at }}

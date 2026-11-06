@@ -31,6 +31,13 @@ test("each planned pass emits one record, and a failed one also a refine-failed 
   assert.deepEqual(passRecords({ passes: [], files: {}, seconds: 1, wiring }), []);
 });
 
+test("a failed plan logs refine-failed for pass=plan, which signal 13 counts", () => {
+  const lines = passRecords({ planResult: "failure", passes: [], files: {}, seconds: 0, wiring: () => ({ results: {} }) });
+  assert.deepEqual(lines, ["::warning title=refine-failed::pass=plan reason=plan-failure"]);
+  const [, title, message] = /^::warning title=([^:]+)::(.*)$/.exec(lines[0]);
+  assert.deepEqual(parseHold(title, message, "warning"), { item: null, reason: "plan failed: plan-failure" });
+});
+
 // The warning's title and message are what signal 13 parses.
 test("the refine-failed warning parses as a pr-refine hold at warning level only", () => {
   const [, warning] = passRecords({ passes: ["fix-docs"], files: {}, seconds: 0, wiring: () => ({ results: { "fix-docs": "failure" } }) });

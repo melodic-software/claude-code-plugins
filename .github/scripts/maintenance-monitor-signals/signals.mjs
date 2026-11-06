@@ -442,6 +442,9 @@ const HOLD_NOTICES = [
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
   // pr-refine.yml fix-docs-head-held: the PR head could not be read.
   { title: "PR head hold", pattern: /^the head of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR head unread" }) },
+  // pr-refine.yml fix-docs-head-held after a plan hold: the PR's changed
+  // files could not be read.
+  { title: "PR head hold", pattern: /^the changed files of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR files unread" }) },
   // check-wip-cap.mjs, or pick-slot's step when the check did not finish: the
   // pause could not be read, so the run started no work. A fixed reason per
   // cause, and no item, since the hold is the lane's, not one issue's.

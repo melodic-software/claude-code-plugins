@@ -19,8 +19,10 @@ export function passOutcome({ results, pushedCommit = "", skipReason = "" }) {
   return { outcome: "none", reason: null };
 }
 
-// The workflow-command lines for every planned pass, in plan order.
-export function passRecords({ passes, files, seconds, wiring }) {
+// The workflow-command lines for every planned pass, in plan order; a plan
+// job that failed planned none, and is itself the failed pass.
+export function passRecords({ planResult = "success", passes, files, seconds, wiring }) {
+  if (planResult === "failure") return ["::warning title=refine-failed::pass=plan reason=plan-failure"];
   return passes.flatMap((pass) => {
     const { outcome, reason } = passOutcome(wiring(pass));
     const lines = [`::notice title=refine-pass::pass=${pass} files=${files[pass] ?? 0} outcome=${outcome} seconds=${seconds}`];
@@ -46,7 +48,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       skipReason: env[`${prefix}_SKIP`] ?? "",
     };
   };
-  for (const line of passRecords({ passes: JSON.parse(env.PASSES || "[]"), files: JSON.parse(env.FILES || "{}"), seconds, wiring })) {
+  for (const line of passRecords({ planResult: env.PLAN_RESULT, passes: JSON.parse(env.PASSES || "[]"), files: JSON.parse(env.FILES || "{}"), seconds, wiring })) {
     console.log(line);
   }
 }

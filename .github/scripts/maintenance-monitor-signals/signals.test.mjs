@@ -629,6 +629,9 @@ test("signal 13: pr-refine's unread PR head hold parses to the PR and a fixed re
   assert.ok(HOLD_LANES.find((l) => l.lane === "pr-refine").jobs.includes("fix-docs-head-held"));
   // A hold notice is read at notice level only.
   assert.equal(parseHold(...annotation(step), "warning"), null);
+  // The same job's notice for a plan that could not read the changed files.
+  const files = [...workflow.matchAll(/echo "(::notice title=PR head hold::[^"]*)"/g)].map((m) => m[1]).find((line) => line.includes("changed files"));
+  assert.deepEqual(parseHold(...annotation(files.replace("$PR_NUMBER", "9"))), { item: "#9", reason: "PR files unread" });
 });
 
 test("signal 13: pr-refine's refine-failed warning parses to the pass and its closed reason, read from record-passes on red runs too", () => {

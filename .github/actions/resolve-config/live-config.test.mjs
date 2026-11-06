@@ -13,7 +13,7 @@ import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
-import { resolve, resolveGrant } from "./resolve.mjs";
+import { laneSlots, resolve, resolveGrant, slotTargets } from "./resolve.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -730,9 +730,27 @@ test("live config: fix-docs skips a PR whose only Markdown is a changelog fragme
   const slot = selected("pr-refine", "fix-docs", withDoc);
   assert.equal(slot.applies, true);
   assert.deepEqual(slot["changed-paths"], ["docs/guide.md"]);
-  const { activities } = parse(FILES.config);
-  assert.deepEqual(planPasses({ activities, changedPaths: fragmentOnly.changedPaths }).batches, []);
-  assert.deepEqual(planPasses({ activities, changedPaths: withDoc.changedPaths }).batches, [["fix-docs"]]);
+  const slots = laneSlots(parse(FILES.config), "pr-refine");
+  assert.deepEqual(planPasses({ slots, changedPaths: fragmentOnly.changedPaths }).batches, []);
+  assert.deepEqual(planPasses({ slots, changedPaths: withDoc.changedPaths }).batches, [["fix-docs"]]);
+});
+
+// The plan job and the runner read one evaluator: for every Refine pass and
+// each path list, the plan holds the pass exactly when the runner's resolve
+// of the same PR (ready, unlabeled) applies it.
+test("live config: the Refine plan agrees with resolve's applies for every pr-refine pass", () => {
+  const slots = laneSlots(parse(FILES.config), "pr-refine");
+  const refine = slots.filter((slot) => slot.activity.stage === "refine").map((slot) => slot.name);
+  assert.ok(refine.includes("fix-docs"));
+  // write-pass-plan.mjs's targetsOf, with no CODEOWNERS as FILES carries none.
+  const targetsOf = (slot, paths) => ((slot.activity.inputs ?? []).includes("changed-paths") ? slotTargets(slot, paths, undefined) : null);
+  for (const paths of [["docs/guide.md"], ["src/a.js"], [".changes/x/a.md"], [".changes/x/a.md", "README.md"], ["CLAUDE.md"], ["CLAUDE.md", "docs/a.md"], ["a.md", "b.yaml", "c.js"]]) {
+    const planned = planPasses({ slots, changedPaths: paths, targetsOf }).passes.map((pass) => pass.name);
+    for (const name of refine) {
+      const { applies } = selected("pr-refine", name, { changedPaths: paths, changedTargets: paths });
+      assert.equal(planned.includes(name), applies, `${name} on ${paths.join(",")}`);
+    }
+  }
 });
 
 // A Refine pass names its stage, order and group together, or the schema

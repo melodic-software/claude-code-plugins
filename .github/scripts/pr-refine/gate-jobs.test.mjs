@@ -117,6 +117,39 @@ test("the plan job waits on a current dispatcher, and fix-docs-head on the plan'
   assert.equal(starts("false"), false);
 });
 
+// simulate() with the plan job's own result forced, as a red step leaves it.
+function simulateFailedPlan(text, base) {
+  const results = {};
+  const context = { ...base };
+  for (const [name, block] of jobs(text)) {
+    const { needs, gate } = gateOf(block);
+    let result;
+    if (name === "plan") result = "failure";
+    else {
+      const statusFree = gate === null || !/cancelled\(\)|always\(\)|failure\(\)/.test(gate);
+      const runs = (!statusFree || needs.every((n) => results[n] === "success")) && (gate === null || evaluate(gate, context));
+      result = runs ? "success" : "skipped";
+    }
+    results[name] = result;
+    context[`needs.${name}.result`] = result;
+  }
+  return results;
+}
+
+test("a failed plan starts no pass, and record-passes still runs to log refine-failed", () => {
+  const results = simulateFailedPlan(TEXT, DISPATCH);
+  assert.equal(results.plan, "failure");
+  assert.deepEqual(ran(results), ["dispatcher-current", "record-passes"]);
+});
+
+test("a held plan starts no pass and no record, and fix-docs-head-held logs the hold", () => {
+  const results = simulate(TEXT, DISPATCH, { plan: { held: "true" } });
+  assert.deepEqual(ran(results), ["dispatcher-current", "plan", "fix-docs-head-held"]);
+  // Positive control: a read plan holds nothing.
+  const read = simulate(TEXT, DISPATCH, { plan: { held: "false", passes: "[]", "fix-docs": "" } });
+  assert.equal(read["fix-docs-head-held"], "skipped");
+});
+
 test("record-passes runs after a failed pass, and not when the plan is empty or did not run", () => {
   const { needs, gate } = gateOf(jobs(TEXT).get("record-passes"));
   assert.ok(needs.includes("plan") && needs.includes("apply-docs-patch") && needs.includes("fix-docs"));
