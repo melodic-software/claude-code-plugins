@@ -17,7 +17,7 @@ graders:
     arm: both
   - name: explains-parallel-skill
     type: regex
-    pattern: '\b(?:parallel|second|duplicate|separate|competing|another|extra|its\s+own)\b[^.\n]{0,60}?(?<!ctx7 )\b(?:skills?|find-docs|cop(?:y|ies))\b(?!\s+install)|\bfragment(?:s|ed|ing|ation)\b|\bclobber\w*'
+    pattern: '\b(?:parallel|second|duplicate|separate|competing|another|extra|its\s+own)\b[^.\n]{0,60}?(?<!ctx7 )\b(?:skills?|find-docs|cop(?:y|ies))\b(?!\s+install\b)|\bfragment(?:s|ed|ing|ation)\b|\bclobber\w*'
     flags: i
     target: last_message
     arm: both

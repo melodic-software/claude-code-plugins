@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [8.56.6] - 2026-11-05
+
+### Fixed
+
+- work-unblock no longer runs its sweep when a listed human closes the issue labeled `work-unblock-sweep`: that close now runs the close path like any other, and the sweep runs only on its hourly schedule and after a work-resolve-issue run, so the next of those is the probe after an outage or a kill switch. The `sweep-kick` notice is gone. The `label-unblocked` job also drops `queue: max` and keeps GitHub's default of one waiting run, which a newer run replaces: the next sweep repeats a replaced run's work.
+
+## [8.56.5] - 2026-11-05
+
+### Fixed
+
+- work-resolve-issue holds a run whose WIP cap check could not read the pause (a failed or incomplete open lane PR listing or base config read, or a check that failed or set nothing): resolve-issue starts only on `capped` `false`, pick-slot ends green with a `WIP cap hold` notice, and work-unblock's sweep re-fires the issue so its next run reads again. Before, a failed read kept the last pause work-unblock's hourly sweep had cached, and with none the run started. check-wip-cap no longer restores or saves that cache (`save-state` and `state-saved` are gone, `pause_basis` is `read` or `unknown`), and work-unblock's `wip-state` job, which only saved it, is removed.
+
 ## [8.56.4] - 2026-11-05
 
 ### Fixed

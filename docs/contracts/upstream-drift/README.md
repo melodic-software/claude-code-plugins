@@ -520,6 +520,30 @@ real signal into noise with an approved silencer.
   upstream restatement from an in-repo one without a suppression list. Either event reopens the
   shape question; neither is a date.
 
+### Recorded decision: the cleaned-state gate is deferred until a sweep applies a disposition
+
+**Decided 2026-11-05 UTC: no CI step fails a pull request on a new fix-eligible attribution
+finding yet.** The owner chose to turn the gate on only after a sweep applies dispositions
+([#9759, Q-9759-2 (b)](https://github.com/melodic-software/claude-code-plugins/issues/9759#issuecomment-6662333491)).
+
+Why:
+
+- The [disposition sweep of 2026-11-04](https://github.com/melodic-software/claude-code-plugins/issues/3465#issuecomment-6633945050)
+  applied 0 dispositions.
+- One class is fix-eligible: the owner declared fingerprint-confirmed near-verbatim findings
+  eligible on 2026-11-02 (`plugins/attribution/CHANGELOG.md` 0.15.0; [CHANGELOG 4.2.0](CHANGELOG.md)),
+  superseding the 2026-10-30 ruling that none was. No sweep has applied one, so the gate waits on the
+  first applied disposition, not on an eligible class.
+- The sweep's zero is not evidence the repository is clean: most files got only the automatic scan
+  and most closures hold candidates no panel judged ([CHANGELOG 4.2.0](CHANGELOG.md)). It does not
+  show the gate would pass, or that a predicate for it would be right.
+
+- **Recheck trigger**: the first disposition sweep that applies at least one disposition, recorded
+  on [#3465](https://github.com/melodic-software/claude-code-plugins/issues/3465) or its successor
+  sweep record.
+- **Built then**: a gate step in `pr-require-checks.yml` that fails on a new fix-eligible finding,
+  with a failing and a passing `.test.sh` fixture.
+
 ## Adopters
 
 The rows below were migrated at this contract's 1.0.0 to the single name, each citing this doc with

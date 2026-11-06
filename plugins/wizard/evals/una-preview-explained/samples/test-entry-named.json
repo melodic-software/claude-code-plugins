@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "After you approve the STAGES block I run `pwsh -File retire-distro.ps1 -Test` and read result-dry-latest.json.",
+      "why": "both named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I can run it with -Test and tell you what it says.",
+      "why": "near miss: no result file"
+    },
+    {
+      "answer": "After your run I read result-latest.json.",
+      "why": "real result only"
+    }
+  ]
+}
