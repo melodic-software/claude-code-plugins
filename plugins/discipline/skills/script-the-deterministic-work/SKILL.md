@@ -73,7 +73,7 @@ for instance, already emit the scaffold with no generation cost.
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit):
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result):
 
 - a count, total, or tally produced by reading and adding in prose rather
   than by a command whose output was read back;
