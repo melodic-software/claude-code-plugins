@@ -3709,6 +3709,53 @@ class ReasonsComment(Unattended):
             {"label": "added", "comment": "created"},
         )
 
+    def self_merging(self, listed: bool) -> None:
+        """The pull request's author App, listed or not as merging its own."""
+        self.pr_user = {**self.pr_user, "id": 337859524}
+        self.config = dataclasses.replace(
+            self.config, self_merging_apps=(337859524,) if listed else (5,)
+        )
+
+    def test_a_self_merging_author_gets_no_comment_or_label(self) -> None:
+        # The App merges its own pull request, so the reasons comment and its
+        # escalation are writes no one acts on; the score still holds.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=61)
+        self.lanes = PERSON_HELD
+        self.self_merging(listed=True)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertNotEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertEqual(self.log, [])
+        self.assertNotIn("riskComment", out["unattended"]["writes"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_an_unlisted_author_keeps_its_comment_and_label(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=61)
+        self.lanes = PERSON_HELD
+        self.self_merging(listed=False)
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "created"},
+        )
+
+    def test_a_self_merging_author_gets_no_cleared_comment(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.self_merging(listed=True)
+        _, out = self.run_main()
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertEqual(self.comment_writes(), [])
+        self.assertNotIn("riskComment", out["unattended"]["writes"])
+
     def patched_body(self) -> str:
         """The body this run's PATCH of the reasons comment wrote."""
         patches = [

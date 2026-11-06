@@ -124,14 +124,14 @@
     },
     {
       "id": 11,
-      "name": "inert-assertion-report-only",
+      "name": "inert-assertion-gates-check",
       "prompt": "My Playwright and pytest suites are green. Check whether any of their assertions never actually run.",
-      "expected_output": "Runs cant-fail-scan.sh and reports testing/audit/rule-inert-assertion with its fired threshold for the unawaited toBeVisible and the parenthesized tuple assert. Explains why each never evaluates: an unawaited web-first matcher settles after the test ends, and a non-empty tuple is always truthy. Proposes the language's repair (await the matcher; write assert cond, msg), and notes the rule is report-only: it never gates --check, --strict included.",
+      "expected_output": "Runs cant-fail-scan.sh and reports testing/audit/rule-inert-assertion with its fired threshold for the unawaited toBeVisible and the parenthesized tuple assert. Explains why each never evaluates: an unawaited web-first matcher settles after the test ends, and a non-empty tuple is always truthy. Proposes the language's repair (await the matcher; write assert cond, msg), and notes the finding gates --check: the scan exits 1 on it.",
       "files": ["evals/fixtures/corpus/js-playwright/bad/playwright-saved-unawaited.spec.ts.fixture", "evals/fixtures/corpus/py-pytest/bad/test_pytest_total_tuple_assert.py.fixture"],
       "expectations": [
         "Output reports testing/audit/rule-inert-assertion for the unawaited matcher and for the tuple assert",
         "Output proposes awaiting the matcher and removing the tuple's parentheses, each in its own language",
-        "Output states the finding is report-only and does not fail --check or --check --strict"
+        "Output states the finding gates --check, so --check exits 1 on it"
       ]
     },
     {
@@ -162,7 +162,7 @@
       "id": 14,
       "name": "conditional-assertion-empty-path",
       "prompt": "These two tests are green: one checks every row a query returns, the other checks the error inside a catch. Can they pass without checking anything?",
-      "expected_output": "Runs the detector and reports testing/audit/rule-conditional-assertion for both: every assertion sits in a loop over the query's rows or in the catch, so an empty result or a call that stops throwing passes with no assertion run. Proposes asserting the row count before the loop and asserting the error with the framework's throws assertion, and notes the rule is report-only.",
+      "expected_output": "Runs the detector and reports testing/audit/rule-conditional-assertion for both: every assertion sits in a loop over the query's rows or in the catch, so an empty result or a call that stops throwing passes with no assertion run. Proposes asserting the row count before the loop and asserting the error with the framework's throws assertion, and notes the finding gates --check: the scan exits 1 on it.",
       "files": [
         "evals/fixtures/corpus/js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture",
         "evals/fixtures/corpus/js-jest/bad/jest-parse-error-in-catch.test.ts.fixture"
@@ -170,7 +170,7 @@
       "expectations": [
         "Output reports testing/audit/rule-conditional-assertion for the loop and for the catch",
         "Output proposes a length check before the loop and a throws assertion instead of the catch",
-        "Output states the finding is report-only and does not fail --check or --check --strict"
+        "Output states the finding gates --check, so --check exits 1 on it"
       ]
     },
     {

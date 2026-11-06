@@ -1327,12 +1327,15 @@ corpus_files=(
   bash-harness/bad/bracket-status-dropped.test.sh.fixture
   bash-harness/bad/bracket-then-exit-zero.test.sh.fixture
   bash-harness/bad/check-helper-never-exits.test.sh.fixture
+  bash-harness/bad/cp-variables-then-exit-status.test.sh.fixture
   bash-harness/bad/deploy-source-text.test.sh.fixture
+  bash-harness/bad/echo-variable-then-exit-status.test.sh.fixture
   bash-harness/bad/exec-redirect-only.test.sh.fixture
   bash-harness/bad/prints-only.test.sh.fixture
   bash-harness/bad/rc-accumulator-not-exited.test.sh.fixture
   bash-harness/bad/rc-captured-unchecked.test.sh.fixture
   bash-harness/bad/retry-limit-restated.test.sh.fixture
+  bash-harness/bad/run-then-exit-zero.test.sh.fixture
   bash-harness/bad/sort-against-itself.test.sh.fixture
   bash-harness/good/bracket-then-bare-exit.test.sh.fixture
   bash-harness/good/check-helper-guard-exit.test.sh.fixture
@@ -1346,6 +1349,7 @@ corpus_files=(
   bash-harness/good/python-in-variable.test.sh.fixture
   bash-harness/good/rc-accumulator.test.sh.fixture
   bash-harness/good/repaired-oracles.test.sh.fixture
+  bash-harness/good/run-then-exit-status.test.sh.fixture
   bash-harness/good/sort-against-literal.test.sh.fixture
   bash-harness/good/sources-test-harness.test.sh.fixture
   cs-mstest/bad/OrderAlwaysTrueBesideWeakTests.cs.fixture
@@ -1730,8 +1734,8 @@ for rel in "${corpus_files[@]}"; do
 done
 
 # --- report-only rules: print, never gate -------------------------------------
-# inert-assertion, constant-restatement and source-text-read are reported and
-# counted, and gate neither --check nor --check --strict.
+# constant-restatement and source-text-read are reported and counted, and gate
+# neither --check nor --check --strict.
 RO="$TMP_ROOT/report-only"
 # ro_repo <dir> <tracked source>...: a git repository tracking stub sources.
 ro_repo() {
@@ -1751,7 +1755,7 @@ ro_repo "$RO/constant"
 cp "$CORPUS/js-vitest/bad/vitest-post-limit-restated.test.ts.fixture" "$RO/constant/test/vitest-post-limit-restated.test.ts"
 ro_repo "$RO/source" app/pitch-detail.tsx
 cp "$CORPUS/js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture" "$RO/source/test/vitest-pitch-detail-source-order.test.ts"
-for pair in inert:rule-inert-assertion constant:rule-constant-restatement source:rule-source-text-read; do
+for pair in constant:rule-constant-restatement source:rule-source-text-read; do
   dir="$RO/${pair%%:*}" rule="${pair#*:}"
   run_scan "$dir" --check
   assert_exit "(a) --check passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
@@ -1761,6 +1765,14 @@ for pair in inert:rule-inert-assertion constant:rule-constant-restatement source
   assert_exit "(a) --check --strict passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
   assert_contains "(a) --check --strict still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
 done
+# inert-assertion gates --check, --strict or not, and is not named report-only.
+run_scan "$RO/inert" --check
+assert_exit "(a) --check fails a tree whose only finding is rule-inert-assertion (exit 1)" 1 "$rc"
+assert_contains "(a) --check prints the rule-inert-assertion finding" "$out" "finding [testing/audit/rule-inert-assertion]"
+assert_contains "(a) --check counts it as a gating finding" "$out" "FAIL: 1 gating finding(s)."
+assert_not_contains "(a) --check does not name rule-inert-assertion report-only" "$out" "report-only and never gate"
+run_scan "$RO/inert" --check --strict
+assert_exit "(a) --check --strict fails a tree whose only finding is rule-inert-assertion (exit 1)" 1 "$rc"
 # (c) the whole-tree walk, not --file, resolves the read against the tracked source.
 run_scan "$RO/source"
 assert_contains "(c) a whole-tree run reports the T2 read of its tracked source" "$out" \
@@ -1898,8 +1910,10 @@ assert_matches "a constant-restatement row is SUGGESTION with Confidence omitted
   '^\| [0-9]+ \| SUGGESTION \|  \| test/vitest-post-limit-restated.test.ts:10 \|'
 assert_matches "a source-text-read row is SUGGESTION with Confidence omitted" "$out" \
   '^\| [0-9]+ \| SUGGESTION \|  \| test/vitest-pitch-detail-source-order.test.ts:12 \|'
+assert_contains "Surfaces counts inert-assertion with the gating rules" "$out" \
+  "testing/audit/rule-inert-assertion 1, testing/audit/rule-mock-only-oracle 0; report-only"
 assert_contains "Surfaces counts the report-only rules" "$out" \
-  "report-only findings (never gate --check): testing/audit/rule-inert-assertion 1, testing/audit/rule-constant-restatement 1, testing/audit/rule-source-text-read 1"
+  "report-only findings (never gate --check): testing/audit/rule-constant-restatement 1, testing/audit/rule-source-text-read 1"
 
 # --- Phase 4b report-only rules -------------------------------------------------
 # (a) recomputed-derived, snapshot-only, weak-oracle and throw-only-oracle
@@ -2176,11 +2190,11 @@ assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGEST
 assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
 assert_matches "a throw-only-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/WidgetConstructedNotNullTests.cs:12 \|'
 assert_contains "Surfaces counts conditional-assertion with the gating rules" "$out" \
-  "testing/audit/rule-recomputed-expectation 0, testing/audit/rule-conditional-assertion 1, testing/audit/rule-mock-only-oracle 0; report-only"
+  "testing/audit/rule-recomputed-expectation 0, testing/audit/rule-conditional-assertion 1, testing/audit/rule-inert-assertion 1, testing/audit/rule-mock-only-oracle 0; report-only"
 assert_contains "Surfaces counts the 4b report-only rules" "$out" \
   "testing/audit/rule-source-text-read 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
 
-# (e), and 4b (f): every rule id the scanner can emit, the seven report-only
+# (e), and 4b (f): every rule id the scanner can emit, the eight later
 # rules included, has a positive evals.json expectation.
 EVALS="$SCRIPT_DIR/../evals/evals.json"
 expected="$(jq -r '.evals[] | .expected_output, .expectations[]' "$EVALS")"
