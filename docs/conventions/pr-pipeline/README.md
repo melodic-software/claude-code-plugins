@@ -2379,7 +2379,7 @@ external id, since every workflow's `GITHUB_TOKEN` posts as the same GitHub Acti
 is display-only: it is never required and is not part of `ci-status`, and the gate reads neutral as
 passing, so it holds no merge. Not while `merge.report-only` is true.
 
-##### The Merge-Risk line
+#### The Merge-Risk line
 
 Each arm records the head's merge-risk rating as the pull request body's last line, so the squash
 commit carries it (owner decision Q57, #13657: record ratings so revert rates per risk level can
@@ -2423,7 +2423,7 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
 - **In the squash commit.** GitHub wraps a squash message line over 72 characters
   ([Fail a body line that would break the squash signature](../../../.github/workflows/pr-require-checks.yml)),
   so the rated line arrives as one `Merge-Risk:` line and the `key=value` lines after it. A reader
-  joins them up to the next blank line. No wrapped row starts with `committer `.
+  joins them up to the next blank line. No wrapped row starts with the word committer.
 
 #### Review-only dependencies
 
