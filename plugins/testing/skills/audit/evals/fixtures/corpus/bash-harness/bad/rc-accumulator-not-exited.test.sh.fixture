@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# expect: rule-zero-assertion
+# Each failed check prints FAIL and sets rc, but the script exits 0, so no
+# failure reaches its status.
+set -uo pipefail
+
+rc=0
+for word in a b; do
+  if ! printf 'b\na\n' | sort | grep -qx "$word"; then
+    printf 'FAIL: sort dropped %s\n' "$word" >&2
+    rc=1
+  fi
+done
+exit 0

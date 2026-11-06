@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "claude plugin configure repo-hygiene@melodic --values-stdin < values.json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin configure repo-hygiene@melodic"
+    },
+    {
+      "answer": "/plugin configure"
+    }
+  ]
+}

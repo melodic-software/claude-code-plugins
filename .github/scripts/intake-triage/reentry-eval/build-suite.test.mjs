@@ -13,6 +13,8 @@ const SCRIPT = [
   'const fs = require("node:fs");',
   'const path = require("node:path");',
   "const env = process.env;",
+  'github.hook.after("request", () => {});',
+  'github.hook.error("request", (error) => { throw error; });',
   "const labels = await github.paginate(github.rest.issues.listLabelsForRepo, {});",
   'const dir = fs.mkdtempSync(path.join(env.RUNNER_TEMP, "t-"));',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: the stub script's own template literal
@@ -86,7 +88,7 @@ test("build fills every case with the composed prompt and writes the issue files
       instructions,
       callerText: CALLER,
     });
-    assert.equal(cases.length, 4);
+    assert.equal(cases.length, 5);
     for (const name of cases) {
       const dir = join(out, "evals", name);
       const prompt = JSON.parse(
@@ -113,7 +115,8 @@ test("build fills every case with the composed prompt and writes the issue files
       );
       for (const file of [issue.body, ...issue.comments.map((c) => c.body)])
         assert.ok(existsSync(join(dir, "workspace", file)), file);
-      assert.match(issue.comments[0].url, /#issuecomment-\d+$/u);
+      for (const comment of issue.comments)
+        assert.match(comment.url, /#issuecomment-\d+$/u, name);
       assert.ok(existsSync(join(dir, "workspace", "AGENTS.md")));
       assert.ok(
         statSync(join(dir, "scaffold.sh")).mode & 0o100,
@@ -121,4 +124,24 @@ test("build fills every case with the composed prompt and writes the issue files
       );
     }
   }
+});
+
+test("build gives a case its own body.md and the rest the shared one", async () => {
+  const out = tempDir("reentry-build-");
+  await build({
+    reusable: reusable(step(SCRIPT)),
+    sha: "0".repeat(40),
+    out,
+    callerText: CALLER,
+  });
+  const body = (name) =>
+    readFileSync(
+      join(out, "evals", name, "workspace", ".intake-triage-eval", "body.md"),
+      "utf8",
+    );
+  assert.match(
+    body("outside-spec-flags-untrusted"),
+    /pull request opened from a fork by an\s+account outside this organization/u,
+  );
+  assert.match(body("settled-confirms"), /## Open questions/u);
 });

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "scan cannot resolve the repo; git, stash and tree are git operations; caches and build lose the tracked-file guard."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "caches and build lose the tracked-file guard.",
+      "why": "other tiers not named"
+    },
+    {
+      "answer": "The plugin needs git.",
+      "why": "no tier named"
+    }
+  ]
+}

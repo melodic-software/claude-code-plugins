@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# good-for: rule-inert-assertion
+# A bare exit returns the status of the [[ ]] test before it, so the skip path
+# still fails the script on an earlier failure. Shape from the *-format hook
+# tests.
+set -uo pipefail
+
+PASS=0 FAIL=0
+ok() { PASS=$((PASS + 1)); }
+no() {
+  FAIL=$((FAIL + 1))
+  printf 'FAIL: %s\n' "$1" >&2
+}
+
+[[ "$(printf 'b\na\n' | sort | head -1)" == a ]] && ok || no "sort puts a first"
+if ! command -v sort-helper >/dev/null 2>&1; then
+  echo "SKIP: no sort-helper on PATH"
+  [[ $FAIL -eq 0 ]]
+  exit
+fi
+[[ "$(sort-helper b a)" == "a b" ]] && ok || no "sort-helper orders words"
+[[ $FAIL -eq 0 ]]

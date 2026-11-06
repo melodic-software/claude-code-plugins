@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The empty list is expected."
+    },
+    {
+      "answer": "It is not a bug."
+    },
+    {
+      "answer": "Nothing is broken."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The batch action is broken.",
+      "why": "calls it broken"
+    },
+    {
+      "answer": "Install ghq."
+    }
+  ]
+}

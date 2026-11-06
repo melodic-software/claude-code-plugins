@@ -54,6 +54,12 @@ graders:
     match: not_contains
     target: last_message
     arm: both
+  - name: no-untrusted-flag
+    type: regex
+    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*untrusted\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|"|$)'
+    match: not_contains
+    target: last_message
+    arm: both
   - name: judges-open-questions
     type: llm
     criteria: 'PASS only if the reply''s comment says the quoted decision settles the open questions and asks the owner nothing further. FAIL if it asks any question, re-asks a settled point, or raises a new open question.'

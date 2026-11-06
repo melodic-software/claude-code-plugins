@@ -24,6 +24,19 @@ graders:
     type: regex
     pattern: 'BUNDLE-MARKER-2207'
     target: { source: file, path: dist/bundle.js }
+  - name: no-other-tier
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:bash|sh)(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?)?(?:preflight|clean-caches|clean-build|git-prune|git-branch-audit|git-branch-delete|git-stash-audit|git-tree-reset|git-tree-reset-batch|remove-path|clean-batch)\.sh(?![\w.-])(?!(?:(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?:\s|\\\\\\n)--?h(?:elp)?(?![\w-]))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-scan-permission-ask
+    type: regex
+    pattern: '\b(?:shall|should|may|can) I (?:run|start|do|go ahead with) (?:a |the )?(?:read-only )?(?:scan|inventory)\b|\b(?:want|like) me to (?:run|start|do) (?:a |the )?(?:read-only )?(?:scan|inventory)\b|\b(?:confirm|approve)\b[^\n.?!]{0,60}\b(?:scan|inventory)\b[^\n.?!]{0,40}\?'
+    flags: 'i'
+    match: not_contains
+    target: last_message
   - name: no-removal
     type: tool_used
     tool: 'Bash'

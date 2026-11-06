@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Which action do you want to run?"
+    },
+    {
+      "answer": "Pick one of these:"
+    },
+    {
+      "answer": "Reply with a number."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Running scan now."
+    },
+    {
+      "answer": "Here is the menu."
+    }
+  ]
+}

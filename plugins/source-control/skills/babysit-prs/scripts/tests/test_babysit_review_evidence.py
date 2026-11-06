@@ -3730,6 +3730,7 @@ class FailClosedTests(Base):
             changed_paths=(),
             floor=risk.floor_for(),
         )
+        self.assertTrue(result)
         for item in result:
             self.assertFalse(item.bound)
 

@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v ghq",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "go install github.com/x-motemen/ghq@latest",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "go install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo apt-get install -y git",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "apt-get"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew install ghq",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "brew"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# Each failed check prints FAIL and sets rc, and the script exits with rc.
+# Shape from comment-tooling-pins.test.sh.
+set -uo pipefail
+
+rc=0
+for word in a b; do
+  if ! printf 'b\na\n' | sort | grep -qx "$word"; then
+    printf 'FAIL: sort dropped %s\n' "$word" >&2
+    rc=1
+  fi
+done
+exit "$rc"

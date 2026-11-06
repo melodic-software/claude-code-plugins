@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# An embedded node check() counts failures, and a guard on the counter exits
+# 1, which node passes to the script. Shape from checkup-view.test.sh.
+set -euo pipefail
+
+node --input-type=module - <<'NODE'
+let failed = 0;
+const check = (name, cond) => {
+  if (cond) console.log(`ok: ${name}`);
+  else { console.error(`not ok: ${name}`); failed += 1; }
+};
+check("sort puts a first", ["b", "a"].sort()[0] === "a");
+if (failed) {
+  console.error(`${failed} check(s) failed`);
+  process.exit(1);
+}
+NODE

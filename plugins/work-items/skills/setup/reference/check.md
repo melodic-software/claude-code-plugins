@@ -112,12 +112,12 @@ check.
      reason, so the table carries a row for every probe, and probe 4's FAIL is the gate. Never read
      an unparsable schedule as zero rows, and never raise the ≥1-row FAIL on a guess about what it
      holds, either would substitute this probe's own verdict for probe 4's.
-7. **Work-class label axis**, when probe 2 found a present, shape-valid binding whose provider
-   exposes label listing (the `github` adapter: `gh label list`), verify all five canonical
-   members (four `work-class:` labels and `provenance: untrusted`) from
+7. **Provenance label**, when probe 2 found a present, shape-valid binding whose provider
+   exposes label listing (the `github` adapter: `gh label list`), verify the canonical
+   `provenance: untrusted` member from
    [`reference/work-class-labels.md`](../../../reference/work-class-labels.md)
-   exist. Any missing member is FAIL. Triage cannot apply autonomous-eligible outcomes until the
-   axis is provisioned; remediation is `/work-items:setup apply` on repos without label-as-code,
+   exists. Absent is FAIL. Triage cannot mark an untrusted item until the
+   label is provisioned; remediation is `/work-items:setup apply` on repos without label-as-code,
    or the repo's declared label-as-code owner when one exists (never `gh label create` ad hoc there).
    Providers without a label listing (`local-markdown`, read-only `jira`) → INFO: verify at triage
    time via the item store. When probe 2 is INFO (no binding) or FAIL (malformed binding), skip this

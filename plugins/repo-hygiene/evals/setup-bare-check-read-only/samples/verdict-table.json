@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Status | Detail |\n|---|---|---|\n| `git` on PATH | PASS | /usr/bin/git |\n| ghq | INFO | absent |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "git: PASS\nghq: INFO",
+      "why": "no table"
+    },
+    {
+      "answer": "| Check | Status |\n|---|---|\n| git | PASS |",
+      "why": "no ghq row"
+    }
+  ]
+}
