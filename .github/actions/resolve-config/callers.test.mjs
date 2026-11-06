@@ -3237,23 +3237,29 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   // fix-docs-head ends green on an unread head, so its dependents are not
   // skipped by a failed need: each one's own if must keep it from running.
   // Walk them in file order, each skipped job's outputs empty for the next.
+  // Each if is also evaluated on a head that was read and not held, where
+  // fix-docs must run: a default for an unmodeled ref cannot pass the walk.
   const needsOf = (job) => [job.needs ?? []].flat();
   const downstream = new Set(["fix-docs-head"]);
   const results = { "fix-docs-head": "success", "fix-docs-head-held": "success" };
-  for (const [id, job] of Object.entries(jobs)) {
-    if (id === "fix-docs-head" || id === "fix-docs-head-held" || !needsOf(job).some((n) => downstream.has(n))) continue;
-    downstream.add(id);
-    // A real fix-docs dispatch from a person: a PR number, this activity,
-    // and the sender check passing, so only the head's outputs can stop it.
+  const heads = { unread: { unread: "true" }, read: { "head-sha": "a".repeat(40), unread: "", held: "false" } };
+  const ifContext = (expression, head) => {
+    // A real fix-docs dispatch from a person: a PR number and this activity.
     const context = { "inputs.pr-number": "7", "inputs.activity": "fix-docs" };
-    const expression = String(job.if ?? "true").replace(/format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/g, "true");
     for (const [ref] of expression.matchAll(/\b(?:needs|inputs|github|vars)\.[\w-]+(?:\.[\w-]+)*/g)) {
       if (Object.hasOwn(context, ref)) continue;
       const [, need, kind, name] = /^needs\.([\w-]+)\.(result|outputs)\.?([\w-]*)$/.exec(ref) ?? [];
-      context[ref] = need === undefined ? "" : kind === "result" ? (results[need] ?? "skipped") : need === "fix-docs-head" && name === "unread" ? "true" : "";
+      context[ref] = need === undefined ? "" : kind === "result" ? (results[need] ?? "skipped") : need === "fix-docs-head" ? (head[name] ?? "") : "";
     }
-    const runs = evaluate(expression, context);
-    assert.equal(runs, false, `${id} runs on an unread head: ${expression}`);
+    return context;
+  };
+  for (const [id, job] of Object.entries(jobs)) {
+    if (id === "fix-docs-head" || id === "fix-docs-head-held" || !needsOf(job).some((n) => downstream.has(n))) continue;
+    downstream.add(id);
+    // The sender check passes, so only the head's outputs can stop the job.
+    const expression = String(job.if ?? "true").replace(/format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/g, "true");
+    assert.equal(evaluate(expression, ifContext(expression, heads.unread)), false, `${id} runs on an unread head: ${expression}`);
+    if (id === "fix-docs") assert.equal(evaluate(expression, ifContext(expression, heads.read)), true, `fix-docs does not run on a read head: ${expression}`);
     results[id] = "skipped";
   }
   assert.ok(downstream.has("fix-docs") && downstream.has("apply-docs-patch"), [...downstream].join(", "));
