@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.9] - 2026-11-06
+
+### Fixed
+
+- `/skill-quality:check`: the check 18 Gotchas entry says which fenced shell blocks count as a precompute opportunity, so a reader no longer has to open the checker's source to find out.
+
 ## [1.0.8] - 2026-11-06
 
 ### Fixed

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# changelog-releases.sh: the one parser of the Claude Code changelog page's release markup.
+# changelog-releases.sh: the one parser of the Claude Code changelog's release markup.
 #
 # Usage:
 #   changelog-releases.sh [<file>|-]                 rows, one per release and per item
 #   changelog-releases.sh --blocks <A..B|X> [<file>|-]   the raw lines of those releases
 #
-# Reads the page body (a fetch-docs.sh copy, or stdin when the file is omitted or -).
-# A release opens at either form of release marker the page has used, a
-# `<Update label="X.Y.Z" ...>` line or a line that is only `**X.Y.Z**`, and runs to
+# Reads the body (a fetch-changelog.sh copy, or stdin when the file is omitted or -).
+# A release opens at any release marker form either source has used: the repository
+# file's `## X.Y.Z` line, or the docs page's `<Update label="X.Y.Z" ...>` line or a
+# line that is only `**X.Y.Z**`, and runs to
 # `</Update>`, the next release marker, or end of input. An item is a `*` or `-`
 # bullet line inside a release; bold group headings are not items.
 #
@@ -65,9 +66,9 @@ awk -v lo="$lo" -v hi="$hi" '
     if (keep) print
     next
   }
-  /^\*\*[0-9]+\.[0-9]+\.[0-9]+\*\*[[:space:]]*$/ {
+  /^(\*\*[0-9]+\.[0-9]+\.[0-9]+\*\*|## [0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/ {
     ver = $0
-    gsub(/[*[:space:]]/, "", ver)
+    gsub(/[*#[:space:]]/, "", ver)
     open_release(ver)
     if (keep) print
     next

@@ -75,9 +75,9 @@ Process criteria: <criterion ids no behavior shows; omit when none>
 | `path/to/new-file.cs` | Create | New cache configuration |
 | `path/to/old-file.cs` | Delete | Replaced by new approach |
 
-#### File Inventory (when plan touches ≥10 files)
+#### File Inventory (when plan touches ≥ `plan_inventory_min_files` files, default 10)
 
-When a plan or phase touches ≥10 files, emit a checkbox inventory table. Checkboxes enforce verification discipline: the agent ticks each file as processed; the reviewer sees completeness at a glance.
+When a plan or phase touches `plan_inventory_min_files` or more files (default 10), emit a checkbox inventory table. Checkboxes enforce verification discipline: the agent ticks each file as processed; the reviewer sees completeness at a glance.
 
 | File | Action | Rationale |
 |------|--------|-----------|
@@ -92,7 +92,7 @@ When a plan or phase touches ≥10 files, emit a checkbox inventory table. Check
 
 **When to use KEEP:** include files audited and deliberately left unchanged. It documents completeness ("we looked at this and it's fine") vs omission ("we forgot about this").
 
-**Below threshold (<10 files):** the "Files Affected" table above is sufficient, with no checkboxes needed.
+**Below threshold (fewer than `plan_inventory_min_files` files):** the "Files Affected" table above is sufficient, with no checkboxes needed.
 
 #### Dependencies
 
@@ -159,7 +159,7 @@ The Brief above it still carries the Goal and the finish line (its Acceptance cr
 
 ## Choosing the Right Scale
 
-The plan depth should match the blast radius:
+The plan depth should match the blast radius. The file counts are the `plan_size_bands` defaults; a repository's resolved values replace them ([`../../../reference/config.md`](../../../reference/config.md) "Convention-home keys"):
 
 - **Trivial** (typo fix, doc update, single-line config): abbreviated template, 3-5 bullets
 - **Small** (new rule, simple feature, 2-5 files): abbreviated template with test strategy

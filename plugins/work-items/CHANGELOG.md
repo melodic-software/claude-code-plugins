@@ -3,6 +3,17 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.9.1] - 2026-11-06
+
+### Fixed
+
+- stop ship run at entry when the implementation plugin is missing
+
+  /work-items:ship run hands every item to
+  /implementation:implement-dispatch. When the implementation plugin is
+  not installed, it now stops before any claim and tells the user to
+  install it, instead of claiming items it cannot dispatch.
+
 ## [11.9.0] - 2026-11-06
 
 ### Added

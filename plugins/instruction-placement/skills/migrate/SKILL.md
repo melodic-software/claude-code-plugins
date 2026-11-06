@@ -418,8 +418,8 @@ One native Claude Code surface works on the same file, and the two are easy to c
 - **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin that reads `AGENTS.md` as
   project instructions, under its **Project instructions** (`instructionFiles`) option. It moves
   no file and writes no shim. Whether this build registers it, requires it in this session type,
-  and gates it is read at run time from `/harness-ops:inventory`'s `builtin_plugins` lane, never
-  assumed.
+  and gates it is read at run time from `/harness-ops:inventory`'s `builtin_plugins` lane when the
+  `harness-ops` plugin is installed, never assumed; without it, report those facts as unverified and say once that the `harness-ops` plugin would read them.
   - **Pointer**: for the plugin's settings IDs and the option's values, fetch
     [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
     live; the IDs are in the paragraphs after its table.

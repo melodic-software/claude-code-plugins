@@ -96,6 +96,15 @@ over. For an original within both limits, such as a four-line comment, show
 the before and after inline instead; a subagent round-trip costs more than the reader's
 whole message.
 
+Before deciding, run
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin writing --skill be-concise`
+and copy its line into the result
+([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` is the rule above; `strict` runs the semantic diff on every rewrite, whatever its size.
+Under `light`, and `off`, which acts as `light` here, dispatch no subagent and never run the diff
+yourself in its place: show the before and after, write `verification: skipped (<level>)`, and
+say the meaning was not independently checked.
+
 ## Report the result
 
 End every reshape with the before and after word counts as plain counts, never

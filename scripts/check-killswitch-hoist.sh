@@ -154,7 +154,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
         skip_next=0
         continue
       fi
-      if [[ "$token" == "--lib" ]]; then
+      if [[ "$token" == "--lib" || "$token" == "--bps-seed" ]]; then
         skip_next=1
         continue
       fi
@@ -224,7 +224,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
         skip_next=0
         continue
       fi
-      if [[ "$token" == "--lib" ]]; then
+      if [[ "$token" == "--lib" || "$token" == "--bps-seed" ]]; then
         skip_next=1
         continue
       fi
