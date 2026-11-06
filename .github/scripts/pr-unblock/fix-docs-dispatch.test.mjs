@@ -5,6 +5,10 @@
 // lane fix-docs ran in before), the owner's call to tidy every PR but
 // Dependabot's, the release App's and the standards-sync App's, and once per
 // PR, as pr-refine.yml's old trigger ran it when a PR opened or turned ready.
+// work-resolve-issue's PRs, the lanes App's on a lane branch
+// (work-resolve-issue/issue-<n>-<run>-<attempt>), are skipped when tidied in
+// their own run (within the tidy cutoffs: README, Activities, `tidy`), and
+// dispatched over them (#13717 issuecomment-6692723687).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -229,6 +233,77 @@ test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the 
     pr(25),
   ];
   assert.deepEqual(numbers((await run({ pages: [pulls] })).api), ["20", "24"]);
+});
+
+const LANES_BOT = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP };
+// Small cutoffs in resolve-issue's tidy.cutoffs shape (pr-pipeline.yaml), so
+// each bound sits a step from its value; areas as the README's tidy entry
+// defines them.
+const CUTOFFS = { "max-files": 2, "max-lines": 10, "max-areas": 1, "shared-paths": [".github/", "AGENTS.md"] };
+// The lane run's one commit as LIST_QUERY lists it, in the shape GraphQL
+// returned for a work-resolve-issue PR's API commit: a valid signature, the
+// App's bot user as author, and GitHub's noreply@github.com as committer.
+const laneCommitNode = (head, overrides = {}) => ({
+  oid: head,
+  signature: { isValid: true },
+  author: { user: { login: "melodic-automation-lanes[bot]" } },
+  committer: { email: "noreply@github.com" },
+  statusCheckRollup: { contexts: { nodes: [], pageInfo: { hasNextPage: false } } },
+  ...overrides,
+});
+// A lane PR exactly at the cutoffs: 2 files, 6 + 4 lines, one area
+// (plugins/x with its .changes/x fragment), and one lane commit at its head.
+const lanePr = (number, { paths = ["plugins/x/a.md", ".changes/x/f.md"], commit = {}, commitCount = 1, ...overrides } = {}) =>
+  pr(number, {
+    author: LANES_BOT,
+    headRefName: "work-resolve-issue/issue-12-345-1",
+    paths,
+    changedFiles: paths.length,
+    additions: 6,
+    deletions: 4,
+    commits: { totalCount: commitCount, nodes: [{ commit: laneCommitNode(pr(number).headRefOid, commit) }] },
+    ...overrides,
+  });
+const lane = { appSenderId: LANES_APP, tidyCutoffs: CUTOFFS, maxDispatch: 20 };
+
+test("a work-resolve-issue PR (the lanes App's, on a lane branch) within the tidy cutoffs is skipped; the App's other PRs and a person's lane-named branch are not", async () => {
+  const pulls = [lanePr(30), lanePr(31, { headRefName: "chore/x" }), lanePr(32, { author: pr(32).author }), lanePr(33, { headRefName: "work-resolve-issue/issue-1-x" })];
+  const { api, record } = await run({ pages: [pulls] }, lane);
+  assert.deepEqual(numbers(api), ["31", "32", "33"]);
+  assert.equal(isHandled(record, CHECK, pr(30).headRefOid), false, "a skipped lane PR is not recorded as handled");
+});
+
+test("a work-resolve-issue PR over any tidy cutoff was not tidied in its run and is dispatched", async () => {
+  const pulls = [
+    lanePr(40, { paths: ["plugins/x/a.md"], changedFiles: 3 }),
+    lanePr(41, { additions: 7 }),
+    lanePr(42, { paths: [".github/x.md"] }),
+    lanePr(43, { paths: ["AGENTS.md"] }),
+    lanePr(44, { paths: ["plugins/x/a.md", "plugins/y/b.md"] }),
+    lanePr(45, { paths: ["docs/a/x.md", "docs/b/y.md"] }),
+    lanePr(46, { more: true }),
+    // Within: a shared file's name elsewhere, and two files of one docs dir.
+    lanePr(47, { paths: ["plugins/x/AGENTS.md"] }),
+    lanePr(48, { paths: ["docs/a/x.md", "docs/a/y.md"] }),
+  ];
+  assert.deepEqual(numbers((await run({ pages: [pulls] }, lane)).api), ["40", "41", "42", "43", "44", "45", "46"]);
+});
+
+test("a work-resolve-issue PR whose head is not the lane run's one API commit had a push its tidy never saw and is dispatched", async () => {
+  const pulls = [
+    lanePr(50, { commitCount: 2 }),
+    lanePr(52, { commit: { signature: { isValid: false } } }),
+    lanePr(53, { commit: { author: { user: { login: "someone" } } } }),
+    lanePr(54, { commit: { committer: { email: "someone@example.com" } } }),
+    lanePr(55),
+  ];
+  assert.deepEqual(numbers((await run({ pages: [pulls] }, lane)).api), ["50", "52", "53", "54"]);
+});
+
+test("without a valid lanes App id or tidy cutoffs no PR is skipped as a work-resolve-issue PR", async () => {
+  for (const options of [{ appSenderId: undefined }, { appSenderId: Number.NaN }, { appSenderId: "337595936" }, { tidyCutoffs: null }]) {
+    assert.deepEqual(numbers((await run({ pages: [[lanePr(34)]] }, { ...lane, ...options })).api), ["34"], JSON.stringify(options));
+  }
 });
 
 test("an excluded account is matched by id, not login, and a PR whose author has no id is not dispatched", async () => {

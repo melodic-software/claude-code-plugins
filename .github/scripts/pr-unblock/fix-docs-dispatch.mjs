@@ -3,9 +3,12 @@
 // file, carries no hold label (the human-gated one only when a lane escalation
 // put it on: gate-source.mjs prHold), and has never had a fix-docs check run under
 // either lane fix-docs has run in, whoever opened it except the accounts in
-// excludedAuthorIds. It runs from the same dispatcher run as dispatch.mjs
-// (pr-unblock-dispatch.yml), so the trigger gate and the broker check it as
-// they check a resolve-conflicts dispatch.
+// excludedAuthorIds, and is not a work-resolve-issue PR (the lanes App's, on a
+// lane branch, whose one commit is the lane run's) tidied in its own run
+// (within the tidy cutoffs). It runs from
+// the same dispatcher run as dispatch.mjs (pr-unblock-dispatch.yml), so the
+// trigger gate and the broker check it as they check a resolve-conflicts
+// dispatch.
 //
 // Once per PR, when it is first seen ready, not after each push. The listing is
 // dispatch.mjs's LIST_QUERY, one GraphQL query per page of 50 pull requests
@@ -47,6 +50,7 @@
 // is gone does.
 
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { allLaneCommits, laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 
@@ -101,9 +105,58 @@ export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: In
   }
 }`;
 
+// A changed path's area under resolve-issue's tidy cutoffs (README,
+// Activities, `tidy`): plugins/<name> with .changes/<name>, docs/<dir>, else
+// the top-level segment.
+const areaOf = (path) => {
+  const [top, next] = path.split("/");
+  if (next !== undefined && (top === "plugins" || top === ".changes")) {
+    return `plugins/${next}`;
+  }
+  return next !== undefined && top === "docs" ? `docs/${next}` : top;
+};
+
+// Whether the PR's change is within resolve-issue's tidy cutoffs, so its run
+// tidied it: at most max-files files and max-lines added plus removed lines,
+// no path under shared-paths (a directory ends in /), at most max-areas areas.
+// No cutoffs, a file list not read whole, or a count not read is not within.
+export function withinTidyCutoffs(node, cutoffs) {
+  if (cutoffs === null || node.files?.pageInfo?.hasNextPage !== false) {
+    return false;
+  }
+  if (!(node.changedFiles <= cutoffs["max-files"]) || !(node.additions + node.deletions <= cutoffs["max-lines"])) {
+    return false;
+  }
+  const paths = (node.files.nodes ?? []).map((file) => String(file?.path ?? ""));
+  const shared = cutoffs["shared-paths"] ?? [];
+  if (paths.some((path) => shared.some((entry) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry)))) {
+    return false;
+  }
+  return new Set(paths.map(areaOf)).size <= cutoffs["max-areas"];
+}
+
+// Whether the PR's head is the lane run's own commit, which its tidy saw: the
+// PR has one commit, the listed one, and it is the lanes App's API commit
+// (report-outcome.mjs allLaneCommits). A listed commit other than the head is
+// left to the head check below, which lists the PR as no candidate. The listing's GraphQL fields go
+// into the REST shape that helper reads; GitHub records web-flow, whose email
+// is noreply@github.com, as the committer of a commit it signs for the API.
+function laneRunHead(node) {
+  const commit = node.commits?.nodes?.[0]?.commit;
+  if (node.commits?.totalCount !== 1 || !commit) {
+    return false;
+  }
+  const rest = {
+    commit: { verification: { verified: commit.signature?.isValid === true } },
+    author: { login: commit.author?.user?.login },
+    committer: { login: commit.committer?.email === "noreply@github.com" ? "web-flow" : undefined },
+  };
+  return allLaneCommits([rest], `${node.author.login}[bot]`);
+}
+
 // Why a listed PR is not a candidate, or "" when it is one.
 // The human-gated gateLabel is left to dispatchDocsFixes's prHold read.
-export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null }) {
+export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null, appSenderId, tidyCutoffs = null }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -113,6 +166,15 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
   }
   if (excludedAuthorIds.includes(author)) {
     return "opened by an excluded account";
+  }
+  // work-resolve-issue tidies its own change in its run when the change is
+  // within its tidy cutoffs (its `tidy` key, #8485). Every term: the App's
+  // other PRs never tidied, anyone can name a branch, a later push (a
+  // person's, fix-ci's, resolve-conflicts') was never tidied, and a lane
+  // change over the cutoffs was not tidied. author is a safe integer, so an
+  // unset or malformed id skips none.
+  if (author === appSenderId && laneBranchIssue(node.headRefName) !== null && laneRunHead(node) && withinTidyCutoffs(node, tidyCutoffs)) {
+    return "a work-resolve-issue PR, tidied in its own run";
   }
   if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name) && label?.name !== gateLabel)) {
     return "held";
@@ -233,6 +295,8 @@ export async function dispatchDocsFixes({
   maxRunsPerHead = DEFAULTS.maxRunsPerHead,
   gateLabel = null,
   appSenderId,
+  // resolve-issue's tidy cutoffs from the base config, null when it does not tidy.
+  tidyCutoffs = null,
 }) {
   if (maxDispatch === 0) {
     log("fix-docs is off (fix-docs-per-run: 0)");
@@ -244,7 +308,7 @@ export async function dispatchDocsFixes({
     const { rateLimit, pullRequests } = await api.listDocsFixCandidates({ base, after });
     log(`fix-docs listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     for (const node of pullRequests.nodes) {
-      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel });
+      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel, appSenderId, tidyCutoffs });
       if (reason.startsWith("head already has") || (reason === "" && isHandled(record, earlierCheckName, node.headRefOid))) {
         markHandled(record, checkName, node.headRefOid);
       } else if (reason === "" && !isHandled(record, checkName, node.headRefOid)) {
