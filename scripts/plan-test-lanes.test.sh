@@ -26,7 +26,7 @@ ERR="$scratch/plan.err"
 
 cp "$REPO_ROOT/scripts/affected-tests-no-suite.txt" "$repo/scripts/"
 : >"$repo/scripts/run-plugin-tests-serial.txt"
-printf 'plugins/knowledge/vendor/repo-analysis\n.github/scripts/pr-verify\n' >"$repo/scripts/outside-node-packages.txt"
+printf 'plugins/knowledge/vendor/repo-analysis\n.github/scripts/pr-verify\nscripts/lane-transcripts\n' >"$repo/scripts/outside-node-packages.txt"
 printf 'plugins/fx/evals/fixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 
 # mk <path> [<content>]: a fixture file.
@@ -315,7 +315,7 @@ rc=0
 check "a sibling of a trigger file does not run that package" "$rc"
 
 plan -- .github/workflows/pr-verify.yml
-is "$(key node_packages)" ".github/scripts/pr-verify" && is "$(key node)" true
+is "$(key node_packages)" ".github/scripts/pr-verify scripts/lane-transcripts" && is "$(key node)" true
 check "a change to pr-verify.yml alone runs the pr-verify package" $?
 
 plan -- .github/workflows/pr-unblock.yml
@@ -323,8 +323,17 @@ rc=0
 [[ " $(key node_packages) " != *" .github/scripts/pr-verify "* ]] || rc=1
 check "another workflow does not run the pr-verify package" "$rc"
 
+# pull.test.mjs reads every workflow's upload-lane-transcript calls.
+is "$(key node_packages)" "scripts/lane-transcripts"
+check "any workflow change runs the lane-transcripts package" $?
+
+plan -- .github/actions/check-kill-switch/action.yml
+rc=0
+[[ " $(key node_packages) " != *" scripts/lane-transcripts "* ]] || rc=1
+check "a change outside .github/workflows/ does not run the lane-transcripts package" "$rc"
+
 plan -- .node-version
-is "$(key node_packages | wc -w | tr -d ' ')" 7
+is "$(key node_packages | wc -w | tr -d ' ')" 8
 check "a Node pin runs every Node package" $?
 
 plan -- plugins/ps/x.ps1
@@ -362,7 +371,7 @@ check "an unmapped shell file runs the whole shell corpus and is counted" $?
 
 plan -- .github/workflows/pr-require-checks.yml
 is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
-  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 7 &&
+  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 8 &&
   is "$(key windows_jobs)" "[]"
 check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 12 legs, and test-windows from the selection" $?
 

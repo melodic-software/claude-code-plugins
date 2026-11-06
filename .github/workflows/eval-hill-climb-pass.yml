@@ -354,9 +354,24 @@ jobs:
             echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
             exit 0
           fi
+          probe_facts() {
+            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
+              [split("\n")[] | select(. != "")] as $lines
+              | [$lines[] | fromjson? | objects] as $m
+              | ($m | map(select(.type == "result")) | last) as $r
+              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
+                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
+              | "result=\(if $r == null then "none" else "present" end)"
+                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
+                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
+                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
+                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
+                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
+                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
+          }
           denied() {
-            jq -e -s --arg t "$1" --arg p "$2" 'last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs"; exit 1; }
+            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
           }
           denied Read /proc/self/environ
           denied Read "$RUNNER_ROOT/.runner"
@@ -747,9 +762,24 @@ jobs:
             echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
             exit 0
           fi
+          probe_facts() {
+            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
+              [split("\n")[] | select(. != "")] as $lines
+              | [$lines[] | fromjson? | objects] as $m
+              | ($m | map(select(.type == "result")) | last) as $r
+              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
+                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
+              | "result=\(if $r == null then "none" else "present" end)"
+                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
+                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
+                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
+                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
+                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
+                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
+          }
           denied() {
-            jq -e -s --arg t "$1" --arg p "$2" 'last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs"; exit 1; }
+            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
           }
           denied Read /proc/self/environ
           denied Read "$RUNNER_ROOT/.runner"
@@ -1095,9 +1125,24 @@ jobs:
             echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
             exit 0
           fi
+          probe_facts() {
+            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
+              [split("\n")[] | select(. != "")] as $lines
+              | [$lines[] | fromjson? | objects] as $m
+              | ($m | map(select(.type == "result")) | last) as $r
+              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
+                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
+              | "result=\(if $r == null then "none" else "present" end)"
+                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
+                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
+                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
+                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
+                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
+                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
+          }
           denied() {
-            jq -e -s --arg t "$1" --arg p "$2" 'last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs"; exit 1; }
+            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
           }
           denied Read /proc/self/environ
           denied Read "$RUNNER_ROOT/.runner"
