@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 42 independent identical edits; the Workflow tool is not callable here\nshape: sections",
+      "why": "count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: many independent identical edits; the Workflow tool is not callable here\nshape: sections",
+      "why": "no count"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 420 files\nshape: sections",
+      "why": "wrong count"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh --json fanout"
+          }
+        }
+      ],
+      "why": "json form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\" fanout"
+          }
+        }
+      ],
+      "why": "fallback form, quoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh --json"
+          }
+        }
+      ],
+      "why": "every owner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n fanout /home/<user>/.claude/plugins/multi-agent/reference/defaults.yaml"
+          }
+        }
+      ],
+      "why": "read the file instead"
+    }
+  ]
+}

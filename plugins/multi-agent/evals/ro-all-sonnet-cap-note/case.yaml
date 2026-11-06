@@ -1,0 +1,61 @@
+schema_version: "1.1"
+name: 'ro-all-sonnet-cap-note'
+graders:
+  - name: 'invoked-route'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:multi-agent:)?route"'
+    min: 1
+    arm: 'with-only'
+  - name: 'ran-route-all-sonnet'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?route\.sh)(?=(?:[^"\\]|\\.)*?[ \t]all\b)(?=(?:[^"\\]|\\.)*?\bsession=sonnet\b)'
+    min: 1
+    arm: 'with-only'
+  - name: 'fenced-json-block'
+    type: 'regex'
+    pattern: '```json[ \t]*\n\s*\{[\s\S]*"roles"[\s\S]*\}\s*\n```'
+    target: 'last_message'
+  - name: 'json-verifier-effort-high'
+    type: 'regex'
+    pattern: '"verifier"\s*:\s*\{\s*"role"\s*:\s*"verifier"\s*,\s*"single"\s*:\s*\{[^{}]*"effort"\s*:\s*"high"[^{}]*\}\s*,\s*"fanout"\s*:\s*\{[^{}]*"effort"\s*:\s*"high"'
+    target: 'last_message'
+  - name: 'cap-line-after-role-lines'
+    type: 'regex'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?(?:orchestrator|worker|verifier|retrieval): single\b[\s\S]*?^[ \t]*`?Effort above maxEffortLevel runs at the cap; see reference/config\.md "Hard cap"\.`?[ \t]*$(?![\s\S]*^[ \t]*(?:[-*][ \t]+)?`?(?:orchestrator|worker|verifier|retrieval): single\b)'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'says-runs-at-medium'
+    type: 'regex'
+    pattern: '\b(?:verifier|orchestrator|high|effort)\b[^\n.]{0,120}?(?<!not )(?<!n''t )(?<!n’t )(?<!never )\b(?:runs?|running|run|capped|clamped|limited|lowered|drops?|held)\b[^\n.]{0,40}?\b(?:at|to)[ \t]+(?:the[ \t]+cap[ \t]+(?:of[ \t]+)?)?`?medium\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-settings-read'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '(?:managed-settings|settings(?:\.local)?\.json)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-shell'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:managed-settings|settings(?:\.local)?\.json)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-grep'
+    type: 'tool_used'
+    tool: 'Grep'
+    input_match: '(?:managed-settings|settings(?:\.local)?\.json)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-glob'
+    type: 'tool_used'
+    tool: 'Glob'
+    input_match: '(?:managed-settings|settings(?:\.local)?\.json)'
+    min: 0
+    max: 0
+    arm: 'both'

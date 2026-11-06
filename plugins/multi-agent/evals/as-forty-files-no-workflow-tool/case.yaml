@@ -25,3 +25,32 @@ graders:
     tool: 'Agent'
     min: 0
     max: 0
+  - name: 'ran-availability-script'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'workflow-availability\.sh'
+    min: 1
+    arm: 'with-only'
+  - name: 'reason-names-item-count'
+    type: 'regex'
+    pattern: '^reason:[^\n]*\b42\b'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'no-workflow-launch'
+    type: 'tool_used'
+    tool: 'Workflow'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

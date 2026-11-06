@@ -5,8 +5,8 @@
 set -euo pipefail
 
 git init -q
-mkdir -p .claude/skills/jo-park/reference
-cat > .claude/skills/jo-park/SKILL.md <<'EOF'
+mkdir -p skills/jo-park/reference
+cat > skills/jo-park/SKILL.md <<'EOF'
 ---
 name: jo-park
 description: "Jo Park's published essays on product launches and pacing, distilled."

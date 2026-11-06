@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"inherit\",\"omit_model\":true,\"effort\":\"medium\",\"guarded\":false},\"fanout\":{\"model\":\"opus\",\"omit_model\":false}}}}\n```",
+      "why": "compact"
+    },
+    {
+      "answer": "```json\n{\n  \"roles\": {\n    \"worker\": {\n      \"role\": \"worker\",\n      \"single\": { \"model\": \"inherit\", \"effort\": \"medium\" },\n      \"fanout\": { \"model\": \"opus\", \"effort\": \"medium\" }\n    }\n  }\n}\n```",
+      "why": "pretty"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"inherit\"},\"fanout\":{\"model\":\"inherit\"}}}}\n```",
+      "why": "fanout inherit"
+    },
+    {
+      "answer": "```json\n{\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"inherit\"},\"fanout\":{\"model\":\"fable\"}}}}\n```",
+      "why": "fanout fable"
+    }
+  ]
+}

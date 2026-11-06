@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer user fanout.frontier_guard=false roles.worker.effort=high 2>&1"
+          }
+        }
+      ],
+      "why": "preview with stderr folded"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /home/<user>/.claude/multi-agent.yaml 2>/dev/null"
+          }
+        }
+      ],
+      "why": "read the layer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer user fanout.frontier_guard=false roles.worker.effort=high > /tmp/preview.txt; cat /home/<user>/.claude/multi-agent.yaml"
+          }
+        }
+      ],
+      "why": "redirect to another file, then read the layer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'schema: 1\\nfanout:\\n  frontier_guard: false\\n' > /home/<user>/.claude/multi-agent.yaml"
+          }
+        }
+      ],
+      "why": "redirect write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'schema: 1' | tee /home/<user>/.claude/multi-agent.yaml"
+          }
+        }
+      ],
+      "why": "tee write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/true/false/' /home/<user>/.claude/multi-agent.yaml"
+          }
+        }
+      ],
+      "why": "sed -i edit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'schema: 1\\n' > \"/home/<user>/.claude/multi-agent.yaml\""
+          }
+        }
+      ],
+      "why": "redirect to a quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "F=/home/<user>/.claude/multi-agent.yaml; printf 'schema: 1\\n' > \"$F\""
+          }
+        }
+      ],
+      "why": "redirect through a variable"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- personal-override: roles.worker.model rejected: 'claude-opus-5-5' is not an allowed value; the layer below supplies it",
+      "why": "note as written"
+    },
+    {
+      "answer": "Note: `roles.worker.model` rejected (not an alias).",
+      "why": "code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your roles.worker.model setting is ignored.",
+      "why": "not the note"
+    },
+    {
+      "answer": "roles.worker.model is claude-opus-5-5.",
+      "why": "no rejection"
+    }
+  ]
+}

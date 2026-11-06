@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"session_model\":\"fable\",\"roles\":{\"worker\":{}}}\n```\n\nworker: ...",
+      "why": "fenced json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"session_model\":\"fable\",\"roles\":{\"worker\":{}}}",
+      "why": "not fenced"
+    },
+    {
+      "answer": "```\n{\"roles\":{}}\n```",
+      "why": "fence without json tag"
+    }
+  ]
+}

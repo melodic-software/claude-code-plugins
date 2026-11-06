@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "worker: single inherit: omit the model option @ medium; fanout inherit: omit the model option @ medium\nretrieval: single sonnet @ medium; fanout sonnet @ medium\n\nEffort above maxEffortLevel runs at the cap; see reference/config.md \"Hard cap\".",
+      "why": "after"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Effort above maxEffortLevel runs at the cap; see reference/config.md \"Hard cap\".\n\nworker: single inherit: omit the model option @ medium; fanout inherit: omit the model option @ medium",
+      "why": "before the role lines"
+    },
+    {
+      "answer": "worker: single inherit: omit the model option @ medium; fanout inherit: omit the model option @ medium\n\nEffort above maxEffortLevel runs at the cap.",
+      "why": "line reworded"
+    }
+  ]
+}

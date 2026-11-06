@@ -81,6 +81,7 @@
 // heads when no approval of the head lifts a hold path, are read with
 // GH_TOKEN.
 import { Buffer } from "node:buffer";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
 import process from "node:process";
@@ -1622,7 +1623,28 @@ export async function readStatuses(github, repo, head) {
   throw new Error("more than 1000 statuses on the head");
 }
 
-// The tracker config's human-gated role label (.work-item-tracker.json
+// The work-item tracker binding, at the convention home the workflows read
+// pr-pipeline.yaml from.
+export const TRACKER_BINDING_PATH = "docs/conventions/work-items.yaml";
+
+// The binding at `path` as JSON text: the `tracker` mapping of a .yaml file,
+// through yq as the workflows read it (`null` when the file binds none),
+// else the file's own text (the legacy .work-item-tracker.json). A missing
+// file throws fs's ENOENT; a yq failure throws.
+export function trackerBindingText(path) {
+  const text = readFileSync(path, "utf8");
+  if (!String(path).endsWith(".yaml")) {
+    return text;
+  }
+  try {
+    return execFileSync("yq", ["-o=json", "-I=0", ".tracker", "-"], { input: text, encoding: "utf8", timeout: 30_000, maxBuffer: 1 << 20 });
+  } catch (error) {
+    // A missing yq binary also raises ENOENT; callers read ENOENT as "no binding file".
+    throw new Error(`yq could not read ${path}: ${error.code ?? error.message}`);
+  }
+}
+
+// The tracker config's human-gated role label (the binding's
 // config.role_labels["human-gated"], trimmed), `needs-human` when it names
 // none, as ci-status reads it.
 export function humanGatedLabel(tracker) {

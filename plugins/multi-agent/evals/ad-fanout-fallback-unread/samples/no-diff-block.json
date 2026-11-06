@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No changes proposed.",
+      "why": "no diff"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```diff\n- as_of: 2026-10-10\n+ as_of: 2026-11-06\n```",
+      "why": "as_of bump for unread rows"
+    }
+  ]
+}

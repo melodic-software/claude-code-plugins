@@ -1,0 +1,105 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugins/multi-agent/skills/route/scripts/route.sh worker research session=sonnet"
+          }
+        }
+      ],
+      "why": "measured smoke-1 run: the route call only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .claude/multi-agent.local.yaml"
+          }
+        }
+      ],
+      "why": "reads the override"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n model .claude/multi-agent.local.yaml 2>/dev/null"
+          }
+        }
+      ],
+      "why": "greps the override with stderr discarded"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /opt/eval/cwd log --oneline -1 -- README.md"
+          }
+        }
+      ],
+      "why": "unrelated read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/claude-opus-5-5/opus/' .claude/multi-agent.local.yaml"
+          }
+        }
+      ],
+      "why": "sed -i edit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'schema: 1\\nroles:\\n  worker:\\n    model: opus\\n' > .claude/multi-agent.local.yaml"
+          }
+        }
+      ],
+      "why": "redirect write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /opt/eval/cwd && \\\nrm .claude/multi-agent.local.yaml"
+          }
+        }
+      ],
+      "why": "rm after an escaped newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv .claude/multi-agent.local.yaml .claude/multi-agent.local.yaml.bak"
+          }
+        }
+      ],
+      "why": "moved away"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'schema: 1' | tee \"/opt/eval/cwd/.claude/multi-agent.local.yaml\""
+          }
+        }
+      ],
+      "why": "tee to a quoted path"
+    }
+  ]
+}

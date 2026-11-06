@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [8.63.0] - 2026-11-06
+
+### Changed
+
+- CI `fix-docs` is on again: `limits.fix-docs-per-run` is `2`, for every pull request not tidied in its own run. A `work-resolve-issue` pull request tidied in its own run (within the tidy cutoffs) is skipped: the lanes App's on a lane branch whose file count, added plus removed lines, paths and areas are within `resolve-issue`'s `tidy.cutoffs`. One over any cutoff is dispatched, and so are the App's other pull requests and a person's on a branch with a lane name.
+- pr-refine's plan job reads the base config through resolve-config's own loader, with its schema and file checks, instead of a `yq` conversion.
+
+### Removed
+
+- Intake no longer proposes or applies a work class. The triage rubric asks for none, and `apply-verdict` adds no `work-class:` label, swaps or takes off none on the issue, no longer reads the repository's labels, and no longer rewords the lane comment. Untrusted provenance still holds: the `untrusted` flag, or the legacy `work-class: untrusted-provenance` proposal on the lane comment's second line, writes `provenance: untrusted`, and either label on an issue still holds it.
+- `admission-rules.json` drops its unread `classes` key.
+
 ## [8.62.0] - 2026-11-06
 
 ### Added

@@ -35,7 +35,7 @@ graders:
   - name: no-reference-shell-write
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>(?!>?[ \t]*(?:&|/dev/null))|(?:\b|(?<=\\n))(?:tee|cp|mv|touch)\b|<<)(?:[^"\\;&|]|\\[^n])*?\.claude/skills/(?:[^\"\\\s;&|]|\\[^n])*?/reference(?:/|\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>(?!>?[ \t]*(?:&|/dev/null))|(?:\b|(?<=\\n))(?:tee|cp|mv|touch)\b|<<)(?:[^"\\;&|]|\\[^n])*?(?:\.claude/)?skills/(?:[^\"\\\s;&|]|\\[^n])*?/reference(?:/|\b)'
     min: 0
     max: 0
     arm: both

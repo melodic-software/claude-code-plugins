@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/multi-agent.local.yaml"
+      ],
+      "why": "personal override written"
+    }
+  ]
+}

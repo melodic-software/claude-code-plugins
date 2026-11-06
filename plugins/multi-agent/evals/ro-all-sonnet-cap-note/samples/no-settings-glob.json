@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/config.md"
+          }
+        }
+      ],
+      "why": "other file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/managed-settings.json"
+          }
+        }
+      ],
+      "why": "managed settings"
+    }
+  ]
+}

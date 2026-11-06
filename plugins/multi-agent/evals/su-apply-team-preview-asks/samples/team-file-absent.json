@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "README.md"
+      ],
+      "why": "not written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "README.md",
+        "docs/conventions/multi-agent.yaml"
+      ],
+      "why": "written"
+    }
+  ]
+}
