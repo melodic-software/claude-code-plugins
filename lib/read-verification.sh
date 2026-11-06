@@ -3,7 +3,9 @@
 # runs at, from its plugin's team file <home>/<plugin>.yaml as origin's default
 # branch holds it. <home> is the convention home that resolve-convention-home.sh
 # reads at the same commit; with no pointer line, or a declined one, it is
-# docs/conventions. Meaning of each level:
+# docs/conventions. A plugin whose team file sits at a fixed path whatever the
+# convention home (bugs keeps docs/conventions/bugs.yaml, say) passes that path
+# with --file, and the convention home is not read. Meaning of each level:
 # docs/contracts/verification-level/README.md.
 #
 #   verification_skills.<skill>   wins when set
@@ -20,7 +22,11 @@
 # source and run scripts/sync-shared-copies.sh.
 #
 # Usage:
-#   read-verification.sh --plugin <plugin> --skill <skill>
+#   read-verification.sh --plugin <plugin> --skill <skill> [--file <path>]
+#
+#   --file  the team file, relative to the repository root (letters, digits,
+#           . _ / -, ending .yaml, no leading / or -, no ..), in place of
+#           <home>/<plugin>.yaml
 #
 # Output: one line, `verification: <level> (<source>)`, for example
 #   verification: light (docs/conventions/docs-hygiene.yaml verification_skills.compress at origin/main, commit <sha>)
@@ -39,20 +45,28 @@ standard() {
   exit 0
 }
 
-plugin="" skill=""
+usage="default; usage: read-verification.sh --plugin <plugin> --skill <skill> [--file <path>]"
+plugin="" skill="" fixed=""
 while (($#)); do
   case "$1" in
-  --plugin | --skill)
-    (($# >= 2)) || standard "default; usage: read-verification.sh --plugin <plugin> --skill <skill>"
-    if [[ "$1" == --plugin ]]; then plugin="$2"; else skill="$2"; fi
+  --plugin | --skill | --file)
+    (($# >= 2)) || standard "$usage"
+    case "$1" in
+    --plugin) plugin="$2" ;;
+    --skill) skill="$2" ;;
+    *) fixed="$2" ;;
+    esac
     shift 2
     ;;
-  *) standard "default; usage: read-verification.sh --plugin <plugin> --skill <skill>" ;;
+  *) standard "$usage" ;;
   esac
 done
 name='^[a-z0-9][a-z0-9-]*$'
 [[ "$plugin" =~ $name && "$skill" =~ $name ]] ||
   standard "default; --plugin and --skill take a name of lowercase letters, digits and -"
+if [[ -n "$fixed" ]] && [[ ! "$fixed" =~ ^[A-Za-z0-9._/-]+\.yaml$ || "$fixed" == [/-]* || "$fixed" == *..* ]]; then
+  standard "default; --file '$fixed' is not a repository-relative .yaml path"
+fi
 
 root="$(config_root_resolve)"
 case "$(config_root_classify "$root")" in
@@ -80,16 +94,20 @@ git -C "$root" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$br
 sha="$(git -C "$root" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}")" ||
   standard "default; team layer skipped: origin/$branch has not been fetched"
 
-rc=0
 # Every read below names the commit, never a short ref a same-named tag or
 # local branch could shadow.
-home="$(bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$root" --ref "$sha" 2>/dev/null)" || rc=$?
-case "$rc" in
-0) ;;
-1 | 4) home=docs/conventions ;;
-*) standard "default; team layer skipped: the convention-home pointer at origin/$branch is broken (resolve-convention-home.sh exit $rc)" ;;
-esac
-file="$home/$plugin.yaml"
+if [[ -n "$fixed" ]]; then
+  file="$fixed"
+else
+  rc=0
+  home="$(bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$root" --ref "$sha" 2>/dev/null)" || rc=$?
+  case "$rc" in
+  0) ;;
+  1 | 4) home=docs/conventions ;;
+  *) standard "default; team layer skipped: the convention-home pointer at origin/$branch is broken (resolve-convention-home.sh exit $rc)" ;;
+  esac
+  file="$home/$plugin.yaml"
+fi
 at="at origin/$branch, commit $sha$stale"
 
 # resolve [sha]: sets LEVEL, KEY (empty when no key set) and ERR (empty when

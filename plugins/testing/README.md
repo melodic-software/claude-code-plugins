@@ -129,6 +129,13 @@ lower it: the lowest valid value wins, a raise is reported as ignored, and an in
 named and dropped. A testing release without this key stops its test scan on `pixel_tolerance` in
 `testing.yaml`, so add the map once every member runs this release.
 
+`verification` (`off | light | standard | strict`, default `standard`) and `verification_skills`
+(per-skill levels; an entry beats `verification`) set whether `/testing:cleanup`'s Cannot-fail-only mode
+dispatches its fresh-context skeptic: under `light` and `off` it dispatches none and deletes nothing. Both keys
+are read from `docs/conventions/testing.yaml` on the default branch only, through
+`lib/read-verification.sh`; levels are in the marketplace's
+[verification level contract](../../docs/contracts/verification-level/README.md).
+
 `/testing:write` reads two keys, `tdd_refactor_step` (`on | off`, default `on`) and `first_test`
 (`user-flow | unit`, default `user-flow`), resolved by `scripts/resolve-config.sh write`. They are
 repository settings: only `docs/conventions/testing.yaml` and `.claude/testing.local.yaml` set

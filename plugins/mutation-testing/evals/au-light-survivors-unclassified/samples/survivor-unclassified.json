@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| m2 | src/calc.py:2 `>=` -> `>` | survived | unclassified (verification: skipped (light)) |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| m2 | src/calc.py:2 `>=` -> `>` | survived | productive, input-gap |",
+      "why": "triaged in context"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}
