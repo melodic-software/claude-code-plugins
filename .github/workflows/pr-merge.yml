@@ -1249,7 +1249,7 @@ jobs:
           # with the connection's totalCount on each page, kept by author
           # below. At most max_pages pages (1000 pull requests); a list with
           # more is cut short, so it leaves the retry at once and holds the
-          # step below. Order is gh pr list's, newest first.
+          # step below. Newest first.
           max_pages=10
           echo '[]' >"$listing"
           listing_full='' listing_fault=''

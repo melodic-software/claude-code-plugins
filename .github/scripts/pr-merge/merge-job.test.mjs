@@ -1,5 +1,5 @@
 // pr-merge.yml's merge job: the post-merge check and its re-dispatch do not
-// wait on the gate loop (#8299), the listing retries a failed `gh pr list`, an
+// wait on the gate loop (#8299), the listing retries a failed GraphQL read, an
 // unknown listing holds the job green and every later acting step, the
 // post-merge check included, waits on that hold, the run logs its API cost
 // through the shared action, and the run cache carries the verdict reads that
@@ -126,13 +126,14 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
-// `attempts` scripts each call in turn: `502` fails that one.
+// `attempts` scripts each call in turn: `502` fails that one. `editPage(page, p)`
+// returns page `p`'s response in place of the one built.
 const bot = (login, databaseId) => ({ __typename: "Bot", login, databaseId });
 const user = (login, databaseId) => ({ __typename: "User", login, databaseId });
 const LANES = bot("melodic-automation-lanes", 337595936);
 const listed = (number, author, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: { nodes: [] }, body: "", author });
 const LANES_PR = [listed(7, LANES)];
-const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR, total = prs.length, attempts = []) => {
+const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR, total = prs.length, attempts = [], editPage = (page) => page) => {
   const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
@@ -144,7 +145,7 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
         pageInfo: { hasNextPage: p + 1 < pages, endCursor: `p${p + 1}` },
         nodes: prs.slice(p * 100, p * 100 + 100),
       };
-      writeFileSync(join(dir, `page-p${p}.json`), JSON.stringify({ data: { repository: { pullRequests: connection } } }));
+      writeFileSync(join(dir, `page-p${p}.json`), JSON.stringify(editPage({ data: { repository: { pullRequests: connection } } }, p)));
     }
     writeFileSync(
       join(bin, "gh"),
@@ -231,7 +232,7 @@ test("the listing retries a failed GraphQL read", () => {
 const assertHeld = (run) => {
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /^::notice title=Merge lane hold::/m);
-  assert.doesNotMatch(run.stdout, /^::error title=GitHub rate limit::gh pr list/m);
+  assert.doesNotMatch(run.stdout + run.stderr, /^::error::/m);
   assert.match(run.output, /^held=true$/m);
   assert.doesNotMatch(run.output, /^(count|listed)=/m);
   assert.equal(run.prefiltered, false);
@@ -269,6 +270,36 @@ test("a repeated pull request does not stand in for a missing one", () => {
 
 test("a page with no open count holds the job", () => {
   assertHeld(runListing(0, undefined, undefined, {}, undefined, LANES_PR, null));
+});
+
+// Each try fails, so each holds after three tries of page 1 (and page 2).
+const lanes150 = Array.from({ length: 150 }, (_, i) => listed(i + 1, LANES));
+test("an open count that moves between pages holds the job", () => {
+  const run = runListing(0, undefined, undefined, {}, undefined, lanes150, 150, [], (page, p) => {
+    if (p === 1) page.data.repository.pullRequests.totalCount = 151;
+    return page;
+  });
+  assertHeld(run);
+  assert.equal(run.calls, 6);
+  assert.match(run.stderr, /the open count moved from 150 to 151 while listing/);
+  assert.match(run.output, /^held-reason=failed 3 times \(count mismatch\)$/m);
+});
+
+test("a 200 that carries GraphQL errors holds the job", () => {
+  const run = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 1, [], (page) => ({ ...page, errors: [{ message: "x" }] }));
+  assertHeld(run);
+  assert.equal(run.calls, 3);
+  assert.match(run.output, /^held-reason=failed 3 times$/m);
+});
+
+test("a next page with no cursor holds the job", () => {
+  const run = runListing(0, undefined, undefined, {}, undefined, lanes150, 150, [], (page, p) => {
+    if (p === 0) page.data.repository.pullRequests.pageInfo.endCursor = null;
+    return page;
+  });
+  assertHeld(run);
+  assert.equal(run.calls, 3);
+  assert.match(run.output, /^held-reason=failed 3 times$/m);
 });
 
 // A step's `if:` as GitHub evaluates it on the schedule, with `steps` and
