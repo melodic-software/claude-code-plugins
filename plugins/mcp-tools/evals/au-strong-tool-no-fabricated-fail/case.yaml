@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: au-strong-tool-no-fabricated-fail
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-fail-verdict
+    type: regex
+    pattern: '\|\s*\**FAIL\**\s*\||(?:→|->|=|:)\s*\**FAIL\b'
+    match: 'not_contains'
+    target: last_message
+  - name: overall-zero-fail
+    type: regex
+    pattern: 'Overall\W{0,6}\d+\s+pass(?:es|ed)?[,;\s]+(?:and\s+)?\d+\s+warn(?:s|ings?)?[,;\s]+(?:and\s+)?0\s+fail'
+    flags: 'i'
+    target: last_message
+  - name: c1-what-pass
+    type: regex
+    pattern: '(?:^|\n)[^\n]*(?:\bC1\b)[^\n]*?(?:\|\s*\**PASS\**\s*\||(?:→|->|:|=|\bis\b)\s*\**PASS\b|(?<!\bnot)(?<!\bno)\s\**PASS\b)'
+    flags: 'i'
+    target: last_message
+  - name: c2-when-pass
+    type: regex
+    pattern: '(?:^|\n)[^\n]*(?:\bC2\b|\bC1\s*[-–]\s*C3\b)[^\n]*?(?:\|\s*\**PASS\**\s*\||(?:→|->|:|=|\bis\b)\s*\**PASS\b|(?<!\bnot)(?<!\bno)\s\**PASS\b)'
+    flags: 'i'
+    target: last_message
+  - name: c3-returns-pass
+    type: regex
+    pattern: '(?:^|\n)[^\n]*(?:\bC3\b)[^\n]*?(?:\|\s*\**PASS\**\s*\||(?:→|->|:|=|\bis\b)\s*\**PASS\b|(?<!\bnot)(?<!\bno)\s\**PASS\b)'
+    flags: 'i'
+    target: last_message
+  - name: c7-value-guidance-pass
+    type: regex
+    pattern: '(?:^|\n)[^\n]*(?:\bC7\b|\bC6\s*[-–/]\s*C7\b)[^\n]*?(?:\|\s*\**PASS\**\s*\||(?:→|->|:|=|\bis\b)\s*\**PASS\b|(?<!\bnot)(?<!\bno)\s\**PASS\b)'
+    flags: 'i'
+    target: last_message
+  - name: annotations-pass
+    type: regex
+    pattern: '^(?=[\s\S]*?(?:^|\n)[^\n]*(?:\bC12\b)[^\n]*?(?:\|\s*\**PASS\**\s*\||(?:→|->|:|=|\bis\b)\s*\**PASS\b|(?<!\bnot)(?<!\bno)\s\**PASS\b))(?=[\s\S]*?(?:^|\n)[^\n]*(?:\bC13\b|\bC12\s*[-–]\s*C14\b)[^\n]*?(?:\|\s*\**PASS\**\s*\||(?:→|->|:|=|\bis\b)\s*\**PASS\b|(?<!\bnot)(?<!\bno)\s\**PASS\b))(?=[\s\S]*?(?:^|\n)[^\n]*(?:\bC14\b)[^\n]*?(?:\|\s*\**PASS\**\s*\||(?:→|->|:|=|\bis\b)\s*\**PASS\b|(?<!\bnot)(?<!\bno)\s\**PASS\b))'
+    flags: 'i'
+    target: last_message
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

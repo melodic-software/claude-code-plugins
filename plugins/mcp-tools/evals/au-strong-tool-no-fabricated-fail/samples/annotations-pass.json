@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | PASS | false fits a write |\n| C13 destructiveHint appropriate | SPEC-OPTIONAL | PASS | false |\n| C14 idempotentHint set | SPEC-OPTIONAL | PASS | true |",
+      "why": "three rows"
+    },
+    {
+      "answer": "Annotations C12-C14 PASS: readOnlyHint false, destructiveHint false, idempotentHint true.\nC14 PASS",
+      "why": "range plus C14"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | PASS | |\n| C13 destructiveHint appropriate | SPEC-OPTIONAL | WARN | |\n| C14 idempotentHint set | SPEC-OPTIONAL | PASS | |",
+      "why": "C13 warns"
+    },
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | PASS | |\n| C13 destructiveHint appropriate | SPEC-OPTIONAL | PASS | |",
+      "why": "C14 missing"
+    }
+  ]
+}

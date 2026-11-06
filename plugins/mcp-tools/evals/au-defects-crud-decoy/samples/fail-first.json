@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Fix first: the FAIL items. get_report's reportId and delete_workspace's id have no descriptions (C6). Then the WARNs: add readOnlyHint to get_report, say when to use it and what it returns, and drop the Cosmos DB details from delete_workspace.",
+      "why": "FAILs first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fix first: remove the Cosmos DB wording from delete_workspace (C5 WARN). Then describe reportId (C6 FAIL).",
+      "why": "WARN before FAIL"
+    },
+    {
+      "answer": "Here is the scorecard. Let me know which items you want to tackle.",
+      "why": "no order"
+    }
+  ]
+}

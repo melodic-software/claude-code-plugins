@@ -42,17 +42,11 @@
         "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}",
         "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"
       },
-      "allowedCallerPermissions": [
-        {
-          "contents": "read",
-          "issues": "write"
-        },
-        {
-          "actions": "read",
-          "contents": "read",
-          "issues": "write"
-        }
-      ],
+      "allowedCallerPermissions": {
+        "actions": "read",
+        "contents": "read",
+        "issues": "write"
+      },
       "approvedShas": [
         "164c2809f6150429b6f24d4a2777bb377af953d9",
         "182aca3ad32b79fd002def94e58eb498ac49e7af",

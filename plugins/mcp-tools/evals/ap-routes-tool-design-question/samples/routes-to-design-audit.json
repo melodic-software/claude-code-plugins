@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "That is a tool design question: run /mcp-tools:audit on the server's directory.",
+      "why": "names the skill"
+    },
+    {
+      "answer": "# MCP Tool Audit Report\n\n**Tools audited:** 0",
+      "why": "ran the design audit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /mcp-tools:audit-posture to check that.",
+      "why": "the posture skill"
+    },
+    {
+      "answer": "Your descriptions look fine.",
+      "why": "no route"
+    }
+  ]
+}

@@ -6,13 +6,16 @@
 # gh_read runs `gh api` through the api-budget wrapper, whose rate guard stops
 # a pool until its reset on a rate-limited response: retry-after seconds, else
 # x-ratelimit-reset while remaining is 0, else a guess: the documented minute
-# for a secondary limit, an hour for any other. gh_read then waits once, one
-# second past a reset a header gave, and reads again; a guessed stop gets no
-# wait, so it fails the read at once. Nothing is sent while the pool is
-# stopped, a probe included. A wait that would end past the
-# deadline the step sets (the job's timeout less a margin, from when the step
-# runs) fails the read at once naming the reset. Any other failure returns at
-# once.
+# for a secondary limit, an hour for any other. gh_read is the read's only
+# retry layer, 3 sends at most: it waits once, one second past a reset a header
+# gave, and reads again; a guessed stop gets no wait, so it fails the read at
+# once. Nothing is sent while the pool is stopped, a probe included. A wait
+# that would end past the deadline the step sets (the job's timeout less a
+# margin, from when the step runs) fails the read at once naming the reset.
+# A 4xx that is no rate limit fails at once. Any other failure (a 5xx, a
+# network error, no HTTP status) is read again after a full-jitter wait, at
+# most 5 s and then 10 s, unless that wait would end past the deadline. A
+# third send that is rate limited, with a reset a header gave, names it.
 # test-scope: .github/workflows/pr-require-checks.yml
 # shellcheck disable=SC2016 # the step snippets are literal
 set -uo pipefail
@@ -97,6 +100,7 @@ fi
 #                                   graphql's resource on a graphql call
 #   last <reset> <body>             200 that spends the last request
 #   fail <status> <message>         that status, no rate-limit headers
+#   net                             no response: a network error, no status
 # Without -i only the body, or the error text on stderr, is printed. sleep
 # logs its seconds, and date +%s answers STUB_NOW plus the seconds slept.
 mkdir -p "$TMP_ROOT/bin"
@@ -128,6 +132,10 @@ limit)
 fail)
   [[ -z $include ]] || printf 'HTTP/2.0 %s X\r\n\r\n{"message":"%s"}\n' "$a" "$b${c:+ $c}${rest:+ $rest}"
   printf 'gh: %s (HTTP %s)\n' "$b${c:+ $c}${rest:+ $rest}" "$a" >&2
+  exit 1
+  ;;
+net)
+  printf 'error connecting to api.github.com\n' >&2
   exit 1
   ;;
 *) echo "unscripted call $n" >&2; exit 1 ;;
@@ -231,11 +239,6 @@ check "a paginated read whose headers are unseen fails at once on a primary limi
 STUB_NOW=$((NOW + 120)) STUB_SCRIPT='ok never' run 'gh_read repos/o/r/pulls --paginate || echo "rc=$?"'
 check "two minutes later that pool is still stopped and nothing is sent" 0 0 "" "rc=1"
 
-fresh
-STUB_SCRIPT="$LIMITED
-ok never
-ok never" run 'for attempt in 1 2 3; do gh_read repos/o/r/pulls --paginate >/dev/null && break; sleep 5; done; echo "attempts=$attempt"'
-check "a caller's three-attempt loop sends the paginated read once" 0 1 "5 5 5" "attempts=3"
 
 # gh_read holds gh's stderr in a file until gh returns, and a stop the rate
 # guard cannot record ends the step first: the errors still reach its log.
@@ -289,13 +292,144 @@ STUB_NOW=$((NOW + 560)) STUB_SCRIPT='limit 4999 0 61 You have exceeded a seconda
   run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
 check "a later step's wait that would end past the deadline is not taken" 0 1 "" "past the 2026-10-24T00:10:00Z ci-status can wait to"
 
-fresh
-STUB_SCRIPT='fail 404 Not Found' run 'gh_read repos/o/r/contents/x 2>"$RUNNER_TEMP/err" || echo "rc=$?"; grep -c "HTTP 404" "$RUNNER_TEMP/err"'
-check "any other error returns at once, its text on the caller's stderr" 0 1 "" $'rc=1\n1'
+# jitter <label> <want-rc> <want-calls> <ceiling>... [-- want-out]: as check,
+# but each logged sleep must be a whole number of seconds no greater than its
+# ceiling, one sleep per ceiling, since the waits are random.
+jitter() {
+  local label="$1" want_rc="$2" want_calls="$3" want_out='' i s
+  shift 3
+  local -a ceilings=() got=()
+  while [[ $# -gt 0 && "$1" != -- ]]; do ceilings+=("$1"); shift; done
+  [[ "${1:-}" != -- ]] || want_out="$2"
+  read -ra got <<<"$sleeps"
+  if [[ "$rc" -ne "$want_rc" ]]; then
+    fail "$label: expected rc=$want_rc got rc=$rc out='$out'"; return
+  elif [[ "$calls" -ne "$want_calls" ]]; then
+    fail "$label: expected $want_calls call(s) got $calls: '$(cat "$TMP_ROOT/log")'"; return
+  elif [[ "${#got[@]}" -ne "${#ceilings[@]}" ]]; then
+    fail "$label: expected ${#ceilings[@]} sleep(s) got '$sleeps'"; return
+  elif [[ -n "$want_out" && "$out" != *"$want_out"* ]]; then
+    fail "$label: output lacks '$want_out': '$out'"; return
+  fi
+  for i in "${!ceilings[@]}"; do
+    s="${got[$i]}"
+    if ! [[ "$s" =~ ^[0-9]+$ ]] || [[ "${ceilings[$i]}" != - && "$s" -gt "${ceilings[$i]}" ]]; then
+      fail "$label: sleep $((i + 1)) was '$s', not 0 to ${ceilings[$i]} s"; return
+    fi
+  done
+  ok "$label"
+}
 
 fresh
-STUB_SCRIPT='fail 403 Resource not accessible by integration' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
-check "a 403 that is not a rate limit returns at once" 0 1 "" "rc=1" "::error::"
+STUB_SCRIPT='fail 502 Server Error
+fail 502 Server Error
+fail 502 Server Error
+ok never' run 'gh_read repos/o/r/contents/x 2>"$RUNNER_TEMP/err" || echo "rc=$?"; grep -c "HTTP 502" "$RUNNER_TEMP/err"'
+jitter "a 5xx is sent 3 times at most, after jittered waits of up to 5 and 10 s, its text on the caller's stderr" 0 3 5 10 -- $'rc=1\n3'
+
+fresh
+STUB_SCRIPT='net
+net
+net
+ok never' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+jitter "a network error with no HTTP status is sent 3 times at most" 0 3 5 10 -- "rc=1"
+
+fresh
+STUB_SCRIPT='fail 404 Not Found
+ok never' run 'gh_read repos/o/r/contents/x 2>"$RUNNER_TEMP/err" || echo "rc=$?"; grep -c "HTTP 404" "$RUNNER_TEMP/err"'
+check "a 404 is sent once, with no wait, its text on the caller's stderr" 0 1 "" $'rc=1\n1'
+
+fresh
+STUB_SCRIPT='fail 403 Resource not accessible by integration
+ok never' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a 403 that is not a rate limit is sent once, with no wait" 0 1 "" "rc=1"
+if [[ "$out" != *"::error::"* && "$out" != *"waiting"* ]]; then
+  ok "a failure that is no rate limit names no reset; the caller prints its own error"
+else
+  fail "a failure that is no rate limit printed a rate-limit line: '$out'"
+fi
+
+fresh
+STUB_SCRIPT='fail 502 Bad Gateway
+ok second' run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
+jitter "a read that fails once succeeds on its second send" 0 2 5 -- "got second"
+
+# Full jitter: the first wait is drawn from 0 to 5 s, so repeated reads do
+# not all wait the same time, as a fixed backoff would.
+firsts=()
+for _ in $(seq 30); do
+  fresh
+  STUB_SCRIPT='fail 502 Bad Gateway
+ok second' run 'gh_read repos/o/r/pulls/1 >/dev/null'
+  firsts+=("$sleeps")
+done
+distinct="$(printf '%s\n' "${firsts[@]}" | sort -u | grep -c .)"
+over="$(printf '%s\n' "${firsts[@]}" | awk '!/^[0-9]+$/ || $1 > 5' | grep -c .)"
+if [[ "$distinct" -ge 2 && "$over" -eq 0 ]]; then
+  ok "30 first waits are all 0 to 5 s and not all equal ($distinct distinct)"
+else
+  fail "30 first waits were '${firsts[*]}': $distinct distinct, $over outside 0 to 5 s"
+fi
+
+fresh
+STUB_SCRIPT="$LIMITED
+fail 502 Bad Gateway
+ok third" run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
+jitter "a rate wait, then another failure, then a read: 3 sends" 0 3 31 10 -- "got third"
+if [[ "${sleeps%% *}" == 31 ]]; then
+  ok "the rate wait is the reset's, a second past it"
+else
+  fail "the rate wait was '${sleeps%% *}', not 31"
+fi
+
+fresh
+STUB_SCRIPT="fail 502 Bad Gateway
+$LIMITED
+ok third" run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
+jitter "a failure, then a rate limit, then a read: 3 sends" 0 3 5 - -- "got third"
+read -r j r <<<"$sleeps"
+if [[ $((j + r)) -eq 31 ]]; then
+  ok "the rate wait after a jittered one still ends a second past the reset"
+else
+  fail "the waits '$sleeps' do not end a second past the reset (31 s in all)"
+fi
+
+fresh
+STUB_SCRIPT="$LIMITED
+fail 502 Bad Gateway
+fail 502 Bad Gateway
+ok never" run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+jitter "a rate wait counts toward the 3 sends" 0 3 31 10 -- "rc=1"
+if [[ "$out" != *"rate limit blocks"* ]]; then
+  ok "a third failure that is no rate limit names no reset"
+else
+  fail "a third failure that is no rate limit printed an error: '$out'"
+fi
+
+fresh
+STUB_SCRIPT="fail 502 Bad Gateway
+fail 502 Bad Gateway
+$LIMITED
+ok never" run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+jitter "a third send that is rate limited with a header reset names the reset" 0 3 5 10 -- \
+  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/pulls/1' until 2026-10-24T00:00:30Z, and this read has made its 3 sends; a re-run after 2026-10-24T00:00:30Z is needed."
+
+fresh
+STUB_SCRIPT='fail 502 Bad Gateway
+fail 502 Bad Gateway
+limit 4999 0 - You have exceeded a secondary rate limit.
+ok never' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+jitter "a third send whose rate limit is a guessed stop names no reset" 0 3 5 10 -- "rc=1"
+if [[ "$out" != *"rate limit blocks"* ]]; then
+  ok "a guessed stop at the third send prints no reset"
+else
+  fail "a guessed stop at the third send named a reset: '$out'"
+fi
+
+ci_gh_read::reset "$TMP_ROOT" $((NOW - 1))
+STUB_SCRIPT='fail 502 Bad Gateway
+ok never' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a jittered wait that would end past the deadline is not taken" 0 1 "" "rc=1" "::error::"
 
 # pr_read: one read per job of the same args. A later step's pr_read answers
 # the kept body with no call; other args read again; a failed read keeps
@@ -308,8 +442,10 @@ STUB_SCRIPT='ok changed' run 'pr_read repos/o/r/pulls/1'
 check "a later step's pr_read of the same args answers the kept body with no call" 0 0 "" '{"number":1}' "changed"
 STUB_SCRIPT='ok two' run 'pr_read repos/o/r/pulls/1 --paginate'
 check "other args read again" 0 1 "" "two"
-STUB_SCRIPT='fail 502 Server Error' run 'pr_read repos/o/r/pulls/3 || echo "rc=$?"'
-check "a failed pr_read returns gh's failure" 0 1 "" "rc=1"
+STUB_SCRIPT='fail 502 Server Error
+fail 502 Server Error
+fail 502 Server Error' run 'pr_read repos/o/r/pulls/3 || echo "rc=$?"'
+jitter "a failed pr_read returns gh_read's failure after 3 sends" 0 3 5 10 -- "rc=1"
 STUB_SCRIPT='ok three' run 'pr_read repos/o/r/pulls/3'
 check "a failed read keeps nothing, so the next pr_read reads again" 0 1 "" "three"
 STUB_SCRIPT='ok never' run 'pr_read_put "[1]" repos/o/r/issues/1/events --paginate; pr_read repos/o/r/issues/1/events --paginate'

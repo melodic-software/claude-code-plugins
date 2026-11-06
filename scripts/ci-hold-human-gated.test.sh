@@ -368,28 +368,30 @@ expect "a transient label read failure is retried" 1 2 "needs-human" 1
 # A paginated read's rate limit stops every pool (the api-budget rate guard):
 # for an hour on a primary limit, for the documented minute on a secondary
 # one. Its headers are unseen, so the stop is a guess and gh_read takes no
-# wait: the read fails closed, and the caller's retries make no call. Any
-# other error keeps the caller's retries and is never waited on.
+# wait: the read fails closed at once, with no sleep and no second call. So
+# does a 4xx that is no rate limit. Any other error is read again inside
+# gh_read, 3 sends at most, after full-jitter waits of at most 5, then 10 s;
+# the step itself does not loop.
 sleeps() { paste -sd' ' "$TMP_ROOT/sleeps"; }
 for STUB_FAIL_TEXT in 'gh: API rate limit exceeded for installation. (HTTP 403)' 'gh: You have exceeded a secondary rate limit. (HTTP 403)'; do
   export STUB_FAIL_TEXT
   expect "a rate-limited label read fails closed after one call ($STUB_FAIL_TEXT)" 1 1 "enhancement" 1 \
     "::error::could not read the labels of #6419" "waiting"
-  if [[ "$(sleeps)" == "5 10" ]]; then
-    ok "a guessed stop is not waited for, and the retries make no call"
+  if [[ -z "$(sleeps)" ]]; then
+    ok "a guessed stop is not waited for, and nothing sleeps"
   else
-    fail "a guessed stop slept '$(sleeps)', not the caller's '5 10'"
+    fail "a guessed stop slept '$(sleeps)'"
   fi
 done
 export STUB_FAIL_TEXT='gh: Resource not accessible by integration (HTTP 403)'
-expect "a 403 that is not a rate limit fails closed without a wait" 1 3 "" 3 "::error::could not read the labels of #6419" "rate limited"
-if [[ "$(sleeps)" == "5 10" ]]; then
-  ok "a 403 that is not a rate limit keeps the caller's retries only"
+expect "a 403 that is not a rate limit fails closed after one send" 1 1 "" 3 "::error::could not read the labels of #6419" "rate limited"
+if [[ -z "$(sleeps)" ]]; then
+  ok "a 403 that is not a rate limit is not waited on"
 else
   fail "a 403 that is not a rate limit slept '$(sleeps)'"
 fi
 unset STUB_FAIL_TEXT
-expect "an unreadable label list fails closed" 1 3 "" 3 "::error::could not read the labels of #6419"
+expect "an unreadable label list fails closed, though a 4th send would read it" 1 3 "" 3 "::error::could not read the labels of #6419"
 if grep -q '^held=' "$TMP_ROOT/output"; then
   fail "an unreadable label list output held"
 else

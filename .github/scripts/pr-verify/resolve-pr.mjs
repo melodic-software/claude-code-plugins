@@ -468,6 +468,18 @@ export async function countedBy(options) {
   return (await countedRun(options)) !== null;
 }
 
+// Whether a workflow run is of `path`'s origin: that file on `base`, started
+// by workflow_run, in this repository, with a full head SHA. Only steps of
+// such a run can upload its artifacts, so an artifact name alone proves
+// nothing until its run passes this.
+export const ofOrigin = (run, { path, repository, base = "main" }) =>
+  run?.path === path &&
+  run.event === "workflow_run" &&
+  run.head_branch === base &&
+  run.repository?.full_name === repository &&
+  run.head_repository?.full_name === repository &&
+  SHA.test(run.head_sha ?? "");
+
 // countedBy's run record, or null when it would not count.
 async function countedRun({ github, repository, runId, verdict, base }) {
   let run;
@@ -478,14 +490,9 @@ async function countedRun({ github, repository, runId, verdict, base }) {
   }
   if (
     run?.id !== runId ||
-    run.path !== VERIFY_PATH ||
-    run.event !== "workflow_run" ||
-    run.head_branch !== base ||
-    run.repository?.full_name !== repository ||
-    run.head_repository?.full_name !== repository ||
+    !ofOrigin(run, { path: VERIFY_PATH, repository, base }) ||
     run.status !== "completed" ||
-    (verdict !== "fail" && run.conclusion !== "success") ||
-    !SHA.test(run.head_sha ?? "")
+    (verdict !== "fail" && run.conclusion !== "success")
   ) {
     return null;
   }
@@ -787,8 +794,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs }) {
-  const skip = (reason) => ({ proceed: false, reason });
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated }) {
+  const skip =(reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
   }
@@ -856,7 +863,19 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   // draftRun read the list whole, or it would have thrown.
   keepJobs?.((await readJobs()).jobs);
-  const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
+  // Another workflow's reads of the same pull request (pr-rate-merge-risk.yml):
+  // `rated` answers whether its own artifact for this head already stands, and
+  // the verifier's judged-head rules do not apply. The closing issues are read
+  // as for a judgment; the body is never the spec here, since that workflow
+  // reads only a lanes App pull request.
+  if (rated !== undefined) {
+    if (await rated({ github, repository, number: pull.number, head, base })) {
+      return skip("already-rated");
+    }
+    const { bodyEditor, bodyEditedAt, ...spec } = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, undefined, base);
+    return { proceed: true, reason: "ok", relinkSinceHead: false, prNumber: pull.number, headSha: head, baseSha: pull.base.sha, headRef: String(pull.head.ref ?? ""), ...spec };
+  }
+  const prs =new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
   const draftJudged = draftJudgments(github, repository, head);
   let { fail, passes, ownFail, ownLast } = await judged({ github, repository, number: pull.number, head, base, prs, draftJudged });
   if (fail) {
@@ -1049,6 +1068,40 @@ export function carryMain(env = process.env) {
   console.log(packed === "" ? "resolve-pr: no reads handed on; a handoff reads again" : `resolve-pr: handed on ${packed.length} characters of reads`);
 }
 
+// For a workflow other than pr-verify.yml that reads the same pull request
+// (RATED_WORKFLOW_PATH, RATED_ARTIFACT_PREFIX): whether an unexpired
+// `<prefix>-<pr>-<head>` artifact of a run of that file's origin (ofOrigin)
+// already stands, so the head is not paid for twice. Undefined when neither is
+// set, which leaves the verifier's rules; a malformed value throws.
+export function ratedBy(env) {
+  if (!env.RATED_WORKFLOW_PATH && !env.RATED_ARTIFACT_PREFIX) {
+    return undefined;
+  }
+  const path = String(env.RATED_WORKFLOW_PATH ?? "");
+  const prefix = String(env.RATED_ARTIFACT_PREFIX ?? "");
+  if (!/^\.github\/workflows\/[a-z0-9-]+\.yml$/.test(path) || !/^[a-z][a-z0-9-]{0,40}$/.test(prefix)) {
+    throw new Error("RATED_WORKFLOW_PATH or RATED_ARTIFACT_PREFIX is malformed");
+  }
+  return async ({ github, repository, number, head, base }) => {
+    const name = `${prefix}-${number}-${head}`;
+    for (const artifact of await artifactsNamed(github, repository, name)) {
+      const runId = artifact?.workflow_run?.id;
+      if (artifact?.name !== name || artifact.expired !== false || !Number.isSafeInteger(runId)) {
+        continue;
+      }
+      const run = await github("GET", `/repos/${repository}/actions/runs/${runId}`);
+      if (run?.id === runId && ofOrigin(run, { path, repository, base })) {
+        return true;
+      }
+    }
+    return false;
+  };
+}
+
+// The lane a failure or hold names: pr-verify unless RESOLVE_LANE names
+// another reader of the same pull request.
+const laneOf = (env) => (/^[a-z][a-z0-9-]{0,40}$/.test(env?.RESOLVE_LANE ?? "") ? env.RESOLVE_LANE : "pr-verify");
+
 export async function main(env = process.env, { github, fetchImpl, latch } = {}) {
   if (env.CARRIED) {
     const taken = takeReads(env.CARRIED, env.GITHUB_RUN_ATTEMPT);
@@ -1133,6 +1186,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     keepJobs: (list) => {
       jobs = list;
     },
+    rated: ratedBy(env),
   });
   if (result.proceed && !/^[A-Za-z0-9._/-]+$/.test(result.headRef)) {
     throw new Error("the head branch has a name the outputs cannot carry");
@@ -1168,7 +1222,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
 
 // The step's error annotation for a failed run, with the refused answer's
 // detail when a GitHub call failed.
-export const failureAnnotation = (error) => `::error::pr-verify could not resolve the pull request: ${error.message}${detailSuffix(error)}`;
+export const failureAnnotation = (error, env = process.env) => `::error::${laneOf(env)} could not resolve the pull request: ${error.message}${detailSuffix(error)}`;
 
 // The reason a GitHub fault writes, which pr-verify.yml's HELD_STEP runs on.
 export const HELD_REASON = "held";
@@ -1182,12 +1236,13 @@ export const HELD_STEP = "Note the hold";
 // and proceed=false, so nothing is judged and the lost-run reconciler re-runs
 // the run once on its next pass (outage posture element 2); any other error
 // fails the step with failureAnnotation.
-export function closing(error) {
+export function closing(error, env = process.env) {
   if (!isFault(error) && error?.incomplete !== true) {
-    return { lines: [failureAnnotation(error)], outputs: null, code: 1 };
+    return { lines: [failureAnnotation(error, env)], outputs: null, code: 1 };
   }
   const why = `${error?.message ?? error}${detailSuffix(error)}`.replaceAll(/[\r\n%]/g, " ");
-  return { lines: [`::notice title=pr-verify::held: pr-verify could not resolve the pull request: ${why}`], outputs: `proceed=false\nreason=${HELD_REASON}\n`, code: 0 };
+  const lane = laneOf(env);
+  return { lines: [`::notice title=${lane}::held: ${lane} could not resolve the pull request: ${why}`], outputs: `proceed=false\nreason=${HELD_REASON}\n`, code: 0 };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] === "carry") {

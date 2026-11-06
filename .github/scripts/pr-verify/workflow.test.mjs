@@ -2189,11 +2189,11 @@ test("the outer claude reaches the broker and the holders through CCD_* only", (
   const env = blockOf(capStep(DRIVER), "env", 8)
     .trim()
     .split("\n")
-    .map((line) => line.trim().split(": "));
+    .map((line) => line.replace(/\s+#.*$/, "").trim().split(": "));
   assert.deepEqual(env.map(([name]) => name), ["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "CCD_RUNTIME_DIR", "CCD_BROKER_SOCK"]);
   const value = Object.fromEntries(env);
   // The sandbox's runtime directory is $HOME/.ccd, and the job fails unless HOME is the home the driver step names.
-  const home = /^if \[ "\$HOME" != (\/\S+) \]; then\n {2}echo "::error::[^"]*"\n {2}exit 1\nfi$/m.exec(scriptOf(capStep("Create the key proxy's user and directories")))?.[1];
+  const home = /^if \[ "\$HOME" != (\/\S+) \]; then(?: {2}# machine-path:allow)?\n {2}echo "::error::[^"]*"(?: {2}# machine-path:allow)?\n {2}exit 1\nfi$/m.exec(scriptOf(capStep("Create the key proxy's user and directories")))?.[1];
   assert.ok(home, "the job checks HOME");
   assert.equal(value.CCD_RUNTIME_DIR, `${home}/.ccd`);
   assert.match(scriptOf(capStep(SIBLING)), /^rt="\$HOME\/\.ccd"$/m);

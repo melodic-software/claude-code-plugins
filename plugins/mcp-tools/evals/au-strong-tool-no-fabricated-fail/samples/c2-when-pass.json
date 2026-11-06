@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C2 Description has \"when\" | ANTHROPIC | PASS | Use this when... |",
+      "why": "row"
+    },
+    {
+      "answer": "C1-C3 PASS",
+      "why": "range"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C2 Description has \"when\" | ANTHROPIC | WARN | |",
+      "why": "warn"
+    },
+    {
+      "answer": "C2 is not PASS here",
+      "why": "negated"
+    }
+  ]
+}

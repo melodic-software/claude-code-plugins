@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Fix first: grant_repo_access and ApprovePayout (C18 FAIL). Declare JSON true, or use the bool overload. Nothing else fails; the remaining items are WARN or info.",
+      "why": "FAILs first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Start by adding readOnlyHint where it fits (WARN), then fix the C18 string values.",
+      "why": "WARN first"
+    },
+    {
+      "answer": "The scorecard is above.",
+      "why": "no order"
+    }
+  ]
+}

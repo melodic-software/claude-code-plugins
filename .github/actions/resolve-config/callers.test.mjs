@@ -3196,6 +3196,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
   assert.deepEqual(held.sort(), [
     "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
+    "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
@@ -9671,6 +9672,10 @@ const LEG_EXEMPTIONS = {
     legs: ["subscription", "fallback"],
     reason:
       "the capture runs on the key alone and records blocked otherwise (owner decision Q5): its driven Claude Code reaches the API only through a key proxy we run, and a subscription token may not be routed through one, so the lane never takes these legs (#12232)",
+  },
+  "pr-rate-merge-risk.yml pr-verify rate-merge-risk": {
+    legs: ["subscription", "fallback"],
+    reason: "a report-only rating (#13657, owner decision Q57): a key-leg stop records the Merge-Risk line unrated, which a subscription or fallback leg would not change for any merge (#13586)",
   },
 };
 // The issues an exemption may name: the full-chain tracker, or the capture's permanent key-only decision.

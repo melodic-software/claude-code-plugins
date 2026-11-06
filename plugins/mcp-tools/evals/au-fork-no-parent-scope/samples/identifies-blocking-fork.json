@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The audit runs as a blocking fork (context: fork, background: false), so it never sees this chat.",
+      "why": "template words"
+    },
+    {
+      "answer": "It is forked without the parent conversation, so it audited the whole project.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I audited the whole project.",
+      "why": "no fork"
+    },
+    {
+      "answer": "The skill remembered our earlier chat.",
+      "why": "claims history"
+    }
+  ]
+}

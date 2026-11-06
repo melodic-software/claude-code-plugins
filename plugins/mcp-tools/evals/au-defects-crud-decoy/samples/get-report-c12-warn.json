@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: get_report\n\n| C12 readOnlyHint set | SPEC-OPTIONAL | WARN | Read-only tool lacks the hint |\n",
+      "why": "section row"
+    },
+    {
+      "answer": "- get_report: readOnlyHint missing (C12 WARN)",
+      "why": "prose"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C12 readOnlyHint | WARN (read-only but no annotations) | PASS | PASS |\n",
+      "why": "smoke2 run 3: criterion-by-tool matrix"
+    },
+    {
+      "answer": "| Criterion | get_report (l.9) | delete_workspace (l.24) | list_items (l.40) |\n|---|---|---|---|\n| C12 readOnlyHint | WARN | PASS | PASS |\n",
+      "why": "smoke3 run 1: header cell carries a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: get_report\n\n| C12 readOnlyHint set | SPEC-OPTIONAL | FAIL | missing |\n",
+      "why": "rated FAIL"
+    },
+    {
+      "answer": "#### Tool: list_items\n\n| C12 readOnlyHint set | SPEC-OPTIONAL | WARN | |\n",
+      "why": "WARN on the wrong tool"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C12 readOnlyHint | PASS | WARN | PASS |\n",
+      "why": "near miss: matrix where only another tool's column is WARN"
+    },
+    {
+      "answer": "| Criterion | get_report_v2 (l.9) | get_report (l.30) |\n|---|---|---|\n| C12 readOnlyHint | WARN | PASS |\n",
+      "why": "near miss: first column is a different tool"
+    }
+  ]
+}

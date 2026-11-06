@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "- Not evaluated: allowedMcpServers/deniedMcpServers (see /harness-config:audit)",
+      "why": "carried"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Not evaluated: nothing",
+      "why": "dropped"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "pr-merge-risk",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
