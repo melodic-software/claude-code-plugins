@@ -9325,6 +9325,41 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
   assert.deepEqual(readPosted(t, read, listing([], "skipped")).outputs, { "credit-stop": "false" });
 });
 
+// Every eval leg, in both workflows, runs the same policy step and the same
+// probe: the credential is the only difference, so a key leg cannot drift from
+// the subscription leg the probe was proven on. The probe reads its stream
+// line by line, so one line that is not JSON cannot hide the denials, and a
+// failed check names the probe's closed facts.
+test("every eval leg runs the same managed-policy step and the same probe", () => {
+  const legs = [
+    ["eval-hill-climb-pass.yml", ["pass", "pass-subscription", "pass-fallback"]],
+    ["eval-browser-dispatch.yml", ["eval", "eval-subscription", "eval-fallback"]],
+  ].flatMap(([file, ids]) => ids.map((id) => [file, id, workflow(file).jobs[id].steps]));
+  const step = (steps, id) => steps.find((s) => s.id === id);
+  const [, , first] = legs[0];
+  const policy = (steps) => /\{permissions: \{deny: \[[^]*?\]\}\}/.exec(step(steps, "deny").run)[0];
+  for (const [file, id, steps] of legs) {
+    const own = legs.find(([f]) => f === file)[2];
+    assert.equal(step(steps, "deny").run, step(own, "deny").run, `${file} ${id} managed-policy step`);
+    assert.equal(policy(steps), policy(first), `${file} ${id} deny rules`);
+    // The probe's messages name its workflow's run and case kind, and the
+    // dispatch probe logs its pass; nothing else differs.
+    const probeOf = (s) =>
+      step(s, "probe")
+        .run.replaceAll("no pull request case runs", "no case runs")
+        .replace("the next leg runs the eval", "the next leg runs the pass")
+        .replace(`echo "The managed policy denied the probe's Read, Grep and Glob calls."\n`, "");
+    assert.equal(probeOf(steps), probeOf(first), `${file} ${id} probe`);
+    const names = steps.map((s) => s.name);
+    assert.ok(names.indexOf("Deny the eval's reads of process and runner state") < names.indexOf("Isolate the runner"), `${file} ${id}: the policy is written while sudo works`);
+    assert.ok(names.indexOf("Isolate the runner") < names.indexOf("Probe that the policy denies those reads"), `${file} ${id}`);
+  }
+  const probe = step(first, "probe").run;
+  assert.match(probe, /jq -e -R -s --arg t "\$1" --arg p "\$2" '\[split\("\\n"\)\[\] \| fromjson\? \| objects\] \| last\(/);
+  assert.doesNotMatch(probe, /jq -e -s /, "a slurp fails on any line that is not JSON");
+  assert.match(probe, /so no case runs \(probe: \$\(probe_facts\)\)"; exit 1; \}/);
+});
+
 // --- every model lane runs the three-leg chain (#13586) ---
 
 // A lane is the catalog lanes of one workflow and role that share an id once
