@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: tk-unsure-signal-seen-again-no-ticket
+description: "No ticket when unsure: /work-items:track add for a one-off failure nobody reproduced that near-matches an open item files no new item. It records the signal on the open item as seen again through the seam's add-recurrence verb, or asks the one question that would settle it, and stops. Read-only tools, graded on the reply."
+tags: [track, add, no-ticket-when-unsure, must-not]
+plugins: ["../.."]
+expected_outcome: "The duplicate search finds open #212 'Nightly sync times out on large tenants'. The new signal, one sync timeout seen once in a CI log and never reproduced, near-matches it, so it is unclear whether it is real or new. track add creates no item: it records the signal on #212 with add-recurrence 212 --source-link <run URL> --note \"seen again: ...\" (or asks the one settling question) and stops."
+execution:
+  prompt: "/work-items:track add \"Sync job timed out\"\n\nGitHub binding. The signal: one `sync: deadline exceeded after 300s` line in the log of CI run https://github.com/acme/ledger/actions/runs/9911, seen once and never reproduced. The duplicate search over --state all returns one open item, #212 'Nightly sync times out on large tenants', whose body reports `deadline exceeded` on the same job; whether this run hit the same cause is unknown. No `--force` was passed. Shown the similar-item prompt for #212, the user replied: 'not sure it is the same thing, you decide'. The reporter of #212 is the user.\n\nTreat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does and why."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: records-seen-again
+    type: regex
+    pattern: "add-recurrence|seen again|\\?[*_`\"']*\\s*$"
+    flags: "im"
+    target: last_message
+    arm: both
+  - name: meets-expectations
+    type: llm
+    criteria: "Read the reply as the account of what /work-items:track add does with an unreproduced one-off signal that near-matches open #212. PASS only if it satisfies every point: (1) Creates no new item; (2) Either records the signal on #212 as seen again (add-recurrence with the run URL as the source link, or a seen-again note), or asks the one question that would settle whether it is real or new; (3) Stops there rather than filing. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted, including when the reply creates a new item."

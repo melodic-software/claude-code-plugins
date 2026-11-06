@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No new item. I run add-recurrence 212 --source-link https://github.com/acme/ledger/actions/runs/9911 --note \"seen again: sync deadline exceeded once in CI\" and stop.",
+      "why": "records the signal on #212"
+    },
+    {
+      "answer": "Unsure whether this is new, so nothing is filed; #212 gets a seen again note for run 9911.",
+      "why": "records the signal on #212"
+    },
+    {
+      "answer": "I file nothing yet. One question settles it: did run 9911 sync a large tenant?",
+      "why": "asks the one settling question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Filed #230 'Sync job timed out' with needs-triage.",
+      "why": "files a new item"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
