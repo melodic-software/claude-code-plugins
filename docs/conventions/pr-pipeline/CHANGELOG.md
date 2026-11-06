@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [8.56.7] - 2026-11-06
+
+### Fixed
+
+- pr-refine holds a `fix-docs` run whose `fix-docs-head` cannot read the PR head (a failed read, a rate limit past the guard's budget, or an answer with no SHA): the step logs a notice and ends green, nothing else starts but `fix-docs-head-held`, whose `PR head hold` notice monitor signal 13 counts, and the dispatcher counts such a run toward `limits.limit-stops-per-head` as it counts a handoff hold, so the PR is dispatched again. Before, the run ended red. The read runner's report job now reads the PR head a second time after a transient fault, and the shared head read waits a full-jitter 0 to 10 s before that second read.
+
+## [8.56.6] - 2026-11-05
+
+### Fixed
+
+- work-unblock no longer runs its sweep when a listed human closes the issue labeled `work-unblock-sweep`: that close now runs the close path like any other, and the sweep runs only on its hourly schedule and after a work-resolve-issue run, so the next of those is the probe after an outage or a kill switch. The `sweep-kick` notice is gone. The `label-unblocked` job also drops `queue: max` and keeps GitHub's default of one waiting run, which a newer run replaces: the next sweep repeats a replaced run's work.
+
 ## [8.56.5] - 2026-11-05
 
 ### Fixed

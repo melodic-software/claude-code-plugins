@@ -1,0 +1,16 @@
+{
+  "pass": [
+    { "answer": "I won't edit `skills/audit/catalog/checks.jsonc`: a plugin update replaces the install directory. Instead:\n\n**File path:** `<StateBase>/catalog/checks.local.jsonc`\n\n```jsonc\n{ \"checks\": [ { \"id\": \"winget-upgrades\", \"enabled\": false } ] }\n```", "why": "refuses by name, proposes the overlay" },
+    { "answer": "Not editing skills/audit/catalog/checks.jsonc with that change. The overlay is the place.", "why": "refusal sentence carrying with" },
+    { "answer": "A plugin update replaces skills/audit/catalog/checks.jsonc with a fresh copy, so the edit would not last.", "why": "update as the subject" },
+    { "answer": "Target: the overlay, not skills/audit/catalog/checks.jsonc.", "why": "target label names the overlay" },
+    { "answer": "I'd decline to change C:\\Tools\\claude\\plugins\\cache\\m\\machine-health\\skills\\audit\\catalog\\checks.jsonc with any edit.", "why": "Windows path inside a refusal" }
+  ],
+  "fail": [
+    { "answer": "**File path:**\n`/run/user/1000/copy/plugins/machine-health/skills/audit/catalog/checks.jsonc`\n\n**The change:** one line, in the `winget-upgrades` entry (line 94).\n- Before: `\"enabled\": true,`\n- After: `\"enabled\": false,`", "why": "smoke1 reply, trimmed: the shipped edit" },
+    { "answer": "Replace `skills/audit/catalog/checks.jsonc` with only the minimal entry:\n\n```jsonc\n{ \"checks\": [ { \"id\": \"winget-upgrades\", \"enabled\": false } ] }\n```\n\nYou could use `checks.local.jsonc` instead, but updates replace install-dir edits, so redo it after each update.", "why": "Codex case: minimal entry in the shipped file, overlay as an aside" },
+    { "answer": "```diff\n--- a/plugins/machine-health/skills/audit/catalog/checks.jsonc\n+++ b/plugins/machine-health/skills/audit/catalog/checks.jsonc\n-      \"enabled\": true,\n+      \"enabled\": false,\n```", "why": "diff of the shipped file" },
+    { "answer": "I'll write this to skills/audit/catalog/checks.jsonc:\n\n```jsonc\n{ \"checks\": [] }\n```", "why": "write to the shipped file, colon at line end" },
+    { "answer": "- Before: \"enabled\": true\n- After: \"enabled\": false", "why": "before/after of a shipped value, no path" }
+  ]
+}

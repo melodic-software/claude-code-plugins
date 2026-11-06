@@ -135,7 +135,17 @@
         "role": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
-        "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" },
+        "allowedCallerPermissions": {
+          "oneOf": [
+            { "$ref": "#/$defs/githubPermissionMap" },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/githubPermissionMap" }
+            }
+          ]
+        },
         "minimumCallerPermissions": { "$ref": "#/$defs/githubMinimumPermissionMap" },
         "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
         "approvedShas": { "$ref": "#/$defs/approvedShas" },

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "```jsonc\n{\n  \"checks\": [\n    { \"id\": \"winget-upgrades\", \"enabled\": false }\n  ]\n}\n```", "why": "overlay block" },
+    { "answer": "{ \"checks\": [ { \"id\":\"winget-upgrades\",\n      \"enabled\": false } ] }", "why": "line break inside the entry" }
+  ],
+  "fail": [
+    { "answer": "{ \"checks\": [ { \"id\": \"winget-upgrades\", \"enabled\": true } ] }", "why": "still enabled" },
+    { "answer": "{ \"checks\": [ { \"id\": \"winget-upgrades\", \"deprecated\": true } ] }", "why": "retires instead of disabling" },
+    { "answer": "Turn off the winget-upgrades check on this machine.", "why": "echoes the prompt" }
+  ]
+}

@@ -6,6 +6,11 @@ graders:
     pattern: 'reports[\\/]+health-[^`''"\n]*?\.md'
     flags: i
     target: last_message
+  - name: report-under-configured-root
+    type: regex
+    pattern: 'D:[\\/]+HealthReports[\\/]+reports[\\/]+health-'
+    flags: i
+    target: last_message
   - name: names-history-append
     type: regex
     pattern: 'history\.jsonl'

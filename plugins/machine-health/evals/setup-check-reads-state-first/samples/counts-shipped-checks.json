@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "**Checks shipped:** 27, all enabled.", "why": "label then number" },
+    { "answer": "27 shipped checks; the overlay patches 1 (battery, disabled).", "why": "number then label" },
+    { "answer": "| Item | State |\n|---|---|\n| Shipped catalog | 27 checks |", "why": "table cell" }
+  ],
+  "fail": [
+    { "answer": "The shipped catalog applies, with battery turned off.", "why": "no count" },
+    { "answer": "26 checks ship; the overlay disables one.", "why": "wrong count" },
+    { "answer": "Start your reply with a summary: how many checks ship, which checks the overlay patches.", "why": "echoes the prompt" }
+  ]
+}

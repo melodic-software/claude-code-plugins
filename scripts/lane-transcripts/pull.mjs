@@ -39,13 +39,52 @@ const HOUR = 60 * 60 * 1000;
 const ARTIFACT_DAYS = 7;
 const OVERLAP = 6 * HOUR;
 const PER_PAGE = 100;
-export const MAX_PAGES = 400;
 const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
 export const GH_ATTEMPTS = 5;
 export const GH_LIST_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
 export const GH_MAX_DELAY_MS = 300_000;
+
+// GitHub answers the repository-wide artifact listing with a 500 for this
+// repository, so the pull lists each artifact name on its own instead. A name
+// is lane-transcript-<job-id>-<run attempt> (upload-lane-transcript), so these
+// are every job-id an upload step passes, by workflow file; a ci-workflows/
+// key is a reusable workflow this repository calls with the transcript key.
+// pull.test.mjs reads the workflows and fails when a workflow, a local
+// job-id, or a reusable's caller is missing here.
+const LEGS = ["", "-subscription", "-fallback"];
+const legs = (job, suffixes = [""]) => LEGS.flatMap((leg) => suffixes.map((suffix) => `${job}${leg}${suffix}`));
+const AUDIT_UNITS = ["a", "c", "d"].flatMap((group) => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `-${group}${n}`));
+const VERIFY_LEGS = ["", ...Array.from({ length: 11 }, (_, i) => `-${i + 2}`), "-spec"];
+const REVIEW_CHUNKS = ["claude-review", "claude-security-review"].flatMap((lane) => ["", "-2", "-3", "-4"].map((chunk) => `-${lane}${chunk}`));
+export const TRANSCRIPT_JOB_IDS = {
+  "intake-triage.yml": legs("refine-issue"),
+  "maintenance-audit-lane-runs.yml": legs("judge", AUDIT_UNITS),
+  "maintenance-measure-skill-edit.yml": ["propose-key", "propose", "propose-fallback"],
+  "maintenance-tidy-code-upkeep.yml": legs("model"),
+  "post-merge-test-mutation.yml": [...legs("generate"), ...legs("triage")],
+  "pr-review-main.yml": legs("review", REVIEW_CHUNKS),
+  // Its job-id holds the issue number, which no fixed list can name, so the
+  // pull does not reach these transcripts.
+  "pr-run-activity-read.yml": [],
+  "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => [`adjudicate-feedback-${n}`, `adjudicate-feedback-${n}-subscription`, `adjudicate-feedback-${n}-fallback`]),
+  "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
+  "pr-verify-capture.yml": legs("capture", ["-probe", ""]),
+  "upstream-apply-changelog.yml": [...legs("model"), ...legs("scrub-probe")],
+  // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
+  "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => ["", "-2", "-3", "-4"].map((chunk) => `${lane}-${job}${chunk}`))),
+  // job-id `intake-${{ github.job }}`.
+  "ci-workflows/intake-triage.yml": ["intake-claude", "intake-subscription", "intake-fallback"],
+};
+// A re-run uploads under its own attempt number; attempts past 3 are not read.
+// Two workflows can share a job-id (model), so each name is listed once.
+export const ATTEMPTS = 3;
+export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flatMap((ids) => ids.flatMap((id) => Array.from({ length: ATTEMPTS }, (_, i) => `lane-transcript-${id}-${i + 1}`))))];
+// Listing calls one pull may spend: two pages a name plus 25%, and never under
+// 400, out of the user token's 5,000 REST requests an hour. Reaching it before
+// every name reaches the cutoff fails the pull, so the window stays.
+export const MAX_LIST_CALLS = Math.max(400, Math.ceil(TRANSCRIPT_NAMES.length * 2 * 1.25));
 
 const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
@@ -127,6 +166,26 @@ function sealedRecord(deps, sink, zip) {
   }
 }
 
+// Each transcript artifact created since the cutoff: every name's listing,
+// newest first, paged until an artifact older than the cutoff or a short page.
+// The cutoff is by artifact created_at, so a re-run attempt of an older run is
+// still reached.
+function* listed(deps, repo, cutoff) {
+  const maxCalls = deps.maxListCalls ?? MAX_LIST_CALLS;
+  let calls = 0;
+  for (const name of TRANSCRIPT_NAMES) {
+    for (let page = 1; ; page++) {
+      // Stopping short of the cutoff would record a success that skipped
+      // artifacts, so it fails and the window stays.
+      if (++calls > maxCalls) throw new PullError(`call-cap: ${maxCalls} listing calls did not reach the last pull's cutoff`);
+      const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?name=${name}&per_page=${PER_PAGE}&page=${page}`], true));
+      const fresh = artifacts.filter((artifact) => Date.parse(artifact.created_at) >= cutoff);
+      yield* fresh;
+      if (fresh.length < PER_PAGE) break;
+    }
+  }
+}
+
 export function pull({ sink, repo, recipient, deps, log }) {
   const now = deps.now();
   ensureDir(sink);
@@ -141,38 +200,24 @@ export function pull({ sink, repo, recipient, deps, log }) {
   const failedKinds = new Set();
   writeState(sink, { ...state, last_attempt_at: new Date(now).toISOString() });
 
-  let done = false;
-  let page = 0;
-  while (!done) {
-    // Paging past the cap without reaching the cutoff would record a success
-    // that skipped the oldest artifacts, so it fails and the window stays.
-    if (++page > (deps.maxPages ?? MAX_PAGES)) throw new PullError(`page-cap: ${deps.maxPages ?? MAX_PAGES} pages did not reach the last pull's cutoff`);
-    const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?per_page=${PER_PAGE}&page=${page}`], true));
-    if (artifacts.length < PER_PAGE) done = true;
-    for (const artifact of artifacts) {
-      if (Date.parse(artifact.created_at) < cutoff) {
-        done = true;
-        break;
-      }
-      if (!String(artifact.name).startsWith("lane-transcript-")) continue;
-      const named = parseArtifactName(artifact.name);
-      const wf = artifact.workflow_run ?? {};
-      if (!named) tally.unnamed++;
-      else if (known.has(artifact.id)) tally.known++;
-      else if (artifact.expired) tally.expired++;
-      // The public key is public: a fork's run could seal a record of its own.
-      else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
-      else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
-      else {
-        try {
-          const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
-          tally[outcome]++;
-          if (outcome === "pulled") known.add(artifact.id);
-        } catch (error) {
-          if (!(error instanceof FetchFailed)) throw error;
-          tally.fetch_failed++;
-          failedKinds.add(error.message);
-        }
+  for (const artifact of listed(deps, repo, cutoff)) {
+    const named = parseArtifactName(artifact.name);
+    const wf = artifact.workflow_run ?? {};
+    if (!named) tally.unnamed++;
+    else if (known.has(artifact.id)) tally.known++;
+    else if (artifact.expired) tally.expired++;
+    // The public key is public: a fork's run could seal a record of its own.
+    else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
+    else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
+    else {
+      try {
+        const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
+        tally[outcome]++;
+        if (outcome === "pulled") known.add(artifact.id);
+      } catch (error) {
+        if (!(error instanceof FetchFailed)) throw error;
+        tally.fetch_failed++;
+        failedKinds.add(error.message);
       }
     }
   }

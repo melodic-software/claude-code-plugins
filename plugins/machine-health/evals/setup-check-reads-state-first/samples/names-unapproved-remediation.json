@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Approved: clear-temp-files. Not approved: restart-stopped-service.", "why": "names the unapproved one" },
+    { "answer": "`restart-stopped-service` stays off (the default).", "why": "in code" }
+  ],
+  "fail": [
+    { "answer": "The approvals file approves clear-temp-files and nothing else.", "why": "echoes the prompt" },
+    { "answer": "Only the temp-file cleanup is approved; the service restart is not.", "why": "prose, no remediation id" }
+  ]
+}
