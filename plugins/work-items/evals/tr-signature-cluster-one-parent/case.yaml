@@ -12,7 +12,7 @@ execution:
 graders:
   - name: names-parent
     type: regex
-    pattern: "#501\\b[^.;\\n]{0,60}\\bparent\\b|\\bparent\\b(?:\\s*(?:is|:|=|-|,))?\\s*\\(?#501\\b"
+    pattern: "#501\\s+(?:is|as|becomes)\\s+(?:the\\s+)?(?:cluster(?:'s)?\\s+)?parent\\b|\\bparent\\b(?:\\s*(?:is|:|=|-|,))?\\s*\\(?#501\\b"
     flags: "i"
     target: last_message
     arm: both
