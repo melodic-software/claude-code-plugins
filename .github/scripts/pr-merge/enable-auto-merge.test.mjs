@@ -41,6 +41,7 @@ import {
   refusalWrites,
   main,
   pythonClose,
+  pythonEvidence,
   pythonRoom,
   pythonVerify,
   pythonWholeReview,
@@ -406,7 +407,7 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
       closed.push({ number: pull.number, holds, ...(reason !== "verify" && { reason }) });
       return options.closeAnswer ? options.closeAnswer(pull) : { closed: true, restarted: [], parked: [] };
     };
-    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), close, whole, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)), mainInputs: options.mainInputs, mergeRisk: options.mergeRisk });
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), close, whole, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)), mainInputs: options.mainInputs, mergeRisk: options.mergeRisk, evidence: options.evidence });
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
@@ -4357,4 +4358,65 @@ test("the Merge-Risk line is written only before an arm, never under report-only
   assert.deepEqual(seen, []);
   await run([pull(3)], {}, { mergeRisk });
   assert.deepEqual(seen, [3]);
+});
+
+test("enable-auto-merge path: a PASS verdict with a capture artifact posts one evidence comment, then arms", async () => {
+  const seen = [];
+  const evidence = async (target, login) => {
+    seen.push([target.number, target.headRefOid, login]);
+    return "created";
+  };
+  const { code, writes, lines } = await run([pull(1)], {}, { evidence });
+  assert.equal(code, 0);
+  assert.deepEqual(seen, [[1, HEAD, `${LANES.login}[bot]`]]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  const posted = lines.indexOf("enable-auto-merge: #1 evidence comment: created");
+  assert.ok(posted >= 0, lines.join("\n"));
+  assert.ok(posted < lines.indexOf(`enable-auto-merge: #1 armed at ${HEAD}`));
+});
+
+test("enable-auto-merge path: no capture artifact posts no comment and still arms", async () => {
+  const { code, writes, lines } = await run([pull(1)], {}, { evidence: async () => "no-capture" });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.ok(lines.includes("enable-auto-merge: #1 evidence comment: no-capture"));
+});
+
+test("enable-auto-merge path: an evidence step that throws still arms", async () => {
+  const { code, writes, lines } = await run([pull(1)], {}, {
+    evidence: async () => {
+      throw new Error("boom");
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.ok(lines.includes("enable-auto-merge: #1 evidence comment not posted: boom"));
+});
+
+test("the evidence comment is posted only before an arm, never under report-only or for a held pull request", async () => {
+  const seen = [];
+  const evidence = async (target) => {
+    seen.push(target.number);
+    return "created";
+  };
+  await run([pull(1)], { REPORT_ONLY: "true" }, { evidence });
+  await run([pull(2, { labels: ["do-not-merge"] })], {}, { evidence });
+  assert.deepEqual(seen, []);
+});
+
+test("pythonEvidence runs the post command and returns its outcome", () => {
+  const calls = [];
+  const spawn = (cmd, args, options) => {
+    calls.push({ cmd, args, env: options.env });
+    return { status: 0, stdout: '{"outcome": "created"}\n', stderr: "" };
+  };
+  const env = { GITHUB_REPOSITORY: "o/r", GH_TOKEN: "lane", BABYSIT_VERIFY_GH_TOKEN: "job" };
+  const outcome = pythonEvidence(env, spawn)({ number: 7, headRefOid: HEAD }, "lanes[bot]");
+  assert.equal(outcome, "created");
+  assert.equal(calls[0].cmd, "python3");
+  assert.deepEqual(calls[0].args.slice(1), ["post", "--repo", "o/r", "--pr", "7", "--head", HEAD, "--identity", "lanes[bot]"]);
+  assert.match(calls[0].args[0], /babysit_evidence_comment\.py$/);
+  assert.equal(calls[0].env.BABYSIT_VERIFY_GH_TOKEN, "job");
+  const failing = () => ({ status: 1, stdout: "", stderr: "Traceback\nRuntimeError: no gh\n" });
+  assert.throws(() => pythonEvidence(env, failing)({ number: 7, headRefOid: HEAD }, "lanes[bot]"), /exited 1: RuntimeError: no gh/);
 });

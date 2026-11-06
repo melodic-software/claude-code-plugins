@@ -183,6 +183,7 @@ other, and the question is whether both refuse a renewal of a reserved copy.
 should get, what reads better or which trade-off the team accepts, record the evidence and ask;
 the recommendation covers only what the run settled. When the fork is itself a performance target
 (the question is which variant meets a speed or resource goal), hand off to `/performance:goal`
+(if the `performance` plugin is installed; otherwise say once that the `performance` plugin would qualify the timing, record it as unqualified, and ask)
 instead of recommending from unqualified timing.
 
 The model auto-invoke gate in the shared discipline holds for `observe` too: when nobody asked

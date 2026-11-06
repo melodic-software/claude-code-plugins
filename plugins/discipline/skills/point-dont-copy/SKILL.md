@@ -70,7 +70,7 @@ copy prohibition. Do not flatten them into pointers.
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit):
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result):
 
 - copied or paraphrased content, external, local, or cross-repo, that a
   named source already owns;

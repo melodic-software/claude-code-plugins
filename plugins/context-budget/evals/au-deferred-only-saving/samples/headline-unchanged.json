@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The context-usage headline does not move, because the deferred pool is outside it.",
+      "why": "headline does not move"
+    },
+    {
+      "answer": "Your /context headline stays the same.",
+      "why": "stays the same"
+    },
+    {
+      "answer": "No change to the headline figure.",
+      "why": "no change"
+    },
+    {
+      "answer": "- **Prefix (`System tools`): 0.** Your startup context occupancy and the `/context` headline don't change. This is a finding, not an error.",
+      "why": "smoke-1 reply: plural subject, don't change"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The headline drops by 3,000.",
+      "why": "claims the headline moves"
+    },
+    {
+      "answer": "Context usage falls accordingly.",
+      "why": "claims usage falls"
+    },
+    {
+      "answer": "The prefix numbers don't change, but the headline drops by 3,000.",
+      "why": "don't change is about the prefix; the headline moves"
+    }
+  ]
+}

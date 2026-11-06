@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/audit/reference/engine.md"
+          }
+        }
+      ],
+      "why": "plugin file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/h/.claude/projects/x/abc.jsonl"
+          }
+        }
+      ],
+      "why": "transcript read"
+    }
+  ]
+}
