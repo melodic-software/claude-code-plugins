@@ -8,4 +8,4 @@ bump: minor
 
 ### Changed
 
-- The claim that `/caveman:compress` always removes articles now cites caveman's compress skill, with the date it was checked and what change would make it wrong.
+- The claim that `/caveman:caveman-compress` always removes articles now cites caveman's compress skill, with the date it was checked and what change would make it wrong.

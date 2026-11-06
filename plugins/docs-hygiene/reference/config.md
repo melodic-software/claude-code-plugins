@@ -53,4 +53,4 @@ the asked-for key and keeps the unknown key's line as written.
   its **Remove** list.
 - **As of**: 2026-11-06
 - **Recheck trigger**: the **Remove** list drops articles or makes them optional, or the skill is
-  renamed or moved (it is `caveman-compress` today, while Step B invokes `caveman:compress`).
+  renamed or moved (it is `caveman-compress` today, which Step B invokes as `caveman:caveman-compress`).
