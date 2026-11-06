@@ -709,7 +709,9 @@ The two `etag` rows are kept as not worth doing:
   poll, `REVIEW_WAIT_SECONDS / REVIEW_POLL_SECONDS` = 480 / 60 = 8 polls at most per lane, and at
   most two lanes wait, so a `ci-status` run sends at most 16 such reads
   (`.github/workflows/pr-require-checks.yml:7323`, `:7337`). There were 586 `pull_request` runs of
-  the workflow in the 24 hours to 2026-11-06T12:00Z, and a label or edit run waits 0 s (`:7005`).
+  the workflow in the 24 hours to 2026-11-06T12:00Z, about 24 an hour, and a label or edit run
+  waits 0 s (`:7005`). If every run waited the whole cap, that is about 390 reads an hour; how
+  many runs wait, and for how long, is UNVERIFIED.
   GitHub counts a `304` answer to an authorized conditional request against no primary rate limit
   ([best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api):
   "Making a conditional request does not count against your primary rate limit if a `304` response
@@ -718,15 +720,14 @@ The two `etag` rows are kept as not worth doing:
   and the rate-limits page says nothing about a `304` and secondary limits, where a GET costs one
   point. The run being polled is still going, so its body (status, `updated_at`) can change between
   polls, and a `304` saves only polls where nothing moved: at most 8 reads a lane a run. Saving them
-  would put a `304` branch in `gh_read`, the required gate's one retry layer, which fails closed on
-  any 4xx it does not know. Not worth doing while the wait is that bounded; reopen if `ci-status`
-  shows `GITHUB_TOKEN` rate stops.
+  would add a conditional path to `gh_read`, the required gate's one retry layer, which has no path
+  for a `304` today. Not worth doing while the wait is that bounded; reopen if `ci-status` shows
+  `GITHUB_TOKEN` rate stops.
 - **pr-merge, element 6: the re-run read-back.** After one `rerun-failed-jobs` POST the step reads
   the run up to 7 times (waits 0, 5, 10, 20, 30, 45 and 60 s), and stops at the first read that
-  shows an attempt past 1 (`.github/workflows/pr-merge.yml:697-705`). The first read-back already
-  differs from the read before the POST, whose attempt was 1, so an `etag` could only save the
-  reads between the re-run starting and GitHub showing attempt 2, at most 6 a re-run, on a step
-  that runs only when a merge run needs a re-run. Not worth doing.
+  shows an attempt past 1 (`.github/workflows/pr-merge.yml:697-705`), so it sends at most 7 reads
+  a re-run, on a step that runs only when a merge run needs a re-run. How often a `304` would
+  answer one of them is not measured. Not worth doing.
 
 The other script rows below are still open.
 
