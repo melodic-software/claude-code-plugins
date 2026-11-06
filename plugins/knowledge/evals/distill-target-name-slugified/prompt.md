@@ -9,4 +9,4 @@ expected_outcome: "The reply names .claude/skills/outside-notes/ as the skill di
 
 /knowledge:distill books/field-notes.epub ../../outside-notes
 
-I wrote this book and hold its rights. Create a new skill under that target name. Writes under .claude/ are blocked in this session, so write no skill file: run Phase 1 setup up to the first skill-file write, then stop and report the exact directory and files you would create. The plugin data folder is not reachable in this session: take as given that it holds no state for this book, and do not list, read or write anything under it.
+I wrote this book and hold its rights. Create a new skill under that target name. Skill-file writes are blocked in this session, so write none: run Phase 1 setup up to the first skill-file write, then stop and report the exact directory and files you would create. The plugin data folder is not reachable in this session: take as given that it holds no state for this book, and do not list, read or write anything under it.
