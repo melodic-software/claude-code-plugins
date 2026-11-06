@@ -1324,6 +1324,7 @@ const SIBLING_INIT = readFileSync(new URL("./sibling-init.sh", import.meta.url),
 const SANDBOX_STEPS = [
   "Create the key proxy's user and directories",
   "Install the driven Claude Code",
+  "Install the screenshot font",
   "Install the driver and its engine",
   "Write the driven settings and the proxy config",
   PROXY_START,
@@ -2270,6 +2271,32 @@ test("every new capture step is bounded and runs only with the key set", () => {
   for (const name of SANDBOX_STEPS.slice(0, SANDBOX_STEPS.indexOf(SIBLING_CHECK) + 1)) {
     assert.equal(stepIf(capStep(name)), "steps.credential.outputs.present == 'true'", name);
   }
+});
+
+test("the screenshot font is installed before isolation and checked for U+23F8", () => {
+  // Runner probe run 42224592725: without it the rasterizer refuses U+23F8 and no screenshot is written.
+  assert.ok(capIndex("Install the screenshot font") < capIndex(ISOLATE));
+  const script = scriptOf(capStep("Install the screenshot font"));
+  assert.match(script, /apt-get install -y --no-install-recommends fonts-noto-core/);
+  assert.match(script, /fc-list ':charset=23f8'/);
+  assert.match(script, /exit 1/);
+});
+
+test("stopping the key proxy matches the proxy's node command line, not its sh watcher", () => {
+  // Node's comm is MainThread (runner probe run 42223922880), so `pgrep -x node` never matched.
+  const stop = scriptOf(capStep("Stop the key proxy"));
+  assert.doesNotMatch(stop, /pgrep[^\n]*-x node/);
+  const pattern = /^proxy='(.*)'$/m.exec(stop)?.[1];
+  assert.ok(pattern, "the stop step names its pgrep pattern");
+  assert.equal((stop.match(/pgrep -u ccd-proxy -f "\$proxy"/g) ?? []).length, 2);
+  const start = scriptOf(capStep(PROXY_START));
+  const node = / exec \/usr\/bin\/env -i PATH=\/usr\/bin:\/bin (\/opt\/ccd\/bin\/node [^']*?) 2>>/.exec(start)?.[1];
+  assert.ok(node, "the start step execs node with a known command line");
+  const watcher = /\/bin\/sh -c '([^']*)'/.exec(start)?.[1];
+  assert.ok(watcher);
+  const re = new RegExp(pattern);
+  assert.match(node, re);
+  assert.doesNotMatch(`/bin/sh -c ${watcher}`, re);
 });
 
 test("a capture job that hands off leaves capture-subscription time inside the judges' wait", () => {

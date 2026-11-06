@@ -420,6 +420,18 @@ jobs:
           "$dir/node_modules/.bin/claude" --version | grep -qF "$version"
           sudo chown -R root:root "$dir"
 
+      # The driver's screenshot rasterizer needs Noto Sans Symbols 2 for
+      # glyphs such as U+23F8, and refuses the capture without them; the
+      # sandbox has no network, so the font goes in now.
+      - name: Install the screenshot font
+        if: steps.credential.outputs.present == 'true'
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-core >/dev/null
+          fonts=$(fc-list ':charset=23f8' family)
+          [[ $fonts == *"Noto Sans Symbols 2"* ]] || { echo "::error::no installed font has U+23F8"; exit 1; }
+
       # A root-owned copy of main's driver and launch broker (the broker
       # refuses a driver, config or deps directory it can write), with the
       # engine installed and its signatures checked now: the sandbox has no
@@ -1074,11 +1086,14 @@ jobs:
         timeout-minutes: 1
         run: |
           touch /run/ccd-stop/stop
+          # Node names its main thread MainThread, so the match is on the
+          # command line, anchored past the watcher's sh -c text.
+          proxy='^/opt/ccd/bin/node /opt/ccd/key-proxy/key-proxy\.mjs '
           for _ in $(seq 20); do
-            pgrep -u ccd-proxy -x node >/dev/null || break
+            pgrep -u ccd-proxy -f "$proxy" >/dev/null || break
             sleep 0.5
           done
-          if pgrep -u ccd-proxy -x node >/dev/null; then
+          if pgrep -u ccd-proxy -f "$proxy" >/dev/null; then
             echo "::warning::the key proxy is still running"
             exit 1
           fi

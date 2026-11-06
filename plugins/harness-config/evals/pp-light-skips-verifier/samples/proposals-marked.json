@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| purge-builds | destructive-action confirmation | MISSING (unverified) |",
+      "why": "marked row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| purge-builds | destructive-action confirmation | MISSING |",
+      "why": "unmarked"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}
