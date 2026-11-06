@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/README.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/docs/topic-01.md"
+          }
+        }
+      ],
+      "why": "a page outside the scope"
+    }
+  ]
+}

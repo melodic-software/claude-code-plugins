@@ -109,7 +109,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **9.2** `verification/<ISO-basic>Z-watch-outcomes.md` shows PASS. Verify: all `fail` severity checks green
 - [ ] **9.5** Corpus relayout, only when a corpus target is configured (otherwise tick as n/a). Run before 9.3: `close` removes the temp session the media is copied from. Verify: `watch/relayout-slice.js <slice-dir> <target-dir>` exit 0
 - [ ] **9.3** `watch-state.js close <slice-dir>` exit 0 after 9.1, 9.2, 9.4 and 9.5; it is the only writer of `status: complete`. Verify: `watch.json` `status: complete`
-- [ ] **9.4** Vision fidelity spot-check (required for a vision-complete claim). Verify: ≥10 synthesis PNG images name↔content + ≥3 contact sheets verdict↔JPG; notes in Resume notes below. Verify script exit 0 alone is structural only.
+- [ ] **9.4** Vision fidelity spot-check (required for a vision-complete claim), dispatched to a fresh-context subagent, never run by the context that produced the slice (`context/quality-gates.md`, "Structural vs vision fidelity"). Verify: the `read-verification.sh` line, then ≥10 synthesis PNG images name↔content + ≥3 contact sheets verdict↔JPG from the subagent's notes, in Resume notes below. Under `light` or `off`: tick with `verification: skipped (<level>)` and report the slice structural-complete only. Verify script exit 0 alone is structural only.
 
 ---
 

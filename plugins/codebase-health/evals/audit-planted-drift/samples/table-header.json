@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n"
+    },
+    {
+      "answer": "| # | **Severity** | **Category** | **File:Line** | **Description** | **Verification** |\n|---|---|---|---|---|---|"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| # | Severity | File:Line | Description |\n|---|---|---|---|",
+      "why": "columns missing"
+    },
+    {
+      "answer": "| # | Category | Severity | File:Line | Description | Verification |",
+      "why": "columns reordered"
+    }
+  ]
+}

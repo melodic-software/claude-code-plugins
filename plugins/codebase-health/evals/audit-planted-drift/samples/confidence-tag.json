@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n",
+      "why": "inline confidence label"
+    },
+    {
+      "answer": "| 1 | error | doc-drift | `README.md:9` | x | Read package.json | verified |",
+      "why": "a confidence cell"
+    },
+    {
+      "answer": "Confidence: likely."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "### Verified non-issues\n- Node 20 or newer: `engines.node` is `>=20` (Read `package.json:5`)\n- Port 3000 unless PORT is set (Read `src/config.js:1`)\n\n- package.json verified against README",
+      "why": "only the non-issues heading"
+    },
+    {
+      "answer": "Confidence is high.",
+      "why": "no tag value"
+    }
+  ]
+}
