@@ -41,7 +41,14 @@ Run these in order. Skip a step only when its input is genuinely absent
    name CONCRETE, located findings, not a generic mea culpa. Each finding
    points at a specific turn, claim, or artifact and at the specific part
    of the discipline it breaks. If there are none, say so plainly. Do not
-   invent findings to look diligent.
+   invent findings to look diligent. For load-bearing work (anything the
+   user will act on or the work rests on), a clean self-audit is not yet
+   the verdict: dispatch a fresh-context subagent with the discipline's
+   source and the work, not your audit, to confirm "no findings" before
+   step 4 reports clean; what it finds goes to step 3. The `verification`
+   level governs this subagent as it governs step 3's; under `light` or
+   `off`, report "clean (self-audit only)" with
+   `verification: skipped (<level>)`.
 3. **Correct forward now.** For each finding, do the missing work THIS
    turn rather than merely noting it: edit the file, fix the config,
    re-derive the choice, in the working tree, now. Where your own
