@@ -57,7 +57,8 @@ name: pr-review-main
 # pr-verify.yml.
 
 # API_BUDGET_HOLD (outage posture element 2): no step here sets it: a failed read or no verdict ends the
-# review red (audit element 2 is open for this lane).
+# review red, since that red is what the lost-run reconciler re-runs once
+# (reconcile.mjs RECORDED_LANES), and a green hold would end the retry.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -174,12 +175,20 @@ jobs:
             exit 0
           fi
           # Each page the gh wrapper sends counts toward the api-calls notice.
-          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" \
-            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES" || {
-            echo "::warning::the file list did not read; the trigger gate runs"
-            exit 0
+          # retry_call reads the list up to 3 times (full jitter, a rate stop
+          # waited out within 60 s of waits).
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          . .base/.github/scripts/pr-merge/retry-call.bash
+          api_budget_wrap_gh github-token
+          read_files() {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" \
+              --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           }
+          if ! retry_call --read 60 read_files; then
+            echo "::warning::the file list did not read ($retry_call_unknown); the trigger gate runs"
+            exit 0
+          fi
           review=$(python3 -I -c '
           import sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
@@ -328,9 +337,22 @@ jobs:
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
-          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          # retry_call reads the list up to 3 times (full jitter, a rate stop
+          # waited out within 60 s of waits). A list still unread ends the step
+          # red: a run that stops before its review is the one the lost-run
+          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          . .base/.github/scripts/pr-merge/retry-call.bash
+          api_budget_wrap_gh github-token
+          read_files() {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          }
+          retry_call --read 60 read_files || {
+            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
+            exit 1
+          }
           review=$(python3 -I -c '
           import sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
@@ -608,9 +630,22 @@ jobs:
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
-          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          # retry_call reads the list up to 3 times (full jitter, a rate stop
+          # waited out within 60 s of waits). A list still unread ends the step
+          # red: a run that stops before its review is the one the lost-run
+          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          . .base/.github/scripts/pr-merge/retry-call.bash
+          api_budget_wrap_gh github-token
+          read_files() {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          }
+          retry_call --read 60 read_files || {
+            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
+            exit 1
+          }
           review=$(python3 -I -c '
           import sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
@@ -1481,9 +1516,22 @@ jobs:
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
-          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          # retry_call reads the list up to 3 times (full jitter, a rate stop
+          # waited out within 60 s of waits). A list still unread ends the step
+          # red: a run that stops before its review is the one the lost-run
+          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          . .base/.github/scripts/pr-merge/retry-call.bash
+          api_budget_wrap_gh github-token
+          read_files() {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          }
+          retry_call --read 60 read_files || {
+            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
+            exit 1
+          }
           review=$(python3 -I -c '
           import sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
@@ -2321,9 +2369,22 @@ jobs:
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
         run: |
           # Each page the gh wrapper sends counts toward the api-calls notice.
-          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          # retry_call reads the list up to 3 times (full jitter, a rate stop
+          # waited out within 60 s of waits). A list still unread ends the step
+          # red: a run that stops before its review is the one the lost-run
+          # reconciler re-runs once (reconcile.mjs RECORDED_LANES).
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          . .base/.github/scripts/pr-merge/retry-call.bash
+          api_budget_wrap_gh github-token
+          read_files() {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          }
+          retry_call --read 60 read_files || {
+            echo "::error::the file list did not read ($retry_call_unknown); no review, so the lanes stay unbound"
+            exit 1
+          }
           review=$(python3 -I -c '
           import sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
