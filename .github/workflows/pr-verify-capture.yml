@@ -230,6 +230,9 @@ jobs:
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          # As pr-verify's gate: a stop a GitHub fault caused reads read-fault.
+          # It still stops, and this job, which captures nothing then, marks no hold.
+          fault-reason: "true"
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is captured.
@@ -1514,6 +1517,9 @@ jobs:
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+          # As pr-verify's gate: a stop a GitHub fault caused reads read-fault.
+          # It still stops, and this job, which captures nothing then, marks no hold.
+          fault-reason: "true"
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is captured.

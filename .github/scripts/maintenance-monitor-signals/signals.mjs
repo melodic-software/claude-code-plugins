@@ -420,6 +420,20 @@ export const HOLD_LANES = [
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
   // windows over it, at 2 calls a run (one jobs read, one annotations read).
   { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
+  // One run per checks run: the 24 hours to 2026-11-06T12:00Z had 504 green
+  // runs, a peak of 58 created in one hour and 267 in one 7-hour created span.
+  // 80 a window and 5 list pages leave headroom over both; only a job whose
+  // `Note the hold` step ran has its annotations read, so a run costs one
+  // jobs read, plus one annotations read when it held (`holdStep`).
+  {
+    lane: "pr-verify",
+    workflow: "pr-verify.yml",
+    jobs: ["check-intent", "check-intent-subscription", "check-intent-fallback"],
+    area: "Verify lane (pr-verify)",
+    holdRuns: 80,
+    listPages: 5,
+    holdStep: "Note the hold",
+  },
 ];
 const NAME = "[a-z]+(?:-[a-z]+)*";
 const HOLD_NOTICES = [
@@ -443,6 +457,14 @@ const HOLD_NOTICES = [
     title: "WIP cap hold",
     pattern: /^(?:WIP cap hold: the (base config) could not be read|WIP cap hold: the (open lane PRs) could not be listed|the (WIP cap check) did not finish), so the pause is unknown/,
     hold: (m) => ({ item: null, reason: m[1] ? "WIP cap base config unread" : m[2] ? "WIP cap open listing failed" : "WIP cap check unfinished" }),
+  },
+  // pr-verify: resolve-pr.mjs closing, or pr-verify.yml's `Note the hold` for
+  // a trigger gate stopped with read-fault. A fixed reason per cause, and no
+  // item: the PR is the run's, read from its URL.
+  {
+    title: "pr-verify",
+    pattern: /^held: (?:pr-verify's trigger gate met a GitHub fault|pr-verify could not resolve the pull request)/,
+    hold: (m) => ({ item: null, reason: m[0].includes("trigger gate") ? "trigger gate fault" : "resolver fault" }),
   },
   // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is
   // a closed set, never the fault's own text, so the finding's fingerprint

@@ -1042,6 +1042,7 @@ const holdRoutes = () => [
   [/check-runs\/830\/annotations/, [notice("label-unblocked", "the agent-ready listing failed (HTTP 502); holding, and the next sweep reads it again")]],
   [/workflows\/pr-refine\.yml\/runs/, { workflow_runs: [run(87, { event: "workflow_dispatch" })] }],
   [/workflows\/intake-triage\.yml\/runs/, { workflow_runs: [] }],
+  [/workflows\/pr-verify\.yml\/runs/, { workflow_runs: [] }],
   [/runs\/84\/jobs/, { jobs: [] }],
   [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "label-unblocked", conclusion: "success" }, { id: 811, name: "wip-state", conclusion: "success" }] }],
   [/check-runs\/810\/annotations/, [
@@ -1227,6 +1228,55 @@ test("lane holds: a run list past one page reads the next, and past three pages 
   const cut = await collect(input(many, { holds: { rule: RULE, carried: CARRIED } }));
   assert.deepEqual(cut.gaps, ["lane holds: over 300 green runs of intake-triage listed; the oldest were not read"]);
   assert.equal(many.calls.filter((c) => c.includes("intake-triage.yml/runs")).length, 3);
+});
+
+// pr-verify green runs from 4000: 4000 held by the resolver, 4001 by the
+// trigger gate (a later job), 4002 judged with no hold, its jobs' annotations
+// never read, and 4003 a job listed with no steps, read and found unheld.
+const verifyJob = (id, name, held) => ({ id, name, conclusion: "success", steps: [{ name: "Resolve the pull request", conclusion: "success" }, { name: "Note the hold", conclusion: held ? "success" : "skipped" }] });
+const verifyRoutes = (listing) => [
+  [/workflows\/pr-verify\.yml\/runs/, listing],
+  [/runs\/4000\/jobs/, { jobs: [verifyJob(40000, "check-intent", true)] }],
+  [/runs\/4001\/jobs/, { jobs: [verifyJob(40010, "check-intent", false), verifyJob(40011, "check-intent-subscription", true)] }],
+  [/runs\/4002\/jobs/, { jobs: [verifyJob(40020, "check-intent", false), verifyJob(40021, "wake-pr-merge", true)] }],
+  [/runs\/4003\/jobs/, { jobs: [{ id: 40030, name: "check-intent", conclusion: "success", steps: [] }] }],
+  [/check-runs\/40000\/annotations/, [notice("pr-verify", "held: pr-verify could not resolve the pull request: GET /repos/o/r/pulls/7 failed with status 502")]],
+  [/check-runs\/40011\/annotations/, [notice("pr-verify", "held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged")]],
+  [/check-runs\/40030\/annotations/, [notice("api-budget", "end github-token core remaining=1 used=1 limit=2 reset=x")]],
+  ...holdRoutes(),
+];
+const verifyRuns = (count, from = 4000) =>
+  Array.from({ length: count }, (_, i) => run(from + i, { event: "workflow_run", updated_at: new Date(Date.parse("2026-10-19T15:40:00Z") + i * 30_000).toISOString().replace(".000Z", "Z") })).reverse();
+
+test("lane holds: pr-verify counts resolver and trigger-gate holds, reading annotations only where Note the hold ran", async () => {
+  const api = fakeApi(verifyRoutes({ workflow_runs: verifyRuns(4) }));
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-verify").map((h) => [h.runId, h.item, h.reason]), [
+    [4001, null, "trigger gate fault"],
+    [4000, null, "resolver fault"],
+  ]);
+  for (const id of [40010, 40020, 40021]) assert.ok(!api.calls.some((c) => c.includes(`check-runs/${id}/`)), id);
+  assert.ok(api.calls.some((c) => c.includes("check-runs/40030/annotations")), "a job listed with no steps is read");
+});
+
+test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages", async () => {
+  const ok = fakeApi([[/workflows\/pr-verify\.yml\/runs/, { workflow_runs: verifyRuns(80, 5000) }], [/runs\/5\d{3}\/jobs/, { jobs: [] }], ...holdRoutes()]);
+  const read = await collect(input(ok, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(read.gaps, []);
+  const over = fakeApi([[/workflows\/pr-verify\.yml\/runs/, { workflow_runs: verifyRuns(81, 5000) }], [/runs\/5\d{3}\/jobs/, { jobs: [] }], ...holdRoutes()]);
+  const cut = await collect(input(over, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.match(cut.gaps[0], /^lane holds: over the cap of unread green runs of pr-verify \(cap 80\)/);
+  const old = (page) => Array.from({ length: 100 }, (_, i) => run(6000 + 100 * page + i, { event: "workflow_run", updated_at: "2026-10-19T12:00:00Z" }));
+  const paging = (pages) => fakeApi([[/workflows\/pr-verify\.yml\/runs/, (path) => ({ total_count: pages * 100 + 1, workflow_runs: old(Number(/&page=(\d)$/.exec(path)?.[1] ?? 1)) })], ...holdRoutes()]);
+  const four = paging(4);
+  // 401 listed: past the default 3 pages, read whole in 5.
+  assert.deepEqual((await collect(input(four, { holds: { rule: RULE, carried: CARRIED } }))).gaps, []);
+  assert.equal(four.calls.filter((c) => c.includes("pr-verify.yml/runs")).length, 5);
+  // 501 listed: past 5 pages is a gap.
+  const six = paging(5);
+  assert.deepEqual((await collect(input(six, { holds: { rule: RULE, carried: CARRIED } }))).gaps, ["lane holds: over 500 green runs of pr-verify listed; the oldest were not read"]);
+  assert.equal(six.calls.filter((c) => c.includes("pr-verify.yml/runs")).length, 5);
 });
 
 test("a carried held run of another repository or an unknown lane, or a bad span, is refused", () => {

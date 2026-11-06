@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { closing } from "../intake-triage/apply-verdict.mjs";
+import { closing as resolverClosing, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 import {
   auditFindings,
   ceilingFindings,
@@ -593,7 +594,7 @@ test("signal 13: intake-triage's held verdict parses to a fixed reason with no i
   // Its error line and another title's held: text are no hold.
   const red = closing({ error: new Error("models.issue-dimensions maps no option 7") }).lines[0];
   assert.equal(parseHold("apply-verdict", /::(.*)$/.exec(red)[1]), null);
-  assert.equal(parseHold("pr-verify", "held: pr-verify could not resolve the pull request: x failed with status 502"), null);
+  assert.equal(parseHold("pr-verify-capture", "held: pr-verify-capture could not resolve the pull request: x failed with status 502"), null);
   assert.equal(parseHold("apply-verdict", "apply-verdict does not apply (off); nothing written"), null);
 });
 
@@ -631,6 +632,23 @@ test("signal 13: pr-refine's unread PR head or hold parses to the PR and a fixed
   assert.equal(parseHold("PR head hold", "no PR head SHA read for #7; fix-docs does not run"), null);
   assert.equal(parseHold("Handoff evidence hold", annotation(step)[1]), null);
   assert.ok(HOLD_LANES.find((l) => l.lane === "pr-refine").jobs.includes("fix-docs-head-held"));
+});
+
+test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reasons with no item", () => {
+  // Each from its producer: resolve-pr.mjs closing, and pr-verify.yml's
+  // `Note the hold` step after the trigger gate in each of its three jobs.
+  const resolver = resolverClosing(new GitHubError(502, "GET /repos/o/r/pulls/7"), {});
+  assert.deepEqual(parseHold(...annotation(resolver.lines[0])), { item: null, reason: "resolver fault" });
+  const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
+  const gates = [...workflow.matchAll(/echo "(::notice title=pr-verify::held: pr-verify's trigger gate[^"]*)"/g)].map((m) => m[1]);
+  assert.equal(gates.length, 3);
+  for (const line of gates) assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "trigger gate fault" });
+  // A notice that is no hold, and another lane's title, parse to nothing.
+  assert.equal(parseHold("pr-verify", "pr-verify judged #7: PASS"), null);
+  assert.equal(parseHold("pr-review-main", annotation(gates[0])[1]), null);
+  const lane = HOLD_LANES.find((l) => l.lane === "pr-verify");
+  assert.deepEqual([lane.workflow, lane.holdStep], ["pr-verify.yml", HELD_STEP]);
+  for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
 });
 
 const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({
