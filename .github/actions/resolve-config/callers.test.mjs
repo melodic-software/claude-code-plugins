@@ -9873,39 +9873,53 @@ test("the leg check fails a lane that lacks a leg and passes one that has all th
 // --- the key's credit window and gate: one setting for every model lane ---
 
 // The hours a key's credit stop keeps later runs off the key: the org
-// variable KEY_CREDIT_WINDOW_HOURS, else KEY_CREDIT_DEFAULT_HOURS. Every
-// check-key-credit step takes it as window-hours with that default written
-// out, since the pinned action (gate.cjs, b8bdd7f) fails an empty value, and a
-// step whose default differs fails here. Every call of a ci-workflows reusable
-// that gates its own key passes the variable as is: that string input reads
-// empty as its own 1-hour default (ci-workflows#1003).
-const KEY_CREDIT_DEFAULT_HOURS = "1";
-const KEY_CREDIT_WINDOW = `\${{ vars.KEY_CREDIT_WINDOW_HOURS || '${KEY_CREDIT_DEFAULT_HOURS}' }}`;
-const KEY_CREDIT_WINDOW_REUSABLE = "${{ vars.KEY_CREDIT_WINDOW_HOURS }}";
-// The ci-workflows reusables whose own key job reads check-key-credit.
+// variable KEY_CREDIT_WINDOW_HOURS, passed as it is. Its 1-hour default lives
+// only in ci-workflows: check-key-credit's gate.cjs, which
+// select-model-credential runs, reads an empty window as that default, and
+// so does each gated reusable's own string input (ci-workflows#1003). The
+// one exception is a step still on check-key-credit@b8bdd7f, whose gate.cjs
+// reads an empty window as 0 and fails it: it keeps the default written out
+// until its lane moves to select-model-credential.
+const KEY_CREDIT_WINDOW = "${{ vars.KEY_CREDIT_WINDOW_HOURS }}";
+const KEY_CREDIT_WINDOW_OLD_GATE = "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}";
+const OLD_GATE = "melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 ";
+const SELECT_ACTION = "melodic-software/ci-workflows/.github/actions/select-model-credential@";
+// The lanes not yet on select-model-credential: pr-unblock.yml's 4-leg
+// handoff shape, and intake-triage.yml's refine gate.
+const OLD_GATE_FILES = ["intake-triage.yml", "pr-unblock.yml"];
+// The ci-workflows reusables whose own key job reads the key's credit history.
 const GATED_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@/;
-const isCreditGate = (step) => String(step?.uses ?? "").includes("/check-key-credit@");
-function creditWindowProblems(files, load, readText) {
+const isOldGate = (step) => String(step?.uses ?? "").includes("/check-key-credit@");
+// A select-model-credential call that reads the credit history: a start call,
+// or a key call with key-job.
+const isSelectRead = (step) => String(step?.uses ?? "").startsWith(SELECT_ACTION) && step.with?.["key-job"] !== undefined;
+const isCreditGate = (step) => isOldGate(step) || isSelectRead(step);
+function creditWindowProblems(files, load, readText, rawText = readText) {
   const problems = [];
   for (const file of files) {
+    let oldGate = false;
     for (const [id, job] of Object.entries(load(file).jobs ?? {})) {
       const passed = job?.with?.["key-credit-window-hours"];
-      if (GATED_REUSABLE.test(String(job?.uses ?? "")) && passed !== KEY_CREDIT_WINDOW_REUSABLE) problems.push(`${file} ${id} passes key-credit-window-hours ${passed}`);
+      if (GATED_REUSABLE.test(String(job?.uses ?? "")) && passed !== KEY_CREDIT_WINDOW) problems.push(`${file} ${id} passes key-credit-window-hours ${passed}`);
       for (const step of (job?.steps ?? []).filter(isCreditGate)) {
-        if (step.with?.["window-hours"] !== KEY_CREDIT_WINDOW) problems.push(`${file} ${id} ${step.name}: window-hours ${step.with?.["window-hours"]}`);
+        const want = isOldGate(step) ? KEY_CREDIT_WINDOW_OLD_GATE : KEY_CREDIT_WINDOW;
+        oldGate ||= isOldGate(step);
+        if (step.with?.["window-hours"] !== want) problems.push(`${file} ${id} ${step.name}: window-hours ${step.with?.["window-hours"]}`);
+        if (isOldGate(step) && !`${step.uses} `.startsWith(OLD_GATE)) problems.push(`${file} ${id} ${step.name}: check-key-credit at another pin; move it to select-model-credential`);
       }
     }
     // Any other read of the variable, such as a notice naming the window, uses the same text.
     for (const [read] of readText(file).matchAll(/\$\{\{[^}]*vars\.KEY_CREDIT_WINDOW_HOURS[^}]*\}\}/g)) {
-      if (read !== KEY_CREDIT_WINDOW && read !== KEY_CREDIT_WINDOW_REUSABLE) problems.push(`${file} reads ${read}`);
+      if (read !== KEY_CREDIT_WINDOW && !(oldGate && read === KEY_CREDIT_WINDOW_OLD_GATE)) problems.push(`${file} reads ${read}`);
     }
   }
   return problems;
 }
-// A lane's key leg is gated when its job runs check-key-credit, reads the
-// skip-key of a needed job that runs it, is the read runner's first call
-// (broker-check gates the key-credit-job it names), or calls a reusable that
-// gates its own key: a ci-workflows one or the eval pass.
+// A lane's key leg is gated when its job reads the credit history itself,
+// reads the skip-key or next-leg of a needed job that reads it, is the read
+// runner's first call (broker-check gates the key-credit-job it names), or
+// calls a reusable that gates its own key: a ci-workflows one or the eval
+// pass.
 function keyLegGate(doc, id, job) {
   if (GATED_REUSABLE.test(String(job.uses ?? "")) || job.uses === EVAL_PASS_REUSABLE) return "reusable";
   if (job.uses === READ_RUNNER) return job.with?.["key-credit-job"] === id ? "read-runner" : null;
@@ -9914,32 +9928,40 @@ function keyLegGate(doc, id, job) {
   const gated = [job.needs ?? []].flat().some((need) => {
     const gateJob = doc.jobs?.[need] ?? {};
     const gateIds = (gateJob.steps ?? []).filter(isCreditGate).map((step) => step.id);
-    // The needed job's outputs that carry a gate step's skip-key.
-    const skips = Object.entries(gateJob.outputs ?? {}).filter(([, value]) => gateIds.some((gateId) => String(value).includes(`steps.${gateId}.outputs.skip-key`)));
-    return skips.some(([name]) => text.includes(`needs.${need}.outputs.${name}`));
+    // The needed job's outputs that carry a gate step's verdict.
+    const verdicts = Object.entries(gateJob.outputs ?? {}).filter(([, value]) => gateIds.some((gateId) => new RegExp(`steps\\.${gateId}\\.outputs\\.(?:skip-key|next-leg)\\b`).test(String(value))));
+    return verdicts.some(([name]) => text.includes(`needs.${need}.outputs.${name}`));
   });
   return gated ? "needs" : null;
 }
 
-test("every check-key-credit step and gated reusable call reads the one credit window", () => {
+test("every credit read and gated reusable call reads the one credit window", () => {
   const files = workflowFiles();
   assert.deepEqual(creditWindowProblems(files, workflow, (file) => read(`../../workflows/${file}`)), []);
   const gates = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).flatMap((job) => (job?.steps ?? []).filter(isCreditGate)));
-  assert.ok(gates.length >= 15, `found ${gates.length} check-key-credit steps`);
+  assert.ok(gates.length >= 15, `found ${gates.length} credit reads`);
+  // Only the lanes named above still read it through check-key-credit.
+  assert.deepEqual(files.filter((file) => Object.values(workflow(file).jobs ?? {}).some((job) => (job?.steps ?? []).some(isOldGate))).sort(), OLD_GATE_FILES);
   const calls = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).filter((job) => GATED_REUSABLE.test(String(job?.uses ?? ""))));
   assert.equal(calls.length, 3, "the code review, security review and intake triage calls");
 });
 
-test("the credit window check names a drifted default, a missing input and a stray read", () => {
-  const gate = (hours) => ({ name: "Read the key's credit history", uses: "melodic-software/ci-workflows/.github/actions/check-key-credit@abc", with: { "key-job": "j", "window-hours": hours } });
+test("the credit window check names a drifted default, a missing input, an old gate's empty window and a stray read", () => {
+  const OLD = `${OLD_GATE.trim()} # b8bdd7f`;
+  const gate = (hours, uses = OLD) => ({ name: "Read the key's credit history", uses, with: { "key-job": "j", "window-hours": hours } });
+  const start = (hours) => gate(hours, `${SELECT_ACTION}${"0".repeat(40)} # 0000000`);
   const call = (hours) => ({ uses: "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main", with: hours === undefined ? {} : { "key-credit-window-hours": hours } });
   const check = (jobs, text = "") => creditWindowProblems(["f.yml"], () => ({ jobs }), () => text);
-  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW)] }, r: call(KEY_CREDIT_WINDOW_REUSABLE) }, `${KEY_CREDIT_WINDOW}\n${KEY_CREDIT_WINDOW_REUSABLE}`), []);
-  assert.deepEqual(check({ g: { steps: [gate("${{ vars.KEY_CREDIT_WINDOW_HOURS || '6' }}")] } }), ["f.yml g Read the key's credit history: window-hours ${{ vars.KEY_CREDIT_WINDOW_HOURS || '6' }}"]);
-  assert.deepEqual(check({ g: { steps: [gate("6")] } }), ["f.yml g Read the key's credit history: window-hours 6"], "a literal ignores the variable");
+  assert.deepEqual(check({ s: { steps: [start(KEY_CREDIT_WINDOW)] }, r: call(KEY_CREDIT_WINDOW) }, KEY_CREDIT_WINDOW), []);
+  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW_OLD_GATE)] } }, KEY_CREDIT_WINDOW_OLD_GATE), [], "an old gate keeps its default written out");
+  assert.deepEqual(check({ s: { steps: [start(KEY_CREDIT_WINDOW_OLD_GATE)] } }), [`f.yml s Read the key's credit history: window-hours ${KEY_CREDIT_WINDOW_OLD_GATE}`], "a default written out beside the action's own");
+  assert.deepEqual(check({ s: { steps: [start("6")] } }), ["f.yml s Read the key's credit history: window-hours 6"], "a literal ignores the variable");
+  assert.deepEqual(check({ s: { steps: [start(undefined)] } }), ["f.yml s Read the key's credit history: window-hours undefined"], "a read with no window ignores the variable");
+  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW)] } }), [`f.yml g Read the key's credit history: window-hours ${KEY_CREDIT_WINDOW}`], "an empty window fails the old gate");
+  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW_OLD_GATE, "melodic-software/ci-workflows/.github/actions/check-key-credit@abc")] } }), ["f.yml g Read the key's credit history: check-key-credit at another pin; move it to select-model-credential"]);
   assert.deepEqual(check({ r: call(undefined) }), ["f.yml r passes key-credit-window-hours undefined"], "the reusable's own default ignores the variable");
-  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW_REUSABLE)] } }), [`f.yml g Read the key's credit history: window-hours ${KEY_CREDIT_WINDOW_REUSABLE}`], "an empty window fails the pinned gate");
-  assert.deepEqual(check({ r: call(KEY_CREDIT_WINDOW) }), [`f.yml r passes key-credit-window-hours ${KEY_CREDIT_WINDOW}`], "a written-out default overrides the reusable's own");
+  assert.deepEqual(check({ r: call(KEY_CREDIT_WINDOW_OLD_GATE) }), [`f.yml r passes key-credit-window-hours ${KEY_CREDIT_WINDOW_OLD_GATE}`], "a written-out default overrides the reusable's own");
+  assert.deepEqual(check({}, KEY_CREDIT_WINDOW_OLD_GATE), [`f.yml reads ${KEY_CREDIT_WINDOW_OLD_GATE}`], "the old gate's text where no old gate runs");
   assert.deepEqual(check({}, "WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"), ["f.yml reads ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"]);
 });
 
@@ -9956,18 +9978,82 @@ test("every catalog lane's key leg runs behind the key's credit gate", () => {
 
 test("the key-leg gate check accepts each gate shape and names a lane with none", () => {
   const credit = (keyJob) => ({ id: "credit", uses: "melodic-software/ci-workflows/.github/actions/check-key-credit@abc", with: { "key-job": keyJob } });
+  const startCall = (keyJob) => ({ id: "credit", uses: `${SELECT_ACTION}abc`, with: { leg: "start", "key-job": keyJob } });
   const gate = { outputs: { "skip-key": "${{ steps.credit.outputs.skip-key }}", marker: "${{ steps.credit.outputs.marker }}" }, steps: [credit("model")] };
-  const doc = { jobs: { gate, plain: { outputs: { "skip-key": "${{ steps.x.outputs.skip-key }}" }, steps: [{ id: "x", run: "true" }] } } };
+  const startGate = { outputs: { "next-leg": "${{ steps.credit.outputs.next-leg }}", marker: "${{ steps.credit.outputs.marker }}" }, steps: [startCall("model")] };
+  const doc = { jobs: { gate, startGate, plain: { outputs: { "skip-key": "${{ steps.x.outputs.skip-key }}" }, steps: [{ id: "x", run: "true" }] } } };
   assert.equal(keyLegGate(doc, "model", { needs: ["gate"], if: "needs.gate.outputs.marker != ''", steps: [] }), null, "an output other than the skip");
-  const reads = (need) => ({ needs: [need], if: `needs.${need}.outputs.skip-key != 'true'`, steps: [] });
+  const reads = (need, output = "skip-key") => ({ needs: [need], if: `needs.${need}.outputs.${output} != 'true'`, steps: [] });
   assert.equal(keyLegGate(doc, "model", reads("gate")), "needs");
+  assert.equal(keyLegGate(doc, "model", reads("startGate", "next-leg")), "needs", "a start call's next leg");
+  assert.equal(keyLegGate(doc, "model", { needs: ["startGate"], if: "needs.startGate.outputs.marker != ''", steps: [] }), null, "a start call's other output");
   assert.equal(keyLegGate(doc, "model", { needs: ["gate"], steps: [] }), null, "a gate whose skip the key leg never reads");
   assert.equal(keyLegGate(doc, "model", reads("plain")), null, "a needed job that runs no gate");
   assert.equal(keyLegGate(doc, "model", { steps: [] }), null, "no gate at all");
   assert.equal(keyLegGate(doc, "model", { steps: [credit("model")] }), "in-job");
+  assert.equal(keyLegGate(doc, "model", { steps: [{ uses: `${SELECT_ACTION}abc`, with: { leg: "key", "key-job": "model" } }] }), "in-job", "a key call that reads the history itself");
+  assert.equal(keyLegGate(doc, "model", { steps: [{ uses: `${SELECT_ACTION}abc`, with: { leg: "key" } }] }), null, "a key call that reads none");
   assert.equal(keyLegGate(doc, "fix-ci", { uses: READ_RUNNER, with: { "key-credit-job": "fix-ci" } }), "read-runner");
   assert.equal(keyLegGate(doc, "fix-ci", { uses: READ_RUNNER, with: {} }), null, "a first call that names no key job");
   assert.equal(keyLegGate(doc, "x", { uses: "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main" }), "reusable");
+});
+
+// --- select-model-credential: one pin, and a metadata file GitHub loads ---
+
+// Every select-model-credential step in this repo's workflows, as [file, uses, with].
+function selectCalls() {
+  const calls = [];
+  for (const file of workflowFiles()) {
+    for (const job of Object.values(workflow(file).jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        if (String(step.uses ?? "").startsWith("melodic-software/ci-workflows/.github/actions/select-model-credential@")) calls.push([file, step.uses, step.with ?? {}]);
+      }
+    }
+  }
+  return calls;
+}
+
+test("every select-model-credential call names one pin, and every credit read the reset time", () => {
+  const calls = selectCalls();
+  assert.ok(calls.length >= 20, `found ${calls.length} select-model-credential calls`);
+  assert.equal(new Set(calls.map(([, uses]) => uses)).size, 1, [...new Set(calls.map(([, uses]) => uses))].join("\n"));
+  // The window is the credit window check's; each read also takes the time the key was last replaced.
+  for (const [file, , inputs] of calls) {
+    if (inputs["key-job"] !== undefined) assert.equal(inputs["reset-at"], "${{ vars.KEY_CREDIT_RESET_AT }}", file);
+  }
+});
+
+// GitHub refuses an action whose metadata holds an expression where none is
+// evaluated ("Unrecognized named-value"), so every caller of it fails to start.
+// Expressions are evaluated in an input's default, an output's value and a
+// composite step's env, with, if and run; anywhere else, a description
+// included, one is a load failure.
+const EXPRESSION_KEYS = new Set(["default", "value", "env", "with", "if", "run"]);
+function misplacedExpressions(text) {
+  const lines = text.split("\n");
+  const misplaced = [];
+  const stack = [];
+  for (const [i, line] of lines.entries()) {
+    if (line.trim() === "" || line.trim().startsWith("#")) continue;
+    const indent = line.length - line.trimStart().length;
+    while (stack.length && stack.at(-1).indent >= indent) stack.pop();
+    const key = /^\s*(?:- )?([\w-]+):/.exec(line)?.[1];
+    if (line.includes("${{") && ![key, ...stack.map((s) => s.key)].some((k) => EXPRESSION_KEYS.has(k))) misplaced.push(`${i + 1}: ${line.trim()}`);
+    if (key) stack.push({ indent, key });
+  }
+  return misplaced;
+}
+
+test("the pinned select-model-credential action.yml holds expressions only where GitHub evaluates them", async () => {
+  const [uses] = new Set(selectCalls().map(([, u]) => u));
+  const [path, sha] = uses.replace("melodic-software/ci-workflows/", "").split("@");
+  const url = `https://raw.githubusercontent.com/melodic-software/ci-workflows/${sha}/${path}/action.yml`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  assert.ok(response.ok, `${url} answered ${response.status}`);
+  assert.deepEqual(misplacedExpressions(await response.text()), [], url);
+  // The shape e6e5227 shipped, which no run could load: an expression in an input's description.
+  assert.deepEqual(misplacedExpressions("inputs:\n  credential-set:\n    description: \"Whether set: `${{ secrets.X != '' }}`.\"\n    default: \"false\"\n"), ["3: description: \"Whether set: `${{ secrets.X != '' }}`.\""]);
+  assert.deepEqual(misplacedExpressions("inputs:\n  token:\n    description: >-\n      the job token, `${{ github.token }}`\n    default: ${{ github.token }}\n"), ["4: the job token, `${{ github.token }}`"]);
 });
 
 test("a credential passed outside the launcher step is caught", () => {
