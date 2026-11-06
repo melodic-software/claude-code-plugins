@@ -9,21 +9,22 @@ mkdir -p docs/conventions src
 
 printf 'verification: light\n' >docs/conventions/docs-hygiene.yaml
 
-cat >Makefile <<'MK'
-.PHONY: build test lint release
-
-build:
-	cc -O2 -o bin/tool src/main.c
-
-test: build
-	./bin/tool --self-test
-
-lint:
-	clang-format --dry-run --Werror src/*.c
-
-release: test lint
-	tar -czf dist/tool.tar.gz bin/tool
-MK
+# make needs a tab before each recipe line; printf writes it, so this file keeps spaces.
+{
+  printf '%s\n' '.PHONY: build test lint release'
+  printf '%s\n' ''
+  printf '%s\n' 'build:'
+  printf '\t%s\n' 'cc -O2 -o bin/tool src/main.c'
+  printf '%s\n' ''
+  printf '%s\n' 'test: build'
+  printf '\t%s\n' './bin/tool --self-test'
+  printf '%s\n' ''
+  printf '%s\n' 'lint:'
+  printf '\t%s\n' 'clang-format --dry-run --Werror src/*.c'
+  printf '%s\n' ''
+  printf '%s\n' 'release: test lint'
+  printf '\t%s\n' 'tar -czf dist/tool.tar.gz bin/tool'
+} >Makefile
 
 printf 'int main(void) { return 0; }\n' >src/main.c
 

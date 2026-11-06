@@ -289,7 +289,8 @@ work into noise.
 **Fix-first applies at repo scale too, with the full machinery.** The main workflow's Phase 6.5
 resolution wave runs here unchanged, and its agents get the same repo-mode spawn contract and the
 same mandatory refutation verifier as any other group: a deferral resolved without the verifier
-would be the one un-refuted diff in a mode built on refuting every diff. The wave lands like every
+would be the one un-refuted diff in a mode built on refuting every diff. A `light` or `off` verification level
+skips it here as for every group (SKILL.md Phase 6). The wave lands like every
 other group (see "Delivery").
 
 **No work items are filed by default.** At repo scale, filing produces a tracker backlog nobody
@@ -335,7 +336,8 @@ follow-ups.
 **One commit per group, minimum.** The PR diff is repo-wide and past any workable review budget;
 the commit history is what keeps the run auditable. Each group's commit message names the group and
 what changed, so a reviewer, a bisect, or a revert can work at group granularity even though the PR
-cannot be read end to end. This is also why the refutation verifier is mandatory here: with no
+cannot be read end to end. This is also why the refutation verifier is mandatory here at `standard` and `strict`, and why a
+`light` or `off` level is the repository's explicit choice to drop it: with no
 human reading the whole diff, the per-group verifiers, the per-wave verification, and the union
 pass ARE the review.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # A sandbox repository whose default branch, pushed to a local bare origin, sets
 # `verification: light` for code-tidying. A feature branch adds a needlessly convoluted helper
-# with a test, so a branch-mode batch-simplify run has one group to simplify.
+# with a test, so a repo-mode batch-simplify run has one group to simplify.
 set -euo pipefail
 
 git init -q -b main
