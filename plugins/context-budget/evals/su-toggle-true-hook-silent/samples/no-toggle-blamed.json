@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The toggle reads true; the hook is what never launched.",
+      "why": "toggle true"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The toggle is actually off.",
+      "why": "blames toggle"
+    },
+    {
+      "answer": "Your settings_write_ask_enabled option was false.",
+      "why": "blames toggle"
+    }
+  ]
+}

@@ -8,6 +8,10 @@
     },
     {
       "answer": "### 1. Instrument the admin routes so the next scan can rank on data\nEvidence: no telemetry or CI history (gap). Rung 4.\n\n### 2. Reuse the disconnected CSV export\nEvidence: routes.js imports exportRowsToCsv from csv-exporter.js and never calls it; adminBulkExport is disabled in flags.json for /admin/orders/export; export_audit has no readers.\n\n### 3. Greenfield export service (bulk-export-plan.md)\nEvidence: the approved plan. Ranked below 2 because 2 already covers it."
+    },
+    {
+      "answer": "| Rank | Candidate | Size | Evidence |\n|---|---|---|---|\n| 1 | Wire up the order export that already exists before building a new one | S | `exportRowsToCsv` is imported at `src/admin/routes.js:1` and never called. `adminBulkExport` is `false` in `config/flags.json`, so `POST /admin/orders/export` is never registered. `export_audit` is written but nothing reads it. |\n| 2 | Build the export service in docs/bulk-export-plan.md | L | The approved plan; it duplicates item 1. |",
+      "why": "names the dead import without naming the helper's file"
     }
   ],
   "fail": [

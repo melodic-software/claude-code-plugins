@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Agent SDK | INFO | absent; exact mode unavailable |",
+      "why": "INFO row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Agent SDK | FAIL | absent |",
+      "why": "FAIL row"
+    },
+    {
+      "answer": "The SDK is absent.",
+      "why": "no verdict"
+    }
+  ]
+}

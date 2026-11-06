@@ -55,8 +55,13 @@ below shows both), ends the read and any wait it causes. This rests on each read
 autocommit with `XACT_ABORT ON`, since a cancel ends the batch but not an explicit transaction
 ([blocking](https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/performance/understand-resolve-blocking));
 the forced-timeout lines and the two raw-session rows of the read-controls table show it here.
-The bounded-blocking check fails if an agent lock wait reaches the lock timeout, a wait on an agent
-session that was not itself waiting reaches the request timeout, or a transaction is left open. A
+The topology check line says less than the tables: a call whose lock wait hits the lock timeout,
+or that runs past the request timeout, fails and ends the run before any results are written, so a
+written PASS shows no single lock wait reached the lock timeout and every call returned within the
+request timeout (the lock timeout limits each lock wait, not a call's length), and the line itself
+can fail only on a transaction left open. Whether reads held anyone
+up, and for how long, is the waiting-tasks table and the worst-case line; no limit on how long a
+writer may wait is set or checked. A
 waiting task whose blocker SQL Server cannot identify can show a `blocking_session_id` of 0
 ([sys.dm_exec_requests](https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-exec-requests-transact-sql)),
 so the table does not count it. The table-level lock count in the worst-case line is the
@@ -227,5 +232,5 @@ transactions after a topology run 0; table-level locks an agent session held at 
 0. Median over the runs of the writer's slowest update, by process count: 1: 60 ms, 2: 59 ms, 4: 91 ms, 8: 148 ms.
 3 runs show the worst case; they support no estimate of run-to-run spread.
 
-Bounded-blocking check: PASS. Every call returned; no agent lock wait reached the lock timeout, no wait on an agent session reached the request timeout, and no transaction was left open.
+Topology check: PASS. No agent lock wait reached the lock timeout (5000 ms), every call returned within the request timeout (30000 ms), and no transaction was left open. How long anyone waited is the worst-case line above.
 <!-- measure-read-safety:results:end -->

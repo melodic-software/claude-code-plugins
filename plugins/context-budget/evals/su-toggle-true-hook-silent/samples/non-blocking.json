@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "A hook that fails to launch is non-blocking.",
+      "why": "non-blocking"
+    },
+    {
+      "answer": "It cannot launch, so it silently produces no ask.",
+      "why": "silently"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook errors loudly.",
+      "why": "loud failure"
+    },
+    {
+      "answer": "The toggle is on.",
+      "why": "no launch"
+    }
+  ]
+}

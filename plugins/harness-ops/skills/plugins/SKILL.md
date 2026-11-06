@@ -211,21 +211,30 @@ because `disable-model-invocation` applies to a whole skill, and only the read-o
 for the model to start. The Report section below still describes its render, since one
 `render-report.jq` prints both.
 
-## Operator script: refresh
+## Operator script: refresh and clean
 
-`scripts/reset-refresh.sh` re-fetches the user-scope fleet with its configuration unchanged. It
-moves the marketplace clones and `cache/` aside and reinstalls each user-scope record through the
-CLI. It then checks that marketplaces, user installs and user `enabledPlugins` match their
-pre-run snapshots. It is not an action of this skill. It refuses to run while a `claude` process
-is running, so the operator runs it from a terminal with every session closed. When the user asks
-for it, give them these two commands and do not run them:
+`scripts/reset-refresh.sh` re-fetches the user-scope fleet with its configuration unchanged. It has
+three levels:
+
+- `preview` changes nothing and prints what `refresh` and `clean` would discard.
+- `refresh` moves the marketplace clones and `cache/` aside and reinstalls each user-scope record
+  through the CLI.
+- `clean` does the same and also discards `data/`. It keeps the moved copies as one
+  `~/.claude/plugins.bak-<ts>` backup and moves that backup back on any difference.
+
+Both runs then check that marketplaces, user installs and user `enabledPlugins` match their
+pre-run snapshots. Neither is an action of this skill. Both refuse to run while a `claude` process
+is running, and `clean` also refuses without a terminal. So the operator runs them from a terminal
+with every session closed. When the user asks for one, give them these commands and do not run
+them:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/reset-refresh.sh preview
 bash "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/reset-refresh.sh refresh
+bash "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/reset-refresh.sh clean
 ```
 
-[context/refresh.md](context/refresh.md) holds what each mode does, its safeguards, and the probe
+[context/refresh.md](context/refresh.md) holds what each level does, its safeguards, and the probe
 record behind them.
 
 ## Report
@@ -475,5 +484,5 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 | [context/stale-records-cache-content.md](context/stale-records-cache-content.md) | The digest's `stale_project_records.total` or `cache_content.stale_content` is above 0, or the user asks why either section reads as it does. |
 | [context/script-contracts.md](context/script-contracts.md) | A step misbehaves, `converge` needs an id list, or a caller other than `sync-run.sh` is about to invoke `fleet-state.sh`, `cache-content-check.sh`, or `normalize-enabled-plugins.sh`. |
 | [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it; also the dated `userConfig` unset-key probe record. |
-| [context/refresh.md](context/refresh.md) | The user asks to refresh or re-fetch the plugin fleet with its configuration unchanged, or about `reset-refresh.sh`'s output. |
+| [context/refresh.md](context/refresh.md) | The user asks to refresh, clean or re-fetch the plugin fleet with its configuration unchanged, or about `reset-refresh.sh`'s output. |
 | [context/gotchas.md](context/gotchas.md) | A run failed in a way the steps do not explain, or a safeguard looks removable. |
