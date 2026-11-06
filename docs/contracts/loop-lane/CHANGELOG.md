@@ -13,7 +13,12 @@ Minor: additive guidance.
   carries `<!-- pr-hold reason=<reason> -->`. A `reason=eval` hold comes off on pr-merge's next
   scheduled run once a listed human posts
   `<!-- eval-pair verdict=no-loss validity=VALID head=<sha> -->` for the current head (owner
-  decision Q-EVAL-HOLD, 2026-11-06).
+  decision Q-EVAL-HOLD, 2026-11-06). Evidence: finished VALID pairs waited 3.5 to 8.5 hours for a
+  hand removal the auto-mode classifier sometimes refused, on
+  [#13570](https://github.com/melodic-software/claude-code-plugins/pull/13570),
+  [#13572](https://github.com/melodic-software/claude-code-plugins/pull/13572),
+  [#13584](https://github.com/melodic-software/claude-code-plugins/pull/13584) and
+  [#13624](https://github.com/melodic-software/claude-code-plugins/pull/13624).
 
 ## [19.1.0] - 2026-11-04
 

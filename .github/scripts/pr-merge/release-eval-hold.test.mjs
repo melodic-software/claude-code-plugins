@@ -96,6 +96,18 @@ test("an eval reason beside any other reason since the label keeps the hold", ()
   assert.equal(run({ comments: [holdComment(), other, recordComment()] }).reason, "hold-reason-r17-replacement");
 });
 
+test("a hold line in any other shape keeps the hold", () => {
+  const extra = comment("<!-- pr-hold reason=superseded by=#13440 -->", { at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [holdComment(), extra, recordComment()] }).reason, "hold-reason-unknown");
+});
+
+test("a hold line any account posted counts: an App's other reason keeps the hold", () => {
+  const app = comment(holdLine("superseded"), { user: APP, at: "2026-11-06T10:02:00Z", app: { id: 1, slug: "lanes" } });
+  assert.equal(run({ comments: [holdComment(), app, recordComment()] }).reason, "hold-reason-superseded");
+  const strangerEval = comment(holdLine("eval"), { user: STRANGER, at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [strangerEval, recordComment()] }).reason, "hold-reason-unlisted-author");
+});
+
 test("a hold with no recorded reason is kept", () => {
   assert.equal(run({ comments: [recordComment()] }).reason, "no-hold-reason");
 });
@@ -184,7 +196,12 @@ test("main comments with the record's URL and head, then removes the label, and 
   assert.ok(writes[0].body.body.includes(record.html_url));
   assert.ok(writes[0].body.body.includes(HEAD));
   assert.ok(lines.includes(`release-eval-hold: #7 released head=${HEAD} record=${record.html_url} wait-minutes=30`));
-  assert.ok(lines.includes("release-eval-hold: #8 kept: hold-reason-superseded"));
+  assert.ok(lines.includes("release-eval-hold: #8 kept: no-eval-hold"));
+  // #8 cost one read: its comments hold no eval hold.
+  assert.deepEqual(
+    calls.filter((call) => /\/(?:issues|pulls)\/8\b/.test(call.path)).map((call) => call.path.replace(/\?.*/, "")),
+    [`/repos/${REPO}/issues/8/comments`],
+  );
   assert.ok(lines.includes("release-eval-hold: held=2 released=1 kept=1 failed=0"));
 });
 

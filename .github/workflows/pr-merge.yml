@@ -934,14 +934,14 @@ jobs:
     # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
     # which is what ends a long sweep: the budget stops between candidates,
     # a timeout can stop one between its check and its merge-queue write.
-    # 45 leaves about two minutes before the loop, the listing's 60 s of retry
+    # 48 leaves about two minutes before the loop, the listing's 60 s of retry
     # waits among them, then the longer of the
     # budget plus the last candidate's read limit (merge.gate-candidate-minutes,
     # 4) and a deferred candidate's ceiling (merge.gate-deferred-minutes, 20;
     # it is always gated first), plus one read's own timeout, the escalation
     # clear's 15 (three reader runs of 4), the eval-hold release's 3, the
     # writes and the closing steps (workflow.test.mjs checks it).
-    timeout-minutes: 45
+    timeout-minutes: 48
     permissions:
       contents: read # check out main
       pull-requests: read # list the open PRs
