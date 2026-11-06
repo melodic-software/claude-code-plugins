@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.3.2] - 2026-11-06
+
+### Changed
+
+- The shared `exec-bash.mjs` launcher has a `--bps-seed <hook-utils.sh>` flag. On Windows it parses a Bash or PowerShell call's command once with shfmt and jq and hands the result to the script, so Git Bash does not fork the processes of that parse. The flag is inert on other platforms, and an inherited result is always dropped (#6634).
+
+## [8.3.1] - 2026-11-06
+
+### Fixed
+
+- The landed-work engine behind `/source-control:worktree cleanup` and the daily worktree reap no longer discards its base patch-id set when the base holds an empty commit, such as an empty squash merge. Such a commit has no patch to hash; it is now excused once `git diff-tree` shows its diff is empty, so every worktree stops rebuilding the base set and falling through to the merged-PR read. A failed merged-PR read now names gh's own error in its reason.
+
+## [8.3.0] - 2026-11-06
+
+### Added
+
+- The pr-merge lane posts the verification evidence comment (`<!-- evidence-verification -->`) after a passing verifier verdict and before the merge, on both merge paths: the `merge-pr` gate (`babysit_merge.py` `unattended_enqueue`, after the pin and before the enqueue) and the `enable-auto-merge` arm, through the new `babysit_evidence_comment.py post`. The comment links the head's `pr-capture-<pr>-<head>` artifact and its expiry date, and uploads no file. The gate takes the artifact only when a successful `pr-verify-capture.yml` run on main for that head uploaded it. With no such artifact it posts nothing. A failed read or write also posts nothing. In every one of those cases the merge goes on.
+
 ## [8.2.5] - 2026-11-06
 
 ### Fixed

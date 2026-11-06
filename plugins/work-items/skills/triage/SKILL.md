@@ -37,7 +37,7 @@ It binds every step below, hardest at step 1.
 
 **Classification vocabulary.** Triage stamps no work class. It marks C5 (the autonomy plugin's
 untrusted class) as `provenance: untrusted`
-([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)).
+([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)).
 No other label an item carries gates the autonomous-eligible role label; only
 `provenance: untrusted` and `provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
 `simple`/`medium`/`complex` are not classification metadata (loop-lane status lines may report
@@ -237,7 +237,7 @@ machine and changes no label but that one.
 1. **List** open issues carrying the label (adapter: "List items", label filter), after the
    lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
-   - `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) or
+   - `provenance: untrusted` (or its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)) or
      `provenance: signal`;
    - an escalation marker from a
      [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);

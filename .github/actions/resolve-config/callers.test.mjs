@@ -2531,7 +2531,8 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
 // ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
 // 2476d5dde8979eab34374150b7e4b0a2b99f4e88, bc62beb95a989641f30552a932a132ebb8ecd801 and
-// b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6: lane.cjs:404-405; in cliArgs. The org requires
+// b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6: lane.cjs:404-405; 4aba9be6cc58c88c132308d417ebe136dd054296:
+// lane.cjs:425-426; in cliArgs. The org requires
 // actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -2544,6 +2545,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
   "bc62beb95a989641f30552a932a132ebb8ecd801",
   "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6",
+  "4aba9be6cc58c88c132308d417ebe136dd054296",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -3240,8 +3242,11 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
   assert.deepEqual(held.sort(), [
     "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
+    "pr-rate-merge-risk.yml rate-merge-risk-fallback: Resolve the pull request",
+    "pr-rate-merge-risk.yml rate-merge-risk-subscription: Resolve the pull request",
     "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
+    "pr-refine.yml plan: List the PR's changed files",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
@@ -3305,7 +3310,9 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   assert.deepEqual([bad.status, bad.output, bad.calls], [1, "", 0]);
   assert.match(bad.stdout, /^::error::pr-number is not a PR number$/m);
   // Nothing after the read runs on an unread head but the hold marker job,
-  // which needs fix-docs-head alone, holds no grant, and logs signal 13's notice.
+  // which needs only jobs that run no head code (plan, whose unread changed
+  // files it also marks, and fix-docs-head), holds no grant, and logs signal
+  // 13's notice.
   const { jobs } = workflow("pr-refine.yml");
   assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread }}");
   for (const id of ["setup-node", "hold"]) {
@@ -3313,11 +3320,14 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
     assert.equal(later.if, "steps.head.outputs.sha != ''", id);
   }
   const held = jobs["fix-docs-head-held"];
-  assert.equal(held.needs, "fix-docs-head");
+  assert.deepEqual(held.needs, ["plan", "fix-docs-head"]);
   assert.deepEqual(held.permissions, {});
-  assert.equal(evaluate(held.if, { "needs.fix-docs-head.outputs.unread": "true" }), true);
-  assert.equal(evaluate(held.if, { "needs.fix-docs-head.outputs.unread": "" }), false);
-  assert.match(held.steps[0].run, /^echo "::notice title=PR head hold::the head of #\$PR_NUMBER could not be read/);
+  const holds = (unread, planHeld) => evaluate(held.if, { "needs.fix-docs-head.outputs.unread": unread, "needs.plan.outputs.held": planHeld });
+  assert.equal(holds("true", ""), true);
+  assert.equal(holds("", "true"), true);
+  assert.equal(holds("", "false"), false);
+  assert.equal(holds("", ""), false);
+  assert.match(held.steps[0].run, /echo "::notice title=PR head hold::the head of #\$PR_NUMBER could not be read/);
   assert.equal(held.steps[0].env.PR_NUMBER, "${{ inputs.pr-number }}");
   // fix-docs-dispatch.mjs heldHead reads this job's name.
   assert.match(readFileSync(new URL("../../scripts/pr-unblock/fix-docs-dispatch.mjs", import.meta.url), "utf8"), /`\$\{activity\}-head-held`/);
@@ -8834,6 +8844,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
+    "pr-rate-merge-risk.yml": ["rate-merge-risk", "rate-merge-risk-subscription", "rate-merge-risk-fallback"],
     "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
     "maintenance-tidy-code-upkeep.yml": ["model", "model-subscription", "model-fallback", "scan", "push-branches", "publish"],
   };
@@ -9770,10 +9781,6 @@ const LEG_EXEMPTIONS = {
     legs: ["subscription", "fallback"],
     reason:
       "the capture runs on the key alone and records blocked otherwise (owner decision Q5): its driven Claude Code reaches the API only through a key proxy we run, and a subscription token may not be routed through one, so the lane never takes these legs (#12232)",
-  },
-  "pr-rate-merge-risk.yml pr-verify rate-merge-risk": {
-    legs: ["subscription", "fallback"],
-    reason: "a report-only rating (#13657, owner decision Q57): a key-leg stop records the Merge-Risk line unrated, which a subscription or fallback leg would not change for any merge (#13586)",
   },
 };
 // The issues an exemption may name: the full-chain tracker, or the capture's permanent key-only decision.

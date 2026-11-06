@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| Claude Code CLI | PASS |\n| Agent SDK | INFO |\n| Settings-write-ask toggle | INFO |",
+      "why": "four rows"
+    },
+    {
+      "answer": "| # | Check | Result | Detail |\n|---|---|---|---|\n| 1 | `node` on PATH | **PASS** | `/usr/local/bin/node`, v24.21.0 (from the load-time probe). |\n| 2 | Claude Code CLI | **INFO** | `/usr/local/bin/claude` resolves, but the load-time `--version` probe reported `unavailable`. |\n| 3 | `@anthropic-ai/claude-agent-sdk` (optional) | **INFO** | Not checked. Treat exact mode as unconfirmed. |\n| 4 | `settings_write_ask_enabled` | **INFO** | The token came through unexpanded, so the effective value is the manifest default, `true`. |",
+      "why": "smoke-1 reply shape: leading row-number column, bold results"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| Claude Code CLI | PASS |\n| Agent SDK | INFO |",
+      "why": "toggle row missing"
+    },
+    {
+      "answer": "| # | Check | Result |\n|---|---|---|\n| 1 | `node` on PATH | **PASS** |\n| 2 | Claude Code CLI | **INFO** |\n| 3 | `@anthropic-ai/claude-agent-sdk` (optional) | **INFO** |",
+      "why": "numbered table, toggle row missing"
+    },
+    {
+      "answer": "node PASS, CLI PASS, SDK INFO, toggle INFO",
+      "why": "no table"
+    }
+  ]
+}

@@ -13,7 +13,10 @@
 #   - --range A..B is inclusive at both ends and ignores the marker; --range X is
 #     one release; a malformed range exits 3
 #   - --no-fetch without --changelog reports the marker and "not computed", exit 0
-#   - a body whose first heading is not the changelog page is refused, and a body
+#   - the fetch reads the anthropics/claude-code CHANGELOG.md first (`## X.Y.Z`, `- `
+#     bullets) and falls back to the docs page when that read fails or its heading is
+#     foreign; both failing is not computed with both reasons
+#   - a body whose first heading is not a changelog's is refused, and a body
 #     with the heading but no release blocks is a parse failure, not "up to date"
 #   - the installed-version warn compares against the newest release IN THE RANGE
 #   - HARNESS_OPS_CHANGELOG_LEDGER overrides the default path; --ledger wins over it
@@ -24,7 +27,7 @@
 #     shared parser's --blocks slice serves both forms
 #
 # Uses the fixtures under ../evals/fixtures (changelog-sample.md, changelog-current.md,
-# ledger-marker.md),
+# changelog-repo.md, ledger-marker.md),
 # per-case fixture git repositories, and a PATH-stub `claude` so no real CLI or
 # network is touched. Invocations pass --changelog or feed the fetcher through
 # FETCH_DOCS_FIXTURE_DIR, so the network is never reached.
@@ -190,37 +193,65 @@ assert_contains "no-fetch: range not computed with the reason" "$OUT" "range: no
 run_in "$REPO_BODY" --no-fetch
 assert_contains "no-fetch: no marker still recommends the recheck" "$OUT" "recommend: no read marker. Run a docs-conformance recheck"
 
-# --- Case 8b: fetch through the plugin fetcher, fixture-fed ---------------------------
-# Each fixture variant serves the same slug, so each gets its own docs cache: no
-# cached title or quarantine from one variant reaches the next.
+# --- Case 8b: fetch through fetch-changelog.sh, fixture-fed ---------------------------
+# The repository file is read first; the docs page only when that read fails. Each
+# fixture variant gets its own docs cache: no cached title or quarantine from one
+# variant reaches the next.
+REPO_FX="raw-githubusercontent-com/anthropics/claude-code/main/changelog.md"
+REPO_FORMAT="$FIXTURES/changelog-repo.md"
+fixture_status() {
+  OUT="$(cd "$EMPTY" && DOCS_CACHE_DIR="$1.cache" FETCH_DOCS_FIXTURE_DIR="$1" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
+  RC=$?
+}
+docs_llms() { printf -- '- [Claude Code changelog](https://code.claude.com/docs/en/changelog.md): Release notes\n' >"$1/llms.txt"; }
+FX="$TMP/fx-repo"
+mkdir -p "$FX/${REPO_FX%/*}"
+docs_llms "$FX"
+cp "$REPO_FORMAT" "$FX/$REPO_FX"
+cp "$CHANGELOG" "$FX/changelog.md"
+fixture_status "$FX"
+assert_eq "repo first: exit 0" 0 "$RC"
+assert_contains "repo first: the repository file is the source" "$OUT" "changelog: https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md"
+assert_contains "repo first: its newer release is latest" "$OUT" "latest: 2.1.264"
+assert_contains "repo first: ## headings and - bullets parse, [VSCode] excluded" "$OUT" "range: 2.1.261..2.1.264 (3 releases, 9 core items)"
 FX="$TMP/fx-present"
 mkdir -p "$FX"
-printf -- '- [Claude Code changelog](https://code.claude.com/docs/en/changelog.md): Release notes\n' >"$FX/llms.txt"
+docs_llms "$FX"
 cp "$CHANGELOG" "$FX/changelog.md"
-OUT="$(cd "$EMPTY" && DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
-RC=$?
-assert_eq "fixture fetch: exit 0" 0 "$RC"
-assert_contains "fixture fetch: range computed" "$OUT" "range: 2.1.261"
-assert_not_contains "fixture fetch: not reported as failed" "$OUT" "not computed"
+fixture_status "$FX"
+assert_eq "docs fallback: exit 0" 0 "$RC"
+assert_contains "docs fallback: the docs page is the source" "$OUT" "changelog: https://code.claude.com/docs/en/changelog.md"
+assert_contains "docs fallback: range computed" "$OUT" "range: 2.1.261"
+assert_not_contains "docs fallback: not reported as failed" "$OUT" "not computed"
+FX="$TMP/fx-repo-foreign"
+mkdir -p "$FX/${REPO_FX%/*}"
+docs_llms "$FX"
+printf '# README\n\n## 9.9.9\n\n- item\n' >"$FX/$REPO_FX"
+cp "$CHANGELOG" "$FX/changelog.md"
+fixture_status "$FX"
+assert_contains "foreign repo body: falls back to the docs page" "$OUT" "changelog: https://code.claude.com/docs/en/changelog.md"
+assert_not_contains "foreign repo body: no count from it" "$OUT" "9.9.9"
 FX="$TMP/fx-missing"
 mkdir -p "$FX"
-printf -- '- [Claude Code changelog](https://code.claude.com/docs/en/changelog.md): Release notes\n' >"$FX/llms.txt"
-OUT="$(cd "$EMPTY" && DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
-RC=$?
-assert_eq "fixture missing page: exit 0" 0 "$RC"
-assert_contains "fixture missing page: not computed with the manifest reason" "$OUT" "range: not computed (fetch of the changelog page failed (fixture-missing)"
+docs_llms "$FX"
+fixture_status "$FX"
+assert_eq "both missing: exit 0" 0 "$RC"
+assert_contains "both missing: not computed with both reasons" "$OUT" "range: not computed (fetch of the changelog failed (repo: fixture-missing; docs: fixture-missing)"
+assert_not_contains "both missing: no source line" "$OUT" "changelog:"
 FX="$TMP/fx-unlisted"
 mkdir -p "$FX"
 printf -- '- [Other](https://code.claude.com/docs/en/skills.md): x\n' >"$FX/llms.txt"
 cp "$CHANGELOG" "$FX/changelog.md"
-OUT="$(cd "$EMPTY" && DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
-assert_contains "fixture unlisted slug: not computed" "$OUT" "range: not computed (fetch of the changelog page failed"
+fixture_status "$FX"
+assert_contains "fixture unlisted slug: not computed" "$OUT" "range: not computed (fetch of the changelog failed"
 
 # --- Case 9: wrong page identity is refused ------------------------------------------
 printf '# Extend Claude with skills\n\n<Update label="9.9.9" description="x">\n  * item\n</Update>\n' >"$TMP/other-page.md"
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$TMP/other-page.md"
 assert_eq "identity: exit 0" 0 "$RC"
-assert_contains "identity: refused with the heading" "$OUT" "range: not computed (body is not the changelog page (first heading: # Extend Claude with skills))"
+assert_contains "identity: refused with the heading" "$OUT" "range: not computed (body is not the changelog (first heading: # Extend Claude with skills))"
+run_in "$EMPTY" --ledger "$LEDGER" --changelog "$REPO_FORMAT"
+assert_contains "identity: a --changelog file in the repository format is accepted" "$OUT" "latest: 2.1.264"
 assert_not_contains "identity: no count from the wrong page" "$OUT" "9.9.9"
 printf '# Claude Code changelog\n\nRelease notes now live elsewhere.\n' >"$TMP/no-blocks.md"
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$TMP/no-blocks.md"
@@ -292,6 +323,9 @@ OUT="$(bash "$PARSER" --blocks 2.1.308 "$CURRENT")"
 assert_eq "slice current: one release, marker to last line" "$(printf '%s\n' '**2.1.308**' '' 'October 22, 2026' '' '* Bug fixes and reliability improvements' '')" "$OUT"
 OUT="$(bash "$PARSER" --blocks v2.1.260..2.1.261 "$CHANGELOG" | grep -c '^<Update label=')"
 assert_eq "slice old format: both releases of the range" 2 "$OUT"
+OUT="$(bash "$PARSER" --blocks 2.1.261 "$REPO_FORMAT")"
+# shellcheck disable=SC2016  # the backticks are literal fixture text
+assert_eq "slice repo format: one release, ## marker to last line" "$(printf '%s\n' '## 2.1.261' '' '- Added sample support for `@path` imports' '- Fixed sample status line flicker' '')" "$OUT"
 bash "$PARSER" --blocks 2.1 "$CURRENT" >/dev/null 2>&1
 assert_eq "slice: a malformed range exits 3" 3 "$?"
 

@@ -10,7 +10,9 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -46,7 +48,7 @@ const issueOf = (overrides = {}) => ({
   user: { id: HUMAN },
   type: { name: "Task" },
   sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 },
-  labels: [{ name: READY }, { name: "work-class: mechanical" }],
+  labels: [{ name: READY }],
   ...overrides,
 });
 // Authors and editors as GraphQL answers them, for the trusted-spec criterion.
@@ -57,7 +59,6 @@ const written = (author, { body = BODY, editor = null, lastEditedAt = editor ? "
 // The issue's text as a listed human wrote it, unedited.
 const humanSpec = (issue, comments = []) => ({ ...written(USER(HUMAN), { body: issue.body }), comments });
 const VERDICT = {
-  workClass: "work-class: mechanical",
   dimensions: { size: "small", complexity: "low", uncertainty: "known" },
 };
 const facts = (overrides = {}) => ({
@@ -165,21 +166,21 @@ describe("decide", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
   });
 
-  // Owner decision Q85 (#9668): the work class gates nothing.
-  test("admits a structural class, a class outside `classes` and no class", () => {
-    for (const workClass of ["work-class: structural", "work-class: anything-goes", null]) {
-      assert.deepEqual(decide(facts({ verdict: { ...VERDICT, workClass } })), { verdict: "admit", reasons: [] }, String(workClass));
+  // Work classes are retired: an old class label on the issue decides nothing.
+  test("admits an issue whatever retired work-class label it carries", () => {
+    for (const name of ["work-class: structural", "work-class: anything-goes"]) {
+      assert.deepEqual(decide(facts({ issue: issueOf({ labels: [{ name: READY }, { name }] }) })), { verdict: "admit", reasons: [] }, name);
     }
   });
 
   const LEGACY_UNTRUSTED = "work-class: untrusted-provenance";
   // The hold is a constant of decide, so no rules file loadRules accepts
-  // lifts it, one whose `classes` names the class included.
+  // lifts it, one with a stale `classes` key naming the class included.
   test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
     const dir = tempDir("admit-rules-");
     const widened = [
-      { ...RULES, classes: [...RULES.classes, LEGACY_UNTRUSTED] },
-      { ...RULES, classes: [LEGACY_UNTRUSTED], "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
+      { ...RULES, classes: [LEGACY_UNTRUSTED] },
+      { ...RULES, "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
     ];
     widened.forEach((content, index) => {
       const path = join(dir, `rules-${index}.json`);
@@ -444,6 +445,12 @@ describe("decide", () => {
     assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
   });
 
+  test("a hard refusal leaves out the pending split, which never runs while the refusal stands", () => {
+    const dimensions = { ...VERDICT.dimensions, size: "large", uncertainty: "bogus" };
+    const result = decide(facts({ verdict: { ...VERDICT, dimensions } }));
+    assert.deepEqual(result, { verdict: "refuse", reasons: [`Uncertainty bogus is not one of ${RULES.uncertainty.join(", ")}`] });
+  });
+
   // A run's patch over the scan job's cap (scan-refused-patch) splits the
   // issue whatever Size re-triage or a listed human set (patchCapStopped).
   describe("a scan-refused-patch stop", () => {
@@ -525,10 +532,11 @@ describe("decide", () => {
     });
   });
 
-  test("Size Large beside a real refusal reason still refuses, and names both", () => {
+  test("Size Large beside a real refusal reason still refuses, and names only the refusal", () => {
     const result = decide(facts({ issue: issueOf({ user: { id: OUTSIDER } }), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
     assert.equal(result.verdict, "refuse");
-    assert.match(result.reasons.join("; "), /author.*Size large/);
+    assert.match(result.reasons.join("; "), /author/);
+    assert.ok(!result.reasons.includes(SIZE_SPLIT_PENDING));
   });
 
   // The title names the subject, so it is not read; a body that asks to edit
@@ -2361,6 +2369,72 @@ describe("admit", () => {
   });
 });
 
+// Admission runs on a dispatched intake run, never on the label event that
+// changed the status, so its person holds read the Work status field too.
+describe("admit() with the Work status field", () => {
+  const PARENT_HELD = "a Feature needs an open parent issue a listed human filed that awaits no decision";
+  const OWNER_HELD = "it carries needs-owner-decision";
+  const feature = issueOf({ type: { name: "Feature" } });
+  const parentOf = (labels = []) => ({ number: 3, repository_url: "https://api.github.com/repos/o/r", state: "open", user: { id: HUMAN }, labels });
+  const withStatus = (fake, fields) => {
+    const github = withFields(fake.github, fields);
+    return { ...goArgs({ ...fake, github }), github, statusOf: statusReader({ github, repository: "o/r", limit: ADMISSION_STATUS_READS, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }) };
+  };
+
+  test("a field that mirrors the labels admits and refuses as the labels alone do", async () => {
+    for (const [issue, parent, fields, outcome] of [
+      [issueOf(), null, { 7: { state: "ready" } }, "admitted"],
+      [feature, parentOf(), { 7: { state: "ready" }, 3: { state: "needs-triage" } }, "admitted"],
+      [issueOf({ labels: [{ name: READY }, { name: "needs-owner-decision" }] }), null, { 7: { state: "needs-owner-decision" } }, "refused"],
+      [feature, parentOf([{ name: "needs-human" }]), { 7: { state: "ready" }, 3: { state: "needs-human" } }, "refused"],
+    ]) {
+      const plain = fakeGitHub({ issue, parent });
+      const read = fakeGitHub({ issue, parent });
+      const before = await go(plain);
+      const after = await admit(withStatus(read, fields));
+      assert.equal(after.outcome, outcome);
+      assert.deepEqual(after, before);
+      assert.deepEqual(writes(read.calls), writes(plain.calls));
+    }
+  });
+
+  test("a parent's field hold with no hold label refuses a Feature", async () => {
+    for (const state of ["needs-owner-decision", "needs-human"]) {
+      const result = await admit(withStatus(fakeGitHub({ issue: feature, parent: parentOf() }), { 7: { state: "ready" }, 3: { state } }));
+      assert.equal(result.outcome, "refused", state);
+      assert.ok(result.reasons.includes(PARENT_HELD), `${state}: ${result.reasons}`);
+    }
+  });
+
+  // By design for a reader that runs after the label change: the field is
+  // mirrored after the labels, so a field still showing a hold the person
+  // just lifted holds until the mirror lands.
+  test("by design for a reader after the label change: a stale field hold beside status: ready and no hold label reads as held", async () => {
+    const fake = fakeGitHub();
+    const result = await admit(withStatus(fake, { 7: { state: "needs-owner-decision" } }));
+    assert.deepEqual(result, { outcome: "refused", reasons: [OWNER_HELD], status: NEEDS_DECISION });
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
+
+  test("the issue's and its parent's field holds both fit in ADMISSION_STATUS_READS", async () => {
+    const result = await admit(withStatus(fakeGitHub({ issue: feature, parent: parentOf() }), { 7: { state: "needs-owner-decision" }, 3: { state: "needs-human" } }));
+    assert.deepEqual(result.reasons, [PARENT_HELD, OWNER_HELD]);
+  });
+
+  test("a field read that fails, or a setter outside the list, leaves the labels deciding", async () => {
+    for (const entry of [new Error("field read failed"), { state: "needs-owner-decision", setter: STRANGER_ID }]) {
+      const result = await admit(withStatus(fakeGitHub({ issue: feature, parent: parentOf() }), { 7: entry, 3: entry }));
+      assert.equal(result.outcome, "admitted", String(entry));
+    }
+  });
+
+  test("another repository's parent is judged by its labels, with no field read", async () => {
+    const fake = fakeGitHub({ issue: feature, parent: { ...parentOf(), repository_url: "https://api.github.com/repos/o/other" } });
+    const args = withStatus(fake, { 7: { state: "ready" }, 3: { state: "needs-human" } });
+    assert.equal((await admit(args)).outcome, "admitted");
+  });
+});
+
 
 describe("a merged Refs pull request after the newest decision or refinement", () => {
   // The fixture issue as DONE_QUERY reads it: opened 10-20, with `comments` and
@@ -2962,7 +3036,8 @@ describe("size split sub-issues", () => {
         assert.equal(at("small").verdict, "refuse", vector.expect.reason);
         assert.ok(at("small").reasons.includes(NO_SPEC), vector.expect.reason);
         assert.equal(at("large").verdict, "refuse", vector.expect.reason);
-        assert.ok(at("large").reasons.some((reason) => /^Size large/.test(reason)), vector.expect.reason);
+        assert.ok(at("large").reasons.includes(NO_SPEC), vector.expect.reason);
+        assert.ok(!at("large").reasons.includes(SIZE_SPLIT_PENDING), vector.expect.reason);
       }
     });
   }

@@ -966,8 +966,8 @@ async function stripClosed({ github, repo, number, read }) {
 
 // The verdict intake's admission reads, from the issue itself: each of Size,
 // Complexity and Uncertainty as the config's key for the option a listed
-// human or the App set, else `unset`. The work class gates nothing (owner
-// Q85, #9668); decide reads the untrusted-provenance hold from the labels.
+// human or the App set, else `unset`. Decide reads the untrusted-provenance
+// hold from the labels.
 // The work lanes' reader (resolve-config dimensions.mjs) reads an unset field
 // as a default; admission never does. A read of an unexpected shape throws.
 async function issueVerdict({ github, repo, number, humans, appId, dimensionsConfig, fieldSetters }) {
@@ -985,7 +985,7 @@ async function issueVerdict({ github, repo, number, humans, appId, dimensionsCon
     const counts = row !== undefined && (humans.has(setter) || (appId !== undefined && setter === appId));
     dimensions[name] = counts && Object.hasOwn(options, option) ? options[option] : "unset";
   }
-  return { workClass: null, dimensions };
+  return { dimensions };
 }
 
 export const skipText = (reason) => `Left out of admission: ${reason}, so work-unblock removed \`${DEFERRED_LABEL}\`.`;

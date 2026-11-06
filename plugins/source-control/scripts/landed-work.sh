@@ -364,15 +364,33 @@ resolve_base() {
 # equals the squash commit's, and still matches after the base advances. Both
 # verified in a fixture rather than assumed.
 patch_ids() {
-  local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$" rc=0
+  local p="$1" range="$2" out="$3" commits_out="${4:-}" patches="$WORKDIR/patches.$$" pairs="$WORKDIR/pairs.$$" rc=0
   : >"$out"
+  [[ -n "$commits_out" ]] && : >"$commits_out"
   git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || rc=1
   # An empty stream is a legitimate empty range, so only a non-empty one is fed
   # to patch-id; $out stays truncated either way.
   if ((rc == 0)) && [[ -s "$patches" ]]; then
-    git patch-id --verbatim <"$patches" | cut -d' ' -f1 | sort >"$out" || rc=1
+    git patch-id --verbatim <"$patches" >"$pairs" || rc=1
+    cut -d' ' -f1 "$pairs" | sort >"$out"
+    [[ -n "$commits_out" ]] && cut -d' ' -f2 "$pairs" | sort >"$commits_out"
   fi
-  rm -f "$patches"
+  rm -f "$patches" "$pairs"
+  return "$rc"
+}
+
+# only_empty_commits_unhashed <path> <range> <hashed-commits>: succeed when every
+# non-merge commit in <range> that patch-id did not hash has an empty diff. Such a
+# commit has no patch to hash, so it cannot be a rendering failure.
+only_empty_commits_unhashed() {
+  local p="$1" range="$2" hashed="$3" all="$WORKDIR/range-commits.$$" c rc=0
+  git -C "$p" rev-list --no-merges "$range" 2>/dev/null | sort >"$all" || rc=1
+  if ((rc == 0)); then
+    while read -r c; do
+      git -C "$p" diff-tree --quiet --root --no-commit-id -r "$c" 2>/dev/null || { rc=1; break; }
+    done < <(comm -23 "$all" "$hashed")
+  fi
+  rm -f "$all"
   return "$rc"
 }
 
@@ -435,8 +453,8 @@ classify_landed() {
       L_REASON="base-range-unreadable"
       return 0
     fi
-    if ! patch_ids "$p" "$mb..$base_sha" "$base_ids"; then
-      rm -f "$base_ids"
+    if ! patch_ids "$p" "$mb..$base_sha" "$base_ids" "$base_ids.commits"; then
+      rm -f "$base_ids" "$base_ids.commits"
       L_REASON="base-patchid-failed"
       return 0
     fi
@@ -445,14 +463,17 @@ classify_landed() {
     # between `yes` and `no` today — it is here so the two sides cannot silently
     # diverge if either is ever refactored, and so a base range that failed to
     # render is named rather than quietly narrowing the id set it is compared
-    # against.
+    # against. An empty commit on the base (an empty squash merge) has no patch,
+    # so it is excused only after diff-tree shows its diff really is empty.
     local base_count
     base_count=$(wc -l <"$base_ids" | tr -d '[:space:]')
-    if [[ "$base_count" -ne "$base_expected" ]]; then
-      rm -f "$base_ids"
+    if [[ "$base_count" -ne "$base_expected" ]] &&
+      ! only_empty_commits_unhashed "$p" "$mb..$base_sha" "$base_ids.commits"; then
+      rm -f "$base_ids" "$base_ids.commits"
       L_REASON="base-patchid-incomplete-$base_count-of-$base_expected-commits"
       return 0
     fi
+    rm -f "$base_ids.commits"
   fi
 
   # Branch side. The COMPLETENESS check runs before any verdict, because both
@@ -615,8 +636,12 @@ merged_pr_proof() {
   fi
   if ! (cd "$p" && gh pr list --state merged --head "$branch" --limit 20 \
     --json headRefOid,baseRefName,commits \
-    --jq '.[] | "pr " + .baseRefName, "head " + .headRefOid, (.commits[] | "commit " + .oid)') >"$out" 2>/dev/null; then
-    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:gh-pr-list"
+    --jq '.[] | "pr " + .baseRefName, "head " + .headRefOid, (.commits[] | "commit " + .oid)') >"$out" 2>"$out.err"; then
+    # Name gh's own error so a failed run states its cause; tabs and semicolons
+    # would break the record's columns and reason list.
+    local err
+    err=$(head -n 1 "$out.err" | tr '\t;' '  ' | cut -c1-120)
+    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:gh-pr-list${err:+ ($err)}"
     return 1
   fi
   local in_base=false

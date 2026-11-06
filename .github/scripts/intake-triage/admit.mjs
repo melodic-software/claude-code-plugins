@@ -1403,8 +1403,12 @@ export function admissionSettled(labels, events, isMark) {
 // against it, the wait carries `retriage` and admit() sends the issue back to
 // intake; once one has, the issue's own criteria decide. `comments`
 // (admissionFacts) carry report-outcome's patch-cap stop (patchCapStopped).
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [] }) {
+// `holdLabels` (admissionFacts), and a parent's own, are the label names with
+// the Work status field's hold added: the person holds read them, everything
+// else the issue's own labels.
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [], holdLabels }) {
   const labels = names(issue.labels);
+  const holds = holdLabels ? names(holdLabels) : labels;
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
   }
@@ -1447,7 +1451,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     // An App-set needs-decision with no open decision does not hold
     // (parentDecisionOpen); a parent read without that fact holds.
     const held = (label) => PARENT_HOLDS.has(label) || (label === NEEDS_DECISION && parent.decisionOpen !== false);
-    const parentOk = parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.labels).some(held);
+    const parentOk = parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.holdLabels ?? parent.labels).some(held);
     if (!parentOk) {
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
@@ -1588,7 +1592,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     attended = true;
   }
   for (const label of rules["refuse-labels"]) {
-    if (labels.includes(label)) {
+    if (holds.includes(label)) {
       refuse.push(`it carries ${label}`);
       // A person's hold label names no reason of its own; intent fails closed.
       if (PERSON_LABELS.has(label)) holdFor("intent");
@@ -1651,7 +1655,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // ready, and refine.mjs asks triage again once its refinement holds them.
   // The criteria gate itself stands: only the refusal becomes a wait.
   const criteriaOnly = refuse.length === 1 && refuse[0] === noTrustedSpec(rules["task-list"]);
-  if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !labels.includes("needs-human") && refineDue(spec, humans, appId, rules["task-list"])) {
+  if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !holds.includes("needs-human") && refineDue(spec, humans, appId, rules["task-list"])) {
     return { verdict: "wait", reasons: [`${refuse[0]}; intake's refinement of this body is due and may supply them`], pulls: [] };
   }
   if (refuse.length > 0) {
@@ -1660,7 +1664,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     // beside a hold for a person, another refusal, a wait or a pending split.
     return {
       verdict: "refuse",
-      reasons: [...refuse, ...parked],
+      reasons: refuse,
       ...(hold && { hold, reason: strongestReason(holdCodes) }),
       ...(attended && { attended }),
       ...(!hold && refuse.every((reason) => hostWork.has(reason)) && wait.length === 0 && parked.length === 0 && { hostRun: true }),
@@ -2440,13 +2444,21 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   return { outcome: "noted", reasons: [reason] };
 }
 
+// The Work status field reads one admission takes (statusReader's limit):
+// the issue's and its parent's.
+export const ADMISSION_STATUS_READS = 2;
+
 // Every fact decide() reads but the verdict, the rules and the caller's own
 // (humans, appId, repository, webHosts), for `issue` as just read.
 // `isTrusted(number)` answers whether a closed blocker's close counts; by
 // default it reads the blocker fresh. `doneBy(number)` answers the merged
 // Refs pull requests (mergedRefsReader): a pass over many issues passes its
 // own, so it reads them in one call; by default the issue is read alone.
-export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy }) {
+// `statusOf(number, names)` (read-status.mjs statusReader), when given, adds
+// the Work status field's hold to the label names decide() reads holds from
+// (`holdLabels`, and the parent's when it is in this repository); without
+// it, the labels alone decide.
+export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy, statusOf }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
   // Anyone may close their own issue, so a blocking issue counts only with a
@@ -2486,6 +2498,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   }
   const decisionOpen =
     typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
+  // A needs-decision only the field adds has no decisionOpen read, so it holds.
+  const parentHolds = statusOf && typed && parent !== null && here(parent.repository_url, repository) ? await statusOf(parent.number, names(parent.labels)) : undefined;
   // Only a visibility that reads public skips the cost_private charge words.
   // A failed read throws, like the reads above, so no verdict rests on a
   // visibility it did not read (docs/outage-posture-audit.md, element 4).
@@ -2493,12 +2507,13 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   const subIssues = await openSubIssues(github, base, issue);
   return {
     issue,
+    ...(statusOf && { holdLabels: await statusOf(Number(number), names(issue.labels)) }),
     // Read for the admission comment's own earlier copy (sayWhy) and decide's
     // patch-cap stop (patchCapStopped).
     comments: await paginate(github, `${base}/comments`),
     spec,
     schedule: readSchedule(),
-    parent: typed && parent !== null ? { ...parent, decisionOpen } : null,
+    parent: typed && parent !== null ? { ...parent, decisionOpen, ...(parentHolds && { holdLabels: parentHolds }) } : null,
     blockers,
     trustedCloses,
     reported,
@@ -2617,9 +2632,10 @@ async function removeLabel(github, base, name) {
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. `mirrorStatus` (write-status.mjs statusMirror)
-// sets the Work status field from the labels each outcome leaves. Returns
-// {outcome, reasons}.
-export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, mirrorStatus = async () => {}, log = console.log }) {
+// sets the Work status field from the labels each outcome leaves. `statusOf`
+// (admissionFacts) adds the field's hold to the holds decide() reads; the
+// labels this writes from stay the issue's own. Returns {outcome, reasons}.
+export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, mirrorStatus = async () => {}, statusOf, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const mirror = (add, remove = []) => mirrorStatus(number, { had: names(issue.labels), add, remove });
@@ -2633,6 +2649,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     appId,
     isTrusted: closedByTrusted({ github, repository, humans, appId }),
     doneBy: mergedRefsReader({ github, repository, humans, appId, log }),
+    statusOf,
   });
   const { comments } = facts;
   const decision = decide({

@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/roto/ink-short/learnings.md",
+            "content": "- run 1"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/roto/ink-short/replay.js",
+            "content": "img.src = 'data:image/png;base64,iVBOR'"
+          }
+        }
+      ],
+      "why": "embedded bitmap"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/roto/ink-short/replay.js",
+            "content": "load('src/d001.png')"
+          }
+        }
+      ],
+      "why": "replays a source drawing"
+    }
+  ]
+}

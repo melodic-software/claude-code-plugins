@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: ro-done-needs-review
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-review
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|else)\s))?\s*(?:(?:\w+=\S*|(?:\S*/)?(?:env|nohup|time|exec|sudo|command)|timeout\s+\S+|(?:\S*/)?(?:bash|zsh|dash|sh)\s+(?:-\S+\s+)*-c)\s+\\?["'']?)*(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*(?:\\?["'']?\S*pydeps\.py\\?["'']?\s+run\s+(?:(?!--\s)\S+\s+)*--\s+(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*)?)?)?\\?["'']?(?:[^\s"''\\]*/)?review\.py\\?["'']?(?![\w.-])\s+\\?["'']?(?:[^\s"''\\]*/)?work\b'
+    min: 1
+  - name: no-done-claim
+    type: regex
+    pattern: '(?:^|[.!?]\s+|\n)[\s*>#-]*(?:yes\b(?![^\n.]{0,40}\b(?:but|once|after|if|when|only)\b)|(?:the |your )?replica (?:is|looks) (?:done|finished|complete)\b(?![^\n.]{0,40}\b(?:once|after|if|when|only|until)\b)|it(?:[’'']s| is) (?:done|finished|complete)\b(?![^\n.]{0,40}\b(?:once|after|if|when|only|until)\b))'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: every-crop-rule
+    type: regex
+    pattern: '(?<!not )(?<!n[’'']t )(?<!not need to read )(?<!n[’'']t need to read )(?<!no need to read )(?<!not read )(?<!n[’'']t read )\b(?:every|each|all(?: (?:the|of the))?)\s+(?:\d+\s+)?(?:1:1\s+)?(?:review\s+)?crops?\b|\bnot (?:just|only) (?:the )?flagged\b'
+    flags: 'i'
+    target: 'last_message'

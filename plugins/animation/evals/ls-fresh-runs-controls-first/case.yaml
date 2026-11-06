@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: ls-fresh-runs-controls-first
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: learn-style-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:animation:)?learn-style"'
+    min: 1
+  - name: ran-controls-measure
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|else)\s))?\s*(?:(?:\w+=\S*|(?:\S*/)?(?:env|nohup|time|exec|sudo|command)|timeout\s+\S+|(?:\S*/)?(?:bash|zsh|dash|sh)\s+(?:-\S+\s+)*-c)\s+\\?["'']?)*(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*(?:\\?["'']?\S*pydeps\.py\\?["'']?\s+run\s+(?:(?!--\s)\S+\s+)*--\s+(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*)?)?)?\\?["'']?(?:[^\s"''\\]*/)?controls\.py\\?["'']?(?![\w.-])\s+measure\b(?=(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--near\b)(?=(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--other\b)(?=(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--source\b)(?=(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--replica\b)'
+    min: 1
+  - name: no-learn-before-measure
+    type: regex
+    pattern: '^(?:(?!"name":\s*"Bash",\s*"input":\s*\{\s*"command":\s*"(?:[^"\\]|\\.)*?controls\.py\\?["'']?\s+measure\b)[\s\S])*?"name":\s*"Bash",\s*"input":\s*\{\s*"command":\s*"(?:[^"\\]|\\.)*?(?:python(?:3(?:\.\d+)?)?|pydeps\.py\\?["'']?\s+run)\b(?:[^"\\;&|]|\\.)*?learn\.py\\?["'']?(?![\w.-])(?!\s+(?:--help|-h)\b)'
+    match: 'not_contains'
+    target: 'trace'

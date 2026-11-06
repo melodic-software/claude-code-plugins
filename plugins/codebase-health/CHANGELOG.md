@@ -3,6 +3,24 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-11-06
+
+### Fixed
+
+- `/codebase-health:audit` looks up the user-global `~/.claude/codebase-health.md` with one Read of that literal path, never a Glob, a spelled-out home directory or a search of the home tree; the rendered-view resolver command takes `--option "<option>"` instead of the `${user_config.medium}` token; and the rendered-views files are never read or audited in any phase (#7296).
+
+## [0.13.0] - 2026-11-06
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `<home>/codebase-health.yaml`, read from the default branch by `lib/read-verification.sh` and validated by the new `schemas/codebase-health.schema.json`. `/codebase-health:audit` Phase 2 follows it: `strict` dispatches the separate false-positive validator even after an inline Phase 1, and `light` and `off` dispatch none, record `verification: skipped (<level>)` and report the findings `unverified`.
+
+## [0.12.6] - 2026-11-06
+
+### Fixed
+
+- `/codebase-health:setup apply` no longer writes, edits or rewrites `.claude/codebase-health.md` before you confirm the proposed changes. It drafts the config, shows it and asks, and writes only after your reply, whatever tool it would use ([#13734](https://github.com/melodic-software/claude-code-plugins/issues/13734)). The two setup eval cases held out of #8635's conversion, `setup-apply-interviews-first` and `setup-apply-keeps-existing`, are restored.
+
 ## [0.12.5] - 2026-11-06
 
 ### Changed

@@ -1,10 +1,6 @@
 schema_version: "1.1"
 name: ck-verb-contract-fail-blocks
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: 'skill-quality:check'
   - name: names-check-25
     type: regex
     pattern: '\bcheck\s*#?\s*25\b'

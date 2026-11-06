@@ -12,7 +12,7 @@ Copy into your project's working-notes location. Tick as each phase completes.
 - [ ] Phase 4.5 (repo mode only): Confirmation gate. Inventory summary (surviving file count, groups, wave plan, scale estimate, exclusions by class) presented and confirmed, or an explicit-prose unattended authorization recorded for Phase 8
 - [ ] Phase 5: Track one entry per group, with TaskCreate/TaskUpdate when the task tools are present, else as a per-group list here
 - [ ] Phase 6: Run simplification waves, simplifier agent per group; capture findings + deferrals
-- [ ] Phase 6.1 (repo mode only): Refutation verifier per group, fresh context, trying to refute "behavior preserved"; a confirmed refutation reverts that group's file list
+- [ ] Phase 6.1 (repo mode, or any mode under `verification: strict`; none under `light` or `off`): Refutation verifier per group, fresh context, trying to refute "behavior preserved"; a confirmed refutation reverts that group's file list
 - [ ] Phase 6.2 (repo mode only): Land the wave, with per-group commits pushed to the run's single feature branch; base branch merged in at the wave boundary; the run's one PR opened after the first wave and updated thereafter; under `in-place`, stage each group instead (one commit at the end for `in-place=commit`), with no push, base merge, or PR
 - [ ] Phase 6.5: Resolve deferred items in-run through the fix-first resolution wave, each agent given the full file set its concern spans; edits land like the primary wave's (working-tree in diff modes, run-branch commits in repo mode, staged under `in-place`); only Needs-human, Too-large, and wave-unfinished items survive to the report
 - [ ] Phase 7: Final cross-ecosystem verification, build/test/lint across all touched ecosystems; unmapped groups reported as unmapped, not as passing
@@ -20,7 +20,7 @@ Copy into your project's working-notes location. Tick as each phase completes.
 
 ## Skip criteria
 
-- Phases 0, 4.5, 6.1 and 6.2 SKIPPED outside repo mode
+- Phases 0, 4.5, 6.1 and 6.2 SKIPPED outside repo mode, except 6.1 under `verification: strict`
 - Phase 6.5 SKIPPED when no deferred items surfaced
 - Phase 5 task tracking SKIPPED for single-group changes (1 wave)
 

@@ -3,7 +3,7 @@
 // and 4 against a local SQL Server Linux container it starts and removes, then
 // rewrites the results block of reference/read-safety-measurement.md.
 //
-//   node scripts/measure-read-safety.mjs [--image <tag>] [--doc <path>]
+//   node scripts/measure-read-safety.mjs [--image <tag>] [--doc <path>] [--runs <n>]
 //
 // Needs Docker, Node 22 and the plugin's dependencies (npm ci). The SA and
 // reader passwords are generated per run and never written or printed. The
@@ -22,7 +22,7 @@ import { APP_NAME, DEFAULT_LIMITS, IDLE_TIMEOUT_MS, POOL_MAX, createTediousExecu
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = fileURLToPath(import.meta.url);
-const DEFAULT_IMAGE = 'mcr.microsoft.com/mssql/server:2025-CU8-ubuntu-24.04';
+const DEFAULT_IMAGE = 'mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04';
 const DEFAULT_DOC = join(PLUGIN_ROOT, 'reference', 'read-safety-measurement.md');
 const START = '<!-- measure-read-safety:results:start -->';
 const END = '<!-- measure-read-safety:results:end -->';
@@ -36,6 +36,16 @@ const SCAN = 'SELECT MAX(LEN(payload)) AS longest FROM dbo.items;';
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const now = () => performance.now();
 const password = () => `Aa1!${randomBytes(18).toString('base64url')}`;
+
+// Who a session is, from its program name.
+const role = (program) => (program === APP_NAME ? 'agent' : program === 'measure-writer' ? 'writer' : program ? 'other' : 'system');
+// What a waiting task waits on. sys.dm_os_waiting_tasks reports a negative
+// blocking_session_id for an owner SQL Server cannot name (-2 orphaned
+// distributed transaction, -3 deferred recovery, -4 and -5 latch owner), and
+// the task's own session for a parallel query's tasks waiting on each other.
+const blockerOf = (session, blocking, program) =>
+  blocking < 0 ? `unidentified (${blocking})` : blocking === session ? 'same session' : role(program);
+const waitClass = (type) => (type?.startsWith('LCK_') ? 'lock' : 'other');
 
 async function tediousModule() {
   const module = await import('tedious');
@@ -69,9 +79,11 @@ function freePort() {
 }
 
 async function measure() {
-  const { values } = parseArgs({ options: { image: { type: 'string' }, doc: { type: 'string' } } });
+  const { values } = parseArgs({ options: { image: { type: 'string' }, doc: { type: 'string' }, runs: { type: 'string' } } });
   const image = values.image ?? DEFAULT_IMAGE;
   const docPath = resolve(values.doc ?? DEFAULT_DOC);
+  const runs = Number(values.runs ?? 3);
+  if (!Number.isInteger(runs) || runs < 1) throw new Error('--runs takes a whole number of at least 1');
   const doc = readFileSync(docPath, 'utf8');
   if (!doc.includes(START) || !doc.includes(END)) throw new Error(`${docPath} has no results markers`);
 
@@ -109,11 +121,14 @@ async function measure() {
     );
     const digest = docker(['image', 'inspect', '--format', '{{index .RepoDigests 0}}', image]);
     const lab = await Lab.open({ port, sa, reader });
-    const lines = await runAll(lab, { image, digest, port, reader, work });
+    const lines = await runAll(lab, { image, digest, port, reader, work, runs });
     await lab.close();
 
+    // Re-read: the run takes minutes, and an edit to the prose around the block meanwhile must survive.
+    const current = readFileSync(docPath, 'utf8');
+    if (!current.includes(START) || !current.includes(END)) throw new Error(`${docPath} lost its results markers during the run`);
     const block = `${START}\n${lines.join('\n')}\n${END}`;
-    const updated = doc.slice(0, doc.indexOf(START)) + block + doc.slice(doc.indexOf(END) + END.length);
+    const updated = current.slice(0, current.indexOf(START)) + block + current.slice(current.indexOf(END) + END.length);
     writeFileSync(docPath, updated);
     console.log(lines.join('\n'));
     console.error(`wrote the results to ${docPath}`);
@@ -196,21 +211,44 @@ class Lab {
     };
   }
 
-  // Samples requests and sessions of the given programs every interval until stopped.
+  // Samples sessions and waiting tasks of the given programs every interval
+  // until stopped. Each waiting task with a blocking_session_id is attributed
+  // to a waiter and a blocker (see role and blockerOf below), by wait class.
   sampler(programs, intervalMs = 100) {
     const list = programs.map((program) => `N'${program}'`).join(', ');
     const samples = [];
+    const pairs = new Map();
     let stop = false;
     const done = (async () => {
       const connection = await this.connect({ appName: 'measure-sampler' });
       while (!stop) {
-        const [[sessions, lockWaits, blocked]] = await this.run(connection, `SELECT
+        const [[sessions, lockWaits, tableLocks]] = await this.run(connection, `SELECT
           (SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE program_name = N'${APP_NAME}'),
           (SELECT COUNT(*) FROM sys.dm_exec_requests AS r JOIN sys.dm_exec_sessions AS s ON s.session_id = r.session_id
              WHERE s.program_name IN (${list}) AND r.wait_type LIKE N'LCK%'),
-          (SELECT COUNT(*) FROM sys.dm_exec_requests AS r JOIN sys.dm_exec_sessions AS s ON s.session_id = r.session_id
-             WHERE s.program_name IN (${list}) AND r.blocking_session_id <> 0);`);
-        samples.push({ sessions, lockWaits, blocked });
+          (SELECT COUNT(*) FROM sys.dm_tran_locks AS l JOIN sys.dm_exec_sessions AS s ON s.session_id = l.request_session_id
+             WHERE s.program_name = N'${APP_NAME}' AND l.resource_type = N'OBJECT' AND l.request_mode IN (N'S', N'X')
+               AND l.request_status = N'GRANT' AND l.resource_database_id = DB_ID(N'${DB}'));`);
+        const waits = await this.run(connection, `SELECT ws.program_name, w.session_id, w.blocking_session_id,
+            bs.program_name, w.wait_type, w.wait_duration_ms,
+            CASE WHEN EXISTS (SELECT 1 FROM sys.dm_os_waiting_tasks AS b
+              WHERE b.session_id = w.blocking_session_id AND b.blocking_session_id > 0
+                AND b.blocking_session_id <> b.session_id) THEN 1 ELSE 0 END
+          FROM sys.dm_os_waiting_tasks AS w
+          JOIN sys.dm_exec_sessions AS ws ON ws.session_id = w.session_id
+          LEFT JOIN sys.dm_exec_sessions AS bs ON bs.session_id = w.blocking_session_id
+          WHERE ws.program_name IN (${list}) AND w.blocking_session_id IS NOT NULL AND w.blocking_session_id <> 0;`);
+        const seen = new Map();
+        for (const [waiterProgram, session, blocking, blockerProgram, waitType, waitMs, blockerWaiting] of waits) {
+          const key = [role(waiterProgram), blockerOf(session, blocking, blockerProgram), waitClass(waitType), blockerWaiting ? 'yes' : 'no'].join('|');
+          seen.set(key, (seen.get(key) ?? 0) + 1);
+          const pair = pairs.get(key) ?? { peak: 0, longestMs: 0, types: new Set() };
+          pair.longestMs = Math.max(pair.longestMs, Number(waitMs));
+          pair.types.add(waitType);
+          pairs.set(key, pair);
+        }
+        for (const [key, count] of seen) pairs.get(key).peak = Math.max(pairs.get(key).peak, count);
+        samples.push({ sessions, lockWaits, tableLocks });
         await sleep(intervalMs);
       }
       connection.close();
@@ -222,7 +260,11 @@ class Lab {
       return {
         sessions: Math.max(0, ...samples.map((s) => s.sessions)),
         lockWaits: samples.filter((s) => s.lockWaits > 0).length,
-        blocked: Math.max(0, ...samples.map((s) => s.blocked)),
+        tableLocks: Math.max(0, ...samples.map((s) => s.tableLocks)),
+        pairs: [...pairs].map(([key, pair]) => {
+          const [waiter, blocker, wait, blockerWaiting] = key.split('|');
+          return { waiter, blocker, wait, blockerWaiting, peak: pair.peak, longestMs: pair.longestMs, types: [...pair.types].sort() };
+        }),
       };
     };
   }
@@ -482,7 +524,9 @@ async function topology(lab, { work, reader }, processes) {
     processes,
     calls: latencies.length,
     peakSessions: sample.sessions,
-    peakBlocked: sample.blocked,
+    pairs: sample.pairs,
+    tableLocks: sample.tableLocks,
+    open: await lab.openTransactions(APP_NAME),
     medianMs: Math.round(latencies[Math.floor(latencies.length / 2)]),
     maxMs: Math.round(latencies.at(-1)),
     wallMs,
@@ -506,7 +550,7 @@ async function setup(lab) {
   return { version, rcsi: Number(rcsi), adr: Number(adr), optimized: Number(optimized ?? 0) };
 }
 
-async function runAll(lab, { image, digest, reader, work }) {
+async function runAll(lab, { image, digest, reader, work, runs }) {
   const env = await setup(lab);
   const out = [];
   const date = new Date().toISOString().slice(0, 10);
@@ -587,13 +631,72 @@ async function runAll(lab, { image, digest, reader, work }) {
 
   console.error('process topology');
   out.push('', `### Process topology: N stdio server processes, 4 concurrent \`query\` calls each, pool max ${POOL_MAX}, idle close ${IDLE_TIMEOUT_MS} ms`, '');
-  out.push('A writer updates one random row in autocommit every 20 ms throughout.', '');
-  row('Processes', 'Calls', 'Peak agent sessions', 'Peak blocked requests', 'Call median (ms)', 'Call max (ms)', 'Wall (ms)', 'Writer max (ms)');
-  row('---', '---', '---', '---', '---', '---', '---', '---');
-  for (const processes of [1, 2, 4, 8]) {
-    const t = await topology(lab, { work, reader }, processes);
-    row(t.processes, t.calls, t.peakSessions, t.peakBlocked, t.medianMs, t.maxMs, t.wallMs, t.writerMaxMs);
+  out.push(`A writer updates one random row in autocommit every 20 ms throughout. The whole table ran ${runs} times.`, '');
+  row('Run', 'Processes', 'Calls', 'Peak agent sessions', 'Call median (ms)', 'Call max (ms)', 'Wall (ms)', 'Writer max (ms)', 'Open transactions after');
+  row('---', '---', '---', '---', '---', '---', '---', '---', '---');
+  const results = [];
+  for (let run = 1; run <= runs; run += 1) {
+    for (const processes of [1, 2, 4, 8]) {
+      console.error(`topology run ${run}, ${processes} processes`);
+      const t = { run, ...(await topology(lab, { work, reader }, processes)) };
+      results.push(t);
+      row(t.run, t.processes, t.calls, t.peakSessions, t.medianMs, t.maxMs, t.wallMs, t.writerMaxMs, t.open);
+    }
   }
+  out.push(...attribution(results, runs));
+  return out;
+}
+
+// The topology's waiting tasks by waiter, blocker and wait class, the worst
+// case over every run, and the bounded-blocking check.
+function attribution(results, runs) {
+  const out = ['', '### Waiting tasks in the topology runs, by waiter and blocker', ''];
+  out.push(`Sampled every 50 ms from \`sys.dm_os_waiting_tasks\`, for the agent sessions and the writer. A task counts when its`);
+  out.push('`blocking_session_id` is set and not 0. Longest wait is the largest `wait_duration_ms` a sample saw, so it can');
+  out.push('trail the true wait by up to one sampling interval. Blocker waiting says whether the blocker was itself waiting on');
+  out.push('another session at that sample: a request queued behind a waiting one names it as blocker, so such a wait is');
+  out.push('not counted as caused by the blocker. A negative `blocking_session_id` (an owner SQL Server cannot name) and a');
+  out.push("session's own parallel tasks are classed apart, not as blocking by another session.", '');
+  const rows = results.flatMap((t) => t.pairs.map((p) => ({ run: t.run, processes: t.processes, ...p })));
+  if (rows.length === 0) {
+    out.push('No task of an agent session or the writer waited on another task in any run.');
+  } else {
+    out.push('| Run | Processes | Waiter | Blocker | Blocker waiting | Wait class | Wait types | Peak waiting tasks | Longest wait (ms) |');
+    out.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+    for (const r of rows) {
+      out.push(`| ${r.run} | ${r.processes} | ${r.waiter} | ${r.blocker} | ${r.blockerWaiting} | ${r.wait} | ${r.types.join(', ')} | ${r.peak} | ${r.longestMs} |`);
+    }
+  }
+
+  const max = (values) => Math.max(0, ...values);
+  const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
+  const writerMax = max(results.map((t) => t.writerMaxMs));
+  const tableLocks = max(results.map((t) => t.tableLocks));
+  const agentCaused = rows.filter((r) => r.blocker === 'agent' && r.blockerWaiting === 'no');
+  const onAgent = rows.filter((r) => r.blocker === 'agent');
+  const agentCausedMs = max(agentCaused.map((r) => r.longestMs));
+  const onAgentMs = max(onAgent.map((r) => r.longestMs));
+  const writerOnAgentMs = max(onAgent.filter((r) => r.waiter === 'writer').map((r) => r.longestMs));
+  const writerOnHeadMs = max(agentCaused.filter((r) => r.waiter === 'writer').map((r) => r.longestMs));
+  const agentLockMs = max(rows.filter((r) => r.waiter === 'agent' && r.wait === 'lock').map((r) => r.longestMs));
+  const open = max(results.map((t) => t.open));
+  const d = DEFAULT_LIMITS;
+  out.push('', `Worst case over ${runs} runs: writer max ${writerMax} ms; longest wait the writer spent on an agent session`);
+  out.push(`${writerOnAgentMs} ms (${writerOnHeadMs} ms on one not itself waiting); longest wait any session spent on an agent`);
+  out.push(`session ${onAgentMs} ms (${agentCausedMs} ms on one not itself waiting); longest agent lock wait ${agentLockMs} ms; open`);
+  out.push(`transactions after a topology run ${open}; table-level locks an agent session held at once`);
+  const counts = [...new Set(results.map((t) => t.processes))];
+  const medians = counts.map((n) => `${n}: ${median(results.filter((t) => t.processes === n).map((t) => t.writerMaxMs))} ms`);
+  out.push(`${tableLocks}. Median over the runs of the writer's slowest update, by process count: ${medians.join(', ')}.`);
+  out.push(`${runs} runs show the worst case; they support no estimate of run-to-run spread.`);
+  // A call whose lock wait hit the lock timeout, or that ran past the request
+  // timeout, fails its query and ends the run before this line (serverProcess
+  // throws). The lock timeout limits each lock wait, not a call's length. The
+  // line judges only what can still differ; the magnitudes are the worst-case
+  // line above.
+  out.push('', open === 0
+    ? `Topology check: PASS. No agent lock wait reached the lock timeout (${d.lockTimeoutMs} ms), every call returned within the request timeout (${d.requestTimeoutMs} ms), and no transaction was left open. How long anyone waited is the worst-case line above.`
+    : `Topology check: FAIL. ${open} transaction(s) left open after a topology run.`);
   return out;
 }
 

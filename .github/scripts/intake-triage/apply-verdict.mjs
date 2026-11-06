@@ -4,18 +4,17 @@
 // comment the ci-workflows reusable posted (github-actions[bot], first line the
 // marker) and takes:
 //
-// - the work class from the comment's second line, `Proposed work class:
-//   <label>`, which the reusable enum-checks and writes `none` on an escalated run;
 // - Size, Complexity and Uncertainty from lines that start the line with exactly
 //   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value an option
 //   name of models.issue-dimensions (its key, capitalized: Small, Knowable);
 // - the flags from one `Flags: ` line, `none` or a comma list of intent,
 //   security, cost and untrusted, the last marking untrusted provenance as
-//   the legacy `work-class: untrusted-provenance` class proposal also does;
+//   the legacy `work-class: untrusted-provenance` proposal on the comment's
+//   second line (`Proposed work class: <label>`) also does;
 // - the issues it depends on from one `Blocked by: ` line, `none` or a comma
 //   list of `#<number>` (edges.mjs); a missing or unreadable line names none.
 //
-// It then adds the class label, sets the three issue fields (their ids from
+// It then sets the three issue fields (their ids from
 // models.issue-dimensions, checked against the ids GitHub answers) and adds
 // `status: ready` when all three fields and no flag parsed, no hold label
 // (needs-human, status: needs-info, status: needs-decision) holds the issue,
@@ -44,15 +43,13 @@
 // eval) reaches admission, which routes it to `host-run` or holds it with a
 // split, and a choice of means stays the issue lane's. The
 // `needs-triage` floor label is taken off after the verdict is written.
-// The work class gates nothing (owner Q85, #9668). Untrusted provenance adds
+// Work classes are retired: a proposed class is never applied, and a class
+// label on the issue is neither read nor taken off. Untrusted provenance adds
 // `provenance: untrusted`, which holds the issue, and neither that label nor
-// its legacy name is taken off. The lanes App's own earlier class and field
-// values give way to the new verdict; a field value a listed human set is kept and is the value admission
+// its legacy name is taken off. The lanes App's own earlier field values give
+// way to the new verdict; a field value a listed human set is kept and is the value admission
 // reads; one anyone else set, or one whose setter cannot be read, is kept and
-// sends the issue to needs-decision; a class anyone else set is kept. A class
-// that is not one of the repository's work-class labels is not applied. When
-// it applied a class it rewrites the comment's "a maintainer confirms" lines.
-// It writes a native blocked-by edge for each open issue of this repository
+// sends the issue to needs-decision. It writes a native blocked-by edge for each open issue of this repository
 // the verdict or the issue body (edges.mjs textBlockers) names; an edge GitHub answers 403, 429 or 5xx for is missed,
 // named in the summary and an annotation, the edges the run wrote are
 // deleted again, and a ready verdict then lands
@@ -99,7 +96,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
@@ -132,6 +129,7 @@ export const DIMENSIONS = Object.freeze({
   complexity: "Complexity",
   uncertainty: "Uncertainty",
 });
+// The reusable's second line; only its legacy untrusted proposal is read.
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The Flags entry that marks untrusted provenance: it adds UNTRUSTED and holds
 // for security, and is not a flag an owner reason or a later verdict reads.
@@ -144,11 +142,6 @@ const NO_CHARGE = /^(?:none|n\/a|no charge|no cost)\.?$/i;
 const COST_LABEL = /^\W*costs?(?!-(?:benefit|effective)\b)\s*[:\u2014\u2013(-]/i;
 const COST_LABEL_TEXT = /^\W*costs?\s*(?:\([^)]*\))?\s*[:\u2014\u2013-]?\s*/i;
 const COST_PROBLEM = "a Cost line is not in the `Cost: ` / `Cost decided: ` form";
-// The reusable's wording the verdict makes untrue once the class is applied.
-export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
-export const NEW_BASIS = "Basis: automated intake triage; the lanes App applied this class.";
-export const OLD_FOOTER = "<sub>Automated triage. A maintainer reviews it.</sub>";
-export const NEW_FOOTER = "<sub>Automated triage, applied by the lanes App.</sub>";
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 
 const capitalize = (key) => key.charAt(0).toUpperCase() + key.slice(1);
@@ -170,20 +163,18 @@ export function checkActors(env, humans, logins) {
   return rerunner !== undefined && humans.has(rerunner);
 }
 
-// The verdict the lane comment carries: {escalated, workClass, untrusted,
-// dimensions, flags, problems}. workClass is null for `none` or the legacy
-// untrusted class; dimensions maps each key to its config key or is null;
+// The verdict the lane comment carries: {escalated, untrusted, dimensions,
+// flags, problems}. dimensions maps each key to its config key or is null;
 // flags is a list or null. problems says why a part did not parse.
-export function parseVerdict(body, dimensionsConfig, classes) {
+export function parseVerdict(body, dimensionsConfig) {
   const lines = String(body ?? "").split("\n");
   const problems = [];
   const shown = {};
   const escalated = String(body ?? "").includes(ESCALATED);
   const classMatch = CLASS_LINE.exec(lines[1] ?? "");
-  const proposed = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
-  // The legacy untrusted class marks provenance, never a work class to apply.
-  const proposedUntrusted = UNTRUSTED_LABELS.includes(proposed);
-  const workClass = proposed !== null && !proposedUntrusted && classes.has(proposed) ? proposed : null;
+  // The legacy untrusted class, still in the reusable's enum while its label
+  // exists, marks provenance.
+  const proposedUntrusted = classMatch !== null && !escalated && UNTRUSTED_LABELS.includes(classMatch[1]);
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
@@ -263,14 +254,14 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   if (costProblem) {
     problems.push(COST_PROBLEM);
   }
-  return { escalated, workClass, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
+  return { escalated, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
 // field values ({fieldId: {option, setter}}). Pure.
 export function planWrites(
   verdict,
-  { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {}, earlierFlags = [], triageLabels = [] },
+  { labels, fields, dimensionsConfig, appId, humans = new Set(), holdSetters = {}, earlierFlags = [], triageLabels = [] },
 ) {
   const reasons = [...verdict.problems];
   // The owner reason each hold cause is for (../lib/stop-reason.mjs); the
@@ -292,23 +283,6 @@ export function planWrites(
   }
   if (verdict.untrusted && !labels.includes(UNTRUSTED)) {
     add.push(UNTRUSTED);
-  }
-
-  let classApplied = false;
-  if (verdict.workClass !== null) {
-    const held = labels.filter((label) => label.startsWith("work-class:"));
-    if (held.length === 0) {
-      add.push(verdict.workClass);
-      classApplied = true;
-    } else if (held.length === 1 && held[0] === verdict.workClass) {
-      classApplied = true;
-    } else if (held.length === 1 && !UNTRUSTED_LABELS.includes(held[0]) && isApp(classSetters[held[0]], appId)) {
-      // Only the lanes App's own earlier class gives way, never a provenance
-      // hold; anyone else's, or one no event names, is kept.
-      remove.push(held[0]);
-      add.push(verdict.workClass);
-      classApplied = true;
-    }
   }
 
   const fieldWrites = [];
@@ -429,7 +403,7 @@ export function planWrites(
   // verdict's hold replaces a parked status: confirmed: one status stands.
   const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter((name) => labels.includes(name));
   const reason = ready ? null : (strongestReason(codes) ?? "intent");
-  return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, reason, dimensions, refused };
+  return { add, remove: [...remove, ...after], fieldWrites, ready, reasons, reason, dimensions, refused };
 }
 
 export { earlierFlags, ownVerdict, UNRECORDED, VERDICT_MARKER };
@@ -468,21 +442,14 @@ export function raisedLine(verdictFlags, writtenAt, earlierBody) {
   return Number.isFinite(Date.parse(at)) ? [`${RAISED}${at} -->`] : [];
 }
 
-// The lane comment with the maintainer-confirms wording replaced, or null when
-// it has none.
-export function rewordComment(body) {
-  const next = body.replace(OLD_BASIS, NEW_BASIS).replace(OLD_FOOTER, NEW_FOOTER);
-  return next === body ? null : next;
-}
-
-// {setters, triage}: setters maps each work-class and hold label on the issue
+// {setters, triage}: setters maps each hold label on the issue
 // to who added it last, from the issue's events (none when no event names it);
 // triage lists the ones this run's triage applied: absent at `since`, replaying
 // labeled and unlabeled events by time and id (an add with an unreadable time
 // counts as before it, a removal with one removes nothing), and added at or
 // after it only by github-actions[bot].
 async function labelSetters(github, base, labels, since) {
-  const held = new Set(labels.filter((label) => label.startsWith("work-class:") || HOLDS.has(label)));
+  const held = new Set(labels.filter((label) => HOLDS.has(label)));
   const setters = {};
   if (held.size === 0) {
     return { setters, triage: [] };
@@ -586,12 +553,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     throw new Error(`#${number}'s lane comment was last written before this run started; this run's triage wrote none`);
   }
 
-  const classes = new Set(
-    (await paginate(github, `/repos/${repository}/labels`))
-      .map((label) => label?.name)
-      .filter((name) => typeof name === "string" && name.startsWith("work-class:")),
-  );
-  const verdict = parseVerdict(comment.body, dimensionsConfig, classes);
+  const verdict = parseVerdict(comment.body, dimensionsConfig);
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
   const fields = await readFields(github, repository, number, fieldSetters);
   const { setters, triage } = await labelSetters(github, base, labels, startedAt);
@@ -615,7 +577,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       dimensionsConfig,
       appId,
       humans,
-      classSetters: setters,
       holdSetters: setters,
       earlierFlags: flagsBefore,
       triageLabels: triage,
@@ -681,11 +642,11 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const remove = waits ? [...plan.remove, READY] : plan.remove;
   // A held verdict's reasons comment goes before its labels, so a hold never
   // lands without the record of whether it was flagged (earlierFlags): when
-  // the comment write fails, no hold, class or floor label changes and the
+  // the comment write fails, no hold or floor label changes and the
   // caller fails the job; `status: ready` still comes off, since taking it off
   // adds no hold.
   // A ready verdict's comment names admission's outcome, so it goes after; a
-  // failed one stops neither the reword nor the summary.
+  // failed one does not stop the summary.
   let reasonsError = null;
   const edgeForbidden = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
@@ -712,9 +673,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // included; admission's own label writes mirror again. The field values
   // read above skip a match.
   await mirrorStatus(number, { had: [...labels, ...lateHolds], add: labeled ? add : [], remove: labeled ? remove : unready, fields });
-  // Before the reword: whether the App may edit github-actions[bot]'s
-  // comment is unproven, and a refused edit must not stop admission. An
-  // admission error stops neither the reword nor the summary; the caller
+  // An admission error stops neither the reasons comment nor the summary; the caller
   // fails the job on it, or holds on a fault (closing).
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
   if (plan.ready && admitIssue && !waits) {
@@ -736,17 +695,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   if (plan.ready) {
     await say(admission);
   }
-  if (plan.classApplied && labeled) {
-    const reworded = rewordComment(comment.body);
-    if (reworded !== null) {
-      await github("PATCH", `/repos/${repository}/issues/comments/${comment.id}`, { body: reworded });
-    }
-  }
   const summary = [
     "### intake-triage apply-verdict",
     "",
     `- Issue: #${number}`,
-    `- Work class: ${verdict.workClass ?? "none"}${plan.classApplied ? "" : " (not applied)"}`,
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     labeled
       ? `- Labels added: ${add.join(", ") || "none"}; removed: ${remove.join(", ") || "none"}`
@@ -992,6 +944,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           humans,
           appId: logins.get(LANES_APP_LOGIN),
           webHosts: issueLaneWebHostsFromBase(env),
+          statusOf: statusReader({ env, github, repository, limit: ADMISSION_STATUS_READS }),
           status: () =>
             checkWip(github, {
               repo: repository,

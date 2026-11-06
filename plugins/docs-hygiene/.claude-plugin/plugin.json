@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "2.5.9",
+  "version": "2.7.1",
   "license": "MIT",
   "keywords": [
     "documentation",
@@ -31,6 +31,14 @@
       "description": "Whether /docs-hygiene:compress removes a, an and the. keep (default): articles stay, and compression runs on the in-session Edit backend with word-level cuts only. cut: articles may be removed, and the caveman backend runs when installed. docs/conventions/docs-hygiene.yaml overrides this.",
       "default": "keep",
       "options": ["keep", "cut"]
+    },
+    "compress_revert_below_pct": {
+      "type": "number",
+      "title": "Compress revert threshold (percent)",
+      "description": "Percent compression below which /docs-hygiene:compress reverts a result with zero semantic loss, a whole number from 0 to 100. Default 3; 0 turns the auto-revert off; --force bypasses it on one run. docs/conventions/docs-hygiene.yaml overrides this.",
+      "default": 3,
+      "min": 0,
+      "max": 100
     }
   }
 }

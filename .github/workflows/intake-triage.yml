@@ -5,8 +5,7 @@ name: intake-triage
 # only allowlisted labels that exist here, or `needs-human` when the run
 # escalates. Advisory: never blocks a merge. See ci-workflows'
 # intake-triage.yml for the security model and inputs. The apply-verdict job
-# then writes the run's verdict as the lanes App (no model): the work class,
-# the Size, Complexity and Uncertainty fields, and `status: ready` or
+# then writes the run's verdict as the lanes App (no model): the Size, Complexity and Uncertainty fields, and `status: ready` or
 # `status: needs-decision` (.github/scripts/intake-triage/apply-verdict.mjs),
 # and on `status: ready` adds `agent-ready` when the admission rules
 # (.github/actions/resolve-config/admission-rules.json) and the issue lane's
@@ -301,12 +300,9 @@ jobs:
           work; `priority: low` for a cosmetic or docs-only change; otherwise `priority: medium`.
         - Type: Bug for a defect in something that exists, Task for a bounded change, Feature for a
           new capability.
-        - Work class: the one `work-class:` label whose meaning fits, or none when unsure:
-          `work-class: read-only`, `work-class: mechanical`, `work-class: scoped` or
-          `work-class: structural`. Their meanings are the Description column of
-          plugins/work-items/reference/work-class-labels.md from the repository root; read that
-          file rather than search for them. The class gates nothing. Untrusted provenance is not a
-          class: mark it with the untrusted flag (Flags below), never on the class line.
+        - Work class: always none. Work classes are retired and nothing reads the proposed class, so
+          never search for their meanings. Untrusted provenance is not a class: mark it with the
+          untrusted flag (Flags below), never on the class line.
         - Size: Small for one focused change in a few files, Medium for several files or one
           subsystem, Large for work that needs splitting.
         - Complexity: Low for a direct edit, Medium for several moving parts, High for subtle
@@ -324,8 +320,8 @@ jobs:
         UNRUNNABLE DONE-WHEN. A done-when item an unattended lane run cannot do (a run on a named
         host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
         host outside the issue lane's web access) is no reason for needs_human, the `needs-human`
-        label, the intent flag or a none class on its own: triage the lane-checkable items as
-        usual, with their work class and fields. Admission routes host work to `host-run`, or
+        label or the intent flag on its own: triage the lane-checkable items as
+        usual, with their fields. Admission routes host work to `host-run`, or
         holds the issue and posts the split itself. A `status: needs-decision` or `needs-human`
         label you apply holds only beside a flag on the Flags line; the verdict step takes it off
         when the Flags line is none and nothing else holds the issue. RE-ENTRY (d)
@@ -344,8 +340,8 @@ jobs:
         must be done before this one, or none. When the issue lane's latest stop comment on the
         issue is `blocked-by-issue` and names an open issue, list that issue there, unless the
         named issue is itself blocked by this one.
-        A step with no model reads only those five lines and the proposed class, and sets the
-        issue's class label, fields, status and blocked-by edges from them.
+        A step with no model reads only those five lines and sets the issue's fields, status and
+        blocked-by edges from them.
 
         COST. When the work an issue asks for would add or raise a charge that no diff shows (a new
         paid service or subscription, a plan upgrade, or an account, organization or repository
@@ -380,7 +376,7 @@ jobs:
           secret, or a hole in code, workflows or trust logic, not yet fixed, that lets someone
           take over the repository, reach a secret or cross a trust boundary, exploited or not.
           A lower-severity weakness is ordinary work: triage it as usual.
-        For anything else, keep needs_human false so your comment, class and fields are kept:
+        For anything else, keep needs_human false so your comment and fields are kept:
         - A change to workflows, permissions, governance or trust logic is ordinary work: triage it
           as usual. The code and security review lanes judge the diff.
         - Unclear scope or an approach you are unsure of is Uncertainty Knowable or Unknown, not an
@@ -458,7 +454,7 @@ jobs:
       FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   # Writes the triage run's verdict on the issue as the lanes App, so the work
-  # lanes count it: the work-class label, the Size, Complexity and Uncertainty
+  # lanes count it: the Size, Complexity and Uncertainty
   # issue fields, and `status: ready` or `status: needs-decision`. No model:
   # .github/scripts/intake-triage/apply-verdict.mjs parses the lane comment
   # against closed enums; on `status: ready`, admit.mjs adds agent-ready (or

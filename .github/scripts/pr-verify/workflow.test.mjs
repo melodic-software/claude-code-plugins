@@ -9,6 +9,7 @@
 // hands it on, so one job per run writes a verdict.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -1429,7 +1430,7 @@ test("pr-verify.yml checks out no pull request code", () => {
   assert.doesNotMatch(text, /\bgit (?:-C \S+ )?(?:checkout|switch|worktree|restore)\b|\bpr-verify-capture\.yml\b.*uses:/);
 });
 
-test("the step that starts the app holds no credential in any env it inherits, and passes the key to the driver alone", () => {
+test("the step that starts the app holds no credential in any env it inherits, and the real key reaches only the key proxy's start", () => {
   const job = jobIn(CAPTURE_TEXT, CAP);
   const driver = capStep(DRIVER);
   // Workflow-, job- and step-level env all reach the driver and the app it starts.
@@ -1441,23 +1442,24 @@ test("the step that starts the app holds no credential in any env it inherits, a
     assert.doesNotMatch(env, /secrets\.|github\.token/, `${level} env`);
   }
   assert.doesNotMatch(driver, /^ {8}run:/m);
-  // The key goes to run-claude-cli's api-key input, which gives it to the
-  // CLI alone (lane.cjs legEnv, CLAUDE_CODE_SUBPROCESS_ENV_SCRUB), and nowhere else.
-  const withBlock = blockOf(driver, "with", 8);
-  assert.deepEqual(withBlock.match(/\$\{\{ secrets\.[A-Z_]+/g), ["${{ secrets.PR_VERIFY_CLAUDE_API_KEY"]);
-  assert.equal(input(driver, "api-key"), "${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}");
-  assert.doesNotMatch(withBlock, /github\.token/);
-  assert.match(driver, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
-  // No other step from the head checkout on holds a secret or the job token.
-  for (const s of CAP_STEPS.slice(capIndex(HEAD_CHECKOUT))) {
-    if (s.name !== DRIVER) assert.doesNotMatch(s.block, /secrets\.|github\.token/, s.name);
+  // Both driver legs get the key proxy's client key in run-claude-cli's
+  // api-key input (lane.cjs legEnv, CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) and its
+  // loopback port as their base URL, never a secret.
+  for (const leg of [driver, capStep(PROBE)]) {
+    const withBlock = blockOf(leg, "with", 8);
+    assert.equal(withBlock.match(/secrets\.|github\.token/), null);
+    assert.equal(input(leg, "api-key"), "${{ steps.proxy.outputs.client-key }}");
+    assert.equal(input(leg, "loopback-base-url"), "http://127.0.0.1:47101");
+    assert.match(leg, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
   }
+  // No step from the head checkout on holds a secret or the job token.
+  for (const s of CAP_STEPS.slice(capIndex(HEAD_CHECKOUT))) assert.doesNotMatch(s.block, /secrets\.|github\.token/, s.name);
   // The capture job's only secret is its key; the subscription job reads none.
   assert.deepEqual([...new Set(jobIn(CAPTURE_TEXT, CAP).match(/secrets\.[A-Z_]+/g))], ["secrets.PR_VERIFY_CLAUDE_API_KEY"]);
   assert.equal(jobIn(CAPTURE_TEXT, CAP_SUB).match(/secrets\./), null);
-  // The key reaches the two driver legs and the key proxy's start, before the runner is isolated, and no other step.
+  // The key reaches the key proxy's start, before the runner is isolated, and no other step.
   const readers = CAP_STEPS.filter((s) => /secrets\.PR_VERIFY_CLAUDE_API_KEY\b/.test(s.block)).map((s) => s.name);
-  assert.deepEqual(readers.filter((name) => name !== "Check the credential"), [PROXY_START, PROBE, DRIVER]);
+  assert.deepEqual(readers.filter((name) => name !== "Check the credential"), [PROXY_START]);
   assert.match(capStep("Check the credential"), /^ {10}PRESENT: \$\{\{ secrets\.PR_VERIFY_CLAUDE_API_KEY != '' \}\}$/m);
   assert.ok(capIndex(PROXY_START) < capIndex(ISOLATE));
   assert.doesNotMatch(CAPTURE_TEXT, /secrets: inherit|toJSON\(secrets\)|secrets\[/);
@@ -1586,7 +1588,7 @@ const FENCE = [
   "Read(~/.claude/**)",
   "Edit(//proc/**)",
   "Edit(/${{ runner.temp }}/**)",
-  "Edit(./.base/**)",
+  "Edit(/${{ github.workspace }}/.base/**)",
   "Edit(~/.claude/**)",
 ];
 const FILE_TOOL = /^(?:Read|Edit|Write|Glob|Grep|NotebookEdit)$/;
@@ -1597,11 +1599,14 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   for (const rule of allowed) assert.doesNotMatch(rule, FILE_TOOL, rule);
   // Only main's named skills: a head skill's frontmatter hooks would run beside the key.
   assert.deepEqual(allowed.filter((rule) => rule.startsWith("Skill")), ["Skill(testing:run-e2e *)", "Skill(app-control:drive *)"]);
-  // The managed settings: the action's required pins (its action.yml check at
-  // b8bdd7f), plus the subprocess scrub and TLS verification, which a
-  // settings file head code writes mid-session cannot override (managed is
-  // the top of the settings stack, and `env` follows it:
-  // https://code.claude.com/docs/en/settings#settings-precedence).
+  // The managed settings: the action's required pins (managed-settings.cjs
+  // at 4aba9be, with the loopback-base-url opt-in both actions get), plus
+  // env values a settings file head code writes mid-session cannot override
+  // (managed is the top of the settings stack, and `env` follows it:
+  // https://code.claude.com/docs/en/settings#settings-precedence): the
+  // subprocess scrub, TLS verification, NO_PROXY for the loopback, and the
+  // three values that keep the driver legs inside the proxy's allowlists
+  // (measured on Claude Code 2.1.318; see the step's comment).
   for (const steps of [CAP_STEPS]) {
     const block = steps.find((s) => s.name === "Apply the Claude managed settings").block;
     const folded = /^ {10}settings: >-\n((?: {12}.*\n?)+)/m.exec(block)?.[1];
@@ -1609,11 +1614,33 @@ test("the driver's file tools are fenced to the head and the run directory, and 
     assert.deepEqual(JSON.parse(folded.replace(/\n {12}/g, " ")), {
       apiKeyHelper: "",
       allowManagedHooksOnly: true,
-      env: { ANTHROPIC_BASE_URL: "https://api.anthropic.com", CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1", NODE_TLS_REJECT_UNAUTHORIZED: "1" },
+      env: {
+        ANTHROPIC_BASE_URL: "http://127.0.0.1:47101",
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
+        NODE_TLS_REJECT_UNAUTHORIZED: "1",
+        NO_PROXY: "127.0.0.1",
+        no_proxy: "127.0.0.1",
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+        CLAUDE_CODE_MAX_OUTPUT_TOKENS: "${{ steps.driven.outputs.ceiling }}",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "${{ steps.driven.outputs.small-model }}",
+      },
       permissions: { disableBypassPermissionsMode: "disable" },
     });
+    assert.equal(input(block, "loopback-base-url"), "http://127.0.0.1:47101");
+    // Its inputs come from the step that reads pr-pipeline.yaml, so it runs after it, and before isolation.
+    assert.ok(capIndex("Write the driven settings and the proxy config") < capIndex("Apply the Claude managed settings"));
+    assert.ok(capIndex("Apply the Claude managed settings") < capIndex(ISOLATE));
   }
-  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Read(./.base/.claude/skills/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
+  // Both legs run the Claude Code the proxy's betas were measured on.
+  for (const leg of [driver, capStep(PROBE)]) assert.equal(input(leg, "cli-version"), "${{ steps.driven.outputs.claude-code-version }}");
+  // Every pin of the two actions is 4aba9be, the first with loopback-base-url.
+  const pins = [...CAPTURE_TEXT.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/(run-claude-cli|apply-claude-managed-settings)@(\S+) # (.*)$/gm)].map((m) => `${m[1]} ${m[2]} ${m[3]}`);
+  assert.deepEqual(pins, [
+    "apply-claude-managed-settings 4aba9be6cc58c88c132308d417ebe136dd054296 4aba9be 2026-11-06",
+    "run-claude-cli 4aba9be6cc58c88c132308d417ebe136dd054296 4aba9be 2026-11-06",
+    "run-claude-cli 4aba9be6cc58c88c132308d417ebe136dd054296 4aba9be 2026-11-06",
+  ]);
+  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(/${{ github.workspace }}/head/**)", "Read(/${{ github.workspace }}/capture-run/**)", "Read(/${{ github.workspace }}/.base/plugins/**)", "Read(/${{ github.workspace }}/.base/.claude/skills/**)", "Edit(/${{ github.workspace }}/head/**)", "Edit(/${{ github.workspace }}/capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");
   for (const rule of FENCE) assert.ok(denied.includes(rule), rule);
@@ -1664,6 +1691,177 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   assert.match(probePrompt, /^ {10}mkdir -p "\$GITHUB_WORKSPACE\/capture-run" "\$HOME\/\.claude"$/m);
   assert.match(capStep("Write the capture prompt and schema"), /Its run directory is"\n {12}echo "\$GITHUB_WORKSPACE\/capture-run: write e2e-summary\.json/);
   assert.match(capStep("Collect the capture"), /^ {12}"\$GITHUB_WORKSPACE"\/capture-run\/\*\) ;;$/m);
+});
+
+// A Bash allow rule as Claude Code matches it against one subcommand: the
+// whole command text, `*` standing for any text, and a trailing ` *` that
+// also matches the bare command
+// (https://code.claude.com/docs/en/permissions#wildcard-patterns, as of
+// 2026-11-06; recheck when that section changes).
+const bashRuleMatches = (rule, command) => {
+  const body = /^Bash\((.*)\)$/.exec(rule)?.[1];
+  if (body === undefined) return rule === "Bash";
+  const escape = (s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+  const trailing = body.endsWith(" *") && body.indexOf("*") === body.length - 1;
+  const pattern = trailing ? `${escape(body.slice(0, -2)).replaceAll("*", ".*")}(?: .*)?` : escape(body).replaceAll("*", ".*");
+  return new RegExp(`^${pattern}$`, "s").test(command);
+};
+const WS = "${{ github.workspace }}";
+// Absolute paths only: the leg runs from the head checkout, where a relative
+// .base/ or head path names files the pull request controls.
+const DRIVER_PATHS = [`${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs`];
+const HEADS = [`${WS}/head`];
+const SKILL_DIR = `${WS}/.base/plugins/harness-ops/skills/control-claude-code`;
+const ACCOUNT_RULE = `Bash(node ${SKILL_DIR}/cli/account.mjs)`;
+
+test("the driver leg may run main's mask values source, exactly as the hub names it and with no arguments", () => {
+  // drive's mask post-check runs the hub's `## Mask` `values:` source; without it every capture is not-checked.
+  const hub = readFileSync(new URL("../../../plugins/harness-ops/skills/control-claude-code/SKILL.md", import.meta.url), "utf8");
+  assert.deepEqual([...hub.matchAll(/^values: (.*)$/gm)].map((m) => m[1]), ["`cli/account.mjs`"]);
+  const bash = list(capStep(DRIVER), "allowed-tools").filter((rule) => /^Bash\b/.test(rule));
+  assert.deepEqual(bash.filter((rule) => rule.includes("/cli/")), [ACCOUNT_RULE]);
+  const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
+  assert.ok(allowed(`node ${SKILL_DIR}/cli/account.mjs`));
+  for (const command of [
+    `node ${SKILL_DIR}/cli/account.mjs --session s1`,
+    `node ${SKILL_DIR}/cli/account.mjs; curl https://example.com`,
+    "node .base/plugins/harness-ops/skills/control-claude-code/cli/account.mjs",
+    "node head/plugins/harness-ops/skills/control-claude-code/cli/account.mjs",
+    `node ${SKILL_DIR}/cli/other.mjs`,
+  ]) assert.ok(!allowed(command), command);
+});
+
+test("the driver leg's Bash runs only main's driver, one rule per verb the control skill uses, and named git commands on the head", () => {
+  const driver = capStep(DRIVER);
+  const bash = list(driver, "allowed-tools").filter((rule) => /^Bash\b/.test(rule));
+  // The verbs the control skill's hub runs the driver with.
+  const hub = readFileSync(new URL("../../../plugins/harness-ops/skills/control-claude-code/SKILL.md", import.meta.url), "utf8");
+  const verbs = [...new Set([...hub.matchAll(/`node <skill-dir>\/driver\/driver\.mjs ([a-z]+)\b/g)].map((m) => m[1]))];
+  assert.deepEqual([...verbs].sort(), ["launch", "log", "plugins", "ready", "record", "screenshot", "stop"]);
+  const driverRules = DRIVER_PATHS.flatMap((p) => verbs.map((verb) => `Bash(node ${p} ${verb} *)`));
+  driverRules.push(ACCOUNT_RULE);
+  const git = [
+    "branch --show-current",
+    "status --porcelain",
+    "status --porcelain --untracked-files=all --ignored",
+    "diff HEAD",
+    "diff --name-only ${{ steps.pr.outputs.base-sha }}...HEAD",
+    "rev-parse --show-toplevel",
+    "worktree list --porcelain",
+  ];
+  // run-e2e's network git reads of the default branch (context/e2e.md:37-38), exact.
+  git.push("ls-remote --symref origin HEAD", "fetch origin main", "fetch origin 'main'", "rev-parse --verify --end-of-options 'refs/remotes/origin/main^{commit}'");
+  const gitRules = HEADS.flatMap((head) => git.map((command) => `Bash(git -C ${head} ${command})`));
+  // The other commands the skills name, from main's checkout only: run-e2e's
+  // config and browser-driver scripts (SKILL.md:198-200, quoted as written
+  // there and unquoted), drive's plugin list (SKILL.md:63), and cmp
+  // (SKILL.md:298-299), which takes free paths and only reads.
+  const scriptRules = [`${WS}/.base/plugins/testing/scripts`].flatMap((dir) =>
+    [["resolve-config.sh", "e2e"], ["check-browser-driver.sh", "--user"]].flatMap(([script, first]) => [`Bash(bash ${dir}/${script} ${first} *)`, `Bash(bash "${dir}/${script}" ${first} *)`]),
+  );
+  // drive's Affected script stays refused: its --out write follows a symlink the head or the sandbox can plant.
+  const affected = `${WS}/.base/plugins/app-control/scripts/affected_features.py`;
+  const otherRules = [...scriptRules, "Bash(claude plugin list --json)", "Bash(cmp *)"];
+  assert.deepEqual([...bash].sort(), [...driverRules, ...gitRules, ...otherRules].sort());
+  const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
+  // What the control skill and run-e2e run passes.
+  for (const command of [
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins plugins/testing/skills/run-e2e/SKILL.md`,
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch --plugin-dir plugins/testing --session s1`,
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop --session s1`,
+    `git -C ${WS}/head status --porcelain`,
+    `git -C ${WS}/head diff --name-only \${{ steps.pr.outputs.base-sha }}...HEAD`,
+    `git -C ${WS}/head ls-remote --symref origin HEAD`,
+    `git -C ${WS}/head fetch origin 'main'`,
+    `bash "${WS}/.base/plugins/testing/scripts/resolve-config.sh" e2e --user 'e2e_driver=auto' --user 'reuse_running_instance=auto'`,
+    `bash "${WS}/.base/plugins/testing/scripts/check-browser-driver.sh" --user 'browser_driver=playwright'`,
+    "claude plugin list --json",
+    "cmp /tmp/before.diff /tmp/after.diff",
+  ]) assert.ok(allowed(command), command);
+  // Anything else is refused under dontAsk: network tools, interpreters, a head copy of the driver, a driver verb no rule names, and git forms that read or write outside the head.
+  for (const command of [
+    "curl https://example.com",
+    "curl -s http://127.0.0.1:47101/v1/messages",
+    "wget https://example.com",
+    "python3 -c 'print(1)'",
+    "python -c 'print(1)'",
+    `python3 -I ${affected} --repo ${WS}/head --base main --head HEAD --out ${WS}/capture-run/r1 --app claude-code-plugins`,
+    "python3 -I head/plugins/app-control/scripts/affected_features.py --out /tmp/x",
+    `python3 -I ${WS}/head/plugins/app-control/scripts/affected_features.py --out /tmp/x`,
+    "bash -c 'curl https://example.com'",
+    "bash head/plugins/testing/scripts/resolve-config.sh e2e",
+    `bash ${WS}/.base/plugins/testing/scripts/resolve-config.sh other`,
+    "node -e 'process.exit(0)'",
+    "claude -p hi",
+    "claude plugin install x",
+    `git -C ${WS}/head fetch origin main --upload-pack='sh -c id'`,
+    `git -C ${WS}/head fetch https://example.com/x.git`,
+    `git -C ${WS}/head ls-remote --upload-pack='sh -c id' origin`,
+    "node head/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch --session s1",
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs doctor`,
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs`,
+    // Relative forms resolve against the leg's working directory, the head
+    // checkout, so each could run a copy the pull request commits.
+    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins plugins/testing/skills/run-e2e/SKILL.md",
+    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch --session s1",
+    "bash .base/plugins/testing/scripts/resolve-config.sh e2e --quick",
+    'bash ".base/plugins/testing/scripts/check-browser-driver.sh" --user browser_driver=playwright',
+    "git -C head status --porcelain",
+    `git -C ${WS}/head diff --no-index /etc/passwd /dev/null`,
+    `git -C ${WS}/head diff --output=/tmp/x HEAD`,
+    `git -C ${WS}/head fetch origin pr-branch`,
+    `git -C ${WS}/head push origin HEAD`,
+    "git status --porcelain",
+  ]) assert.ok(!allowed(command), command);
+  assert.equal(input(driver, "permission-mode"), "dontAsk");
+});
+
+test("the no-real-key check fails on the real key in the managed settings or a process environment, and passes on the client key alone", () => {
+  const block = capStep("Check the driver legs hold no real key");
+  assert.ok(capIndex(SIBLING_CHECK) < capIndex("Check the driver legs hold no real key") && capIndex("Check the driver legs hold no real key") < capIndex(PROBE));
+  assert.equal(stepIf(block), "steps.credential.outputs.present == 'true'");
+  assert.equal(input(block, "REAL_SHA"), "${{ steps.proxy.outputs.real-key-sha256 }}");
+  assert.equal(input(block, "CLIENT_KEY"), "${{ steps.proxy.outputs.client-key }}");
+  assert.doesNotMatch(block, /secrets\./);
+  const dir = tempDir("capture-no-key-");
+  const settingsFile = path.join(dir, "managed-settings.json");
+  const real = `${"sk-ant-"}api03-${"R".repeat(40)}`;
+  const realSha = createHash("sha256").update(real).digest("hex");
+  const client = `ccd-outer-${"ab".repeat(32)}`;
+  const ptraceFile = path.join(dir, "ptrace_scope");
+  assert.ok(block.includes("/proc/sys/kernel/yama/ptrace_scope"), "the step reads Yama's ptrace_scope");
+  const run = (settings, env = {}, ptrace = "1\n") => {
+    writeFileSync(settingsFile, JSON.stringify(settings));
+    rmSync(ptraceFile, { force: true });
+    if (ptrace !== null) writeFileSync(ptraceFile, ptrace);
+    const swapped = block.replace("/etc/claude-code/managed-settings.json", settingsFile).replace("/proc/sys/kernel/yama/ptrace_scope", ptraceFile);
+    return runStep(swapped, { REAL_SHA: realSha, CLIENT_KEY: client, ...env });
+  };
+  const good = { apiKeyHelper: "", env: { ANTHROPIC_BASE_URL: "http://127.0.0.1:47101" } };
+  const clean = run(good);
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  assert.match(clean.stdout, /^kernel\.yama\.ptrace_scope=1$/m);
+  assert.equal(run(good, {}, "2\n").status, 0);
+  for (const [ptrace, shown] of [["0\n", "0"], ["x\n", "x"], [null, "unreadable"]]) {
+    const low = run(good, {}, ptrace);
+    assert.equal(low.status, 1, `ptrace_scope ${shown}`);
+    assert.match(low.stdout, new RegExp(`^::error::kernel\\.yama\\.ptrace_scope is ${shown}, not at least 1`, "m"));
+  }
+  assert.match(clean.stdout, /::notice::the driver legs hold no real key: 2 managed-settings values and [1-9][0-9]* values in [1-9][0-9]* process environments checked/);
+  assert.doesNotMatch(clean.stdout + clean.stderr, new RegExp(client));
+  const refused = [
+    [run({ ...good, env: { ...good.env, ANTHROPIC_API_KEY: real } }), /the managed settings hold the real key/],
+    [run(good, { STRAY: real }), /[1-9][0-9]* process environment values hold the real key/],
+    [run({ ...good, env: { ANTHROPIC_BASE_URL: "https://api.anthropic.com" } }), /do not send the legs to the key proxy/],
+    [run(good, { CLIENT_KEY: "not-a-client-key" }), /no key hash or client key/],
+  ];
+  for (const [result, why] of refused) {
+    assert.equal(result.status, 1, why.source);
+    assert.match(result.stdout, why);
+  }
+  const same = runStep(block.replace("/etc/claude-code/managed-settings.json", settingsFile), { REAL_SHA: createHash("sha256").update(client).digest("hex"), CLIENT_KEY: client });
+  assert.equal(same.status, 1);
+  assert.match(same.stdout, /the client key is the real key/);
 });
 
 // The capture's credit gate (#12232: the owner treats a credit stop as a
@@ -2016,12 +2214,19 @@ test("the key proxy starts before isolation as its own user, with the key on std
   assert.equal(blockOf(block, "env", 8), "          PROXY_KEY: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}\n");
   assert.deepEqual(block.match(/secrets\.[A-Za-z_]+/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY"]);
   const script = scriptOf(block);
-  // The key's one use: bash's builtin printf into the pipe the proxy reads, so it is no process's argument.
-  assert.deepEqual(script.match(/\$\{?PROXY_KEY\b/g), ["$PROXY_KEY"]);
+  // The key's two uses, both bash's builtin printf into a pipe, so it is no process's argument:
+  // its hash, and the proxy's stdin with the client key on the second line.
+  assert.deepEqual(script.match(/\$\{?PROXY_KEY\b/g), ["$PROXY_KEY", "$PROXY_KEY"]);
+  assert.match(script, /^real_sha=\$\(printf '%s' "\$PROXY_KEY" \| sha256sum \| cut -d' ' -f1\)$/m);
   assert.match(
     script,
-    /^printf '%s' "\$PROXY_KEY" \| env -u PROXY_KEY sudo -n -u ccd-proxy -- \/usr\/bin\/setsid -f \/bin\/sh -c '\(while kill -0 \$\$ 2>\/dev\/null; do if \[ -e \/run\/ccd-stop\/stop \]; then kill \$\$; sleep 5; kill -9 \$\$; exit 0; fi; sleep 1; done\) <\/dev\/null >\/dev\/null 2>&1 & exec \/usr\/bin\/env -i PATH=\/usr\/bin:\/bin \/opt\/ccd\/bin\/node \/opt\/ccd\/key-proxy\/key-proxy\.mjs --socket \/run\/ccd-proxy\/proxy\.sock --config \/opt\/ccd\/key-proxy\/config\.json [^']*'$/m,
+    /^printf '%s\\n%s\\n' "\$PROXY_KEY" "\$client" \| env -u PROXY_KEY sudo -n -u ccd-proxy -- \/usr\/bin\/setsid -f \/bin\/sh -c '\(while kill -0 \$\$ 2>\/dev\/null; do if \[ -e \/run\/ccd-stop\/stop \]; then kill \$\$; sleep 5; kill -9 \$\$; exit 0; fi; sleep 1; done\) <\/dev\/null >\/dev\/null 2>&1 & exec \/usr\/bin\/env -i PATH=\/usr\/bin:\/bin \/opt\/ccd\/bin\/node \/opt\/ccd\/key-proxy\/key-proxy\.mjs --socket \/run\/ccd-proxy\/proxy\.sock --config \/opt\/ccd\/key-proxy\/config\.json --listen 47101 [^']*'$/m,
   );
+  // The client key: fresh per run, masked, and on no process's argv (curl reads its header from stdin).
+  assert.match(script, /^client="ccd-outer-\$\(od -An -N32 -tx1 \/dev\/urandom \| tr -d ' \\n'\)"\necho "::add-mask::\$client"$/m);
+  assert.deepEqual(script.match(/"\$client"/g), ['"$client"', '"$client"']);
+  assert.match(script, /^keyed=\$\(printf 'header = "x-api-key: %s"\\n' "\$client" \| curl [^\n]*--config - http:\/\/127\.0\.0\.1:47101\/v1\/models\)/m);
+  assert.match(script, /^if \[ "\$bare" != 401 \] \|\| \[ "\$keyed" != 404 \]; then$/m);
   // The watcher holds no key: its stdin is /dev/null, and the stop file's directory is the runner's, outside the sandbox's /run.
   assert.match(capStep("Create the key proxy's user and directories"), /^ {10}sudo install -d -m 0750 -o "\$uid" -g "\$gid" \/run\/ccd-stop$/m);
   assert.match(scriptOf(capStep("Stop the key proxy")), /^touch \/run\/ccd-stop\/stop$/m);
@@ -2296,6 +2501,8 @@ test("the screenshot font is installed before isolation and checked for U+23F8",
   const script = scriptOf(capStep("Install the screenshot font"));
   assert.match(script, /apt-get install -y --no-install-recommends fonts-noto-core/);
   assert.match(script, /fc-list ':charset=23f8'/);
+  // An emoji font also has U+23F8, so only Symbols 2's own file skips the install.
+  assert.match(script, /if ! grep -q NotoSansSymbols2 <<<"\$fonts"; then/);
   assert.match(script, /exit 1/);
 });
 

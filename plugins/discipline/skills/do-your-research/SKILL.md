@@ -86,7 +86,7 @@ inline audit and in the fan-out tier below.
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit):
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result):
 
 - a claim asserted without a fetched source, or flagged "known" /
   "obvious" / "from memory";

@@ -317,3 +317,8 @@ unable to detect a loss: the cut does not ship on it, whatever the after version
 control's before and degraded scores beside the compare. For a whole-plugin rewrite, the
 `/playbooks:skill-authoring` reference `rewrite-a-plugin.md` (step 4) adds which part to degrade
 and preregistering the control before the first paid run.
+
+When the compare is VALID, shows no loss, and goes to a pull request a repository holds for it, end
+the comment with the repository's release record for the head it ran, if it defines one. In this
+marketplace that is the line `<!-- eval-pair verdict=no-loss validity=VALID head=<sha> -->`:
+[Cross-lane PR hold](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#cross-lane-pr-hold).

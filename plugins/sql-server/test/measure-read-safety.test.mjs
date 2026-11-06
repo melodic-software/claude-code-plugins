@@ -22,10 +22,25 @@ describe('scripts/measure-read-safety.mjs', () => {
     assert.doesNotMatch(run.stderr, /starting sql-server-measure-/);
   });
 
+  it('refuses a --runs value that is not a whole number of at least 1 before it starts any container', () => {
+    for (const runs of ['0', '1.5', 'x']) {
+      const run = spawnSync(process.execPath, [script, '--runs', runs], { encoding: 'utf8', env: { PATH: '' } });
+      assert.notEqual(run.status, 0);
+      assert.match(run.stderr, /--runs takes a whole number of at least 1/);
+      assert.doesNotMatch(run.stderr, /starting sql-server-measure-/);
+    }
+  });
+
   it('the committed doc holds one results block with a forced-timeout line at zero', () => {
     const block = doc.slice(doc.indexOf('<!-- measure-read-safety:results:start -->'), doc.indexOf('<!-- measure-read-safety:results:end -->'));
     assert.ok(block.length > 0);
     assert.match(block, /open transactions after timeout: 0/);
     assert.doesNotMatch(block, /open transactions after timeout: [1-9]/);
+  });
+
+  it('the committed doc records a passing topology check over the attributed topology runs', () => {
+    const block = doc.slice(doc.indexOf('<!-- measure-read-safety:results:start -->'), doc.indexOf('<!-- measure-read-safety:results:end -->'));
+    assert.match(block, /### Waiting tasks in the topology runs, by waiter and blocker/);
+    assert.match(block, /Topology check: PASS\./);
   });
 });
