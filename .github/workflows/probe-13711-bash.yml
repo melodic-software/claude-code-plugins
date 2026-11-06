@@ -39,12 +39,17 @@ jobs:
           - variant: cc-sandbox
             sandbox: '{"enabled": true, "allowUnsandboxedCommands": false}'
             scrub: "1"
-          - variant: cc-sandbox-weaker
-            sandbox: '{"enabled": true, "allowUnsandboxedCommands": false, "enableWeakerNestedSandbox": true}'
-            scrub: "1"
+          # Run 1: every scrub variant's Bash failed in the scrub's bwrap (ENOSPC),
+          # so Claude Code's sandbox is also tried without the scrub.
           # Explanatory only: no scrub, so Bash and hooks see the dummy key.
           - variant: no-scrub
             sandbox: "null"
+            scrub: "0"
+          - variant: cc-sandbox-no-scrub
+            sandbox: '{"enabled": true, "allowUnsandboxedCommands": false}'
+            scrub: "0"
+          - variant: cc-sandbox-weaker-no-scrub
+            sandbox: '{"enabled": true, "allowUnsandboxedCommands": false, "enableWeakerNestedSandbox": true}'
             scrub: "0"
     env:
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
@@ -289,7 +294,7 @@ jobs:
           main=$(yq '.merge."verify-capture".proxy."driven-model"' "$CONFIG")
           small=$(yq '.merge."verify-capture".proxy."driven-small-model"' "$CONFIG")
           ceiling=$(yq '.merge."verify-capture".proxy."max-tokens-ceiling"' "$CONFIG")
-          jq -n --arg main "$main" --arg small "$small" --arg ceiling "$ceiling" --argjson sandbox "$SANDBOX" --arg scrub "$SCRUB" '{model: $main, env: {ANTHROPIC_BASE_URL: "http://127.0.0.1:47100", CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1", ANTHROPIC_DEFAULT_HAIKU_MODEL: $small, CLAUDE_CODE_MAX_OUTPUT_TOKENS: $ceiling, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"}, permissions: {disableBypassPermissionsMode: "disable", allow: ["Bash"]}}
+          jq -n --arg main "$main" --arg small "$small" --arg ceiling "$ceiling" --argjson sandbox "$SANDBOX" --arg scrub "$SCRUB" '{model: $main, env: {ANTHROPIC_BASE_URL: "http://127.0.0.1:47100", CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1", ANTHROPIC_DEFAULT_HAIKU_MODEL: $small, CLAUDE_CODE_MAX_OUTPUT_TOKENS: $ceiling, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"}, permissions: {disableBypassPermissionsMode: "disable", defaultMode: "default", allow: ["Bash"]}}
             | if $scrub == "1" then . else del(.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) end
             | if $sandbox == null then . else .sandbox = $sandbox end' |
             sudo tee /opt/ccd/driven-etc/managed-settings.json >/dev/null
@@ -749,7 +754,8 @@ jobs:
           echo "== driven requests (stub log)"
           jq -R -r 'fromjson? | select(type == "object" and .caller == "driven" and .status != null) | [.t, .path, .status, (.model // "-"), (.reply // "-")] | map(tostring) | join(" ")' "$log" 2>&1 | san || true
           echo "::$token::"
-          count() { jq -n --arg e "$1" '[inputs | select(type == "object" and .hook_event_name == $e and .tool_name == "Bash")] | length' "$run/probe-hook-$1.jsonl" 2>/dev/null || echo 0; }
+          # Run 1: jq prints 0 and exits 2 on a missing file, so the file is tested first.
+          count() { if [ -f "$run/probe-hook-$1.jsonl" ]; then jq -n --arg e "$1" '[inputs | select(type == "object" and .hook_event_name == $e and .tool_name == "Bash")] | length' "$run/probe-hook-$1.jsonl" 2>/dev/null || echo '"unparsed"'; else echo 0; fi; }
           results=$(jq -R -n -c '[inputs | fromjson? | select(type == "object" and .caller == "driven") | (.toolResults // [])[]] | {n: length, errors: (map(select(.error)) | length)}' "$log" 2>/dev/null || echo null)
           jq -n -c --arg v "$VARIANT" --argjson pre "$(count PreToolUse)" --argjson post "$(count PostToolUse)" --argjson failure "$(count PostToolUseFailure)" --argjson results "${results:-null}" \
             '{variant: $v, hooks: {pre: $pre, post: $post, failure: $failure}, tool_results: $results}' | tee "$RUNNER_TEMP/probe/r13711.json"
