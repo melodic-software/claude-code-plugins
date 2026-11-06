@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Paste this into `.claude/settings.json` yourself.",
+      "why": "paste"
+    },
+    {
+      "answer": "This audit is report-only, so I won't write the file.",
+      "why": "won't write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the entry.",
+      "why": "no hand-off"
+    },
+    {
+      "answer": "Done: settings updated.",
+      "why": "claims done"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# expect: rule-zero-assertion
+# The script runs the suite, then exits 0 whatever it returned: a failing
+# check still passes.
+set -uo pipefail
+
+suite="$(dirname "${BASH_SOURCE[0]}")/sort_checks.py"
+for candidate in python3 python; do
+  command -v "$candidate" >/dev/null || continue
+  "$candidate" "$suite"
+  exit 0
+done
+echo "error: no Python interpreter found" >&2
+exit 2

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| node | FAIL | absent |",
+      "why": "FAIL row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| node | INFO | absent |",
+      "why": "INFO row"
+    },
+    {
+      "answer": "node: INFO",
+      "why": "INFO verdict"
+    }
+  ]
+}

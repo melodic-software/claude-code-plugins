@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The current config has two dimensions: documentation and api-contracts."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The current config has a documentation dimension.",
+      "why": "custom dimension missing"
+    },
+    {
+      "answer": "Proposed: documentation, configuration, code-quality, architecture.",
+      "why": "baseline not summarized"
+    }
+  ]
+}

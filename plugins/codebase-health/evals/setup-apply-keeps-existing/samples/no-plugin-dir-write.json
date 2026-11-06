@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/lib/config.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/codebase-health.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin root file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/templates/config.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin subdirectory not in the old list"
+    }
+  ]
+}
