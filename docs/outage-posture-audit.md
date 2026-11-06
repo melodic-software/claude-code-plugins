@@ -160,14 +160,17 @@ The lane has no workflow or script in this repository. It is declared at
 
 ## pr-require-checks
 
+`ci-status` is the repository's only required check, so it is a gate: a read it cannot complete
+ends it red, and that red is correct. These rows cite commit `91414684`, not `222d8023`.
+
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/workflows/pr-require-checks.yml:4859`, `.github/workflows/pr-require-checks.yml:4689` | Callers loop 3 times with linear sleeps around a `gh_read` that can send twice, so a read can go out 6 times. A guessed secondary limit fails at once. Status writes are retried (`:4044`). |
-| 2 | gap | `.github/workflows/pr-require-checks.yml:4691`, `.github/workflows/pr-require-checks.yml:4863` | A read failure fails the check red on purpose instead of holding green. |
-| 3 | gap | `.github/workflows/pr-require-checks.yml:4695` | A held result recovers only through another lane's re-run, a person or the reconciler. The cron at `:29` is not the probe. |
-| 4 | gap | `.github/workflows/pr-require-checks.yml:6959` | A missing review run sets `failed=1`, which fails on absent evidence. |
-| 5 | met | `.github/workflows/pr-require-checks.yml:6964`, `.github/workflows/pr-require-checks.yml:7020` | `ci-status` reads a review the status-page gate stopped and starts nothing from the page. That it reads the stop as red is element 4's concern. |
-| 6 | gap | `.github/workflows/pr-require-checks.yml:89`, `.github/workflows/pr-require-checks.yml:109` | Scheduled runs each get their own `run_id` group, so the lane is not single-pending, and it sends no `etag`. The cron (`17 9,16`) is off minute 0. |
+| 1 | gap | `.github/workflows/pr-require-checks.yml:4879`, `.github/workflows/pr-require-checks.yml:7016` | `gh_read` waits once for a reset a header gave, inside the job's deadline, then reads again; a guessed stop, such as a secondary limit with no `retry-after`, fails at once (`:4896`). Its callers loop 3 times with fixed 5 and 10 s sleeps (also `:5041`, `:5713`, `:5792`, `:5804`, `:5980`, `:6447`, `:7045`): a read that fails for another reason goes out 3 times with no jitter, and one that meets a rate limit on every try can go out 6 times (still-open table). The cost-hold loop takes no rate wait on purpose (`:5370`). The `mark-lanes` status POST (`:916`) posts the same pending status each time, so a resend changes nothing. |
+| 2 | gap | `.github/workflows/pr-require-checks.yml:3`, `.github/workflows/pr-require-checks.yml:4865`, `.github/actions/resolve-config/callers.test.mjs:3137` | Kept: a read that fails ends red, never neutral, and no step sets `API_BUDGET_HOLD`, which `callers.test.mjs` keeps off every gate step. Holding green would pass what the gate could not read. |
+| 3 | gap | `.github/workflows/pr-require-checks.yml:4868`, `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:67` | The workflow keeps no breaker: the `ci-lanes` status is the last full run's verdict, marked pending by each full run (`:916`) and written again at its end. A red `ci-status` recovers on the next push or label event, on `rerun-ci-status` when a review completes, or on the reconciler's one-time recorded re-run (its Switch and Pending kinds), the re-arm the owner kept (still-open table). The cron at `:35` is the whole-tree run, not the probe. |
+| 4 | met | `.github/workflows/pr-require-checks.yml:7354`, `.github/workflows/pr-require-checks.yml:7340` | `ci-status` files and demotes nothing. A review lane with no run on the head, one still running past the wait, or one a stop ended fails the check on a complete read of the head's runs, since the gate passes only on positive evidence of a review. The next `ci-status` run replaces that red, and `rerun-ci-status` and the reconciler's Pending kind start it once the review completes. |
+| 5 | met | `.github/workflows/pr-require-checks.yml:7362`, `.github/workflows/pr-require-checks.yml:7414` | `ci-status` reads a review the status-page gate stopped and starts nothing from the page; it reads the stop as red, as element 4 requires of a gate. |
+| 6 | gap | `.github/workflows/pr-require-checks.yml:115`, `.github/workflows/pr-require-checks.yml:7344` | Reads are serial, and the cron (`17 9,16`) is off minute 0. A scheduled run keeps its own `run_id` group, kept: the two ticks are 7 hours apart and a full run's p95 is 580 s (`:6905`), so a shared group would never hold one pending. The review wait reads each running review run once a minute, up to 8 times, with no `etag` (still-open table). |
 
 ## pr-unblock
 
@@ -538,6 +541,19 @@ cite that change's head, not `222d8023`.
   is re-run once), element 3's one re-arm is kept, and element 5 is met as it stands (still-open
   table).
 
+A later audit of pr-require-checks' workflow changed no step; its rows cite commit `91414684`.
+
+- **pr-require-checks, element 1.** `retry_call --read` cannot wrap these reads as they stand.
+  Wrapping `gh_read` keeps its own rate wait inside each of the 3 tries, so the sends still stack.
+  Wrapping a one-shot `gh api` instead drops the gate's wait for the reset, rebuilds the `pr_read`
+  cache at each site, and needs a file capture at each, since `retry_call` passes a failed
+  try's output through and `$(retry_call ...)` loses `retry_call_unknown`. `gh-read.sh` is also
+  written before the `.base` checkout that would carry `retry-call.bash`. The fix is one retry
+  layer in `gh_read` (still-open table).
+- **pr-require-checks, elements 2, 4 and 6.** Kept on evidence: the gate fails closed, its red on
+  a missing review is a complete read's result, and the scheduled group never holds two runs.
+  Element 3's only re-arm is the reconciler's kept record, and element 5 is met.
+
 A later change reviewed pr-verify's workflow row. Its pr-verify rows 2 and 3 cite that change's head.
 Only the workflow header's account of the resolver changed: no step was made to hold.
 
@@ -568,14 +584,17 @@ The other script rows below are still open.
 | pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:188-199` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs`, and the later pr-refine change above the workflow's elements 1, 2 and 4 |
 | pr-refine | 2 | script | `.github/scripts/pr-unblock/lane-hold.mjs` (a failed label or timeline read ends fix-docs-head red, a run the dispatcher counts; pr-unblock's `resolve-conflicts-select` shares the script) |
 | shared | 1 | workflow | every workflow's `Resolve main's tip` step: its one `git ls-remote` is never retried, and `callers.test.mjs` pins the step's text across more than 70 jobs (`TIP_RUN`) |
-| pr-review, pr-review-security, pr-verify | 3 | kept | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` keeps its one-time re-run record, the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`), and its status-page idle, a stop element 5 allows |
+| pr-review, pr-review-security, pr-verify, pr-require-checks | 3 | kept | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` keeps its one-time re-run record, the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`), and its status-page idle, a stop element 5 allows |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
 | pr-review, pr-review-security | 2 | larger | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs`: read a pr-review-main hold, as `faultHeld` reads pr-verify's, before `pr-review-main.yml` holds an unread file list or a run with no verdict green; until then that red is the kept re-run's signal |
 | pr-review, pr-review-security | 1, 6 | workflow | `.github/workflows/pr-review-main.yml`: retry the judged-head pre-filter's reads, and read the trusted PR text once per run for both lanes, which changes what the model reads |
 | pr-review, pr-review-security | 1, 2, 6 | larger | the hosted review's own reads, in `melodic-software/ci-workflows` `pr-review-cli.yml` |
 | pr-verify | 2 | kept | `.github/workflows/pr-verify.yml` keeps its non-resolver reads red: the reconciler re-runs a red run whose verdict write never started, and sees a green hold only through `Note the hold` and a `held:` notice (`reconcile.mjs` `faultHeld`) (see above) |
 | pr-verify | 2 | script | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` (a read fault stops with `no-pr` or an `untrusted-*` reason, the reasons a real refusal gets, so pr-verify ends green with no notice and no re-run; a separate fault reason the workflow can mark with `Note the hold`, plus a pr-verify entry in `signals.mjs` `HOLD_LANES`, would make it a counted hold) |
-| pr-require-checks | 1, 2, 3, 4, 6 | workflow | `.github/workflows/pr-require-checks.yml` |
+| pr-require-checks | 2, 4, 6 | kept | `.github/workflows/pr-require-checks.yml` keeps its red on a read it could not complete and on a head with no counted review, since a gate that held green would pass what it could not read; scheduled runs keep their own groups, which two ticks 7 hours apart never contend for |
+| pr-require-checks | 1 | workflow | `.github/workflows/pr-require-checks.yml`: make `gh_read` the one retry layer (3 sends, full jitter, a header-given reset waited out inside the job's deadline) on verbatim copies of `retry-call.bash` and `rate-stop.bash` in the job env, checked as `API_BUDGET_SH` is (`log-api-budget.test.mjs`), and drop the callers' loops; `scripts/ci-gh-read.test.sh` and the per-step `scripts/ci-*.test.sh` suites pin these bodies |
+| pr-require-checks | 6 | script | a shell read that sends `If-None-Match` for one URL (only `.github/scripts/lib/handoff-evidence.sh` has one, for job listings), then the review wait's run poll (`pr-require-checks.yml:7344`) |
+| pr-require-checks | 1, 6 | larger | the `check-contract` and `aggregate-results` composites in `melodic-software/ci-workflows` (`pr-require-checks.yml:5012`, `:6892`): their own reads, own-gate retries and 60 s rate-limit waits |
 | pr-unblock | 3, 4 | script | `.github/scripts/pr-unblock/limit-stop.mjs` (a stop where a model turn may have run still counts toward the cap), `escalation-routes.json` (`feedback-publish-failed` still files a failing status: withholding it strands the head, since only a workflow-modified refusal is sent again, `feedback-dispatch.mjs` `sweepRefused`); part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, the lane's parallel reads, the dispatchers' failed reads, and the cap's count of fault stops whose model never started |
 | pr-unblock | 6 | workflow | `.github/workflows/pr-unblock-dispatch.yml`, `pr-feedback-dispatch.yml` |
 | pr-merge | 2, 6 | workflow | `.github/workflows/pr-merge.yml` (listing-full and rate-limit exits, cover-read dispatch, `queue: max`) |
