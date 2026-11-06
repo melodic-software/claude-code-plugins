@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Never inside `${CLAUDE_PLUGIN_ROOT}`; that directory is replaced on update.", "why": "never"},
+    {"answer": "`${CLAUDE_PLUGIN_ROOT}` is read-only under cache isolation.", "why": "read-only"},
+    {"answer": "Keep it outside CLAUDE_PLUGIN_ROOT.", "why": "outside"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Write it to `${CLAUDE_PLUGIN_DATA}/sessions/`.", "why": "never names the install dir"},
+    {"answer": "Store it under `${CLAUDE_PLUGIN_ROOT}/sessions/`.", "why": "puts it in the install dir"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "There is no Process Modeling board for Enrollment yet. Run `/event-storming:simulation --process-model Enrollment` first.", "why": "missing board and the offer"},
+    {"answer": "Missing prerequisite: a Process Modeling board. Want me to run --process-model first?", "why": "missing prerequisite"},
+    {"answer": "No prior run is recorded. Start with --process-model Enrollment.", "why": "no prior"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "No problem. Here are the Enrollment aggregates.", "why": "no offer, unrelated no"},
+    {"answer": "The Process Modeling board is missing.", "why": "no --process-model offer"},
+    {"answer": "Run --process-model later if you like; no changes needed. Aggregates: Enrollment, Seat.", "why": "offer without naming the missing board"}
+  ]
+}

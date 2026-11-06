@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Under `${CLAUDE_PLUGIN_DATA}/sessions/<session-id>/`.", "why": "braced"},
+    {"answer": "Write it to $CLAUDE_PLUGIN_DATA/history.jsonl.", "why": "unbraced"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Write it to ./sessions in your repo.", "why": "project tree"},
+    {"answer": "Use the plugin data directory.", "why": "no variable named"}
+  ]
+}

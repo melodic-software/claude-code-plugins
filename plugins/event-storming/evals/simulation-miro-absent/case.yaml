@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: simulation-miro-absent
-description: "A simulation request in a session with no Miro tools. simulation SKILL.md 'Miro availability & graceful degradation': check for tools ending in __miro_list_boards and __miro_create_board; when absent 'do NOT fail. Tell the user the miro plugin isn't enabled, then offer two paths': structured-markdown mode or installing and enabling the miro plugin. A run has no MCP server unless the case routes one in, so the absent branch is the one this case reaches. The prompt is in natural language so the Skill call is visible and never names Miro. Needs --allow-tools Write so the must-not-call can fail."
-tags: [event-storming, simulation, outcome, degradation]
-expected_outcome: "The model loads the event-storming simulation skill. Before running any workshop phase, the reply says the Miro plugin or its tools are not available and offers a structured-markdown rendering of the workshop. No file is written."
+description: "A simulation request in a session with no Miro tools. simulation SKILL.md 'Miro availability & graceful degradation': check for tools ending in __miro_list_boards and __miro_create_board; when absent 'do NOT fail. Tell the user the miro plugin isn't enabled, then offer two paths': structured-markdown mode or installing and enabling the miro plugin. A run has no MCP server unless the case routes one in, so the absent branch is the one this case reaches. The prompt is in natural language so the Skill call is visible and never names Miro. Also legacy simulation miro-absent-offers-markdown-mode: markdown-default needs the markdown path called the default or recommended (the skill's path 1), offers-install-miro needs installing, enabling or connecting Miro as the other path (path 2), and no-placed-claim fails a reply claiming it placed stickies or created a board. Needs --allow-tools Write so the must-not-call can fail."
+tags: [event-storming, simulation, outcome, degradation, no-network]
+expected_outcome: "The model loads the event-storming simulation skill. Before running any workshop phase, the reply says the Miro plugin or its tools are not available, offers a structured-markdown rendering of the workshop as the default or recommended path and installing or enabling Miro as the alternative, and claims no placed stickies. No file is written."
 execution:
   prompt: "Use the event-storming plugin to run a simulated multi-persona EventStorming workshop for a neighborhood bakery's online ordering. Before running any phase, tell me where the model will be rendered and what my options are, then wait for my go-ahead."
   allowed_tools: [Read, Glob, Grep, Skill, Write]
@@ -23,6 +23,22 @@ graders:
     type: regex
     pattern: '\bstructured[- ]markdown\b|\bmarkdown\b[^\n]{0,60}\b(?:mode|artifact|output|timeline|rendering|version)\b'
     flags: 'i'
+    target: 'last_message'
+  - name: markdown-default
+    type: regex
+    pattern: '\b(?:default|recommended|recommend|recommends)\b[^\n]{0,80}\bmarkdown\b|\bmarkdown\b[^\n]{0,80}\b(?:default|recommended)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: offers-install-miro
+    type: regex
+    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure)\b[^\n.]{0,60}\bmiro\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-placed-claim
+    type: regex
+    pattern: '\bI(?:''ve|’ve| have)?\s+(?:just\s+|now\s+|already\s+)?(?:placed|added|put|posted)\b[^\n.]{0,60}\bstick(?:y|ies)\b|\bI(?:''ve|’ve| have)?\s+(?:just\s+|now\s+|already\s+)?(?:created|set up|opened)\s+(?:a|the|your)\s+(?:new\s+)?(?:miro\s+)?board\b|\bstick(?:y|ies)\b[^\n.]{0,40}\b(?:have been|are now)\s+(?:placed|added|posted)\b'
+    flags: 'i'
+    match: 'not_contains'
     target: 'last_message'
   - name: no-write
     type: tool_used

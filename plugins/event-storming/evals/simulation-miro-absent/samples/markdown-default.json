@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "1. **Structured-markdown mode (default, recommended):** same workshop, rendered as markdown.", "why": "the skill's own label"},
+    {"answer": "I recommend the structured-markdown mode.", "why": "recommends markdown"},
+    {"answer": "Markdown is the default here.", "why": "markdown first"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Option A: markdown. Option B: install Miro.", "why": "neither marked default"},
+    {"answer": "I recommend installing the miro plugin first.", "why": "recommends the other path"}
+  ]
+}

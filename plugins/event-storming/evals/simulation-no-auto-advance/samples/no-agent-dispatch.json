@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "event-storming:simulation", "args": "--simulate developer-conference"}}], "why": "routes through the Skill tool"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Agent", "input": {"description": "Organizer persona", "prompt": "You are the conference organizer persona."}}], "why": "dispatches a persona"}
+  ]
+}

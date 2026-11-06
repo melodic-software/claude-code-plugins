@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Design-Level needs a Process Modeling board to work from.", "why": "Design-Level in prose"},
+    {"answer": "The Blank Aggregates pass waits on a process model.", "why": "Blank Aggregates"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "You asked for --design-level Enrollment; let's start a Big Picture.", "why": "only echoes the flag"}
+  ]
+}

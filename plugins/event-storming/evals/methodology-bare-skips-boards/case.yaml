@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: methodology-bare-skips-boards
+description: "Legacy methodology miro-absent-skips-board-discovery-no-error. No format filter and, as in every run, no Miro tool. methodology SKILL.md 'Miro availability gate' (lines 41-49): with no callable tool ending in __miro_list_boards 'skip board discovery entirely and go straight to Step 2. Do not error', and reference guidance works with no Miro. asks-goal needs a question about the goal in the reply (Step 2); no-board-list fails the Step 1 board list; no-miro-block fails a reply calling Miro required, needed or blocking (rejecting phrases exempt). The prompt asks for questions in the reply, since an AskUserQuestion call never reaches the last message. Natural-language prompt so the Skill call is visible."
+tags: [event-storming, methodology, outcome, degradation, no-network]
+expected_outcome: "The model loads the methodology skill, skips board discovery without an error, and asks what the user is trying to accomplish; nothing says Miro is needed for the guidance."
+execution:
+  prompt: "Use the EventStorming facilitation reference from the event-storming plugin. Let's do some EventStorming. Put any question for me in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:event-storming:)?methodology"'
+    arm: with-only
+  - name: asks-goal
+    type: regex
+    pattern: '\b(?:what|which)\b[^\n?]{0,100}\b(?:accomplish|goal|trying to|hoping to|want to|aiming|outcome|format)\w*\b[^\n?]{0,100}\?'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-board-list
+    type: regex
+    pattern: '\bI found\b[^\n]{0,60}\bboards?\b|\bone of these boards\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-miro-block
+    type: regex
+    pattern: '(?<!\bno )(?<!\bwithout )(?<!\bnot )\bmiro\b[^\n.]{0,40}?(?<!n''t )(?<!not )(?<!never )(?<!no )\b(?:is |are )?(?:required|needed|necessary|blocking|blocks|blocked)\b|(?<!n''t )(?<!not )(?<!never )\b(?:requires?|needs?|blocked on|waiting on|waits for|wait for)\s+(?:a\s+|the\s+|your\s+)?miro\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

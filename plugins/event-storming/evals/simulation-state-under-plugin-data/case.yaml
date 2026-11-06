@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: simulation-state-under-plugin-data
+description: "Legacy simulation state-persists-outside-install-dir. A question about where a --simulate run keeps its state. simulation SKILL.md 'Cross-run state' (lines 192-200): persist session archives, board URLs and version metrics under ${CLAUDE_PLUGIN_DATA}/ (sessions/<session-id>/, history.jsonl), and 'Never write generated state inside the plugin's own installed directory (${CLAUDE_PLUGIN_ROOT}) or into the consumer's project tree.' names-plugin-data needs ${CLAUDE_PLUGIN_DATA}; avoids-plugin-root needs CLAUDE_PLUGIN_ROOT named in a never, not, avoid, outside or read-only context; no-project-tree (llm) fails a reply that puts the state in the project or repository tree. Natural-language prompt so the Skill call is visible."
+tags: [event-storming, simulation, outcome, state, no-network]
+expected_outcome: "The model loads the simulation skill and directs the state to ${CLAUDE_PLUGIN_DATA}/, says it never goes inside ${CLAUDE_PLUGIN_ROOT}, and keeps it out of the project tree."
+execution:
+  prompt: "Use the event-storming plugin's simulation skill. Where should a --simulate run write its session archive, board URLs, and version-comparison metrics?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:event-storming:)?simulation"'
+    arm: with-only
+  - name: names-plugin-data
+    type: regex
+    pattern: '\$\{?CLAUDE_PLUGIN_DATA\b'
+    target: 'last_message'
+  - name: avoids-plugin-root
+    type: regex
+    pattern: '(?:\bnever\b|\bnot\b|n''t\b|\bavoid\w*|\boutside\b|\bnor\b)[^\n]{0,80}\bCLAUDE_PLUGIN_ROOT\b|\bCLAUDE_PLUGIN_ROOT\b[^\n]{0,80}\b(?:read[- ]only|never|not|off[- ]limits|wiped|replaced)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-project-tree
+    type: llm
+    criteria: 'Legacy simulation 5: "Output does not write session state into the consumer''s project/repository tree". PASS when the reply keeps every piece of this state under the plugin data directory; naming the project tree as a place the state must not go passes. FAIL when the reply recommends writing any of the session archive, board URLs or metrics inside the consumer''s project or repository (for example a sessions/ or .event-storming/ directory in the repo).'
+    focus: 'last_message'

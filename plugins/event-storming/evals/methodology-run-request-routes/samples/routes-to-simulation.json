@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "To run it, use `/event-storming:simulation --simulate developer-conference`.", "why": "names the command"},
+    {"answer": "That is the simulation skill's job; this one is facilitation reference.", "why": "names the simulation skill"},
+    {"answer": "Run it with --simulate developer-conference.", "why": "names the mode"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Here is how to facilitate a Big Picture workshop for a developer conference.", "why": "no route"},
+    {"answer": "Running the simulation now with five personas.", "why": "runs it instead of routing"}
+  ]
+}

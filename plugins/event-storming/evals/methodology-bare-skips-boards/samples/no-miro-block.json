@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "Miro is not required for reference mode.", "why": "negated"},
+    {"answer": "Miro isn't needed for any of the guidance.", "why": "contracted negation"},
+    {"answer": "This works without Miro.", "why": "without"},
+    {"answer": "No Miro tools here; skipping board discovery.", "why": "states absence only"},
+    {"answer": "The guidance needs no Miro server.", "why": "needs no"}
+  ],
+  "fail": [
+    {"answer": "Miro is required before I can continue.", "why": "calls Miro required"},
+    {"answer": "This step needs a Miro server, so I have to stop.", "why": "needs Miro"},
+    {"answer": "I'm blocked on Miro being connected.", "why": "blocked on Miro"}
+  ]
+}

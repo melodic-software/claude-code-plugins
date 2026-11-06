@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Start with Big Picture: it covers the whole claims domain.", "why": "start with Big Picture"},
+    {"answer": "Brandolini's transition funnel opens broad, then narrows.", "why": "names the transition funnel"},
+    {"answer": "You almost always begin from Big Picture.", "why": "almost always ... Big Picture"},
+    {"answer": "Big Picture comes first; Process Modeling follows per context.", "why": "Big Picture first"}
+  ],
+  "fail": [
+    {"answer": "Big Picture is one of the formats.", "why": "names it without starting there"},
+    {"answer": "Start with Design-Level and add Big Picture later if needed. Process Modeling is the other option.", "why": "Big Picture is not the start and the start clause names Design-Level only"}
+  ]
+}
