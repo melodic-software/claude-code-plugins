@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{ \"permissions\": { \"deny\": [\"NotebookEdit\"] } }",
+      "why": "one tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{ \"permissions\": { \"deny\": [\"NotebookEdit\", \"LSP\", \"TodoWrite\"] } }",
+      "why": "three tools"
+    },
+    {
+      "answer": "\"deny\": [\n  \"NotebookEdit\",\n  \"LSP\"\n]",
+      "why": "two tools across lines"
+    }
+  ]
+}

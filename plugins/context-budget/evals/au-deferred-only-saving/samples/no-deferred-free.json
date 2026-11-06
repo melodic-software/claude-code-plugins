@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Deferred weight is not cost-free; it ships with every request.",
+      "why": "negated"
+    },
+    {
+      "answer": "The deferred pool is real recurring weight.",
+      "why": "no claim"
+    },
+    {
+      "answer": "- **Don't count it as already saved:** the 3000 only becomes a saving once the deny is applied."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deferred tools are already handled, so this saving is cost-free.",
+      "why": "cost-free claim"
+    },
+    {
+      "answer": "That weight is already saved by deferral.",
+      "why": "already saved"
+    },
+    {
+      "answer": "Nothing to apply here. The 3000 is already saved.",
+      "why": "negation word only in an earlier sentence"
+    },
+    {
+      "answer": "The headline does not move; the deferred 3000 is already handled.",
+      "why": "negation sits in the previous clause, across a semicolon"
+    }
+  ]
+}

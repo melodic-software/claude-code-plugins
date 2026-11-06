@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Stamp: claude 2.1.297, sdk exact, headless.\n| NotebookEdit | -913 | -1,478 |",
+      "why": "stamp and row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /doctor yourself for unused plugins.",
+      "why": "no report"
+    },
+    {
+      "answer": "| NotebookEdit | -913 | -1,478 |",
+      "why": "no stamp"
+    }
+  ]
+}

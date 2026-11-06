@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "After you apply it, I can re-measure and append the compare row to the ledger.",
+      "why": "re-measure plus ledger"
+    },
+    {
+      "answer": "Rerun the snapshot, then compare and ledger --append.",
+      "why": "rerun plus ledger"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "After you apply it, you will save 4,120 tokens.",
+      "why": "no ledger"
+    },
+    {
+      "answer": "The ledger keeps history.",
+      "why": "no re-measure"
+    }
+  ]
+}

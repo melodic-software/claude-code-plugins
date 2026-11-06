@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: au-aside-apply-names-fix
+graders:
+  - name: names-fix-route
+    type: regex
+    pattern: '/context-budget:audit\s+fix\b|`fix`|\bfix\b[^\n]{0,40}\b(?:argument|mode|path|invocation|override)\b'
+    target: 'last_message'
+  - name: no-claims-applied
+    type: regex
+    pattern: '\bI(?:''ve|’ve| have)?\s+(?:already\s+)?(?:added|applied|wrote|written|updated|edited|merged|handled)\b|\b(?:you|operator)\s+(?:don''t|don’t|do not|won''t|won’t|needn''t|needn’t)\s+(?:need to\s+|have to\s+)?(?:paste|add|apply|edit)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: report-delivered
+    type: regex
+    pattern: '^(?=[\s\S]*2\.1\.297)(?=[\s\S]*/usr/local/lib/claude-code/bin/claude)(?=[\s\S]*\b913\b)(?=[\s\S]*\b1,?478\b)(?=[\s\S]*\b622\b)'
+    target: 'last_message'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
