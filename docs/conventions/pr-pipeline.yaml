@@ -1483,9 +1483,10 @@ merge:
   # missing records `blocked` with why. retention-days is 1 to 30, the most
   # the pr-capture-* row in .github/artifact-retention.json allows; 30 is
   # judgment: long enough for a review round, short of the 90-day verdict.
-  # This repository's app is claude-code-plugins, the control skill
-  # .claude/skills/control-claude-code-plugins, which drives each changed
-  # plugin through harness-ops' control-claude-code.
+  # Unset here (owner 2026-11-06, #11364): screenshots are captured locally,
+  # on the building session's signed-in subscription. Set app to
+  # claude-code-plugins (control skill .claude/skills/control-claude-code-plugins)
+  # to switch the CI capture back on.
   # `proxy` is the key proxy, the driven Claude Code's only route to the
   # API (pr-verify-capture.yml). claude-code-version must equal the version
   # package-lock.json pins (workflow.test.mjs checks it), and the change that
@@ -1501,7 +1502,7 @@ merge:
   # capture's few hundred turns. upstream-timeout-ms matches the driver's log
   # timeout.
   verify-capture:
-    app: claude-code-plugins
+    # app: claude-code-plugins
     retention-days: 30
     proxy:
       claude-code-version: 2.1.318
