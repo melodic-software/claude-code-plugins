@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{ \"permissions\": { \"deny\": [\"NotebookEdit\"] } }\n```",
+      "why": "deny entry"
+    },
+    {
+      "answer": "```diff\n-    \"deny\": []\n+    \"deny\": [\n+      \"NotebookEdit\"\n+    ]\n```",
+      "why": "diff"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "First lever: deny NotebookEdit. Approve?",
+      "why": "no exact diff"
+    },
+    {
+      "answer": "```json\n{ \"permissions\": { \"deny\": [\"LSP\"] } }\n```",
+      "why": "wrong first lever"
+    }
+  ]
+}

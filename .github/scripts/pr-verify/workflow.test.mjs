@@ -2224,13 +2224,30 @@ test("the proxy config comes from main's pr-pipeline.yaml, and the driven settin
   assert.match(SIBLING_INIT, /^socat "TCP-LISTEN:\$port,bind=127\.0\.0\.1,[^"]*" "UNIX-CONNECT:\$proxy_sock" /m);
   assert.match(scriptOf(capStep(PROXY_START)), /--socket \/run\/ccd-proxy\/proxy\.sock/);
   assert.equal(settings.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS, String(config.maxTokensCeiling));
-  assert.equal(settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
   assert.ok(config.models.includes(settings.model), settings.model);
   assert.ok(config.models.includes(settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL), settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL);
-  assert.equal(settings.permissions.disableBypassPermissionsMode, "disable");
+  assert.deepEqual(settings.permissions, { disableBypassPermissionsMode: "disable", defaultMode: "default", allow: ["Bash"] });
   // Plugin hooks run, and the driven session keeps the broker's dummy key.
   assert.equal(settings.allowManagedHooksOnly, undefined);
   assert.equal(settings.apiKeyHelper, undefined);
+});
+
+// #13711 probe run 42248541058: the scrub's nested bwrap cannot start in the
+// sibling sandbox (ENOSPC), so the driven session runs Bash with no scrub and
+// only the dummy key; the outer leg, which holds the real key, keeps it.
+test("the driven settings carry no scrub while the outer leg keeps it, and the broker launches the driven session in-sandbox", () => {
+  const script = scriptOf(capStep("Write the driven settings and the proxy config"));
+  const settingsFilter = /^jq -n --arg main "\$main" --arg small "\$small" --arg ceiling "\$ceiling" '([^']+)' \|$/m.exec(script)?.[1];
+  assert.ok(settingsFilter);
+  const built = spawnSync("jq", ["-n", "--arg", "main", "m", "--arg", "small", "s", "--arg", "ceiling", "1", settingsFilter], { encoding: "utf8" });
+  assert.equal(built.status, 0, built.stderr);
+  const driven = JSON.parse(built.stdout);
+  assert.equal(Object.hasOwn(driven.env, "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"), false);
+  assert.deepEqual(driven.permissions.allow, ["Bash"]);
+  const outer = /^ {10}settings: >-\n((?: {12}.*\n?)+)/m.exec(capStep("Apply the Claude managed settings"))?.[1];
+  assert.ok(outer, "a settings input");
+  assert.equal(JSON.parse(outer.replace(/\n {12}/g, " ")).env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
+  assert.match(SIBLING_INIT, /exec node "\$driver\/broker\.mjs" [^\n]*\\\n[^\n]* --in-sandbox /);
 });
 
 test("the betas were measured on the Claude Code the lock pins", { skip: spawnSync("yq", ["--version"]).status !== 0 && "needs yq" }, () => {

@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.0] - 2026-11-06
+
+### Added
+
+- A `verification` level and per-skill `verification_skills` in `docs/conventions/education.yaml`, read from the default branch by `lib/read-verification.sh`. `/education:quiz-me` skips the fresh-context answer-key pass under `light` and `off` and marks the key `verification: skipped (<level>)`.
+
 ## [1.0.9] - 2026-11-05
 
 ### Changed

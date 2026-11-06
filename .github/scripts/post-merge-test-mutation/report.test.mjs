@@ -9,7 +9,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
-import { commentBody, MARKER, main, mergedPulls, parseResult, render, scores, violations } from "./report.mjs";
+import { commentBody, MARKER, main, mergedPulls, parseResult, rangePulls, render, scores, violations } from "./report.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const AFTER = "a".repeat(40);
@@ -124,7 +124,9 @@ test("mergedPulls keeps the merged pull requests into main and falls back to Gra
   }
 });
 
-function run(env, pulls = []) {
+// `pulls` answers each commit's pull request read: a list for every commit, or
+// a map from commit SHA to its list. The compare read lists `commits`.
+function run(env, pulls = [], commits = [AFTER]) {
   const dir = tempDir("mutation-report-");
   const summary = join(dir, "summary.md");
   const comment = join(dir, "comment.md");
@@ -133,9 +135,10 @@ function run(env, pulls = []) {
   const original = console.log;
   console.log = (line) => lines.push(line);
   const read = (path) => (existsSync(path) ? readFileSync(path, "utf8") : null);
-  const github = async () => {
+  const github = async (method, path) => {
+    if (path.includes("/compare/")) return { total_commits: commits.length, commits: commits.map((sha) => ({ sha })) };
     if (pulls instanceof Error) throw pulls;
-    return pulls;
+    return Array.isArray(pulls) ? pulls : pulls[path.split("/").at(-2)];
   };
   return main({ REPOSITORY: "o/r", AFTER, BEFORE, RANGE_MODE: "range", GITHUB_STEP_SUMMARY: summary, COMMENT_PATH: comment, GITHUB_OUTPUT: output, GITHUB_RUN_ID: "77", ...env }, { github })
     .then((code) => ({ code, lines, summary: read(summary), comment: read(comment), output: read(output) }))
@@ -391,9 +394,9 @@ test("main writes no comment for a run with no valid result, and fails it", asyn
 test("main writes no comment and no pull output for no, several or an unread merged pull request", async () => {
   const ok = { AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([mutant({ state: "survived" })])) };
   for (const [label, pulls, notice] of [
-    ["a direct push", [], /0 pull requests merged the head/],
-    ["a direct push with a pull request closed unmerged on the head", [merged(3, { merged_at: null })], /0 pull requests merged the head/],
-    ["several", [merged(1), merged(2)], /2 pull requests merged the head/],
+    ["a direct push", [], /0 pull requests merged the range/],
+    ["a direct push with a pull request closed unmerged on the head", [merged(3, { merged_at: null })], /0 pull requests merged the range/],
+    ["several", [merged(1), merged(2)], /2 pull requests merged the range/],
     ["a failed lookup", new Error("down"), /lookup failed/],
   ]) {
     const out = await run(ok, pulls);
@@ -401,6 +404,34 @@ test("main writes no comment and no pull output for no, several or an unread mer
     assert.equal(out.output, null, label);
     assert.ok(out.lines.some((line) => notice.test(line)), label);
   }
+});
+
+// A merge queue pushed two squash merges at once (#13675 then #13669): the
+// survivor is in the first one's file, so the head's pull request alone must
+// not get the comment.
+test("main names every pull request of a batched push and comments on none of them", async () => {
+  const first = "c".repeat(40);
+  const ok = { AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([mutant({ state: "survived" })])) };
+  const out = await run(ok, { [first]: [merged(13675)], [AFTER]: [merged(13669)] }, [first, AFTER]);
+  assert.equal(out.comment, null);
+  assert.equal(out.output, null);
+  assert.match(out.summary, /Merged pull request: \[#13669\]\([^)]*\), \[#13675\]/);
+  assert.ok(out.lines.some((line) => /2 pull requests merged the range/.test(line)));
+});
+
+test("main reads only the head's pull requests when the push had no usable previous head", async () => {
+  const ok = { AUDIT_RESULT: "success", RESTORED: "true", RANGE_MODE: "commit", STRUCTURED_OUTPUT: JSON.stringify(result([mutant({ state: "survived" })])) };
+  const out = await run(ok, { [AFTER]: [merged(42)] }, []);
+  assert.equal(out.output, "pull=42\n");
+});
+
+test("a range the compare read does not list in full names no pull request", async () => {
+  const github = async (method, path) => (path.includes("/compare/") ? { total_commits: 300, commits: [{ sha: AFTER }] } : [merged(1)]);
+  assert.equal(await rangePulls({ github, repository: "o/r", before: BEFORE, after: AFTER }), null);
+  const down = async () => {
+    throw new Error("down");
+  };
+  assert.equal(await rangePulls({ github: down, repository: "o/r", before: BEFORE, after: AFTER }), null);
 });
 
 test("a key the model adds is never echoed, so it cannot reach the summary or a comment", async () => {

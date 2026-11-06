@@ -1902,7 +1902,10 @@ describe("run", () => {
     assert.deepEqual(earlierFlags([{ ...posted.body, id: 53, user: { id: LANES_APP } }], LANES_APP), []);
   });
 
-  test("a mechanical admission refusal names status: confirmed, the label admission wrote, never needs-decision", async () => {
+  // Admission's own comment already says why it parked the issue at
+  // status: confirmed, which is no hold, so a verdict comment saying only
+  // that adds nothing a reader or a later run reads.
+  test("a mechanical admission refusal to status: confirmed posts no verdict comment beside admission's", async () => {
     const fake = fakeGitHub({ comments: [laneComment()] });
     const result = await run({
       env: ENV,
@@ -1912,10 +1915,24 @@ describe("run", () => {
       admitIssue: async () => ({ outcome: "refused", reasons: ["no acceptance criteria"], status: "status: confirmed" }),
       log: () => {},
     });
-    const posted = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
-    assert.match(posted?.body.body ?? "", /admission moved the issue to `status: confirmed`/);
-    assert.ok(!posted.body.body.includes("needs-decision"), posted.body.body);
+    const posted = writes(fake.calls).filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.deepEqual(posted, []);
     assert.match(result.summary, /- Status: status: confirmed/);
+  });
+
+  test("a mechanical admission refusal to status: confirmed still settles an earlier verdict comment, naming the label admission wrote", async () => {
+    const fake = fakeGitHub({ comments: [laneComment(), unflagged("The triage verdict left this issue at `status: needs-decision`:\n\n- flagged: intent")] });
+    await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => ({ outcome: "refused", reasons: ["no acceptance criteria"], status: "status: confirmed" }),
+      log: () => {},
+    });
+    const edited = writes(fake.calls).find(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/51");
+    assert.match(edited?.body.body ?? "", /admission moved the issue to `status: confirmed`/);
+    assert.ok(!edited.body.body.includes("needs-decision"), edited.body.body);
   });
 
   test("takes needs-triage off after the verdict's labels", async () => {

@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.0] - 2026-11-06
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `<home>/knowledge.yaml`, read from the default branch by `lib/read-verification.sh`. Under `light` and `off`, `/knowledge:video-digest` dispatches no spot-check, ticks 9.4 with `verification: skipped (<level>)` and reports the slice structural complete only, never vision-complete.
+
+### Changed
+
+- `/knowledge:video-digest` checklist item 9.4, the vision fidelity spot-check, is dispatched to a fresh-context subagent instead of being run by the context that produced the slice.
+
 ## [1.2.6] - 2026-11-05
 
 ### Changed

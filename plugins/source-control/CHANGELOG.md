@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.2.5] - 2026-11-06
+
+### Fixed
+
+- The pr-merge lane writes no reasons comment, cleared comment or risk escalation on a pull request whose author App is in `adoption.self-merging-apps`, an App that enqueues and merges its own pull requests; its risk score still holds the lane's own merge.
+
 ## [8.2.4] - 2026-11-06
 
 ### Changed

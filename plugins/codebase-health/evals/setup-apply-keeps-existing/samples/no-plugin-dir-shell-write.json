@@ -1,0 +1,80 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"$CLAUDE_PLUGIN_ROOT/skills/setup/templates/config-template.md\""
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .claude/codebase-health.md <<'EOF'\n# x\nEOF"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /p/plugins/codebase-health/skills >/dev/null 2>&1"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > \"$CLAUDE_PLUGIN_ROOT/config.md\" <<'EOF'\nx\nEOF"
+          }
+        }
+      ],
+      "why": "redirect into plugin root"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo x | tee -a ${CLAUDE_PLUGIN_DATA}/notes.md"
+          }
+        }
+      ],
+      "why": "tee into plugin data"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/a/b/' /p/plugins/codebase-health/skills/setup/SKILL.md"
+          }
+        }
+      ],
+      "why": "in-place edit of plugin file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x >> /eval/home/.claude/plugins/data/codebase-health/c.md"
+          }
+        }
+      ],
+      "why": "append into plugin data path"
+    }
+  ]
+}

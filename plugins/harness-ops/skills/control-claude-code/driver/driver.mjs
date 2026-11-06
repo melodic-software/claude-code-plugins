@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Drives Claude Code's TUI for the control-claude-code skill.
 //
-//   node driver.mjs launch --plugin-dir <dir> [--session <name>] [--ttl <seconds>] [--deps-dir <dir>] [--unattended]
+//   node driver.mjs launch --plugin-dir <dir> [--session <name>] [--ttl <seconds>] [--deps-dir <dir>] [--unattended] [--in-sandbox]
 //   node driver.mjs wait-for <text> [--timeout <ms>] [--session <name>]
 //   node driver.mjs type [<text>] [--key <Name>]... [--session <name>]
 //   node driver.mjs screenshot <path.png|path.svg> [--session <name>]
@@ -9,8 +9,8 @@
 //   node driver.mjs record stop [--session <name>]
 //   node driver.mjs stop [--session <name>]
 //   node driver.mjs doctor [--deps-dir <dir>]
-//   node driver.mjs ready --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--session <name>] [--deps-dir <dir>] [--unattended]
-//   node driver.mjs log <prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--unattended]
+//   node driver.mjs ready --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--session <name>] [--deps-dir <dir>] [--unattended] [--in-sandbox]
+//   node driver.mjs log <prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--unattended] [--in-sandbox]
 //   node driver.mjs plugins [<changed file>...]
 //
 // `screenshot` and `record` never capture the live terminal: the holder reads
@@ -102,6 +102,13 @@ const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|lib
 // As of: 2026-10-24. Recheck trigger: that section changes which credential a
 // base URL without a gateway credential sends.
 export const LAUNCH_FLAGS = ['--restricted', '--strict-mcp-config'];
+// --in-sandbox: the caller's own sandbox (the capture's sibling bwrap) is the file and process
+// boundary, so the launch drops --restricted, leaving Bash in the default tools, and sets no scrub,
+// whose nested PID-namespace bwrap that sandbox cannot start (ENOSPC, #13711 probe run 42247376450).
+export const IN_SANDBOX_FLAGS = ['--strict-mcp-config'];
+// The launch broker's dummy-key prefix (broker.mjs KEY_PREFIX, pinned equal by broker.test.mjs):
+// --in-sandbox runs only on the unattended ANTHROPIC_API_KEY the broker hands its driver child.
+export const SANDBOX_KEY_PREFIX = 'ccd-dummy-';
 export const UNSET_VARS = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
@@ -150,10 +157,14 @@ export function buildLaunch(config, env) {
   const set = config.unattended ? (config.credentials ?? []).filter((n) => env[n]) : [];
   if (set.length > 1) throw new Refused(`refused: ${set.join(' and ')} are both set; an unattended run takes one credential`);
   const [kept] = set;
+  const key = kept === 'ANTHROPIC_API_KEY' ? env[kept] : '';
+  if (config.inSandbox && !(key.startsWith(SANDBOX_KEY_PREFIX) && key.length > SANDBOX_KEY_PREFIX.length)) {
+    throw new Refused(`refused: --in-sandbox runs only under the launch broker, on an unattended ANTHROPIC_API_KEY starting with ${SANDBOX_KEY_PREFIX}`);
+  }
   for (const name of [...UNSET_VARS, ...(config.credentials ?? [])]) if (name !== kept) delete childEnv[name];
-  if (kept) childEnv.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = '1';
+  if (kept && !config.inSandbox) childEnv.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = '1';
   return {
-    argv: ['claude', ...LAUNCH_FLAGS, '--plugin-dir', config.pluginDir],
+    argv: ['claude', ...(config.inSandbox ? IN_SANDBOX_FLAGS : LAUNCH_FLAGS), '--plugin-dir', config.pluginDir],
     env: childEnv,
     keySource: kept ? CI_KEY_SOURCES[kept] : NO_KEY,
   };
@@ -184,6 +195,7 @@ const launchConfig = (opts, pluginDir) => ({
   pluginDir,
   unattended: Boolean(opts.unattended),
   credentials: opts.unattended ? ciCredentials() : [],
+  inSandbox: Boolean(opts['in-sandbox']),
 });
 
 class UsageError extends Error {
@@ -941,6 +953,7 @@ async function launch(opts) {
           '--ttl',
           opts.ttl,
           ...(config.unattended ? ['--unattended'] : []),
+          ...(config.inSandbox ? ['--in-sandbox'] : []),
         ],
         { detached: true, stdio: ['ignore', fd, fd], env: buildLaunch(config, process.env).env },
       );
@@ -1305,6 +1318,7 @@ const OPTIONS = {
   key: { type: 'string', multiple: true },
   out: { type: 'string' },
   unattended: { type: 'boolean' },
+  'in-sandbox': { type: 'boolean' },
 };
 
 /** A capture reply must be exactly what the holder answers for the request; any other path is never printed. */

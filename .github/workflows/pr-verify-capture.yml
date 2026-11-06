@@ -442,11 +442,14 @@ jobs:
       # From main's pr-pipeline.yaml alone: the proxy's limits and allowlists,
       # with no upstream, so it calls only the API, and the driven session's
       # managed settings, which the sandbox mounts over /etc/claude-code. They
-      # send every request to the bridge port sibling-init.sh opens, scrub
-      # subprocesses, keep max_tokens at the proxy's ceiling, and allow plugin
-      # hooks: no allowManagedHooksOnly, and no apiKeyHelper, since the broker
-      # hands the driver a dummy key. The driver legs' managed settings read
-      # the same version, small model and ceiling from its outputs.
+      # send every request to the bridge port sibling-init.sh opens, keep
+      # max_tokens at the proxy's ceiling, allow Bash without a prompt (no one
+      # answers one; the broker launches with --in-sandbox, so Bash is in the
+      # default tools), and allow plugin hooks: no allowManagedHooksOnly, and no
+      # apiKeyHelper, since the broker hands the driver a dummy key. No scrub:
+      # its nested bwrap cannot start in the sibling sandbox, and the sandbox
+      # holds only the dummy key. The driver legs' managed settings read the
+      # same version, small model and ceiling from its outputs.
       - name: Write the driven settings and the proxy config
         id: driven
         if: steps.credential.outputs.present == 'true'
@@ -460,7 +463,7 @@ jobs:
           main=$(yq '.merge."verify-capture".proxy."driven-model"' "$CONFIG")
           small=$(yq '.merge."verify-capture".proxy."driven-small-model"' "$CONFIG")
           ceiling=$(yq '.merge."verify-capture".proxy."max-tokens-ceiling"' "$CONFIG")
-          jq -n --arg main "$main" --arg small "$small" --arg ceiling "$ceiling" '{model: $main, env: {ANTHROPIC_BASE_URL: "http://127.0.0.1:47100", CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1", ANTHROPIC_DEFAULT_HAIKU_MODEL: $small, CLAUDE_CODE_MAX_OUTPUT_TOKENS: $ceiling, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"}, permissions: {disableBypassPermissionsMode: "disable"}}' |
+          jq -n --arg main "$main" --arg small "$small" --arg ceiling "$ceiling" '{model: $main, env: {ANTHROPIC_BASE_URL: "http://127.0.0.1:47100", ANTHROPIC_DEFAULT_HAIKU_MODEL: $small, CLAUDE_CODE_MAX_OUTPUT_TOKENS: $ceiling, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"}, permissions: {disableBypassPermissionsMode: "disable", defaultMode: "default", allow: ["Bash"]}}' |
             sudo tee /opt/ccd/driven-etc/managed-settings.json >/dev/null
           version=$(yq '.merge."verify-capture".proxy."claude-code-version"' "$CONFIG")
           if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && $small =~ ^[a-z0-9.-]+$ && $ceiling =~ ^[1-9][0-9]*$ ]]; then

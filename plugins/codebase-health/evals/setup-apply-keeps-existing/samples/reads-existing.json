@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/ws/.claude/codebase-health.md\"}}]}}",
+      "why": "Read of the team config"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .claude/codebase-health.md; for f in README.md package.json src/config.js src/server.js test/config.test.js contracts/ledger.openapi.yaml; do echo \\\"=== $f\\\"; cat $f; done; echo ---; git ls-files --error-unmatch .claude/codebase-health.md; ls .claude/codebase-health.local.md 2>&1; git status --short\",\"description\":\"Read existing config and repo files\"}}]}}",
+      "why": "smoke-1 run: the config read with cat"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Bash\", \"input\": {\"command\": \"for f in .claude/codebase-health.md README.md package.json; do echo \\\"=== $f\\\"; cat $f; done\"}}]}}",
+      "why": "loop that cats the config (smoke 3 run 3)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Read\",\"input\":{\"file_path\":\"/p/skills/setup/templates/config-template.md\"}}]}}",
+      "why": "the template only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/ws/.claude/codebase-health.local.md\"}}]}}",
+      "why": "the override only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git ls-files | head -100; echo ---; ls -la . .claude 2>&1; echo ---; git check-ignore -v .claude/codebase-health.md; cat .gitignore 2>&1; echo ---; ls ~/.claude/codebase-health.md 2>&1\",\"description\":\"List repo files, config layers, ignore state\"}}]}}",
+      "why": "smoke-1 run: probes that name the config, with head and cat on other files"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t4\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 - <<'EOF'\\np='.claude/codebase-health.md'\\ns=open(p).read()\\nopen(p,'w').write(s)\\nEOF\"}}]}}",
+      "why": "smoke-1 run shape: an inline script rewriting the config"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i 's/docs/doc/' .claude/codebase-health.md\"}}]}}",
+      "why": "near miss: an in-place edit, not a read"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Bash\", \"input\": {\"command\": \"for f in .claude/codebase-health.md README.md; do ls -l $f; done\"}}]}}",
+      "why": "near miss: loop lists the config without reading it"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Bash\", \"input\": {\"command\": \"for f in README.md package.json; do cat $f; done; git check-ignore -v .claude/codebase-health.md\"}}]}}",
+      "why": "near miss: loop reads other files, config only named afterwards"
+    }
+  ]
+}
