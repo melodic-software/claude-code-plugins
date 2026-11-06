@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: cl-explain-simply-routes-explain
+context:
+  history_file: history.jsonl
+graders:
+  - name: names-explain-lane
+    type: regex
+    pattern: '\beducation:explain\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-diagram
+    type: regex
+    pattern: '```\s*(?:mermaid|dot|graphviz|plantuml)\b|<svg\b|[┌┐└┘├┤┬┴┼│─]{2}|^\s*\[[^\]\n]+\]\s*(?:-+>|→)\s*\[[^\]\n]+\]'
+    flags: 'mi'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: altitude-held
+    type: llm
+    criteria: 'The reply answers a request to explain the previous assistant message (Round 4, Q12 to Q15) simply. It meets the legacy expectations: "Does not treat an ''explain simply'' request as a cue to lower the content''s altitude"; "Recognizes the altitude-vs-structure boundary and routes plain-language requests to education:explain"; "Routes to the prose lane rather than the visual one: the ask is for plainer words, not a diagram"; "If it acts at all, it changes arrangement only and preserves precision and reading level". Naming education:explain as the skill the ask wants and then giving a faithful restructure passes, because that skill is not installed here. It fails if it rewrites the content in plainer words, adds an analogy, drops a number, condition or named file, or routes to education:illustrate.'
+    focus: 'last_message'

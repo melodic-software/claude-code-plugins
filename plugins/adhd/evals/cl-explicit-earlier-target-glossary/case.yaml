@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: cl-explicit-earlier-target-glossary
+context:
+  history_file: history.jsonl
+graders:
+  - name: memo-terms-verbatim
+    type: regex
+    pattern: '^(?=[\s\S]*orders\.webhook_outbox)(?=[\s\S]*5 attempts)(?=[\s\S]*15 minutes)(?=[\s\S]*orders\.webhook_dead)(?=[\s\S]*10 minutes)'
+    target: 'last_message'
+  - name: glossary-defines-coined-terms
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:glossary|terms used|shorthand|jargon)\b)(?=[\s\S]*\boutbox lane\b(?:\*\*|`|["”])?[ \t]*(?:[:=-]|\bmeans\b|\|))(?=[\s\S]*\bdrain gate\b(?:\*\*|`|["”])?[ \t]*(?:[:=-]|\bmeans\b|\|))(?=[\s\S]*\bR3 budget\b(?:\*\*|`|["”])?[ \t]*(?:[:=-]|\bmeans\b|\|))'
+    flags: 'i'
+    target: 'last_message'
+  - name: not-latest-message
+    type: regex
+    pattern: 'test_refund_timeout|#418'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: lens-line-closes
+    type: regex
+    pattern: '(?:\b(?:validate|check|verify)\b[^\n]{0,120}\boriginal\b|\blens\b[^\n]{0,120}\boriginal\b)[^\n]*(?:\n\s*(?:[`*_>-][ \t]*)*(?:view:|notice:|[^\n]*\b(?:resolver|node)\b)[^\n]*)*\s*$'
+    flags: 'i'
+    target: 'last_message'
+  - name: glossary-same-altitude
+    type: llm
+    criteria: 'The reply restructures the webhook-retries design memo and includes a glossary. It meets the legacy expectations: "Includes a glossary defining session-local jargon in plain words" and "Defines the shorthand without lowering the altitude of the underlying concept". The session-local terms are the outbox lane, the drain gate, the R3 budget and poison pill. It fails if a definition is wrong against the memo and the user''s earlier message, replaces the concept with an analogy, or drops what the term names (for example the drain gate holding a deploy until the outbox lane is empty or 10 minutes pass). A term the session never defined (the R3 budget) may be marked as not defined in the source; inventing a meaning for it fails.'
+    focus: 'last_message'

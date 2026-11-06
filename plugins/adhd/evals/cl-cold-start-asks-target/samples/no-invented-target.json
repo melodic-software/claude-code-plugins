@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "There is no earlier message in this session to clarify. What would you like me to clarify? Paste it or point me at the file."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| # | Item | Recommendation | Alternative | What you're deciding |\n|---|---|---|---|---|\n| 1 | ¶1 | make this clear | none offered | what to clarify |\n\nThis is a clarification; validate final answers against the original message, not this restructuring."
+    },
+    {
+      "answer": "Left out: nothing.\n\nWhat do you want clarified?"
+    }
+  ]
+}

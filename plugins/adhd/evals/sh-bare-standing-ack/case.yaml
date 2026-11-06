@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: sh-bare-standing-ack
+graders:
+  - name: standing-for-session
+    type: regex
+    pattern: '\b(?:(?:the )?rest of (?:this|the) session|for (?:this|the) (?:whole |entire )?session|from now on|(?:every|each|all) (?:later |subsequent |future |following |of my )?(?:responses?|repl(?:y|ies)|answers?)|until you (?:say|tell me|turn it off)|(?:say|type) [\"“`'']?(?:stop shaping|normal output))'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-preamble-opener
+    type: regex
+    pattern: '^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:great|sure|certainly|of course|absolutely|happy to|good question|let me|let(?:''|’)s|here(?:''|’)s how|here is how|okay|ok\b|alright|got it)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-pleasantry-closer
+    type: regex
+    pattern: 'hope (?:this|that|it) helps|let me know if|feel free to|happy to help|anything else\b|good luck|happy coding'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

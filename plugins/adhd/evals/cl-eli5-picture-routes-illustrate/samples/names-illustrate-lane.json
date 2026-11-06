@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "A picture or ELI5 version is /education:illustrate, not /education:explain (plainer words) or this skill (structure). education is not installed here, so here is the faithful restructure instead:\n\n| # | Item | Recommendation | Basis | Alternative | What you're deciding |\n|---|------|----------------|-------|-------------|----------------------|\n| 1 | Q12 | move the nightly reconciliation job from cron to the `ledger-scheduler` queue, keeping the 02:30 UTC slot | judgment | keep cron and add a lockfile | Whether the job leaves cron. |\n| 2 | Q13 | set `max_attempts: 4` with a 90-second backoff | incident review IR-2291 §4 | none offered | The retry policy, only if row 1 goes ahead. |\n| 3 | Q14 | drop the `legacy_rates` column in migration 0057, but only after Q12 lands | none stated | keep the column read-only until the 3.2.0 release | When the column goes. |\n| 4 | Q15 | withheld | a week of shadow alerts would settle it | none offered | Whether drift above 0.5 percent pages on-call. |\n\nThis is a clarification; validate final answers against the original message, not this restructuring."
+    },
+    {
+      "answer": "That is education:illustrate's job."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "That is education:explain's job: plainer words."
+    },
+    {
+      "answer": "Basically, the old nightly job is moving to a newer system, a bit like switching from a paper calendar to a phone reminder. Then there are some retry settings, an old column to clean up, and a question about alerts."
+    }
+  ]
+}
