@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The main skill flags its own absence in its status line.", "why": "status line"},
+    {"answer": "/firecrawl:firecrawl self-flags a missing CLI when it loads.", "why": "self-flags"},
+    {"answer": "The main skill flags a missing CLI itself.", "why": "flags a missing CLI"}
+  ],
+  "fail": [
+    {"answer": "You'll find out when a scrape fails.", "why": "no self-flag"},
+    {"answer": "Check firecrawl --status later.", "why": "status command, not the status line"}
+  ]
+}

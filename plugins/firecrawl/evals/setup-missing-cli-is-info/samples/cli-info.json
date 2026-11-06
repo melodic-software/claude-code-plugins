@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| Probe | Verdict | Note |\n|---|---|---|\n| firecrawl-cli binary | INFO | absent; installs on first need |", "why": "table row"},
+    {"answer": "- **CLI**: INFO (lazy-install design)", "why": "bullet"},
+    {"answer": "### 1. firecrawl-cli binary\n\nINFO: not on PATH, which is expected.", "why": "heading, verdict on the next line"},
+    {"answer": "**CLI binary**\nInfo: absent by design.", "why": "bold title, mixed-case verdict"}
+  ],
+  "fail": [
+    {"answer": "| firecrawl-cli binary | FAIL | not on PATH |", "why": "FAIL"},
+    {"answer": "The CLI is missing; install it.", "why": "no verdict"},
+    {"answer": "| FIRECRAWL_API_KEY | INFO | unset |", "why": "INFO only on the key row"}
+  ]
+}

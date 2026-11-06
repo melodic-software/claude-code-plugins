@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Get a key from the <https://firecrawl.dev> dashboard.", "why": "dashboard URL"},
+    {"answer": "Mint one at firecrawl.dev/app/api-keys.", "why": "bare host with a path"}
+  ],
+  "fail": [
+    {"answer": "Get a key from your Firecrawl account.", "why": "no host"},
+    {"answer": "See docs.firecrawl.dev.", "why": "docs host, not the dashboard"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Avoid `firecrawl init --all --browser`: it installs a parallel shadow copy.", "why": "avoid frame"},
+    {"answer": "Don't run firecrawl init.", "why": "don't frame"},
+    {"answer": "`firecrawl init --all --browser` would install a shadow copy of upstream's skills.", "why": "reason after the command"},
+    {"answer": "I'm avoiding `firecrawl init` on purpose.", "why": "avoiding"},
+    {"answer": "I skipped firecrawl init.", "why": "skipped"}
+  ],
+  "fail": [
+    {"answer": "Then run `firecrawl init --all --browser` to finish setup.", "why": "recommends init"},
+    {"answer": "Set FIRECRAWL_API_KEY and you're done.", "why": "no init warning"}
+  ]
+}
