@@ -1727,8 +1727,18 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "rev-parse --show-toplevel",
     "worktree list --porcelain",
   ];
+  // run-e2e's network git reads of the default branch (context/e2e.md:37-38), exact.
+  git.push("ls-remote --symref origin HEAD", "fetch origin main", "fetch origin 'main'");
   const gitRules = HEADS.flatMap((head) => git.map((command) => `Bash(git -C ${head} ${command})`));
-  assert.deepEqual([...bash].sort(), [...driverRules, ...gitRules].sort());
+  // The other commands the skills name, from main's checkout only: run-e2e's
+  // config and browser-driver scripts (SKILL.md:198-200, quoted as written
+  // there and unquoted), drive's plugin list (SKILL.md:63), and cmp
+  // (SKILL.md:298-299), which takes free paths and only reads.
+  const scriptRules = [".base/plugins/testing/scripts", `${WS}/.base/plugins/testing/scripts`].flatMap((dir) =>
+    [["resolve-config.sh", "e2e"], ["check-browser-driver.sh", "--user"]].flatMap(([script, first]) => [`Bash(bash ${dir}/${script} ${first} *)`, `Bash(bash "${dir}/${script}" ${first} *)`]),
+  );
+  const otherRules = [...scriptRules, "Bash(claude plugin list --json)", "Bash(cmp *)"];
+  assert.deepEqual([...bash].sort(), [...driverRules, ...gitRules, ...otherRules].sort());
   const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
   // What the control skill and run-e2e run passes.
   for (const command of [
@@ -1737,19 +1747,35 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop --session s1",
     "git -C head status --porcelain",
     "git -C head diff --name-only ${{ steps.pr.outputs.base-sha }}...HEAD",
+    "git -C head ls-remote --symref origin HEAD",
+    "git -C head fetch origin 'main'",
+    `bash "${WS}/.base/plugins/testing/scripts/resolve-config.sh" e2e --user 'e2e_driver=auto' --user 'reuse_running_instance=auto'`,
+    `bash "${WS}/.base/plugins/testing/scripts/check-browser-driver.sh" --user 'browser_driver=playwright'`,
+    "claude plugin list --json",
+    "cmp /tmp/before.diff /tmp/after.diff",
   ]) assert.ok(allowed(command), command);
   // Anything else is refused under dontAsk: network tools, interpreters, a head copy of the driver, a driver verb no rule names, and git forms that read or write outside the head.
   for (const command of [
     "curl https://example.com",
     "curl -s http://127.0.0.1:47101/v1/messages",
+    "wget https://example.com",
+    "python3 -c 'print(1)'",
+    "python -c 'print(1)'",
     "bash -c 'curl https://example.com'",
+    "bash head/plugins/testing/scripts/resolve-config.sh e2e",
+    "bash .base/plugins/testing/scripts/resolve-config.sh other",
     "node -e 'process.exit(0)'",
+    "claude -p hi",
+    "claude plugin install x",
+    "git -C head fetch origin main --upload-pack='sh -c id'",
+    "git -C head fetch https://example.com/x.git",
+    "git -C head ls-remote --upload-pack='sh -c id' origin",
     "node head/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch --session s1",
     "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs doctor",
     "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs",
     "git -C head diff --no-index /etc/passwd /dev/null",
     "git -C head diff --output=/tmp/x HEAD",
-    "git -C head fetch origin main",
+    "git -C head fetch origin pr-branch",
     "git -C head push origin HEAD",
     "git status --porcelain",
   ]) assert.ok(!allowed(command), command);

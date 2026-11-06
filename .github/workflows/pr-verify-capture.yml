@@ -1053,8 +1053,13 @@ jobs:
       # (https://code.claude.com/docs/en/permissions#read-only-commands, as
       # of 2026-11-06; recheck when that list changes). The rules name only
       # main's driver, by its relative and its absolute path, one rule per
-      # verb the control skill uses, and the git commands run-e2e and drive
-      # run on the head; a head copy of the driver matches none of them.
+      # verb the control skill uses, the git commands run-e2e and drive
+      # run on the head, and the other commands those skills name: main's
+      # testing config and browser-driver scripts, `claude plugin list
+      # --json`, cmp (it only reads), and the default branch's ls-remote and
+      # fetch, each exact, since `fetch *` or `ls-remote *` would admit
+      # --upload-pack, which runs a program. A head copy of the driver or a
+      # script matches none of them.
       # File-tool fence: --restricted confines the file tools to the working
       # directories (the workspace and add-dirs); dontAsk denies any edit no
       # allow rule names, so the file tools write only in the head and the
@@ -1129,6 +1134,22 @@ jobs:
             Bash(git -C ${{ github.workspace }}/head diff --name-only ${{ steps.pr.outputs.base-sha }}...HEAD)
             Bash(git -C ${{ github.workspace }}/head rev-parse --show-toplevel)
             Bash(git -C ${{ github.workspace }}/head worktree list --porcelain)
+            Bash(git -C head ls-remote --symref origin HEAD)
+            Bash(git -C head fetch origin main)
+            Bash(git -C head fetch origin 'main')
+            Bash(git -C ${{ github.workspace }}/head ls-remote --symref origin HEAD)
+            Bash(git -C ${{ github.workspace }}/head fetch origin main)
+            Bash(git -C ${{ github.workspace }}/head fetch origin 'main')
+            Bash(bash .base/plugins/testing/scripts/resolve-config.sh e2e *)
+            Bash(bash ".base/plugins/testing/scripts/resolve-config.sh" e2e *)
+            Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh e2e *)
+            Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh" e2e *)
+            Bash(bash .base/plugins/testing/scripts/check-browser-driver.sh --user *)
+            Bash(bash ".base/plugins/testing/scripts/check-browser-driver.sh" --user *)
+            Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh --user *)
+            Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh" --user *)
+            Bash(claude plugin list --json)
+            Bash(cmp *)
             Skill(testing:run-e2e *)
             Skill(app-control:drive *)
             Agent
