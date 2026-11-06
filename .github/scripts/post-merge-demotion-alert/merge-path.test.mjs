@@ -88,7 +88,7 @@ function fakeGh({ nodes, missing = [], failLabel = [] }) {
     }
     if (args[1] === "-X") {
       writes.push(args.slice(3));
-      if (failLabel.some((n) => args[3] === `repos/${REPO}/issues/${n}/labels`)) throw new Error("HTTP 403");
+      if (failLabel.some((n) => args[3] === `repos/${REPO}/issues/${n}/labels`)) throw Object.assign(new Error("Command failed: bash -c ..."), { stderr: "gh: Resource not accessible by integration (HTTP 403)\n{}" });
       return "{}";
     }
     if (missing.some((l) => args[1] === `repos/${REPO}/labels/${encodeURIComponent(l)}`)) throw new Error("HTTP 404");
@@ -128,8 +128,10 @@ test("label: a revert of an unlabeled owner-agent PR adds both labels in one wri
 
 test("label: a failed label write is counted, the rest still go", () => {
   const { gh, writes } = fakeGh({ nodes: [node(40), node(41)], failLabel: [40] });
-  const result = label({ repo: REPO, merged: [40, 41], reverted: [], config: CONFIG, gh, log: () => {} });
+  const lines = [];
+  const result = label({ repo: REPO, merged: [40, 41], reverted: [], config: CONFIG, gh, log: (l) => lines.push(l) });
   assert.equal(result.failed, 1);
+  assert.ok(lines.includes("::error::could not label #40 merge-path:owner-agent: gh: Resource not accessible by integration (HTTP 403)"), "the error names gh's stderr reason, as execFileSync reports it");
   assert.equal(writes.at(-1)[0], `repos/${REPO}/issues/41/labels`);
 });
 

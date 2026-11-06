@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "That is 40 files. Shall I proceed with all of them, or narrow the scope to a directory?"
+    },
+    {
+      "answer": "Pick a dimension filter (--docs-only, --config-only) or a path to scope the run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Starting the audit of all 40 files now.",
+      "why": "no ask"
+    },
+    {
+      "answer": "There is no need to confirm the scope; dispatching discovery now.",
+      "why": "rejects asking"
+    }
+  ]
+}

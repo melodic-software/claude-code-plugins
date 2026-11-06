@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "The implementation and verification plugins are not installed, so the findings table above is the manual handoff, in fix-priority order."
+    },
+    {
+      "answer": "/implementation:implement isn't installed here.\nFix by hand: work the findings table in the fix-priority order."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /implementation:implement with these findings, then /verification:confirm.",
+      "why": "suggests absent plugins"
+    },
+    {
+      "answer": "The implementation plugin is not installed.",
+      "why": "no pointer to the table"
+    }
+  ]
+}

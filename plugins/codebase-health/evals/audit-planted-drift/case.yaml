@@ -32,3 +32,51 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: table-header
+    type: regex
+    pattern: '^[ \t]*\|[ \t]*#[ \t]*\|[ \t]*\**Severity\**[ \t]*\|[ \t]*\**Category\**[ \t]*\|[ \t]*\**File:Line\**[ \t]*\|[ \t]*\**Description\**[ \t]*\|[ \t]*\**Verification\**[ \t]*\|'
+    flags: 'im'
+    target: last_message
+  - name: severity-value
+    type: regex
+    pattern: '^[ \t]*\|[ \t]*\d+[ \t]*\|[ \t]*[*`]*(?:error|warning|info)[*`]*[ \t]*\|'
+    flags: 'im'
+    target: last_message
+  - name: confidence-tag
+    type: regex
+    pattern: '\bconfidence\b[*:`|\s-]{0,12}[*`(\[]*(?:verified|likely|needs-review)\b|\b(?:verified|likely|needs-review)\b[*`)\]]*[ \t]*confidence\b|^[ \t]*\|[ \t]*\d+[ \t]*\|(?:[^\n|]*\|)*?[ \t]*[*`]*(?:verified|likely|needs-review)[*`]*[ \t]*\|'
+    flags: 'im'
+    target: last_message
+  - name: enforcement-escalation
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]+|(?:\d+\.[ \t]*)?\*\*[ \t]*|\d+\.[ \t]+)(?:\d+\.[ \t]*)?enforcement\b(?:(?!\n[ \t]*(?:#{1,6}[ \t]|\*\*|\d+\.[ \t]+\*\*))[\s\S]){0,600}?\b(?:lint(?:er|ing|s)?|tests?|CI|git hooks?|pre-commit|type[- ]checks?|analy[sz]ers?|formatters?|schema checks?|scripts?)\b'
+    flags: 'im'
+    target: last_message
+  - name: config-gap-section
+    type: regex
+    pattern: '(?<!\bno )(?<!skip )(?<!skipped )(?<!skipping )(?<!skip the )(?<!skipped the )(?<!skipping the )\bconfig(?:uration)?[- ]gaps?\b|^[ \t]*(?:#{1,6}[ \t]+|(?:\d+\.[ \t]*)?\*\*[ \t]*|\d+\.[ \t]+)(?:\d+\.[ \t]*)?(?:settings?|config(?:uration)?|coverage(?: gaps?)?)[ \t]+worth (?:saving|persisting|adding|keeping|recording|tracking)\b'
+    flags: 'im'
+    target: last_message
+  - name: view-line-after-report
+    type: regex
+    pattern: 'verified non-?issues?\b[\s\S]*?view: auto \(plugin default\)'
+    flags: 'i'
+    target: last_message
+  - name: view-unavailable-line
+    type: regex
+    pattern: '\b(?:optional|rendered) view\b[^\n]{0,80}?\b(?:unavailable|not available|isn''t available)\b|\bvisualization(?::visualize)?\b[^\n]{0,80}?\b(?:unavailable|not available|isn''t available|not installed|isn''t installed|is not installed)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-html-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.(?:html?|svg)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: resolver-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?view-settings\.mjs(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\bresolve\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--lane(?:\s|=)+(?:\\"|'')?codebase-health:audit\b'
+    min: 1
+    arm: 'with-only'

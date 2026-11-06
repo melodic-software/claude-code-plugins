@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is retired but still keeps the view local (it sets medium: terminal)"
+    },
+    {
+      "answer": "notice: `~/.claude/rendered-views.md` is retired but still keeps the view local"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is no longer read",
+      "why": "the publishing notice"
+    },
+    {
+      "answer": "view: terminal (retired ~/.claude/rendered-views.md)",
+      "why": "report line only"
+    }
+  ]
+}

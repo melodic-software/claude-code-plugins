@@ -81,7 +81,15 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 
 Host verify scripts prove **traceability and shape** (JSON valid, batch files on disk, semantic filename policy, promotion-map parity). They do **not** prove subagents opened contact sheets or that filenames match on-screen content.
 
-**Vision fidelity spot-check (required before reporting the slice as vision-complete):** In a separate pass (fresh context OK), spot-check ≥10 synthesis PNG images (name ↔ content) and ≥3 contact sheets (verdicts ↔ JPG). Record notes in `watch-checklist.md` or slice README. Verify script exit 0 without spot-check = structural complete only.
+**Vision fidelity spot-check (required before reporting the slice as vision-complete):** The context that produced the slice does not check its own vision claims. First run the plugin's `lib/read-verification.sh --plugin knowledge --skill video-digest` (the full command is in SKILL.md, Phase 9) and copy its line into the checklist's Resume notes ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+
+- At standard or strict, dispatch a fresh-context subagent with the slice path and nothing from
+  this session's reasoning. It spot-checks ≥10 synthesis PNG images (name ↔ content) and ≥3
+  contact sheets (verdicts ↔ JPG) and returns its notes. Record them in the watch checklist or
+  the slice README.
+- Under `light`, and `off`, which acts as `light` here, dispatch no subagent and never run the spot-check yourself in its place. Tick 9.4 with `verification: skipped (<level>)`, and report the slice as structural complete only, never vision-complete.
+
+Verify script exit 0 without the spot-check = structural complete only.
 
 ## Talking-head-only session gap
 

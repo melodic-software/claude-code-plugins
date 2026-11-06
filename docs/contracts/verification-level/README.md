@@ -91,4 +91,6 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/mutation-testing:audit` | the Phase 4 triage, the product: `light` reports survivors as unclassified |
 | `/testing:cleanup` | the Cannot-fail-only mode's step 2 skeptic: `light` clears no row, so that mode deletes nothing |
 | `/debugging:debug` | the fresh-context outcome verifier when no outcome-verification capability is used |
+| `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
+| `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |

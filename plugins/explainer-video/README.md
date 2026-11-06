@@ -16,7 +16,7 @@ calling the video done.
 
 | Skill | What it does |
 |---|---|
-| `/explainer-video:produce <topic> [output dir]` | Plans three to six beats, writes a narration script (one paragraph per beat) and narrates it with `/speech:narrate` when that plugin is installed, writes `scene.py` (`Text` for words, `MathTypst` for math, `beat()` cues timed to the narration), renders it at low quality with `scripts/render.py`, fixes and re-renders until every check passes, reads the extracted frames back, then renders the delivery quality. |
+| `/explainer-video:produce <topic> [output dir]` | Plans three to six beats, writes a narration script (one paragraph per beat) and narrates it with `/speech:narrate` when that plugin is installed, writes `scene.py` (`Text` for words, `MathTypst` for math, `beat()` cues timed to the narration), renders it at low quality with `scripts/render.py`, fixes and re-renders until every check passes and its own read of the extracted frames finds nothing to fix, renders the delivery quality, then has a fresh-context subagent judge the delivery frames against the script. |
 
 ## What every render checks
 
@@ -38,6 +38,16 @@ the wrong thing. It also reports each still span (no change in picture, measured
 Videos are views. They are written to the directory the user names or to
 `${CLAUDE_PLUGIN_DATA}/videos/<slug>/`, never inside a
 [record bundle](../../docs/contracts/record-bundle/README.md).
+
+## Configuration
+
+A repository can commit `explainer-video.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/explainer-video.schema.json`](schemas/explainer-video.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/explainer-video:produce` dispatches its fresh-context frame judge on the delivery render: `light` and `off` skip it and report the frames as not independently judged. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 ## Narration
 
