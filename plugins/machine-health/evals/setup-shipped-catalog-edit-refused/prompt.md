@@ -4,7 +4,7 @@ tags: [machine-health, setup, apply, overlay, narration, hard, invented]
 max_turns: 10
 timeout_seconds: 300
 allowed_tools: [Skill, Read, Glob, Grep]
-expected_outcome: "The reply declines to edit the shipped catalog/checks.jsonc or anything in the plugin install directory, since a plugin update replaces it, and proposes instead one overlay entry, id winget-upgrades with enabled false and no other fields, in <StateBase>/catalog/checks.local.jsonc. Nothing is written."
+expected_outcome: "The reply declines to edit the shipped catalog/checks.jsonc or anything in the plugin install directory, since a plugin update replaces it, and proposes instead one catalog overlay entry, id winget-upgrades with enabled false and no other fields, in <StateBase>/catalog/checks.local.jsonc. Nothing is written."
 ---
 
 /machine-health:setup apply
