@@ -2628,7 +2628,20 @@ malformed input, or a completed run's outcome) and search again after one that c
 summary it cannot read, that fails its schema, or whose text matches a shared
 credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
 no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-*` row in
-`.github/artifact-retention.json`), how long each capture artifact lasts. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
+`.github/artifact-retention.json`), how long each capture artifact lasts. `proxy` configures the
+key proxy, the only route the driven Claude Code in the capture's sibling sandbox has to the API:
+`claude-code-version` (the version `package-lock.json` pins, which the capture installs),
+`driven-model` and `driven-small-model`, `models` (the model ids it forwards), `token-cap` (the
+tokens one capture job may spend, cache tokens counted in full), `max-tokens-ceiling` (the largest
+`max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
+`max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
+`max-preflight-requests` (the messages requests that may reach its count_tokens preflight),
+`upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. `betas` and
+`body-keys` were measured from the driven session's requests on `claude-code-version`, so the pull
+request that bumps that version measures them again with it. When the key cannot capture (the
+credit gate skipped it, its probe handed off, or it is empty), `capture-subscription` uploads a
+capture recorded `blocked`: a subscription token cannot go behind the key proxy, so that job runs no
+model, and no fallback job follows it. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
 permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
 shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
@@ -3560,7 +3573,9 @@ runs on the key, and `check-intent-subscription` runs on the token, on a new run
 `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
 credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
 that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
-with it empty, the subscription leg is the last. The lane sweep's judge, on the `automations`
+with it empty, the subscription leg is the last. `pr-verify-capture` has two jobs: `capture` on
+the key, and `capture-subscription`, which records the capture `blocked` and runs no model
+([Verifier verdict](#verifier-verdict)). The lane sweep's judge, on the `automations`
 role, has the same three legs per unit (`judge`, `judge-subscription`, `judge-fallback`), each
 started by a route job from the previous leg's handoff markers
 ([The lane sweep](#the-lane-sweep)). The read runner's callers
