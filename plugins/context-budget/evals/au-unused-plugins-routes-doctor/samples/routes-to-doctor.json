@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "For unused plugins and MCP servers, run the bundled `/doctor` yourself.",
+      "why": "run /doctor"
+    },
+    {
+      "answer": "`/doctor` covers that; it is for you to run.",
+      "why": "for you to run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run `/skill-doctor` to pick skills.",
+      "why": "skill-doctor, not doctor"
+    },
+    {
+      "answer": "I'll run /doctor for you.",
+      "why": "model runs it"
+    },
+    {
+      "answer": "You never use the foo MCP server.",
+      "why": "no route"
+    }
+  ]
+}

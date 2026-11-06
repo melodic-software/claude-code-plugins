@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{ \"permissions\": { \"deny\": [\"NotebookEdit\"] } }\n```",
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{ \"permissions\": { \"deny\": [\"NotebookEdit(*)\"] } }\n```",
+      "why": "scoped rule"
+    },
+    {
+      "answer": "Add NotebookEdit to your deny list.",
+      "why": "no entry printed"
+    }
+  ]
+}
