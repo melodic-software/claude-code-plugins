@@ -541,6 +541,15 @@ for (const [route, profile, args] of [
   });
 }
 
+// #13657 (owner decision Q1): the merge-risk rater's model and effort, and its
+// checker's model through subagent-model, come from the route.
+test("live config: merge-risk resolves the rater's model and effort and the checker's model", () => {
+  const models = resolveRoute(LIVE, { route: "merge-risk", configPath: CONFIG_PATH });
+  assert.equal(models.profile, "merge-risk");
+  assert.equal(modelArgs(models), "--model opus --max-turns 40 --effort high");
+  assert.equal(modelSettings(models), JSON.stringify({ env: { CLAUDE_CODE_SUBAGENT_MODEL: "opus" } }));
+});
+
 // docs/plugin-philosophy.md, Model tiers, rules 3 and 4: the review lanes'
 // verdict is chosen before any test lane reports on the head, so no objective
 // signal backs it, and its model is never weaker than any route that writes

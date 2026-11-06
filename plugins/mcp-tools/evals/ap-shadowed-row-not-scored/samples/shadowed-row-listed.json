@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| project | github | shadowed-by:local | stdio | npx | @modelcontextprotocol/server-github@latest | floating-tag | @modelcontextprotocol | no | - |",
+      "why": "inventory row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| local | github | yes | stdio | npx | @modelcontextprotocol/server-github@2025.4.8 | exact | @modelcontextprotocol | no | - |",
+      "why": "only the local row"
+    }
+  ]
+}

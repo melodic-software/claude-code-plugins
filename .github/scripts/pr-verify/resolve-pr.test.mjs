@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -2252,4 +2252,59 @@ test("main takes the carried reads with no API read, and reads again when they d
     assert.match(out, /^proceed=true\nreason=ok\npr-number=41\n/, carried);
     assert.doesNotMatch(out, /carried=true/);
   }
+});
+
+// pr-rate-merge-risk.yml reads the same pull request through resolvePull with
+// `rated` (ratedBy): its own artifact for the head, from a run of its own
+// origin, skips the head; a verdict of pr-verify's never does, and the
+// closing issues are read as for a judgment.
+const RATED_ENV = { RATED_WORKFLOW_PATH: ".github/workflows/pr-rate-merge-risk.yml", RATED_ARTIFACT_PREFIX: "pr-merge-risk" };
+const rateRun = (id, overrides = {}) => verifyRun(id, { path: RATED_ENV.RATED_WORKFLOW_PATH, ...overrides });
+
+test("ratedBy is undefined without its env and refuses a malformed one", () => {
+  assert.equal(ratedBy({}), undefined);
+  assert.equal(typeof ratedBy(RATED_ENV), "function");
+  assert.throws(() => ratedBy({ ...RATED_ENV, RATED_WORKFLOW_PATH: "../evil.yml" }));
+  assert.throws(() => ratedBy({ ...RATED_ENV, RATED_ARTIFACT_PREFIX: "a b" }));
+  assert.throws(() => ratedBy({ RATED_ARTIFACT_PREFIX: "pr-merge-risk" }));
+});
+
+test("a rated read resolves an unrated head with its spec, whatever pr-verify judged", async () => {
+  const result = await resolve(
+    { artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 900)], runs: { 900: verifyRun(900) } },
+    { rated: ratedBy(RATED_ENV) },
+  );
+  assert.deepEqual(result, {
+    proceed: true,
+    reason: "ok",
+    relinkSinceHead: false,
+    prNumber: 41,
+    headSha: HEAD,
+    baseSha: BASE,
+    headRef: "feat/x",
+    linkedIssues: [LINKED],
+    specKind: "closes",
+    specText: [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }],
+  });
+});
+
+test("a rated read skips a head its own origin already rated, and only that", async () => {
+  const name = `pr-merge-risk-41-${HEAD}`;
+  const rated = ratedBy(RATED_ENV);
+  assert.equal(await reason({ artifacts: [artifact(name, 901)], runs: { 901: rateRun(901, { status: "in_progress", conclusion: null }) } }, { rated }), "already-rated");
+  for (const other of [{ path: ".github/workflows/pr-verify.yml" }, { event: "pull_request" }, { head_branch: "feat/x" }, { head_repository: { full_name: "fork/repo" } }]) {
+    assert.equal(await reason({ artifacts: [artifact(name, 902)], runs: { 902: rateRun(902, other) } }, { rated }), "ok", JSON.stringify(other));
+  }
+  assert.equal(await reason({ artifacts: [artifact(name, 903, true)], runs: { 903: rateRun(903) } }, { rated }), "ok");
+  assert.equal(await reason({ pulls: [pull({ draft: true })] }, { rated }), "draft");
+  assert.equal(await reason({ pulls: [HUMAN_PR] }, { rated }), "author-not-lane");
+});
+
+test("the failure and hold lines name RESOLVE_LANE when it is set", () => {
+  const error = new Error("boom");
+  assert.match(failureAnnotation(error, { RESOLVE_LANE: "pr-merge-risk" }), /^::error::pr-merge-risk could not resolve/);
+  assert.match(failureAnnotation(error, {}), /^::error::pr-verify could not resolve/);
+  assert.match(failureAnnotation(error, { RESOLVE_LANE: "Bad Lane" }), /^::error::pr-verify could not resolve/);
+  const held = closing(Object.assign(new Error("down"), { incomplete: true }), { RESOLVE_LANE: "pr-merge-risk" });
+  assert.match(held.lines[0], /^::notice title=pr-merge-risk::held: pr-merge-risk could not resolve/);
 });

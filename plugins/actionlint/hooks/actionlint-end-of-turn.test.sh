@@ -3,9 +3,8 @@
 # exactly as hooks.json registers it: off by default; on, an uncommitted finding
 # exits 2 with the finding on stderr; stop_hook_active keeps it from blocking
 # twice in one turn; the plugin kill switch wins; a missing actionlint passes
-# silently. The
-# spawn budget case fences the cost every user pays per turn with the option
-# off: the node launcher only.
+# silently. The spawn budget case fences the cost every user pays per turn with
+# the option off: the node launcher only.
 # Expected values are actionlint's documented output (docs/checks.md): an
 # undefined property in an expression, reported on line 7 of the fixture.
 # test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/hooks/actionlint-check.sh plugins/actionlint/git-hooks/actionlint-check.sh plugins/actionlint/.claude-plugin/plugin.json

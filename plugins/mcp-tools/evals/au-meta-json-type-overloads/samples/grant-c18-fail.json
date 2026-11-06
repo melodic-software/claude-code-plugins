@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: grant_repo_access\n\n| C6 Every parameter has a description | ANTHROPIC | PASS | |\n| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | Declared as the string \"true\" |\n",
+      "why": "section"
+    },
+    {
+      "answer": "1. grant_repo_access: C18 FAIL, string \"true\"",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: revoke_repo_access\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | |\n\n#### Tool: grant_repo_access\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | |\n",
+      "why": "swapped attribution"
+    },
+    {
+      "answer": "grant_repo_access: C18 PASS",
+      "why": "passes"
+    }
+  ]
+}

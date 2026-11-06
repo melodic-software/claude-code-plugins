@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: get_report\n\n| Criterion | Authority | Result | Details |\n|---|---|---|---|\n| C1 Description has \"what\" | ANTHROPIC | WARN | Generic |\n| C6 Every parameter has a description | ANTHROPIC | FAIL | reportId has no .describe() |\n",
+      "why": "section row"
+    },
+    {
+      "answer": "1. get_report: C6 FAIL, reportId has no description.",
+      "why": "prose line"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C6 Params described | FAIL | FAIL | PASS |\n",
+      "why": "matrix: verdict in this tool's column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: delete_workspace\n\n| C6 Every parameter has a description | ANTHROPIC | FAIL | id undescribed |\n\n#### Tool: get_report\n\n| C6 Every parameter has a description | ANTHROPIC | PASS | |\n",
+      "why": "C6 FAIL attributed to delete_workspace only"
+    },
+    {
+      "answer": "get_report: C1 FAIL, the description is generic.",
+      "why": "a different criterion fails"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C6 Params described | PASS | FAIL | PASS |\n",
+      "why": "near miss: verdict only in another tool's column"
+    }
+  ]
+}

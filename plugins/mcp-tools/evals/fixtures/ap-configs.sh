@@ -94,3 +94,22 @@ cat >configs/mail.mcp.json <<'JSON'
   }
 }
 JSON
+
+cat >configs/remote.mcp.json <<'JSON'
+{
+  "mcpServers": {
+    "docs": {
+      "type": "http",
+      "url": "https://docs.example.com/mcp"
+    },
+    "tracker": {
+      "type": "http",
+      "url": "https://mcp.tracker.example.com/mcp"
+    },
+    "events": {
+      "type": "sse",
+      "url": "https://events.example.com:8443/sse"
+    }
+  }
+}
+JSON

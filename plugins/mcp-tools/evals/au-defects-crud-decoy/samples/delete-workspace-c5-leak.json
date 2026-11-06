@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| C5 No implementation-detail leak | ANTHROPIC | WARN | Mentions Cosmos DB, a tombstone row and a partition key |",
+      "why": "C5 row"
+    },
+    {
+      "answer": "delete_workspace leaks storage internals (Cosmos DB partition key).",
+      "why": "prose"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C5 No implementation leak | PASS | WARN | PASS |\n",
+      "why": "matrix: verdict in this tool's column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C5 No implementation-detail leak | ANTHROPIC | PASS | |",
+      "why": "C5 passes, no leak named"
+    },
+    {
+      "answer": "delete_workspace lacks a readOnlyHint, which is fine for a destructive tool.",
+      "why": "no leak mentioned"
+    },
+    {
+      "answer": "| Criterion | get_report | delete_workspace | list_items |\n|---|---|---|---|\n| C5 No implementation leak | WARN | PASS | PASS |\n",
+      "why": "near miss: verdict only in another tool's column"
+    }
+  ]
+}

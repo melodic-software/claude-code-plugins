@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| github | P1 Floating version | PASS | exact |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| github | P2 Local stdio where remote exists | WARN (unverified) | |",
+      "why": "other criterion"
+    },
+    {
+      "answer": "| github | P1 Floating version | FAIL | |",
+      "why": "fail"
+    }
+  ]
+}

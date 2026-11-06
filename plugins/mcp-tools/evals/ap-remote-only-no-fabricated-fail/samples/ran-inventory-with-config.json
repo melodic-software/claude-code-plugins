@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh --config configs/remote.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/audit-posture/scripts/inventory.sh\" --config=/tmp/ws/configs/remote.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted root, --config="
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no --config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh --config configs/team.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "other file"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

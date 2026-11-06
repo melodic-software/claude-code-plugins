@@ -4167,8 +4167,10 @@ jobs:
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's six, the lanes-hold step's eight (in the merge
+    # 15 s of gh_read retry sleeps for every read, never past gh_read's
+    # deadline: the hold-lift step's two reads, the runner tail, the hold
+    # reason, the lanes pull, the review-lane step's six, the lanes-hold
+    # step's eight (in the merge
     # queue 50 s more for its pass record's download, a cold read's listing
     # more, and the verdict reader's reads more, about 73 with pr-merge's carried
     # reads and about 860 without them, measured 2026-10-25, up to the cold-read
@@ -4848,9 +4850,12 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
-      # A RATE-LIMITED READ WAITS FOR THE RESET. The fail-closed steps below
-      # read through gh_read, which runs `gh api` and, when that fails on a
-      # rate limit, waits once and reads again. The rate limit and its reset
+      # GH_READ IS THE ONE RETRY LAYER, AND A RATE-LIMITED READ WAITS FOR THE
+      # RESET. The fail-closed steps below read through gh_read, which runs
+      # `gh api` at most 3 times. A 4xx that is no rate limit fails at once; any
+      # other failure (a 5xx, a network error, no HTTP status) is read again
+      # after a full-jitter wait of up to 5, then 10 s; a rate limit waits once
+      # for its reset and reads again. The rate limit and its reset
       # come from the api-budget gh wrapper's rate guard (API_BUDGET_SH): it
       # reads each response's headers and records a stop for the pool until
       # the reset (retry-after, else x-ratelimit-reset while remaining is 0,
@@ -4866,18 +4871,21 @@ jobs:
       # as passing), with an error naming the reset and asking for a re-run
       # after it; later reads of that pool before the reset fail without a
       # call. Nothing here re-runs the job: the next review lane's
-      # rerun-ci-status, or a person, re-runs it after the reset. Any other
-      # failure, or a second rate limit after the wait, returns gh's status at
-      # once, so each caller's own retries and fail-closed exit stay as they
-      # were. The cost-hold step keeps plain `gh api`: an unreadable input
-      # keeps its hold, and a wait there would act on reads made before it.
+      # rerun-ci-status, or a person, re-runs it after the reset. A second rate
+      # limit after the wait, a jitter wait that would end past the deadline, or
+      # a third failure returns 1 (a third that is a rate limit with a header
+      # reset names it, as above), and the caller fails closed with its own
+      # error; callers read once and never loop around gh_read, so its 3 sends
+      # are the read's only sends. The cost-hold step keeps plain `gh api`: an
+      # unreadable input keeps its hold, and a wait there would act on reads
+      # made before it.
       # Every other `gh api` in this job is a write or marked gh-read-exempt.
       # This step writes the function for the others to source. Pinned by
       # scripts/ci-gh-read.test.sh, which runs this body.
       - name: Write the rate-limit-aware read helper
         run: |
           gh_read() {
-            local pool=core deadline err out now until wait at waited=
+            local pool=core deadline err out now until wait at attempt=1 waited=
             ! declare -F api_budget_pool >/dev/null || pool=$(api_budget_pool api "$@")
             deadline=$(cat "$RUNNER_TEMP/gh-read.deadline")
             err=$(mktemp)
@@ -4890,15 +4898,40 @@ jobs:
               fi
               cat "$err" >&2
               until=
-              if [ -z "$waited" ] && declare -F api_budget_stop_until >/dev/null; then
-                until=$(api_budget_stop_until "$pool")
-              fi
-              # A guessed stop (no header gave its time) gets no wait.
-              if ! [[ $until =~ ^[0-9]+$ ]] || api_budget_guessed "$until"; then
+              ! declare -F api_budget_stop_until >/dev/null || until=$(api_budget_stop_until "$pool")
+              # A 4xx that is no rate limit (404, 422, a 403 the token lacks)
+              # answers every send the same, so it is not sent again.
+              if grep -qE '(^|[^0-9])HTTP 4[0-9]{2}([^0-9]|$)' "$err" &&
+                ! grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$err"; then
                 rm -f "$err"
                 return 1
               fi
+              if [ "$attempt" -ge 3 ]; then
+                if [[ $until =~ ^[0-9]+$ ]] && ! api_budget_guessed "$until"; then
+                  at=$(jq -rn --argjson t "$until" '$t | todate')
+                  echo "::error::GitHub's $pool API rate limit blocks 'gh api $*' until $at, and this read has made its 3 sends; a re-run after $at is needed." >&9
+                fi
+                rm -f "$err"
+                return 1
+              fi
+              attempt=$((attempt + 1))
               now=$(date +%s)
+              if [ -z "$until" ]; then
+                # No rate limit: full jitter, capped at 5 s, then 10 s.
+                wait=$((RANDOM % ((5 << (attempt - 2)) + 1)))
+                if [ $((now + wait)) -gt "$deadline" ]; then
+                  rm -f "$err"
+                  return 1
+                fi
+                sleep "$wait"
+                continue
+              fi
+              # A guessed stop (no header gave its time) gets no wait, and a
+              # second rate limit after the wait none either.
+              if [ -n "$waited" ] || ! [[ $until =~ ^[0-9]+$ ]] || api_budget_guessed "$until"; then
+                rm -f "$err"
+                return 1
+              fi
               wait=$((until - now + 1))
               if [ $((now + wait)) -gt "$deadline" ]; then
                 at=$(jq -rn --argjson t "$until" '$t | todate')
@@ -5038,13 +5071,8 @@ jobs:
           . "$RUNNER_TEMP/gh-read.sh"
           BROKER_PATHS='.github/actions/resolve-config/package.json
           .github/actions/resolve-config/package-lock.json'
-          for attempt in 1 2 3; do
-            if pages=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
+          pages=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate) ||
+            { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
           files=$(jq -r '.[] | .filename, (.previous_filename // empty)' <<<"$pages")
           # The review-lane step reads the same list from here instead of again.
           printf '%s\n' "$pages" >"$RUNNER_TEMP/pr-files.json"
@@ -5710,13 +5738,10 @@ jobs:
             echo "::error::cannot read the outside-actor label from merge-holds.mjs at $BASE_SHA"
             exit 1
           }
-          for attempt in 1 2 3; do
-            if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
+          if ! raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) || ! labels=$(jq -r '.[].name' <<<"$raw"); then
+            echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."
+            exit 1
+          fi
           if ! grep -qxF -- "$human_gated" <<<"$labels"; then
             echo "held=false" >>"$GITHUB_OUTPUT"
             if [ -n "$outside" ] && grep -qxF -- "$outside" <<<"$labels"; then
@@ -5789,25 +5814,17 @@ jobs:
             exit 1
           fi
           # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
-          for attempt in 1 2 3; do
-            if raw=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) && held_at=$(jq -r \
-              '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
-                and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
-                  and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
-                    | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
-                | .created_at' <<<"$raw"); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the comments of #$PR_NUMBER; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
-          for attempt in 1 2 3; do
-            if events=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
+          if ! raw=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) || ! held_at=$(jq -r \
+            '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+              and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                  | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+              | .created_at' <<<"$raw"); then
+            echo "::error::could not read the comments of #$PR_NUMBER; re-run this run."
+            exit 1
+          fi
+          events=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate) ||
+            { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
           labeled_at=$(jq -rs --arg label "$HUMAN_GATED" '[add[] | select(.event == "labeled" and .label.name == $label
             and (.actor.login == "github-actions[bot]" or .actor.login == "claude[bot]")) | .created_at] | max // empty' <<<"$events") || {
             echo "::error::cannot read the events of #$PR_NUMBER."
@@ -5976,20 +5993,11 @@ jobs:
             echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
             exit 1
           }
-          # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
-          read3() {
-            local attempt
-            for attempt in 1 2 3; do
-              gh_read "$@" && return 0
-              [ "$attempt" -lt 3 ] || return 1
-              sleep $((attempt * 5))
-            done
-          }
           # One GraphQL read answers the pull request's live labels and, for
           # the trust hold below, its author, body and closing issues. A label
           # list GitHub cut (totalCount above the nodes) fails closed.
           # shellcheck disable=SC2016 # GraphQL variables, not shell
-          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){labels(first:100){totalCount nodes{name}} author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
+          link=$(gh_read graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){labels(first:100){totalCount nodes{name}} author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
             -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
             echo "::error::could not read the labels and issue link of #$pr; re-run this run."
             exit 1
@@ -6062,7 +6070,7 @@ jobs:
               exit 1
             }
             if [ -n "$refs" ]; then
-              names=$(read3 "repos/$GITHUB_REPOSITORY/issues/$refs/labels?per_page=100" --paginate --jq '.[].name') || {
+              names=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$refs/labels?per_page=100" --paginate --jq '.[].name') || {
                 echo "::error::could not read the labels of issue #$refs, which #$pr names; re-run this run."
                 exit 1
               }
@@ -6102,7 +6110,7 @@ jobs:
               echo "::error::issue #$number, which #$pr links, carries a label naming untrusted work (untrusted-provenance); the merge queue removes #$pr. A person on the trusted-actor list removing the label lifts it; re-queue to merge."
               continue
             fi
-            events=$(read3 "repos/$GITHUB_REPOSITORY/issues/$number/timeline?per_page=100" --paginate --jq '.[] | select(.event == "unlabeled") | @json') || {
+            events=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$number/timeline?per_page=100" --paginate --jq '.[] | select(.event == "unlabeled") | @json') || {
               echo "::error::could not read the timeline of issue #$number, which #$pr links; re-run this run."
               exit 1
             }
@@ -6444,15 +6452,9 @@ jobs:
             exit 1
           fi
           read_api() {
-            local attempt body
-            for attempt in 1 2 3; do
-              if body=$("${READER:-gh_read}" "${@:2}"); then
-                printf '%s\n' "$body"
-                return 0
-              fi
-              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
-              sleep $((attempt * 5))
-            done
+            local body
+            body=$("${READER:-gh_read}" "${@:2}") || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+            printf '%s\n' "$body"
           }
           # On a pull request event a well-formed payload author that is not
           # the lanes App ends the step before any read; any other payload
@@ -7014,22 +7016,16 @@ jobs:
           fi
           # READER=pr_read for the pull alone; runs, jobs and annotations are live.
           read_api() {
-            local attempt body
-            for attempt in 1 2 3; do
-              if body=$("${READER:-gh_read}" "${@:2}"); then
-                printf '%s\n' "$body"
-                return 0
-              fi
-              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
-              sleep $((attempt * 5))
-            done
+            local body
+            body=$("${READER:-gh_read}" "${@:2}") || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+            printf '%s\n' "$body"
           }
           # held_paths: sets files to the changed and renamed-from paths of the
           # pull request and held to those that are trust-gate paths.
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/eval-hill-climb-pass.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify-capture.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/eval-hill-climb-pass.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify-capture.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns
@@ -7042,13 +7038,8 @@ jobs:
             if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
               files=$(jq -r '.[] | [.filename, (.previous_filename // "")] | @tsv' "$RUNNER_TEMP/pr-files.json")
             else
-              for attempt in 1 2 3; do
-                if files=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
-                  break
-                fi
-                [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
-                sleep $((attempt * 5))
-              done
+              files=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv') ||
+                { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
             fi
             held=
             # Case-folded, as the floor matches: a case-insensitive checkout

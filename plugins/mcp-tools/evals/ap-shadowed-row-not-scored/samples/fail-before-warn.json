@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Findings\n\n| Server | Criterion | Result | Details |\n|---|---|---|---|\n| filesystem | P1 Floating version | FAIL | |\n| notes | P1 Floating version | WARN | |\n",
+      "why": "fail first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Findings\n\n| Server | Criterion | Result | Details |\n|---|---|---|---|\n| notes | P1 Floating version | WARN | |\n| filesystem | P1 Floating version | FAIL | |\n",
+      "why": "warn first"
+    },
+    {
+      "answer": "## Findings\n\nNone.\n",
+      "why": "no rows"
+    }
+  ]
+}

@@ -1030,6 +1030,35 @@ if ! grep -qx 'GET graphql' <<<"$LOG" || [[ "$OUT" != *"was put in the merge que
   fail "the person-merged revert was not looked up for #1234 and judged: log='$LOG' out='$OUT'"
 fi
 
+# The push's merges and the pull requests it reverts go to the label-paths
+# job (merge-path.mjs, tested in its own suite): a revert of a pull
+# request the owner login enqueued files nothing and writes nothing here.
+if [[ "$RC" -eq 0 && "$(out_value merged-prs)" == 1300 && "$(out_value reverted-prs)" == 1234 &&
+  -z "$(out_value revert-title)" ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG"; then
+  ok "a revert of an owner-login merge hands its numbers to the merge-path labels and files no record"
+else
+  fail "owner-login revert hand-off: rc=$RC log='$LOG' output='$(cat "$TMP_ROOT/stub/output")'"
+fi
+# A lane revert's record is the one filed before merge paths existed, byte for byte.
+ALERT_ONLY=1 GRAPHQL="$LANE" run_push
+expected_body="<!-- babysit-merge-demotion sha=$HEAD_SHA signal=revert -->
+
+A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lift\`); a lane then closes it. A person's direct close also clears it.
+
+- Reverted pull request: https://github.com/o/r/pull/1234
+- Revert commit: \`$HEAD_SHA\`
+- Main at the push: \`$HEAD_SHA\`
+- Canary run: $RUN_URL/attempts/1
+
+Find out why the pull request was reverted, then reference this record from the pull request that re-lands it or confirms the revert."
+if [[ "$RC" -eq 0 && "$(out_value revert-title)" == "Post-merge revert of #1234 at ${HEAD_SHA:0:12}: unattended merging demoted" &&
+  "$(out_value revert-body)" == "$expected_body" && "$(out_value revert-commits)" == "$HEAD_SHA" &&
+  "$(out_value revert-filer)" == 'melodic-automation-lanes[bot]' && "$(out_value reverted-prs)" == 1234 ]]; then
+  ok "a lane revert's record is unchanged, and its number still reaches the merge-path labels"
+else
+  fail "lane revert record changed: rc=$RC output='$(cat "$TMP_ROOT/stub/output")'"
+fi
+
 # The alert job files no revert record itself: it hands it over.
 ALERT_ONLY=1 GRAPHQL="$LANE" run_push
 if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG" &&

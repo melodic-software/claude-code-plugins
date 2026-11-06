@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Claude Code ignores the string \"true\", so the consent prompt never appears.",
+      "why": "ignored"
+    },
+    {
+      "answer": "A JSON string is silently dropped and the consent gate never fires.",
+      "why": "silently"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claude Code does not ignore the string \"true\"; it prompts as intended.",
+      "why": "negated"
+    },
+    {
+      "answer": "Change the string to a boolean for consistency.",
+      "why": "no consequence stated"
+    }
+  ]
+}

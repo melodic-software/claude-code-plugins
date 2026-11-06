@@ -406,6 +406,9 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/who.mjs", "gate"],
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
+  [".github/scripts/pr-merge/merge-risk-line.mjs", "gate"],
+  [".github/scripts/pr-merge-risk/input.mjs", "gate"],
+  [".github/scripts/pr-merge-risk/write-rating.mjs", "gate"],
   [".github/actions/report-check-run/posting-run.mjs", "gate"],
   ["scripts/sync-hold-floor.py", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
@@ -467,6 +470,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/post-merge-test-mutation.yml", "gate"],
   [".github/workflows/pr-feedback-dispatch.yml", "gate"],
   [".github/workflows/pr-merge.yml", "gate"],
+  [".github/workflows/pr-rate-merge-risk.yml", "gate"],
   [".github/workflows/pr-refine.yml", "gate"],
   [".github/workflows/pr-require-checks.yml", "gate"],
   [".github/workflows/pr-review-approved.yml", "gate"],
@@ -1630,9 +1634,10 @@ export function humanGatedLabel(tracker) {
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 
 // The labels that hold untrusted-provenance work for a person; either holds
-// alone. Writers still apply UNTRUSTED_LABEL until every reader takes both.
-export const UNTRUSTED_LABEL = "work-class: untrusted-provenance";
-export const UNTRUSTED_LABELS = Object.freeze([UNTRUSTED_LABEL, "provenance: untrusted"]);
+// alone. Writers apply only UNTRUSTED_LABEL; the other is its legacy name,
+// which readers hold on until the label source drops it.
+export const UNTRUSTED_LABEL = "provenance: untrusted";
+export const UNTRUSTED_LABELS = Object.freeze([UNTRUSTED_LABEL, "work-class: untrusted-provenance"]);
 
 // The label a pr-verify fail puts on a person's pull request; a pass removes
 // it, at a new commit or at the same head judged again after trusted people

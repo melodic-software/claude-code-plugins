@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| fetch | P1 Floating version | PASS | exact pin |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| fetch | P1 Floating version | WARN | |",
+      "why": "warn"
+    },
+    {
+      "answer": "| user | fetch | yes | stdio | uvx | mcp-server-fetch==2025.4.7 | exact | pypi | no | - |",
+      "why": "inventory only"
+    }
+  ]
+}

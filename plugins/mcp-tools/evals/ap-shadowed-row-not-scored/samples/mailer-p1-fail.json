@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| mailer | P1 Floating version | FAIL | @latest via npx |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| mailer | P1 Floating version | WARN | |",
+      "why": "warn"
+    },
+    {
+      "answer": "| mailer | P3 Publisher provenance | WARN (unverified) | |",
+      "why": "P3 only"
+    }
+  ]
+}

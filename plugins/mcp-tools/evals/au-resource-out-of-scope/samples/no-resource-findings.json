@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: list_snippets\n\n| C1 Description has \"what\" | ANTHROPIC | PASS | |\n\nThe snippet resource is out of scope: the audit evaluates tools only.",
+      "why": "tool scored, resource skipped"
+    },
+    {
+      "answer": "### Resources\n\nNot evaluated: the audit covers tools only.\n",
+      "why": "resource heading without rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Resource: snippet\n\n| C1 Description has \"what\" | ANTHROPIC | PASS | |\n",
+      "why": "resource section with rows"
+    },
+    {
+      "answer": "| snippet://{id} | C1 | PASS | |",
+      "why": "resource row"
+    }
+  ]
+}
