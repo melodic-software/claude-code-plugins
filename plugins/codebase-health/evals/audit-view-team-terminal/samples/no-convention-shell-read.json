@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/p/codebase-health/lib/view-settings.mjs\" resolve --lane codebase-health:audit --option \"auto\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the resolver names no file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/.claude/rendered-views.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "cat of the retired file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '(.a) | .b' docs/conventions/rendered-views.yaml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted pipe before the file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs\nhead -5 docs/conventions/rendered-views.yaml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a newline"
+    }
+  ]
+}

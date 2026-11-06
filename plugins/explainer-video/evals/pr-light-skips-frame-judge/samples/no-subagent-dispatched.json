@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/final/frames/f0000.png"
+          }
+        }
+      ],
+      "why": "a frame read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "judge frames",
+            "prompt": "Judge each frame in video/final against the script."
+          }
+        }
+      ],
+      "why": "the frame judge was dispatched"
+    }
+  ]
+}

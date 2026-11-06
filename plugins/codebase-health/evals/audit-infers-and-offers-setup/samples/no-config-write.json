@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes/checklist.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/codebase-health.md",
+            "content": "# config"
+          }
+        }
+      ],
+      "why": "config written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/codebase-health.local.md",
+            "content": "# config"
+          }
+        }
+      ],
+      "why": "override written"
+    }
+  ]
+}

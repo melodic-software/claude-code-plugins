@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: tidy-diff-closing-read-residue-recall
+description: 'Hard: one 18-line hunk carries seven low-salience residue kinds from six rows of generated-code-residue.md (version suffix, entry log, double cast, `=== true`/`=== false` padding, `?.`/`?? ""` on a guaranteed field, a one-caller options object, a reimplemented normalizeEmail), so a single in-order sweep can miss one and the closing read against every kind is what recovers it. Graded on the report, since all but the reuse are proposals. Written from MB:plugins/code-tidying/skills/tidy-diff/SKILL.md:72-78 and MB:plugins/code-tidying/skills/tidy-diff/reference/generated-code-residue.md:17-20 and 55-88.'
+tags: [tidy-diff, residue, closing-read, hard]
+runs: 3
+expected_outcome: 'The final report names each of the seven seeded residues in src/reminders.ts, as an applied edit or a proposal: the V2-suffixed name, the "entering" console.log, the `as unknown as Invoice[]` cast, the `=== true`/`=== false` comparisons, the `customer?.email ?? ""` guard on a field the type guarantees, the LoadOptions object with its one caller, and the inline trim/lowercase that duplicates normalizeEmail in src/strings.ts.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:tidy-diff changed-lines.tsv'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: names-version-suffix
+    type: regex
+    flags: i
+    pattern: 'version[- ]suffix|\bV2\b[^\n]*suffix|suffix[^\n]*\bV2\b'
+    target: last_message
+  - name: names-entry-log
+    type: regex
+    flags: i
+    pattern: 'debug leftover|entry log|console\.log|"entering'
+    target: last_message
+  - name: names-cast
+    type: regex
+    flags: i
+    pattern: 'as unknown as|escape hatch|\bcast\b'
+    target: last_message
+  - name: names-boolean-padding
+    type: regex
+    pattern: '===\s*(?:true|false)'
+    target: last_message
+  - name: names-optional-chain
+    type: regex
+    pattern: '\?\.|optional chain|\?\?\s*""'
+    target: last_message
+  - name: names-options-object
+    type: regex
+    flags: i
+    pattern: 'speculative|options object|LoadOptions'
+    target: last_message
+  - name: names-duplicate-helper
+    type: regex
+    pattern: 'normalizeEmail'
+    target: last_message
+  - name: every-kind-named
+    type: llm
+    focus: last_message
+    criteria: 'src/reminders.ts lines 1-18 carry seven generated-code residues: (1) the version-suffixed name loadInvoiceEmailsV2, (2) the debug entry log console.log("entering loadInvoiceEmailsV2"), (3) the double cast `as unknown as Invoice[]`, (4) the `=== true` and `=== false` comparisons on booleans, (5) `invoice.customer?.email ?? ""` on a field the Invoice type guarantees, (6) the LoadOptions options object whose only caller passes one fixed value, and (7) the inline `.trim().toLowerCase()` that duplicates normalizeEmail in src/strings.ts. PASS only if the final report names all seven, each as an applied edit or as a proposal. FAIL if any one of the seven is missing from the report.'

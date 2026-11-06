@@ -101,7 +101,7 @@ pointer.
 | Id | Candidate | Upstream source | Lane |
 |---|---|---|---|
 | C1 | No-interview spec mode: the spec is written from what the session already holds, with no questions asked | `to-spec:7` | A |
-| C2 | Sketch the test seams before writing the spec, prefer existing seams, confirm them with the user (upstream's claim that a single seam is best is excluded) | `to-spec:15-17` | A → C |
+| C2 | Sketch the test seams before writing the spec, prefer existing seams, have the user approve the chosen seams (upstream's claim that a single seam is best is excluded) | `to-spec:15-17` | A → C |
 | C3 | Spec template sections, notably **Testing Decisions** as a first-class section with prior-art test pointers, and implementation content framed as decisions-made | `to-spec:21-75` | A |
 | C4 | The spec is published to the tracker, born ready-for-agent (upstream has no approval gate on the publish — that part excluded) | `to-spec:19` | A |
 | C5 | Prefactor look-ahead at decomposition time; prefactor slices become blockers of what they unblock | `to-tickets:23,34` | B |

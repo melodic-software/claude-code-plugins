@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: pr-standard-silent-judge-gets-beats
+context:
+  scaffold_script: scaffold.sh

@@ -170,6 +170,7 @@ class TestAuthClasses(ServerCase):
                 self.assertEqual((code, out["error"]), want)
 
     def test_owner_routes_refuse_a_leader(self):
+        self.assertTrue(any(auth in ("owner", "host") for auth, _ in server.ROUTES.values()))
         for path, (auth, _) in server.ROUTES.items():
             if auth in ("owner", "host"):
                 with self.subTest(path=path):

@@ -924,12 +924,12 @@ function py_assert_inert(r,    rest) {
 # bats: `run cmd` leaves the status in $status, so a run nothing checks before
 # the next run or the end of the test passes whatever cmd did; `! cmd` fails
 # the test only as its last command. Harness (file model): a [ ] test on its
-# own line whose status the next line does not read, in a file with no set -e
-# and no sourced helper that might set it.
+# own line whose status the next line does not read ($? or a bare exit, which
+# returns it), in a file with no set -e and no sourced helper that might set it.
 function sh_inert(s, r) {
   if (MODEL == "file") {
     if (s == "" || s ~ /^(fi|done|esac|else|elif|then|do|\}|\)|;;)/) { if (s != "") BRK_PEND = ""; return }
-    if (BRK_PEND != "" && r !~ /\$\?/) BRK_OUT = BRK_OUT BRK_PEND
+    if (BRK_PEND != "" && r !~ /\$\?/ && s !~ /^exit[[:space:]]*;?$/) BRK_OUT = BRK_OUT BRK_PEND
     BRK_PEND = ""
     if (s ~ /^\[\[?[[:space:]][^;&|]*[[:space:]]\]\]?[[:space:]]*;?$/)
       BRK_PEND = FNR "\t" line_kind() "\t" snippet(r) "\n"

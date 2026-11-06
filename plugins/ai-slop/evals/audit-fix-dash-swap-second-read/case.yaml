@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-fix-dash-swap-second-read
+description: "Hard: five 'claim — elaboration' lines invite an em-dash fix that swaps the dash for a colon, a colon crutch the rewrite itself introduces and detect.sh does not flag (checked: silent on the swapped file), so only the self-audit's reads catch it; one read over five swaps can miss one. Written from MB:plugins/ai-slop/skills/audit/reference/rewrite-guide.md:84-94 and 256-263, MB:plugins/ai-slop/skills/audit/SKILL.md:286-302."
+tags: [fix, rewrite-guide, self-audit, colon-crutch, hard]
+runs: 3
+expected_outcome: "After an explicit fix, docs/upgrade.md has no em dash, and none of the five lines that had one ('changed the most', 'got stricter', 'is safer', 'was renamed', 'fail loudly') stages its point with a colon, en dash, spaced hyphen or parenthesis in its place; the retry schedule (30, 60, 120 seconds), the four-minute drain time, the RUNNER_WORKERS default of 8 and the 1 MB limit all survive."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit fix docs/upgrade.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1500

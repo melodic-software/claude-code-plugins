@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "A whole-repo run fans out one subagent per file, a very large token cost."
+    },
+    {
+      "answer": "That is expensive: every file gets its own agent."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "That is 40 files. Which directory should I audit?",
+      "why": "no cost named"
+    },
+    {
+      "answer": "This would be costly. Which directory?",
+      "why": "cost with no fan-out"
+    }
+  ]
+}
