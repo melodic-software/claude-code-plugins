@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.1] - 2026-11-06
+
+### Fixed
+
+- name the plan view's template path for a pasted page-input block
+
+  When page-input.mjs cannot run, plan reads the choices from
+  skills/plan/templates/plan-view.html instead of searching the plugin.
+  Under the light verification level, the skip token now goes in the
+  reply that reports Step 3 and in the Step 5 presentation.
+
 ## [2.13.0] - 2026-11-06
 
 ### Added

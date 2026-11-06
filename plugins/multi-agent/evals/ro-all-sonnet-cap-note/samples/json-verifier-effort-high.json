@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"roles\":{\"verifier\":{\"role\":\"verifier\",\"single\":{\"model\":\"inherit\",\"omit_model\":true,\"effort\":\"high\",\"guarded\":false},\"fanout\":{\"model\":\"inherit\",\"omit_model\":true,\"effort\":\"high\",\"guarded\":false}}}}\n```",
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"roles\":{\"verifier\":{\"role\":\"verifier\",\"single\":{\"model\":\"inherit\",\"effort\":\"medium\"},\"fanout\":{\"model\":\"inherit\",\"effort\":\"medium\"}}}}\n```",
+      "why": "lowered to medium"
+    },
+    {
+      "answer": "```json\n{\"roles\":{\"verifier\":{\"role\":\"verifier\",\"single\":{\"model\":\"inherit\",\"effort\":\"high\"},\"fanout\":{\"model\":\"inherit\",\"effort\":\"medium\"}}}}\n```",
+      "why": "fanout lowered"
+    }
+  ]
+}

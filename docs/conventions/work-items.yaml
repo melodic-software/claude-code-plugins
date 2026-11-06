@@ -19,3 +19,8 @@ morning_brief:
     - budget-subscription-forecast
   anomaly_alert: daily-cost-anomaly
   expiry_days: 30
+tracker:
+  schema_version: "1.0"
+  provider: "github"
+  config:
+    lease_ttl_hours: 24

@@ -1465,7 +1465,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_DIR: ${{ runner.temp }}/feedback-context
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
-          TRACKER_CONFIG: .base/.work-item-tracker.json
+          TRACKER_CONFIG: .base/docs/conventions/work-items.yaml
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           # A pass-only round (address-feedback.mjs select), sent only by a
           # dispatcher run, which the reply job's gate checks.

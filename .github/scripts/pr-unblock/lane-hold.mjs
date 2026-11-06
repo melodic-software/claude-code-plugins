@@ -15,7 +15,7 @@
 // or a 403 among them, still ends the step red.
 //
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, PR_NUMBER,
-// APP_SENDER_ID, ACTIVITY, TRACKER_CONFIG (default .base/.work-item-tracker.json).
+// APP_SENDER_ID, ACTIVITY, TRACKER_CONFIG (default .base/docs/conventions/work-items.yaml).
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -38,7 +38,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (!ACTIVITY.test(env.ACTIVITY)) {
     throw new Error("ACTIVITY is not an activity name");
   }
-  const gateLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
+  const gateLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
   const client =
     api ??
     createGitHubApi({

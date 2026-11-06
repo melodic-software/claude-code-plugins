@@ -44,6 +44,18 @@
         }
       ],
       "why": "content serialized before file_path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/skills/testing/reference/clockwork-stubs-author.md",
+            "content": "A clockwork stub returns a scripted sequence of values."
+          }
+        }
+      ],
+      "why": "target outside .claude/"
     }
   ],
   "fail": [
@@ -97,6 +109,18 @@
         }
       ],
       "why": "content first, not a reference file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/skills/testing/clockwork-stubs.md",
+            "content": "A clockwork stub returns a scripted sequence of values."
+          }
+        }
+      ],
+      "why": "outside reference/"
     }
   ]
 }

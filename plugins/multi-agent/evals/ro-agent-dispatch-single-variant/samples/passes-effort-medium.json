@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Pass `effort: \"medium\"` on the call.",
+      "why": "effort medium"
+    },
+    {
+      "answer": "Set the effort to medium.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"single\":{\"model\":\"inherit\",\"effort\":\"medium\"}}\n```",
+      "why": "JSON key only"
+    },
+    {
+      "answer": "Pass effort high.",
+      "why": "wrong effort"
+    }
+  ]
+}

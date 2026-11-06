@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/assess/scripts/workflow-availability.sh"
+          }
+        }
+      ],
+      "why": "script only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/handlers/a.ts",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "called Edit"
+    }
+  ]
+}

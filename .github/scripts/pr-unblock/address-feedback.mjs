@@ -598,12 +598,30 @@ export const reviewFixers = ({ reviewComments, trustedHumans = new Set(), permis
     permission,
   });
 
+// The tracker binding at `path` as JSON text, as merge-holds.mjs
+// trackerBindingText reads it: the `tracker` mapping of a .yaml file through
+// yq (`null` when the file binds none), else the file's own text. A missing
+// file throws fs's ENOENT; a yq failure throws a plain error. Its own copy:
+// the write runner loads this directory without ../pr-merge.
+export function trackerBindingText(path) {
+  const text = readFileSync(path, "utf8");
+  if (!String(path).endsWith(".yaml")) {
+    return text;
+  }
+  try {
+    return execFileSync("yq", ["-o=json", "-I=0", ".tracker", "-"], { input: text, encoding: "utf8", timeout: 30_000, maxBuffer: 1 << 20 });
+  } catch (error) {
+    // A missing yq binary also raises ENOENT; callers read ENOENT as "no binding file".
+    throw new Error(`yq could not read ${path}: ${error.code ?? error.message}`);
+  }
+}
+
 // The base's human-gated role label: config.role_labels["human-gated"] of
-// .work-item-tracker.json, needs-human when the file or entry is absent.
+// the tracker binding at `path`, needs-human when the file or entry is absent.
 export function humanGatedLabelFrom(path) {
   let config;
   try {
-    config = JSON.parse(readFileSync(path, "utf8"));
+    config = JSON.parse(trackerBindingText(path));
   } catch (error) {
     if (error.code === "ENOENT") {
       return "needs-human";
@@ -1799,7 +1817,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
       reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
       trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
-      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
+      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
       adoption: await ownerAdoption(env, log),
       ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files }),

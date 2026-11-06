@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Agent({ description: \"worker\", prompt: \"...\", effort: \"medium\" })",
+      "why": "no model key"
+    },
+    {
+      "answer": "Omit model on the Agent call.\n\n```json\n{\"single\":{\"model\":\"inherit\"}}\n```",
+      "why": "route JSON is not a call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Agent({\n  description: \"worker\",\n  model: \"opus\",\n  effort: \"medium\"\n})",
+      "why": "fan-out model on the call"
+    },
+    {
+      "answer": "Agent tool ({\"description\": \"w\", \"model\": \"sonnet\"})",
+      "why": "JSON-style call with model"
+    }
+  ]
+}

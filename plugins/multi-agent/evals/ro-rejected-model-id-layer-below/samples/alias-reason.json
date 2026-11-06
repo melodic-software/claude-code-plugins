@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "A full model id is rejected because only aliases are accepted.",
+      "why": "only aliases"
+    },
+    {
+      "answer": "claude-opus-5-5 is not an alias; use opus.",
+      "why": "not an alias"
+    },
+    {
+      "answer": "The resolver accepts only an alias such as opus.",
+      "why": "accepts alias"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "roles.worker.model rejected: 'claude-opus-5-5' is not an allowed value.",
+      "why": "note text without the alias reason"
+    },
+    {
+      "answer": "Use opus instead.",
+      "why": "no reason"
+    }
+  ]
+}

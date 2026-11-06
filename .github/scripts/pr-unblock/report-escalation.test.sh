@@ -134,7 +134,7 @@ chmod +x "$TMP/bin/gh" "$TMP/bin/git" "$TMP/bin/sleep"
 # setup <labels-json-array> <comments-json-array> [tracker-json|none]
 setup() {
   STUB="$(mktemp -d "$TMP/case.XXXXXX")"
-  mkdir -p "$STUB/ws/.base"
+  mkdir -p "$STUB/ws/.base/docs/conventions"
   printf '{"number":42,"labels":%s}' "$1" >"$STUB/issue.json"
   printf '%s' "$2" >"$STUB/comments.json"
   : >"$STUB/calls"
@@ -142,7 +142,7 @@ setup() {
   : >"$STUB/bodies"
   : >"$STUB/github_output"
   if [[ ${3:-none} != none ]]; then
-    printf '%s' "$3" >"$STUB/ws/.base/.work-item-tracker.json"
+    printf 'tracker: %s\n' "$3" >"$STUB/ws/.base/docs/conventions/work-items.yaml"
   fi
 }
 # run <reason> [head-sha]: runs from the workspace root, as the runner does.
@@ -555,7 +555,8 @@ check "status, another reason: no jobs read" "POST repos/o/r/statuses/$HEAD_A" "
 
 # The role label resolves from the base tracker config, not from the workspace root.
 setup '[]' '[]' '{"config":{"role_labels":{"human-gated":"status: blocked-human"}}}'
-printf '{"config":{"role_labels":{"human-gated":"from-head"}}}' >"$STUB/ws/.work-item-tracker.json"
+mkdir -p "$STUB/ws/docs/conventions"
+printf 'tracker: {"config":{"role_labels":{"human-gated":"from-head"}}}\n' >"$STUB/ws/docs/conventions/work-items.yaml"
 run feedback-question-design
 check "role label: exit 0" 0 "$RC"
 has "role label: label from config" 'labels[]=status: blocked-human' "$STUB/calls"
@@ -565,6 +566,16 @@ check "role label: workspace-root config ignored" 0 "$(grep -c from-head "$STUB/
 setup '[]' '[]' '{"config":{"role_labels":{"autonomous-eligible":"go"}}}'
 run feedback-question-design
 has "role label: absent role defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
+
+setup '[]' '[]'
+printf 'ai_disclaimer: false\n' >"$STUB/ws/.base/docs/conventions/work-items.yaml"
+run feedback-question-design
+has "role label: a work-items.yaml with no tracker key defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
+
+setup '[]' '[]'
+printf '{"config":{"role_labels":{"human-gated":"from-copy"}}}' >"$STUB/copy.json"
+TRACKER_CONFIG="$STUB/copy.json" run feedback-question-design
+has "role label: a JSON TRACKER_CONFIG reads as JSON" 'labels[]=from-copy' "$STUB/calls"
 
 setup '[]' '[]' '{not json'
 run feedback-question-design

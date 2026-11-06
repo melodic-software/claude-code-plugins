@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.10.1] - 2026-11-06
+
+### Changed
+
+- The work-class label references no longer say CI intake may propose a class to apply: intake applies none, and a class a shared intake reusable prints in its comment is read only when it is the legacy untrusted name, which still holds the item.
+
 ## [11.10.0] - 2026-11-06
 
 ### Added

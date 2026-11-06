@@ -5,7 +5,7 @@
 #
 # A merge-group run carries no pull request, so this step is the only reader of
 # the hold labels in the merge queue: `do-not-merge` and the human-gated label
-# the base commit's .work-item-tracker.json names (default `needs-human`), and
+# the base commit's docs/conventions/work-items.yaml binds (default `needs-human`), and
 # `pr-verify-failed`. It must fail on any of them, pass without them, and fail
 # closed when it cannot tell.
 # For a pull request an automation opened it also applies the trust hold to
@@ -72,8 +72,9 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# The base commit's config is a fixture directory: STUB_TRACKER is its
-# .work-item-tracker.json (absent when unset), and STUB_CHECKOUT_FAILED leaves
+# The base commit's config is a fixture directory: STUB_TRACKER is the
+# `tracker` value of its docs/conventions/work-items.yaml (no file when
+# unset), and STUB_CHECKOUT_FAILED leaves
 # BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
 # arguments.
 mkdir -p "$TMP_ROOT/bin"
@@ -140,7 +141,7 @@ expect() {
   : >"$TMP_ROOT/log"
   rm -rf "$config"
   mkdir -p "$config"
-  [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
+  [[ -z "${STUB_TRACKER+set}" ]] || { mkdir -p "$config/docs/conventions" && printf 'tracker: %s\n' "$STUB_TRACKER" >"$config/docs/conventions/work-items.yaml"; }
   mkdir -p "$config/.github/standards/trusted-actors" "$config/.github/scripts/pr-merge"
   printf '%s\n' "${STUB_ACTORS:-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
   # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
@@ -208,12 +209,12 @@ expect "a tracker naming no label falls back to needs-human" 1 1 6419 "$QUEUE" "
 export STUB_TRACKER='{not json'
 expect "an invalid tracker config fails closed" 1 0 - "$QUEUE" "" 0 "::error::cannot read the human-gated role label"
 export STUB_TRACKER="$CUSTOM" STUB_CHECKOUT_FAILED=1
-expect "a base checkout that failed fails closed" 1 0 - "$QUEUE" "" 0 "::error::could not read .work-item-tracker.json at $BASE; re-run this run."
+expect "a base checkout that failed fails closed" 1 0 - "$QUEUE" "" 0 "::error::could not read docs/conventions/work-items.yaml at $BASE; re-run this run."
 unset STUB_TRACKER STUB_CHECKOUT_FAILED
 export STUB_TRACKER=''
 expect "an empty tracker config falls back to needs-human" 1 1 6419 "$QUEUE" "needs-human" 0 "::error::#6419 carries 'needs-human'"
-export STUB_TRACKER='   '
-expect "a whitespace-only tracker config fails closed" 1 0 - "$QUEUE" "" 0 "::error::cannot read the human-gated role label"
+export STUB_TRACKER='{"config":{"role_labels":{"human-gated":[1]}}}'
+expect "a non-string tracker label falls back to needs-human" 1 1 6419 "$QUEUE" "needs-human" 0 "::error::#6419 carries 'needs-human'"
 unset STUB_TRACKER
 # Several hold labels each name their hold.
 expect "every hold label is named" 1 1 6419 "$QUEUE" "pr-verify-failed,needs-human,do-not-merge" 0 \
@@ -225,7 +226,7 @@ export STUB_NO_MODULE=1
 expect "a base with no merge-holds.mjs fails closed without a call" 1 0 - "$QUEUE" "do-not-merge" 0 "::error::cannot read merge-holds.mjs at $BASE; re-run this run."
 unset STUB_NO_MODULE
 export STUB_MODULE_TEXT='export const refsIssue = () => null;'
-expect "a base module without labelHolds fails closed without a call" 1 0 - "$QUEUE" "" 0 "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE with its merge-holds.mjs"
+expect "a base module without labelHolds fails closed without a call" 1 0 - "$QUEUE" "" 0 "::error::cannot read the human-gated role label from docs/conventions/work-items.yaml at $BASE with its merge-holds.mjs"
 export STUB_MODULE_TEXT='export const humanGatedLabel = () => "needs-human";'
 expect "a base module with humanGatedLabel alone fails closed" 1 1 6419 "$QUEUE" "" 0 "::error::merge-holds.mjs at $BASE could not judge the labels of #6419; re-run this run."
 export STUB_MODULE_TEXT='export const humanGatedLabel = () => "needs-human"; export const labelHolds = () => null;'

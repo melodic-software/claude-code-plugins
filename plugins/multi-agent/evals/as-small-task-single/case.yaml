@@ -21,3 +21,19 @@ graders:
     tool: 'Agent'
     min: 0
     max: 0
+  - name: 'reason-dependent-shape'
+    type: 'regex'
+    pattern: '^reason:[^\n]*(?<!\bno )(?<!without )(?<!not )(?<!n''t )(?<!n’t )\b(?:depend\w*|chain\w*|sequential\w*|in[ \t]+sequence|one[ \t]+after[ \t]+another|coupled|serial)\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'reason-names-size'
+    type: 'regex'
+    pattern: '^reason:[^\n]*(?:\b(?:small|tiny|short|trivial|minor|few|little|quick)\b|(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!to )\bfit(?:s|ting)?[ \t]+(?:(?:in|into|within)[ \t]+)?(?:this|one|the|a[ \t]+single|a)[ \t]+(?:(?:single|main)[ \t]+)?context\b)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'no-workflow-launch'
+    type: 'tool_used'
+    tool: 'Workflow'
+    min: 0
+    max: 0
+    arm: 'both'

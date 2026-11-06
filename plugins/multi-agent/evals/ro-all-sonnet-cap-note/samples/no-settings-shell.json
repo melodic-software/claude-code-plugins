@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh all session=sonnet"
+          }
+        }
+      ],
+      "why": "route only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /etc/claude-code/managed-settings.json"
+          }
+        }
+      ],
+      "why": "cat"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '(.env) | .maxEffortLevel' \"$HOME/.claude/settings.json\""
+          }
+        }
+      ],
+      "why": "jq with a pipe in its quoted filter"
+    }
+  ]
+}

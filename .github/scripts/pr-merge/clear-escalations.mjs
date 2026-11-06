@@ -155,8 +155,8 @@
 //                        current head, which the lane token cannot read
 //   GITHUB_REPOSITORY    owner/repo
 //   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
-//   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
-//                        label (default .base/.work-item-tracker.json)
+//   TRACKER_CONFIG       the base tracker binding, for the human-gated
+//                        label (default .base/docs/conventions/work-items.yaml)
 //   LANE_PRS             merge.lane-prs as resolve-config resolved it; only
 //                        `native` re-judges enable-auto-merge's refusal
 //   LANES_BOT_LOGIN      the lanes App bot login (default
@@ -1681,7 +1681,7 @@ export async function main({ env = process.env, github, checks, verify, reader }
     }
     const repo = env.GITHUB_REPOSITORY;
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
-    const label = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
+    const label = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     checks ??= createGitHub({ token: env.CHECKS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     verify ??= pythonVerify(env);

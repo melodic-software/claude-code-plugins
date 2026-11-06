@@ -23,6 +23,18 @@
         }
       ],
       "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls skills/retry-patterns/reference 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lists, writes nothing"
     }
   ],
   "fail": [
@@ -61,6 +73,18 @@
         }
       ],
       "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > skills/retry-patterns/reference/backoff.md <<'EOF'\n# Backoff\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc into the target outside .claude/"
     }
   ]
 }

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| fanout | frontier_guard | true | unread | workflows#cost | none |",
+      "why": "kept true"
+    },
+    {
+      "answer": "The guard stays on: no proposal sets it to false.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| fanout | frontier_guard | true | drifted | workflows#cost | false |",
+      "why": "proposes false in the table"
+    },
+    {
+      "answer": "```diff\n-  frontier_guard: true\n+  frontier_guard: false\n```",
+      "why": "diff to false"
+    }
+  ]
+}

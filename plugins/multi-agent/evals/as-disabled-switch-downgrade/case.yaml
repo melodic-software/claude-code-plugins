@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: 'as-disabled-switch-downgrade'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'ran-availability-script'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'workflow-availability\.sh'
+    min: 1
+    arm: 'with-only'
+  - name: 'verdict-subagent'
+    type: 'regex'
+    pattern: '^verdict:[ \t]*`?subagent`?[ \t]*$'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'reason-names-switch'
+    type: 'regex'
+    pattern: '^reason:[^\n]*(?:\bdisableWorkflows\b|\.claude/settings\.json)'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'reason-names-count'
+    type: 'regex'
+    pattern: '^reason:[^\n]*\b60\b'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'no-unset-suggestion'
+    type: 'regex'
+    pattern: '\bdisableWorkflows\b[`*"]*[^\n.]{0,40}?\b(?:to[ \t]+false|false|remove|delete|unset|flip)\b|\b(?:remove|delete|unset|flip)\w*\b[^\n.]{0,40}?\bdisableWorkflows\b|\bre-?enabl\w*\b[^\n.]{0,30}?\bworkflows?\b|\bturn(?:ing)?[ \t]+workflows?[ \t]+(?:back[ \t]+)?on\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'no-agent-spawned'
+    type: 'tool_used'
+    tool: 'Agent'
+    min: 0
+    max: 0
+  - name: 'no-workflow-launch'
+    type: 'tool_used'
+    tool: 'Workflow'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- personal-override: roles.worker.model rejected: 'claude-opus-5-5' is not an allowed value; the layer below supplies it",
+      "why": "note"
+    },
+    {
+      "answer": "The worker's model comes from the bundled defaults.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"source\":{\"model\":\"bundled\"}}\n```",
+      "why": "JSON only"
+    },
+    {
+      "answer": "Your override supplies the model.",
+      "why": "override as source"
+    }
+  ]
+}
