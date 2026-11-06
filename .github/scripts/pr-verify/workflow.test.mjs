@@ -1510,7 +1510,7 @@ test("the capture prompt allows run-e2e's drive route alone and records any othe
   for (const route of ["non-UI route", "own driving", "worst-case", "committed E2E user-flow suite"]) {
     assert.ok(skill.includes(route), `run-e2e's SKILL.md still names ${route}`);
   }
-  assert.match(prompt, /never takes: - the non-UI route \(Step 0\) and its test suites and handshakes; - own driving \(Step 1\), the bundled run skill, or worst-case; - a committed E2E user-flow suite \(Step 3\), on either route; - any command that runs a program, script, test, build or package script the head checkout holds or defines\./);
+  assert.match(prompt, /never takes: - the non-UI route \(Step 0\) and its test suites and handshakes; - own driving \(Step 1\), the bundled run skill, or worst-case; - a committed E2E user-flow suite \(Step 3\), on either route: skip it, never run it, and go on with the drive route; - any command that runs a program, script, test, build or package script the head checkout holds or defines\./);
   // The fallback is a blocked capture in the run directory, in the shape the collect step's own blocked() writes.
   assert.match(prompt, new RegExp(`stop before running anything and write ${workspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/capture-run/e2e-summary\\.json`));
   const fallback = JSON.parse(/ (\{"route": "none".*?\}) When affected/.exec(prompt)[1].replace("<reason>", "own driving refused"));

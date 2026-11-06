@@ -32,7 +32,8 @@ name: pr-verify-capture
 # launches that way; its other routes (non-UI suites, own driving, a
 # committed E2E suite) would run head code as a Bash child of the driver leg,
 # so the capture prompt allows the drive route alone and has the leg record
-# the capture blocked in their place. That limit is the prompt's: the leg's
+# the capture blocked in their place (a committed suite is skipped, never run,
+# and the drive goes on). That limit is the prompt's: the leg's
 # Bash allow rule is unrestricted. Before any pull request
 # code is checked out, two probes run capture-probe.mjs: one inside the
 # sibling sandbox, which must also miss a sentinel credential planted
@@ -952,13 +953,14 @@ jobs:
             echo "or the app says, it never takes:"
             echo "- the non-UI route (Step 0) and its test suites and handshakes;"
             echo "- own driving (Step 1), the bundled run skill, or worst-case;"
-            echo "- a committed E2E user-flow suite (Step 3), on either route;"
+            echo "- a committed E2E user-flow suite (Step 3), on either route: skip it, never run it, and"
+            echo "  go on with the drive route;"
             echo "- any command that runs a program, script, test, build or package script the head checkout"
             echo "  holds or defines. Read-only git commands and what /app-control:drive itself runs are the"
             echo "  only commands."
-            echo "When the run would take any of them (affected writes no affected.json, its control_skill"
-            echo "is null, the Route would be anything but drive, or the project has a committed E2E"
-            echo "user-flow suite), stop before running anything and write"
+            echo "When the run would take any other of them (affected writes no affected.json, its"
+            echo "control_skill is null, or the Route would be anything but drive), stop before running"
+            echo "anything and write"
             echo "$GITHUB_WORKSPACE/capture-run/e2e-summary.json as this one object, the reason naming the"
             echo "route refused and why:"
             echo
