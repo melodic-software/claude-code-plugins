@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: three delegated fix attempts fit one turn; no selection rule is stated, so the race must not start until one is stated\nshape: race (no selection rule stated)\n",
+      "why": "exact form"
+    },
+    {
+      "answer": "```text\nverdict: subagent\nreason: x\nshape: `race (no selection rule stated)`\n```\n",
+      "why": "backticked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: race (first fix to pass the login suite)\n",
+      "why": "invented a rule"
+    },
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: race\n",
+      "why": "rule state missing"
+    },
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: sections\n",
+      "why": "sections"
+    },
+    {
+      "answer": "verdict: subagent\nreason: race (no selection rule stated)\nshape: race (best-of)\n",
+      "why": "only in the reason line"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "worker: single inherit: omit the model option @ medium; fanout opus @ medium (basis: model judgment, fanout model unrecorded, effort upstream)",
+      "why": "contract wording"
+    },
+    {
+      "answer": "retrieval: single sonnet @ medium; fanout sonnet @ medium",
+      "why": "no inherit at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "worker: single inherit @ medium; fanout opus @ medium",
+      "why": "bare inherit"
+    },
+    {
+      "answer": "- verifier: single inherit: omit the model option @ high; fanout inherit @ high",
+      "why": "second variant bare"
+    }
+  ]
+}

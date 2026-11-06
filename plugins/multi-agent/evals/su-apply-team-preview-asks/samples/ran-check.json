@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh check session=sonnet"
+          }
+        }
+      ],
+      "why": "check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer team roles.verifier.effort=xhigh"
+          }
+        }
+      ],
+      "why": "apply only"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

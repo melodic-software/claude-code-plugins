@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "Hard cap",
+            "path": "/home/<user>/.claude/plugins/multi-agent/reference"
+          }
+        }
+      ],
+      "why": "plugin reference"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "maxEffortLevel",
+            "path": "/home/<user>/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "settings file"
+    }
+  ]
+}

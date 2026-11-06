@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "worker: single inherit: omit the model option @ medium; fanout inherit: omit the model option @ medium (basis: model judgment, fanout model judgment, effort upstream)",
+      "why": "contract line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "worker: single inherit: omit the model option @ high; fanout inherit: omit the model option @ high",
+      "why": "wrong effort"
+    },
+    {
+      "answer": "The worker runs at medium effort.",
+      "why": "no role line"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh check session=sonnet"
+          }
+        }
+      ],
+      "why": "no git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        }
+      ],
+      "why": "read-only git"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add docs/conventions/multi-agent.yaml"
+          }
+        }
+      ],
+      "why": "git add"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C . commit -m x"
+          }
+        }
+      ],
+      "why": "commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /ws\ngit add docs/conventions/multi-agent.yaml"
+          }
+        }
+      ],
+      "why": "after an escaped newline"
+    }
+  ]
+}

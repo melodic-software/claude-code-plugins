@@ -6,6 +6,10 @@
     {
       "answer": "| Role | Map | Source |\n|---|---|---|\n| orchestrator | single opus @ high; fanout opus @ high | user |\n| worker | single sonnet @ medium; fanout sonnet @ medium | bundled |\n| verifier | single opus @ high; fanout opus @ high | bundled |\n| retrieval | single sonnet @ low; fanout sonnet @ low | local |",
       "why": "table form, other values"
+    },
+    {
+      "answer": "**Role map** (session=opus, not frontier; every value comes from the bundled defaults):\n\n| Role | Single | Fan-out |\n|---|---|---|\n| orchestrator | inherit: omit the model option @ high | inherit: omit the model option @ high |\n| worker | inherit: omit the model option @ medium | inherit: omit the model option @ medium |\n| verifier | inherit: omit the model option @ high | inherit: omit the model option @ high |\n| retrieval | sonnet @ medium | sonnet @ medium |\n\n**Layers**\n- user-global (`~/.claude/multi-agent.yaml`): absent\n- team (`docs/conventions/multi-agent.yaml`): absent\n- personal-override (`.claude/multi-agent.local.yaml`): absent\n\n**Notes:** none.\n\n**Personal override: WARN.** `.claude/multi-agent.local.yaml` is not gitignored. I recommend adding the line `.claude/**/*.local.*` to `.gitignore`. I haven't edited `.gitignore`.\n\nThe check changed nothing.",
+      "why": "measured smoke-1 reply: Single and Fan-out columns, each role row names both model @ effort cells"
     }
   ],
   "fail": [
@@ -20,6 +24,18 @@
     {
       "answer": "- orchestrator: inherit, high\n- worker: inherit, medium\n- verifier: inherit, high\n- retrieval: sonnet, medium",
       "why": "no single/fanout split"
+    },
+    {
+      "answer": "| Role | Model | Source |\n|---|---|---|\n| orchestrator | inherit: omit the model option @ high | bundled |\n| worker | inherit: omit the model option @ medium | bundled |\n| verifier | inherit: omit the model option @ high | bundled |\n| retrieval | sonnet @ medium | bundled |",
+      "why": "table with one model column: no single/fan-out split"
+    },
+    {
+      "answer": "| Role | Single | Fan-out |\n|---|---|---|\n| orchestrator | inherit: omit the model option @ high | inherit: omit the model option @ high |\n| worker | inherit: omit the model option @ medium | inherit: omit the model option @ medium |\n| verifier | inherit: omit the model option @ high | inherit: omit the model option @ high |",
+      "why": "table missing the retrieval row"
+    },
+    {
+      "answer": "| Role | Single | Fan-out |\n|---|---|---|\n| orchestrator | inherit: omit the model option @ high | inherit: omit the model option |\n| worker | inherit: omit the model option @ medium | inherit: omit the model option |\n| verifier | inherit: omit the model option @ high | inherit: omit the model option |\n| retrieval | sonnet @ medium | sonnet |",
+      "why": "fan-out cells name no effort"
     }
   ]
 }

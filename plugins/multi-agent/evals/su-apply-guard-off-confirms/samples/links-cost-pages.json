@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Rates: https://platform.claude.com/docs/en/about-claude/pricing#model-pricing",
+      "why": "pricing"
+    },
+    {
+      "answer": "[Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)",
+      "why": "costs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Frontier fan-outs cost more.",
+      "why": "no link"
+    },
+    {
+      "answer": "See https://code.claude.com/docs/en/workflows#cost",
+      "why": "another page"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The workflow did not run; the main-thread fallback ran.",
+      "why": "fallback ran"
+    },
+    {
+      "answer": "Ran on the main thread (fallback): workflows are unavailable here.",
+      "why": "main thread ran"
+    },
+    {
+      "answer": "Fallback used: main thread, since the Workflow tool is not callable.",
+      "why": "fallback used"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The drift-audit workflow ran with mode defaults.",
+      "why": "claims the workflow"
+    },
+    {
+      "answer": "| fanout | frontier_guard | true | unread |",
+      "why": "says nothing about which ran"
+    }
+  ]
+}

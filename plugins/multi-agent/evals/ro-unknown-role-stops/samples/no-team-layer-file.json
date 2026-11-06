@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/conventions/multi-agent.yaml"
+      ],
+      "why": "team layer written"
+    }
+  ]
+}
