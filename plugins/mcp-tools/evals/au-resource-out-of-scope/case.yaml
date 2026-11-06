@@ -5,12 +5,12 @@ context:
 graders:
   - name: list-snippets-scored
     type: regex
-    pattern: '(?:^|\n)#{1,6}[^\n]*\blist_snippets\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?\|\s*C\d{1,2}\b[^\n]*\|\s*\**(?:PASS|WARN|FAIL|info)\**\s*\||(?:^|\n)(?=[^\n]*\blist_snippets\b)(?=[^\n]*\bC\d{1,2}\b)(?=[^\n]*\b(?:PASS|WARN|FAIL)\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\blist_snippets\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?\|\s*C\d{1,2}\b[^\n]*\|\s*\**(?:PASS|WARN|FAIL|info)\**\s*\||(?:^|\n)(?=[^\n]*\blist_snippets\b)(?=[^\n]*\bC\d{1,2}\b)(?=[^\n]*\b(?:PASS|WARN|FAIL)\b)'
     flags: 'i'
     target: last_message
   - name: no-resource-findings
     type: regex
-    pattern: '(?:^|\n)#{1,6}[^\n]*(?:\bresource\b|snippet://|Tool:\W*snippet\b(?!s))[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?\|\s*C\d{1,2}\b[^\n]*\|\s*\**(?:PASS|WARN|FAIL|info)\**\s*\||(?:^|\n)(?=[^\n]*(?:snippet://|\bsnippet\s+resource\b|\bresource\s+`?snippet\b))(?=[^\n]*\bC\d{1,2}\b)(?=[^\n]*\|\s*\**(?:PASS|WARN|FAIL)\**\s*\|)'
+    pattern: '(?:^|\n)#{1,6}[^\n]*(?:\bresource\b|snippet://|Tool:\W*snippet\b(?!s))[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?\|\s*C\d{1,2}\b[^\n]*\|\s*\**(?:PASS|WARN|FAIL|info)\**\s*\||(?:^|\n)(?=[^\n]*(?:snippet://|\bsnippet\s+resource\b|\bresource\s+`?snippet\b))(?=[^\n]*\bC\d{1,2}\b)(?=[^\n]*\|\s*\**(?:PASS|WARN|FAIL)\**\s*\|)'
     flags: 'i'
     match: 'not_contains'
     target: last_message

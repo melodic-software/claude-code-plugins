@@ -16,6 +16,12 @@ graders:
     pattern: '\bblocking\s+fork\b|\bcontext:\s*`?fork\b|\bbackground:\s*`?false\b|\bfork(?:ed)?\b[^\n.]{0,80}?\b(?:no|without|cannot|can''t|doesn''t|does\s+not|never)\b[^\n.]{0,40}?\b(?:parent|prior|earlier|previous|conversation|chat|history)\b'
     flags: 'i'
     target: last_message
+  - name: skill-called-without-path
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill":"mcp-tools:audit"(?:,"args":"\s*")?\}'
+    min: 1
+    arm: 'with-only'
   - name: audit-skill-fired
     type: tool_used
     tool: 'Skill'

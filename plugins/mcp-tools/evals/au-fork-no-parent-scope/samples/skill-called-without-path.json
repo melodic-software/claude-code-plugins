@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mcp-tools:audit"
+          }
+        }
+      ],
+      "why": "no args key"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mcp-tools:audit",
+            "args": ""
+          }
+        }
+      ],
+      "why": "empty args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mcp-tools:audit",
+            "args": "servers/payments"
+          }
+        }
+      ],
+      "why": "smoke1: scoped to the remembered server"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mcp-tools:audit",
+            "args": "."
+          }
+        }
+      ],
+      "why": "any path argument"
+    }
+  ]
+}

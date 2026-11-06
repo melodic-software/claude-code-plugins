@@ -5,7 +5,7 @@ context:
 graders:
   - name: export-ledger-c4-warn
     type: regex
-    pattern: '(?:^|\n)#{1,6}[^\n]*\bexport_ledger\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC4\b|2,?048|\blength\b|\blong\b)[^\n]*\|\s*\**WARN\**\s*\||(?:^|\n)(?=[^\n]*\bexport_ledger\b)(?=[^\n]*(?:\bC4\b|2,?048|\blength\b|\blong\b))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bexport_ledger\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC4\b|2,?048|\blength\b|\blong\b)[^\n]*(?:\|\s*\**WARN\**\s*\||(?<!not )(?<!never )\bWARN\b)|(?:^|\n)(?=[^\n]*\bexport_ledger\b)(?=[^\n]*(?:\bC4\b|2,?048|\blength\b|\blong\b))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
     flags: 'i'
     target: last_message
   - name: server-instructions-c4-warn

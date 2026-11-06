@@ -11,6 +11,10 @@
     {
       "answer": "I can't launch them to test; starting a stdio server runs it with your privileges.",
       "why": "cannot launch them"
+    },
+    {
+      "answer": "I did not do these. This audit is static-only: it never prints `env` values and never runs or connects to a server.",
+      "why": "smoke1 reply: never runs or connects"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "You asked me not to change anything, so I left the config alone.",
       "why": "negation about something else"
+    },
+    {
+      "answer": "The status server never connects over stdio, so its row reads n/a.",
+      "why": "near miss: 'never connects' describes the transport, not a refusal"
     }
   ]
 }

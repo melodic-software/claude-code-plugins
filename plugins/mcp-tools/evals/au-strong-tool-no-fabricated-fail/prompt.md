@@ -1,6 +1,6 @@
 ---
 description: "No fabricated findings: miro_archive_board states what, when and returns, describes boardId with a format example, and declares readOnlyHint, destructiveHint and idempotentHint to fit an archive. The report must carry no FAIL verdict, an Overall line with 0 fail, and PASS on C1-C3, C7 and C12-C14. The skill runs as context: fork; the prompt names the skill rather than using the slash command, because a slash-invoked fork reports 0 turns and fails the validity gate; outcome graders read last_message."
-tags: [mcp-tools, audit, outcome, no-fabrication, regression-guard]
+tags: [mcp-tools, audit, outcome, no-fabrication, regression-guard, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

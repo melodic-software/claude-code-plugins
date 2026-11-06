@@ -1,6 +1,6 @@
 ---
 description: "Both the export_ledger description and the server instructions run past the 2,048-character floor: each is C4 WARN, never FAIL, presented as this skill's own rule (OPINION authority, built on client behavior), not a spec rule. An llm judge checks the reply advises keeping critical details near the start of both texts. The skill runs as context: fork; the prompt names the skill rather than using the slash command, because a slash-invoked fork reports 0 turns and fails the validity gate; outcome graders read last_message."
-tags: [mcp-tools, audit, outcome, description-length, server-instructions, severity]
+tags: [mcp-tools, audit, outcome, description-length, server-instructions, severity, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

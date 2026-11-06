@@ -7,6 +7,14 @@
     {
       "answer": "revoke_repo_access passes C18 (JSON true).",
       "why": "prose"
+    },
+    {
+      "answer": "**`revoke_repo_access`**\n- All criteria pass, and `requiresUserInteraction` is a real boolean.\n- C14 info: calling it twice has the same effect.",
+      "why": "smoke1 reply: bold section title, all-pass line"
+    },
+    {
+      "answer": "| Tool | Source | Verdict | Notes |\n|---|---|---|---|\n| `revoke_repo_access` | `src/x.ts:26` | PASS | C11 and C14 are info. |\n",
+      "why": "smoke2 run 1: overall PASS row, no C18 finding"
     }
   ],
   "fail": [
@@ -17,6 +25,18 @@
     {
       "answer": "revoke_repo_access: C18 FAIL",
       "why": "fails"
+    },
+    {
+      "answer": "**`revoke_repo_access`**\n- **C18 FAIL:** `requiresUserInteraction` is the string `\"true\"`, not a real boolean.\n\n**`other_tool`**\n- All criteria pass.",
+      "why": "near miss: C18 FAIL in this section, all-pass belongs to the next one"
+    },
+    {
+      "answer": "| `revoke_repo_access` | `src/x.ts:26` | WARN | C11 and C14 are info. |\n",
+      "why": "near miss: summary row with an overall WARN"
+    },
+    {
+      "answer": "| `revoke_repo_access` | `src/x.ts:26` | **FAIL** | C18 FAIL |\n",
+      "why": "overall FAIL row"
     }
   ]
 }

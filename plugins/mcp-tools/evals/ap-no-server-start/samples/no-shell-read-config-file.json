@@ -47,6 +47,18 @@
         }
       ],
       "why": "lists names only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash inventory.sh --config configs/services.mcp.json | jq '.rows | length'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "jq on the inventory output, not the config"
     }
   ],
   "fail": [
@@ -121,6 +133,30 @@
         }
       ],
       "why": "user config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '(.mcpServers // .) | .crm' configs/services.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "smoke2 run 2: jq filter with a pipe inside quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq \".mcpServers.crm.env\" configs/services.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "double-quoted filter"
     }
   ]
 }

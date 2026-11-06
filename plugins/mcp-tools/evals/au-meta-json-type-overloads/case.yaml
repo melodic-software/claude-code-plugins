@@ -5,22 +5,22 @@ context:
 graders:
   - name: grant-c18-fail
     type: regex
-    pattern: '(?:^|\n)#{1,6}[^\n]*\bgrant_repo_access\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*\|\s*\**FAIL\**\s*\||(?:^|\n)(?=[^\n]*\bgrant_repo_access\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\bgrant_repo_access\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*\bgrant_repo_access\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
     flags: 'i'
     target: last_message
   - name: approve-payout-c18-fail
     type: regex
-    pattern: '(?:^|\n)#{1,6}[^\n]*\b(?:ApprovePayout|approve_payout)\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*\|\s*\**FAIL\**\s*\||(?:^|\n)(?=[^\n]*\b(?:ApprovePayout|approve_payout)\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\b(?:ApprovePayout|approve_payout)\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**FAIL\**\s*\||(?<!not )(?<!never )\bFAIL\b)|(?:^|\n)(?=[^\n]*\b(?:ApprovePayout|approve_payout)\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
     flags: 'i'
     target: last_message
   - name: revoke-c18-pass
     type: regex
-    pattern: '(?:^|\n)#{1,6}[^\n]*\brevoke_repo_access\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*\|\s*\**PASS\**\s*\||(?:^|\n)(?=[^\n]*\brevoke_repo_access\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\brevoke_repo_access\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)|(?:^|\n)(?=[^\n]*\brevoke_repo_access\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)|(?:^|\n)\*\*`?revoke_repo_access\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,8}?(?![^\n]*\b(?:string|not\s+a\s+(?:real\s+)?boolean)\b)[^\n]*(?:\ball\s+criteria\s+pass\b|\bC18\b[^\n]*\bPASS(?:es|ed)?\b|requiresUserInteraction`?\s+is\s+a\s+(?:real\s+|proper\s+|JSON\s+)?boolean\b)|(?:^|\n)\|[^\n]*`?revoke_repo_access`?[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)(?![^\n]*(?:\bC18\b|requiresUserInteraction))[^\n]*(?:\n|$)'
     flags: 'i'
     target: last_message
   - name: cancel-payout-c18-pass
     type: regex
-    pattern: '(?:^|\n)#{1,6}[^\n]*\b(?:CancelPayout|cancel_payout)\b[^\n]*\n(?:(?!#{1,6}\s)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*\|\s*\**PASS\**\s*\||(?:^|\n)(?=[^\n]*\b(?:CancelPayout|cancel_payout)\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)'
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\b(?:CancelPayout|cancel_payout)\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?[^\n]*(?:\bC18\b|requiresUserInteraction)[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)|(?:^|\n)(?=[^\n]*\b(?:CancelPayout|cancel_payout)\b)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)|(?:^|\n)\*\*`?(?:CancelPayout|cancel_payout)\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,8}?(?![^\n]*\b(?:string|not\s+a\s+(?:real\s+)?boolean)\b)[^\n]*(?:\ball\s+criteria\s+pass\b|\bC18\b[^\n]*\bPASS(?:es|ed)?\b|requiresUserInteraction`?\s+is\s+a\s+(?:real\s+|proper\s+|JSON\s+)?boolean\b)|(?:^|\n)\|[^\n]*`?(?:CancelPayout|cancel_payout)`?[^\n]*(?:\|\s*\**PASS\**\s*\||(?<!not )(?<!never )\bPASS\b)(?![^\n]*(?:\bC18\b|requiresUserInteraction))[^\n]*(?:\n|$)'
     flags: 'i'
     target: last_message
   - name: says-gate-ignored
