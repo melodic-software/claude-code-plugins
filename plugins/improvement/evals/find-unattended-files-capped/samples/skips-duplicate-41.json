@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "| 1 | Instrument checkout timing | skipped: duplicate of open #41 |", "why": "table cell" },
+    { "answer": "Rank 1 is already tracked as #41, so it is not filed and does not use a cap slot.", "why": "already tracked as #41, not filed" },
+    { "answer": "Dedupe: #41 covers the instrument candidate.", "why": "dedupe label" }
+  ],
+  "fail": [
+    { "answer": "Filed: Instrument checkout timing. Open items #41 and #57 were left alone.", "why": "files the duplicate; #41 named without a dedupe verdict" },
+    { "answer": "Skipped one duplicate.", "why": "does not name #41" },
+    { "answer": "" }
+  ]
+}

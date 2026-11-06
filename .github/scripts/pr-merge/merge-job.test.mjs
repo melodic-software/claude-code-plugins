@@ -401,17 +401,32 @@ test("an event run lists only its own pull request", () => {
   assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
 });
 
-test("a listing that reaches the limit ends red at once: a lasting fault, not a hold", () => {
-  const many = Array.from({ length: 1000 }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
+// gh pr list's --limit is 1000: a listing that long may be cut short whatever
+// the count says, so it holds after one call; one short of it still lists.
+const lanePrs = (n) => Array.from({ length: n }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
+test("a listing that reaches the limit holds the job green after one call, never retried", () => {
   for (const total of [1000, 1500]) {
-    const run = runListing(0, undefined, undefined, {}, undefined, many, total);
-    assert.equal(run.status, 1, run.stderr);
+    const run = runListing(0, undefined, undefined, {}, undefined, lanePrs(1000), total);
+    assertHeld(run);
     assert.equal(run.calls, 1);
     assert.deepEqual(run.sleeps, []);
-    assert.match(run.stdout, /^::error::gh pr list returned 1000 pull requests, so the listing may be cut short/m);
-    assert.doesNotMatch(run.stdout, /Merge lane hold/);
-    assert.doesNotMatch(run.output, /held|listed/);
+    assert.doesNotMatch(run.stdout, /^::error/m);
+    assert.match(run.output, /^held-reason=listing full: gh pr list returned the limit, so it may be cut short$/m);
   }
+  // The hold and its reason reach the sweep summary, whose listing_held
+  // monitor signal 12 counts.
+  assert.match(step("Count the sweep's refusals"), /\n {10}LISTING_HELD: \$\{\{ steps\.candidates\.outputs\.held \}\}\n {10}LISTING_HELD_REASON: \$\{\{ steps\.candidates\.outputs\.held-reason \}\}\n/);
+});
+
+test("a complete listing one short of the limit still lists every candidate", () => {
+  const run = runListing(0, undefined, undefined, {}, undefined, lanePrs(999), 999);
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.calls, 1);
+  assert.doesNotMatch(run.stdout, /Merge lane hold/);
+  assert.doesNotMatch(run.output, /held/);
+  assert.match(run.output, /^listed=true$/m);
+  assert.match(run.output, /^count=999$/m);
+  assert.equal(run.listed.length, 999);
 });
 
 test("a held listing files no failed lane merge; a run that listed goes by its own check", () => {

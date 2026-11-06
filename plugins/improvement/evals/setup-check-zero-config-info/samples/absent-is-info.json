@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "| team | .claude/improvement.md | INFO: absent |", "why": "INFO cell" },
+    { "answer": "All three layers are absent (INFO): bundled defaults apply and Tier 2 is an evidence gap.", "why": "absent before INFO" },
+    { "answer": "**INFO**: zero-config state; the finder runs on Tier 0.", "why": "zero-config" }
+  ],
+  "fail": [
+    { "answer": "FAIL: no config file found. Run apply.", "why": "absence as FAIL" },
+    { "answer": "No config exists in any layer.", "why": "no INFO status" },
+    { "answer": "" }
+  ]
+}

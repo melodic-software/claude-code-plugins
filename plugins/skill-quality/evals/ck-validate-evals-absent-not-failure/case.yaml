@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: ck-validate-evals-absent-not-failure
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reports-absent
+    type: regex
+    pattern: '\bno\s+skill-creator\s+(?:evals?\s+)?file\b|\b(?:ships?|has|carries|contains)\s+no\b[^\n.]{0,40}\bevals?\b|\bno\s+(?:skill-creator\s+)?(?:evals/)?evals?\.json\b|\bevals?(?:/evals)?\.json\b[^\n.]{0,40}\b(?:absent|missing|not found|does not exist|doesn[''’]t exist|not present)\b'
+    flags: 'i'
+    target: last_message
+  - name: not-a-failure
+    type: regex
+    pattern: '\bnot\s+(?:a\s+|an\s+)?(?:validation\s+|schema\s+)?(?:failures?|errors?|fail(?:s|ing|ed)?)\b|\b(?:isn[''’]t|is not|no)\s+(?:a\s+)?(?:validation\s+|schema\s+)?(?:failure|error)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-schema-failure
+    type: llm
+    focus: last_message
+    criteria: "PASS if the reply reports that my-skill has no evals/evals.json and says this is not a validation failure: the skill ships no skill-creator file, and evals are warranted rather than mandatory. Pointing at case.yaml suite cases or /evals:validate is fine. FAIL if it reports a schema-validation FAIL or error for the missing file, says validation failed, reports the absent file as conforming or passing schema validation, or says it created an evals.json."
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

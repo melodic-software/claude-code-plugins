@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "> FAIL: broken skill-internal ref: reference/big-picture.md (no such file under the skill dir; cited at SKILL.md:42 — hand-verify the line before fixing, may be an illustrative example)", "why": "block quote" },
+    { "answer": "The gate printed `FAIL: broken skill-internal ref: reference/big-picture.md (...)`.", "why": "code span, truncated tail" }
+  ],
+  "fail": [
+    { "answer": "SKILL.md line 42 links reference/big-picture.md, which is not in the skill directory.", "why": "paraphrase only" },
+    { "answer": "FAIL: broken ref to big-picture.md", "why": "reworded" }
+  ]
+}

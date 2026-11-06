@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "FAIL: Skill not found: /w/.claude/skills/my-skill.", "why": "checker line" },
+    { "answer": "The skills root `.claude/skills` does not exist in this workspace.", "why": "missing root" },
+    { "answer": "my-skill isn’t there: nothing under .claude/skills.", "why": "curly apostrophe" }
+  ],
+  "fail": [
+    { "answer": "CHECK-SKILL my-skill: PASS — 0 error(s)", "why": "fabricated pass" },
+    { "answer": "/skill-quality:check check my-skill", "why": "echoes the prompt" }
+  ]
+}

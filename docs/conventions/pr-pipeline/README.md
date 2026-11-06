@@ -1010,7 +1010,7 @@ each entry once.
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a push cancels the run going, and a tick or hand run waits behind it; any newer run replaces one still waiting | workflow group `pr-unblock-dispatch`, `cancel-in-progress: ${{ github.event_name == 'push' }}` |
-| `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
+| `pr-feedback-dispatch` | One run per group at a time: one per pr-verify run, one for all sweeps, and one per reviewed head otherwise; waiting runs queue and none is replaced | workflow group `pr-feedback-dispatch-verify-<run id>`, `-sweep` or `-<head SHA>`, `queue: max` |
 | `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes, the job's 44-minute ceiling queues about 91, under GitHub's cap of 100; a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
@@ -3660,11 +3660,11 @@ The merge job's candidate listing goes through `.github/scripts/pr-merge/retry-c
 within 60 s of waits in all. Without `--read` a command runs once, so a write is never repeated.
 Each try reads `gh pr list` and the open count, and passes only when the two agree.
 A listing that reaches its limit of 1000 may be cut short whatever the count says, and another try
-reads the same, so it ends the job red with no retry. A listing still unknown after that ends the
+reads the same, so it is not tried again and is unknown at once. A listing still unknown ends the
 step green with a `::notice::` hold: every step that needs the listing waits on the step's `listed`
 output, so the job lists, gates, merges, files, dequeues, re-fires and clears nothing, and the next
-scheduled run lists again. A failed read and a past-budget rate stop leave this job green. The
-re-fire and escalation-clear steps wait on `listed` too, so they skip on a red listing as well.
+scheduled run lists again. A failed read, a past-budget rate stop and a full listing leave this job
+green. The re-fire and escalation-clear steps wait on `listed` too.
 
 A held run still does two things. It writes the `pr-merge-summary` artifact with `listing_held`,
 `listing_held_reason` and no verdicts, so readers can aggregate holds and signal 12 can count them.

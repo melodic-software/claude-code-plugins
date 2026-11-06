@@ -274,14 +274,16 @@ run_case "a broker-check checkout of another repository fails" 1 \
 
 # append_tip_job <branch>: appends to the read workflow, from line 15, a
 # broker-check job whose tip step (line 20, TIP_BRANCH on line 22) runs the
-# canonical tip script and whose checkout step (line 29) takes its SHA.
+# canonical tip script and whose checkout step (line 31) takes its SHA.
 append_tip_job() {
   {
     printf '  broker-check:\n    permissions:\n      id-token: write\n    runs-on: ubuntu-24.04\n    steps:\n      - id: tip\n        env:\n          TIP_BRANCH: %s\n          GIT_TERMINAL_PROMPT: "0"\n        run: |\n' "$1"
     cat <<'EOF'
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
@@ -291,7 +293,7 @@ EOF
 }
 # shellcheck disable=SC2016
 TIP_SHA='${{ steps.tip.outputs.sha }}'
-TIP_FAIL="$READ:29: the broker-check job checks out something other than this repository's default branch tip"
+TIP_FAIL="$READ:31: the broker-check job checks out something other than this repository's default branch tip"
 
 run_case "a broker-check checkout of the tip step's SHA on main passes" 0 \
   "append_tip_job main" "(1 caller(s))"
@@ -310,25 +312,25 @@ run_case "a tip step running another script fails" 1 \
 
 run_case "a tip step with another env key fails" 1 \
   "append_tip_job main && rewrite awk '{ print } NR == 21 { print \"          EXTRA: x\" }'" \
-  "$READ:30: the broker-check job checks out something other than this repository's default branch tip"
+  "$READ:32: the broker-check job checks out something other than this repository's default branch tip"
 
 run_case "a tip step that may fail soft fails" 1 \
   "append_tip_job main && rewrite awk '{ print } NR == 20 { print \"        continue-on-error: true\" }'" \
-  "$READ:30: the broker-check job checks out something other than this repository's default branch tip"
+  "$READ:32: the broker-check job checks out something other than this repository's default branch tip"
 
 run_case "a conditional tip checkout fails" 1 \
   "append_tip_job main && printf '        if: always()\n' >>$READ" "$TIP_FAIL"
 
 run_case "a tip step that is an action fails" 1 \
   "append_tip_job main && rewrite awk '{ print } NR == 20 { print \"        uses: ./.github/actions/tip\" }'" \
-  "$READ:30: the broker-check job checks out something other than this repository's default branch tip"
+  "$READ:32: the broker-check job checks out something other than this repository's default branch tip"
 
 run_case "a checkout of the tip step's SHA with no tip step fails" 1 \
   "append_check_job broker-check '$TIP_SHA'" \
   "$READ:20: the broker-check job checks out something other than this repository's default branch tip"
 
 run_case "a checkout of the tip step's SHA before the tip step fails" 1 \
-  "append_tip_job main && rewrite awk 'NR >= 20 && NR <= 28 { held = held \$0 \"\\n\"; next } { print } END { printf \"%s\", held }'" \
+  "append_tip_job main && rewrite awk 'NR >= 20 && NR <= 30 { held = held \$0 \"\\n\"; next } { print } END { printf \"%s\", held }'" \
   "$READ:20: the broker-check job checks out something other than this repository's default branch tip"
 
 run_case "a broker-check job that is a reusable-workflow call fails" 1 \

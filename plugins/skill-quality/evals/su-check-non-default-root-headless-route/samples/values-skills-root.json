@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "values.json: {\"skills_root\": \"packages/agent/skills\"}",
+      "why": "values file"
+    },
+    {
+      "answer": "```json\n{ \"skills_root\" : \"packages/agent/skills\" }\n```",
+      "why": "spaced"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set skills_root to packages/agent/skills.",
+      "why": "no values file"
+    },
+    {
+      "answer": "/skill-quality:setup check\n\nOur skills live under packages/agent/skills.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

@@ -123,9 +123,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -234,10 +236,27 @@ jobs:
           fi
           mkdir -p "$DIR"
           # Each call the gh wrapper sends counts toward the api-calls notice.
+          # retry_call sends each read up to 3 times (full jitter, a rate stop
+          # waited out within 60 s of waits); a read still failing runs the review.
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          { . .base/.github/scripts/pr-merge/rate-stop.bash && . .base/.github/scripts/pr-merge/retry-call.bash; } 2>/dev/null || true
           unread() {
             echo "::warning::$1 did not read; the review runs"
             exit 0
+          }
+          # try_read <what> <command...>: the read, sent again on a failure.
+          try_read() {
+            local what=$1
+            shift
+            retry_call --read 60 "$@" && return 0
+            echo "::notice::$what did not read (${retry_call_unknown:-no retry helper}); the review runs"
+            exit 0
+          }
+          # api_into <file> <gh api args...>: one read, writing <file> afresh.
+          api_into() {
+            local file=$1
+            shift
+            gh api "$@" >"$file"
           }
           tip=$(git -C .base rev-parse --verify HEAD) || unread "the main checkout"
           paths=$(awk '$1 ~ /^(copy|copy-if-present|read)$/ { sub("/[{]skill[}].*", "", $2); print $2 }' .base/.github/scripts/pr-review-main/criteria.txt) && [ -n "$paths" ] || unread "criteria.txt"
@@ -249,7 +268,7 @@ jobs:
             if [ -z "${diffs[$1]:-}" ]; then
               local rc=0
               if ! git -C .base cat-file -e "$1^{commit}" 2>/dev/null; then
-                git -C .base fetch --quiet --no-tags --depth=1 origin "$1" || unread "main commit $1"
+                try_read "main commit $1" git -C .base fetch --quiet --no-tags --depth=1 origin "$1"
               fi
               git -C .base diff --quiet "$1" "$tip" -- "${paths[@]}" || rc=$?
               [ "$rc" -le 1 ] || unread "the criteria diff from $1"
@@ -259,7 +278,7 @@ jobs:
           }
           for lane in claude-review claude-security-review; do
             name="pr-review-main-$lane-$PR_NUMBER-$TREE_SHA"
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" >"$DIR/listing.json" || unread "the $lane verdict listing"
+            try_read "the $lane verdict listing" api_into "$DIR/listing.json" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100"
             # One page holds every review of the tree, or the review runs.
             pairs=$(jq -r --arg name "$name" 'if .total_count > 100 then error("more than one page") else .artifacts[] | select(.name == $name and .expired == false) | "\(.id) \(.workflow_run.id)" end' "$DIR/listing.json") || unread "the $lane verdict listing"
             if [ -z "$pairs" ]; then
@@ -269,7 +288,7 @@ jobs:
             : >"$DIR/$lane-records.jsonl"
             while read -r artifact run; do
               [[ $artifact =~ ^[1-9][0-9]{0,19}$ && $run =~ ^[1-9][0-9]{0,19}$ ]] || unread "the $lane verdict listing"
-              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$DIR/run.json" || unread "run $run"
+              try_read "run $run" api_into "$DIR/run.json" "repos/$GITHUB_REPOSITORY/actions/runs/$run"
               # Only this workflow's main run counts, so no other run's artifact is fetched or unzipped.
               rc=0
               jq -e '.path == ".github/workflows/pr-review-main.yml" and .event == "workflow_run" and .head_branch == "main"' "$DIR/run.json" >/dev/null || rc=$?
@@ -284,13 +303,13 @@ jobs:
                 echo "run $run reviewed under other criteria than main's tip; its $lane verdict does not count"
                 continue
               fi
-              gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$DIR/verdict.zip" || unread "artifact $artifact"
+              try_read "artifact $artifact" api_into "$DIR/verdict.zip" "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip"
               unzip -p "$DIR/verdict.zip" verdict.json >"$DIR/verdict.json" || unread "artifact $artifact"
               jq -nc --arg lane "$lane" --slurpfile listing "$DIR/listing.json" --slurpfile run "$DIR/run.json" --slurpfile verdict "$DIR/verdict.json" --argjson id "$artifact" \
                 '{lane: $lane, artifact: first($listing[0].artifacts[] | select(.id == $id)), run: $run[0], verdict: $verdict[0], on_branch: true}' >>"$DIR/$lane-records.jsonl" || unread "artifact $artifact"
             done <<<"$pairs"
-            gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=pr-review-main%3A%20$lane&filter=all&per_page=100" \
-              --jq 'if .total_count > 100 then error("more than one page") else [.check_runs[] | select(.app.slug == "github-actions") | .output.title // ""] end' >"$DIR/$lane-titles.json" || unread "the $lane check runs"
+            try_read "the $lane check runs" api_into "$DIR/checks.json" "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=pr-review-main%3A%20$lane&filter=all&per_page=100"
+            jq -c 'if .total_count > 100 then error("more than one page") else [.check_runs[] | select(.app.slug == "github-actions") | .output.title // ""] end' "$DIR/checks.json" >"$DIR/$lane-titles.json" || unread "the $lane check runs"
           done
           judged=$(python3 -I -c '
           import json, re, sys
@@ -542,9 +561,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

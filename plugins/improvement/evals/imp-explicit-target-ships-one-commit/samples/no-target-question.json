@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Gap: no strict mode. Basis: docs/standards/bash.md:5. Fixed and committed; bash scripts/check.sh passed.", "why": "reports, asks nothing" },
+    { "answer": "What did the check say? It printed check: ok.", "why": "a rhetorical question about the check" }
+  ],
+  "fail": [
+    { "answer": "Which target should I improve, and with which focus?", "why": "asks for the target again" },
+    { "answer": "What focus do you want for report.sh?", "why": "asks for the focus" }
+  ]
+}

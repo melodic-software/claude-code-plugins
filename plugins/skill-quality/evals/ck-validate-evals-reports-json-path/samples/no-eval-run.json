@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/p/scripts/check-evals-quality.sh\" .claude/skills/my-skill/evals/evals.json" } }], "why": "the lint only" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "python3 -m jsonschema -i .claude/skills/my-skill/evals/evals.json /p/reference/evals.schema.json" } }], "why": "a schema validator" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "claude plugin eval /p --case my-skill" } }], "why": "runs the suite" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "claude -p \"Write release notes for the last three merged pull requests.\"" } }], "why": "runs a case prompt headless" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cd /w && claude --print 'x'" } }], "why": "long flag after &&" }
+  ]
+}

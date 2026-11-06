@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "```yaml\nevidence_sources:\n  web-metrics:\n    mcp_server: acme-telemetry\n    kind: metrics\n```", "why": "yaml mcp_server line" },
+    { "answer": "Candidate evidence source: acme-telemetry, kind metrics, scope production web tier.", "why": "prose candidate" }
+  ],
+  "fail": [
+    { "answer": "Your servers are acme-telemetry and github.", "why": "echoes the prompt without drafting" },
+    { "answer": "No telemetry source drafted.", "why": "none drafted" }
+  ]
+}

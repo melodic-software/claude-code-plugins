@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The plugin is lazy-install by design.", "why": "lazy-install"},
+    {"answer": "The CLI is installed when first needed.", "why": "when first needed"},
+    {"answer": "It installs on first use, so its absence is expected.", "why": "on first use"}
+  ],
+  "fail": [
+    {"answer": "The CLI is optional.", "why": "no install-timing reason"},
+    {"answer": "Install it with npm install -g firecrawl-cli.", "why": "remediation only"}
+  ]
+}

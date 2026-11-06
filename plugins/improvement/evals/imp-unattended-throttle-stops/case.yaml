@@ -1,0 +1,56 @@
+schema_version: "1.1"
+name: imp-unattended-throttle-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ask-tool
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-branch-commit-or-pr
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:git\s+(?:-[cC]\s+\S+\s+)*(?:checkout\s+-[bB]|switch\s+-[cC]|branch\s+(?!-|--)\S|commit|push)\b|gh\s+pr\s+(?:create|merge)\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-research-skill
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discovery:research|context7:lookup)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-web-fetch
+    type: tool_used
+    tool: 'WebFetch'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-web-search
+    type: tool_used
+    tool: 'WebSearch'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-question-in-reply
+    type: regex
+    pattern: '\b(?:which|would you|do you want|shall I|should I|want me to|can you|could you|please (?:confirm|choose|pick))\b[^\n?]{0,160}\?'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: stops-at-throttle
+    type: regex
+    pattern: '\bthrottl\w*|\b(?:3|three)\b[^\n]{0,80}?\b(?:or more|limit|cap|ceiling|threshold)\b|\b(?:limit|cap|ceiling|threshold)\b[^\n]{0,80}?\b(?:3|three)\b'
+    flags: 'i'
+    target: last_message
+    arm: both

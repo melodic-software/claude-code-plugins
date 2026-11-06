@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: setup-apply-drafts-then-asks
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: baseline-before-question
+    type: regex
+    pattern: '(?<![\s\S])[^?]*?\b(?:effective|merged|baseline|current (?:config|configuration|state)|bundled defaults?)\b[^?]*\?'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: drafts-generated-exclusion
+    type: regex
+    pattern: 'churn_exclude[\s\S]{0,400}?generated/|generated/[\s\S]{0,200}?(?:churn_exclude|exclu\w*)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: drafts-telemetry-candidate
+    type: regex
+    pattern: '(?:mcp_server|evidence[_ ]sources?|Tier 2 (?:source|candidate))[^\n]{0,120}?acme-telemetry|acme-telemetry[^\n]{0,120}?(?:mcp_server|evidence[_ ]sources?|as (?:a|the) Tier 2|kind:?\s*`?metrics)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: asks-with-recommendation
+    type: regex
+    pattern: '(?=[\s\S]*\?)[\s\S]*?(?<!\bno\s)\b(?:recommend(?:ed|ation)?|suggest(?:ed|ion)?|propos(?:e|ed|al))\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-undeclared-source
+    type: regex
+    pattern: '^[ \t]*mcp_server:[ \t]*["'']?(?!(?:acme-telemetry|github)\b)[\w-]+'
+    flags: 'm'
+    match: not_contains
+    target: last_message
+    arm: both

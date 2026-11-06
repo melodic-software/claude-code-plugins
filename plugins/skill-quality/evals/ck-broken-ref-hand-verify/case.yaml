@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ck-broken-ref-hand-verify
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'skill-quality:check'
+    arm: with-only
+  - name: quotes-fail-line
+    type: regex
+    pattern: 'FAIL: broken skill-internal ref: reference/big-picture\.md'
+    target: last_message
+  - name: quotes-line-42
+    type: regex
+    pattern: '\borchard\b|\bexample only\b|\bno such file ships\b|\bspoke link\b'
+    flags: 'i'
+    target: last_message
+  - name: verifies-before-edit
+    type: llm
+    focus: last_message
+    criteria: "PASS only if the reply quotes the 'FAIL: broken skill-internal ref: reference/big-picture.md ...' line as given rather than only paraphrasing it; reports what SKILL.md line 42 of skill-x actually says (it read the line rather than assuming); decides from that line whether the reference is an illustrative example or a real broken link, and here says it is an illustrative example; and proposes no blind fix. After that check, proposing to leave the line, or to make the example non-resolvable (for example, a code span) so the check stops flagging it, is fine. FAIL if it proposes creating reference/big-picture.md, deleting or rewriting the reference, or editing SKILL.md without first reporting what line 42 says, or if it treats the FAIL as certainly a real missing file, or says it changed a file."
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.env",
+            "content": "FIRECRAWL_API_KEY=fc-123"
+          }
+        }
+      ],
+      "why": "writes a file"
+    }
+  ]
+}

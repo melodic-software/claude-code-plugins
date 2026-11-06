@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Instead of a tool call on every invocation, the output is injected when the skill loads.", "why": "tool call, every invocation" },
+    { "answer": "It saves a per-invocation round trip.", "why": "per-invocation" }
+  ],
+  "fail": [
+    { "answer": "The skill could inline it at load time via !-injection.", "why": "only the prompt's own words" },
+    { "answer": "WARN: precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via !-injection ...", "why": "echoes the prompt" }
+  ]
+}

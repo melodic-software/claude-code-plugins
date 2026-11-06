@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "| Install flow | INFO | lives in `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/SKILL.md` |", "why": "path"},
+    {"answer": "Install and update flow: owned by the main skill, `/firecrawl:firecrawl`.", "why": "main skill and slash name"},
+    {"answer": "The main firecrawl skill owns installs.", "why": "main firecrawl skill"}
+  ],
+  "fail": [
+    {"answer": "Install with npm when needed.", "why": "no location"},
+    {"answer": "See skills/setup/SKILL.md.", "why": "the setup skill"}
+  ]
+}

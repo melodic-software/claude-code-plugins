@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "| firecrawl-cli binary | PASS | /opt/tools/bin/firecrawl, 1.26.24 |", "why": "package name"},
+    {"answer": "- **firecrawl CLI**: INFO, not installed", "why": "firecrawl CLI"},
+    {"answer": "1. CLI binary: present", "why": "CLI binary"}
+  ],
+  "fail": [
+    {"answer": "| FIRECRAWL_API_KEY | unset |", "why": "key row only"},
+    {"answer": "Auth: INDETERMINATE.", "why": "no binary row"}
+  ]
+}

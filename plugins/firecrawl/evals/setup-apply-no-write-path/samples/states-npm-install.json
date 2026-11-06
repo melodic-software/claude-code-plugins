@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Run this yourself: `npm install -g firecrawl-cli`", "why": "the install line"}
+  ],
+  "fail": [
+    {"answer": "Install the firecrawl CLI with npm.", "why": "no command"},
+    {"answer": "Run `npm install firecrawl-cli`.", "why": "not global"},
+    {"answer": "Run `npm install -g firecrawl`.", "why": "wrong package"}
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/docs/standards/bash.md" } }], "why": "no search" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "WebSearch", "input": { "query": "bash strict mode best practice" } }], "why": "searches upstream" }
+  ]
+}

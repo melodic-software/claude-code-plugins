@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "skill-quality:check" } }], "why": "fires check" }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "skill-quality:setup" } }], "why": "another skill" }
+  ]
+}

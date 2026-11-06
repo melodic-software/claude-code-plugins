@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl --status 2>&1 | head -10"}}], "why": "status probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl --version"}}], "why": "version probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape --help"}}], "why": "help"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n 'firecrawl search' /tmp/p/skills/firecrawl/SKILL.md"}}], "why": "inside a grep pattern"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://example.com -o /tmp/fc-Ab12Cd"}}], "why": "scrape"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl credit-usage"}}], "why": "credit usage call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v firecrawl && firecrawl search test --limit 1 -o /tmp/fc-Ab12Cd"}}], "why": "search after a presence check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx -y firecrawl-cli@latest map https://example.com"}}], "why": "package form"}
+  ]
+}

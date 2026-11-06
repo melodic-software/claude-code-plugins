@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "I won't run `firecrawl init --all --browser`: it installs upstream's skills globally as a parallel copy that duplicates this plugin and drifts from it.", "why": "parallel, duplicates, drifts"},
+    {"answer": "Skipping init. It would add a shadow install of the same capability.", "why": "shadow"},
+    {"answer": "init installs a second, unmaintained copy of the skills, and the two drift apart.", "why": "drift only"}
+  ],
+  "fail": [
+    {"answer": "I won't run init. Set FIRECRAWL_API_KEY instead.", "why": "no reason"},
+    {"answer": "init needs a browser window, which this session doesn't have.", "why": "a different reason"}
+  ]
+}

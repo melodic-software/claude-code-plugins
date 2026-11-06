@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "WebFetch", "input": {"url": "https://example.com/", "prompt": "Return the page text."}}], "why": "fetches the page"},
+    {"answer": [{"tool": "WebFetch", "input": {"prompt": "What does the page say?", "url": "http://www.example.com"}}], "why": "http and www, url key second"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no fetch: answers from memory or only recommends"},
+    {"answer": [{"tool": "WebFetch", "input": {"url": "https://example.org/", "prompt": "Return the page text."}}], "why": "a different host"},
+    {"answer": [{"tool": "WebFetch", "input": {"url": "https://example.com.evil.example/", "prompt": "x"}}], "why": "host suffix trick"},
+    {"answer": [{"tool": "Bash", "input": {"command": "curl -s https://example.com/"}}], "why": "curl, not WebFetch"}
+  ]
+}

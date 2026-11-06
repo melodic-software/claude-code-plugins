@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "```yaml\nevidence_sources:\n  web-metrics:\n    mcp_server: acme-telemetry\n    kind: metrics\n```", "why": "declared server" },
+    { "answer": "Each source needs an `mcp_server`: the server name from your MCP config.", "why": "prose about the key" },
+    { "answer": "```yaml\n    mcp_server: <your-server>\n```", "why": "placeholder, not a vendor" }
+  ],
+  "fail": [
+    { "answer": "```yaml\nevidence_sources:\n  errors:\n    mcp_server: sentry\n```", "why": "invents a vendor" },
+    { "answer": "```yaml\n    mcp_server: \"datadog-mcp\"\n```", "why": "quoted invented vendor" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Verify:\n\n```bash\ngit check-ignore -v .claude/improvement.md\ngit ls-files --error-unmatch .claude/improvement.md\n```",
+      "why": "both probes"
+    },
+    {
+      "answer": "Run `git check-ignore -v .claude/improvement.md` (expect no output) and `git ls-files --error-unmatch .claude/improvement.md` (expect exit 1 until committed).",
+      "why": "inline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verify with `git check-ignore -v .claude/improvement.md`; no output means it is shared.",
+      "why": "not-ignored probe only"
+    },
+    {
+      "answer": "Verify with `git ls-files --error-unmatch .claude/improvement.md`.",
+      "why": "tracked probe only"
+    }
+  ]
+}

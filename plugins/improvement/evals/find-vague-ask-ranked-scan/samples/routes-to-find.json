@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:find" } }], "why": "qualified name" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "find", "args": "" } }, { "tool": "Read", "input": { "file_path": "README.md" } }], "why": "bare name, then reads" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "architecture:improve" } }], "why": "single-lens skill" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "improvement:improve" } }], "why": "improve, not find" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": "README.md" } }], "why": "ad-hoc advice, no skill" }
+  ]
+}

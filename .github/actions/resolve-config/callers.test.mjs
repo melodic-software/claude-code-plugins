@@ -9096,9 +9096,11 @@ test("every checkout of this repository takes a SHA, and main's tip comes only f
 });
 
 const TIP_RUN = [
-  'sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
-  "  awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }')",
-  '[[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  'until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
+  "    awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
+  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  '  sleep "$((RANDOM % (2 * i + 1)))"',
+  "done",
   'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
   "",
 ].join("\n");
@@ -9112,6 +9114,7 @@ test("the tip step outputs the exact ref's SHA from this repository and fails on
   const listing = `${"1".repeat(40)}\trefs/heads/x/refs/heads/main\n${"2".repeat(40)}\trefs/heads/main\n`;
   writeFileSync(join(root, "listing"), listing);
   writeFileSync(join(root, "bin", "git"), `#!/bin/sh\necho "$*" >"${join(root, "args")}"\ncat "${join(root, "listing")}"\n`, { mode: 0o755 });
+  writeFileSync(join(root, "bin", "sleep"), "#!/bin/sh\n", { mode: 0o755 });
   const run = () => {
     const output = join(root, "output");
     writeFileSync(output, "");
@@ -9130,6 +9133,57 @@ test("the tip step outputs the exact ref's SHA from this repository and fails on
   assert.equal(missing.status, 1);
   assert.equal(missing.outputs.sha, undefined, "no sha output for the checkout to take");
   assert.match(missing.stdout, /^::error::the tip of main did not resolve$/m);
+});
+
+// Element 1 of docs/outage-posture-audit.md: at most 3 tries, with full-jitter
+// waits of 0-2 s and then 0-4 s, and red when no try yields a SHA. Each case
+// runs under both shells a step gets: bash -e, and bash -eo pipefail under
+// shell: bash.
+test("the tip step tries ls-remote at most 3 times with full-jitter waits and fails red on none", (t) => {
+  const root = tempDir("tip-retry-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "bin"));
+  const file = (name) => join(root, name);
+  // git fails while its call count is at or below the number in "fails", then lists "listing".
+  writeFileSync(join(root, "bin", "git"), `#!/bin/sh\necho x >>"${file("calls")}"\n[ "$(wc -l <"${file("calls")}")" -gt "$(cat "${file("fails")}")" ] || { echo "fatal: unable to access" >&2; exit 128; }\ncat "${file("listing")}"\n`, { mode: 0o755 });
+  writeFileSync(join(root, "bin", "sleep"), `#!/bin/sh\necho "$1" >>"${file("sleeps")}"\n`, { mode: 0o755 });
+  const sha = "3".repeat(40);
+  const run = (shell, fails, listing, seed = 1) => {
+    for (const name of ["calls", "sleeps", "output"]) writeFileSync(file(name), "");
+    writeFileSync(file("fails"), `${fails}\n`);
+    writeFileSync(file("listing"), listing);
+    const result = spawnSync("bash", ["--noprofile", "--norc", ...shell, "-c", `RANDOM=${seed}\n${TIP_RUN}`], {
+      env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", TIP_BRANCH: "main", GITHUB_OUTPUT: file("output") },
+      encoding: "utf8",
+    });
+    const lines = (name) => readFileSync(file(name), "utf8").split("\n").filter(Boolean);
+    return { status: result.status, stdout: result.stdout, calls: lines("calls").length, sleeps: lines("sleeps").map(Number), outputs: outputLines(file("output")) };
+  };
+  const good = `${sha}\trefs/heads/main\n`;
+  for (const shell of [["-e"], ["-eo", "pipefail"]]) {
+    const mode = shell.join(" ");
+    const first = run(shell, 0, good);
+    assert.deepEqual([first.status, first.calls, first.sleeps, first.outputs.sha], [0, 1, [], sha], `${mode}: try 1 resolves with no wait`);
+
+    const third = run(shell, 2, good);
+    assert.deepEqual([third.status, third.calls, third.sleeps.length, third.outputs.sha], [0, 3, 2, sha], `${mode}: two faults, then try 3 resolves`);
+    const waits = Array.from({ length: 30 }, (_, seed) => run(shell, 2, good, seed + 1).sleeps);
+    for (const [index, cap] of [[0, 2], [1, 4]]) {
+      const seen = new Set(waits.map((w) => w[index]));
+      assert.ok([...seen].every((s) => Number.isInteger(s) && s >= 0 && s <= cap), `${mode}: wait ${index + 1} within 0-${cap} s, got ${[...seen]}`);
+      assert.ok(seen.size >= 2, `${mode}: wait ${index + 1} is jittered, got only ${[...seen]}`);
+    }
+    assert.ok(waits.some((w) => w[1] > 2), `${mode}: the second wait's cap is 4 s`);
+
+    for (const [why, fails, listing] of [["three faults", 3, good], ["a listing with no SHA", 0, "not-a-sha\trefs/heads/main\n"]]) {
+      const red = run(shell, fails, listing);
+      assert.equal(red.status, 1, `${mode}: ${why} fail the step`);
+      assert.equal(red.calls, 3, `${mode}: ${why} stop after try 3`);
+      assert.equal(red.sleeps.length, 2, `${mode}: ${why} wait only between tries`);
+      assert.match(red.stdout, /^::error::the tip of main did not resolve$/m, `${mode}: ${why}`);
+      assert.equal(red.outputs.sha, undefined, `${mode}: ${why} leave no sha for the checkout`);
+    }
+  }
 });
 
 // The tidy lane's three legs: model on the automations API key, then
