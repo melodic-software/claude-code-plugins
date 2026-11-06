@@ -141,9 +141,10 @@ merge are their stages.
 activity with `stage: refine` whose `applies-when` `paths` match a changed file that no
 `paths-ignore` glob matches, so a changelog fragment alone (`.changes/**`) starts no `fix-docs`.
 Adding a pass is an activity entry with `stage: refine`, its globs, an `order` and a `group`, and
-its jobs in `pr-refine.yml`. The plan runs passes in batches, one batch after another: in `order`, a
-pass joins the batch before it when it is not `serial`, shares that batch's `group`, and matched
-none of the batch's files; otherwise it starts a new batch. A PR that matches no pass ends the run
+its jobs in `pr-refine.yml`. The plan also outputs `batches`: in `order`, a pass joins the batch
+before it when it is not `serial`, shares that batch's `group`, and matched none of the batch's
+files; otherwise it starts a new batch. No job reads `batches` yet, so every planned pass starts at
+once; a second pass's first job must also wait on the batch before it. A PR that matches no pass ends the run
 at the plan, every later job skipped and no model turn. The plan reads the lane's slots as the
 runner's config reader expands them, so a disabled slot or a slot's own `applies-when` counts, and
 a pass taking `changed-paths` needs a file left after instruction surfaces and owned paths are
@@ -1002,9 +1003,10 @@ order inside a lane comes from config:
 - Read slots run in parallel, each after the slots named in its `needs:`.
 - A slot may replace its activity's `applies-when` or set `enabled: false`.
 
-`refine` runs its passes in the plan's batches, by `order` and `group`
+`refine`'s plan groups its passes into batches by `order` and `group`
 ([Refine before review](#refine-before-review)); a format pass takes the highest `order` and
-`group: serial`, because earlier passes change whitespace.
+`group: serial`, because earlier passes change whitespace, and its first job waits on the earlier
+batches.
 `verify` runs on the refined commit; a push during `unblock` makes earlier verify results stale,
 and verify reruns on the new head. `refine` does not rerun on `unblock` pushes.
 

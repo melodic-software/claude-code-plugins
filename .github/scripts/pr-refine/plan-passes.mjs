@@ -5,11 +5,12 @@
 // predicates' paths and paths-ignore. Pure: the caller reads the config and
 // the changed paths.
 //
-// Passes run in batches, one batch after another. A pass joins the batch
-// before it when it is not `serial`, shares that batch's group, and matched
-// none of the files the batch's passes matched; otherwise it starts a new
-// batch. So passes on disjoint files run in parallel, and passes on the same
-// files run one after another in `order`.
+// Passes are grouped into batches. A pass joins the batch before it when it
+// is not `serial`, shares that batch's group, and matched none of the files
+// the batch's passes matched; otherwise it starts a new batch. So passes on
+// disjoint files may run in parallel, and passes on the same files in
+// `order`. pr-refine.yml reads no batch yet: a second pass's first job must
+// wait on the batch before it.
 import { matchedPaths } from "../../actions/resolve-config/predicate.mjs";
 
 export const SERIAL = "serial";
