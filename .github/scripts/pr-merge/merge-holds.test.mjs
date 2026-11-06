@@ -1692,6 +1692,21 @@ test("trackerBindingText: a .yaml file's tracker mapping as JSON, null when it b
   assert.equal(holdsModule.trackerBindingText(json), '{"provider":"github"}');
   assert.throws(() => holdsModule.trackerBindingText(join(dir, "absent.yaml")), { code: "ENOENT" });
   assert.equal(holdsModule.TRACKER_BINDING_PATH, "docs/conventions/work-items.yaml");
+  const path = process.env.PATH;
+  process.env.PATH = dir;
+  try {
+    const missing = (() => {
+      try {
+        holdsModule.trackerBindingText(yaml);
+      } catch (error) {
+        return error;
+      }
+      return null;
+    })();
+    assert.ok(missing instanceof Error && missing.code !== "ENOENT", "a missing yq must not read as an absent binding file");
+  } finally {
+    process.env.PATH = path;
+  }
 });
 
 test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {

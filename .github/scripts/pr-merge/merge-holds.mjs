@@ -1636,7 +1636,12 @@ export function trackerBindingText(path) {
   if (!String(path).endsWith(".yaml")) {
     return text;
   }
-  return execFileSync("yq", ["-o=json", "-I=0", ".tracker", "-"], { input: text, encoding: "utf8", timeout: 30_000, maxBuffer: 1 << 20 });
+  try {
+    return execFileSync("yq", ["-o=json", "-I=0", ".tracker", "-"], { input: text, encoding: "utf8", timeout: 30_000, maxBuffer: 1 << 20 });
+  } catch (error) {
+    // A missing yq binary also raises ENOENT; callers read ENOENT as "no binding file".
+    throw new Error(`yq could not read ${path}: ${error.code ?? error.message}`);
+  }
 }
 
 // The tracker config's human-gated role label (the binding's
