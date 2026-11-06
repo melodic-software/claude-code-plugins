@@ -3,7 +3,9 @@
 The agent that produced the video does not judge it. After `quality_control.py` passes, dispatch a fresh
 subagent (the general-purpose agent, with a model at least as capable as the producer's) and hand
 it only the artifacts and the rules. Withhold the producer's reasoning, its own quality-control summary and any
-"this is fixed" claim; the reviewer audits the frames, not the story.
+"this is fixed" claim; the reviewer audits the frames, not the story. This review runs at the
+`standard` and `strict` verification levels; under `light` and `off`, SKILL.md step 8 skips it and
+nothing is posted.
 
 Brief to send, filled in:
 

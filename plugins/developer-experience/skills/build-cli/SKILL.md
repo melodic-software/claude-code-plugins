@@ -101,6 +101,15 @@ review stays blind to this session (pointer: when choosing the subagent type, fe
 recheck when that section changes what a non-fork subagent starts with). General code review beyond the contract is `/review:quality-gate`, when the review
 plugin is installed; otherwise say it was not run.
 
+Before that dispatch, run
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin developer-experience --skill build-cli`
+and copy its line into the report
+([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` is the rule above; `strict` dispatches the subagent for every review, not only for a
+tool built or changed in this session. Under `light`, and `off`, which acts as `light` here,
+dispatch none and write `verification: skipped (<level>)`. A tool built or changed in this session
+is then reported as not independently reviewed: never review it yourself in the subagent's place.
+
 ## Next
 
 - Other tooling in the repository to take stock of: /developer-experience:audit-tools.

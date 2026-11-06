@@ -39,6 +39,16 @@ or every frame at a given fps through `capture.mjs`, writes `render.json`, and e
 probe), and `inkstats.py` (style statistics of any film, a video, a frame folder or a rotoscope work
 dir, with `--pack` to check it against a style pack; `--cuts` takes a comma list or a produce `shots.json`), `produce.py` (the production directory: boards, the approval digest, `shots.json`, and the review command), and `woodcut_marks.py` (a test helper for the woodcut-ink authoring residuals: synthetic caption and frame drawings inside the frozen bands, not a render or measuring entry point).
 
+## Configuration
+
+A repository can commit `animation.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/animation.schema.json`](schemas/animation.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/animation:produce` hands the film to its fresh-context reviewer before delivery (step 9): `light` and `off` skip it and deliver the film marked as not independently reviewed. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+
 ## Requirements
 
 `/animation:setup` checks each of these and prints one remedy line per missing one. Verified on

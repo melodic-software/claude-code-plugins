@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: dv-light-skips-review-no-post
+context:
+  scaffold_script: scaffold.sh

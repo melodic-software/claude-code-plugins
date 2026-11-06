@@ -93,3 +93,13 @@ operation, and (c) no `userConfig` at all. `bash` and `gh` are prerequisites of
 the *generated artifact's run*, declared above and at the point of use in the
 generated script itself, which degrades visibly when `gh` is absent. Setup
 would be blanket ceremony with nothing to check or apply.
+
+## Configuration
+
+A repository can commit `wizard.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/wizard.schema.json`](schemas/wizard.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/wizard:generate` dispatches its fresh-context read of the script (Phase 3 step 2): `light` and `off` skip it and tell you at the approval gate that the script was not independently checked. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |

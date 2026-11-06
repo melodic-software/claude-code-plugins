@@ -4,6 +4,8 @@ The agent that built the film does not judge it. After the pack check and your o
 dispatch a fresh-context subagent (the general-purpose agent, not a fork, with a model at least as
 capable as yours) and give it only the artifacts and the rules. Withhold your reasoning, your own
 review and any claim that a row or a mark is fixed: the reviewer judges the frames, not the story.
+This review runs at the `standard` and `strict` verification levels; SKILL.md step 9 reads the
+level and says what `light` and `off` do instead.
 
 Brief to send, filled in:
 

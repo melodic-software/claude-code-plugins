@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: review-light-skips-reviewer
+context:
+  scaffold_script: scaffold.sh

@@ -79,11 +79,18 @@ overwrites one. Paths in these files are relative to the production directory an
      gate, so the user approves the boards again (step 4) before the next shot render.
    - When the frames cannot read as the pack without editing its bands, stop and report the
      failing rows and marks (see Next).
-9. Before delivery, hand the film to a fresh-context reviewer (a subagent that is not a fork) with
+9. Before delivery, run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin animation --skill produce` and
+   copy its line into the report
+   ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+   At standard or strict, hand the film to a fresh-context reviewer (a subagent that is not a fork) with
    the brief in [reference/independent-review.md](reference/independent-review.md). The builder
    never decides the film ships: fix what the review finds, render, check and review again with a
    new reviewer, and deliver only on its SHIP. After three reviews without a SHIP, stop and report
    the open findings to the user.
+   - Under `light`, and `off`, which acts as `light` here, dispatch no reviewer and never give its
+     verdict yourself: deliver with `verification: skipped (<level>)` and say the film was not
+     independently reviewed. Step 8's pack check runs at every level.
 
 Pass `--cuts` the `shots.json` path, never a retyped list.
 
