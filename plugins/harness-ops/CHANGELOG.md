@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.5.0] - 2026-11-06
+
+### Added
+
+- control-claude-code: a launch broker that runs the driver's `launch`, `ready` and `log` inside a sandbox for an unattended caller, and a driver broker mode (`CCD_BROKER_SOCK`) that sends those verbs to it. The driver reads `CCD_RUNTIME_DIR` ahead of `XDG_RUNTIME_DIR`.
+
 ## [8.4.14] - 2026-11-06
 
 ### Changed
