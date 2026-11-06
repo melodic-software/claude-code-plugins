@@ -121,6 +121,12 @@
       "default": "merge-to-default-branch",
       "description": "What /work-items:measure-delivery counts as one deployment. merge-to-default-branch: each commit on the default branch's first-parent history is one deployment (a merge commit or a squash landing is one; a rebase landing is one per commit it lands), and one a later commit reverts is a failed deployment. Absent: merge-to-default-branch."
     },
+    "filing_posture": {
+      "type": "string",
+      "enum": ["manual-only", "allowed"],
+      "default": "manual-only",
+      "description": "Team policy for a scanner's explicit filing argument, such as /bugs:scan --track. manual-only: the scanner files nothing and prints why, and a standing autonomous lane must not file into this tracker. allowed: the explicit argument may file. Neither value makes a bare invocation file. Repository layer only; no userConfig option. Absent: manual-only, unless a filing_posture in the bugs plugin's layers (deprecated, read for one release) supplies it."
+    },
     "morning_brief": {
       "type": "object",
       "additionalProperties": false,

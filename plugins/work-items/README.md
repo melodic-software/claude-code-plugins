@@ -315,6 +315,14 @@ default, is `merge-to-default-branch`: each commit on the default branch's
 first-parent history is a deployment, and one a later commit reverts is a
 failed deployment.
 
+`filing_posture` also lives only in the repository file: the team policy for a
+scanner's explicit filing argument, such as `/bugs:scan --track`. With
+`manual-only`, the default, the scanner files nothing and says why, and a
+standing autonomous lane must not file into the tracker. `allowed` lets the
+explicit argument file. Neither value makes a bare invocation file. The key
+used to live in `docs/conventions/bugs.yaml`; `/bugs:scan` still reads it there
+for one release, with a notice, when this file does not set it.
+
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `<home>/work-items.yaml` (including
 the optional `tracker.config.role_labels` canonical-role → label remap), its labels
