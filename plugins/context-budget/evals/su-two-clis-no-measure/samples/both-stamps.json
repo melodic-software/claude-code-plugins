@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "- `/usr/local/bin/claude`: 2.1.301\n- `/opt/claude-beta/bin/claude`: 2.1.297",
+      "why": "both pairs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- `/usr/local/bin/claude`: 2.1.301\n- `/opt/claude-beta/bin/claude`",
+      "why": "second version missing"
+    },
+    {
+      "answer": "Versions 2.1.301 and 2.1.297.\nPaths /usr/local/bin/claude and /opt/claude-beta/bin/claude.",
+      "why": "paths and versions not paired"
+    }
+  ]
+}

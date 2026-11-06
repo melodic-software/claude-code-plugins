@@ -30,8 +30,9 @@ what the hook shows. Pick the module from the changed files.
 
 ## Gotchas
 
-- Drive a hook on session start, prompt submit or a file-tool event. Record a hook that only
-  matches Bash tool events as not driven here.
-- Which tools the launch removes: the `--restricted` row of
+- Drive a hook on session start, prompt submit or a file-tool event. A hook that only matches Bash
+  tool events is driven only in the pr-verify capture, whose driven session has Bash; record it as
+  not driven in a local drive.
+- Which tools a local drive's launch removes: the `--restricted` row of
   <https://code.claude.com/docs/en/cli-reference#cli-flags> (as of 2026-11-05; recheck when that row
   changes which tools it removes).

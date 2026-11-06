@@ -21,6 +21,11 @@ graders:
     pattern: '\bWorkflow\b(?:(?!\b(?:WebFetch|NotebookEdit|TodoWrite)\b)[\s\S]){0,400}?(?:skill[- ]listing(?: signature)?\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|(?:changed|different|mismatched)\s+skill[- ]listing|listing signature\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|signature (?:changed|mismatch|differ))|(?:skill[- ]listing(?: signature)?\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|(?:changed|different|mismatched)\s+skill[- ]listing|listing signature\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|signature (?:changed|mismatch|differ))(?:(?!\b(?:WebFetch|NotebookEdit|TodoWrite)\b)[\s\S]){0,200}?\bWorkflow\b'
     flags: 'i'
     target: last_message
+  - name: listing-rule-explained
+    type: regex
+    pattern: '(?:^|[.!?\n])(?=[^.!?\n]*\bSystem tools\b)(?=[^.!?\n]*\b(?:skill[- ]listings?|listings?)\b)(?=[^.!?\n]*\b(?:mov\w*|depend\w*|identical|same|subtract\w*|valid|comparable|shift\w*|chang\w*|differ\w*|track\w*)\b)'
+    flags: 'i'
+    target: last_message
   - name: workflow-numbers-withheld
     type: regex
     pattern: '\b4,?471\b|\b5,?000\b|(?<![0-9,.])529\b|(?<![\d.])(?:4\.[45]|0?\.5|5(?:\.0)?)\s*k\b'

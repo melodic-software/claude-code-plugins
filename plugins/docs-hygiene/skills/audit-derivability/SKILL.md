@@ -77,6 +77,8 @@ Do NOT guess derivability from a skim. Two passes, escalating only where the sta
 
 Gate the spot-test by stakes: skip it for an obviously trivial derivable file (an auto-generated index, a verbatim config restatement); run it whenever being wrong about the deletion costs a reader something real.
 
+**The verification level** decides how many spot-tests run. Resolve it once before the first verdict with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin docs-hygiene --skill audit-derivability --file docs/conventions/docs-hygiene.yaml` and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). This skill's `allowed-tools` does not grant the reader, so the call may prompt; a refused or denied call resolves `standard`. `standard` is the two paragraphs above. `strict` spot-tests every `delete`/`convert-to-pointer` verdict, trivial files included, and a sweep's cap defers none. Under `light`, and `off`, which acts as `light` here, dispatch no spot-test or keep-sample and never grade one from this context: each verdict that needed one ships provisional, its `Spot-test:` line reading `verification: skipped (<level>)`, and is never routed as actionable.
+
 Keep verdicts get a sampled spot-test too, so false-keeps are bounded. A **diverged** keep-sample confirms the keep. A **converged** one sends the doc back through the four factors; any `delete`/`convert-to-pointer` result ships provisional (never confirmed-actionable) and counts as overturned. Sizing, selection, and recording: `context/rubric.md`, "Keep-sample protocol".
 
 ## Action router
@@ -109,7 +111,7 @@ The interview knobs for the confirmation in rule 1, each with its default. A con
 - **Execution**, the `sweep` contract: fresh read-only subagents, batched for a large corpus.
 - **Concurrency**, no ceiling of the skill's own; the runtime's cap applies. Back off on an actual rate-limit error, never on guessed usage headroom.
 - **Subagent model and effort**, per **Sweep subagent model and effort** under Action router; the user may pin a tier.
-- **Spot-tests**. Run for load-bearing `delete`/`convert-to-pointer` verdicts up to a stated cap per pass. A flagged verdict past the cap is emitted as **provisional**: pending its spot-test, excluded from the actionable-routing offer, never presented as a confirmed delete. The cap *defers* the hard rule's spot-test to a follow-up pass; it never waives it.
+- **Spot-tests**. Run for load-bearing `delete`/`convert-to-pointer` verdicts up to a stated cap per pass. A flagged verdict past the cap is emitted as **provisional**: pending its spot-test, excluded from the actionable-routing offer, never presented as a confirmed delete. The cap *defers* the hard rule's spot-test to a follow-up pass; it never waives it. Under a `strict` verification level there is no cap.
 
 ## Output schema
 
@@ -126,8 +128,8 @@ Per document:
 | Fact ownership | <none | owns: rationale / decision / constraint / external fact> |
 
 Verdict rationale: <1-2 lines>.
-Spot-test: <not run (trivial) | run — converged/diverged, subagent reproduced X of Y conclusions | keep-sample: converged/diverged>.
-Provisional (if any): <reverses a recorded decision | spot-test deferred | keep-sample converged, verdict overturned>.
+Spot-test: <not run (trivial) | verification: skipped (<level>) | run — converged/diverged, subagent reproduced X of Y conclusions | keep-sample: converged/diverged>.
+Provisional (if any): <reverses a recorded decision | spot-test deferred | verification skipped (<level>) | keep-sample converged, verdict overturned>.
 Owned-fact salvage (if keep-owns-facts): <the non-derivable facts to preserve; route the rest to /docs-hygiene:audit-noise or extract-ssot>.
 Cache drift-control (if keep-as-derivation-cache): <the regeneration path or recheck trigger that keeps it honest>.
 ```
@@ -149,7 +151,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 - **Read-only with respect to the repository.** No `Edit` or `Write` inside the repo, no `Bash` that mutates it; session-scratchpad ledgers and artifacts are the one sanctioned write surface. The author applies every deletion and rewrite. Deletion is the highest-stakes doc edit; the classifier only recommends.
 - **Never derivability alone.** A `delete` verdict requires all of: derivable, low re-derivation cost, no owned facts. Any owned non-derivable fact forces `keep-owns-facts`.
 - **Cache verdicts carry a drift-control condition or they demote.** No regeneration path and no recheck trigger → not a cache, demote to pointer/delete.
-- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent**, never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type, which inherits the parent conversation. A launch-loaded audited file is spot-tested only by `Explore` or `Plan` (this skill's choice; see Sources for which agents load those files). A verdict whose spot-test is deferred (e.g. past a sweep's cap) stays provisional and is never routed as actionable.
+- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent**, never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type, which inherits the parent conversation. A launch-loaded audited file is spot-tested only by `Explore` or `Plan` (this skill's choice; see Sources for which agents load those files). A verdict whose spot-test is deferred (e.g. past a sweep's cap) or skipped by a `light` or `off` verification level stays provisional and is never routed as actionable.
 - **Audience named in every verdict.** Agent-facing and human-facing docs clear different deletion bars.
 - **The empty-target escalation is offer-only.** A repo-wide sweep from the no-op path runs only after explicit user confirmation; decline or silence ends as the no-op.
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.
