@@ -97,7 +97,7 @@
 //   deferred for room alone (deferredAhead), so admission takes the oldest
 //   first (owner Q95); one deferred for an open pull request or a hold is not ahead.
 //   Runs for other issues read the same room in parallel, so a capped issue
-//   first claims its place with `admission-deferred` and takes `agent-ready`
+//   first claims its place with deferred and takes `agent-ready`
 //   only while fewer than the room entered admission ahead of it
 //   (admissionsSince); otherwise, or when that read fails, it stays deferred.
 //
@@ -116,6 +116,12 @@
 // was removed until the lanes App or a listed human adds `status: ready`
 // after the newest removal. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
+//
+// Each status named here is the issue's Work status field: admission reads
+// the label names as the field decides them (read-status.mjs) and writes the
+// field where it wrote a status label, taking off the status labels the issue
+// still carries; only `agent-ready`, `attended` and `host-run` are added as
+// labels. The claim is a fresh change of the field to deferred.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -1403,12 +1409,11 @@ export function admissionSettled(labels, events, isMark) {
 // against it, the wait carries `retriage` and admit() sends the issue back to
 // intake; once one has, the issue's own criteria decide. `comments`
 // (admissionFacts) carry report-outcome's patch-cap stop (patchCapStopped).
-// `holdLabels` (admissionFacts), and a parent's own, are the label names with
-// the Work status field's hold added: the person holds read them, everything
-// else the issue's own labels.
+// `holdLabels` (admissionFacts), and a parent's own, are the label names as
+// the Work status field decides them (read-status.mjs statusLabels), read in
+// place of the issue's own labels.
 export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [], holdLabels }) {
-  const labels = names(issue.labels);
-  const holds = holdLabels ? names(holdLabels) : labels;
+  const labels = names(holdLabels ?? issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
   }
@@ -1456,7 +1461,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
   }
-  if (verdict.untrusted || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
+  if (verdict.untrusted || untrustedHold({ labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
     holdFor("security");
   }
@@ -1592,7 +1597,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     attended = true;
   }
   for (const label of rules["refuse-labels"]) {
-    if (holds.includes(label)) {
+    if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
       // A person's hold label names no reason of its own; intent fails closed.
       if (PERSON_LABELS.has(label)) holdFor("intent");
@@ -1601,7 +1606,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // The sweep re-admits a deferred issue on no fresh verdict, so what changed
   // since its deferral refuses, whatever the rules say (deferralLapsed).
   if (verdict.writtenAt === undefined && labels.includes(DEFERRED)) {
-    for (const lapsed of deferralLapsed({ labels: issue.labels, events, editedAt: spec?.lastEditedAt, humans, appId })) {
+    for (const lapsed of deferralLapsed({ labels, events, editedAt: spec?.lastEditedAt, humans, appId })) {
       if (!refuse.includes(lapsed.reason)) {
         refuse.push(lapsed.reason);
       }
@@ -1655,7 +1660,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // ready, and refine.mjs asks triage again once its refinement holds them.
   // The criteria gate itself stands: only the refusal becomes a wait.
   const criteriaOnly = refuse.length === 1 && refuse[0] === noTrustedSpec(rules["task-list"]);
-  if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !holds.includes("needs-human") && refineDue(spec, humans, appId, rules["task-list"])) {
+  if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !labels.includes("needs-human") && refineDue(spec, humans, appId, rules["task-list"])) {
     return { verdict: "wait", reasons: [`${refuse[0]}; intake's refinement of this body is due and may supply them`], pulls: [] };
   }
   if (refuse.length > 0) {
@@ -1811,9 +1816,11 @@ export function earlierFlags(comments, appId) {
 // flag other than the intent a refinement resolves, or records that an
 // earlier flag is unknown (earlierFlags null). Once lifted, a re-triage sees
 // no hold and so carries no earlier flag. No such comment lifts: refine's own
-// question hold writes none.
-export async function decisionStays(github, base, comments, appId) {
-  const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
+// question hold writes none. `events()` reads the issue's status history
+// (read-status.mjs statusEvents, where the field's needs-owner-decision reads
+// as a `status: needs-decision` add); by default its REST events.
+export async function decisionStays(github, base, comments, appId, events = () => paginate(github, `${base}/events`)) {
+  const setter = (await events()).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
   if (setter !== appId) {
     return `a person set its ${NEEDS_DECISION}`;
   }
@@ -2427,14 +2434,18 @@ export const closedByTrusted = ({ github, repository, humans, appId }) => {
 // a hold), the same split note a refusal posts, when a done-when item is one
 // the lane cannot perform, so the split survives a verdict that never reaches
 // decide(). It skips where decide() does (admissionSettled), and leaves an
-// unchanged note alone. Returns {outcome: noted | none | skipped, reasons}.
-export async function noteUnrunnable({ github, repository, issue, rules, webHosts, log = console.log }) {
+// unchanged note alone. `statusOf` (read-status.mjs statusReader), when given,
+// decides the label names and status history that judges; without it, the
+// issue's own labels and REST events. Returns {outcome: noted | none |
+// skipped, reasons}.
+export async function noteUnrunnable({ github, repository, issue, rules, webHosts, statusOf, log = console.log }) {
   const base = `/repos/${repository}/issues/${issue.number}`;
   const reason = unrunnableReason(unrunnableCriteria(issue.body, rules["task-list"], webHosts));
   if (!reason) {
     return { outcome: "none", reasons: [] };
   }
-  const settled = admissionSettled(names(issue.labels), await paginate(github, `${base}/events`));
+  const labels = statusOf ? await statusOf(Number(issue.number), names(issue.labels)) : names(issue.labels);
+  const settled = admissionSettled(labels, statusOf?.events ? await statusOf.events(Number(issue.number)) : await paginate(github, `${base}/events`));
   if (settled) {
     log(`admit: #${issue.number} left as is (${settled})`);
     return { outcome: "skipped", reasons: [settled] };
@@ -2443,6 +2454,13 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   log(`admit: #${issue.number} held; split noted (${reason})`);
   return { outcome: "noted", reasons: [reason] };
 }
+
+// `field`, label names as the Work status field decides them, with
+// status: ready added beside admission-deferred: a deferred issue is a ready
+// one waiting for room. Not when the issue's `own` labels show status: ready
+// lost while deferred. Pure.
+const readyWhileDeferred = (field, own) =>
+  field.includes(DEFERRED) && !field.includes(READY) && !(own.includes(DEFERRED) && !own.includes(READY)) ? [...field, READY] : field;
 
 // The Work status field reads one admission takes (statusReader's limit):
 // the issue's and its parent's.
@@ -2454,10 +2472,11 @@ export const ADMISSION_STATUS_READS = 2;
 // default it reads the blocker fresh. `doneBy(number)` answers the merged
 // Refs pull requests (mergedRefsReader): a pass over many issues passes its
 // own, so it reads them in one call; by default the issue is read alone.
-// `statusOf(number, names)` (read-status.mjs statusReader), when given, adds
-// the Work status field's hold to the label names decide() reads holds from
-// (`holdLabels`, and the parent's when it is in this repository); without
-// it, the labels alone decide.
+// `statusOf(number, names)` (read-status.mjs statusReader), when given,
+// decides the label names decide() reads (`holdLabels`, and the parent's when
+// it is in this repository) and gives the events as statusEvents, the Work
+// status field's changes among them; without it, the labels and REST events
+// alone decide.
 export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy, statusOf }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
@@ -2507,7 +2526,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   const subIssues = await openSubIssues(github, base, issue);
   return {
     issue,
-    ...(statusOf && { holdLabels: await statusOf(Number(number), names(issue.labels)) }),
+    ...(statusOf && { holdLabels: readyWhileDeferred(await statusOf(Number(number), names(issue.labels)), names(issue.labels)) }),
     // Read for the admission comment's own earlier copy (sayWhy) and decide's
     // patch-cap stop (patchCapStopped).
     comments: await paginate(github, `${base}/comments`),
@@ -2521,7 +2540,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     subIssues,
     finished: subIssues.length === 0 && (await finishedParent({ github, repository, issue, trusted })) !== null,
     doneBy: await (doneBy ?? mergedRefsReader({ github, repository, humans, appId }))(Number(number)),
-    events: await paginate(github, `${base}/events`),
+    events: statusOf?.events ? await statusOf.events(Number(number)) : await paginate(github, `${base}/events`),
     public: isPublic,
     chargeEdits: await chargeEditsOf({ github, repository, number, spec, charges: chargePattern(), public: isPublic }),
   };
@@ -2539,30 +2558,29 @@ export const roomDeferred = (labels) => {
 };
 
 // Whether an open issue created before `issue` is deferred for room alone: it
-// carries admission-deferred, roomDeferred holds, and `pullsFor(number)`
-// (openPullsFor) names no open pull request for it, which the sweep waits on
-// instead of room. One search reads the oldest DEFERRED_AHEAD_READS; past
-// them, an older deferred issue counts as one. An unreadable or incomplete
-// answer counts as one, since the sweep admits deferred issues oldest first
-// anyway.
-export async function deferredAhead(github, repository, issue, pullsFor = (number) => openPullsFor(github, repository, number)) {
+// reads deferred (`listing.issues`, resolve-config.mjs issuesByStatus over
+// ["deferred"]), roomDeferred holds, and `pullsFor(number)` (openPullsFor)
+// names no open pull request for it, which the sweep waits on instead of
+// room. A deferred Work status is a ready issue waiting for room, so it
+// reads as status: ready; a legacy issue (no counted field value) is judged
+// by its labels. The oldest DEFERRED_AHEAD_READS are read; past them, an
+// older deferred issue counts as one. An unreadable answer counts as one,
+// since the sweep admits deferred issues oldest first anyway.
+export async function deferredAhead(github, repository, issue, listing, pullsFor = (number) => openPullsFor(github, repository, number)) {
   const created = Date.parse(issue.created_at);
   if (!Number.isFinite(created)) {
     return true;
   }
-  const before = new Date(created).toISOString().replace(/\.\d{3}Z$/, "+00:00");
-  const q = `repo:${repository} is:issue is:open label:${DEFERRED} created:<${before}`;
   try {
-    const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&sort=created&order=asc&per_page=${DEFERRED_AHEAD_READS}`);
-    if (answer?.incomplete_results !== false || !Array.isArray(answer.items) || !Number.isSafeInteger(answer.total_count)) {
-      return true;
-    }
-    for (const item of answer.items) {
-      if (roomDeferred(item?.labels) && (await pullsFor(item.number)).length === 0) {
+    const older = (await listing.issues(["deferred"]))
+      .filter((item) => Number(item.number) !== Number(issue.number) && Date.parse(item.created_at) < created)
+      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.number - b.number);
+    for (const item of older.slice(0, DEFERRED_AHEAD_READS)) {
+      if (roomDeferred(item.state === null ? item.labels : [...item.labels, READY]) && (await pullsFor(item.number)).length === 0) {
         return true;
       }
     }
-    return answer.total_count > answer.items.length;
+    return older.length > DEFERRED_AHEAD_READS;
   } catch {
     return true;
   }
@@ -2575,29 +2593,30 @@ export async function deferredAhead(github, repository, issue, pullsFor = (numbe
 export const RACE_WINDOW_MS = 10 * 60_000;
 
 // The open issues that entered admission at or after `since` (ms since the
-// epoch), [{number, at}], earliest first. Each one carries admission-deferred
-// or agent-ready in the issues listing, read in that order: admit() adds
-// agent-ready before it removes its claim, so an issue gone from the first
-// listing is in the second. `at` is its newest admission-deferred add at or
-// after `since`, the claim admit() makes, else its first agent-ready add then (an admission
-// that made no claim), or null when its events show no add of either label
-// at all yet; one whose adds all predate `since` is left out. A failed read
-// throws.
-export async function admissionsSince(github, repository, since) {
+// epoch), [{number, at}], earliest first. Each one reads deferred
+// (`listing.issues`, issuesByStatus) or carries agent-ready in the issues
+// listing, read in that order: admit() writes agent-ready before it drops
+// its claim, so an issue gone from the first listing is in the second. `at`
+// is its newest change to deferred at or after `since` in its status history
+// (`listing.events(number)`, read-status.mjs statusEvents, where that change
+// reads as an admission-deferred add), the claim admit() makes, else its
+// first agent-ready add then (an admission that made no claim), or null when
+// its history shows no add of either at all yet; one whose adds all predate
+// `since` is left out. A failed read throws.
+export async function admissionsSince(github, repository, since, listing) {
   const stamp = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
   const listed = new Set();
-  for (const label of [DEFERRED, AGENT_READY]) {
-    for (const item of await paginate(github, `/repos/${repository}/issues?labels=${encodeURIComponent(label)}&state=open&since=${stamp}`)) {
-      if (!item?.pull_request && Number.isSafeInteger(item?.number)) {
-        listed.add(item.number);
-      }
+  for (const item of [
+    ...(await listing.issues(["deferred"], { since: stamp })),
+    ...(await paginate(github, `/repos/${repository}/issues?labels=${encodeURIComponent(AGENT_READY)}&state=open&since=${stamp}`)),
+  ]) {
+    if (!item?.pull_request && Number.isSafeInteger(item?.number)) {
+      listed.add(item.number);
     }
   }
   const entered = [];
   for (const number of listed) {
-    const adds = (await paginate(github, `/repos/${repository}/issues/${number}/events`)).filter(
-      (event) => event?.event === "labeled" && [AGENT_READY, DEFERRED].includes(event.label?.name),
-    );
+    const adds = (await listing.events(number)).filter((event) => event?.event === "labeled" && [AGENT_READY, DEFERRED].includes(event.label?.name));
     const times = (name) => adds.filter((event) => event.label.name === name).map((event) => Date.parse(event.created_at)).filter((time) => Number.isFinite(time) && time >= since);
     const [claims, admits] = [times(DEFERRED), times(AGENT_READY)];
     if (adds.length === 0) {
@@ -2631,14 +2650,17 @@ async function removeLabel(github, base, name) {
 }
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
-// status for the issue lane. `mirrorStatus` (write-status.mjs statusMirror)
-// sets the Work status field from the labels each outcome leaves. `statusOf`
-// (admissionFacts) adds the field's hold to the holds decide() reads; the
-// labels this writes from stay the issue's own. Returns {outcome, reasons}.
-export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, mirrorStatus = async () => {}, statusOf, log = console.log }) {
+// status for the issue lane. `setStatus(number, state)` (write-status.mjs
+// statusWriter's `set`) writes the Work status each outcome leaves, where the
+// label write was; a failed write throws. Status labels the issue still
+// carries come off as before; only agent-ready is still added as a label.
+// `statusOf` (admissionFacts) decides the label names and status history
+// decide() reads. `listing` lists deferred issues and reads one issue's
+// status history (deferredAhead, admissionsSince). Returns {outcome, reasons}.
+export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, setStatus, statusOf, listing, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const mirror = (add, remove = []) => mirrorStatus(number, { had: names(issue.labels), add, remove });
+  const own = names(issue.labels);
   const facts = await admissionFacts({
     github,
     repository,
@@ -2662,8 +2684,13 @@ export async function admit({ github, repository, number, verdict, rules, humans
     webHosts,
   });
   const reasons = decision.reasons.join("; ");
+  // A state the issue already reads is not written again: a second write
+  // would name the lanes App as the setter of a person's hold, or read as a
+  // fresh status: ready that lifts an agent-ready removal (admissionSettled).
+  const lower = names(facts.holdLabels ?? own);
+  const write = (state, label) => (lower.includes(label) ? undefined : setStatus(number, state));
   const undefer = async () => {
-    if (names(issue.labels).includes(DEFERRED)) {
+    if (own.includes(DEFERRED)) {
       await github("DELETE", `${base}/labels/${DEFERRED}`);
     }
   };
@@ -2676,39 +2703,46 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // admission-deferred on an issue with neither, which the sweep admits.
     // Any other refusal parks at status: confirmed, which the triage sweep
     // skips: an agent fixes the reason and dispatches intake again.
-    const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
-    await github("POST", `${base}/labels`, { labels: [status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])] });
-    await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
+    const parked = decision.hold ? NEEDS_DECISION : CONFIRMED;
+    await write(decision.hold ? "needs-owner-decision" : "confirmed", parked);
+    const marks = [...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])];
+    if (marks.length > 0) {
+      await github("POST", `${base}/labels`, { labels: marks });
+    }
+    await removeLabel(github, base, READY);
     // A manual re-dispatch leaves a parked status: confirmed beside
     // status: ready; the hold is the one status that stands.
-    if (status !== CONFIRMED && names(issue.labels).includes(CONFIRMED)) {
+    if (parked !== CONFIRMED && own.includes(CONFIRMED)) {
       await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
     }
     await undefer();
-    await mirror([status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])], [READY, DEFERRED, ...(status !== CONFIRMED ? [CONFIRMED] : [])]);
     // A hold names its owner reason (../lib/stop-reason.mjs); a parked
     // refusal hands nothing to a person, so it carries no marker.
     await sayWhy(github, repository, base, comments, decision.hold ? heldRefusalText(reasons, decision.reason) : refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
-    return { outcome: "refused", reasons: decision.reasons, status };
+    return { outcome: "refused", reasons: decision.reasons, status: parked };
   }
   if (decision.verdict === "wait" && decision.retriage) {
-    // With no status label, the hourly triage sweep dispatches intake again;
-    // the report is cited as data the lanes App wrote, never as instructions.
-    await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
+    // At needs-triage, the hourly triage sweep dispatches intake again; the
+    // report is cited as data the lanes App wrote, never as instructions.
+    await removeLabel(github, base, READY);
     await undefer();
-    await mirror([], [READY, DEFERRED]);
+    await write("needs-triage", "needs-triage");
     await sayWhy(github, repository, base, comments, retriageNote(reasons, decision.retriage));
     log(`admit: #${number} sent back to intake (${reasons})`);
     return { outcome: "retriage", reasons: decision.reasons };
   }
   if (decision.verdict === "wait") {
+    // A wait with no open pull request leaves the issue at ready, off deferred,
+    // so the sweep does not admit it.
     if (decision.pulls.length === 0) {
       await undefer();
-    } else if (!names(issue.labels).includes(DEFERRED)) {
-      await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+      if (lower.includes(DEFERRED)) {
+        await setStatus(number, "ready");
+      }
+    } else {
+      await write("deferred", DEFERRED);
     }
-    await mirror(decision.pulls.length === 0 ? [] : [DEFERRED], decision.pulls.length === 0 ? [DEFERRED] : []);
     await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reasons}.`);
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
@@ -2719,7 +2753,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
   // as an incomplete search answer admits nothing.
   const unread = s.admission_basis === "fail-open";
   const full = s.paused || unread || !s.admission_open || (s.admission_room ?? 1) <= 0;
-  if (full || (await deferredAhead(github, repository, issue))) {
+  if (full || (await deferredAhead(github, repository, issue, listing))) {
     const why = !full
       ? `an older issue deferred for room (${DEFERRED}) is ahead of it`
       : s.paused
@@ -2727,48 +2761,46 @@ export async function admit({ github, repository, number, verdict, rules, humans
         : unread
           ? "the issue lane's queued count could not be read (admission_basis fail-open)"
           : `admissions are closed (${s.admission_reason})`;
-    await github("POST", `${base}/labels`, { labels: [DEFERRED] });
-    await mirror([DEFERRED]);
+    await write("deferred", DEFERRED);
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }
   // Runs for other issues may have read the same room: the issue claims its
-  // place with a fresh admission-deferred add, which a later claimant reads
-  // ahead of its own, and keeps the claim unless fewer than the room count
-  // ahead of it (admissionsAhead).
+  // place with a fresh change of its Work status to deferred, which a later
+  // claimant reads ahead of its own, and keeps the claim unless fewer than the
+  // room count are ahead of it (admissionsAhead). A field that already reads
+  // deferred is set to ready first, so the claim is a new change.
   const capped = Number.isFinite(s.admission_room);
   if (capped) {
-    if (names(issue.labels).includes(DEFERRED)) {
+    if (own.includes(DEFERRED)) {
       await removeLabel(github, base, DEFERRED);
     }
-    await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+    if (lower.includes(DEFERRED)) {
+      await setStatus(number, "ready");
+    }
+    await setStatus(number, "deferred");
     let ahead;
     try {
-      ahead = admissionsAhead(await admissionsSince(github, repository, checkedAt - RACE_WINDOW_MS), number);
+      ahead = admissionsAhead(await admissionsSince(github, repository, checkedAt - RACE_WINDOW_MS, listing), number);
     } catch (error) {
       const why = `the admissions racing it could not be read (${String(error?.message ?? error).replaceAll("\n", " ")})`;
-      await mirror([DEFERRED]);
       log(`admit: #${number} deferred: ${why}`);
       return { outcome: "deferred", reasons: [why] };
     }
     if (ahead >= s.admission_room) {
       const why = `${ahead} issue(s) entered admission ahead of it since check-wip-cap's count, which takes the room of ${s.admission_room} it read`;
-      await mirror([DEFERRED]);
       log(`admit: #${number} deferred: ${why}`);
       return { outcome: "deferred", reasons: [why] };
     }
   }
   await github("POST", `${base}/labels`, { labels: [AGENT_READY] });
-  if (capped) {
-    await removeLabel(github, base, DEFERRED);
-  }
+  await setStatus(number, AGENT_READY);
   // A manual re-dispatch skips intake-reenter, which lifts the parked
   // status: confirmed; lift it here, as a refusal lifts status: ready, so
   // the issue keeps one status label.
-  if (names(issue.labels).includes(CONFIRMED)) {
+  if (own.includes(CONFIRMED)) {
     await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
   }
-  await mirror([AGENT_READY], [CONFIRMED, ...(capped ? [DEFERRED] : [])]);
   log(`admit: #${number} labeled ${AGENT_READY}`);
   return { outcome: "admitted", reasons: [] };
 }

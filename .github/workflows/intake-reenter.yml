@@ -1,16 +1,18 @@
 name: intake-reenter
 
-# Sends an answered issue back to intake triage. A listed human's
+# Sends an answered issue back to intake triage. The issue's status is its
+# Work status field (hold labels still hold on top of it). A listed human's
 # `**Decision recorded.**` comment on a `status: needs-decision` issue or on
 # a `status: confirmed` one with no other status and no `agent-ready`, or
 # the author's or a listed human's reply on a `status: needs-info` issue,
-# takes the status label off (a decision on an issue with `needs-human`
-# changes nothing), adds `needs-triage`, and dispatches intake-triage.yml once when intake admits
-# the issue's author (a listed human or the lanes App). A listed human's
-# decision on an issue with no `status:` label and no `agent-ready`,
+# takes a status label the issue still carries off (a decision on an issue
+# with `needs-human` changes nothing), sets the Work status field to
+# needs-triage, and dispatches intake-triage.yml once when intake admits the
+# issue's author (a listed human or the lanes App). A listed human's
+# decision on an issue with no `status:` and no `agent-ready`,
 # `needs-human`, `needs-triage` or `admission-deferred` takes nothing off and
-# does the same. It never adds
-# `agent-ready`. The rules are in .github/scripts/intake-reenter/reenter.mjs.
+# does the same. It never adds `agent-ready`. The rules are in
+# .github/scripts/intake-reenter/reenter.mjs.
 #
 # No model and no App token: the job's GITHUB_TOKEN edits labels and the Work
 # status field and starts the dispatch, as the triage sweep's does, and intake-triage admits
@@ -19,16 +21,13 @@ name: intake-reenter
 # label's name and a field change's action and sender id, through env, reaches it, and no comment text reaches a shell. issue_comment and issues run this file from
 # the default branch only.
 #
-# A listed human who removes `needs-human` and leaves no `status:` label has
+# A listed human who removes `needs-human` and leaves no `status:` has
 # answered without a comment: the `issues: unlabeled` run reads the issue's
-# events, and when that person was the newest to remove `needs-human` from an
-# open issue with no status label, no `agent-ready` and an admitted author, it
-# adds `needs-triage` and dispatches the same way.
-#
-# work-unblock removes `status: confirmed` with the lanes App's token when a
-# blocker of an issue admission parked closes; only that token's removal starts
-# this run. The same `issues: unlabeled` run reads who removed it and dispatches
-# the same way when the App did and nothing else moves the issue.
+# label and field history, and when that person was the newest to remove
+# `needs-human` from an open issue with no status, no `agent-ready` and an
+# admitted author, it sets needs-triage and dispatches the same way. An
+# issue work-unblock unparks goes back to intake through the hourly triage
+# sweep, not this run.
 #
 # A listed human who changes the Work status field (48484079) from a hold to
 # none or needs-triage has released it: the `issues: field_added` or
@@ -65,20 +64,20 @@ jobs:
   reenter:
     # Pull request comments, bot and App-posted comments and closed issues
     # stop here, before a runner starts, and so does a comment without the
-    # decision marker anywhere but `status: needs-info`, and a decision on an
-    # issue at `status: ready` or with `agent-ready`, `needs-human`,
-    # `needs-triage` or `admission-deferred` and no parked status, which the
-    # script refuses anyway (`contains`, not `startsWith`: the script trims
-    # leading whitespace first; it alone tells a statusless issue apart);
-    # so does any unlabel other than `needs-human`, and a `needs-human` unlabel
-    # whose payload already shows `status: confirmed`: a session parking an
-    # issue swaps the labels in one edit, and the script refuses any issue
-    # with a `status:` label anyway. When the payload predates the add, the
-    # script's own label read refuses it. A bot's `status: confirmed` removal
-    # gets through unless the payload shows the status, `agent-ready` or
-    # `needs-triage` every other App removal lands after. A Work status field
-    # change gets through only on that field and from a person; the script
-    # reads who made it and from which state.
+    # decision marker anywhere but `status: needs-info` or by anyone but the
+    # issue's author (whose reply answers a needs-info hold that exists only
+    # on the Work status field), and a decision on an issue at
+    # `status: ready` or with `agent-ready`, `needs-human`, `needs-triage` or
+    # `admission-deferred` and no parked status, which the script refuses
+    # anyway (`contains`, not `startsWith`: the script trims leading
+    # whitespace first; it alone tells a statusless issue apart); so does any
+    # unlabel other than `needs-human`, and a `needs-human` unlabel whose
+    # payload already shows `status: confirmed`: a session parking an issue
+    # swaps the labels in one edit, and the script refuses any issue with a
+    # `status:` label anyway. When the payload predates the add, the script's
+    # own read refuses it. A Work status field change gets through only on
+    # that field and from a person; the script reads who made it and from
+    # which state.
     if: >-
       !github.event.issue.pull_request
       && github.event.issue.state == 'open'
@@ -89,6 +88,7 @@ jobs:
                  || contains(github.event.issue.labels.*.name, 'status: confirmed'))
                 && contains(github.event.comment.body, '**Decision recorded.**'))
                || contains(github.event.issue.labels.*.name, 'status: needs-info')
+               || github.event.comment.user.id == github.event.issue.user.id
                || (contains(github.event.comment.body, '**Decision recorded.**')
                    && !contains(github.event.issue.labels.*.name, 'status: ready')
                    && !contains(github.event.issue.labels.*.name, 'agent-ready')
@@ -98,13 +98,6 @@ jobs:
           || (github.event_name == 'issues'
               && ((github.event.label.name == 'needs-human'
                    && !contains(github.event.issue.labels.*.name, 'status: confirmed'))
-                  || (github.event.label.name == 'status: confirmed'
-                      && github.event.sender.type == 'Bot'
-                      && !contains(github.event.issue.labels.*.name, 'status: ready')
-                      && !contains(github.event.issue.labels.*.name, 'status: needs-decision')
-                      && !contains(github.event.issue.labels.*.name, 'status: needs-info')
-                      && !contains(github.event.issue.labels.*.name, 'agent-ready')
-                      && !contains(github.event.issue.labels.*.name, 'needs-triage'))
                   || ((github.event.action == 'field_added' || github.event.action == 'field_removed')
                       && github.event.issue_field.id == 48484079
                       && github.event.sender.type == 'User'))))
