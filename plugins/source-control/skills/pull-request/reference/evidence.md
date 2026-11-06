@@ -8,6 +8,13 @@ to the retained CI capture artifact when one exists. It posts only after the ver
 the PR's current head and only when a leak scan of the comment body finds nothing. Every refusal
 below posts nothing and names its reason in the report.
 
+In CI the pr-merge lane posts the same marked comment, not this step: the pr-verify jobs hold read
+tokens only. The comment goes up after a passing verdict and before each merge path's merge, the
+`merge-pr` gate's enqueue and the `enable-auto-merge` arm, from the `/source-control:babysit-prs`
+merge gate. It links the head's `pr-capture-<pr>-<head>`
+artifact and its expiry date, and attaches no file. With no capture artifact it posts nothing and
+the merge goes on.
+
 ## Contents
 
 - Inputs
