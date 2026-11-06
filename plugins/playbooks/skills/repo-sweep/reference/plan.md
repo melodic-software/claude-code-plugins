@@ -67,7 +67,7 @@ open the draft PR. Then:
    exact branch off the up-to-date default branch. If the `source-control` plugin is not installed or
    the skill cannot take an exact branch name, run
    `git fetch origin`, then `git worktree add -b '<branch>' '<path>' 'origin/<default-branch>'`
-   at the path it would have used. All later commands run in that worktree.
+   at the path it would have used, and say once that the `source-control` plugin would create and claim it. All later commands run in that worktree.
 3. Seed commit, since GitHub refuses a PR with no commits: `git commit --allow-empty -m
    "chore(repo-sweep): seed hygiene sweep"`, then `git push -u origin '<branch>'`.
 4. PR body in `W/pr-body.md`, per the repository's PR body convention when it has one, else:
