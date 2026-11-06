@@ -198,6 +198,27 @@ test("requests carrying server-tool blocks are refused", async () => {
   assert.equal(up.seen.length, before);
 });
 
+test("content blocks with a url source are refused at any depth; a base64 source passes", async () => {
+  const up = await stubUpstream(okJson());
+  const { socket } = await startProxy(up);
+  const base64 = { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } };
+  const nested = { type: "tool_result", tool_use_id: "toolu_1", content: [{ type: "text", text: "see" }, base64] };
+  assert.equal((await call(socket, { body: message({ messages: [{ role: "user", content: [nested] }] }) })).status, 200);
+  const before = up.seen.length;
+  const refused = [
+    message({ messages: [{ role: "user", content: [{ ...nested, content: [{ type: "image", source: { type: "url", url: "https://example.com/a.png" } }] }] }] }),
+    message({ messages: [{ role: "user", content: [{ type: "document", source: { type: "url", url: "https://example.com/a.pdf" } }] }] }),
+    message({ system: [{ type: "text", text: "x" }, { type: "document", source: { type: "url", url: "https://example.com/s.pdf" } }] }),
+  ];
+  for (const body of refused) {
+    const res = await call(socket, { body });
+    assert.equal(res.status, 403);
+    assert.equal(res.headers["x-should-retry"], "false");
+    assert.equal(JSON.parse(res.body).error.type, "permission_error");
+  }
+  assert.equal(up.seen.length, before);
+});
+
 test("usage is summed without double counting message_start and the cumulative message_delta", async () => {
   // Token counts from the streaming doc's own examples
   // (https://platform.claude.com/docs/en/build-with-claude/streaming).

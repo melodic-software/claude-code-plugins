@@ -3,7 +3,7 @@
 // stdin, never argv or env) and listens on a unix socket, so pull request code
 // in the no-network sandbox never sees the key. Every request passes an
 // ordered pipeline of checks (path, size, parse, model, max_tokens, server
-// tools, cap reservation); one that passes goes upstream with the client's
+// tools, url content sources, cap reservation); one that passes goes upstream with the client's
 // credential replaced, and the response is relayed byte for byte as it
 // arrives. One budget holds the committed and in-flight reserved tokens, so
 // concurrent requests cannot pass the per-job cap together.
@@ -195,6 +195,23 @@ export const CHECKS = Object.freeze([
     }
     for (const m of Array.isArray(body.messages) ? body.messages : []) {
       if (Array.isArray(m?.content) && m.content.some(isServerToolBlock)) return policy("server tool blocks are not allowed through this proxy");
+    }
+    return null;
+  },
+  // A content source of type "url" makes the API fetch a URL the client
+  // chose: egress out of the no-network sandbox. Walked iteratively at any
+  // depth (tool_result content included) so deep nesting cannot overflow.
+  function urlSources(ctx) {
+    const stack = [ctx.body.messages, ctx.body.system];
+    while (stack.length) {
+      const v = stack.pop();
+      if (!v || typeof v !== "object") continue;
+      if (!Array.isArray(v) && v.source && typeof v.source === "object" && v.source.type === "url") {
+        return policy("url content sources are not allowed through this proxy");
+      }
+      for (const child of Array.isArray(v) ? v : Object.values(v)) {
+        if (child && typeof child === "object") stack.push(child);
+      }
     }
     return null;
   },
