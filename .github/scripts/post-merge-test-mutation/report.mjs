@@ -1,8 +1,8 @@
 // post-merge-test-mutation.yml's report job: the audit's structured output is
 // untrusted model text, read from the environment, checked against
 // result.schema.json, and written to the job summary with the pushed range and
-// the pull request that merged its head. When exactly one pull request merged
-// it, the comment body for comment.mjs goes to COMMENT_PATH and its number to
+// the pull requests that merged its commits. When exactly one pull request merged
+// them, the comment body for comment.mjs goes to COMMENT_PATH and its number to
 // the `pull` step output. No model runs here.
 //
 // Env: STRUCTURED_OUTPUT, AUDIT_RESULT (the audit job's result), RESTORED
@@ -103,6 +103,28 @@ export async function mergedPulls({ github, repository, sha }) {
   }
 }
 
+// The pull requests that merged any commit of the pushed range: a merge queue
+// lands several pull requests in one push, and the audit mutates the whole
+// range, so the head's pull request alone may not own a survivor. A range the
+// compare read does not list in full, or any failed read, is `null`.
+export async function rangePulls({ github, repository, before, after }) {
+  let commits;
+  try {
+    const compare = await github("GET", `/repos/${repository}/compare/${before}...${after}`);
+    commits = (compare?.commits ?? []).map((c) => c?.sha).filter((sha) => SHA.test(sha ?? ""));
+    if (!commits.length || commits.length !== compare.total_commits) return null;
+  } catch {
+    return null;
+  }
+  const numbers = new Set();
+  for (const sha of commits) {
+    const pulls = await mergedPulls({ github, repository, sha });
+    if (pulls === null) return null;
+    pulls.forEach((n) => numbers.add(n));
+  }
+  return [...numbers].sort((a, b) => a - b);
+}
+
 // A fence longer than any backtick run in the text, so model text cannot
 // close it and render as markdown.
 const fenced = (text) => {
@@ -182,12 +204,16 @@ function outcomeOf(env) {
 export async function main(env = process.env, { github } = {}) {
   const parsed = outcomeOf(env);
   const client = github ?? createGitHub({ token: env.GITHUB_TOKEN });
-  const pulls = SHA.test(env.AFTER ?? "") ? await mergedPulls({ github: client, repository: env.REPOSITORY, sha: env.AFTER }) : null;
+  const pulls = !SHA.test(env.AFTER ?? "")
+    ? null
+    : env.RANGE_MODE === "range" && SHA.test(env.BEFORE ?? "")
+      ? await rangePulls({ github: client, repository: env.REPOSITORY, before: env.BEFORE, after: env.AFTER })
+      : await mergedPulls({ github: client, repository: env.REPOSITORY, sha: env.AFTER });
   const summary = render({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY });
   appendFileSync(env.GITHUB_STEP_SUMMARY, summary);
   // A comment is posted only when a survivor or an uncovered mutant needs action,
-  // and only on the one pull request that merged the head. Every other outcome is
-  // in the summary; an earlier comment from the same head stays as it is.
+  // and only on the one pull request that merged the audited range. Every other
+  // outcome is in the summary; an earlier comment from the same head stays as it is.
   let actionable = false;
   if (!parsed.error && !parsed.stop) {
     const { count } = scores(parsed.result.mutants);
@@ -196,7 +222,7 @@ export async function main(env = process.env, { github } = {}) {
   if (!actionable) {
     console.log("::notice::no pull request comment: no surviving or uncovered mutant needs action");
   } else if (pulls?.length !== 1) {
-    console.log(`::notice::no pull request comment: ${pulls === null ? "the merged pull request lookup failed" : `${pulls.length} pull requests merged the head`}`);
+    console.log(`::notice::no pull request comment: ${pulls === null ? "the merged pull request lookup failed" : `${pulls.length} pull requests merged the ${env.RANGE_MODE === "range" ? "range" : "head"}`}`);
   } else if (env.COMMENT_PATH && env.GITHUB_OUTPUT) {
     writeFileSync(env.COMMENT_PATH, commentBody({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY, runId: env.GITHUB_RUN_ID }));
     appendFileSync(env.GITHUB_OUTPUT, `pull=${pulls[0]}\n`);

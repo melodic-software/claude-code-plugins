@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Posted on #12:\n\n<!-- work-items:investigation outcome=not-reproduced desired=cause-named -->\n**Outcome:** not-reproduced.",
+      "why": "marker with the pair, outcome first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Posted on #12:\n\n<!-- work-items:investigation outcome=not-reproduced -->\n**Outcome:** not-reproduced.",
+      "why": "marker without the desired state"
+    },
+    {
+      "answer": "Posted <!-- work-items:investigation desired=cause-named outcome=not-reproduced --> and escalated.",
+      "why": "desired state before outcome breaks the outcome-first readers"
+    }
+  ]
+}
