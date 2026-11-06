@@ -396,7 +396,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "born-triaged": { contents: "read", issues: "read" },
     "kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
-    "intake-triage": { contents: "read", issues: "write" },
+    "intake-triage": { actions: "read", contents: "read", issues: "write" },
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-key-credit": { actions: "read" },
