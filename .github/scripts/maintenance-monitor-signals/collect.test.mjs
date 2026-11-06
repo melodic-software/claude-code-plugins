@@ -1164,6 +1164,26 @@ test("lane holds: past the cap the oldest unread runs are read, a carried one ta
   assert.equal(next.heldCarry.through, "2026-10-19T17:41:00Z");
 });
 
+// A red pr-refine run, 950, whose record-passes job logged a failed pass, and
+// a red run, 951, whose same line came at notice level, which no hold reads.
+test("lane holds: pr-refine's red runs are read, and a refine-failed warning counts as its hold", async () => {
+  const warning = (title, message) => ({ annotation_level: "warning", title, message });
+  const api = fakeApi([
+    [/workflows\/pr-refine\.yml\/runs\?status=failure/, { workflow_runs: [run(950, { event: "workflow_dispatch" }), run(951, { event: "workflow_dispatch" })] }],
+    [/runs\/950\/jobs/, { jobs: [{ id: 9500, name: "record-passes", conclusion: "success" }, { id: 9501, name: "fix-docs / run", conclusion: "failure" }] }],
+    [/check-runs\/9500\/annotations/, [warning("refine-failed", "pass=fix-docs reason=fix-docs-failure")]],
+    [/runs\/951\/jobs/, { jobs: [{ id: 9510, name: "record-passes", conclusion: "success" }] }],
+    [/check-runs\/9510\/annotations/, [notice("refine-failed", "pass=fix-docs reason=fix-docs-failure")]],
+    ...holdRoutes(),
+  ]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-refine").map((h) => [h.runId, h.item, h.reason]), [[950, null, "fix-docs failed: fix-docs-failure"]]);
+  assert.ok(!api.calls.some((c) => c.includes("check-runs/9501/")), "a failed job's annotations are not read");
+  // Only pr-refine lists its red runs.
+  assert.deepEqual(api.calls.filter((c) => /workflows\/[\w-]+\.yml\/runs\?status=failure/.test(c)).map((c) => /workflows\/([\w-]+)\.yml/.exec(c)[1]), ["pr-refine"]);
+});
+
 // intake-triage green runs 1000 on, one a minute from 15:37, each with an
 // apply-verdict job; 1000 and 1001 held with the notices apply-verdict.mjs
 // closing prints, the rest show only the api-budget notice.

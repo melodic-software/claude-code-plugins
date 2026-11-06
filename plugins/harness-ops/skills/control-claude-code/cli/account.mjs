@@ -1,18 +1,20 @@
 #!/usr/bin/env node
-// Prints the signed-in account's email and organization name, one per line, for
-// drive's mask post-check (SKILL.md `## Mask` `values:`). Reads only; see README.md.
-import { accountValues } from '../driver/driver.mjs';
+// Prints the driven session's account email and organization name, one per line, for drive's mask
+// post-check (SKILL.md `## Mask` `values:`). The session holder reads them in that session's own
+// launch environment, which the caller may not share (in CI it runs in another sandbox). See README.md.
+import { parseArgs } from 'node:util';
+import { drivenAccount } from '../driver/driver.mjs';
 
-const args = process.argv.slice(2);
-if (args.length) {
-  console.error(`account takes no arguments: ${args.join(' ')}`);
+let session;
+try {
+  ({ values: { session } } = parseArgs({ options: { session: { type: 'string' } } }));
+} catch (err) {
+  console.error(`account: ${err.message}`);
   process.exit(2);
 }
 try {
-  const values = accountValues();
-  if (!values.length) throw new Error('claude auth status names no email or organization');
-  console.log(values.join('\n'));
+  console.log((await drivenAccount(session)).join('\n'));
 } catch (err) {
   console.error(`account: ${err.message}`);
-  process.exit(1);
+  process.exit(err.code === 2 ? 2 : 1);
 }

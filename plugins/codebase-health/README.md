@@ -100,9 +100,17 @@ verified non-issue. Nothing project-specific is baked into the plugin.
 One `userConfig` option, `medium`: your own default for the rendered-view offer (default `auto`),
 read by the shared medium resolver above. Audit targets flow through the tracked
 `.claude/codebase-health.md` config seam above (written by `/codebase-health:setup apply`). No
-hooks, no MCP servers, no bundled scripts beyond the shared `lib/` copies (medium resolver, prerequisites check), no network
+hooks, no MCP servers, no bundled scripts beyond the shared `lib/` copies (medium resolver, prerequisites check, verification reader), no network
 calls of its own (Phase 2 may use whatever documentation-research tools your setup provides). State:
 the audit reads and writes only the consumer's own files under the scope you give it.
+
+A repository can commit `codebase-health.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/codebase-health.schema.json`](schemas/codebase-health.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/codebase-health:audit` runs its Phase 2 false-positive gate as a separate subagent: `strict` dispatches it even after an inline Phase 1, `light` and `off` skip it and report the findings `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

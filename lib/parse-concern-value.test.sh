@@ -275,6 +275,18 @@ rc=0
 (cd "$REPO" && bash "$SCRIPT" --ref origin/nope docs/conventions/x.yaml rung >/dev/null 2>&1) || rc=$?
 assert_exit 'a well-formed ref that does not resolve exits 2' 2 "$rc"
 
+# A nested block list read at a ref (work-items bug_path.fix_gate.scope).
+printf 'bug_path:\n  fix_gate:\n    scope:\n      - src/report/\n      - tests/report\n' \
+  >"$REPO/docs/conventions/work-items.yaml"
+git -C "$REPO" add docs/conventions/work-items.yaml
+git -C "$REPO" commit -q -m scope
+git -C "$REPO" update-ref refs/remotes/origin/main "$(git -C "$REPO" rev-parse HEAD)"
+printf 'bug_path:\n  fix_gate:\n    scope: [elsewhere]\n' >"$REPO/docs/conventions/work-items.yaml"
+assert_eq '--list --ref resolves a nested scope list to its committed paths' $'src/report\ntests/report' \
+  "$(cd "$REPO" && bash "$SCRIPT" --list --ref origin/main docs/conventions/work-items.yaml bug_path.fix_gate.scope)"
+assert_eq 'the same list key read without --list is empty' "" \
+  "$(cd "$REPO" && bash "$SCRIPT" --ref origin/main docs/conventions/work-items.yaml bug_path.fix_gate.scope)"
+
 # --- Untrusted names: a key or file name is never evaluated ---
 rc=0
 (cd "$TEST_TMPDIR" && bash "$SCRIPT" "$EX" 'a$(touch pwned2)' >/dev/null 2>&1) || rc=$?

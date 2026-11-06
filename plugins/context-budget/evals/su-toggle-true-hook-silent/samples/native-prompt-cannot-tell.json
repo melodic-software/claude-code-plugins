@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This is exactly what a native configuration prompt cannot tell you.",
+      "why": "cannot tell"
+    },
+    {
+      "answer": "The configure dialog never shows whether the hook launches.",
+      "why": "never shows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use the configuration prompt to turn it back on.",
+      "why": "no limit stated"
+    },
+    {
+      "answer": "The prompt shows true.",
+      "why": "no limit"
+    }
+  ]
+}

@@ -12,15 +12,37 @@ export class MissingFact extends Error {
   }
 }
 
+const matchesAny = (path, globs) =>
+  globs.some((glob) => posix.matchesGlob(path, glob));
+
+// The changed paths a predicate's `paths` and `paths-ignore` let through: a
+// path matching a `paths` glob (any path when `paths` is absent) and no
+// `paths-ignore` glob.
+export function matchedPaths(predicate, changedPaths) {
+  const paths = predicate?.paths;
+  const ignored = predicate?.["paths-ignore"] ?? [];
+  return changedPaths.filter(
+    (path) =>
+      (paths === undefined || matchesAny(path, paths)) &&
+      !matchesAny(path, ignored),
+  );
+}
+
 // Predicate key, the fact it reads, and whether the listed values match the
-// fact. Most keys match when any listed value does.
+// fact. Most keys match when any listed value does. `paths` and
+// `paths-ignore` decide together: one changed path must pass both.
 const any = (test) => (listed, fact) =>
   listed.some((value) => test(value, fact));
 const KEYS = [
   [
     "paths",
     "changedPaths",
-    any((glob, paths) => paths.some((path) => posix.matchesGlob(path, glob))),
+    (_listed, paths, predicate) => matchedPaths(predicate, paths).length > 0,
+  ],
+  [
+    "paths-ignore",
+    "changedPaths",
+    (_listed, paths, predicate) => matchedPaths(predicate, paths).length > 0,
   ],
   ["labels", "labels", any((label, labels) => labels.includes(label))],
   [
@@ -99,8 +121,8 @@ export function applies(predicate, facts) {
     if (facts[fact] === undefined) {
       throw new MissingFact(fact);
     }
-    if (!matches(listed, facts[fact])) {
-      if (key === "paths") {
+    if (!matches(listed, facts[fact], predicate)) {
+      if (fact === "changedPaths") {
         return { applies: false, skipReason: "not-applicable-paths" };
       }
       misses.add(missReason(key, facts[fact]));

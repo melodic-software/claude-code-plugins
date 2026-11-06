@@ -21,6 +21,13 @@
       "default": "keep",
       "description": "Whether /docs-hygiene:compress removes a, an and the. keep: articles stay, and compression runs on the in-session Edit backend with word-level cuts only. cut: articles may be removed, and the caveman backend runs when installed."
     },
+    "compress_revert_below_pct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 3,
+      "description": "Percent compression below which /docs-hygiene:compress reverts a result with zero semantic loss. 0 turns the auto-revert off; --force bypasses it on one run."
+    },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],
       "default": "standard",

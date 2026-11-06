@@ -5,6 +5,21 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.2.0] - 2026-11-06
+
+Minor: additive guidance.
+
+- **A hold records its reason, and an eval hold releases itself (§2, §7).** A hold's explanation
+  carries `<!-- pr-hold reason=<reason> -->`. A `reason=eval` hold comes off on pr-merge's next
+  scheduled run once a listed human posts
+  `<!-- eval-pair verdict=no-loss validity=VALID head=<sha> -->` for the current head (owner
+  decision Q-EVAL-HOLD, 2026-11-06). Evidence: finished VALID pairs waited 3.5 to 8.5 hours for a
+  hand removal the auto-mode classifier sometimes refused, on
+  [#13570](https://github.com/melodic-software/claude-code-plugins/pull/13570),
+  [#13572](https://github.com/melodic-software/claude-code-plugins/pull/13572),
+  [#13584](https://github.com/melodic-software/claude-code-plugins/pull/13584) and
+  [#13624](https://github.com/melodic-software/claude-code-plugins/pull/13624).
+
 ## [19.1.0] - 2026-11-04
 
 Minor: additive guidance.

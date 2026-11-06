@@ -3,6 +3,48 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.8.1] - 2026-11-06
+
+### Changed
+
+- `/harness-ops:changelog apply`'s native-drift filing reads work-items' `filing_posture` on an
+  unattended run: `manual-only`, the default, files nothing and lists the items as unfiled; only
+  `allowed` files without asking. Interactive runs keep the one batch confirmation.
+
+## [8.8.0] - 2026-11-06
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `<home>/harness-ops.yaml`, read from the default branch by `lib/read-verification.sh` and validated by the new `schemas/harness-ops.schema.json`. `/harness-ops:audit-install-state` follows it for its fresh-context cross-review (`strict` dispatches it for a single-agent run too), and `/harness-ops:changelog` for its local verifier, in `diff` and in `apply`'s re-check of saved rows. Under `light` and `off` neither dispatches; each records `verification: skipped (<level>)` and marks what it would have checked `unverified`.
+
+### Changed
+
+- `control-claude-code`'s `cli/account.mjs` prints `none: API-key auth has no signed-in account` and exits 0 when `claude auth status` reports API-key auth with no email and no organization, so drive's mask post-check can resolve the `values:` source to no values. Any other auth with no account still exits 1.
+
+## [8.7.0] - 2026-11-06
+
+### Added
+
+- plugins `reset-refresh.sh clean`: a reset level that also discards `data/`, keeping one `~/.claude/plugins.bak-<ts>` backup it never deletes. It runs only from a terminal and refuses while an earlier backup exists. It asks before an install that displays a marketplace-declared command, then accepts it by sha256, never with `-y`. On any CLI failure, snapshot difference or settings-file `cmp` difference, it moves the backup back. `preview` also reports what `clean` would discard.
+
+### Changed
+
+- The shared `exec-bash.mjs` launcher has a `--bps-seed <hook-utils.sh>` flag. On Windows it parses a Bash or PowerShell call's command once with shfmt and jq and hands the result to the script, so Git Bash does not fork the processes of that parse. The flag is inert on other platforms, and an inherited result is always dropped (#6634).
+
+### Fixed
+
+- `/harness-ops:changelog` and its status script read the Claude Code changelog from `CHANGELOG.md` in `anthropics/claude-code` first, falling back to the docs page only when that read fails, through one new `scripts/fetch-changelog.sh`; the shared parser accepts the repository file's `## X.Y.Z` releases, and the status output names the source on a `changelog:` line. A release no longer waits for the docs page to catch up ([#7407](https://github.com/melodic-software/claude-code-plugins/issues/7407)).
+
+## [8.6.2] - 2026-11-06
+
+### Fixed
+
+- gate audit-plugin-landscape's docs reads on the discovery plugin
+
+  Step 3 reads pages through /discovery:read-docs or /discovery:research
+  only when the discovery plugin is installed; otherwise it uses
+  WebFetch and says so.
+
 ## [8.6.1] - 2026-11-06
 
 ### Changed

@@ -26,6 +26,22 @@ keep `A..B`.
 | 4 Hand off | stage skills, user confirms filing | Branch rows run through the stage skills with `--unattended`; every other row is a handoff, filed by the workflow, not here |
 | 5 Native drift | files work items | Its would-be work items are handoffs of kind `native-drift` under their existing dedupe keys; behavior probes are listed in `probes` and never run live. The previous-run summary is never advanced, so a retry derives the same handoffs and the keys dedupe them |
 
+## Order and checkpoints
+
+The run can end at its turn cap or timeout at any step, and the workflow publishes only the plan
+on disk. So the plan is written as soon as the rows are decided and rewritten, whole, as each
+step finishes:
+
+1. Once the branch rule below has sorted every row, write the plan with status `planned`, no
+   `branches`, each would-be branch row as a `not-applied` handoff whose reason says the run
+   ended before its branch, and a `warnings` entry saying Phase 5 has not run.
+2. Run Phase 5 and rewrite the plan with its handoffs and `probes`, dropping that warning.
+3. Work the branches. After each one commits, rewrite the plan: add its `branches` entry and drop
+   its rows from `handoffs`. After one fails, rewrite its rows' reason to the failure.
+
+A stopped run's plan then opens the pull requests for the branches it finished and files every
+other row.
+
 ## Which rows get a branch
 
 A row goes on a branch only when every condition holds:
@@ -76,7 +92,7 @@ rows to `not-applied` handoffs. A branch this run did not create is never modifi
 
 ## The plan
 
-Written to `<memory_dir>/claude-code-changelog/<A>..<B>/ci-plan.json`. The run's last message ends
+Written to `<memory_dir>/claude-code-changelog/<A>..<B>/ci-plan.json`, at each checkpoint above. The run's last message ends
 with two lines, `ci-plan: <path>` and `status: <status>`. A `no-range` stop has no range directory:
 it writes no plan and ends with `ci-plan: none` and `status: stopped`.
 

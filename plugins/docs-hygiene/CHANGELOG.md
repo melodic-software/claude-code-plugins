@@ -1,5 +1,21 @@
 # Changelog: docs-hygiene plugin
 
+## [2.7.1] - 2026-11-06
+
+### Fixed
+
+- `/docs-hygiene:compress` now calls caveman's compress skill by its real name, `caveman:caveman-compress`. The old name, `caveman:compress`, matches no skill or command in caveman 4.0.1, so with `compress_articles: cut` the caveman backend could not be invoked.
+
+## [2.7.0] - 2026-11-06
+
+### Added
+
+- `compress_revert_below_pct` sets the percent below which `/docs-hygiene:compress` reverts a result with zero semantic loss. It defaults to 3, today's value, and `0` turns the auto-revert off. Set it per user in the plugin options or for a repository in `docs/conventions/docs-hygiene.yaml`; `--force` still bypasses it on one run.
+
+### Changed
+
+- The claim that `/caveman:compress` always removes articles now cites caveman's compress skill, with the date it was checked and what change would make it wrong.
+
 ## [2.6.0] - 2026-11-06
 
 ### Added
