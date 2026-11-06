@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: mg-plan-stops-before-write
 description: Asked to move a content-bearing root CLAUDE.md to AGENTS.md, migrate runs its plan script first, presents the plan with the one-line @AGENTS.md shim as the target, and writes no instruction file before the operator accepts
-tags: [migrate, outcome, scaffold]
+tags: [migrate, outcome, scaffold, no-network]
 expected_outcome: The run calls plan-migration.sh with --root, the reply names the one-line @AGENTS.md shim the root CLAUDE.md becomes, and no Write, Edit or shell redirect creates or changes AGENTS.md or CLAUDE.md.
 context:
   scaffold_script: scaffold.sh
