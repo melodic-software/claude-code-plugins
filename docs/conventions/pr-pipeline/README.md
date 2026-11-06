@@ -2569,6 +2569,7 @@ key proxy, the only route the driven Claude Code in the capture's sibling sandbo
 tokens one capture job may spend, cache tokens counted in full), `max-tokens-ceiling` (the largest
 `max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
 `max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
+`max-preflight-requests` (the messages requests that may reach its count_tokens preflight),
 `upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. `betas` and
 `body-keys` were measured from the driven session's requests on `claude-code-version`, so the pull
 request that bumps that version measures them again with it. When the key cannot capture (the

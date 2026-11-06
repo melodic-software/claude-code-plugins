@@ -24,7 +24,7 @@ const BODY_KEYS = ["context_management", "max_tokens", "messages", "metadata", "
 const BLOCK_TYPES = ["text", "image", "document", "tool_use", "tool_result", "thinking", "redacted_thinking"];
 const BASE_CONFIG = {
   tokenCap: 1_000_000, models: MODELS, maxTokensCeiling: 1000, maxBodyBytes: 100_000, maxInFlight: 8,
-  maxCountTokensRequests: 100, betas: BETAS, bodyKeys: BODY_KEYS, blockTypes: BLOCK_TYPES,
+  maxCountTokensRequests: 100, maxPreflightRequests: 1000, betas: BETAS, bodyKeys: BODY_KEYS, blockTypes: BLOCK_TYPES,
   // Longer than any test holds an upstream idle; the timeout tests override it.
   upstreamTimeoutMs: 10_000,
 };
@@ -728,6 +728,32 @@ test("a request whose max_tokens alone passes the spent cap is refused before an
   assertRefused(await call(socket, { body: message({ max_tokens: 50 }) }), 429, "rate_limit_error");
   assert.equal(up.counts.length, 2);
   assert.equal(up.seen.length, 1);
+});
+
+test("preflights are limited per job, so requests refused at reserve cannot repeat the count_tokens call without end", async () => {
+  // Each preflight counts 900 input tokens; 900 + max_tokens 200 = 1100 is past the cap of 1000, so every reserve fails.
+  const up = await stubUpstream(okJson(), { countTokens: 900 });
+  const { socket } = await startProxy(up, { tokenCap: 1000, maxTokensCeiling: 200, maxPreflightRequests: 3 });
+  for (let i = 1; i <= 3; i++) {
+    assertRefused(await call(socket, { body: message({ max_tokens: 200 }) }), 429, "rate_limit_error");
+    assert.equal(up.counts.length, i);
+  }
+  // The fourth is refused before its preflight: three upstream calls in all, none to /v1/messages.
+  const fourth = await call(socket, { body: message({ max_tokens: 200 }) });
+  assertRefused(fourth, 429, "rate_limit_error");
+  assert.match(JSON.parse(fourth.body).error.message, /^spend limit reached \(per-job request limit\)$/);
+  assert.equal(up.counts.length, 3);
+  assert.equal(up.seen.length, 0);
+});
+
+test("a request that passes counts toward the preflight limit too", async () => {
+  const up = await stubUpstream(okJson(), { countTokens: 10 });
+  const { socket } = await startProxy(up, { maxPreflightRequests: 2 });
+  assert.equal((await call(socket, { body: message() })).status, 200);
+  assert.equal((await call(socket, { body: message() })).status, 200);
+  assertRefused(await call(socket, { body: message() }), 429, "rate_limit_error");
+  assert.equal(up.counts.length, 2);
+  assert.equal(up.seen.length, 2);
 });
 
 // Runs the script as the workflow will.

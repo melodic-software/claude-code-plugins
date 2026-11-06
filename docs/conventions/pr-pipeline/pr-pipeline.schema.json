@@ -1312,7 +1312,7 @@
             "proxy": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["claude-code-version", "driven-model", "driven-small-model", "models", "token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
+              "required": ["claude-code-version", "driven-model", "driven-small-model", "models", "token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
               "description": "The key proxy the capture's driven Claude Code reaches the API through, and the driven session's models (README.md, Verifier verdict).",
               "properties": {
                 "claude-code-version": {
@@ -1361,6 +1361,11 @@
                   "type": "integer",
                   "minimum": 1,
                   "description": "Client count_tokens requests the proxy forwards per job (README.md, Verifier verdict)."
+                },
+                "max-preflight-requests": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Messages requests per job that may reach the proxy's upstream count_tokens preflight, which the token cap does not count; past it the proxy refuses (README.md, Verifier verdict)."
                 },
                 "upstream-timeout-ms": {
                   "type": "integer",

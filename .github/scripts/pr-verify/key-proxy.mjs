@@ -20,6 +20,7 @@
 //   maxBodyBytes           largest request body accepted
 //   maxInFlight            concurrent forwarded requests, count_tokens included
 //   maxCountTokensRequests client count_tokens requests allowed per job
+//   maxPreflightRequests   /v1/messages requests per job that may reach the count_tokens preflight
 //   betas                  anthropic-beta values a request may name
 //   bodyKeys               top-level request body keys a request may carry
 //   blockTypes             content block types allowed in messages and system
@@ -127,6 +128,7 @@ export function loadConfig(raw, upstreamOverride) {
     maxBodyBytes: positiveInt("maxBodyBytes"),
     maxInFlight: positiveInt("maxInFlight"),
     maxCountTokensRequests: positiveInt("maxCountTokensRequests"),
+    maxPreflightRequests: positiveInt("maxPreflightRequests"),
     upstreamTimeoutMs: positiveInt("upstreamTimeoutMs"),
     betas: stringList(c, "betas"),
     bodyKeys: nonEmpty("bodyKeys"),
@@ -338,6 +340,11 @@ export const CHECKS = Object.freeze([
     // Its max_tokens alone already passes the cap: refused before the preflight,
     // so a spent budget makes no further upstream call (our decision).
     if (ctx.budget.committed + ctx.budget.reserved + ctx.body.max_tokens > ctx.budget.cap) return spendLimit("per-job token cap");
+    // Each preflight is an upstream call the cap does not count, and one refused
+    // at reserve costs the client nothing, so preflights are limited per job too
+    // (our decision).
+    if (ctx.state.preflights >= ctx.config.maxPreflightRequests) return spendLimit("per-job request limit");
+    ctx.state.preflights += 1;
     const pre = await ctx.preflight(ctx);
     // A failure the client would retry against the API itself (a 429 or a
     // 5xx, relayed as sent; no answer, as a retryable 502) goes back to the
@@ -384,7 +391,7 @@ const relayHeaders = (incoming) => Object.fromEntries(Object.entries(incoming).f
 export function createProxy({ key, config, log = () => {} }) {
   if (typeof key !== "string" || !key) throw new Error("key is required");
   const budget = createBudget(config.tokenCap);
-  const state = { inFlight: 0, countTokensRequests: 0 };
+  const state = { inFlight: 0, countTokensRequests: 0, preflights: 0 };
   const lib = config.upstream.protocol === "https:" ? https : http;
   const basePath = config.upstream.pathname.replace(/\/$/, "");
   const upstreamPath = (ctx, path) => basePath + path + (ctx.query === ALLOWED_QUERY ? `?${ALLOWED_QUERY}` : "");

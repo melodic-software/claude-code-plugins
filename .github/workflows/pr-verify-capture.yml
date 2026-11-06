@@ -452,7 +452,7 @@ jobs:
         env:
           CONFIG: .base/docs/conventions/pr-pipeline.yaml
         run: |
-          yq -o=json -I=0 '.merge."verify-capture".proxy | {"tokenCap": ."token-cap", "models": .models, "maxTokensCeiling": ."max-tokens-ceiling", "maxBodyBytes": ."max-body-bytes", "maxInFlight": ."max-in-flight", "maxCountTokensRequests": ."max-count-tokens-requests", "upstreamTimeoutMs": ."upstream-timeout-ms", "betas": .betas, "bodyKeys": ."body-keys", "blockTypes": ."block-types", "socketMode": "660"}' "$CONFIG" |
+          yq -o=json -I=0 '.merge."verify-capture".proxy | {"tokenCap": ."token-cap", "models": .models, "maxTokensCeiling": ."max-tokens-ceiling", "maxBodyBytes": ."max-body-bytes", "maxInFlight": ."max-in-flight", "maxCountTokensRequests": ."max-count-tokens-requests", "maxPreflightRequests": ."max-preflight-requests", "upstreamTimeoutMs": ."upstream-timeout-ms", "betas": .betas, "bodyKeys": ."body-keys", "blockTypes": ."block-types", "socketMode": "660"}' "$CONFIG" |
             sudo tee /opt/ccd/key-proxy/config.json >/dev/null
           sudo install -m 0644 -o root -g root .base/.github/scripts/pr-verify/key-proxy.mjs /opt/ccd/key-proxy/key-proxy.mjs
           main=$(yq '.merge."verify-capture".proxy."driven-model"' "$CONFIG")
