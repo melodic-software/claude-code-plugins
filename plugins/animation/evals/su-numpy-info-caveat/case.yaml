@@ -16,8 +16,6 @@ graders:
     pattern: '\bpydeps\.py\W{0,3}run\b'
     target: 'last_message'
   - name: no-pip-fix
-    type: regex
-    pattern: '(?:^|[.!?]\s+|\n)(?!(?:[^\n.!?]|[.!?](?!\s))*\b(?:don[’'']t|do not|never|instead of|rather than|no need to|avoid|without|shouldn[’'']t|should not)\b)(?:[^\n.!?]|[.!?](?!\s))*(?:\b(?:pip3?|uv pip|python3? -m pip)\s+install\b|\buv\s+add\b)'
-    flags: 'i'
-    match: 'not_contains'
-    target: 'last_message'
+    type: llm
+    criteria: 'Legacy setup 3 numpy-version-is-info: ''Points at pydeps.py run, not a bare python or a fetch at run time''. PASS when the reply recommends no package install for the user or itself to run: no pip install, pip3 install, python -m pip install, uv pip install or uv add, in prose, after a colon, or in a command block. Describing how the SessionStart hook installs the hash-locked packages is not a recommendation. FAIL when the reply recommends or offers running any such install.'
+    focus: 'last_message'

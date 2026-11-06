@@ -9,6 +9,10 @@
     {
       "answer": "I didn't install anything. `/animation:setup` only checks, and the plugin treats these prerequisites as the operator's to install. Three rows fail.",
       "why": "smoke 1: only checks; the operator's to install"
+    },
+    {
+      "answer": "Three rows fail. ffmpeg: install ffmpeg from ffmpeg.org. Node.js: install Node.js from nodejs.org.",
+      "why": "never says check-only, invents no apply path"
     }
   ],
   "fail": [

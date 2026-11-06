@@ -1,33 +1,30 @@
 #!/usr/bin/env bash
-# A rotoscope work directory with a passing measure table, a review table flagging one drawing, and four 1:1 crops.
+# A rotoscope work directory with a passing measure.py table, a review.py table flagging one drawing, and four 1:1 crops.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bash "${here}/../fixtures/scaffold-guard.sh" work
 bash "${here}/../fixtures/ro-workdir.sh"
 mkdir -p work/out/full
-cat >work/out/full/table-full.md <<'MD'
-$ measure.py work --tag full
+cat >work/out/full/table-012-050.md <<'MD'
+# full d012-d050  target: xor <= 1.2 x floor, ssim >= 0.98, ssim_e >= 0.98
 
-| k | xor | ssim | paper_err | pass |
-|---|---|---|---|---|
-| 12 | 0.41% | 0.962 | 1.1 | yes |
-| 40 | 0.38% | 0.967 | 0.9 | yes |
-| 45 | 0.52% | 0.951 | 4.8 | yes |
-| 50 | 0.33% | 0.970 | 1.0 | yes |
-
-4/4 drawings meet the target
+| k | pts | xor % | floor % | xor/floor | replica-only px | source-only px | ssim | ssim_e | paper_err | paper_d R,G,B | pass |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 12 | 1.500 | 0.410 | 0.380 | 1.08 | 310 | 290 | 0.9862 | 0.9841 | 1.10 | +0.40,-0.20,+0.10 | yes |
+| 40 | 5.000 | 0.380 | 0.360 | 1.06 | 300 | 284 | 0.9871 | 0.9850 | 0.90 | +0.40,-0.20,+0.10 | yes |
+| 45 | 5.625 | 0.520 | 0.450 | 1.16 | 395 | 305 | 0.9824 | 0.9812 | 4.80 | +0.40,-0.20,+0.10 | yes |
+| 50 | 6.250 | 0.330 | 0.310 | 1.06 | 280 | 262 | 0.9880 | 0.9858 | 1.00 | +0.40,-0.20,+0.10 | yes |
+| mean | | 0.410 | 0.375 | | | | 0.9859 | 0.9840 | 1.95 | +0.40,-0.20,+0.10 | 4/4 |
 MD
-cat >work/out/full/review-full.md <<'MD'
-$ review.py work full
+cat >work/out/full/review-012-050.md <<'MD'
+# review full d012-d050
 
-| k | cluster px | blob | edge xor | tone diff | paper | crop | flag |
-|---|---|---|---|---|---|---|---|
-| 12 | 210 | no | 0.02% | 1.4 | #efe6d2 | crops/d012.png | |
-| 40 | 180 | no | 0.01% | 1.1 | #efe6d2 | crops/d040.png | |
-| 45 | 2310 | yes | 0.03% | 6.2 | #f1e2c8 | crops/d045.png | blob |
-| 50 | 150 | no | 0.01% | 0.9 | #efe6d2 | crops/d050.png | |
-
-1 of 4 drawings flagged
+| k | largest | blob | edge px | tile | paper_err | paper_d R,G,B | crop at | flags |
+|---|---|---|---|---|---|---|---|---|
+| 12 | R 210 sliver | - 0 | 0 | 1.4 | 1.10 | +0.40,-0.20,+0.10 | (180,96) |  |
+| 40 | B 180 sliver | - 0 | 0 | 1.1 | 0.90 | +0.40,-0.20,+0.10 | (220,96) |  |
+| 45 | R 2310 blob | R 2310 | 0 | 6.2 | 4.80 | +0.40,-0.20,+0.10 | (240,96) | blob |
+| 50 | B 150 sliver | - 0 | 0 | 0.9 | 1.00 | +0.40,-0.20,+0.10 | (250,96) |  |
 MD
 png() { printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' | base64 -d >"$1"; }
 mkdir -p work/out/full/crops

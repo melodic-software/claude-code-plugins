@@ -8,8 +8,9 @@ bash "${here}/../fixtures/ro-workdir.sh"
 bash "${here}/../fixtures/ro-complete.sh" 12
 clip() {
   if command -v ffmpeg >/dev/null 2>&1; then
-    ffmpeg -loglevel error -f lavfi -i "color=c=0x$2:s=768x576:d=12:r=24" \
-      -vf "drawbox=x='200+mod(floor(t*8)*7,240)':y=180:w=160:h=220:color=0x$3:t=$4${5:+,$5}" -pix_fmt yuv420p "$1"
+    ffmpeg -loglevel error -f lavfi -i "color=c=0x$2:s=768x576:d=12:r=24" -f lavfi -i "color=c=0x$2:s=160x220:d=12:r=24" \
+      -filter_complex "[1]drawbox=x=0:y=0:w=iw:h=ih:color=0x$3:t=$4[box];[0][box]overlay=x='200+mod(floor(t*8)*7,240)':y=180${5:+,$5}" \
+      -pix_fmt yuv420p "$1"
   else
     printf 'placeholder clip\n' >"$1"
   fi

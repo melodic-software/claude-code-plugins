@@ -42,6 +42,6 @@ graders:
     arm: 'both'
   - name: learnings-name-change
     type: regex
-    pattern: '(?:\b40\s*(?:-|–|to|through)\s*55\b|\[\s*40\s*,\s*55\s*\])[^\n]*\b(?:bias|fit\w*|brush|thin\w*)\b|\b(?:bias|fit\w*|brush)\b[^\n]*(?:\b40\s*(?:-|–|to|through)\s*55\b|\[\s*40\s*,\s*55\s*\])'
+    pattern: '(?:\b40\s*(?:-|–|to|through)\s*55\b|\[\s*40\s*,\s*55\s*\])[^\n]*\b(?:bias|fit\w*|brush)\b|\b(?:bias|fit\w*|brush)\b[^\n]*(?:\b40\s*(?:-|–|to|through)\s*55\b|\[\s*40\s*,\s*55\s*\])'
     flags: 'i'
     target: { source: file, path: work/learnings.md }
