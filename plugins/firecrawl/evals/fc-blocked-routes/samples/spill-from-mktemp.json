@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "OUT=$(mktemp \"${TMPDIR:-/tmp}/fc-scrape-XXXXXX\"); echo \"$OUT\"\nfirecrawl scrape \"https://docs.contoso-platform.example/guides/rate-limits\" \\\n  --format markdown \\\n  -o \"$OUT\""}}], "why": "the SKILL.md pattern: mktemp and scrape in one call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits --format markdown -o /tmp/fc-scrape-Ab12Cd"}}], "why": "the literal path a prior mktemp echoed"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o \"$(mktemp /tmp/fc-scrape-XXXXXX)\""}}], "why": "inline mktemp"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o $OUT && echo done"}}], "why": "bare variable, chained"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o D:\\tmp\\fc-scrape-9xQ2rT"}}], "why": "Windows path with a mktemp suffix"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape --help"}}], "why": "help, no output path"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o /tmp/page.md"}}], "why": "fixed name in /tmp"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o ./rate-limits.md"}}], "why": "relative path in the working directory"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o rate-limits.md"}}], "why": "bare relative name"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape \"https://docs.contoso-platform.example/guides/rate-limits\" -o \"${TMPDIR:-/tmp}/rate-limits.md\""}}], "why": "temp root with a fixed name"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits --output=/tmp/page-output"}}], "why": "fixed name shaped like a suffix, all lowercase"},
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v firecrawl && firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o '/tmp/rl.md'"}}], "why": "single-quoted fixed path after a presence check"}
+  ]
+}

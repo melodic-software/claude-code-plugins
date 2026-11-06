@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {"answer": [
+      {"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/SKILL.md"}},
+      {"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/context/configuration.md"}},
+      {"tool": "Bash", "input": {"command": "[[ -n \"${FIRECRAWL_API_KEY:-}\" ]] && echo set || echo unset"}},
+      {"tool": "Bash", "input": {"command": "firecrawl --version; firecrawl --status 2>&1 | head -10"}}
+    ], "why": "reads, then probes"}
+  ],
+  "fail": [
+    {"answer": [
+      {"tool": "Bash", "input": {"command": "firecrawl --status 2>&1 | head -10"}},
+      {"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/SKILL.md"}}
+    ], "why": "probes first"},
+    {"answer": [
+      {"tool": "Bash", "input": {"command": "[[ -n \"${FIRECRAWL_API_KEY:-}\" ]] && echo set || echo unset"}}
+    ], "why": "never reads the main skill"},
+    {"answer": [
+      {"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/SKILL.md"}}
+    ], "why": "reads but never probes"}
+  ]
+}

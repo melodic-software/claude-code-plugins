@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Consumers update through `/plugin marketplace update`.", "why": "names the command"},
+    {"answer": "Run /plugin marketplace update melodic-software, then restart.", "why": "with a marketplace argument"}
+  ],
+  "fail": [
+    {"answer": "Update the plugin from the marketplace.", "why": "no command"},
+    {"answer": "Run /plugin update firecrawl.", "why": "a different command"}
+  ]
+}

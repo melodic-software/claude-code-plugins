@@ -1,0 +1,14 @@
+{
+  "pass": [
+    { "answer": "Line 42 reads: \"The orchard sample shows the shape of a spoke link, [the big picture](reference/big-picture.md); it is an illustration\".", "why": "quotes the line" },
+    { "answer": "It sits in the 'Linking spokes (example only)' section, in the Orchard sample sentence.", "why": "names the sample" },
+    { "answer": "**Why it's wrong here:** The line sits under the heading \"Linking spokes (example only)\". The sentence says it is an illustration and that \"no such file ships with this skill.\"", "why": "smoke 2 reply: heading and sentence from the fixture" },
+    { "answer": "So the link is deliberately a dummy that shows what a spoke link looks like.", "why": "smoke 2 reply: the line's own phrase" }
+  ],
+  "fail": [
+    { "answer": "Line 42 may be an illustrative example; check it before fixing.", "why": "echoes the FAIL line's advice without reading the line" },
+    { "answer": "Create reference/big-picture.md so the link resolves.", "why": "blind fix" },
+    { "answer": "The checker says there is no such file under the skill dir, so it may be an illustrative example.", "why": "near miss: only the prompt's FAIL-line words" },
+    { "answer": "The FAIL: broken skill-internal ref: reference/big-picture.md (no such file under the skill dir; cited at SKILL.md:42 — hand-verify the line before fixing, may be an illustrative example)", "why": "echoes the prompt" }
+  ]
+}

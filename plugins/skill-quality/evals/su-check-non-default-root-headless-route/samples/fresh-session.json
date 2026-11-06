@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Rerun /skill-quality:setup check in a fresh session.",
+      "why": "fresh session"
+    },
+    {
+      "answer": "Start a new Claude Code session, then rerun check.",
+      "why": "new Claude Code session"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rerun check now to confirm.",
+      "why": "same session"
+    },
+    {
+      "answer": "Restart the check afterwards.",
+      "why": "restart of the check"
+    },
+    {
+      "answer": "/skill-quality:setup check\n\nOur skills live under packages/agent/skills.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

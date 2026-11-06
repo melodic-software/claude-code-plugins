@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "It ships no evals.json, which is not a failure.", "why": "not a failure" },
+    { "answer": "That isn't a validation error: evals are optional.", "why": "isn't a validation error" },
+    { "answer": "No file, so not failing; nothing to validate.", "why": "not failing" }
+  ],
+  "fail": [
+    { "answer": "FAIL: my-skill/evals/evals.json not found.", "why": "reported as a failure" },
+    { "answer": "Validation failed: the evals file is missing.", "why": "validation failed" },
+    { "answer": "/skill-quality:check validate-evals my-skill", "why": "echoes the prompt" }
+  ]
+}

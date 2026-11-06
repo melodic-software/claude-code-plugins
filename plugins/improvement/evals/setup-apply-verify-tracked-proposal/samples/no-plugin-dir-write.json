@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/improvement.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "the team file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "~/.claude/plugins/data/improvement-acme/config.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin data folder"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "~/.claude/plugins/cache/acme/improvement/1.0.0/reference/config.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin install folder"
+    }
+  ]
+}

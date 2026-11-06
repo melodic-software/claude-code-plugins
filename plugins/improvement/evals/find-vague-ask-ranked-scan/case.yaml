@@ -1,0 +1,65 @@
+schema_version: "1.1"
+name: find-vague-ask-ranked-scan
+description: 'Legacy find case vague-prompt-whole-repo-ranked-scan. A vague natural-language ask to improve the repo routes to /improvement:find (routes-to-find, with-only) and to no single-lens skill or /improvement:improve (no-single-lens-skill). The reply walks the scan dimensions beyond code (walks-dimensions), presents one ranked list whose every row carries an evidence citation with its ladder rung, an S/M/L size and a value-to-effort rationale with the strongest row first (every-row-fields, llm; rank1-row-has-size checks the first row deterministically), records evidence-gap lines (records-evidence-gaps), ends by asking which candidate to pick (asks-for-pick), and makes no Write or Edit call. Needs --scaffold and --allow-tools Write Edit so the no-write and no-edit graders can fail.'
+tags: [find, routing, ranked-list, no-network]
+expected_outcome: 'The run invokes /improvement:find, walks code, performance, product, config or automation and Claude Code setup, ranks candidates with evidence, rung, S/M/L size and value-to-effort on every row, lists evidence gaps after the list, asks which candidate to pick, and edits nothing.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'What should we improve in this repo? I''m not sure where to start, just tell me what would move the needle.'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: routes-to-find
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:improvement:)?find"'
+    min: 1
+    arm: with-only
+  - name: no-single-lens-skill
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:architecture:improve|code-tidying:tidy|review:[\w-]+|improvement:improve)"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: walks-dimensions
+    type: regex
+    pattern: '(?=[\s\S]*\bperformance\b)(?=[\s\S]*\bproduct\b)(?=[\s\S]*\b(?:config(?:uration)?|automation)\b)[\s\S]*(?:Claude Code|\bMCP\b|\bhooks?\b|operational setup)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: rank1-row-has-size
+    type: regex
+    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|[Rr]ank\s*|[Cc]andidate\s*)?\d{1,2}\b))[\s\S]){0,900}?(?:\|\s*\**[SML]\**\s*\||\b[Ss]ize\**\s*[:=]?\s*\**\s*\(?[SML]\b|\((?:[^()\n]{0,40}[,;]\s*)?[SML](?:\s*[,;][^()\n]{0,40})?\))'
+    flags: 'm'
+    target: last_message
+    arm: both
+  - name: records-evidence-gaps
+    type: regex
+    pattern: '(?<!\bno\s)\b(?:evidence[- ])?gaps?\b[^\n]{0,160}?\b(?:telemetry|CI|history|git|metrics?|latency|GitHub|measurements?|tests?)\b|\bno (?:telemetry|CI|git history|metrics|latency data|measurements?|timing data)\b[^\n]{0,80}?\b(?:available|configured|found|exists?|present|recorded|to rank)\b|\b(?:couldn\x27t|could not|can\x27t|cannot|didn\x27t|did not) see\b[\s\S]{0,400}?\b(?:telemetry|CI|history|git|metrics?|measurements?)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: asks-for-pick
+    type: regex
+    pattern: '\b(?:which|what)\b[^\n?]{0,120}\b(?:candidates?|one|pick|items?|rows?|options?|number|rank)\b[^\n?]{0,80}\?|\b(?:pick|choose|select)\b[^\n?]{0,80}\?|\b(?:reply|tell me|let me know)\b[^\n]{0,80}\b(?:which|number|rank|pick)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: every-row-fields
+    type: llm
+    criteria: 'PASS only if the reply presents one ranked list of improvement candidates in which every ranked row carries all three of: an evidence citation that names its source and its evidence-ladder rung (a rung number 1 to 4, or the rung by name: measured telemetry, repo or CI history, structural presence signal, model judgment); a size of S, M or L; and a value-to-effort rationale (why it is worth its cost). The first row must be the one the reply treats as highest value-to-effort. FAIL if any ranked row lacks a cited source with its rung, a size or a value-to-effort rationale, if the candidates are not in one ranked list, or if the reply implements a candidate instead of stopping at the list.'

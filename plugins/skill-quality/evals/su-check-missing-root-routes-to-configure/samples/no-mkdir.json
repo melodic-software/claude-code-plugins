@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .claude"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo makedir-free"
+          }
+        }
+      ],
+      "why": "no mkdir word"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .claude/skills"
+          }
+        }
+      ],
+      "why": "plain mkdir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -d .claude/skills || mkdir -p .claude/skills"
+          }
+        }
+      ],
+      "why": "mkdir after ||"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w &&\nmkdir .claude/skills"
+          }
+        }
+      ],
+      "why": "mkdir after a newline"
+    }
+  ]
+}

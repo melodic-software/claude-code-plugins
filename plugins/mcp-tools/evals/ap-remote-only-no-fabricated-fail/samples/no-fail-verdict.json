@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Overall:** 0 fail, 0 warn, 3 info (3 unverified)\n| docs | P1 Floating version | n/a | remote |",
+      "why": "no FAIL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| events | P1 Floating version | FAIL | |",
+      "why": "invented FAIL"
+    },
+    {
+      "answer": "events -> FAIL: sse is deprecated",
+      "why": "prose FAIL"
+    }
+  ]
+}

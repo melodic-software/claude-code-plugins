@@ -1,0 +1,56 @@
+schema_version: "1.1"
+name: setup-check-zero-config-info
+description: 'Legacy setup case check-reports-effective-config-read-only. Bare /improvement:setup runs the read-only check on a repository with no improvement config in any layer. The reply names all three cascade layers, user-global, team and personal override (names-three-layers), reports their absence as INFO (absent-is-info) with no FAIL status (no-fail-status), gives the effective churn window as the bundled default of 90 days (bundled-default-window), and neither writes, edits nor runs the /improvement:find scan (no-write, no-edit, no-scan). Slash-invoked (disable-model-invocation), so there is no Skill-fired grader. Needs --scaffold and --allow-tools Write Edit so the write graders can fail.'
+tags: [setup, check, zero-config, no-network]
+expected_outcome: 'A PASS/FAIL/INFO report saying no layer exists (user-global ~/.claude/improvement.md, team .claude/improvement.md, personal override .claude/improvement.local.md), reported as INFO: the bundled defaults apply (churn window 90 days ago, default exclusions) and Tier 2 is an evidence gap. Nothing is written and no scan runs.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/improvement:setup'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-scan
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:improvement:)?find"'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-three-layers
+    type: regex
+    pattern: '(?=[\s\S]*(?:~/\.claude/improvement\.md|\buser[- ]global\b))(?=[\s\S]*(?:improvement\.local\.md|\bpersonal override\b))[\s\S]*(?:\bteam\b|(?<![~\w/])\.claude/improvement\.md)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: absent-is-info
+    type: regex
+    pattern: '\bINFO\b[^\n]{0,200}?(?:[Aa]bsent|[Mm]issing|(?:not|Not) (?:present|found)|[Nn]o (?:config|layers?|files?)|[Zz]ero[- ]config|[Nn]one|[Bb]undled defaults?)|(?:[Aa]bsent|[Mm]issing|(?:not|Not) (?:present|found)|[Nn]o (?:config|layers?|files?)|[Zz]ero[- ]config|[Nn]one|[Bb]undled defaults?)[^\n]{0,200}?\bINFO\b'
+    target: last_message
+    arm: both
+  - name: no-fail-status
+    type: regex
+    pattern: '(?:^|\|)[ \t]*\**FAIL\**[ \t]*(?:\||:|$)|\b(?:Status|status)\**[ \t]*:?[ \t]*\**FAIL\b'
+    flags: 'm'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: bundled-default-window
+    type: regex
+    pattern: '90 days(?: ago)?[^\n]{0,160}?\b(?:bundled|default)|\b(?:bundled|default)\w*\b[^\n]{0,160}?90 days'
+    flags: 'i'
+    target: last_message
+    arm: both

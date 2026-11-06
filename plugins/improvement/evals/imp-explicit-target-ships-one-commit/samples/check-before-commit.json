@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"bash scripts/check.sh\",\"description\":\"Run checks\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"git commit -m \\\"fix(example): strict mode\\\"\",\"description\":\"Commit\"}}]}}", "why": "two calls in order" },
+    { "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"bash /ws/scripts/check.sh && git add plugins/example/scripts/report.sh && git commit -m x\"}}]}}", "why": "one chained call, absolute path" }
+  ],
+  "fail": [
+    { "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"git commit -m x\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"bash scripts/check.sh\"}}]}}", "why": "check after the commit" },
+    { "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"cat scripts/check.sh\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"git commit -m x\"}}]}}", "why": "reads the check script, never runs it" },
+    { "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"git commit -m x && bash scripts/check.sh\"}}]}}", "why": "commit before the check in one call" }
+  ]
+}

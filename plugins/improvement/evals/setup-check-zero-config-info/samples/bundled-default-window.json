@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| churn_window | \"90 days ago\" | bundled default |", "why": "value then provenance" },
+    { "answer": "Effective churn window: bundled default, 90 days ago.", "why": "provenance then value" }
+  ],
+  "fail": [
+    { "answer": "churn_window: 90 days ago (team file).", "why": "wrong provenance" },
+    { "answer": "Bundled defaults apply.", "why": "no window value" }
+  ]
+}

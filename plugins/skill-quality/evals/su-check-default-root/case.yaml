@@ -21,3 +21,15 @@ graders:
     pattern: 'CHECK_SKILL_SKILLS_ROOT'
     target: 'last_message'
     arm: 'with-only'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

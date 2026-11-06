@@ -1,5 +1,41 @@
 # Changelog for the PR pipeline convention
 
+## [8.58.2] - 2026-11-06
+
+### Fixed
+
+- pr-merge's candidate listing holds green when `gh pr list` returns its limit of 1000 pull
+  requests, as it holds on a failed listing: the `Merge lane hold` notice, `held` with the reason
+  `listing full`, and no gate, arm or merge that run (#12292). Before, the job ended red and wrote
+  no held summary, so the monitor never counted it; signal 12 now counts these sweeps.
+
+## [8.58.1] - 2026-11-06
+
+### Fixed
+
+- The concurrency table's `pr-feedback-dispatch` row now matches the workflow. Its group is per
+  pr-verify run (`verify-<run id>`), shared by all sweeps (`sweep`), or per reviewed head
+  otherwise, and `queue: max` queues waiting runs instead of replacing them.
+
+## [8.58.0] - 2026-11-06
+
+### Added
+
+- A report-only `Merge-Risk:` line on each unattended lane merge (#13657, owner decision Q57). The
+  new `pr-rate-merge-risk.yml` runs `/review:merge-risk` on each lanes App head that passes
+  pr-require-checks, beside pr-verify and as its own run, and uploads `pr-merge-risk-<pr>-<head>`.
+  `enable-auto-merge.mjs` reads it just before it arms that head and sets
+  `Merge-Risk: max=<level> demote=<bool> head=<sha> rubric=<version> rater=<model> checker=<model>`,
+  or `Merge-Risk: unrated reason=<reason>`, as the body's last line, so the squash commit carries
+  it. No gate, hold or rung reads the line, and a missing or failed rating never blocks or delays
+  the arm. The rating's model and effort come from `models.routes.merge-risk`, a new run route.
+
+## [8.57.0] - 2026-11-06
+
+### Added
+
+- `post-merge.paths` names post-merge accounting paths besides the lanes App's. This repository sets `owner-agent`, mode `record`, for agent sessions merging through the owner login (a pull request whose body carries a session marker or the Claude Code footer and whose commits carry a `Co-Authored-By: Claude` trailer). On each canary push run, post-merge-demotion-alert labels such a merge `merge-path:owner-agent` and a revert of one `post-merge:reverted`, and files no issue, demotes nothing, trips no revert breaker and holds no pull request. `merge-path.mjs rollup` prints merges, reverts and escaped defects per path for a window (README.md, "Merge paths").
+
 ## [8.56.7] - 2026-11-06
 
 ### Fixed

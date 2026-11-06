@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Which do you want: the payment-path slice, or /planning:plan for the whole migration?", "why": "which ... ?" },
+    { "answer": "Would you rather I ship the slice or plan the whole change?", "why": "would you" }
+  ],
+  "fail": [
+    { "answer": "Starting on the payment-path slice now.", "why": "does not wait" },
+    { "answer": "Here are two options: a slice or /planning:plan.", "why": "no question" }
+  ]
+}

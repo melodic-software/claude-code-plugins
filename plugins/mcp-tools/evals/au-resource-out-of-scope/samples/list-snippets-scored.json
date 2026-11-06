@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: list_snippets\n\n| Criterion | Authority | Result | Details |\n|---|---|---|---|\n| C1 Description has \"what\" | ANTHROPIC | PASS | |\n",
+      "why": "section"
+    },
+    {
+      "answer": "list_snippets: C14 info, everything else PASS",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I found list_snippets but did not score it.",
+      "why": "named, no verdict"
+    },
+    {
+      "answer": "| C1 Description has \"what\" | ANTHROPIC | PASS | |",
+      "why": "row with no tool"
+    }
+  ]
+}

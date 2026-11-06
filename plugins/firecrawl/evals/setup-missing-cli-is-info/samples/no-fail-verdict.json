@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": "| firecrawl-cli binary | INFO | absent |\n| Authentication | INFO | unset |\n\nNot broken: a missing CLI is INFO here, not a FAIL.", "why": "FAIL only inside a negating sentence"},
+    {"answer": "Nothing here is a FAIL. Both arrive at first use.", "why": "prose mention"},
+    {"answer": "- CLI: INFO\n- Auth: INFO (it would be FAIL only if the CLI answered unauthenticated)", "why": "conditional in a parenthesis"}
+  ],
+  "fail": [
+    {"answer": "| firecrawl-cli binary | FAIL | not on PATH |", "why": "table cell"},
+    {"answer": "| Authentication | **FAIL** | key unset |", "why": "bold cell"},
+    {"answer": "- FAIL: FIRECRAWL_API_KEY unset", "why": "bullet opens with FAIL"},
+    {"answer": "Auth: **FAIL**", "why": "bold verdict"},
+    {"answer": "FAIL - firecrawl not installed", "why": "line opens with FAIL"},
+    {"answer": "| firecrawl-cli binary | Fail | not on PATH |", "why": "mixed-case table cell (claude-review)"},
+    {"answer": "Auth: **Fail**", "why": "mixed-case bold verdict"}
+  ]
+}

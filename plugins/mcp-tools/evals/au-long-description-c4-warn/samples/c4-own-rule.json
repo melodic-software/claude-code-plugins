@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C4 Within the length floor | OPINION | WARN | |",
+      "why": "OPINION authority"
+    },
+    {
+      "answer": "The 2,048 floor is not a spec rule; it is built on client behavior.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C4 Within the length floor | SPEC-SHOULD | WARN | |",
+      "why": "spec authority"
+    },
+    {
+      "answer": "The description is too long.",
+      "why": "no provenance"
+    }
+  ]
+}

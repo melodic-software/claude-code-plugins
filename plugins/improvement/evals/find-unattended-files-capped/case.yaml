@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: find-unattended-files-capped
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ask-tool
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-repo-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"(?!(?:[^"\\]|\\.)*?(?:plugins[\\/]+data|CLAUDE_PLUGIN_DATA))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: report-path-under-plugin-data
+    type: regex
+    pattern: '(?:CLAUDE_PLUGIN_DATA\}?|plugins[\\/]+data[\\/]+[^\s\\/`''"]+)[\\/]+find[\\/]+github\.com[\\/]+acme[\\/]+checkout-service[\\/]+3f9a1c2e[\\/]+reports[\\/]+improvement-'
+    target: last_message
+    arm: both
+  - name: no-question-in-reply
+    type: regex
+    pattern: '\b(?:which|would you|do you want|shall I|should I|want me to|can you|could you|please (?:confirm|choose|pick))\b[^\n?]{0,160}\?'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: skips-duplicate-41
+    type: regex
+    pattern: '#41\b[^\n]{0,200}?\b(?:duplicate?\w*|already (?:open|tracked|filed|covered|exists|captured|on the tracker)|dedup\w*|skip\w*|not (?:re-?)?filed|covered by)\b|\b(?:duplicate?\w*|already (?:open|tracked|filed|covered|exists|captured)|dedup\w*|skip\w*|not (?:re-?)?filed|covered by)\b[^\n]{0,200}?#41\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: cap-and-no-self-disposal
+    type: llm
+    criteria: 'PASS only if the reply plans to file at most two work items this run, spends no filing slot on the instrument-checkout candidate that open item #41 already tracks (it is reported as a duplicate, not filed again), and plans nothing beyond the persisted report and those filings: no prioritizing, assigning, reordering, closing or demoting of existing items, no picking a candidate to start, and no code change. FAIL if three or more items would be filed, if a duplicate of #41 would be filed, or if the reply prioritizes the queue, closes or demotes an item, or starts implementing a candidate.'

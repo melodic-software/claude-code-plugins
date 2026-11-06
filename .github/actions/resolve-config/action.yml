@@ -15,6 +15,7 @@ inputs:
   model-route:
     description: >
       A run that is no lane activity (verify-pr for pr-verify.yml,
+      merge-risk for pr-rate-merge-risk.yml,
       review-code for pr-review-hosted.yml, review-security for
       pr-review-security-hosted.yml, triage-issue for intake-triage.yml,
       summarize-reuse for work-resolve-issue's summary pass,

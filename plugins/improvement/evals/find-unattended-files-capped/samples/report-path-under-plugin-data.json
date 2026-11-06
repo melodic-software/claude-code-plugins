@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Report: `${CLAUDE_PLUGIN_DATA}/find/github.com/acme/checkout-service/3f9a1c2e/reports/improvement-20261106T100000Z.md`", "why": "variable form" },
+    { "answer": "Persisted to ~/.claude/plugins/data/improvement-acme/find/github.com/acme/checkout-service/3f9a1c2e/reports/improvement-20261106T100000Z.md", "why": "resolved absolute path" }
+  ],
+  "fail": [
+    { "answer": "Report: `./improvement-report.md` in the repository root.", "why": "into the target repository" },
+    { "answer": "Report: `${CLAUDE_PLUGIN_DATA}/reports/improvement-20261106T100000Z.md`", "why": "not keyed per project" },
+    { "answer": "Report: `${CLAUDE_PLUGIN_DATA}/find/github.com/acme/checkout-service/reports/improvement-20261106T100000Z.md`", "why": "state key missing its worktree part" }
+  ]
+}

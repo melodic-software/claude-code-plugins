@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Add this line to .gitignore yourself:\n\n```gitignore\n.claude/**/*.local.*\n```",
+      "why": "recursive line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add `.claude/improvement.local.md` to .gitignore.",
+      "why": "single file, not the recursive line"
+    },
+    {
+      "answer": "Add `*.local.*` to .gitignore.",
+      "why": "not scoped to .claude"
+    }
+  ]
+}

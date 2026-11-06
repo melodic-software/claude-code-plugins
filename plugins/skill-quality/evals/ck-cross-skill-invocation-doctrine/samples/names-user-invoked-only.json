@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "A :setup skill is `disable-model-invocation: true`, so the Skill tool cannot reach it.", "why": "frontmatter key" },
+    { "answer": "Setup skills are user-invoked-only targets.", "why": "user-invoked-only" }
+  ],
+  "fail": [
+    { "answer": "Setup skills can be invoked via the Skill tool like any other.", "why": "wrong rule, no key" },
+    { "answer": "When reviewing a SKILL.md that says to call two other skills in one step, and also to invoke a :setup skill via the Skill tool", "why": "echoes the prompt" }
+  ]
+}

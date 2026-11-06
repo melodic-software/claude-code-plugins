@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/context/configuration.md"}}], "why": "configuration context"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/context/commands.md"}}], "why": "a different context file"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/SKILL.md"}}], "why": "main skill only"}
+  ]
+}

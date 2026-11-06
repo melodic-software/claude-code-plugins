@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl https://docs.contoso-platform.example --limit 50 --max-depth 3 -o /tmp/fc-crawl-Ab12Cd"}}], "why": "both caps"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl \"https://docs.contoso-platform.example\" --max-depth 2 --wait -o \"$OUT\""}}], "why": "depth cap only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl 3f2c-job-id --status -o /tmp/fc-crawl-Ab12Cd"}}], "why": "job status, no URL"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl --help"}}], "why": "help"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl https://docs.contoso-platform.example \\\n  --limit 40 \\\n  -o /tmp/fc-crawl-Ab12Cd"}}], "why": "cap on a continued line"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl https://docs.contoso-platform.example -o /tmp/fc-crawl-Ab12Cd"}}], "why": "no cap"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl \"https://docs.contoso-platform.example\" --wait -o \"$OUT\""}}], "why": "wait, no cap"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl map https://docs.contoso-platform.example -o /tmp/a-Ab12Cd && firecrawl crawl https://docs.contoso-platform.example -o /tmp/b-Ab12Cd --wait"}}], "why": "map first, crawl uncapped"},
+    {"answer": [{"tool": "Bash", "input": {"command": "firecrawl crawl https://docs.contoso-platform.example -o /tmp/c-Ab12Cd; firecrawl search x --limit 5 -o /tmp/d-Ab12Cd"}}], "why": "a cap on a later command does not count"}
+  ]
+}

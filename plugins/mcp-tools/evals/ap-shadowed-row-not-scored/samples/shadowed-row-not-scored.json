@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| github | P1 Floating version | PASS | local row, exact |",
+      "why": "local row passes"
+    },
+    {
+      "answer": "The project github row (@latest) is shadowed-by:local, so it is not scored and would FAIL only if it ran.",
+      "why": "explained, exempt"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| github (project) | P1 Floating version | FAIL | @latest |",
+      "why": "shadowed row scored"
+    },
+    {
+      "answer": "github project row: P1 FAIL, floating tag",
+      "why": "prose"
+    }
+  ]
+}

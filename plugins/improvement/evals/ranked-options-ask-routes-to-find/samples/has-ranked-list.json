@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| Rank | Candidate |\n|---|---|\n| 1 | Extract roundAmount |", "why": "table" },
+    { "answer": "1. **Extract roundAmount** (S, rung 3)\n2. **Add tests** (M)", "why": "numbered list" }
+  ],
+  "fail": [
+    { "answer": "You should extract roundAmount and add tests.", "why": "no ranked list" },
+    { "answer": "" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "C4 WARN: this does not violate the MCP spec; the floor is the skill's own.",
+      "why": "negated"
+    },
+    {
+      "answer": "| C4 Within the length floor | OPINION | WARN | |",
+      "why": "opinion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C4: the 2,048-character limit violates the MCP spec.",
+      "why": "called a violation"
+    },
+    {
+      "answer": "| C4 Within the length floor | SPEC-MUST | WARN | |",
+      "why": "spec authority"
+    }
+  ]
+}

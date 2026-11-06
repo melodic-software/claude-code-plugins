@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Move the purpose, the when-to-use line and the return shape to the first sentences of export_ledger's description, and put the server instructions' key rules in their opening lines, where a client that truncates cannot cut them.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Trim export_ledger's description and put the important details first.",
+      "why": "description only"
+    },
+    {
+      "answer": "Both texts are too long; consider shortening them.",
+      "why": "no front-loading advice"
+    }
+  ]
+}

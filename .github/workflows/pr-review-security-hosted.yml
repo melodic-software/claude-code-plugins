@@ -87,9 +87,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -163,9 +165,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -337,6 +341,9 @@ jobs:
         .github/scripts/pr-merge/who.mjs
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
+        .github/scripts/pr-merge/merge-risk-line.mjs
+        .github/scripts/pr-merge-risk/input.mjs
+        .github/scripts/pr-merge-risk/write-rating.mjs
         .github/actions/report-check-run/posting-run.mjs
         scripts/sync-hold-floor.py
         .github/scripts/pr-unblock/address-feedback.mjs
@@ -398,6 +405,7 @@ jobs:
         .github/workflows/post-merge-test-mutation.yml
         .github/workflows/pr-feedback-dispatch.yml
         .github/workflows/pr-merge.yml
+        .github/workflows/pr-rate-merge-risk.yml
         .github/workflows/pr-refine.yml
         .github/workflows/pr-require-checks.yml
         .github/workflows/pr-review-approved.yml

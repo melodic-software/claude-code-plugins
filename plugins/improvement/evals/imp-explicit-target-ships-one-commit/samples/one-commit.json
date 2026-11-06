@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "git log --oneline -10" } }, { "tool": "Bash", "input": { "command": "git commit -m \"fix(example): start report.sh in strict mode\"" } }], "why": "one commit; log is not a commit" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash scripts/check.sh && git add plugins/example/scripts/report.sh && git commit -F /tmp/msg" } }], "why": "commit inside a chained call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "git add report.sh\ngit -c commit.gpgsign=false commit -m x" } }], "why": "after an escaped newline, with -c" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "git status --porcelain" } }], "why": "no commit" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "git commit -m one" } }, { "tool": "Bash", "input": { "command": "git commit -m two" } }], "why": "two commits" }
+  ]
+}

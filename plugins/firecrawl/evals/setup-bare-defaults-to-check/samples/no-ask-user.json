@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/run/user/1000/copy/plugins/firecrawl/skills/firecrawl/SKILL.md"}}], "why": "a read"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "AskUserQuestion", "input": {"questions": [{"question": "Which action?", "options": [{"label": "check"}, {"label": "apply"}]}]}}], "why": "asks"}
+  ]
+}

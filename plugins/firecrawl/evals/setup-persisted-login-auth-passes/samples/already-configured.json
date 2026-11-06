@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Everything passes: already configured. Nothing changed.", "why": "the phrase"},
+    {"answer": "Result: Already configured.", "why": "capitalized"}
+  ],
+  "fail": [
+    {"answer": "All probes pass. Nothing to do.", "why": "no phrase"},
+    {"answer": "Configured FIRECRAWL_API_KEY for you.", "why": "a change"}
+  ]
+}

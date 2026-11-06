@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: CancelPayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | bool overload |\n",
+      "why": "section"
+    },
+    {
+      "answer": "CancelPayout: C18 PASS, the bool overload yields JSON true",
+      "why": "prose"
+    },
+    {
+      "answer": "**`CancelPayout`**\n- All criteria pass, and `requiresUserInteraction` is a real boolean.\n- C14 info: calling it twice has the same effect.",
+      "why": "smoke1 reply: bold section title, all-pass line"
+    },
+    {
+      "answer": "| Tool | Source | Verdict | Notes |\n|---|---|---|---|\n| `CancelPayout` | `src/x.ts:26` | PASS | C11 and C14 are info. |\n",
+      "why": "smoke2 run 1: overall PASS row, no C18 finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: ApprovePayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | |\n\n#### Tool: CancelPayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | |\n",
+      "why": "swapped attribution"
+    },
+    {
+      "answer": "CancelPayout: C18 FAIL",
+      "why": "fails"
+    },
+    {
+      "answer": "**`CancelPayout`**\n- **C18 FAIL:** `requiresUserInteraction` is the string `\"true\"`, not a real boolean.\n\n**`other_tool`**\n- All criteria pass.",
+      "why": "near miss: C18 FAIL in this section, all-pass belongs to the next one"
+    },
+    {
+      "answer": "| `CancelPayout` | `src/x.ts:26` | WARN | C11 and C14 are info. |\n",
+      "why": "near miss: summary row with an overall WARN"
+    },
+    {
+      "answer": "| `CancelPayout` | `src/x.ts:26` | **FAIL** | C18 FAIL |\n",
+      "why": "overall FAIL row"
+    }
+  ]
+}

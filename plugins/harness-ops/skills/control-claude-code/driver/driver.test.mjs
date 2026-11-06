@@ -32,6 +32,9 @@ const NATIVE_FAILURE = 'failed to load the @microsoft/tui-test native addon: Can
 // Every session socket in this file lives under a private runtime directory of its own.
 const RUNTIME = mkdtempSync(join(tmpdir(), 'ccd-rt-'));
 process.env.XDG_RUNTIME_DIR = RUNTIME;
+// A runner that exports either would move the sockets or send launch, ready and log to a broker.
+delete process.env.CCD_RUNTIME_DIR;
+delete process.env.CCD_BROKER_SOCK;
 after(() => rmSync(RUNTIME, { recursive: true, force: true }));
 let sessions = 0;
 const session = () => `t${process.pid}-${++sessions}`;
@@ -1015,7 +1018,7 @@ test('a recording draws only masked frames and its sidecar holds their text', po
     await withPath(box.bin, async () => {
       await main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60']);
       await quietly(() => main(['record', 'start', mp4, '--session', name]));
-      await quietly(() => main(['record', 'stop', '--session', name]));
+      assert.equal((await quietly(() => main(['record', 'stop', '--session', name]))).text, 'recording stopped');
     });
     const sidecar = readFileSync(`${mp4}.txt`, 'utf8');
     assert.ok(sidecar.includes('Email:             ****************'), sidecar);
@@ -1090,4 +1093,300 @@ test('plugins with no changed file names the configured plugin dir', async () =>
   const { result, text } = await quietly(() => main(['plugins']));
   assert.equal(result, 0);
   assert.equal(text, defaults.pluginDir);
+});
+
+// ---- the runtime directory variable and broker mode ----
+
+/** Sets each variable (undefined unsets it) for the run of `fn`, then puts back what was there. */
+async function withEnv(vars, fn) {
+  const saved = Object.fromEntries(Object.keys(vars).map((name) => [name, process.env[name]]));
+  const put = (values) => {
+    for (const [name, value] of Object.entries(values)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  };
+  put(vars);
+  try {
+    return await fn();
+  } finally {
+    put(saved);
+  }
+}
+
+test('CCD_RUNTIME_DIR comes ahead of XDG_RUNTIME_DIR for session sockets, created private', posixOnly, async () => {
+  const ccd = mkdtempSync(join(tmpdir(), 'ccd-own-'));
+  try {
+    await withEnv({ CCD_RUNTIME_DIR: ccd, CCD_BROKER_SOCK: undefined }, () =>
+      assert.rejects(main(['stop', '--session', session()]), { code: 3 }),
+    );
+    assert.equal(statSync(join(ccd, 'ccd')).mode & 0o777, 0o700);
+  } finally {
+    rmSync(ccd, { recursive: true, force: true });
+  }
+});
+
+test('a socket path too long under CCD_RUNTIME_DIR names CCD_RUNTIME_DIR as the variable to shorten', posixOnly, async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ccd-long-'));
+  try {
+    const ccd = join(root, 'x'.repeat(120));
+    await withEnv({ CCD_RUNTIME_DIR: ccd, CCD_BROKER_SOCK: undefined }, () =>
+      assert.throws(() => driver.endpoint('s', 'linux'), /; set CCD_RUNTIME_DIR to a short private directory$/),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a brokered request carries the options as typed, paths made absolute against the cwd, and the prompt after --', posixOnly, async () => {
+  const { tokens, positionals } = (await import('node:util')).parseArgs({
+    args: ['log', 'run /demo', '--plugin-dir', 'plugins/demo', '--out=run.jsonl', '--timeout', '9', '--unattended'],
+    options: { 'plugin-dir': { type: 'string' }, out: { type: 'string' }, timeout: { type: 'string' }, unattended: { type: 'boolean' } },
+    allowPositionals: true,
+    tokens: true,
+  });
+  assert.deepEqual(driver.brokerRequest('log', tokens, positionals.slice(1), '/work'), {
+    verb: 'log',
+    args: ['--plugin-dir', '/work/plugins/demo', '--out', '/work/run.jsonl', '--timeout', '9', '--unattended', '--', 'run /demo'],
+  });
+});
+
+/** A one-connection server at a fresh socket that records the request line and answers with `lines`. */
+async function fakeBroker(lines, { end = true } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'ccd-fb-'));
+  const sock = join(dir, 'b.sock');
+  const seen = [];
+  const server = (await import('node:net')).default.createServer((conn) => {
+    conn.once('data', (d) => {
+      seen.push(String(d));
+      for (const line of lines) conn.write(`${line}\n`);
+      if (end) conn.end();
+    });
+  });
+  await new Promise((r) => server.listen(sock, r));
+  return { sock, seen, close: () => (server.close(), rmSync(dir, { recursive: true, force: true })) };
+}
+
+const sink = () => {
+  const chunks = [];
+  return { chunks, write: (s) => chunks.push(s) };
+};
+
+test('broker mode relays stdout and stderr chunks, each line prefixed, and resolves with the exit status', posixOnly, async () => {
+  const fb = await fakeBroker([JSON.stringify({ stdout: 'a\n' }), JSON.stringify({ stderr: 'b\n' }), JSON.stringify({ stdout: 'c\n' }), JSON.stringify({ exit: 4 })]);
+  try {
+    const out = sink();
+    const err = sink();
+    assert.equal(await driver.viaBroker(fb.sock, { verb: 'ready', args: [] }, { stdout: out, stderr: err }), 4);
+    assert.deepEqual(out.chunks, ['broker| a\n', 'broker| c\n']);
+    assert.deepEqual(err.chunks, ['broker| b\n']);
+    assert.deepEqual(fb.seen, [`${JSON.stringify({ verb: 'ready', args: [] })}\n`]);
+  } finally {
+    fb.close();
+  }
+});
+
+test('broker replies are untrusted: a malformed line, an out-of-range exit or no exit at all fails the verb', posixOnly, async () => {
+  const cases = [
+    [['not json'], /not a stream chunk or an exit/],
+    [[JSON.stringify({ stdout: 42 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ exit: 256 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ exit: -1 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ exit: 1.5 })], /not a stream chunk or an exit/],
+    [[JSON.stringify({ stdout: 'partial' })], /closed the connection without an exit status/],
+  ];
+  for (const [lines, pattern] of cases) {
+    const fb = await fakeBroker(lines);
+    try {
+      await assert.rejects(driver.viaBroker(fb.sock, { verb: 'ready', args: [] }, { stdout: sink(), stderr: sink() }), pattern, lines[0]);
+    } finally {
+      fb.close();
+    }
+  }
+});
+
+test('with CCD_BROKER_SOCK set, launch, ready and log go to the broker; socket verbs, doctor and plugins do not', posixOnly, async () => {
+  const fb = await fakeBroker([JSON.stringify({ exit: 0 })]);
+  const missing = join(fb.sock, '..', 'none.sock');
+  try {
+    await withEnv({ CCD_BROKER_SOCK: missing }, async () => {
+      await assert.rejects(main(['ready', '--plugin-dir', 'p', '--out', 'o']), /the launch broker at .*none\.sock did not answer \(ENOENT\)/);
+      await assert.rejects(main(['stop', '--session', session()]), { code: 3, message: /no session/ });
+      assert.equal((await quietly(() => main(['plugins']))).result, 0);
+    });
+    await withEnv({ CCD_BROKER_SOCK: fb.sock }, () => main(['launch', '--plugin-dir', '/p', '--session', 'brk']));
+    assert.deepEqual(JSON.parse(fb.seen[0]), { verb: 'launch', args: ['--plugin-dir', '/p', '--session', 'brk'] });
+  } finally {
+    fb.close();
+  }
+});
+
+test('without CCD_BROKER_SOCK, log runs claude here and prints exactly its one line', posixOnly, async () => {
+  // A broker listening at a known path is never contacted when the variable is unset.
+  const fb = await fakeBroker([JSON.stringify({ exit: 9 })]);
+  const box = sandbox();
+  stubClaude(box, 'none', `printf '%s\\n' '{"type":"result"}'\nexit 0`);
+  const out = join(box.root, 'run.jsonl');
+  try {
+    const { result, text } = await withEnv({ CCD_BROKER_SOCK: undefined }, () =>
+      withPath(box.bin, () => quietly(() => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', out]))),
+    );
+    assert.equal(result, 0);
+    assert.equal(text, `log: ${out} (claude exit 0, apiKeySource none)`);
+    assert.equal(readFileSync(join(box.root, 'key'), 'utf8'), 'unset');
+    assert.deepEqual(fb.seen, []);
+  } finally {
+    fb.close();
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+// ---- hardening: relayed text, the broker socket, deadlines, capture paths, --out ----
+
+import netForHolders from 'node:net';
+import { symlinkSync } from 'node:fs';
+
+test('relayed text loses ESC sequences and control characters, keeps \\n and \\t, and every line starts with broker| ', () => {
+  const out = sink();
+  const write = driver.relayLines(out);
+  write('x\x1b[31mred\x1b[0m\x1b]0;title\x07\x9b\ty');
+  write('\x07z\r\nw');
+  write('');
+  assert.deepEqual(out.chunks, ['broker| xred\ty', 'z\nbroker| w']);
+});
+
+test('relayed text loses U+2028 and U+2029, so no unprefixed line can start inside a chunk', () => {
+  const out = sink();
+  driver.relayLines(out)('ok verdict: PASS done');
+  assert.deepEqual(out.chunks, ['broker| okverdict: PASSdone']);
+});
+
+test('a broker socket that is relative, not a socket, or in a directory others can open is refused before connecting', posixOnly, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ccd-bs-'));
+  const file = join(dir, 'plain');
+  writeFileSync(file, '');
+  const open = join(dir, 'open');
+  mkdirSync(open);
+  chmodSync(open, 0o777);
+  try {
+    const ready = () => main(['ready', '--plugin-dir', 'p', '--out', 'o']);
+    await withEnv({ CCD_BROKER_SOCK: 'rel.sock' }, () => assert.rejects(ready(), { code: 2, message: 'CCD_BROKER_SOCK must be an absolute path' }));
+    await withEnv({ CCD_BROKER_SOCK: file }, () => assert.rejects(ready(), { code: 5, message: `${file} is not a socket owned by you; drive nothing` }));
+    await withEnv({ CCD_BROKER_SOCK: join(open, 'b.sock') }, () => assert.rejects(ready(), { code: 5, message: /is not a private directory owned by you/ }));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a broker that sends no exit status fails the verb at its deadline', posixOnly, async () => {
+  const fb = await fakeBroker([JSON.stringify({ stdout: 'working\n' })], { end: false });
+  try {
+    const started = Date.now();
+    await assert.rejects(driver.viaBroker(fb.sock, { verb: 'log', args: [] }, { stdout: sink(), stderr: sink(), timeoutMs: 200 }), /sent no exit status within 200 ms/);
+    assert.ok(Date.now() - started < 10_000);
+  } finally {
+    fb.close();
+  }
+});
+
+test('a brokered verb waits its own timeout plus a 120 s grace: ready 120 s, log 600 s, launch 630 s by default', () => {
+  assert.equal(driver.brokerDeadline('ready', { timeout: '1000' }), 121_000);
+  assert.equal(driver.brokerDeadline('ready', {}), 240_000);
+  assert.equal(driver.brokerDeadline('log', {}), 720_000);
+  assert.equal(driver.brokerDeadline('log', { timeout: 'soon' }), 720_000);
+  assert.equal(driver.brokerDeadline('launch', {}), 750_000);
+});
+
+/** A holder stand-in at session `name`'s socket: `reply(line, conn)` answers each request. */
+async function fakeHolder(name, reply) {
+  mkdirSync(join(RUNTIME, 'ccd'), { recursive: true, mode: 0o700 });
+  const sock = join(RUNTIME, 'ccd', `${name}.sock`);
+  const server = netForHolders.createServer((conn) => conn.once('data', (d) => reply(String(d), conn)));
+  await new Promise((r) => server.listen(sock, r));
+  return () => (server.close(), rmSync(sock, { force: true }));
+}
+
+test('a session holder that does not reply in time, or replies past 1 MiB, fails the verb', posixOnly, async () => {
+  const silent = session();
+  const closeSilent = await fakeHolder(silent, () => {});
+  const flood = session();
+  const closeFlood = await fakeHolder(flood, (_line, conn) => conn.write('x'.repeat((1 << 20) + 1)));
+  try {
+    await assert.rejects(driver.request(silent, 'ping', {}, 200), /the session holder did not reply within 200 ms/);
+    await assert.rejects(driver.request(flood, 'ping', {}, 10_000), /the session holder sent a reply over 1 MiB/);
+  } finally {
+    closeSilent();
+    closeFlood();
+  }
+});
+
+test('screenshot and record start use only the path they asked for: any other answer fails the verb', posixOnly, async () => {
+  const name = session();
+  let answer;
+  const close = await fakeHolder(name, (_line, conn) => conn.end(`${JSON.stringify({ ok: true, result: answer })}\n`));
+  const want = join(process.cwd(), 'shot.png');
+  try {
+    answer = '/elsewhere/shot.png';
+    await assert.rejects(main(['screenshot', 'shot.png', '--session', name]), /other than the requested capture path/);
+    answer = `recording: /elsewhere/shot.mp4`;
+    await assert.rejects(main(['record', 'start', 'shot.mp4', '--session', name]), /other than the requested capture path/);
+    answer = want;
+    assert.equal((await quietly(() => main(['screenshot', 'shot.png', '--session', name]))).text, want);
+    answer = `recording: ${join(process.cwd(), 'shot.mp4')}`;
+    assert.equal((await quietly(() => main(['record', 'start', 'shot.mp4', '--session', name]))).text, answer);
+  } finally {
+    close();
+  }
+});
+
+test('record stop prints only the fixed stop reply: a holder naming a path fails the verb', posixOnly, async () => {
+  const name = session();
+  let answer;
+  const close = await fakeHolder(name, (_line, conn) => conn.end(`${JSON.stringify({ ok: true, result: answer })}\n`));
+  try {
+    answer = '/elsewhere/x.mp4';
+    await assert.rejects(main(['record', 'stop', '--session', name]), /other than "recording stopped"; use nothing it wrote/);
+    answer = 'recording stopped';
+    assert.equal((await quietly(() => main(['record', 'stop', '--session', name]))).text, 'recording stopped');
+  } finally {
+    close();
+  }
+});
+
+// Node's setTimeout takes at most 2^31-1 ms and fires a longer delay after 1 ms.
+test('a deadline past the setTimeout maximum waits instead of firing at once', posixOnly, async () => {
+  assert.equal(driver.brokerDeadline('ready', { timeout: '9999999999' }), 2 ** 31 - 1);
+  assert.equal(driver.brokerDeadline('ready', { timeout: String(2 ** 31 - 1) }), 2 ** 31 - 1);
+  const name = session();
+  const close = await fakeHolder(name, (_line, conn) => setTimeout(() => conn.end(`${JSON.stringify({ ok: true, result: 'late' })}\n`), 300));
+  try {
+    assert.equal(await driver.request(name, 'wait-for', { timeout: 2 ** 32 }), 'late');
+  } finally {
+    close();
+  }
+});
+
+test('log will not write its --out through a symlink', posixOnly, async () => {
+  const box = sandbox();
+  stubClaude(box, 'none', `printf '%s\\n' '{"type":"result"}'\nexit 0`);
+  const target = join(box.root, 'target.jsonl');
+  writeFileSync(target, 'kept\n');
+  const link = join(box.root, 'run.jsonl');
+  symlinkSync(target, link);
+  try {
+    await assert.rejects(
+      withPath(box.bin, () => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', link])),
+      { message: `cannot open ${link} (ELOOP)` },
+    );
+    assert.equal(readFileSync(target, 'utf8'), 'kept\n');
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('a relative CCD_RUNTIME_DIR and a session name starting with - are usage errors', posixOnly, async () => {
+  await withEnv({ CCD_RUNTIME_DIR: 'relative/rt' }, () =>
+    assert.rejects(main(['stop', '--session', session()]), { code: 2, message: 'CCD_RUNTIME_DIR must be an absolute path' }),
+  );
+  await assert.rejects(main(['stop', '--session=-x']), { code: 2, message: '--session takes 1-32 letters, digits, _ or -, not starting with -' });
 });

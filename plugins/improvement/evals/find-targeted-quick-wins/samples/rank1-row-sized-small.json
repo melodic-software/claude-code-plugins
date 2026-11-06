@@ -1,0 +1,15 @@
+{
+  "pass": [
+    { "answer": "| Rank | Candidate | Dimension | Size | Evidence |\n|---|---|---|---|---|\n| 1 | Time buildSummary and each fetch | Performance | S | nothing measures checkout (rung 4) |", "why": "table S cell" },
+    { "answer": "1. **Add timing around buildSummary** (S, rung 4, judgment).", "why": "list item (S, ...)" },
+    { "answer": "### 1. Instrument checkout\n\n- Size: small\n- Evidence: no timing anywhere (rung 4)", "why": "Size: small bullet" }
+  ],
+  "fail": [
+    { "answer": "| 1 | Parallelize the item loop | Performance | M | sequential awaits (rung 4) |", "why": "rank 1 is M" },
+    { "answer": "1. **Instrument checkout** (rung 4).\n2. **Cache prices** (S).", "why": "size only on row 2" },
+    { "answer": "Instrument checkout (S).", "why": "no ranked row" },
+    { "answer": "### 1. Instrument checkout\n\n- Size: S–M\n- Evidence: no timing anywhere (rung 4)", "why": "Size line is a range reaching M" },
+    { "answer": "| 1 | Time buildSummary and each fetch | Performance | S–M | nothing measures checkout (rung 4) |", "why": "table cell is a range reaching M" },
+    { "answer": "1. **Add timing around buildSummary** (rung 4)\n   Size: S to M", "why": "range written with to" }
+  ]
+}

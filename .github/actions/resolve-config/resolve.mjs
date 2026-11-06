@@ -15,9 +15,9 @@ import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 const CONFIG_BASENAME = "pr-pipeline.yaml";
 // Runner job names: `<lane> / run` would collide with pr-run-activity's own checks.
 const RESERVED_ACTIVITIES = new Set(["run", "report"]);
-// Model routes that are no activity: pr-verify.yml's judgment, the code and
+// Model routes that are no activity: pr-verify.yml's judgment, pr-rate-merge-risk.yml's rating, the code and
 // security review lanes, and intake triage.
-const RUN_ROUTES = new Set(["verify-pr", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
+const RUN_ROUTES = new Set(["verify-pr", "merge-risk", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
 // What model-route accepts: the run routes, and resolve-issue for a model job that takes the issue
 // lane's code-change profile (the upkeep batch and the release intake lane).
 const MODEL_ROUTES = new Set([...RUN_ROUTES, "resolve-issue"]);

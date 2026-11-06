@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: ap-routes-tool-design-question
+graders:
+  - name: routes-to-design-audit
+    type: regex
+    pattern: 'mcp-tools:audit\b(?!-posture)|\bMCP\s+Tool\s+Audit\b|\b(?:tool\s+)?design[-\s]quality\s+(?:audit|checklist)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-posture-report
+    type: regex
+    pattern: '#\s*MCP\s+Posture\s+Audit\b|\|\s*P[1-4]\s+[^|\n]*\|\s*\**(?:PASS|FAIL|WARN|n/a)\**\s*\|'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: no-inventory-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?audit-posture/scripts/inventory\.sh\b'
+    min: 0
+    max: 0
+    arm: 'both'

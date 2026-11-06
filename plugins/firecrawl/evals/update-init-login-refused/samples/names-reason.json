@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "I won't run `firecrawl init` or `firecrawl login`: init installs a parallel shadow copy of upstream's skills, and login writes a second auth source of truth beside FIRECRAWL_API_KEY.", "why": "both reasons"},
+    {"answer": "Skipping both. init would duplicate this plugin's skill, and login would leave two sources of truth for auth.", "why": "duplicate and two sources"},
+    {"answer": "init installs parallel skills for every agent; this plugin is the maintained integration.", "why": "parallel skills"}
+  ],
+  "fail": [
+    {"answer": "I won't run init or login.", "why": "no reason"},
+    {"answer": "Those commands need an interactive terminal, so I can't run them here.", "why": "a different reason"},
+    {"answer": "Running firecrawl init --all --browser and firecrawl login now.", "why": "complies, no reason"}
+  ]
+}

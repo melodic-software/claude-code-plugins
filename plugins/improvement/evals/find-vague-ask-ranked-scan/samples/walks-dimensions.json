@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "| 1 | Extract roundAmount into one helper | Code | S | duplicated in src/report.js and src/export.js (rung 3) |\n\nPerformance: nothing measured. Product behavior: no telemetry. Config/automation: no CI workflows. Claude Code setup: no hooks or MCP servers configured.", "why": "each dimension named" },
+    { "answer": "Dimensions scanned: code/architecture, performance, product-level behavior, configuration outside the codebase, and Claude Code operational setup.", "why": "inventory line" }
+  ],
+  "fail": [
+    { "answer": "| 1 | Extract roundAmount into one helper | Code | S | duplicated (rung 3) |\n| 2 | Add tests for src/balances.js | Code | M | no test files (rung 3) |", "why": "collapsed to code-only" },
+    { "answer": "Performance and product look fine; I only checked the code.", "why": "no config or Claude Code setup dimension" },
+    { "answer": "" }
+  ]
+}

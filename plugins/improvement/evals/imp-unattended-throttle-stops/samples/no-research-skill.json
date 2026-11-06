@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/docs/standards/bash.md" } }], "why": "repo standards only" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "discovery:research", "args": "bash strict mode" } }], "why": "research skill" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "context7:lookup" } }], "why": "docs lookup" }
+  ]
+}

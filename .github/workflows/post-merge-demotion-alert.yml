@@ -62,6 +62,11 @@ name: post-merge-demotion-alert
 # `_lift`), or a person closes it. The close-cleared job closes a lifted
 # canary, revert or read-back record and removes its label.
 #
+# The canary push run also labels the push's merges on a record-mode path of
+# pr-pipeline.yaml's post-merge.paths (an agent session's merge through the
+# owner login), and the pull requests it reverts on one, and nothing else:
+# merge-path.mjs; README.md, "Merge paths".
+#
 # A red full run files only after one re-run of its failed jobs, which the
 # job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
 # completed run of the same event at an earlier SHA (babysit_postmerge.py
@@ -199,6 +204,11 @@ jobs:
       revert-body: ${{ steps.file.outputs.revert-body }}
       revert-commits: ${{ steps.file.outputs.revert-commits }}
       revert-filer: ${{ steps.file.outputs.revert-filer }}
+      # The canary push's merges and the pull requests it reverts, and the
+      # main tip checked out, for the label-paths job.
+      merged-prs: ${{ steps.file.outputs.merged-prs }}
+      reverted-prs: ${{ steps.file.outputs.reverted-prs }}
+      tip: ${{ steps.tip.outputs.sha }}
     # Each guarded API call's rate-limit reading (the gh wrapper below and
     # babysit_gh.py under the judge), for the job-end api-budget notice
     # (.github/actions/log-api-budget).
@@ -211,9 +221,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
       # runs in a worktree of the last green SHA, and for a canary run's push
@@ -935,6 +947,7 @@ jobs:
               return
             fi
             reverted=("${!named[@]}")
+            reverted_prs="${reverted[*]}"
             if [[ -z "$unproven" ]]; then
               classify
             fi
@@ -988,8 +1001,18 @@ jobs:
             echo "handed the revert demotion issue for ${RUN_SHA:0:12} to the file-revert job"
             lane=1 reverted=()
           }
+          reverted_prs=''
           if [[ "$signal" == canary ]]; then
             revert_pass
+            # The push's merges and the pull requests it reverts, for the
+            # merge-path labels (the label-paths job).
+            merged_prs=''
+            for c in "${pushed[@]}"; do
+              n="$(subject_pr "$c")"
+              [[ -z "$n" || "$n" == '?' ]] || merged_prs="$merged_prs $n"
+            done
+            echo "merged-prs=${merged_prs# }" >>"$GITHUB_OUTPUT"
+            echo "reverted-prs=$reverted_prs" >>"$GITHUB_OUTPUT"
           fi
           if [[ -n "$quiet" ]]; then
             echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION on attempt $RUN_ATTEMPT: no canary record to file"
@@ -1269,6 +1292,61 @@ jobs:
         with:
           tokens: github-token
 
+  # A canary push's merges on a record-mode post-merge path get
+  # merge-path:<path>, and the pull requests it reverts on one also
+  # post-merge:reverted (merge-path.mjs; README.md, "Merge paths"). Record
+  # only: no issue, comment, demotion or hold, and GITHUB_TOKEN's label
+  # writes start no workflow run. It runs whatever the alert job concluded,
+  # as file-revert does, from the main tip that job checked out.
+  label-paths:
+    name: Label the merge paths
+    needs: [alert]
+    if: >-
+      !cancelled()
+      && (needs.alert.outputs.merged-prs != '' || needs.alert.outputs.reverted-prs != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main's tip for the config and merge-path.mjs
+      issues: write # create the merge-path labels and add them to pull requests
+      pull-requests: read # read each pull request's body, commits and merge-queue event
+    env:
+      API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.alert.outputs.tip }}
+          path: .base
+          persist-credentials: false
+
+      # merge-path.mjs reads post-merge.paths through the base's resolve-config.
+      - name: Install resolve-config's dependencies
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Label the merge paths
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_PATH: .base
+          MERGED_PRS: ${{ needs.alert.outputs.merged-prs }}
+          REVERTED_PRS: ${{ needs.alert.outputs.reverted-prs }}
+        run: node .base/.github/scripts/post-merge-demotion-alert/merge-path.mjs label --merged "$MERGED_PRS" --reverted "$REVERTED_PRS"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The revert record the alert job found for a canary push run, filed under
   # a token that holds issues: write alone. It runs whatever the alert job
   # concluded, since that job can fail after it handed the record over (a
@@ -1402,9 +1480,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # Full history, so the revert's fit to main's tip is checked in memory.
       - name: Check out the default branch tip
@@ -1494,9 +1574,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # main's tip, for babysit_lift.py close; no code from outside main runs.
       - name: Check out the default branch tip

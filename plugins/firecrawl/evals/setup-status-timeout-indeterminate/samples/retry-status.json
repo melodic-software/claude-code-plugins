@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Retry `firecrawl --status` once the network is back.", "why": "retry before"},
+    {"answer": "Re-run firecrawl --status in a minute.", "why": "re-run"},
+    {"answer": "Run `firecrawl --status` again later.", "why": "again after"},
+    {"answer": "Try again: firecrawl --status", "why": "try again"}
+  ],
+  "fail": [
+    {"answer": "`firecrawl --status` errored with a timeout.", "why": "restates the prompt"},
+    {"answer": "Retry later.", "why": "no command"}
+  ]
+}

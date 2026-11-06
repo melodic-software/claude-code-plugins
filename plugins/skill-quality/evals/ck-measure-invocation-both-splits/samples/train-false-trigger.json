@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "| split | trigger_rate | false_trigger_rate |\n|---|---|---|\n| train | 1 | 0.25 |\n| validation | 0.75 | 0 |", "why": "row table" },
+    { "answer": "| | train | validation |\n|---|---|---|\n| trigger_rate | 1.0 | 0.75 |\n| false_trigger_rate | 0.25 | 0 |", "why": "transposed table" },
+    { "answer": "Train: 100% triggered, 25% false triggers.", "why": "percent" }
+  ],
+  "fail": [
+    { "answer": "Train trigger rate 1, false trigger rate 0; validation 1 and 0.", "why": "wrong numbers" },
+    { "answer": "/skill-quality:check measure-invocation probes", "why": "echoes the prompt" }
+  ]
+}

@@ -185,9 +185,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -300,12 +302,11 @@ jobs:
         - Type: Bug for a defect in something that exists, Task for a bounded change, Feature for a
           new capability.
         - Work class: the one `work-class:` label whose meaning fits, or none when unsure:
-          `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
-          `work-class: structural` or `work-class: untrusted-provenance`. Their meanings are the
-          Description column of plugins/work-items/reference/work-class-labels.md from the
-          repository root; read that file rather than search for them. The class gates nothing
-          except `work-class: untrusted-provenance`, which holds the issue for a person: propose
-          it whenever where the request came from is in doubt.
+          `work-class: read-only`, `work-class: mechanical`, `work-class: scoped` or
+          `work-class: structural`. Their meanings are the Description column of
+          plugins/work-items/reference/work-class-labels.md from the repository root; read that
+          file rather than search for them. The class gates nothing. Untrusted provenance is not a
+          class: mark it with the untrusted flag (Flags below), never on the class line.
         - Size: Small for one focused change in a few files, Medium for several files or one
           subsystem, Large for work that needs splitting.
         - Complexity: Low for a direct edit, Medium for several moving parts, High for subtle
@@ -316,7 +317,9 @@ jobs:
           primary-design alternatives and picks none (ESCALATION says which choices those are);
           security only for a very-high security risk, the security review's CRITICAL tier: the
           work would expose a credential or secret, bypass a trust boundary, or open an external
-          attack surface (other security-related work gets no flag); cost as COST below describes.
+          attack surface (other security-related work gets no flag); cost as COST below describes;
+          untrusted whenever where the request came from is in doubt, which holds the issue for a
+          person.
 
         UNRUNNABLE DONE-WHEN. A done-when item an unattended lane run cannot do (a run on a named
         host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
@@ -335,7 +338,7 @@ jobs:
         Size: Small|Medium|Large
         Complexity: Low|Medium|High
         Uncertainty: Known|Knowable|Unknown
-        Flags: none|intent|security|cost
+        Flags: none|intent|security|cost|untrusted
         Blocked by: none|#N[, #M]
         The Blocked by line lists, as `#` and the number, each open issue in this repository that
         must be done before this one, or none. When the issue lane's latest stop comment on the
@@ -491,9 +494,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -662,9 +667,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -834,9 +841,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1255,9 +1264,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1623,9 +1634,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1962,9 +1975,11 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
