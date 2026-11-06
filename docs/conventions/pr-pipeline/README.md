@@ -2682,7 +2682,8 @@ no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-
 key proxy, the only route the driven Claude Code in the capture's sibling sandbox has to the API:
 `claude-code-version` (the version `package-lock.json` pins, which the capture installs),
 `driven-model` and `driven-small-model`, `models` (the model ids it forwards), `token-cap` (the
-tokens one capture job may spend, cache tokens counted in full), `max-tokens-ceiling` (the largest
+tokens the driven session of one capture job may spend, cache tokens counted in full),
+`driver-token-cap` (the same for the job's trusted driver legs), `max-tokens-ceiling` (the largest
 `max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
 `max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
 `max-preflight-requests` (the messages requests that may reach its count_tokens preflight),

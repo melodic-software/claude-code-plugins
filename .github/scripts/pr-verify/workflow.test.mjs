@@ -2257,9 +2257,11 @@ test("the proxy config comes from main's pr-pipeline.yaml, and the driven settin
   assert.equal(config.upstream.href, "https://api.anthropic.com/");
   assert.equal(config.socketMode, 0o660);
   assert.ok(config.maxInFlight >= 2);
+  const value = (key) => JSON.parse(yq(`.merge."verify-capture".proxy."${key}"`));
+  assert.equal(config.tokenCap, value("token-cap"));
+  assert.equal(config.driverTokenCap, value("driver-token-cap"));
   const settingsFilter = /^jq -n --arg main "\$main" --arg small "\$small" --arg ceiling "\$ceiling" '([^']+)' \|$/m.exec(script)?.[1];
   assert.ok(settingsFilter);
-  const value = (key) => JSON.parse(yq(`.merge."verify-capture".proxy."${key}"`));
   const built = spawnSync("jq", ["-n", "--arg", "main", value("driven-model"), "--arg", "small", value("driven-small-model"), "--arg", "ceiling", String(value("max-tokens-ceiling")), settingsFilter], { encoding: "utf8" });
   assert.equal(built.status, 0, built.stderr);
   const settings = JSON.parse(built.stdout);
