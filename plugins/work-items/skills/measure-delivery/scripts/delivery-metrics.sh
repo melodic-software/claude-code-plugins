@@ -8,11 +8,14 @@
 # A deployment that a later first-parent
 # commit reverts is a failed deployment. A commit reverts a deployment when its
 # message carries `This reverts commit <sha>` for the deployment or for a
-# commit the deployment merged, or, with no such line, when its subject is
-# `Revert "<subject>"` for an earlier deployment's subject. A merge's message
-# includes the messages of the commits it merges, so a revert that lands
-# through a merge commit is seen. Every deployment that reverts an earlier
-# change is a rework deployment.
+# commit the deployment merged. With no such line, a commit whose subject is a
+# revert (`Revert "<subject>"`, `revert:` or `revert(<scope>):`) reverts the
+# deployment a `Reverts [<owner>/<repo>]#<n>` body line or a `(#<n>` subject
+# group names by its pull request number, else the one its quoted or remaining
+# subject matches. A merge's message includes the messages of the commits it
+# merges, so a revert that lands through a merge commit is seen. Every
+# deployment that reverts an earlier change is a rework deployment; a revert
+# subject that names no deployment is also counted in unresolved_reverts.
 #
 # Change lead time is from the earliest author date among the commits a
 # deployment brings in to the deployment's committer date. Failed deployment
@@ -225,16 +228,23 @@ def stats: {
   failed_deployment_recovery_time_hours_median:
     (map(select(.recovery != null) | .recovery) | median | hours),
   rework_deployments: (map(select(.rework)) | length),
-  deployment_rework_rate: ratio(map(select(.rework)) | length; length)
+  deployment_rework_rate: ratio(map(select(.rework)) | length; length),
+  unresolved_reverts: (map(select(.unresolved)) | length)
 };
+# A revert subject: `Revert "<subject>"` as git writes it, or Conventional Commits `revert:` / `revert(<scope>):`.
+def revert_form: test("^Revert \"") or test("^revert(\\([^)]*\\))?!?: ");
+# A squash subject without its trailing own pull request number.
+def strip_own_ref: sub(" *\\(#[0-9]+\\)$"; "");
 
 ($raw | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
   | {sha: .[0], parents: (.[1] | split(" ") | map(select(length > 0))),
-     at: (.[2] | tonumber), ct: (.[3] | tonumber), subject: (.[4] // ""), body: (.[5] // "")})
-  | map(select(.ct >= $since))) as $scope
+     at: (.[2] | tonumber), ct: (.[3] | tonumber), subject: (.[4] // ""), body: (.[5] // "")})) as $all
+| ($all | map(select(.ct >= $since))) as $scope
+# Each squash landing by the pull request number that ends its subject.
+| (reduce ($all[] | {n: (.subject | capture("\\(#(?<n>[0-9]+)\\)$").n), sha, ct}) as $p ({}; .[$p.n] = $p)) as $by_pr
 | ($members | split("\n") | map(select(length > 0) | split("\t")
   | {deploy: .[0], sha: .[1], at: (.[2] | tonumber)})) as $mem
-| (reduce $scope[] as $d ({}; .[$d.sha] = $d.sha)
+| (reduce $all[] as $d ({}; .[$d.sha] = $d.sha)
    | reduce $mem[] as $m (.; .[$m.sha] //= $m.deploy)) as $owner
 | (reduce $mem[] as $m ({}; .[$m.deploy] += [$m.at])) as $member_at
 | (reduce ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")))[] as $m
@@ -243,26 +253,43 @@ def stats: {
     ({}; .[$m[0]] += [($m[1] // "") | split("\n")[0]])) as $member_subjects
 | (reduce ($reachable | split("\n") | map(select(length > 0)))[] as $p ({}; .[$p] = true)) as $reach
 | ($scope | map(. as $r
-    # The latest earlier deployment, not this one, whose subject is $s.
-    | def subject_target($s): $scope | map(select(.subject == $s and .ct <= $r.ct and .sha != $r.sha))
+    # The latest earlier deployment, not this one, whose subject, with or
+    # without its trailing pull request number, is $s.
+    | def subject_target($s): $all
+        | map(select((.subject == $s or (.subject | strip_own_ref) == $s) and .ct <= $r.ct and .sha != $r.sha))
         | max_by(.ct) | .sha | select(. != null);
+    # The deployments a revert subject names: the quoted subject of `Revert "<s>"`
+    # or `revert(<scope>): ... "<s>"`, or the text after `revert(<scope>): `.
+    def subject_targets($s): [$s
+        | (capture("^Revert \"(?<s>.*)\"").s,
+           (select(test("^revert(\\([^)]*\\))?!?: "))
+            | sub("^revert(\\([^)]*\\))?!?: *"; "")
+            | (capture("\"(?<s>.*)\"").s, ., strip_own_ref)))
+        | subject_target(.)] | unique;
     ([.body + "\n" + ($member_text[.sha] // "") | scan("This reverts (?:commit )?([0-9a-f]{40})") | .[0]]
        | unique | map(select(($owner[.] // "") != $r.sha and $reach[$r.sha + "\t" + .] == true))) as $named
     | ($named | map($owner[.] // empty) | unique) as $by_sha
-    | ([.subject | capture("^Revert \"(?<s>.*)\"") | .s] | first) as $reverted_subject
-    # A merged commit titled `Revert "<subject>"` counts when it names an earlier deployment.
-    | ([($member_subjects[.sha] // [])[] | capture("^Revert \"(?<s>.*)\"") | .s] | unique
-       | map(subject_target(.)) | unique) as $member_targets
-    | (if ($named | length) > 0 then $by_sha
-       elif $reverted_subject != null then [subject_target($reverted_subject)]
+    | (.subject | revert_form) as $own_revert
+    # Pull requests a revert names: `Reverts [owner/repo]#<n>` in its body, or a
+    # `(#<n>` group in its subject other than its own trailing number.
+    | ([(.body | scan("(?i)(?:^|[^A-Za-z0-9_])reverts[ \t]+(?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#([0-9]+)") | .[0]),
+        (.subject | strip_own_ref | scan("\\(#([0-9]+)") | .[0])]
+       | unique | map($by_pr[.] // empty | select(.ct <= $r.ct and .sha != $r.sha) | .sha) | unique) as $pr_targets
+    # A merged commit titled as a revert counts when it names an earlier deployment.
+    | ([($member_subjects[.sha] // [])[] | select(revert_form) | subject_targets(.)[]] | unique) as $member_targets
+    | (if ($by_sha | length) > 0 then $by_sha
+       elif $own_revert and ($pr_targets | length) > 0 then $pr_targets
+       elif $own_revert then subject_targets(.subject)
        else $member_targets
        end) as $targets
     | . + {targets: $targets,
-           rework: (($named | length) > 0 or $reverted_subject != null or ($member_targets | length) > 0)})) as $graded
+           rework: (($named | length) > 0 or $own_revert or ($member_targets | length) > 0),
+           unresolved: ($own_revert and ($targets | length) == 0)})) as $graded
 | ($graded | map(select(.ct < $until)) | map(. as $d
     | ([$graded[] | select(.ct >= $d.ct and any(.targets[]; . == $d.sha)) | .ct] | min) as $fixed_at
     | {ct,
        rework,
+       unresolved,
        lead: ([(([$d.at] + ($member_at[$d.sha] // [])) | min) as $start | $d.ct - $start, 0] | max),
        failed: ($fixed_at != null),
        recovery: (if $fixed_at == null then null else $fixed_at - $d.ct end),
