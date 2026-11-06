@@ -6,9 +6,7 @@
 // repository's blocker: closed there by a listed human), no hold label, and
 // not already agent-ready. Issues it would label are taken oldest
 // opened first (owner Q95). Every fact is read from the API now, never from the event
-// payload, except the closed issue's labels: one carrying SWEEP_LABEL is the
-// marker, and a listed human closing it runs the sweep below at once, not the
-// close path. No model.
+// payload. No model.
 //
 // The close path also strips the closed issue's own queue labels
 // (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
@@ -35,7 +33,8 @@
 // `status: ready` loses admission-deferred. One that gained the security area
 // or a body edit since gets admit.mjs's comment and loses `status: ready` and
 // admission-deferred, parked at `status: needs-decision` for the security
-// area, else at `status: confirmed`. A person's mark below is judged by
+// area, else at `status: confirmed`. A hold's comment names its owner reason
+// as the stop-reason marker and line (heldText). A person's mark below is judged by
 // decide, which refuses on the same changes. Restarts, re-fires and relabels below
 // re-run admitted issues and are never paced. Each admission also lifts a
 // parked `status: confirmed` beside `status: ready`, as admit.mjs does.
@@ -65,7 +64,8 @@
 // stands in) and runs intake's admission
 // rules on it (admit.mjs decide). It is admitted within the room only on an
 // admit verdict. A refusal gets admit.mjs's comment, `status: needs-decision`
-// for `status: ready`, and loses admission-deferred; a wait on an open pull
+// for `status: ready` when it holds for a person, else `status: confirmed`, as
+// intake's admit parks it, and loses admission-deferred; a wait on an open pull
 // request stays deferred, and one on a blocker loses admission-deferred, so
 // its blocker's close admits it. One the rules leave alone loses
 // admission-deferred with a comment saying why.
@@ -89,7 +89,10 @@
 // backoff (those hours doubling with each re-fire, at most
 // BACKOFF_CAP_HOURS), recorded in one comment
 // edited in place; it never gets needs-human. All share
-// limits.restarts-per-run.
+// limits.restarts-per-run. An issue a merged pull request names on a `Refs:`
+// line after its newest decision or refinement comment (admit.mjs
+// mergedRefsAfter, as admission reads it) is never re-fired: it is handed to
+// triage as a lane PR merged with `Refs:` is.
 //
 // The lane skips an issue a blocker still blocks and keeps agent-ready on
 // (check-blockers.mjs), so the close path above, which leaves an agent-ready
@@ -114,8 +117,10 @@
 // up. A swept close counts only when a listed human or a merge made it. A
 // listing the sweep cannot read holds: a notice and a green exit, no read or
 // write after a failed closed listing, and the next sweep's window stays back,
-// so it reads the closes this one missed. A read or write that fails for one
-// issue still ends the run red, which keeps the window back the same way.
+// so it reads the closes this one missed. A read for one issue that meets a
+// GitHub fault holds that issue the same way: a notice, the rest of the sweep
+// goes on, and the window stays back. A write that fails, or a read that fails
+// for another reason, ends the run red, which keeps the window back too.
 // Overlapping windows are harmless: an issue already labeled is left alone, and one whose
 // label was removed (by a person, or by a lane's pushback) is not labeled
 // again until the lanes App or a listed human adds `status: ready` after the
@@ -257,11 +262,10 @@
 //   GITHUB_REPOSITORY      owner/repo
 //   GITHUB_EVENT_NAME      `issues` (a close), or `schedule` or
 //                          `workflow_run` (a finished work-resolve-issue run)
-//                          for the sweep; a close of an issue labeled
-//                          SWEEP_LABEL runs the sweep too
+//                          for the sweep
 //   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
-//                          sender and issue number, labels and close time
-//                          are read; on a sweep event it is not read
+//                          sender and issue number are read; on a sweep
+//                          event it is not read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
@@ -290,12 +294,13 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { notBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
-import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { personReasonLines } from "../lib/stop-reason.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -366,6 +371,10 @@ const LOG_CAP_BYTES = 1_048_576;
 // so this line alone lets the next sweep's window start from it.
 const LISTED_LINE = "label-unblocked: read the closed-issue listing";
 const LISTED = new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ${LISTED_LINE}$`);
+// The line a run prints when it held an issue on a faulted read (failedFor),
+// and that line in a raw job log. The next sweep's window stays back past it.
+const HELD_LINE = "label-unblocked: held an issue on a failed read";
+const HELD = new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ${HELD_LINE}$`);
 // work-unblock.yml's job and its step that runs this script. The kill switch
 // and a lane the config turns off skip the step and leave the run green, so
 // only this step's success shows a sweep ran.
@@ -396,15 +405,6 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
-// The marker issue's label: a listed human closing an issue that carries it
-// runs the sweep at once instead of waiting for the schedule (the hub reopens
-// and closes it after a rate-limit breaker clears). That sweep re-fires at
-// once only issues the kill switch stopped at broker-check; one stopped at a
-// token mint still waits limits.reset-clamp-min. A second kick is one more
-// sweep: runs queue one at a time, and a re-fired issue's newer label holds it.
-// The only copy of the name; work-unblock.yml's header names it in prose and
-// reads nothing.
-export const SWEEP_LABEL = "work-unblock-sweep";
 // The one comment per issue that says it keeps being re-fired on a backoff,
 // edited in place on each re-fire; it reads as a re-fire record timed by its
 // last edit.
@@ -449,6 +449,38 @@ const reportError = (number, error) =>
 // sweep holds, with this notice, and the next tick reads it again.
 const reportHold = (what, error) =>
   console.log(`::notice title=label-unblocked::the ${what} listing failed (${escapeCommand(error?.message ?? error)}); holding, and the next sweep reads it again`);
+// main's clients tag the error of a read (a GET, or a GraphQL query as
+// retryServerErrors tells one) that met a GitHub fault (isFault), and count
+// on the GitHub client (`held`) the issues failedFor holds on one.
+const READ_FAULT = Symbol("a read met a GitHub fault");
+function markReads(client) {
+  const marked = async (method, apiPath, body, ...rest) => {
+    try {
+      return await client(method, apiPath, body, ...rest);
+    } catch (error) {
+      const read = method === "GET" || (method === "POST" && graphqlQuery(apiPath, { body: JSON.stringify(body) }));
+      if (read && isFault(error)) {
+        error[READ_FAULT] = true;
+      }
+      throw error;
+    }
+  };
+  marked.held = 0;
+  return marked;
+}
+// What one issue's failed read or write adds to the run's failures. A faulted
+// read is no verdict on the issue (outage posture element 2): the issue is
+// held with a notice and the run stays green. Anything else, a failed write
+// or a read that failed for another reason, is reported and ends the run red.
+function failedFor(github, number, error) {
+  if (error?.[READ_FAULT]) {
+    console.log(`::notice title=label-unblocked::#${number}: ${escapeCommand(error.message)}; holding, and the next sweep reads it again`);
+    github.held += 1;
+    return 0;
+  }
+  reportError(number, error);
+  return 1;
+}
 
 const isLabel = (event, kind) => event.event === kind && String(event.label?.name).toLowerCase() === LABEL;
 
@@ -626,7 +658,8 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
       throw new Error("the last sweep's job has no usable id");
     }
     const log = await jobLog(repo, swept.id, { maxBytes: LOG_CAP_BYTES });
-    return String(log ?? "").split("\n").some((line) => LISTED.test(line))
+    const lines = String(log ?? "").split("\n");
+    return lines.some((line) => LISTED.test(line)) && !lines.some((line) => HELD.test(line))
       ? { since: from, why: `the last sweep started ${at}` }
       : { since: widest, why: `the last sweep, started ${at}, held or shows no read of its listing` };
   } catch (error) {
@@ -813,8 +846,7 @@ async function unpark({ github, repo, parked, humans, appId, admission, mirror =
         going.push(issue.number);
       }
     } catch (error) {
-      failed += 1;
-      reportError(issue.number, error);
+      failed += failedFor(github, issue.number, error);
     }
   }
   console.log(`label-unblocked: ${going.length} of ${parked.length} parked issue(s) go back to intake`);
@@ -824,8 +856,7 @@ async function unpark({ github, repo, parked, humans, appId, admission, mirror =
       await mirror(number, change(labelNames(parked.find((issue) => issue.number === number)), [], [CONFIRMED]));
       console.log(`label-unblocked: #${number} ${CONFIRMED} removed; intake-reenter sends it to intake`);
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -882,8 +913,9 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);
       } else if (stale.length > 0) {
         // As intake's admit: needs-decision when a person settles a reason, else status: confirmed.
-        const status = stale.some((item) => item.hold) ? NEEDS_DECISION : CONFIRMED;
-        await refuseDeferred({ github, repo, number, comments: await paginate(github, `/repos/${repo}/issues/${number}/comments`), reasons: reason, labels: [status], had: labelNames(current), mirror });
+        const code = lapsedReason(stale);
+        const status = code === null ? CONFIRMED : NEEDS_DECISION;
+        await refuseDeferred({ github, repo, number, comments: await paginate(github, `/repos/${repo}/issues/${number}/comments`), reasons: reason, labels: [status], had: labelNames(current), code, mirror });
         console.log(`label-unblocked: #${number} refused: ${reason}`);
       } else {
         await github("DELETE", `/repos/${repo}/issues/${number}/labels/${DEFERRED_LABEL}`);
@@ -891,8 +923,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`label-unblocked: #${number} deferral dropped: ${reason}`);
       }
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -929,8 +960,7 @@ async function stripClosed({ github, repo, number, read }) {
     console.log(`label-unblocked: #${number} closed; removed ${removed.length} queue and state label(s)${removed.length > 0 ? `: ${removed.join(", ")}` : ""}`);
     return 0;
   } catch (error) {
-    reportError(number, error);
-    return 1;
+    return failedFor(github, number, error);
   }
 }
 
@@ -1007,13 +1037,46 @@ const dropParked = async (github, base, labels, had) => {
   }
 };
 
+// The lane name work-unblock's stop-reason markers carry (../lib/stop-reason.mjs).
+const UNBLOCK_LANE = "work-unblock";
+
+// The admission comment's text for a refusal: one that holds for a person
+// (`code`, its owner reason) adds the visible reason line and the stop-reason
+// marker after it, as intake's admit.mjs heldRefusalText does, so every reader
+// of the refusal's opening line reads it unchanged; a park (`code` null)
+// hands nothing to a person and carries neither.
+export function heldText(reasons, code) {
+  if (code === null) {
+    return refusalText(reasons);
+  }
+  const [marker, line] = personReasonLines(UNBLOCK_LANE, code);
+  return `${refusalText(reasons)}\n\n${line}\n${marker}`;
+}
+
+// The owner reason a deferral's lapsed holds (admit.mjs deferralLapsed) stop
+// for, as intake's decide names it: `security` for the untrusted-provenance
+// hold or a gained security area, `intent` for any other hold, or null when
+// none holds.
+export function lapsedReason(lapsed) {
+  const holds = lapsed.filter((item) => item.hold);
+  if (holds.length === 0) {
+    return null;
+  }
+  return holds.some(({ reason }) => reason.startsWith(UNTRUSTED) || reason.startsWith(SECURITY_AREA)) ? "security" : "intent";
+}
+
+// The owner reason of decide()'s hold, or null for a park. decide names it
+// (`reason`); a hold that names none fails closed as intent.
+const decisionReason = (decision) => (decision.hold ? (decision.reason ?? "intent") : null);
+
 // Refuses a deferred issue for `reasons`: the admission comment (`comments`
-// its comments) first, then the hold `labels` before status: ready comes off,
-// and admission-deferred last, so a failed write leaves the issue either still
-// deferred, for the next sweep, or held, which no sweep admits.
-async function refuseDeferred({ github, repo, number, comments, reasons, labels, had, mirror = noMirror }) {
+// its comments; heldText with `code`) first, then the hold `labels` before
+// status: ready comes off, and admission-deferred last, so a failed write
+// leaves the issue either still deferred, for the next sweep, or held, which
+// no sweep admits.
+async function refuseDeferred({ github, repo, number, comments, reasons, labels, had, code = null, mirror = noMirror }) {
   const base = `/repos/${repo}/issues/${number}`;
-  await sayWhy(github, repo, base, comments, refusalText(reasons));
+  await sayWhy(github, repo, base, comments, heldText(reasons, code));
   await github("POST", `${base}/labels`, { labels });
   await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
   await dropParked(github, base, labels, had);
@@ -1033,12 +1096,12 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     console.log(`label-unblocked: #${number}, marked by a person, passes the admission rules`);
     await admit({ github, repo, number, gate, deferred: true, confirmed: parkedBesideReady(labelNames(issue).map((name) => name.toLowerCase())), had: labelNames(issue), mirror });
   } else if (decision.verdict === "refuse") {
-    // The hold is needs-decision, except that a refusal for a manual external
-    // step, or one for a merged Refs pull request alone, asks no decision:
-    // status: confirmed, beside attended (itself a hold) for the external step.
-    const doneOnly = decision.done !== undefined && decision.reasons.length === 1;
-    const status = decision.hold || !(decision.attended || doneOnly) ? NEEDS_DECISION : CONFIRMED;
-    await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status], had: labelNames(issue), mirror });
+    // As intake's admit: needs-decision only when a person settles a reason;
+    // any other refusal (a split, a merged Refs pull request, a manual
+    // external step beside attended, itself a hold) parks at status: confirmed.
+    const code = decisionReason(decision);
+    const status = code === null ? CONFIRMED : NEEDS_DECISION;
+    await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status], had: labelNames(issue), code, mirror });
     console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
   } else if (decision.retriage) {
     await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
@@ -1106,8 +1169,7 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
         console.log(`label-unblocked: #${item.number} admission comment now names its open sub-issues`);
       }
     } catch (error) {
-      failed += 1;
-      reportError(item.number, error);
+      failed += failedFor(github, item.number, error);
     }
   }
   let candidates = listed.filter((item) => !queued(lower(item)) && (!waiting(item) || drained.has(item.number)));
@@ -1162,12 +1224,13 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
         await admit({ github, repo, number, gate, deferred: false, confirmed: parkedBesideReady(labels), had: labelNames(issue), mirror });
       } else if (decision.verdict === "refuse") {
         // As intake's admit: the parking label before status: ready comes off.
-        const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
+        const code = decisionReason(decision);
+        const status = code === null ? CONFIRMED : NEEDS_DECISION;
         await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
         await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
         await dropParked(github, base, [status], labelNames(issue));
         await mirror(number, change(labelNames(issue), decision.attended ? [status, ATTENDED] : [status], [READY, ...(status === NEEDS_DECISION ? [CONFIRMED] : [])]));
-        await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
+        await sayWhy(github, repo, base, facts.comments, heldText(reasons, code));
         console.log(`label-unblocked: #${number} refused: ${reasons}`);
       } else if (decision.fields) {
         console.log(`label-unblocked: #${number} waits: ${reasons}`);
@@ -1186,8 +1249,7 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
         console.log(`label-unblocked: #${number} left as is: ${reasons}`);
       }
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -1214,8 +1276,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
     } catch (error) {
-      failed += 1;
-      reportError(source, error);
+      failed += failedFor(github, source, error);
       continue;
     }
     for (const item of blocked) {
@@ -1253,8 +1314,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       }
       await admit({ github, repo, number, gate, deferred, confirmed, had: labelNames(current), mirror });
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed + (parked.length > 0 ? await unpark({ github, repo, parked, humans, appId, admission, mirror }) : 0);
@@ -1302,7 +1362,7 @@ export const recurrenceComment = (id) =>
 // The hand-offs to triage once the lane PR ended, each posted once per pull
 // request before its labels move.
 export const refsMergedComment = (pr) =>
-  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage. Admission then parks it at \`${CONFIRMED}\` for a check of what that pull request left, until a \`**Decision recorded.**\` comment says what is left or someone closes it.`;
+  `${handedMarker(pr)}\nPull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage. Admission then parks it at \`${CONFIRMED}\` for a check of what that pull request left, until a \`**Decision recorded.**\` comment says what is left or someone closes it.`;
 export const refsClosedComment = (pr) =>
   `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage, which decides what work is left and admits it again.`;
 
@@ -1964,7 +2024,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"], mirror = noMirror }) {
+async function restartLimited({ github, actions, jobLog, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], mirror = noMirror }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -1996,6 +2056,10 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
     reportHold(LABEL, error);
     return 0;
   }
+  // A merged pull request that names the issue on a `Refs:` line, whoever
+  // opened it, is work done off the lane: admission's own check, read only
+  // for an issue about to be re-fired, and as none when the read fails.
+  const doneBy = mergedRefsReader({ github, repository: repo, numbers: open.map((item) => Number(item.number)), humans, appId });
   for (const issue of open) {
     const listed = {};
     const read = (kind) => (listed[kind] ??= paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
@@ -2034,10 +2098,19 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
         continue;
       }
+      const done = verdict.refire ? await doneBy(issue.number) : [];
+      if (done.length > 0) {
+        // Handed to triage as a lane PR merged with `Refs:` is: admission
+        // then parks it at `status: confirmed` for a done-check.
+        const pr = done.at(-1);
+        const explained = (await read("comments")).some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(handedMarker(pr)));
+        console.log(`label-unblocked: #${issue.number} not re-fired: ${doneReason(done)}`);
+        ready.push({ number: Number(issue.number), had: labelNames(issue), resets: verdict.resets, handOff: "merged", pr, explained });
+        continue;
+      }
       ready.push({ ...verdict, number: Number(issue.number), had: labelNames(issue) });
     } catch (error) {
-      failed += 1;
-      reportError(issue.number, error);
+      failed += failedFor(github, issue.number, error);
     }
   }
   ready.sort((a, b) => a.resets - b.resets || a.number - b.number);
@@ -2063,10 +2136,9 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
         }
         const removed = await stripQueueLabels(github, base, had);
         await mirror(number, change(had, [], [...removed, ...(release ? [HUMAN_LABEL] : [])]));
-        console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
+        console.log(`label-unblocked: #${number} handed to triage: PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
       } catch (error) {
-        failed += 1;
-        reportError(number, error);
+        failed += failedFor(github, number, error);
       }
       continue;
     }
@@ -2089,8 +2161,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
       }
       await github("DELETE", `${base}/labels/${LABEL}`);
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
       continue;
     }
     // The label is off now; one failed re-add would leave the issue out of
@@ -2129,8 +2200,7 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot, clo
     try {
       await closeSplitParent({ github, repo, number, humans, closes, bot, sweep, mirror });
     } catch (error) {
-      failed += 1;
-      reportError(number, error);
+      failed += failedFor(github, number, error);
     }
   }
   return failed;
@@ -2167,8 +2237,7 @@ async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now,
     try {
       await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${item.number}`), humans, closes, bot, mirror });
     } catch (error) {
-      failed += 1;
-      reportError(item.number, error);
+      failed += failedFor(github, item.number, error);
     }
   }
   return failed;
@@ -2286,7 +2355,7 @@ const baseAdmission = (env) => {
     })());
 };
 
-export { budgetLatch };
+export { budgetLatch, failedFor, markReads };
 
 export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env), mirrorStatus, statusOf } = {}) {
   try {
@@ -2295,16 +2364,16 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     }
     // A finished work-resolve-issue run sweeps as the schedule does: its
     // payload is not read, and its sender is usually the lanes App.
-    const scheduled = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
-    const event = scheduled ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
-    if (!scheduled && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
+    const sweep = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
+    const event = sweep ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+    if (!sweep && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
       throw new Error("this runs only on an issue closing, on the schedule or after a work-resolve-issue run");
     }
     if (env.KILL_SWITCH !== "proceed") {
       console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");
       return 0;
     }
-    if (!scheduled) {
+    if (!sweep) {
       // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
       // cleanly: the broker refuses it, and the hourly sweep picks it up.
       if (event.sender?.type === "Bot") {
@@ -2325,23 +2394,15 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // readiness is read (read-status.mjs); a caller that hands its own client
     // and no reader reads labels only.
     const reader = statusOf ?? (github ? undefined : null);
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
+    github = markReads(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse }));
     const mirrorTo = mirror ?? (await statusMirror({ env, github, repository: repo }));
     const statusTo = reader === null ? statusReader({ env, github, repository: repo }) : reader;
     const queuedStatus = reader === null ? statusReader({ env, github, repository: repo, limit: STATUS_READS }) : reader;
-    // A listed human's close of the marker issue (its labels read from the
-    // payload) runs the sweep, not the close path: it blocks nothing.
-    const kick = !scheduled && labelNames(event.issue).some((name) => name.toLowerCase() === SWEEP_LABEL);
-    const sweep = scheduled || kick;
-    if (kick) {
-      const closedAt = Date.parse(event.issue.closed_at);
-      const closed = Number.isFinite(closedAt) ? ` closed=${new Date(closedAt).toISOString()}` : "";
-      console.log(`::notice title=work-unblock::sweep-kick marker=#${Number(event.issue.number)}${closed} started=${new Date(now).toISOString()}`);
-    }
     if (sweep) {
       const latch = budgetLatch("github-token");
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
       jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
+      actions = actions && markReads(actions);
     }
     const window = sweep ? await sweepSince({ actions, jobLog, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     let closed = sweep ? [] : [Number(event.issue.number)];
@@ -2373,7 +2434,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, mirror: mirrorTo });
-    // The sweep marker carries no queue labels, so a kick skips this.
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number) });
     }
@@ -2390,7 +2450,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, mirror: mirrorTo });
         failed += await readmitReady({ github, repo, listed, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now, mirror: mirrorTo });
       }
-      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, mirror: mirrorTo });
+      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, appId: logins.get(bot), now, limits, status, mirror: mirrorTo });
+    }
+    if (github.held > 0) {
+      console.log(HELD_LINE);
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {

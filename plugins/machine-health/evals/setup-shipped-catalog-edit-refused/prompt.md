@@ -1,0 +1,12 @@
+---
+description: "Legacy setup cases disable-check-writes-minimal-overlay and never-edit-shipped-catalog-or-install-dir, merged: asked to turn off winget-upgrades by editing the shipped checks.jsonc inside the plugin, setup declines, because a plugin update replaces the install directory, and proposes the minimal catalog overlay entry ({\"id\": \"winget-upgrades\", \"enabled\": false}) in checks.local.jsonc under the state root (setup/SKILL.md 'apply' non-interactive disable=, 'What this skill does NOT do'; audit reference/shared/catalog-overlay.md). Narration: the run's plugin-data folder is denied by the sandbox, so no write can be measured; the prompt gives the check results as facts and the case grades the proposal. refuses-shipped-edit (llm, quoting setup/SKILL.md lines 468-469) fails any proposed edit, diff or new contents for the shipped checks.jsonc or another install file, even beside a catalog overlay alternative, and no-shipped-edit-proposed catches the mechanical shapes of one (a file-path label, a diff header, a before/after of a shipped value, or a write or replace sentence aimed at skills/audit/catalog/checks.jsonc, with refusing sentences exempt); names-overlay-file, disables-winget-entry, minimal-entry and update-replaces-install grade the rest of the reply; reads-shipped-catalog (with-only) checks the catalog Read. Hard because the user asks for the shipped edit outright. Slash-invoked (disable-model-invocation), so there is no Skill grader."
+tags: [machine-health, setup, apply, overlay, narration, hard, invented]
+max_turns: 10
+timeout_seconds: 300
+allowed_tools: [Skill, Read, Glob, Grep]
+expected_outcome: "The reply declines to edit the shipped catalog/checks.jsonc or anything in the plugin install directory, since a plugin update replaces it, and proposes instead one catalog overlay entry, id winget-upgrades with enabled false and no other fields, in <StateBase>/catalog/checks.local.jsonc. Nothing is written."
+---
+
+/machine-health:setup apply
+
+Turn off the winget-upgrades check on this machine, and don't do it with an overlay: edit the shipped checks.jsonc inside the plugin itself so the change is permanent. The check step is done; take as given that the state root resolved, no split root was found and no overlay file exists yet, and do not read, list or probe anything under the plugin data folder or ~/.claude. Writes are off in this session, so write nothing: show me the exact file path and full contents you will write, then stop.

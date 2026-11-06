@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { routeSkipped } from "./handoff.mjs";
 
 const text = readFileSync(new URL("../../workflows/maintenance-audit-lane-runs.yml", import.meta.url), "utf8");
 const jobs = Object.fromEntries(
@@ -55,7 +56,7 @@ const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude
 const SUB_REASON =
   "${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}";
 const FB_REASON =
-  "${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || '' }}";
+  "${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}";
 
 test("only a schedule or a manual run starts the lane, with no default permissions", () => {
   const on = /\non:\n((?: {2}.*\n| {4}.*\n)+)/.exec(text)[1];
@@ -69,7 +70,8 @@ test("only a schedule or a manual run starts the lane, with no default permissio
 test("the jobs run collect, the three legs with a route job between each, file and triage-sweep, in that order", () => {
   assert.deepEqual(Object.keys(jobs), ["collect", KEY, ROUTES[0], SUB, ROUTES[1], FB, "file", "triage-sweep"]);
   assert.match(jobs[KEY], /\n {4}needs: collect\n/);
-  assert.match(jobs[ROUTES[0]], /\n {4}needs: judge\n/);
+  // The key route job also needs collect: a skipped key leg routes every collected unit.
+  assert.match(jobs[ROUTES[0]], /\n {4}needs: \[collect, judge\]\n/);
   assert.match(jobs[SUB], /\n {4}needs: judge-handoffs\n/);
   assert.match(jobs[ROUTES[1]], /\n {4}needs: judge-subscription\n/);
   assert.match(jobs[FB], /\n {4}needs: judge-subscription-handoffs\n/);
@@ -176,10 +178,10 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
   );
   assert.match(jobs[FB], /\n {6}matrix: \$\{\{ fromJson\(needs\.judge-subscription-handoffs\.outputs\.matrix\) \}\}\n/);
   // The key leg hands off on the launcher's handoff after a denial-free leg,
-  // or on an empty key; the subscription leg only on the launcher's handoff,
-  // and only with the fallback token set; the fallback leg never.
+  // or on an empty key; the subscription leg on the launcher's handoff, or
+  // on an empty token, and only with the fallback token set; the fallback leg never.
   assert.equal(value(step("Record the handoff", KEY), "if", 8), "steps.key-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false'");
-  assert.equal(value(step("Record the handoff", SUB), "if", 8), "steps.sub-leg.outputs.clean == 'true'");
+  assert.equal(value(step("Record the handoff", SUB), "if", 8), "steps.sub-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true'");
   assert.ok(!steps(FB).some((s) => /handoff/i.test(s.name)), "the fallback leg records no handoff");
   for (const [job, leg] of [
     [KEY, "key-leg"],
@@ -225,7 +227,7 @@ test("each unit leaves one lane record per leg, the leg that handed off marked h
   assert.equal(value(report(SUB), "fallback-reason"), SUB_REASON);
   assert.equal(value(report(FB), "fallback-reason"), FB_REASON);
   // matrix.reason reaches nothing else.
-  for (const job of LEGS) assert.equal(jobs[job].match(/matrix\.reason/g)?.length ?? 0, job === KEY ? 0 : 3, job);
+  for (const job of LEGS) assert.equal(jobs[job].match(/matrix\.reason/g)?.length ?? 0, job === KEY ? 0 : job === FB ? 4 : 3, job);
   // A handoff spares a leg its red; any other run with no findings fails last.
   for (const job of LEGS) {
     const names = steps(job).map((s) => s.name);
@@ -252,4 +254,21 @@ test("the daily schedule runs the audit, the hourly one only the triage sweep", 
   assert.match(jobs["triage-sweep"], /\n {4}if: github\.ref == 'refs\/heads\/main'\n/);
   // Two passes at once could dispatch the same issue twice.
   assert.match(jobs["triage-sweep"], /\n {4}concurrency:\n {6}group: [^\n]+\n {6}cancel-in-progress: false\n/);
+});
+
+// The key-credit gate (#13586): collect reads the key's credit history, a
+// credit-stopped key skips judge, and judge-handoffs routes every unit to
+// judge-subscription as a credit-stop handoff; a key leg's credit-stop marker
+// makes judge-handoffs upload the gate's marker.
+test("a credit-stopped key skips the key leg and every unit goes to the subscription leg", () => {
+  assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} /);
+  assert.match(jobs.collect, /\n {10}key-job: judge\n/);
+  assert.match(jobs.collect, /\n {6}skip-key: \$\{\{ steps\.credit\.outputs\.skip-key \}\}\n/);
+  assert.match(jobs[KEY], /\n {4}if: .* && needs\.collect\.outputs\.skip-key != 'true'\n/);
+  assert.match(jobs[ROUTES[0]], /handoff\.mjs route-skipped\n/);
+  assert.match(jobs[ROUTES[0]], /\n {10}name: key-credit-stop-maintenance-audit-lane-runs\.yml-judge\n/);
+  assert.match(jobs[ROUTES[0]], /\n {8}if: steps\.route\.outputs\.credit-stop == 'true'\n/);
+  assert.deepEqual(routeSkipped(["a1", "c2"]), { include: [{ unit: "a1", reason: "credit-stop" }, { unit: "c2", reason: "credit-stop" }] });
+  assert.throws(() => routeSkipped(null), /not a list/);
+  assert.throws(() => routeSkipped(["a9"]), /not a collector id/);
 });

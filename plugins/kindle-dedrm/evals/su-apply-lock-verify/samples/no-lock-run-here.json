@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/run-1/plugin/skills/manage/scripts/status.sh",
+            "description": "Probe state"
+          }
+        }
+      ],
+      "why": "the read-only probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powershell.exe -NoProfile -Command \"Get-NetFirewallRule -DisplayName 'Block Kindle for PC (lock 2.8.0)' | Format-List Enabled\"",
+            "description": "after firewall.ps1 enable"
+          }
+        }
+      ],
+      "why": "near miss: reads the rule; the script name only in the description"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -File \"/tmp/run-1/plugin/skills/manage/scripts/firewall.ps1\" -Action enable"
+          }
+        }
+      ],
+      "why": "re-runs the firewall step here"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/run-1/plugin/skills/manage/scripts/lock-updates.sh\" apply"
+          }
+        }
+      ],
+      "why": "re-runs the lock here"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powershell.exe -Command \"Enable-NetFirewallRule -DisplayName 'Block Kindle for PC (lock 2.8.0)'\""
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -124,11 +124,11 @@ the dependency manager did not open.
 
 The babysit unattended merge gate (`/source-control:babysit-prs`, its `--unattended` path) is
 another. It reads no class; it needs its effective rung's promotion cells (rung `merge` (`C2`) the
-`C2-auto-merge` cell, rung `merge-reviewed` (`C3`) every C3 cell), read by rung, never by class. The one label it
-reads by a class name is a trust hold: it refuses a change request whose linked item carries
-`work-class: untrusted-provenance`, or had that label removed by a non-human (it does not read
-`provenance: signal`, so it holds a signal item only when that item also carries the class
-label), and it needs the
+`C2-auto-merge` cell, rung `merge-reviewed` (`C3`) every C3 cell), read by rung, never by class. The one class
+label it reads is a trust hold: it refuses a change request whose linked item carries
+`provenance: untrusted`, or had that label removed by a non-human (it matches any label naming
+untrusted work, so it reads the legacy name too; it does not read `provenance: signal`, so it
+holds a signal item only when that item also carries `provenance: untrusted`), and it needs the
 linked item vouched for by a human (written by one with write access, or given the admission
 label by one in person with no body edit after). That skill's safety reference defines it, section
 "Unattended Merge Path".

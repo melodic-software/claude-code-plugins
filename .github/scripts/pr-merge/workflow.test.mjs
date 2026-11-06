@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, 
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { CACHE_ONLY_TIMEOUT_MS, CACHE_ONLY_WINDOW_MS, LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -1729,7 +1729,7 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
 const root = new URL("../../../", import.meta.url);
 const workflowsDir = new URL(".github/workflows/", root);
 const stepsIn = (text) => text.split(/\n(?=\s*- (?:name|uses|id|if|run|env|with|shell|continue-on-error|timeout-minutes):)/).slice(1);
-const restoresOf = (stepTexts, seen = new Set()) =>
+const restoresOf = (stepTexts, seen = new Set(), base = root) =>
   stepTexts.flatMap((s) => {
     const uses = /^\s*(?:- )?uses: *['"]?([^\s'"#]+)/m.exec(s)?.[1] ?? "";
     if (/^actions\/cache(?:\/restore)?@/.test(uses)) return [{ uses, prefix: /\n\s*restore-keys:/.test(s) }];
@@ -1741,13 +1741,13 @@ const restoresOf = (stepTexts, seen = new Set()) =>
     const local = /^\.\/(?:\.base\/)?(\.github\/actions\/[^@]+)$/.exec(uses)?.[1];
     if (!local || seen.has(local)) return [];
     seen.add(local);
-    const action = ["action.yml", "action.yaml"].map((f) => new URL(`${local.replace(/\/$/, "")}/${f}`, root)).find((u) => existsSync(u));
-    return action ? restoresOf(stepsIn(readFileSync(action, "utf8")), seen) : [];
+    const action = ["action.yml", "action.yaml"].map((f) => new URL(`${local.replace(/\/$/, "")}/${f}`, base)).find((u) => existsSync(u));
+    return action ? restoresOf(stepsIn(readFileSync(action, "utf8")), seen, base) : [];
   });
 // A grant of id-token: write, at any indentation and quoted or not, or write-all.
 const grantsIdToken = (text) =>
   /^[ \t]*id-token:[ \t]*['"]?write['"]?[ \t]*(?:#.*)?$/m.test(text) || /^[ \t]*permissions:[ \t]*['"]?write-all\b/m.test(text);
-function tokenJobRestores(text) {
+function tokenJobRestores(text, base = root) {
   const at = text.search(/^jobs:[ \t]*$/m);
   const workflowGrant = grantsIdToken(text.slice(0, at));
   const body = text.slice(at).replace(/^jobs:.*\n/, "");
@@ -1757,7 +1757,7 @@ function tokenJobRestores(text) {
     .split(new RegExp(`\\n(?=${indent}[A-Za-z0-9_-]+:)`))
     .map((block) => ({ id: new RegExp(`^${indent}([A-Za-z0-9_-]+):`, "m").exec(block)?.[1], block }))
     .filter(({ id, block }) => id && (workflowGrant || grantsIdToken(block) || /request-lane-token|create-github-app-token/.test(block)))
-    .flatMap(({ id, block }) => restoresOf(stepsIn(block)).map((r) => ({ job: id, ...r })));
+    .flatMap(({ id, block }) => restoresOf(stepsIn(block), new Set(), base).map((r) => ({ job: id, ...r })));
 }
 
 test("no job holding id-token or a lanes App token restores a cache by a bare prefix", () => {
@@ -1774,14 +1774,19 @@ test("no token-holding job in pr-merge.yml restores a cache", () => {
   // local composite action, and ignores one in a job holding neither token.
   const withStep = (job, step) => merge.replace(new RegExp(`(\\n  ${job}:\\n[\\s\\S]*?\\n    steps:\\n)`), `$1${step}`);
   const exact = "      - name: Restore\n        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          key: k\n";
-  const composite = "      - name: Count\n        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]\n";
+  // No local action restores a cache today, so a fixture one stands in.
+  const fixture = tempDir("pr-merge-composite-");
+  mkdirSync(join(fixture, ".github/actions/restoring"), { recursive: true });
+  writeFileSync(join(fixture, ".github/actions/restoring/action.yml"), `runs:\n  using: composite\n  steps:\n${exact.replace(/^ {6}/gm, "    ").replace("key: k\n", "key: k\n        restore-keys: k-\n")}`);
+  const base = pathToFileURL(`${fixture}/`);
+  const composite = "      - name: Count\n        uses: ./.base/.github/actions/restoring # zizmor: ignore[self-repository]\n";
   const setupNode = "      - name: Node\n        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0\n        with:\n          node-version: 24\n";
   const setupPython = "      - name: Python\n        uses: actions/setup-python@v6\n        with:\n          cache: pip\n";
   for (const job of ["merge", "enable-auto-merge"]) {
     for (const added of [exact, setupNode, setupPython]) {
       assert.deepEqual(tokenJobRestores(withStep(job, added)).map((r) => [r.job, r.prefix]), [[job, false]], job);
     }
-    assert.deepEqual(tokenJobRestores(withStep(job, composite)).map((r) => [r.job, r.prefix]), [[job, true]], job);
+    assert.deepEqual(tokenJobRestores(withStep(job, composite), base).map((r) => [r.job, r.prefix]), [[job, true]], job);
   }
   assert.deepEqual(tokenJobRestores(withStep("gate-check", exact)), []);
 });

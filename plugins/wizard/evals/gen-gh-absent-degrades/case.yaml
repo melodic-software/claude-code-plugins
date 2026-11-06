@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: gen-gh-absent-degrades
+graders:
+  - name: run-continues
+    type: regex
+    pattern: '\b(?:won[''’]t|will not|wouldn[''’]t|would not|doesn[''’]t|does not|didn[''’]t|did not|never|shouldn[''’]t)\s+(?:\w+\s+){0,2}?(?:break|fail|stop|abort|crash|exit)\b|\b(?:carr(?:y|ies|ied) on|continues?|continued|keeps? (?:going|running)|kept (?:going|running)|nothing (?:breaks|broke|fails|failed)|(?:gh|it) is optional|still (?:runs?|completes?|finishes)|runs? to (?:the end|completion))\b|\bnot a (?:failure|defect|bug|breakage)\b|\bdegrades?\b'
+    flags: 'i'
+    target: last_message
+  - name: warns-and-summary
+    type: regex
+    pattern: '^(?=[\s\S]*\bwarn(?:s|ed|ing|ings)?\b)(?=[\s\S]*\bsummary\b)(?=[\s\S]*(?:\bCI\b|\bsecrets?\b|\bvariables?\b|\bset_(?:secret|var)\b))'
+    flags: 'i'
+    target: last_message
+  - name: no-bypass
+    type: regex
+    pattern: '\b(?:I(?:[''’]ll| will| can| could)|let me|we (?:can|could|should)|you (?:can|could|should|might want to)|consider|recommend(?:ed)?|I(?:[''’]d| would) (?:suggest|recommend))\s+(?:\w+\s+){0,2}?(?:remove|removing|drop|dropping|delete|deleting|strip|stripping|cut|cutting|bypass|bypassing|comment out|commenting out|skip|skipping)\b(?!(?:[^.\n]|\.(?=\w))*\b(?:no need|not needed|need not|don[''’]t need|isn[''’]t needed|unnecessary|would (?:lose|throw away|break|defeat|leave))\b)(?:[^.\n]|\.(?=\w)){0,60}?(?:\b(?:CI[- ]?(?:secret|variable)s?|gh)\b(?:[^.\n]|\.(?=\w)){0,20}\b(?:stages?|steps?|calls?|writes?)\b|\bset_(?:secret|var)\b|\b(?:stages?|steps?)\b(?:[^.\n]|\.(?=\w)){0,30}\b(?:CI|gh)\b)'
+    flags: 'i'
+    match: not_contains
+    target: last_message

@@ -1,6 +1,6 @@
 ---
 description: "Production integration design for a partner webhook whose payload partners build against: the first round calls the payload contract a one-way door and prompts for an ADR, and writes no code"
-tags: [design, reversibility, one-way-door, adr, scaffold]
+tags: [design, reversibility, one-way-door, adr, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

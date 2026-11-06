@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["outcome", "detail", "mutants"],
+  "properties": {
+    "outcome": { "enum": ["generated", "scope-empty", "refused"] },
+    "detail": { "type": "string", "maxLength": 500 },
+    "mutants": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "line", "operator", "old_string", "new_string"],
+        "properties": {
+          "path": { "type": "string", "maxLength": 300, "pattern": "^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$" },
+          "line": { "type": "integer", "minimum": 1 },
+          "operator": { "enum": ["SBR", "ROR", "AOR", "LCR", "UOI", "other"] },
+          "old_string": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "new_string": { "type": "string", "maxLength": 2000 }
+        }
+      }
+    }
+  }
+}

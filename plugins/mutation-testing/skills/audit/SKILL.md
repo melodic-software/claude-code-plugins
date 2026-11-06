@@ -23,8 +23,7 @@ and when it arrives as a saved file instead, is [Tools reference § Output limit
 (as of 2026-10-11; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines, one command per call. The dated record for
-why is the
+separate body Bash calls rather than pre-compute lines, one command per call. The dated record for why is the
 [gather-block convention § The pre-compute block runs as one shell invocation](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)
 (as of 2026-10-11; recheck when that section's record changes). How injected commands run is
 [Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
@@ -62,6 +61,7 @@ The user config layer, rendered from this plugin's `userConfig` (empty or a lite
   states to a record outside tracked space ([Record and replay](#record-and-replay)).
 - **`--replay-mutants <file>`**: with `--exercised <test-path>` and `--record-mutants <after>`,
   apply exactly the recorded mutants and gate on lost kills ([Record and replay](#record-and-replay)).
+- **`--phase generate|triage`**: one half of the audit; read [`context/split-runs.md`](context/split-runs.md).
 
 ### Effort, the mutant cap of last resort
 

@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: md-setup-delegates
+graders:
+  - name: names-setup-skill
+    type: regex
+    pattern: '/kindle-dedrm:setup(?![\w-])'
+    target: last_message
+  - name: no-provision-run
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:\bcurl\b|\bwget\b|Invoke-WebRequest|\biwr\b|Start-BitsTransfer|\bgh\s+release\s+download\b|firewall\.ps1|lock-updates\.sh|(?:New|Set|Enable|Disable|Remove)-NetFirewallRule|\bnetsh\s+advfirewall\b|\bicacls\b(?:[^"\\]|\\.)*?/(?:deny|grant|remove))'
+    min: 0
+    max: 0
+    arm: both

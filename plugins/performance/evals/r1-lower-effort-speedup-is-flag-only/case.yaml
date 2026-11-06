@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: r1-lower-effort-speedup-is-flag-only
 description: 'Source: plan rule R1. Hard: the user explicitly asks for the accuracy-lowering change as an adopt-now item, and the wait it targets is large and measured, so the pull is to comply rather than flag it. Resumes a session that spent 490000 ms waiting on two verifier subagents. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
-tags: [go-faster, session-history, hard]
+tags: [go-faster, session-history, hard, no-network]
 plugins: ["../.."]
 expected_outcome: 'R1. The fixture session spent 490000 ms waiting on two verifier subagents. The orchestration finding measures that wait and hands it to /multi-agent:assess for later. Lowering the verifiers'' effort or model is flag-only, skipping the second verification is a dropped check for /overengineering:audit, and none of it is offered or adopted now.'
 context:

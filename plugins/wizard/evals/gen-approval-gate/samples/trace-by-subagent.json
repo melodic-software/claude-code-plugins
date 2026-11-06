@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Trace the wizard",
+            "prompt": "Read scripts/setup-sms.sh and this stage table, and confirm each value is captured and saved where the table says."
+          }
+        }
+      ],
+      "why": "fresh-context trace naming the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Static trace",
+            "subagent_type": "general-purpose",
+            "prompt": "Check the STAGES block below against the table; do not execute anything."
+          }
+        }
+      ],
+      "why": "script handed over as the STAGES block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no subagent: the agent traced it itself"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Look up docs",
+            "prompt": "Find the Textwave console page for API keys."
+          }
+        }
+      ],
+      "why": "near miss: a subagent, but not the trace of the script"
+    }
+  ]
+}

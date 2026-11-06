@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Calibre | PASS | 8.4 installed |\n| Python | FAIL | `where python` finds only the WindowsApps stub; install Python 3.6+ from python.org and put it first on PATH |\n| Firewall rule | INFO | not yet provisioned; run apply |"
+    },
+    {
+      "answer": "| Python 3.6+ (not WindowsApps stub) | Fail | only the stub resolves |",
+      "why": "title case, long first cell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Python | PASS | python.exe found on PATH |",
+      "why": "takes the stub as a real Python"
+    },
+    {
+      "answer": "| Python | INFO | WindowsApps stub; consider installing Python |",
+      "why": "near miss: a hard prerequisite reported as INFO"
+    },
+    {
+      "answer": "| Calibre | FAIL | missing |\n| Python | WARN | stub |",
+      "why": "FAIL only on another row"
+    },
+    {
+      "answer": "Python: FAIL, it is the WindowsApps stub.",
+      "why": "no table row"
+    }
+  ]
+}

@@ -38,8 +38,17 @@ name: eval-browser-dispatch
 # whose tree holds no symlink or submodule and whose cases load only the
 # plugin itself or an unchanged directory inside it. Anything else is refused.
 #
-# The credential is the maintenance role's subscription token. When the secret
-# is empty the job ends with a notice and runs nothing.
+# The eval runs on the maintenance role's credential chain, one credential per
+# job: `eval` on MAINTENANCE_CLAUDE_API_KEY, then `eval-subscription` on
+# MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN, then `eval-fallback` on
+# FALLBACK_CLAUDE_CODE_OAUTH_TOKEN. A leg hands off on the stops run-claude-cli
+# hands off on (eval-handoff.mjs reads the probe's stream and every errored
+# run's kept trace with run-claude-cli's own classifier): the key leg on a
+# credit stop or a 401 or 402, the subscription leg, when the fallback token is
+# set, also on a limit stop; an empty credential hands off too. The leg that
+# hands off summarizes and uploads nothing. eval-key-credit skips the key after
+# a recent credit stop (ci-workflows check-key-credit). With every credential
+# empty the last leg ends with a notice and runs nothing.
 #
 # Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
 # eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as
@@ -119,10 +128,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  eval:
-    # A dispatch on any ref but the default branch skips before any step
-    # runs, so every case it runs has merged through review. A pull request
-    # runs only on the `eval: run` label, from this repository, and not as a draft.
+  # The key's credit gate (ci-workflows check-key-credit, gate.cjs: one
+  # artifact-list call for the marker the key leg uploads after a credit
+  # stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset)
+  # starts the eval on the subscription, with no refused key attempt first.
+  # No secret, no model, no checkout; every failure runs the key (skip-key
+  # empty). Probing is off.
+  eval-key-credit:
     if: >-
       (github.event_name == 'workflow_dispatch'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
@@ -131,12 +143,64 @@ jobs:
       && github.event.pull_request.head.repo.full_name == github.repository
       && !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # list this repository's credit-stop markers
+    outputs:
+      skip-key: ${{ steps.credit.outputs.skip-key }}
+      marker: ${{ steps.credit.outputs.marker }}
+    steps:
+      - name: Read the key's credit history
+        id: credit
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          key-job: eval
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: eval-browser-dispatch
+          lane-id: eval-browser-dispatch
+          credential: MAINTENANCE_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
+  # The key leg, on the maintenance role's API key alone. A dispatch on any
+  # ref but the default branch skips before any step runs, so every case it
+  # runs has merged through review. A pull request runs only on the
+  # `eval: run` label, from this repository, and not as a draft. A credit
+  # stop, or a 401 or 402, in the probe or any run hands the eval to
+  # eval-subscription; an empty key, or one the gate skipped, runs nothing.
+  eval:
+    needs: eval-key-credit
+    if: >-
+      ${{ !cancelled() && needs.eval-key-credit.result == 'success' && ((github.event_name == 'workflow_dispatch'
+      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+      || (github.event_name == 'pull_request'
+      && github.event.label.name == 'eval: run'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && !github.event.pull_request.draft)) }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the repository; nothing in this job writes
       pull-requests: read # check-trusted-trigger reads the pull request
       actions: read # check-trusted-trigger reads this run's re-runner
+    outputs:
+      handoff: ${{ steps.judge.outputs.handoff }}
+      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
+      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -265,24 +329,28 @@ jobs:
             exit 1
           fi
 
-      # Only whether the secret is set leaves this step, never its value.
+      # Only whether each secret is set leaves this step, never its value.
+      # `run` is whether this leg runs the eval.
       - name: Check the credential
         id: credential
         env:
-          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          SKIP_KEY: ${{ needs.eval-key-credit.outputs.skip-key }}
         run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::notice::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty; no eval runs."
-            echo "present=false" >>"$GITHUB_OUTPUT"
+          run=$PRESENT
+          if [ "$SKIP_KEY" = true ]; then
+            run=false
+            echo "::notice::the credit gate skipped MAINTENANCE_CLAUDE_API_KEY; eval-subscription runs the eval"
+          elif [ "$PRESENT" != true ]; then
+            echo "::warning::MAINTENANCE_CLAUDE_API_KEY is empty; eval-subscription runs the eval"
           fi
+          { echo "present=$PRESENT"; echo "run=$run"; } >>"$GITHUB_OUTPUT"
 
       # The plugin under test on a pull request: the label-time head, with full
       # history so the next step diffs this same commit against its base. A
       # checkout runs no code from it.
       - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: steps.credential.outputs.run == 'true' && github.event_name == 'pull_request'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -295,7 +363,7 @@ jobs:
       # dispatch. Each line of `plugins` is a plugins/<name> path.
       - name: Choose the plugins
         id: plugins
-        if: steps.credential.outputs.present == 'true'
+        if: steps.credential.outputs.run == 'true'
         env:
           EVENT: ${{ github.event_name }}
           TARGET: ${{ inputs.target }}
@@ -470,6 +538,22 @@ jobs:
           echo "/opt/tools/bin" >> "$GITHUB_PATH"
           test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
 
+      # run-claude-cli's classifier, at the pin every lane runs it, for
+      # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
+      - name: Check out the launcher's classifier
+        if: steps.stage.outputs.go == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: melodic-software/ci-workflows
+          ref: b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+          path: .ci-workflows
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/run-claude-cli/lane.cjs
+            .github/actions/report-lane-outcome/classify.cjs
+            .github/scripts/resolve-npm-tool-version.cjs
+          sparse-checkout-cone-mode: false
+
       # Proof that the managed policy holds before any pull request case runs,
       # for each of the three tools a case can use to read a file: one Claude
       # Code run is told to Read /proc/self/environ and the runner's .runner
@@ -480,27 +564,61 @@ jobs:
       # credential anywhere. Claude Code applies Read deny rules to Glob and
       # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
       # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
-      # instead of reaching a case. The result can hold what a call returned,
+      # instead of reaching a case. The stream can hold what a call returned,
       # so it stays in a file that is never printed and is removed after the
-      # check.
+      # check. A probe that the credential's own stop ended hands off instead
+      # (eval-handoff.mjs), so the next leg runs the eval.
       - name: Probe that the policy denies those reads
+        id: probe
         if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
+          LEG: key
+          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
         run: |
+          if [ -n "${LANE_API_KEY:-}" ]; then
+            export ANTHROPIC_API_KEY="$LANE_API_KEY"
+            unset LANE_API_KEY
+          fi
+          credential=${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}
+          [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
+          status=0
           claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
-            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format json >"$out" 2>/dev/null || true
-          if grep -qF "$CLAUDE_CODE_OAUTH_TOKEN" "$out"; then
+            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+          if grep -qF "$credential" "$out"; then
             echo "::error::the probe's result holds the credential, so no pull request case runs"
             exit 1
           fi
+          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
+          if grep -qx 'handoff=true' <<<"$verdict"; then
+            echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
+            exit 0
+          fi
+          probe_facts() {
+            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
+              [split("\n")[] | select(. != "")] as $lines
+              | [$lines[] | fromjson? | objects] as $m
+              | ($m | map(select(.type == "result")) | last) as $r
+              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
+                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
+              | "result=\(if $r == null then "none" else "present" end)"
+                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
+                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
+                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
+                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
+                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
+                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
+          }
           denied() {
-            jq -e --arg t "$1" --arg p "$2" 'any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs"; exit 1; }
+            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs (probe: $(probe_facts))"; exit 1; }
           }
           denied Read /proc/self/environ
           denied Read "$RUNNER_ROOT/.runner"
@@ -567,9 +685,10 @@ jobs:
       # run's own sandbox makes read-only to Bash, and within the short length
       # the sandbox's sockets need (plugins/evals/skills/plugin-eval/reference/sandboxes.md).
       - name: Run the plugin eval
-        if: steps.stage.outputs.go == 'true'
+        id: eval
+        if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
@@ -583,6 +702,10 @@ jobs:
           REAL_SERVERS: ${{ inputs.allow-real-servers }}
           OUT: ${{ runner.temp }}/eval-results
         run: |
+          if [ -n "${LANE_API_KEY:-}" ]; then
+            export ANTHROPIC_API_KEY="$LANE_API_KEY"
+            unset LANE_API_KEY
+          fi
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR"
           args=(
@@ -636,6 +759,39 @@ jobs:
             echo "exit $status" >"$out/exit-code"
           done <<<"$SUITES"
 
+      # Whether the credential's own stop ended any run, read from each errored
+      # run's kept trace by run-claude-cli's classifier; nothing here prints a
+      # trace. A probe's handoff stands. The leg's execution file carries only
+      # the suites' durationSeconds and costUsd, for the lane record. A leg
+      # that hands off summarizes and uploads nothing: the next leg reruns the
+      # eval.
+      - name: Judge the leg
+        id: judge
+        if: always() && steps.stage.outputs.go == 'true' && (steps.probe.outcome == 'success' || steps.probe.outcome == 'skipped')
+        env:
+          LEG: key
+          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
+          SUITES: ${{ steps.stage.outputs.suites }}
+          OUT: ${{ runner.temp }}/eval-results
+          LEG_RESULT: ${{ runner.temp }}/leg-result.json
+          PROBE_HANDOFF: ${{ steps.probe.outputs.handoff }}
+          PROBE_REASON: ${{ steps.probe.outputs.handoff-reason }}
+          PROBE_CLASS: ${{ steps.probe.outputs.lane-class }}
+        run: |
+          results=""
+          while IFS=$'\t' read -r dir _; do
+            [ -n "$dir" ] || continue
+            results+="$OUT/$(basename "$dir")/results.json"$'\n'
+          done <<<"$SUITES"
+          verdict=$(RESULTS="$results" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+          if [ "$PROBE_HANDOFF" = true ]; then
+            verdict=$(printf 'handoff=true\nhandoff-reason=%s\nlane-class=%s\noutcome=failure' "$PROBE_REASON" "$PROBE_CLASS")
+          fi
+          printf '%s\n' "$verdict" | tee -a "$GITHUB_OUTPUT"
+          echo "leg-result=$LEG_RESULT" >>"$GITHUB_OUTPUT"
+
       # The verdict of record: summarize.mjs per result, PASS, FAIL or NOT
       # COMPARABLE per case. A suite with no result fails the job too.
       # A pull request run prints no case name, error or partial reason: the
@@ -644,7 +800,7 @@ jobs:
       # printed to the job log, with workflow commands off, and kept as
       # summary.md beside its results.json, which a dispatched run uploads.
       - name: Summarize the results
-        if: always() && steps.stage.outputs.go == 'true'
+        if: always() && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
@@ -713,7 +869,7 @@ jobs:
       # omitted when nothing matches. Nothing else from the trace is printed. Trace text is
       # tool output, so workflow commands are off while it prints.
       - name: Print Bash error excerpts
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-errors && steps.stage.outputs.go == 'true'
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-errors && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
         env:
           OUT: ${{ runner.temp }}/eval-results
         run: |
@@ -766,20 +922,1629 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
-          always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
+          always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true'
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/eval-results/
 
       - name: Upload the eval results
         if: >-
-          (always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch') && steps.scan-upload.outputs.clean == 'true'
+          (always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/eval-results/
           if-no-files-found: warn
           retention-days: 3
+
+      # Read by the next runs' credit gate (eval-key-credit): the artifact its
+      # `marker` output names (check-key-credit gate.cjs markerName), uploaded
+      # only after the key leg's credit-stop handoff. The name is written out
+      # so its retention row claims it.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: always() && needs.eval-key-credit.outputs.marker == 'key-credit-stop-eval-browser-dispatch.yml-eval' && steps.judge.outputs.handoff-reason == 'credit-stop'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Scan the key's credit-stop marker for credentials
+        id: credit-marker-scan
+        if: always() && steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+
+      - name: Upload the key's credit-stop marker
+        id: credit-marker-upload
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-eval-browser-dispatch.yml-eval
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs, one record per leg.
+      - name: Record the leg
+        if: always() && steps.judge.outcome == 'success'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge.outputs.outcome }}
+          execution-file: ${{ steps.judge.outputs.leg-result }}
+          lane: eval-browser-dispatch
+          lane-id: eval-browser-dispatch
+          credential: MAINTENANCE_CLAUDE_API_KEY
+          handoff: ${{ steps.judge.outputs.handoff }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
+          fallback-reason: ""
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # The subscription leg: the key leg's steps on a fresh runner, on the
+  # maintenance role's subscription token alone, with no credit-stop marker.
+  # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop, or
+  # a 401 or 402 hands off to eval-fallback, and so does an empty token. With
+  # both tokens empty the leg ends with a notice and runs nothing.
+  # callers.test.mjs holds its steps equal to the key leg's but for the
+  # credential and the leg record's fallback reason.
+  eval-subscription:
+    needs: [eval-key-credit, eval]
+    if: >-
+      ${{ !cancelled() && needs.eval-key-credit.result == 'success'
+      && (needs.eval.outputs.handoff == 'true' || needs.eval.outputs.credential-present == 'false'
+      || needs.eval-key-credit.outputs.skip-key == 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    cache-mode: read
+    permissions:
+      contents: read # check out the repository; nothing in this job writes
+      pull-requests: read # check-trusted-trigger reads the pull request
+      actions: read # check-trusted-trigger reads this run's re-runner
+    outputs:
+      handoff: ${{ steps.judge.outputs.handoff }}
+      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
+      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+    env:
+      API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        if: github.event_name == 'pull_request'
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # The default branch tip; on a dispatch, the dispatched commit, which the
+      # job if: holds to the default branch.
+      - name: Check out the default branch
+        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # Skips the run while Actions or npm installs report a degraded component,
+      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
+      - name: Stop when the kill switch is on
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          exit 1
+
+      - name: Stop while upstream is degraded
+        if: steps.upstream.outputs.degraded == 'true'
+        env:
+          REASON: ${{ steps.upstream.outputs.reason }}
+        run: |
+          echo "::error::upstream-degraded: ${REASON} on its status page stops this run; dispatch it again once it recovers"
+          exit 1
+
+      # check-trusted-trigger needs a PR, and a dispatch names none, so the
+      # dispatcher is matched against the same list directly, by numeric id:
+      # it must be a listed human, and the lanes App bot is denied by id, as
+      # in pr-run-activity-write.yml. A re-run is refused: its re-runner's id
+      # is only in the run's record, which this job's token cannot read, and
+      # a login can pass to another account. Dispatch the workflow again
+      # instead.
+      - name: Check the dispatcher is a trusted human
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          ACTOR_ID: ${{ github.actor_id }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: |
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
+            echo "::error::rerun-refused: a re-run of this workflow is not supported; dispatch it again"
+            exit 1
+          fi
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ "$ACTOR_ID" = "$APP_SENDER_ID" ]; then
+            echo "::error::bot-actor: the lanes App bot cannot dispatch this lane"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$ACTOR_ID" '
+              .version == 1
+              and any(.actors[]; .id == $id and .kind == "human")
+            ' "$LIST" >/dev/null; then
+            echo "::error::untrusted-actor: the dispatcher is not a listed human"
+            exit 1
+          fi
+
+      - name: Check the pull request trigger
+        id: gate
+        if: github.event_name == 'pull_request'
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+
+      # check-trusted-trigger accepts any listed actor; the label that spends
+      # the credential must come from a listed human, so a person opts in to
+      # each run.
+      - name: Stop on an untrusted pull request trigger
+        if: github.event_name == 'pull_request'
+        env:
+          PROCEED: ${{ steps.gate.outputs.proceed }}
+          REASON: ${{ steps.gate.outputs.reason }}
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          SENDER_ID: ${{ github.event.sender.id }}
+        run: |
+          if [ "$PROCEED" != true ]; then
+            echo "::error::the trigger is not trusted (reason: ${REASON:-unreadable})"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$SENDER_ID" 'any(.actors[]; .id == $id and .kind == "human")' "$LIST" >/dev/null; then
+            echo "::error::untrusted-actor: the 'eval: run' label did not come from a listed human"
+            exit 1
+          fi
+
+      # Only whether each secret is set leaves this step, never its value.
+      # `run` is whether this leg runs the eval.
+      - name: Check the credential
+        id: credential
+        env:
+          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            if [ "$FALLBACK_PRESENT" = true ]; then
+              echo "::warning::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty; eval-fallback runs the eval"
+            else
+              echo "::notice::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are empty; no eval runs."
+            fi
+          fi
+          { echo "present=$PRESENT"; echo "run=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+
+      # The plugin under test on a pull request: the label-time head, with full
+      # history so the next step diffs this same commit against its base. A
+      # checkout runs no code from it.
+      - name: Check out the pull request head
+        if: steps.credential.outputs.run == 'true' && github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: .head
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The checked-out head's diff from its merge base with the pull
+      # request's base chooses the plugins; the target input does on a
+      # dispatch. Each line of `plugins` is a plugins/<name> path.
+      - name: Choose the plugins
+        id: plugins
+        if: steps.credential.outputs.run == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          TARGET: ${{ inputs.target }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            target=${TARGET%/}
+            if ! [[ $target =~ ^plugins/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+              echo "::error::target must be a plugin directory, plugins/<name>"
+              exit 1
+            fi
+            selected=$target
+          else
+            merge_base=$(git -C .head merge-base "$BASE_SHA" "$HEAD_SHA")
+            files=$(git -C .head diff --no-renames --name-only "$merge_base" "$HEAD_SHA")
+            selected=$(printf '%s\n' "$files" |
+              node .base/.github/scripts/plugin-eval/select-plugins.mjs --repo .head --base "$merge_base" --head "$HEAD_SHA") || {
+              echo "::error::the pull request changes more of a selected plugin than its suite may run with the credential"
+              exit 1
+            }
+          fi
+          if [ -z "$selected" ]; then
+            echo "::notice::the pull request changes no plugin's skills, agents or evals; no eval runs."
+            echo "go=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "go=true"
+            echo "list<<EOF"
+            echo "$selected"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      # validate-cases.py makes no model call. A FAIL is a case the binary
+      # rejects at load, so the job stops before any spend. On a deterministic
+      # run each suite is then copied without its judged cases.
+      - name: Validate and stage the suites
+        id: stage
+        if: steps.plugins.outputs.go == 'true'
+        env:
+          LIST: ${{ steps.plugins.outputs.list }}
+          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+        run: |
+          staged=""
+          while IFS= read -r plugin; do
+            [ -n "$plugin" ] || continue
+            dir="$ROOT/$plugin"
+            eval_dir=$(jq -r '.experimental.evals // "evals"' "$dir/.claude-plugin/plugin.json" 2>/dev/null || echo evals)
+            if [ ! -d "$dir/$eval_dir" ]; then
+              echo "::notice::$plugin has no eval suite; skipped."
+              continue
+            fi
+            echo "== validate $plugin/$eval_dir"
+            if ! python3 .base/plugins/evals/skills/validate/scripts/validate-cases.py "$dir/$eval_dir"; then
+              echo "::error::$plugin/$eval_dir does not pass validate-cases.py, so no eval runs"
+              exit 1
+            fi
+            if [ "$DETERMINISTIC" = true ]; then
+              split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$dir" evals-deterministic)
+              echo "$split"
+              if [ "$(jq '.kept | length' <<<"$split")" -eq 0 ]; then
+                echo "::notice::$plugin has no case with deterministic graders only; skipped."
+                continue
+              fi
+              eval_dir=evals-deterministic
+            fi
+            staged+="$dir"$'\t'"$eval_dir"$'\n'
+          done <<<"$LIST"
+          if [ -z "$staged" ]; then
+            echo "go=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "go=true"
+            echo "suites<<EOF"
+            printf '%s' "$staged"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      # The tools and Chromium go under /opt, outside HOME, which each eval
+      # run replaces with a temporary one. Only these directories are made
+      # while sudo works; no third-party code runs before isolation.
+      - name: Create the tool directories
+        if: steps.stage.outputs.go == 'true'
+        run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
+
+      # A pull request supplies the prompts, and the eval's Read, Glob and Grep
+      # run without the Bash sandbox, so nothing else keeps them from the
+      # credential in /proc/<pid>/environ or the runner's own files. A
+      # root-owned managed settings file, which applies inside every eval run
+      # and which nothing in the run overrides (code.claude.com/docs/en/
+      # plugin-evals, "How runs are isolated"; code.claude.com/docs/en/
+      # settings, "Settings precedence", as of 2026-10-27), denies those
+      # paths. The runner's install directory is read from the Runner.Worker
+      # process above this step, not guessed; the job's _temp and _actions
+      # directories are denied beside it. Written while sudo is still there;
+      # the job stops if the runner directory is not found or the file cannot
+      # be written or read back. The probe step below proves the denial.
+      - name: Deny the eval's reads of process and runner state
+        id: deny
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        run: |
+          runner_root="" pid=$$
+          while [ "${pid:-0}" -gt 1 ]; do
+            exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
+            case "$exe" in */bin/Runner.Worker) runner_root=${exe%/bin/Runner.Worker}; break ;; esac
+            pid=$(awk '/^PPid:/ {print $2}' "/proc/$pid/status" 2>/dev/null)
+          done
+          if [ -z "$runner_root" ]; then
+            echo "::error::no Runner.Worker process above this step, so the runner's directory cannot be denied"
+            exit 1
+          fi
+          work=$(dirname "$RUNNER_WORKSPACE")
+          policy=$(mktemp)
+          jq -n --arg runner "Read(/$runner_root/**)" --arg temp "Read(/$work/_temp/**)" --arg actions "Read(/$work/_actions/**)" \
+            '{permissions: {deny: [
+            "Read(//proc/**)",
+            "Read(//sys/**)",
+            "Read(//etc/claude-code/**)",
+            $runner,
+            "Read(//home/runner/runners/**)",
+            "Read(//home/runner/actions-runner/**)",
+            $temp,
+            $actions,
+            "Read(//home/runner/.config/**)",
+            "Read(//home/runner/.ssh/**)",
+            "Read(//home/runner/.docker/**)",
+            "Read(~/.claude/**)",
+            "Read(~/.claude.json)"
+          ]}}' >"$policy"
+          sudo install -D -m 0644 -o root -g root "$policy" /etc/claude-code/managed-settings.json
+          jq -e '.permissions.deny | index("Read(//proc/**)")' /etc/claude-code/managed-settings.json >/dev/null
+          echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
+          echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
+
+      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
+      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
+      # and docker access for the rest of the job.
+      - name: Isolate the runner
+        if: steps.stage.outputs.go == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # Every binary this job runs comes from the locked root toolchain. Its
+      # install scripts run here, after sudo and docker access are gone.
+      - name: Install the locked root toolchain
+        timeout-minutes: 5
+        if: steps.stage.outputs.go == 'true'
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      # The guardrails hooks read every Bash command through shfmt and refuse the
+      # call without it, so a guardrails eval needs it on PATH. Same v3.14.1 pin
+      # and SHA-256 as pr-require-checks.yml. In /opt/tools, since each eval run
+      # replaces HOME.
+      - name: Install pinned shfmt for guardrails
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p /opt/tools/bin
+          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o /opt/tools/bin/shfmt \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  /opt/tools/bin/shfmt" | sha256sum -c -
+          chmod +x /opt/tools/bin/shfmt
+          echo "/opt/tools/bin" >> "$GITHUB_PATH"
+          test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
+
+      # run-claude-cli's classifier, at the pin every lane runs it, for
+      # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
+      - name: Check out the launcher's classifier
+        if: steps.stage.outputs.go == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: melodic-software/ci-workflows
+          ref: b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+          path: .ci-workflows
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/run-claude-cli/lane.cjs
+            .github/actions/report-lane-outcome/classify.cjs
+            .github/scripts/resolve-npm-tool-version.cjs
+          sparse-checkout-cone-mode: false
+
+      # Proof that the managed policy holds before any pull request case runs,
+      # for each of the three tools a case can use to read a file: one Claude
+      # Code run is told to Read /proc/self/environ and the runner's .runner
+      # file, Grep /proc/self/environ, and Glob for environ under /proc/self. The job stops
+      # unless the result's permission_denials (code.claude.com/docs/en/
+      # agent-sdk/typescript, "SDKResultMessage", as of 2026-10-28) records
+      # each of the four calls as denied, or if the result holds the
+      # credential anywhere. Claude Code applies Read deny rules to Glob and
+      # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
+      # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
+      # instead of reaching a case. The stream can hold what a call returned,
+      # so it stays in a file that is never printed and is removed after the
+      # check. A probe that the credential's own stop ended hands off instead
+      # (eval-handoff.mjs), so the next leg runs the eval.
+      - name: Probe that the policy denies those reads
+        id: probe
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
+          LEG: subscription
+          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
+        run: |
+          if [ -n "${LANE_API_KEY:-}" ]; then
+            export ANTHROPIC_API_KEY="$LANE_API_KEY"
+            unset LANE_API_KEY
+          fi
+          credential=${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}
+          [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
+          out=$(mktemp)
+          trap 'rm -f "$out"' EXIT
+          status=0
+          claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
+            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+          if grep -qF "$credential" "$out"; then
+            echo "::error::the probe's result holds the credential, so no pull request case runs"
+            exit 1
+          fi
+          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
+          if grep -qx 'handoff=true' <<<"$verdict"; then
+            echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
+            exit 0
+          fi
+          probe_facts() {
+            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
+              [split("\n")[] | select(. != "")] as $lines
+              | [$lines[] | fromjson? | objects] as $m
+              | ($m | map(select(.type == "result")) | last) as $r
+              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
+                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
+              | "result=\(if $r == null then "none" else "present" end)"
+                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
+                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
+                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
+                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
+                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
+                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
+          }
+          denied() {
+            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs (probe: $(probe_facts))"; exit 1; }
+          }
+          denied Read /proc/self/environ
+          denied Read "$RUNNER_ROOT/.runner"
+          denied Grep /proc/self
+          denied Glob /proc/self
+          echo "The managed policy denied the probe's Read, Grep and Glob calls."
+
+      # Chromium comes from the playwright that the locked playwright-cli
+      # and Playwright MCP server share. Without sudo there is no --with-deps: the hosted image already
+      # carries a browser's system libraries. A pull request run grants no
+      # Bash, so it needs no browser: it passes no --allow-tools, a case
+      # cannot widen that grant (plugins/evals/skills/plugin-eval/SKILL.md,
+      # the read-only suites paragraph), and select-plugins.mjs refuses a
+      # changed case's allowed_tools.
+      - name: Install Chromium
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw
+        run: |
+          node /opt/tools/node_modules/playwright/cli.js install chromium
+          command -v playwright-cli claude
+
+      # Every Bash call in an eval run goes through Claude Code's bubblewrap
+      # sandbox (code.claude.com/docs/en/sandboxing, "Set up Linux and WSL2",
+      # as of 2026-10-10). Starting bwrap here as the runner user, with the
+      # whole filesystem (so /opt/tools and the setup-node toolcache) bound
+      # read-only, fails the job with bwrap's own error if bwrap cannot start
+      # a sandbox, before any eval spends tokens. Its flags are not Claude
+      # Code's own, so a pass does not prove the full sandbox starts.
+      - name: Check bwrap starts a sandbox
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
+        run: |
+          fail() {
+            local msg=${2//'%'/'%25'}
+            msg=${msg//$'\r'/'%0D'}
+            echo "::error::$1: ${msg//$'\n'/'%0A'}"
+            exit 1
+          }
+          for tool in bwrap socat; do
+            command -v "$tool" || fail "$tool is not on PATH" "the Bash sandbox needs it"
+          done
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          sandbox=(bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent)
+          if ! out=$("${sandbox[@]}" true 2>&1); then
+            fail "bwrap cannot start a sandbox as the runner user" "$out"
+          fi
+          if ! out=$("${sandbox[@]}" playwright-cli --version 2>&1); then
+            fail "playwright-cli does not start inside bwrap" "$out"
+          fi
+          echo "playwright-cli inside bwrap: $out"
+
+      - name: Record that env scrub is off
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && !inputs.env-scrub
+        env:
+          DISPATCHER: ${{ github.actor }}
+        run: echo "::warning::CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off for this run; Bash subprocesses can see the Claude credentials. Dispatched by ${DISPATCHER}."
+
+      # One `claude plugin eval` per staged suite, each under its own
+      # --max-cost-usd. Its exit code is overloaded, so the summary step reads
+      # each JSON result instead. --keep-temp keeps each run's trace on the
+      # runner, outside the uploaded results, for the summary's health lines.
+      # A pull request run grants no tool, runs no scaffold, keeps env scrub on
+      # and uses each case's own run count. TMPDIR sits outside /tmp, which the
+      # run's own sandbox makes read-only to Bash, and within the short length
+      # the sandbox's sockets need (plugins/evals/skills/plugin-eval/reference/sandboxes.md).
+      - name: Run the plugin eval
+        id: eval
+        if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          # Strips credentials from Bash subprocesses inside each eval run.
+          # The env-scrub input set false gives "0", the opt-out value Claude
+          # Code's own messages name.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          SUITES: ${{ steps.stage.outputs.suites }}
+          DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+          CASE: ${{ inputs.case }}
+          TAGS: ${{ inputs.tag }}
+          RUNS: ${{ inputs.runs }}
+          ALLOW_TOOLS: ${{ inputs.allow-tools }}
+          REAL_SERVERS: ${{ inputs.allow-real-servers }}
+          OUT: ${{ runner.temp }}/eval-results
+        run: |
+          if [ -n "${LANE_API_KEY:-}" ]; then
+            export ANTHROPIC_API_KEY="$LANE_API_KEY"
+            unset LANE_API_KEY
+          fi
+          export TMPDIR="$HOME/.ev"
+          mkdir -p "$TMPDIR"
+          args=(
+            --trust-plugin
+            --no-publish
+            --model claude-sonnet-5-5
+            --judge-model claude-opus-5-5
+            --max-cost-usd 5
+            --keep-temp
+          )
+          if [ "$DISPATCH" = true ]; then
+            if ! [[ $RUNS =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::runs must be a positive integer"
+              exit 1
+            fi
+            IFS=, read -ra tools <<< "$ALLOW_TOOLS"
+            read -ra tags <<< "$TAGS"
+            for value in "${tools[@]}" "${tags[@]}" "$CASE"; do
+              case "$value" in
+                -*) echo "::error::a case, tag or tool must not start with -"; exit 1 ;;
+              esac
+            done
+            args+=(--scaffold --runs "$RUNS")
+            if [ "$REAL_SERVERS" = true ]; then
+              args+=(--allow-real-servers)
+            fi
+            if [ "${#tools[@]}" -gt 0 ]; then
+              args+=(--allow-tools "${tools[@]}")
+            fi
+            if [ "${#tags[@]}" -gt 0 ]; then
+              args+=(--tag "${tags[@]}")
+            fi
+            if [ -n "$CASE" ]; then
+              args+=(--case "$CASE")
+            fi
+          fi
+          while IFS=$'\t' read -r dir eval_dir; do
+            [ -n "$dir" ] || continue
+            out="$OUT/$(basename "$dir")"
+            mkdir -p "$out"
+            echo "== claude plugin eval $dir --eval-dir $eval_dir"
+            status=0
+            if [ "$DISPATCH" = true ]; then
+              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" || status=$?
+            else
+              # A pull request run's console output can carry model text from
+              # the PR's cases, and the job log is public: it goes to a file
+              # that nothing uploads.
+              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" >"$out/console.log" 2>&1 || status=$?
+            fi
+            echo "exit $status" >"$out/exit-code"
+          done <<<"$SUITES"
+
+      # Whether the credential's own stop ended any run, read from each errored
+      # run's kept trace by run-claude-cli's classifier; nothing here prints a
+      # trace. A probe's handoff stands. The leg's execution file carries only
+      # the suites' durationSeconds and costUsd, for the lane record. A leg
+      # that hands off summarizes and uploads nothing: the next leg reruns the
+      # eval.
+      - name: Judge the leg
+        id: judge
+        if: always() && steps.stage.outputs.go == 'true' && (steps.probe.outcome == 'success' || steps.probe.outcome == 'skipped')
+        env:
+          LEG: subscription
+          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
+          SUITES: ${{ steps.stage.outputs.suites }}
+          OUT: ${{ runner.temp }}/eval-results
+          LEG_RESULT: ${{ runner.temp }}/leg-result.json
+          PROBE_HANDOFF: ${{ steps.probe.outputs.handoff }}
+          PROBE_REASON: ${{ steps.probe.outputs.handoff-reason }}
+          PROBE_CLASS: ${{ steps.probe.outputs.lane-class }}
+        run: |
+          results=""
+          while IFS=$'\t' read -r dir _; do
+            [ -n "$dir" ] || continue
+            results+="$OUT/$(basename "$dir")/results.json"$'\n'
+          done <<<"$SUITES"
+          verdict=$(RESULTS="$results" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+          if [ "$PROBE_HANDOFF" = true ]; then
+            verdict=$(printf 'handoff=true\nhandoff-reason=%s\nlane-class=%s\noutcome=failure' "$PROBE_REASON" "$PROBE_CLASS")
+          fi
+          printf '%s\n' "$verdict" | tee -a "$GITHUB_OUTPUT"
+          echo "leg-result=$LEG_RESULT" >>"$GITHUB_OUTPUT"
+
+      # The verdict of record: summarize.mjs per result, PASS, FAIL or NOT
+      # COMPARABLE per case. A suite with no result fails the job too.
+      # A pull request run prints no case name, error or partial reason: the
+      # model output those can carry would land in the public job summary.
+      # The REST API returns no job summary, so each suite's summary is also
+      # printed to the job log, with workflow commands off, and kept as
+      # summary.md beside its results.json, which a dispatched run uploads.
+      - name: Summarize the results
+        if: always() && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
+        env:
+          SUITES: ${{ steps.stage.outputs.suites }}
+          OUT: ${{ runner.temp }}/eval-results
+          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
+          RUNS: ${{ inputs.runs }}
+        run: |
+          failed=0
+          redact=()
+          if [ -n "$REDACT" ]; then redact=("$REDACT"); fi
+          while IFS=$'\t' read -r dir _; do
+            [ -n "$dir" ] || continue
+            name=$(basename "$dir")
+            results="$OUT/$name/results.json"
+            if [ ! -f "$results" ]; then
+              why=$(cat "$OUT/$name/exit-code" 2>/dev/null || echo "the run did not start")
+              printf '### Plugin eval: %s\n\nNo result was written (%s).\n\nResult: NOT COMPARABLE\n\n' \
+                "$name" "$why" >>"$GITHUB_STEP_SUMMARY"
+              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::No result was written (${why//[$'\r\n%']/ })."
+              failed=1
+              continue
+            fi
+            summary="$OUT/$name/summary.md"
+            annotation="$OUT/$name/annotation.txt"
+            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" --annotation "$annotation" >"$summary" || failed=1
+            # A dispatched run uploads its results, but not the traces --keep-temp
+            # keeps here, so the validity verdict is read here and only its
+            # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
+            # lines can quote a trace), as eval-hill-climb-pass.yml does.
+            # noise-report reads only results.json, which the upload already
+            # holds. A dispatched run always scaffolds.
+            if [ "$DISPATCHED" = true ]; then
+              validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$results" --runs "$RUNS" --scaffolded) || true
+              bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)' || true)
+              verdict=$(printf '%s\n' "$validity" | tail -n 1)
+              printf '%s\n' ${bash_ran:+"$bash_ran"} "$verdict" >"$OUT/$name/validity.txt"
+              python3 .base/plugins/evals/skills/plugin-eval/scripts/noise-report.py "$results" >"$OUT/$name/noise.txt" 2>&1 || true
+              printf '\nValidity: %s\n' "$verdict" >>"$summary"
+              if [ -n "$bash_ran" ]; then printf '\n%s\n' "$bash_ran" >>"$summary"; fi
+            fi
+            cat "$summary" >>"$GITHUB_STEP_SUMMARY"
+            echo >>"$GITHUB_STEP_SUMMARY"
+            token=$(openssl rand -hex 16)
+            echo "::stop-commands::$token"
+            cat "$summary"
+            echo "::$token::"
+            # summarize.mjs escapes the command it writes; it prints outside
+            # the stop-commands block so the runner reads it.
+            # No file at all: summarize.mjs could not read the result (exit 2).
+            if [ -s "$annotation" ]; then
+              head -n 1 "$annotation"
+            elif [ ! -e "$annotation" ]; then
+              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::The result could not be read."
+            fi
+          done <<<"$SUITES"
+          exit "$failed"
+
+      # Opt-in because the job log of this public repository is public. Prints,
+      # per run, at most 20 Bash calls whose tool_result has is_error true: the
+      # command cut to 300 characters, and the result text cut to its first 120
+      # and last 2500 characters when longer than 2620 (the end holds the daemon
+      # log), each JSON-quoted onto one line. A second line, `key:`, holds the lines of the
+      # full result that match FATAL, Check failed, ERROR:, sandbox, permission or errno
+      # patterns (the cause line that a long crash stack pushes out of the tail), minus the
+      # known .bashrc noise, de-duplicated, at most 15, each cut to 300 characters; it is
+      # omitted when nothing matches. Nothing else from the trace is printed. Trace text is
+      # tool output, so workflow commands are off while it prints.
+      - name: Print Bash error excerpts
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-errors && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
+        env:
+          OUT: ${{ runner.temp }}/eval-results
+        run: |
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          for RESULTS in "$OUT"/*/results.json; do
+            if [ ! -f "$RESULTS" ]; then
+              echo "no results.json, so no traces to read"
+              continue
+            fi
+            jq -r '.cases[]? as $c | $c.arms // {} | to_entries[] | .key as $arm
+              | .value // [] | to_entries[]
+              | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
+              | @tsv' "$RESULTS" |
+              while IFS=$'\t' read -r name arm run trace; do
+                echo "== $name, $arm arm, run $run"
+                if [ ! -f "$trace" ]; then
+                  echo "   trace not found"
+                  continue
+                fi
+                jq -nrR '
+                  def tail_cut: if length > 2620 then .[:120] + " … " + .[-2500:] else . end;
+                  def key_lines:
+                    [split("\n")[]
+                      | select(test("FATAL|Check failed|ERROR:|No usable sandbox|Permission denied|Operation not permitted|EACCES|EPERM|ENOENT|errno")
+                               and (contains(".bashrc: Permission denied") | not))
+                      | .[:300]]
+                    | reduce .[] as $l ([]; if index([$l]) then . else . + [$l] end)
+                    | .[:15] | join("\n");
+                  [inputs | fromjson? | objects] as $m
+                  | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
+                      | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
+                      | {key: .id, value: (.input.command // "" | tostring)}] | from_entries) as $bash
+                  | [$m[] | select(.type == "user") | .message.content[]? | objects
+                      | select(.type == "tool_result" and .is_error == true)
+                      | (.tool_use_id // "" | tostring) as $id
+                      | select($bash | has($id))
+                      | {cmd: $bash[$id],
+                         out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
+                  | "   \(length) Bash error(s), showing up to 20",
+                    (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)\(.out | key_lines | if . == "" then "" else "\n     key: \(tojson)" end)")
+                ' "$trace" || echo "   could not read the trace"
+              done || echo "could not read $RESULTS"
+          done
+          echo "::$token::"
+
+      # Only a dispatched run, whose cases merged through review, uploads its
+      # results: a pull request's prompts could steer model output into a
+      # public artifact.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/eval-results/
+
+      - name: Upload the eval results
+        if: >-
+          (always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/eval-results/
+          if-no-files-found: warn
+          retention-days: 3
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs, one record per leg.
+      - name: Record the leg
+        if: always() && steps.judge.outcome == 'success'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge.outputs.outcome }}
+          execution-file: ${{ steps.judge.outputs.leg-result }}
+          lane: eval-browser-dispatch
+          lane-id: eval-browser-dispatch
+          credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN
+          handoff: ${{ steps.judge.outputs.handoff }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
+          fallback-reason: ${{ needs.eval.outputs.handoff-reason || needs.eval-key-credit.outputs.skip-key == 'true' && 'credit-stop' || needs.eval.outputs.credential-present == 'false' && 'no-key' || '' }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # The fallback leg: the same steps on the central fallback token, after
+  # the subscription leg handed off or found its token empty, and only when
+  # the fallback token is set. It is the last leg and never hands off.
+  eval-fallback:
+    needs: [eval-key-credit, eval-subscription]
+    if: >-
+      ${{ !cancelled() && needs.eval-subscription.outputs.fallback-ready == 'true'
+      && (needs.eval-subscription.outputs.handoff == 'true' || needs.eval-subscription.outputs.credential-present == 'false') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    cache-mode: read
+    permissions:
+      contents: read # check out the repository; nothing in this job writes
+      pull-requests: read # check-trusted-trigger reads the pull request
+      actions: read # check-trusted-trigger reads this run's re-runner
+    outputs:
+      handoff: ${{ steps.judge.outputs.handoff }}
+      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
+      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+    env:
+      API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        if: github.event_name == 'pull_request'
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # The default branch tip; on a dispatch, the dispatched commit, which the
+      # job if: holds to the default branch.
+      - name: Check out the default branch
+        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # Skips the run while Actions or npm installs report a degraded component,
+      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
+      - name: Stop when the kill switch is on
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          exit 1
+
+      - name: Stop while upstream is degraded
+        if: steps.upstream.outputs.degraded == 'true'
+        env:
+          REASON: ${{ steps.upstream.outputs.reason }}
+        run: |
+          echo "::error::upstream-degraded: ${REASON} on its status page stops this run; dispatch it again once it recovers"
+          exit 1
+
+      # check-trusted-trigger needs a PR, and a dispatch names none, so the
+      # dispatcher is matched against the same list directly, by numeric id:
+      # it must be a listed human, and the lanes App bot is denied by id, as
+      # in pr-run-activity-write.yml. A re-run is refused: its re-runner's id
+      # is only in the run's record, which this job's token cannot read, and
+      # a login can pass to another account. Dispatch the workflow again
+      # instead.
+      - name: Check the dispatcher is a trusted human
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          ACTOR_ID: ${{ github.actor_id }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: |
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
+            echo "::error::rerun-refused: a re-run of this workflow is not supported; dispatch it again"
+            exit 1
+          fi
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ "$ACTOR_ID" = "$APP_SENDER_ID" ]; then
+            echo "::error::bot-actor: the lanes App bot cannot dispatch this lane"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$ACTOR_ID" '
+              .version == 1
+              and any(.actors[]; .id == $id and .kind == "human")
+            ' "$LIST" >/dev/null; then
+            echo "::error::untrusted-actor: the dispatcher is not a listed human"
+            exit 1
+          fi
+
+      - name: Check the pull request trigger
+        id: gate
+        if: github.event_name == 'pull_request'
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+
+      # check-trusted-trigger accepts any listed actor; the label that spends
+      # the credential must come from a listed human, so a person opts in to
+      # each run.
+      - name: Stop on an untrusted pull request trigger
+        if: github.event_name == 'pull_request'
+        env:
+          PROCEED: ${{ steps.gate.outputs.proceed }}
+          REASON: ${{ steps.gate.outputs.reason }}
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          SENDER_ID: ${{ github.event.sender.id }}
+        run: |
+          if [ "$PROCEED" != true ]; then
+            echo "::error::the trigger is not trusted (reason: ${REASON:-unreadable})"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$SENDER_ID" 'any(.actors[]; .id == $id and .kind == "human")' "$LIST" >/dev/null; then
+            echo "::error::untrusted-actor: the 'eval: run' label did not come from a listed human"
+            exit 1
+          fi
+
+      # Only whether each secret is set leaves this step, never its value.
+      # `run` is whether this leg runs the eval.
+      - name: Check the credential
+        id: credential
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            echo "::notice::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty; no eval runs."
+          fi
+          { echo "present=$PRESENT"; echo "run=$PRESENT"; } >>"$GITHUB_OUTPUT"
+
+      # The plugin under test on a pull request: the label-time head, with full
+      # history so the next step diffs this same commit against its base. A
+      # checkout runs no code from it.
+      - name: Check out the pull request head
+        if: steps.credential.outputs.run == 'true' && github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: .head
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The checked-out head's diff from its merge base with the pull
+      # request's base chooses the plugins; the target input does on a
+      # dispatch. Each line of `plugins` is a plugins/<name> path.
+      - name: Choose the plugins
+        id: plugins
+        if: steps.credential.outputs.run == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          TARGET: ${{ inputs.target }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            target=${TARGET%/}
+            if ! [[ $target =~ ^plugins/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+              echo "::error::target must be a plugin directory, plugins/<name>"
+              exit 1
+            fi
+            selected=$target
+          else
+            merge_base=$(git -C .head merge-base "$BASE_SHA" "$HEAD_SHA")
+            files=$(git -C .head diff --no-renames --name-only "$merge_base" "$HEAD_SHA")
+            selected=$(printf '%s\n' "$files" |
+              node .base/.github/scripts/plugin-eval/select-plugins.mjs --repo .head --base "$merge_base" --head "$HEAD_SHA") || {
+              echo "::error::the pull request changes more of a selected plugin than its suite may run with the credential"
+              exit 1
+            }
+          fi
+          if [ -z "$selected" ]; then
+            echo "::notice::the pull request changes no plugin's skills, agents or evals; no eval runs."
+            echo "go=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "go=true"
+            echo "list<<EOF"
+            echo "$selected"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      # validate-cases.py makes no model call. A FAIL is a case the binary
+      # rejects at load, so the job stops before any spend. On a deterministic
+      # run each suite is then copied without its judged cases.
+      - name: Validate and stage the suites
+        id: stage
+        if: steps.plugins.outputs.go == 'true'
+        env:
+          LIST: ${{ steps.plugins.outputs.list }}
+          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+        run: |
+          staged=""
+          while IFS= read -r plugin; do
+            [ -n "$plugin" ] || continue
+            dir="$ROOT/$plugin"
+            eval_dir=$(jq -r '.experimental.evals // "evals"' "$dir/.claude-plugin/plugin.json" 2>/dev/null || echo evals)
+            if [ ! -d "$dir/$eval_dir" ]; then
+              echo "::notice::$plugin has no eval suite; skipped."
+              continue
+            fi
+            echo "== validate $plugin/$eval_dir"
+            if ! python3 .base/plugins/evals/skills/validate/scripts/validate-cases.py "$dir/$eval_dir"; then
+              echo "::error::$plugin/$eval_dir does not pass validate-cases.py, so no eval runs"
+              exit 1
+            fi
+            if [ "$DETERMINISTIC" = true ]; then
+              split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$dir" evals-deterministic)
+              echo "$split"
+              if [ "$(jq '.kept | length' <<<"$split")" -eq 0 ]; then
+                echo "::notice::$plugin has no case with deterministic graders only; skipped."
+                continue
+              fi
+              eval_dir=evals-deterministic
+            fi
+            staged+="$dir"$'\t'"$eval_dir"$'\n'
+          done <<<"$LIST"
+          if [ -z "$staged" ]; then
+            echo "go=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "go=true"
+            echo "suites<<EOF"
+            printf '%s' "$staged"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      # The tools and Chromium go under /opt, outside HOME, which each eval
+      # run replaces with a temporary one. Only these directories are made
+      # while sudo works; no third-party code runs before isolation.
+      - name: Create the tool directories
+        if: steps.stage.outputs.go == 'true'
+        run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
+
+      # A pull request supplies the prompts, and the eval's Read, Glob and Grep
+      # run without the Bash sandbox, so nothing else keeps them from the
+      # credential in /proc/<pid>/environ or the runner's own files. A
+      # root-owned managed settings file, which applies inside every eval run
+      # and which nothing in the run overrides (code.claude.com/docs/en/
+      # plugin-evals, "How runs are isolated"; code.claude.com/docs/en/
+      # settings, "Settings precedence", as of 2026-10-27), denies those
+      # paths. The runner's install directory is read from the Runner.Worker
+      # process above this step, not guessed; the job's _temp and _actions
+      # directories are denied beside it. Written while sudo is still there;
+      # the job stops if the runner directory is not found or the file cannot
+      # be written or read back. The probe step below proves the denial.
+      - name: Deny the eval's reads of process and runner state
+        id: deny
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        run: |
+          runner_root="" pid=$$
+          while [ "${pid:-0}" -gt 1 ]; do
+            exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
+            case "$exe" in */bin/Runner.Worker) runner_root=${exe%/bin/Runner.Worker}; break ;; esac
+            pid=$(awk '/^PPid:/ {print $2}' "/proc/$pid/status" 2>/dev/null)
+          done
+          if [ -z "$runner_root" ]; then
+            echo "::error::no Runner.Worker process above this step, so the runner's directory cannot be denied"
+            exit 1
+          fi
+          work=$(dirname "$RUNNER_WORKSPACE")
+          policy=$(mktemp)
+          jq -n --arg runner "Read(/$runner_root/**)" --arg temp "Read(/$work/_temp/**)" --arg actions "Read(/$work/_actions/**)" \
+            '{permissions: {deny: [
+            "Read(//proc/**)",
+            "Read(//sys/**)",
+            "Read(//etc/claude-code/**)",
+            $runner,
+            "Read(//home/runner/runners/**)",
+            "Read(//home/runner/actions-runner/**)",
+            $temp,
+            $actions,
+            "Read(//home/runner/.config/**)",
+            "Read(//home/runner/.ssh/**)",
+            "Read(//home/runner/.docker/**)",
+            "Read(~/.claude/**)",
+            "Read(~/.claude.json)"
+          ]}}' >"$policy"
+          sudo install -D -m 0644 -o root -g root "$policy" /etc/claude-code/managed-settings.json
+          jq -e '.permissions.deny | index("Read(//proc/**)")' /etc/claude-code/managed-settings.json >/dev/null
+          echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
+          echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
+
+      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
+      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
+      # and docker access for the rest of the job.
+      - name: Isolate the runner
+        if: steps.stage.outputs.go == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # Every binary this job runs comes from the locked root toolchain. Its
+      # install scripts run here, after sudo and docker access are gone.
+      - name: Install the locked root toolchain
+        timeout-minutes: 5
+        if: steps.stage.outputs.go == 'true'
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      # The guardrails hooks read every Bash command through shfmt and refuse the
+      # call without it, so a guardrails eval needs it on PATH. Same v3.14.1 pin
+      # and SHA-256 as pr-require-checks.yml. In /opt/tools, since each eval run
+      # replaces HOME.
+      - name: Install pinned shfmt for guardrails
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p /opt/tools/bin
+          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o /opt/tools/bin/shfmt \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  /opt/tools/bin/shfmt" | sha256sum -c -
+          chmod +x /opt/tools/bin/shfmt
+          echo "/opt/tools/bin" >> "$GITHUB_PATH"
+          test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
+
+      # run-claude-cli's classifier, at the pin every lane runs it, for
+      # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
+      - name: Check out the launcher's classifier
+        if: steps.stage.outputs.go == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: melodic-software/ci-workflows
+          ref: b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+          path: .ci-workflows
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/run-claude-cli/lane.cjs
+            .github/actions/report-lane-outcome/classify.cjs
+            .github/scripts/resolve-npm-tool-version.cjs
+          sparse-checkout-cone-mode: false
+
+      # Proof that the managed policy holds before any pull request case runs,
+      # for each of the three tools a case can use to read a file: one Claude
+      # Code run is told to Read /proc/self/environ and the runner's .runner
+      # file, Grep /proc/self/environ, and Glob for environ under /proc/self. The job stops
+      # unless the result's permission_denials (code.claude.com/docs/en/
+      # agent-sdk/typescript, "SDKResultMessage", as of 2026-10-28) records
+      # each of the four calls as denied, or if the result holds the
+      # credential anywhere. Claude Code applies Read deny rules to Glob and
+      # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
+      # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
+      # instead of reaching a case. The stream can hold what a call returned,
+      # so it stays in a file that is never printed and is removed after the
+      # check. A probe that the credential's own stop ended hands off instead
+      # (eval-handoff.mjs), so the next leg runs the eval.
+      - name: Probe that the policy denies those reads
+        id: probe
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
+          LEG: fallback
+          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
+        run: |
+          if [ -n "${LANE_API_KEY:-}" ]; then
+            export ANTHROPIC_API_KEY="$LANE_API_KEY"
+            unset LANE_API_KEY
+          fi
+          credential=${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}
+          [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
+          out=$(mktemp)
+          trap 'rm -f "$out"' EXIT
+          status=0
+          claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
+            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
+          if grep -qF "$credential" "$out"; then
+            echo "::error::the probe's result holds the credential, so no pull request case runs"
+            exit 1
+          fi
+          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
+          if grep -qx 'handoff=true' <<<"$verdict"; then
+            echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
+            exit 0
+          fi
+          probe_facts() {
+            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
+              [split("\n")[] | select(. != "")] as $lines
+              | [$lines[] | fromjson? | objects] as $m
+              | ($m | map(select(.type == "result")) | last) as $r
+              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
+                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
+              | "result=\(if $r == null then "none" else "present" end)"
+                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
+                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
+                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
+                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
+                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
+                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
+          }
+          denied() {
+            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs (probe: $(probe_facts))"; exit 1; }
+          }
+          denied Read /proc/self/environ
+          denied Read "$RUNNER_ROOT/.runner"
+          denied Grep /proc/self
+          denied Glob /proc/self
+          echo "The managed policy denied the probe's Read, Grep and Glob calls."
+
+      # Chromium comes from the playwright that the locked playwright-cli
+      # and Playwright MCP server share. Without sudo there is no --with-deps: the hosted image already
+      # carries a browser's system libraries. A pull request run grants no
+      # Bash, so it needs no browser: it passes no --allow-tools, a case
+      # cannot widen that grant (plugins/evals/skills/plugin-eval/SKILL.md,
+      # the read-only suites paragraph), and select-plugins.mjs refuses a
+      # changed case's allowed_tools.
+      - name: Install Chromium
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw
+        run: |
+          node /opt/tools/node_modules/playwright/cli.js install chromium
+          command -v playwright-cli claude
+
+      # Every Bash call in an eval run goes through Claude Code's bubblewrap
+      # sandbox (code.claude.com/docs/en/sandboxing, "Set up Linux and WSL2",
+      # as of 2026-10-10). Starting bwrap here as the runner user, with the
+      # whole filesystem (so /opt/tools and the setup-node toolcache) bound
+      # read-only, fails the job with bwrap's own error if bwrap cannot start
+      # a sandbox, before any eval spends tokens. Its flags are not Claude
+      # Code's own, so a pass does not prove the full sandbox starts.
+      - name: Check bwrap starts a sandbox
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
+        run: |
+          fail() {
+            local msg=${2//'%'/'%25'}
+            msg=${msg//$'\r'/'%0D'}
+            echo "::error::$1: ${msg//$'\n'/'%0A'}"
+            exit 1
+          }
+          for tool in bwrap socat; do
+            command -v "$tool" || fail "$tool is not on PATH" "the Bash sandbox needs it"
+          done
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          sandbox=(bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent)
+          if ! out=$("${sandbox[@]}" true 2>&1); then
+            fail "bwrap cannot start a sandbox as the runner user" "$out"
+          fi
+          if ! out=$("${sandbox[@]}" playwright-cli --version 2>&1); then
+            fail "playwright-cli does not start inside bwrap" "$out"
+          fi
+          echo "playwright-cli inside bwrap: $out"
+
+      - name: Record that env scrub is off
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && !inputs.env-scrub
+        env:
+          DISPATCHER: ${{ github.actor }}
+        run: echo "::warning::CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off for this run; Bash subprocesses can see the Claude credentials. Dispatched by ${DISPATCHER}."
+
+      # One `claude plugin eval` per staged suite, each under its own
+      # --max-cost-usd. Its exit code is overloaded, so the summary step reads
+      # each JSON result instead. --keep-temp keeps each run's trace on the
+      # runner, outside the uploaded results, for the summary's health lines.
+      # A pull request run grants no tool, runs no scaffold, keeps env scrub on
+      # and uses each case's own run count. TMPDIR sits outside /tmp, which the
+      # run's own sandbox makes read-only to Bash, and within the short length
+      # the sandbox's sockets need (plugins/evals/skills/plugin-eval/reference/sandboxes.md).
+      - name: Run the plugin eval
+        id: eval
+        if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          # Strips credentials from Bash subprocesses inside each eval run.
+          # The env-scrub input set false gives "0", the opt-out value Claude
+          # Code's own messages name.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          SUITES: ${{ steps.stage.outputs.suites }}
+          DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+          CASE: ${{ inputs.case }}
+          TAGS: ${{ inputs.tag }}
+          RUNS: ${{ inputs.runs }}
+          ALLOW_TOOLS: ${{ inputs.allow-tools }}
+          REAL_SERVERS: ${{ inputs.allow-real-servers }}
+          OUT: ${{ runner.temp }}/eval-results
+        run: |
+          if [ -n "${LANE_API_KEY:-}" ]; then
+            export ANTHROPIC_API_KEY="$LANE_API_KEY"
+            unset LANE_API_KEY
+          fi
+          export TMPDIR="$HOME/.ev"
+          mkdir -p "$TMPDIR"
+          args=(
+            --trust-plugin
+            --no-publish
+            --model claude-sonnet-5-5
+            --judge-model claude-opus-5-5
+            --max-cost-usd 5
+            --keep-temp
+          )
+          if [ "$DISPATCH" = true ]; then
+            if ! [[ $RUNS =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::runs must be a positive integer"
+              exit 1
+            fi
+            IFS=, read -ra tools <<< "$ALLOW_TOOLS"
+            read -ra tags <<< "$TAGS"
+            for value in "${tools[@]}" "${tags[@]}" "$CASE"; do
+              case "$value" in
+                -*) echo "::error::a case, tag or tool must not start with -"; exit 1 ;;
+              esac
+            done
+            args+=(--scaffold --runs "$RUNS")
+            if [ "$REAL_SERVERS" = true ]; then
+              args+=(--allow-real-servers)
+            fi
+            if [ "${#tools[@]}" -gt 0 ]; then
+              args+=(--allow-tools "${tools[@]}")
+            fi
+            if [ "${#tags[@]}" -gt 0 ]; then
+              args+=(--tag "${tags[@]}")
+            fi
+            if [ -n "$CASE" ]; then
+              args+=(--case "$CASE")
+            fi
+          fi
+          while IFS=$'\t' read -r dir eval_dir; do
+            [ -n "$dir" ] || continue
+            out="$OUT/$(basename "$dir")"
+            mkdir -p "$out"
+            echo "== claude plugin eval $dir --eval-dir $eval_dir"
+            status=0
+            if [ "$DISPATCH" = true ]; then
+              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" || status=$?
+            else
+              # A pull request run's console output can carry model text from
+              # the PR's cases, and the job log is public: it goes to a file
+              # that nothing uploads.
+              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" >"$out/console.log" 2>&1 || status=$?
+            fi
+            echo "exit $status" >"$out/exit-code"
+          done <<<"$SUITES"
+
+      # Whether the credential's own stop ended any run, read from each errored
+      # run's kept trace by run-claude-cli's classifier; nothing here prints a
+      # trace. A probe's handoff stands. The leg's execution file carries only
+      # the suites' durationSeconds and costUsd, for the lane record. A leg
+      # that hands off summarizes and uploads nothing: the next leg reruns the
+      # eval.
+      - name: Judge the leg
+        id: judge
+        if: always() && steps.stage.outputs.go == 'true' && (steps.probe.outcome == 'success' || steps.probe.outcome == 'skipped')
+        env:
+          LEG: fallback
+          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
+          SUITES: ${{ steps.stage.outputs.suites }}
+          OUT: ${{ runner.temp }}/eval-results
+          LEG_RESULT: ${{ runner.temp }}/leg-result.json
+          PROBE_HANDOFF: ${{ steps.probe.outputs.handoff }}
+          PROBE_REASON: ${{ steps.probe.outputs.handoff-reason }}
+          PROBE_CLASS: ${{ steps.probe.outputs.lane-class }}
+        run: |
+          results=""
+          while IFS=$'\t' read -r dir _; do
+            [ -n "$dir" ] || continue
+            results+="$OUT/$(basename "$dir")/results.json"$'\n'
+          done <<<"$SUITES"
+          verdict=$(RESULTS="$results" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
+          if [ "$PROBE_HANDOFF" = true ]; then
+            verdict=$(printf 'handoff=true\nhandoff-reason=%s\nlane-class=%s\noutcome=failure' "$PROBE_REASON" "$PROBE_CLASS")
+          fi
+          printf '%s\n' "$verdict" | tee -a "$GITHUB_OUTPUT"
+          echo "leg-result=$LEG_RESULT" >>"$GITHUB_OUTPUT"
+
+      # The verdict of record: summarize.mjs per result, PASS, FAIL or NOT
+      # COMPARABLE per case. A suite with no result fails the job too.
+      # A pull request run prints no case name, error or partial reason: the
+      # model output those can carry would land in the public job summary.
+      # The REST API returns no job summary, so each suite's summary is also
+      # printed to the job log, with workflow commands off, and kept as
+      # summary.md beside its results.json, which a dispatched run uploads.
+      - name: Summarize the results
+        if: always() && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
+        env:
+          SUITES: ${{ steps.stage.outputs.suites }}
+          OUT: ${{ runner.temp }}/eval-results
+          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
+          RUNS: ${{ inputs.runs }}
+        run: |
+          failed=0
+          redact=()
+          if [ -n "$REDACT" ]; then redact=("$REDACT"); fi
+          while IFS=$'\t' read -r dir _; do
+            [ -n "$dir" ] || continue
+            name=$(basename "$dir")
+            results="$OUT/$name/results.json"
+            if [ ! -f "$results" ]; then
+              why=$(cat "$OUT/$name/exit-code" 2>/dev/null || echo "the run did not start")
+              printf '### Plugin eval: %s\n\nNo result was written (%s).\n\nResult: NOT COMPARABLE\n\n' \
+                "$name" "$why" >>"$GITHUB_STEP_SUMMARY"
+              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::No result was written (${why//[$'\r\n%']/ })."
+              failed=1
+              continue
+            fi
+            summary="$OUT/$name/summary.md"
+            annotation="$OUT/$name/annotation.txt"
+            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" --annotation "$annotation" >"$summary" || failed=1
+            # A dispatched run uploads its results, but not the traces --keep-temp
+            # keeps here, so the validity verdict is read here and only its
+            # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
+            # lines can quote a trace), as eval-hill-climb-pass.yml does.
+            # noise-report reads only results.json, which the upload already
+            # holds. A dispatched run always scaffolds.
+            if [ "$DISPATCHED" = true ]; then
+              validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$results" --runs "$RUNS" --scaffolded) || true
+              bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)' || true)
+              verdict=$(printf '%s\n' "$validity" | tail -n 1)
+              printf '%s\n' ${bash_ran:+"$bash_ran"} "$verdict" >"$OUT/$name/validity.txt"
+              python3 .base/plugins/evals/skills/plugin-eval/scripts/noise-report.py "$results" >"$OUT/$name/noise.txt" 2>&1 || true
+              printf '\nValidity: %s\n' "$verdict" >>"$summary"
+              if [ -n "$bash_ran" ]; then printf '\n%s\n' "$bash_ran" >>"$summary"; fi
+            fi
+            cat "$summary" >>"$GITHUB_STEP_SUMMARY"
+            echo >>"$GITHUB_STEP_SUMMARY"
+            token=$(openssl rand -hex 16)
+            echo "::stop-commands::$token"
+            cat "$summary"
+            echo "::$token::"
+            # summarize.mjs escapes the command it writes; it prints outside
+            # the stop-commands block so the runner reads it.
+            # No file at all: summarize.mjs could not read the result (exit 2).
+            if [ -s "$annotation" ]; then
+              head -n 1 "$annotation"
+            elif [ ! -e "$annotation" ]; then
+              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::The result could not be read."
+            fi
+          done <<<"$SUITES"
+          exit "$failed"
+
+      # Opt-in because the job log of this public repository is public. Prints,
+      # per run, at most 20 Bash calls whose tool_result has is_error true: the
+      # command cut to 300 characters, and the result text cut to its first 120
+      # and last 2500 characters when longer than 2620 (the end holds the daemon
+      # log), each JSON-quoted onto one line. A second line, `key:`, holds the lines of the
+      # full result that match FATAL, Check failed, ERROR:, sandbox, permission or errno
+      # patterns (the cause line that a long crash stack pushes out of the tail), minus the
+      # known .bashrc noise, de-duplicated, at most 15, each cut to 300 characters; it is
+      # omitted when nothing matches. Nothing else from the trace is printed. Trace text is
+      # tool output, so workflow commands are off while it prints.
+      - name: Print Bash error excerpts
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-errors && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
+        env:
+          OUT: ${{ runner.temp }}/eval-results
+        run: |
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          for RESULTS in "$OUT"/*/results.json; do
+            if [ ! -f "$RESULTS" ]; then
+              echo "no results.json, so no traces to read"
+              continue
+            fi
+            jq -r '.cases[]? as $c | $c.arms // {} | to_entries[] | .key as $arm
+              | .value // [] | to_entries[]
+              | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
+              | @tsv' "$RESULTS" |
+              while IFS=$'\t' read -r name arm run trace; do
+                echo "== $name, $arm arm, run $run"
+                if [ ! -f "$trace" ]; then
+                  echo "   trace not found"
+                  continue
+                fi
+                jq -nrR '
+                  def tail_cut: if length > 2620 then .[:120] + " … " + .[-2500:] else . end;
+                  def key_lines:
+                    [split("\n")[]
+                      | select(test("FATAL|Check failed|ERROR:|No usable sandbox|Permission denied|Operation not permitted|EACCES|EPERM|ENOENT|errno")
+                               and (contains(".bashrc: Permission denied") | not))
+                      | .[:300]]
+                    | reduce .[] as $l ([]; if index([$l]) then . else . + [$l] end)
+                    | .[:15] | join("\n");
+                  [inputs | fromjson? | objects] as $m
+                  | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
+                      | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
+                      | {key: .id, value: (.input.command // "" | tostring)}] | from_entries) as $bash
+                  | [$m[] | select(.type == "user") | .message.content[]? | objects
+                      | select(.type == "tool_result" and .is_error == true)
+                      | (.tool_use_id // "" | tostring) as $id
+                      | select($bash | has($id))
+                      | {cmd: $bash[$id],
+                         out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
+                  | "   \(length) Bash error(s), showing up to 20",
+                    (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)\(.out | key_lines | if . == "" then "" else "\n     key: \(tojson)" end)")
+                ' "$trace" || echo "   could not read the trace"
+              done || echo "could not read $RESULTS"
+          done
+          echo "::$token::"
+
+      # Only a dispatched run, whose cases merged through review, uploads its
+      # results: a pull request's prompts could steer model output into a
+      # public artifact.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/eval-results/
+
+      - name: Upload the eval results
+        if: >-
+          (always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/eval-results/
+          if-no-files-found: warn
+          retention-days: 3
+      # The leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs, one record per leg.
+      - name: Record the leg
+        if: always() && steps.judge.outcome == 'success'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.judge.outputs.outcome }}
+          execution-file: ${{ steps.judge.outputs.leg-result }}
+          lane: eval-browser-dispatch
+          lane-id: eval-browser-dispatch
+          credential: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+          handoff: ${{ steps.judge.outputs.handoff }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
+          fallback-reason: ${{ needs.eval-subscription.outputs.handoff-reason || 'no-key' }}
 
       - name: Log the API budget at the end
         if: always()

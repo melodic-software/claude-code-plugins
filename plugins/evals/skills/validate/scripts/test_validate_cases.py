@@ -32,7 +32,7 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
     r"|not loadable|schema_version|is required|requires|no prompt|sample"
-    r"|JavaScript)",
+    r"|JavaScript|is not a value)",
     re.MULTILINE,
 )
 
@@ -760,6 +760,76 @@ class UnknownGraderOptionFixture(ValidatorTestCase):
             " | llm | baseline)",
             result.stdout,
         )
+
+
+class GraderLookAtFixture(ValidatorTestCase):
+    def test_an_unknown_focus_or_target_fails_naming_the_file_and_field(self):
+        # Claude Code 2.1.318 refused `focus: reply` at load with
+        # "graders.0.focus: Invalid input".
+        self.case(
+            "bad-focus",
+            case_yaml="""\
+            schema_version: "1.1"
+            name: bad-focus
+            execution:
+              prompt: Do the thing.
+            graders:
+              - name: judged
+                type: llm
+                criteria: Says hi.
+                focus: reply
+            """,
+            graders={
+                "listed": """\
+                ---
+                type: regex
+                pattern: "hello"
+                target: { source: stdout }
+                ---
+                """,
+            },
+        )
+        self.assert_fail(
+            self.validate(),
+            'bad-focus/case.yaml: focus "reply" is not a value',
+            'bad-focus/graders/listed.md: target "{\'source\': \'stdout\'}" is not',
+        )
+
+    def test_every_documented_focus_and_target_loads(self):
+        self.case(
+            "good-focus",
+            case_yaml="""\
+            schema_version: "1.1"
+            name: good-focus
+            execution:
+              prompt: Do the thing.
+            graders:
+              - name: last
+                type: llm
+                criteria: Says hi.
+                focus: last_message
+              - name: whole
+                type: llm
+                criteria: Says hi.
+                focus: trace
+              - name: mocks
+                type: llm
+                criteria: Says hi.
+                focus: mock_calls
+              - name: contents
+                type: llm
+                criteria: Says hi.
+                focus: { source: file, path: out.txt }
+              - name: created
+                type: regex
+                pattern: "out"
+                target: files
+            """,
+        )
+        result = self.validate_without_node()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertNotIn("FAIL", result.stdout)
+        self.assertNotIn("is not a value", result.stdout)
 
 
 class CleanFixture(ValidatorTestCase):

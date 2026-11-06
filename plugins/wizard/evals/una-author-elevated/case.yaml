@@ -1,0 +1,51 @@
+schema_version: "1.1"
+name: una-author-elevated
+graders:
+  - name: fires-unattended
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:wizard:)?unattended"'
+    arm: 'both'
+  - name: not-generate
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:wizard:)?generate"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: library-kept
+    type: regex
+    pattern: '^(?=[\s\S]*^function Invoke-UnattendedRun \{$)(?=[\s\S]*^function Confirm-Irreversible \{$)(?=[\s\S]*^function Use-GuardedResource \{$)(?=[\s\S]*^# STAGES$)'
+    flags: 'm'
+    target: { source: file, path: configure-agent-host.ps1 }
+    arm: 'with-only'
+  - name: elevation-required
+    type: regex
+    pattern: '^# STAGES$[\s\S]*\bAssert-Elevation\s+-Mode\s+[''"]?Required\b'
+    flags: 'm'
+    target: { source: file, path: configure-agent-host.ps1 }
+    arm: 'with-only'
+  - name: no-step-prompts
+    type: regex
+    pattern: '^# STAGES$[\s\S]*?(?:\bRead-Host\b|PromptForChoice|\bConfirm-Irreversible\b|\$Host\.UI\.Prompt|-Confirm\b(?!:\s*\$false))'
+    flags: 'mi'
+    match: not_contains
+    target: { source: file, path: configure-agent-host.ps1 }
+    arm: 'with-only'
+  - name: result-path-named
+    type: regex
+    pattern: '\bresult-latest\.json\b'
+    target: last_message
+    arm: 'with-only'
+  - name: asks-approval
+    type: regex
+    pattern: '(?<!no need )(?<!no need to )(?<!n''t need to )(?<!without )(?:\bdo you approve\b|\bplease (?:approve|review and approve)\b|\b(?:approve|sign off on) (?:the|these|them|this|it|all)\b[^\n]{0,80}\?|\bapprove it\b[^\n.]{0,20}\b(?:and|then) I(?:''ll| will)\b|\b(?:once|after|when|if) you approve\b|\b(?:wait(?:ing)? (?:for|on)|need) your (?:approval|sign-?off|go-ahead|ok)\b|\bwant(?:ed)? your (?:approval|sign-?off|go-ahead)\b|\b(?:reply|say) [`\"“*]*approved?\b|\btell me (?:whether|if) you approve\b|\b(?:shall|should|can|may) I (?:proceed|go ahead)\b|\b(?:does|do) (?:this|it|the (?:script|stage code|stages?|STAGES block)) look (?:right|good|correct)\b|\b(?:reply|respond) with (?:your )?approval\b|\bgive me (?:your )?(?:approval|go-ahead|sign-?off)\b|\b(?:approve|confirm(?!-)|ok(?:ay)?)\b[^\n.]{0,50}\b(?:and|then|so) I(?:''ll| will| can)\b|\blet me know (?:if|whether|once|when) (?:you approve|it looks (?:right|good|fine))\b|\b(?:once|when|if) (?:it|this|they|that|the (?:STAGES block|block|stages?|script)) looks? (?:right|good|correct|fine)\b|(?:^|\n)[ \t]*(?:[-*+>]|\d+\.)?[ \t]*\**approve\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-launch
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:pwsh|powershell)(?:\.exe)?\s+(?:-(?!c\b|Command\b|EncodedCommand\b|ec\b)[\w:]+\s+(?:[^-\s"\\][^\s"\\]*\s+)?)*(?:-File\s+)?|&\s*|(?:(?<="command":")|[;&|(]\s*|\\n\s*)\.[\\/]+)\\?["\x27]?(?:[^\s"\\]*[\\/]+)?configure-agent-host\.ps1(?![\w.])'
+    min: 0
+    max: 0
+    arm: 'both'

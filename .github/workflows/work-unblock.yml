@@ -30,15 +30,8 @@ name: work-unblock
 # merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
 # Each work-resolve-issue run that finishes, unless it ran no job, runs the
 # same sweep at once, so a freed slot admits the next deferred issue then.
-#
-# A listed human closing the marker issue, the one labeled
-# `work-unblock-sweep` (SWEEP_LABEL in the script), runs that sweep at once
-# instead of the close path, behind the same closer check: the hub reopens and
-# closes it after a rate-limit breaker clears, so issues the kill switch
-# stopped at broker-check are re-fired without waiting for the schedule (one
-# stopped at a token mint still waits limits.reset-clamp-min). A second kick
-# is one more sweep, queued behind the first; it re-fires no issue twice. Each
-# kick logs a `sweep-kick` notice with the close time.
+# After an outage or a kill switch, the next of these sweeps is the probe:
+# nothing re-arms it.
 #
 # The hourly sweep also restarts an issue the usage limit stopped: once the
 # limit has reset, the App removes and re-adds agent-ready (at most five a run);
@@ -120,57 +113,6 @@ defaults:
     shell: bash
 
 jobs:
-  # The hourly sweep saves the WIP cap's last known state, which
-  # work-resolve-issue's pick-slot restores when its own reads fail. Only a
-  # trusted trigger such as schedule can save a default-branch cache; an
-  # issues run cannot. Its own job, with no id-token and no secret: the
-  # action restores a cache into the workspace, which must never reach a
-  # job that mints through the token broker.
-  wip-state:
-    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read # check out main
-      pull-requests: read # count the lanes App's pull requests
-      issues: read # count the queued agent-ready issues
-    env:
-      API_BUDGET_TOKEN: github-token
-      # npm's fetch timeout and retries, from the one file that sets them.
-      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
-    steps:
-      - name: Resolve main's tip
-        id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-      - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ steps.tip.outputs.sha }}
-          path: .base
-          persist-credentials: false
-
-      - name: Save the WIP cap's last known state
-        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
-        with:
-          save-state: "true"
-          # A failed read restores only the pause from this state.
-          reads: pause
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
   label-unblocked:
     # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
     # skip: the broker would refuse it, and the sweep picks it up. The broker
@@ -185,12 +127,13 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
       && github.event.workflow_run.conclusion != 'skipped')
     # One run at a time across the repository, so two runs cannot each admit
-    # the queued cap's whole room. The rest wait in line and are never
-    # cancelled (`queue: max`).
+    # the queued cap's whole room. One more waits, and a newer run replaces
+    # it: a sweep reads the whole state, and its closed-issue window repeats a
+    # close run's work (label-unblocked.mjs labelUnblocked, closeSplitParents),
+    # so the next sweep does a replaced run's work.
     concurrency:
       group: work-unblock-label-unblocked
       cancel-in-progress: false
-      queue: max
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -289,9 +232,8 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: work-unblock
           activity: label-unblocked
-          # A sweep (scheduled or after an issue lane run) names no issue; any
-          # close, the marker's included, names its issue, which the broker
-          # needs on an issues event.
+          # A sweep (scheduled or after an issue lane run) names no issue; a
+          # close names its issue, which the broker needs on an issues event.
           issue-number: ${{ github.event_name == 'issues' && format('{0}', github.event.issue.number) || '' }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
@@ -300,10 +242,9 @@ jobs:
 
       # The script re-reads every blocked issue, its labels, blockers and
       # comments from the API; nothing is taken from the event but the closed
-      # issue's number, labels and close time and who closed it (a sweep, the
-      # marker's included, lists the closed issues from the API too). It gets
-      # the kill switch answer from
-      # the first step and stops on anything but `proceed`.
+      # issue's number and who closed it (a sweep lists the closed issues from
+      # the API too). It gets the kill switch answer from the first step and
+      # stops on anything but `proceed`.
       - name: Label the unblocked issues
         if: steps.lane-token.outputs.token != ''
         env:

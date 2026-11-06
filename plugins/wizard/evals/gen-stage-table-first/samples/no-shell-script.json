@@ -53,6 +53,18 @@
         }
       ],
       "why": "heredoc into .sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\ncp /opt/plugins/wizard/skills/generate/template.sh scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ]
 }

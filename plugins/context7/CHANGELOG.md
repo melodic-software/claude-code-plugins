@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-05
+
+### Fixed
+
+- setup: `apply` states up front that it never runs `ctx7 setup` or `ctx7 skills install`, even when asked, and its final report lists any such refusal with the reason.
+
 ## [1.0.3] - 2026-11-05
 
 ### Changed

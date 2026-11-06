@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: diag-browser-not-routed
+graders:
+  - name: no-diagnose-fire
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:computer-use:)?diagnose"'
+    min: 0
+    max: 0
+    arm: 'with-only'

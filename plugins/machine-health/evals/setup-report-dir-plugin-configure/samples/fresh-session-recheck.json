@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Then rerun `/machine-health:setup check` in a fresh session; this one still shows the old value.", "why": "fresh session" },
+    { "answer": "Start a new Claude Code session to see the new folder.", "why": "new Claude Code session" },
+    { "answer": "Restart Claude Code before the next audit.", "why": "restart" }
+  ],
+  "fail": [
+    { "answer": "The change takes effect right away in this session.", "why": "same session" },
+    { "answer": "Restart the audit afterwards.", "why": "restart of the audit, not the session" },
+    { "answer": "The check step is done; take as given that the state root resolved.", "why": "echoes the prompt" }
+  ]
+}

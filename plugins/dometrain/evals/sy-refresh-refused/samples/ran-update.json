@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"; echo \"exit=$?\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "captures the exit code"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /opt/p/skills/sync && bash scripts/update.sh 2>&1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after cd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/p/skills/sync/scripts/update.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"/opt/p/skills/sync/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\" --refresh-baseline",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "refresh mode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/p/skills/sync/scripts/update.test.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the test script"
+    }
+  ]
+}

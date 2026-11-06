@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "# Close it with a click\n\nDismiss the menu with a left-click on empty space in the Explorer window. That is the path verified to work every time.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Fix:** left-click somewhere blank, such as the empty area below the file list.",
+      "why": "**bold** reply, left-click somewhere blank"
+    },
+    {
+      "answer": "| Step | Action |\n|---|---|\n| 1 | Click an empty area of the folder view |",
+      "why": "table reply, click an empty area"
+    },
+    {
+      "answer": "Have Claude left-click away from the menu, on the desktop wallpaper.",
+      "why": "left-click away from the menu"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Send escape a third time and wait a second before the screenshot.",
+      "why": "repeats escape"
+    },
+    {
+      "answer": "Right-click an empty area to close it.",
+      "why": "near miss: right-click, not left-click"
+    },
+    {
+      "answer": "Claude right-clicked a file in File Explorer and the context menu opened.",
+      "why": "echoes the prompt"
+    },
+    {
+      "answer": "Press the down arrow; that closes the menu.",
+      "why": "down closes it but is not the click the skill prefers"
+    }
+  ]
+}

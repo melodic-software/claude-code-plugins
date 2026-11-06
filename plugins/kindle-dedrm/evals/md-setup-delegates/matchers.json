@@ -1,0 +1,8 @@
+{
+  "no-provision-run": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:\\bcurl\\b|\\bwget\\b|Invoke-WebRequest|\\biwr\\b|Start-BitsTransfer|\\bgh\\s+release\\s+download\\b|firewall\\.ps1|lock-updates\\.sh|(?:New|Set|Enable|Disable|Remove)-NetFirewallRule|\\bnetsh\\s+advfirewall\\b|\\bicacls\\b(?:[^\"\\\\]|\\\\.)*?/(?:deny|grant|remove))"
+  ]
+}

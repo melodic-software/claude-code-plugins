@@ -90,6 +90,18 @@ on:
         required: false
         type: string
         default: ""
+      key-credit-job:
+        description: >-
+          The first call only: the key job's name for ci-workflows
+          check-key-credit, the activity's own (`fix-ci`, `resolve-issue`), so
+          the activities of one caller file keep separate credit-stop markers.
+          broker-check reads the key's credit history before any model turn,
+          and a credit stop inside vars.KEY_CREDIT_WINDOW_HOURS skips the key:
+          the call hands off at once and the caller's next call runs on the
+          subscription. Empty runs no gate.
+        required: false
+        type: string
+        default: ""
       fallback-ready:
         description: >-
           The second call only: `true` when the caller runs a third call on
@@ -428,6 +440,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
+      actions: read # the key-credit gate lists this repository's credit-stop markers
       contents: read
       id-token: write
       issues: write
@@ -440,6 +453,7 @@ jobs:
       lease: ${{ steps.lease.outputs.lease }}
       lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
       blocked: ${{ steps.recheck-blockers.outcome == 'success' && steps.recheck-blockers.outputs.proceed != 'true' }}
+      skip-key: ${{ steps.credit.outputs.skip-key }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -496,6 +510,51 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
           kill-switch-ok: true
+
+      # The key-credit gate (ci-workflows check-key-credit, gate.cjs: one
+      # artifact-list call for the marker the caller uploads after a key
+      # leg's credit stop), on the first call alone. Every failure runs the
+      # key: skip-key is then empty. Probing is off. A marker is forgeable by
+      # any same-repository workflow; a forged one only moves the call to the
+      # subscription leg: plan capacity, no credential.
+      - name: Read the key's credit history
+        id: credit
+        if: >-
+          steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
+          && inputs.key-credit-job != '' && inputs.fallback == ''
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          key-job: ${{ inputs.key-credit-job }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # The skipped key's secret name, from the role as run-claude-cli names
+      # it (`issue-lane` gives ISSUE_LANE_CLAUDE_API_KEY).
+      - name: Name the skipped key
+        id: skipped-key
+        if: steps.credit.outputs.skip-key == 'true'
+        env:
+          ROLE: ${{ inputs.role }}
+        run: |
+          [[ $ROLE =~ ^[a-z][a-z0-9-]*$ ]] || { echo "::error::the role is not lower-case kebab"; exit 1; }
+          name=${ROLE^^}
+          echo "name=${name//-/_}_CLAUDE_API_KEY" >>"$GITHUB_OUTPUT"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
+          credential: ${{ steps.skipped-key.outputs.name }}
+          known-failure-class: credit-stop
+          handoff: "true"
 
       # Issue mode, after the broker's allow and before any model turn: claim
       # the issue with a lease comment only, held by the lanes App identity,
@@ -662,7 +721,10 @@ jobs:
       # files, so the leg cannot set them; the presence steps run before it.
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present || steps.fallback-present.outputs.present }}
-      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' }}
+      # An empty credential hands on as a handoff does: an empty key to the
+      # second call, an empty subscription token to the third when the caller
+      # runs one (fallback-ready).
+      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' || steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true' }}
       # The lane record's class and reset, for the report job's check run,
       # which limit-stop.mjs reads, as pr-run-activity-write.yml's lane-class.
       # A forged limit stop can only restart the lane after a reset
@@ -1593,8 +1655,12 @@ jobs:
         env:
           PRESENT: ${{ secrets.claude-api-key != '' }}
           SECRET_NAME: ${{ steps.launch.outputs.key-name }}
+          SKIP_KEY: ${{ needs.broker-check.outputs.skip-key }}
         run: |
-          if [ "$PRESENT" = true ]; then
+          if [ "$SKIP_KEY" = true ]; then
+            echo "::notice::$SECRET_NAME's last credit stop is inside the key-credit window; the caller's next call runs the activity on the subscription token"
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          elif [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
           else
             echo "::warning::$SECRET_NAME is empty; the caller's fallback call runs the activity on the subscription token"
@@ -1609,11 +1675,16 @@ jobs:
           && inputs.fallback != '' && inputs.fallback != 'fallback'
         env:
           PRESENT: ${{ secrets.claude-code-oauth-token != '' }}
+          FALLBACK_READY: ${{ inputs.fallback-ready }}
         run: |
           if [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
           else
-            echo "::warning::the role's OAuth token is empty; the activity does not run"
+            if [ "$FALLBACK_READY" = true ]; then
+              echo "::warning::the role's OAuth token is empty; the caller's fallback call runs the activity on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+            else
+              echo "::warning::the role's OAuth token is empty; the activity does not run"
+            fi
             echo "present=false" >>"$GITHUB_OUTPUT"
           fi
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
@@ -1694,6 +1765,14 @@ jobs:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
         run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
+
+      # A fixed-name step the caller's handoff job reads through the jobs API
+      # (handoff-evidence.sh credit-stop) to upload the key's credit-stop
+      # marker: it runs only on run-claude-cli's handoff-reason, which the
+      # launcher sets after the leg ends, and writes nothing.
+      - name: Mark a key credit stop
+        if: always() && steps.act-key.outputs.handoff-reason == 'credit-stop'
+        run: echo "::notice::the key leg hit a credit stop; the caller uploads its credit-stop marker"
 
       - name: Run the skill on the OAuth token
         id: act-token
@@ -2065,6 +2144,7 @@ jobs:
           && steps.config.outputs.kind == 'skill'
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && steps.act-token.outputs.handoff != 'true'
+          && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true')
         env:
           SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
@@ -2260,6 +2340,7 @@ jobs:
           || steps.fallback-present.outcome == 'success')
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && steps.act-token.outputs.handoff != 'true'
+          && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true')
           && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
           && steps.act-fallback.outcome != 'success'
         run: |
@@ -3472,7 +3553,8 @@ jobs:
           install-subprocess-isolation: "true"
 
       # One launcher step per secret, as in the run job: the first call's
-      # pass runs on the API key, a fallback call's on the OAuth token. The
+      # pass runs on the API key, the second call's on the OAuth token and the
+      # third call's on the central fallback token. The
       # model reads the data files and nothing else: Read is its one tool,
       # and the default branch checkout and process files are denied.
       - name: Summarize the reused branch on the API key
@@ -3503,7 +3585,7 @@ jobs:
 
       - name: Summarize the reused branch on the OAuth token
         id: summary-token
-        if: steps.isolate.outcome == 'success' && inputs.fallback != ''
+        if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -3527,16 +3609,58 @@ jobs:
           json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
           leg-timeout-minutes: "10"
 
+      - name: Summarize the reused branch on the fallback token
+        id: summary-fallback
+        if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
+        continue-on-error: true
+        timeout-minutes: 15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: summarize-reuse
+          role: ${{ inputs.role }}
+          prompt-file: ${{ github.workspace }}/.summary/prompt.md
+          preamble: You run unattended as a CI lane's read-only summary pass, and no one can answer a question.
+          fallback-token: ${{ secrets.fallback-claude-code-oauth-token }}
+          model: ${{ steps.summary-models.outputs.model }}
+          effort: ${{ steps.summary-models.outputs.effort }}
+          max-turns: ${{ steps.summary-models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./.summary/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(//proc/**)
+          json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
+          leg-timeout-minutes: "10"
+
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
-        if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file) != ''
+        if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file) != ''
         continue-on-error: true
         uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
         with:
-          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file }}
+          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: reuse-summary-${{ inputs.issue-number }}-${{ inputs.fallback == '' && 'key' || 'token' }}
+          job-id: reuse-summary-${{ inputs.issue-number }}-${{ inputs.fallback == '' && 'key' || inputs.fallback == 'fallback' && 'fallback' || 'token' }}
+
+      # The summary leg's lane-outcome record: its credential, outcome and
+      # durationMs.
+      - name: Record the summary leg
+        if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.summary-key.outcome != 'skipped' && steps.summary-key.outcome || steps.summary-token.outcome != 'skipped' && steps.summary-token.outcome || steps.summary-fallback.outcome }}
+          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
+          log-file: ${{ steps.summary-key.outputs.log-file || steps.summary-token.outputs.log-file || steps.summary-fallback.outputs.log-file }}
+          lane: summarize-reuse
+          lane-id: summarize-reuse
+          credential: ${{ steps.summary-key.outputs.credential || steps.summary-token.outputs.credential || steps.summary-fallback.outputs.credential }}
+          known-failure-class: ${{ steps.summary-key.outputs.lane-class || steps.summary-token.outputs.lane-class || steps.summary-fallback.outputs.lane-class }}
+          max-turns: ${{ steps.summary-models.outputs.max-turns }}
 
       # The summary file: issue, branch and tip are runner values from before
       # the model ran; output is the launcher's structured output, model
@@ -3544,10 +3668,10 @@ jobs:
       # it only for the PR's title and body text.
       - name: Collect the reused branch's summary
         id: summary-collect
-        if: steps.summary-key.outcome == 'success' || steps.summary-token.outcome == 'success'
+        if: steps.summary-key.outcome == 'success' || steps.summary-token.outcome == 'success' || steps.summary-fallback.outcome == 'success'
         continue-on-error: true
         env:
-          OUTPUT_FILE: ${{ steps.summary-key.outputs.structured-output-file || steps.summary-token.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.summary-key.outputs.structured-output-file || steps.summary-token.outputs.structured-output-file || steps.summary-fallback.outputs.structured-output-file }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
           TIP: ${{ steps.summary-data.outputs.tip }}
@@ -3688,14 +3812,20 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
           RUN_PR_NUMBER: ${{ needs.run.outputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
+          READ_PR_FAILURE: warning
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # read_pr_fields reads a transient fault once more and never a rate
+          # limit (outage posture element 1); a read that still fails warns and
+          # leaves the head empty.
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           sha=""
-          if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
-            sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha) || sha=""
+          if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] && read_pr_fields "$PR_NUMBER" .head.sha; then
+            sha=$pr_fields
           fi
           if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
             echo "No PR head SHA read"

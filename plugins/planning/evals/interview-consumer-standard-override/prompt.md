@@ -1,6 +1,6 @@
 ---
 description: "The repository's docs/standards/integrations.md puts every external service behind an interface from its first implementation; the user says no second provider is coming: the interview reads that standard, applies it over the bundled wait-for-repetition default, and records the override line naming the standards file"
-tags: [interview, standards, override, engineering-defaults]
+tags: [interview, standards, override, engineering-defaults, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

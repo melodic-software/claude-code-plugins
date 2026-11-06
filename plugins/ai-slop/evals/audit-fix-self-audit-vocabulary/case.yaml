@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-fix-self-audit-vocabulary
+description: "Fix removes model vocabulary the detector does not flag ('pivotal', 'delves into', 'leverages', 'showcases') through the rewrite guide's self-audit pass, and keeps every fact. Written from MB:plugins/ai-slop/skills/audit/reference/rewrite-guide.md:133 and 256-263, MB:plugins/ai-slop/skills/audit/SKILL.md:297-299."
+tags: [fix, rewrite-guide, self-audit]
+runs: 3
+expected_outcome: "After an explicit fix, docs/release-note.md has no 'pivotal', 'delve', 'leverage' or 'showcase', no 'I hope this helps' and no 'The future looks bright' closer; it still states the streaming writer sends each row as soon as it is read, that a 2 GB table no longer has to fit in memory, and that the --dry-run flag prints the row count."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit fix docs/release-note.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1500

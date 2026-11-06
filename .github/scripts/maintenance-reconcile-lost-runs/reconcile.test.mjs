@@ -93,13 +93,18 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
       const found = runs.filter((r) => r.head_sha === listing[1]);
       return { total_count: found.length, workflow_runs: found };
     }
-    const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z(?:&status=([a-z_]+))?&per_page=100(?:&page=([0-9]+))?$/.exec(path);
+    const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=%3E%3D([0-9-]+T[0-9]{2}%3A[0-9]{2}%3A[0-9]{2}Z)(?:&status=([a-z_]+))?&per_page=100(?:&page=([0-9]+))?$/.exec(path);
     if (method === "GET" && byWorkflow) {
-      // Like GitHub, `status` matches a run's status or its conclusion.
+      // Like GitHub, `status` matches a run's status or its conclusion, and
+      // `created` takes the runs created at or after it.
+      const after = Date.parse(decodeURIComponent(byWorkflow[2]));
       const found = runs.filter(
-        (r) => r.path === `.github/workflows/${byWorkflow[1]}` && (byWorkflow[2] === undefined || r.status === byWorkflow[2] || r.conclusion === byWorkflow[2]),
+        (r) =>
+          r.path === `.github/workflows/${byWorkflow[1]}` &&
+          Date.parse(r.created_at) >= after &&
+          (byWorkflow[3] === undefined || r.status === byWorkflow[3] || r.conclusion === byWorkflow[3]),
       );
-      const page = Number(byWorkflow[3] ?? 1);
+      const page = Number(byWorkflow[4] ?? 1);
       return { total_count: found.length, workflow_runs: found.slice((page - 1) * 100, page * 100) };
     }
     const byStatus = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z&status=([a-z_]+)&per_page=100$/.exec(path);
@@ -749,6 +754,102 @@ test("a verify run that failed on its first attempt is recorded and re-run once"
   assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
 });
 
+// A pr-verify check-intent job whose resolver held green on a GitHub fault: it
+// ran pr-verify.yml's "Note the hold" step, and its check run carries the
+// resolver's notice (resolve-pr.mjs closing), as GitHub lists a
+// `::notice title=pr-verify::held: ...` line. `marked` false is a run the
+// resolver skipped, whose marker step skipped too.
+const heldJob = ({ marked = true, notes = [{ annotation_level: "notice", title: "pr-verify", message: "held: pr-verify could not resolve the pull request: GET /repos/x failed with status 502" }] } = {}) => [
+  {
+    id: 7001,
+    name: "check-intent",
+    status: "completed",
+    conclusion: "success",
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: "Resolve the pull request", status: "completed", conclusion: "success" },
+      { name: "Note the hold", status: "completed", conclusion: marked ? "success" : "skipped" },
+      { name: "Check the trigger", status: "completed", conclusion: "skipped" },
+      { name: "Complete job", status: "completed", conclusion: "success" },
+    ],
+    notes,
+  },
+];
+const heldRun = (id, opts = {}, job = {}) => ({ ...verifyRun(id, { conclusion: "success", created: "2026-10-19T19:40:00Z", ...opts }), jobs: heldJob(job) });
+
+test("a verify run held green on a GitHub fault is recorded and re-run once on the next pass", async () => {
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [heldRun(301)] });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [301]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-301-2-${MAIN_TIP}`, "", ""]);
+});
+
+test("a succeeded verify run with no hold is not re-run, its annotations are not read, and it is settled", async () => {
+  const { code, reruns, calls, settled } = await reconcile({ pulls: [], runs: [heldRun(302, {}, { marked: false })], carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+  assert.ok(calls.every((c) => !c.includes("/check-runs/")));
+  assert.deepEqual(settled.runs, [{ id: 302, reason: "" }]);
+});
+
+test("a held verify run is not re-run without the resolver's held notice, at attempt 2, past the window, or while Actions is not operational", async () => {
+  const cases = {
+    "no notice": { runs: [heldRun(303, {}, { notes: [{ annotation_level: "notice", message: "api calls: 12" }] })] },
+    "attempt 2": { runs: [heldRun(304, { attempt: 2 })] },
+    "past the window": { runs: [heldRun(305, { created: "2026-10-19T13:30:00Z" })] },
+    "Actions degraded": { runs: [heldRun(306)], status: statusWith("degraded_performance") },
+  };
+  for (const [label, options] of Object.entries(cases)) {
+    const { code, reruns } = await reconcile({ pulls: [], ...options });
+    assert.equal(code, 0, label);
+    assert.deepEqual(reruns, [], label);
+  }
+});
+
+// A pass idle through an outage reads and carries nothing, so the held runs
+// the outage left are listed from the last pass that read, not 6 hours back.
+test("after a 10-hour outage, a run held 9 hours ago is re-run, listed from the last pass that read", async () => {
+  const lastRead = carryOf([]).replace(/}$/, `,"held_since":"2026-10-19T04:00:00.000Z"}`);
+  const { code, reruns, calls, settled } = await reconcile({ pulls: [], runs: [heldRun(307, { created: "2026-10-19T11:00:00Z" })], carry: lastRead });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [307]);
+  assert.ok(calls.some((c) => c.includes("/workflows/pr-verify.yml/runs?created=%3E%3D2026-10-19T04%3A00%3A00Z&status=success&")));
+  // Until its re-run takes a place, the next pass still lists it.
+  assert.equal(settled.held_since, "2026-10-19T11:00:00.000Z");
+});
+
+// pr-verify's three jobs run in turn, each up to 346 minutes, so a run can
+// hold in its last job long after FAULT_HELD_HOURS from its creation.
+test("a run created 10 hours ago, still going at one pass and held at the next, is re-run once", async () => {
+  const going = { ...verifyRun(501, { status: "in_progress", created: "2026-10-19T10:00:00Z" }), jobs: [] };
+  const first = await reconcile({ pulls: [], runs: [going], carry: null });
+  assert.equal(first.code, 0);
+  assert.deepEqual(first.reruns, []);
+  assert.equal(first.settled.held_since, "2026-10-19T10:00:00.000Z");
+  const held = heldRun(501, { created: "2026-10-19T10:00:00Z" });
+  const second = await reconcile({ pulls: [], runs: [held], carry: JSON.stringify(first.settled) });
+  assert.equal(second.code, 0);
+  assert.deepEqual(second.reruns, [501]);
+  // Without the carry, the 6-hour window alone misses it.
+  const alone = await reconcile({ pulls: [], runs: [held], carry: null });
+  assert.deepEqual(alone.reruns, []);
+});
+
+test("a pass reads at most 100 succeeded runs' jobs for a hold, oldest first, and the next pass starts at the first it left", async () => {
+  // Left from an outage: 120 runs from 05:00, a minute apart, with the last
+  // reading pass at 04:00.
+  const runs = Array.from({ length: 120 }, (_, i) =>
+    heldRun(400 + i, { created: new Date(Date.parse("2026-10-19T05:00:00Z") + i * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z") }, { marked: false }),
+  );
+  const lastRead = carryOf([]).replace(/}$/, `,"held_since":"2026-10-19T04:00:00.000Z"}`);
+  const { code, calls, settled } = await reconcile({ pulls: [], runs, carry: lastRead });
+  assert.equal(code, 0);
+  assert.equal(calls.filter((c) => /\/actions\/runs\/4[0-9]{2}\/attempts\/1\/jobs/.test(c)).length, 100);
+  assert.equal(settled.runs.length, 100);
+  // The 101st run, created 100 minutes after 05:00.
+  assert.equal(settled.held_since, "2026-10-19T06:40:00.000Z");
+});
+
 test("a verify run the kill switch stopped is re-run once the switch is off", async () => {
   const stopped = [
     {
@@ -992,8 +1093,16 @@ test("a non-operational Actions status records nothing", async () => {
 });
 
 // A day of pr-verify runs: succeeded ones, with the given runs among them.
+// A day of pr-verify runs, spread evenly over the lookback, as they start.
 const verifyDay = (count, lost) =>
-  Array.from({ length: count }, (_, i) => lost.get(i) ?? { ...run(10_000 + i, MAIN_TIP, { path: VERIFY, event: "workflow_run", conclusion: "success" }), head_branch: "main" });
+  Array.from(
+    { length: count },
+    (_, i) =>
+      lost.get(i) ?? {
+        ...run(10_000 + i, MAIN_TIP, { path: VERIFY, event: "workflow_run", conclusion: "success", created: new Date(NOW - ((count - i) * 24 * 3_600_000) / count).toISOString().replace(/\.\d{3}Z$/, "Z") }),
+        head_branch: "main",
+      },
+  );
 
 // Lost pr-verify runs, oldest first.
 const lostDay = (count) =>
@@ -1015,7 +1124,8 @@ test("700 succeeded verify runs and 2 lost ones plan the 2 lost runs without hit
   assert.equal(code, 0);
   assert.deepEqual(reruns, [202, 201]);
   assert.deepEqual(records(outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, `reconcile-rerun-201-2-${MAIN_TIP}`, ""]);
-  assert.ok(calls.every((c) => !c.includes("&page=2")));
+  // The lost-run listings; the held-run listing of the last 6 hours' 175 runs is its own.
+  assert.ok(calls.filter((c) => !c.includes("&status=success&")).every((c) => !c.includes("&page=2")));
 });
 
 test("with 700 succeeded runs listed, verify re-runs already queued or in progress still take places", async () => {
@@ -1062,7 +1172,8 @@ const laneMix = () => [
   run(500, sha(5), { path: CHECKS, status: "in_progress" }),
 ];
 const repoWide = (calls) => calls.filter((c) => c.startsWith(`GET /repos/${REPO}/actions/runs?created=`));
-const perLane = (calls) => calls.filter((c) => /\/actions\/workflows\/pr-(verify|review-main)\.yml\/runs\?/.test(c));
+// The lost-run listings per lane; pr-verify's held-run listing is its own.
+const perLane = (calls) => calls.filter((c) => /\/actions\/workflows\/pr-(verify|review-main)\.yml\/runs\?/.test(c) && !c.includes("&status=success&"));
 // Every repository-wide listing answers a total past one page.
 const overfull = (g) => async (method, apiPath, body) => {
   const answer = await g(method, apiPath, body);
@@ -1775,9 +1886,10 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     assert.equal(count("POST /graphql"), 1);
     // The pulls page, one run listing per head, the cancelled and failure
     // listings for each of pr-verify and pr-review-main, one repository-wide
-    // listing for each of the other seven statuses, one intake listing, one
-    // stopped-verdict listing and the one pre-filter query.
-    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 1 + 1 + 1);
+    // listing for each of the other seven statuses, one held pr-verify
+    // listing, one intake listing, one stopped-verdict listing and the one
+    // pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 1 + 1 + 1 + 1);
   });
 });
 

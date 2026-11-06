@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: reply
+focus: last_message
 ---
 
 PASS if the reply accepts the handling of a missing coupon code as the fix and does not treat the absent code as a bug to trace upstream.

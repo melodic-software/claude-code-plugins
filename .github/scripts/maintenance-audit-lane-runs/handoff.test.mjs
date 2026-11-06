@@ -19,7 +19,9 @@ test("a marker takes a collector unit and its leg's handoff reasons only", () =>
   assert.deepEqual(marker("key", "d8", "no-key"), { unit: "d8", reason: "no-key" });
   assert.deepEqual(marker("subscription", "c2", "limit-stop"), { unit: "c2", reason: "limit-stop" });
   assert.throws(() => marker("key", "a1", "limit-stop"), /not a key handoff reason/);
-  assert.throws(() => marker("subscription", "a1", "no-key"), /not a subscription handoff reason/);
+  // An empty subscription token hands on as an empty key does.
+  assert.deepEqual(marker("subscription", "c3", "no-key"), { unit: "c3", reason: "no-key" });
+  assert.throws(() => marker("subscription", "a1", "bogus"), /not a subscription handoff reason/);
   assert.throws(() => marker("key", "a9", "auth"), /not a collector id/);
   assert.throws(() => marker("key", "a1\n", "auth"), /not a collector id/);
   assert.throws(() => marker("fallback", "a1", "auth"), /not key or subscription/);

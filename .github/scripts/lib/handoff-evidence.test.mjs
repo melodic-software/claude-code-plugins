@@ -262,13 +262,19 @@ function refineJobEnv(name) {
 
 // An empty output starts a second leg in pr-unblock.yml, so the opt-in stays on
 // the two jobs whose empty facts start nothing.
-test("only pr-refine.yml's two fix-docs handoff jobs name HANDOFF_EVIDENCE_LAG", () => {
+// Beside pr-refine.yml's two fix-docs handoff jobs, the key-credit-markers
+// jobs name it: their empty outputs start nothing, so a read that cannot
+// settle ends with a notice and uploads no marker.
+test("only the fix-docs handoff jobs and the key-credit-markers jobs name HANDOFF_EVIDENCE_LAG", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   const text = (file) => readFileSync(new URL(file, dir), "utf8");
   const files = readdirSync(dir).filter((file) => /\.ya?ml$/.test(file) && text(file).includes("HANDOFF_EVIDENCE_LAG"));
-  assert.deepEqual(files, ["pr-refine.yml"]);
-  const blocks = text("pr-refine.yml").split(/^(?=  [\w-]+:$)/m).filter((block) => block.includes("HANDOFF_EVIDENCE_LAG"));
-  assert.deepEqual(blocks.map((block) => /^ {2}([\w-]+):$/m.exec(block)?.[1]), ["fix-docs-handoff", "fix-docs-subscription-handoff"]);
+  assert.deepEqual(files, ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
+  const jobsNaming = (file) =>
+    text(file).split(/^(?=  [\w-]+:$)/m).filter((block) => block.includes("HANDOFF_EVIDENCE_LAG")).map((block) => /^ {2}([\w-]+):$/m.exec(block)?.[1]);
+  assert.deepEqual(jobsNaming("pr-refine.yml"), ["fix-docs-handoff", "key-credit-markers", "fix-docs-subscription-handoff"]);
+  assert.deepEqual(jobsNaming("pr-unblock.yml"), ["key-credit-markers"]);
+  assert.deepEqual(jobsNaming("work-resolve-issue.yml"), ["key-credit-markers"]);
 });
 
 test("a fact still unsettled in a listing that was read fails with no output by default", () => {

@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: dg-standing-setting-xhigh
 description: An interactive user whose only model lacks the xhigh effort level, planning to turn on /effort ultracode for every session, hears that the standing setting needs a model with xhigh effort
-tags: [draft-goal-condition, outcome, workflow-row]
+tags: [draft-goal-condition, outcome, workflow-row, no-network]
 expected_outcome: The reply says the standing /effort ultracode setting (or the ultracode settings key) is not available, or does not fit, on a model that lacks the xhigh effort level.
 execution:
   prompt: "Use the draft-goal-condition skill from the planning plugin. I work interactively at the Claude Code prompt in my terminal. The only model my team has access to does not support the xhigh effort level: its /effort slider stops at high. For the rest of this week I want Claude to plan a dynamic workflow for every substantive task, so my plan is to run `/effort ultracode` at the start of each session, or put `\"ultracode\": true` in my settings. Which lever fits, will that plan work on this model, and if not, what should I do instead?"
