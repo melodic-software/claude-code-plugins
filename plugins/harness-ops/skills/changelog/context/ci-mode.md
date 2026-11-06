@@ -33,11 +33,11 @@ on disk. So the plan is written as soon as the rows are decided and rewritten, w
 step finishes:
 
 1. Once the branch rule below has sorted every row, write the plan with status `planned`, no
-   `branches`, and each would-be branch row as a `not-applied` handoff whose reason says the run
-   ended before its branch.
-2. Run Phase 5 and rewrite the plan with its handoffs and `probes`.
+   `branches`, each would-be branch row as a `not-applied` handoff whose reason says the run
+   ended before its branch, and a `warnings` entry saying Phase 5 has not run.
+2. Run Phase 5 and rewrite the plan with its handoffs and `probes`, dropping that warning.
 3. Work the branches. After each one commits, rewrite the plan: add its `branches` entry and drop
-   its rows from `handoffs`.
+   its rows from `handoffs`. After one fails, rewrite its rows' reason to the failure.
 
 A stopped run's plan then opens the pull requests for the branches it finished and files every
 other row.
