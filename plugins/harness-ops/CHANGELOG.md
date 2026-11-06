@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.8.1] - 2026-11-06
+
+### Changed
+
+- `/harness-ops:changelog apply`'s native-drift filing reads work-items' `filing_posture` on an
+  unattended run: `manual-only`, the default, files nothing and lists the items as unfiled; only
+  `allowed` files without asking. Interactive runs keep the one batch confirmation.
+
 ## [8.8.0] - 2026-11-06
 
 ### Added
