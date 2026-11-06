@@ -360,7 +360,8 @@ read-only and `fix` is an explicit separate action. Basis: `ai-slop` 0.11.4 `ski
 
 `--fix` runs only each ecosystem's format-only `fix-cmd`. After it, run `/toolchain:lint all` in
 check mode so every ecosystem's `check-cmd` also covers the whole repository, and report its
-failures.
+failures. When the `toolchain` plugin is not installed, run each ecosystem's own lint command
+instead and report that `/toolchain:lint` did not run.
 
 Claim: `toolchain:lint` with `--fix` runs only each ecosystem's format-only `fix-cmd`, check mode
 runs `check-cmd`, and the `all` filter widens the file list to the whole repository. Basis:

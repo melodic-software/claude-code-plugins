@@ -64,7 +64,8 @@ open the draft PR. Then:
 1. Branch: `chore/repo-sweep-hygiene-<yyyymmdd>`. When that name exists locally or on origin
    (`git ls-remote --heads origin '<name>'`), append `-2`, `-3`, and so on.
 2. Worktree: invoke `/source-control:worktree` via the Skill tool to create a worktree for that
-   exact branch off the up-to-date default branch. If it cannot take an exact branch name, run
+   exact branch off the up-to-date default branch. If the `source-control` plugin is not installed or
+   the skill cannot take an exact branch name, run
    `git fetch origin`, then `git worktree add -b '<branch>' '<path>' 'origin/<default-branch>'`
    at the path it would have used. All later commands run in that worktree.
 3. Seed commit, since GitHub refuses a PR with no commits: `git commit --allow-empty -m

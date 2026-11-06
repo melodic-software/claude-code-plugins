@@ -269,7 +269,8 @@ never copy a case's text and never use held-back cases.
    (`/skill-quality:check measure-invocation`, or `claude plugin eval` on the cases it emits) and
    the plugin's eval cases, per model the skill targets. Run the versions concurrently with the
    same flags: run conditions drift, so before and after runs made hours apart are not
-   comparable. Read a number only from a run `/evals:plugin-eval` judges valid, and compare the
+   comparable. Read a number only from a run `/evals:plugin-eval` judges valid (when the `evals`
+   plugin is not installed, say the measurement did not run), and compare the
    versions with its two-version noise report. Trust a pass only from a suite that can detect a
    loss: run the negative control in [rewrite-a-plugin.md](rewrite-a-plugin.md#order-of-work)
    step 4, and keep the before text of any part it finds unmeasurable.

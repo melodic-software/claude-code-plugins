@@ -25,6 +25,10 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
 
 ## Order of work
 
+The steps run `/skill-quality:check` and the `/evals:*` skills when the `skill-quality` and
+`evals` plugins are installed. When one is not, say which step's check did not run and that
+installing that plugin would run it; never report that step as passed.
+
 1. **Inventory.** List each skill, whether it is model-invoked, its outcome cases under
    `evals/`, and its probe file `probes/<skill>.json`. Run `/skill-quality:check <plugin root>` and
    keep the output as the before state.
