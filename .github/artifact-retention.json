@@ -397,6 +397,46 @@
       "reason": "Read by the run its workflow_run event starts; 7 days covers a manual re-run of that run.",
       "scan": "none"
     },
+    "post-merge-test-mutation-generate-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/post-merge-test-mutation.yml mutate downloads it by id and checks its SHA-256, same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "post-merge-test-mutation-executed-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/post-merge-test-mutation.yml triage and report download it by id and check its SHA-256, same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "post-merge-test-mutation-triage-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/post-merge-test-mutation.yml report downloads it by id and checks its SHA-256, same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
+    "key-credit-stop-post-merge-test-mutation.yml-generate": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/post-merge-test-mutation.yml key-credit's \"Read the generate key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
+    },
+    "key-credit-stop-post-merge-test-mutation.yml-triage": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/post-merge-test-mutation.yml key-credit's \"Read the triage key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
+    },
     "selection-audit-*": {
       "retention-days": 7,
       "readers": [
