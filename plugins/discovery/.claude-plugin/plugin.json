@@ -32,6 +32,34 @@
       "default": "auto",
       "options": ["auto", "change-prep", "explain"]
     },
+    "research_corroborators": {
+      "type": "number",
+      "title": "Research corroborators per claim",
+      "description": "Independent current corroborators /discovery:research needs per accepted claim beside its primary. Default 2. The broad-topic minimum and the single-source exception are unchanged. docs/conventions/discovery.yaml overrides this.",
+      "default": 2,
+      "min": 1
+    },
+    "research_recency_active_days": {
+      "type": "number",
+      "title": "Research recency window, active project (days)",
+      "description": "Recency window /discovery:research applies to a very active project (weekly releases, breaking changes, security-sensitive). Default 14. docs/conventions/discovery.yaml overrides this.",
+      "default": 14,
+      "min": 1
+    },
+    "research_recency_standard_days": {
+      "type": "number",
+      "title": "Research recency window, standard tool (days)",
+      "description": "Recency window /discovery:research applies to a standard library, tool, CLI or API. Default 30. docs/conventions/discovery.yaml overrides this.",
+      "default": 30,
+      "min": 1
+    },
+    "research_recency_guide_days": {
+      "type": "number",
+      "title": "Research recency window, architecture guide (days)",
+      "description": "Recency window /discovery:research applies to a tool- or vendor-specific architecture guide. Default 90. docs/conventions/discovery.yaml overrides this.",
+      "default": 90,
+      "min": 1
+    },
     "medium": {
       "type": "string",
       "title": "Preferred delivery medium",

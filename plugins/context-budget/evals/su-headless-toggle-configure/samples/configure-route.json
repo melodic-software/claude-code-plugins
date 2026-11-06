@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "claude plugin configure context-budget@melodic --values-stdin < values.json",
+      "why": "route"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/plugin configure context-budget@melodic",
+      "why": "interactive"
+    },
+    {
+      "answer": "claude plugin configure context-budget@melodic",
+      "why": "no --values-stdin"
+    }
+  ]
+}
