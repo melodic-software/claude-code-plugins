@@ -1,0 +1,70 @@
+schema_version: "1.1"
+name: ap-shadowed-row-not-scored
+graders:
+  - name: filesystem-p1-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bfilesystem\b)(?=[^\n]*(?:\bP1\b|\bfloating\b|\bunversioned\b|\bunpinned\b))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: mailer-p1-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bmailer\b)(?=[^\n]*(?:\bP1\b|\bfloating\b|@latest))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: notes-p1-warn
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bnotes\b)(?=[^\n]*(?:\bP1\b|\bfloating\b|\btag\b))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: notes-p1-not-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bnotes\b)[^\n]*\bP1\b[^|\n]*\|(?:\s*\**notes\**\s*\|)?\s*\**FAIL\b|\bnotes\b[^\n.;|]{0,40}?\bP1\b[^\n.;|]{0,20}?(?<!\bnot)(?<!\bno)\s\**FAIL\b'
+    match: 'not_contains'
+    target: last_message
+  - name: github-p1-pass
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bgithub\b)(?=[^\n]*(?:\bP1\b|\bexact\b|\bpinned\b))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: fetch-p1-pass
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bfetch\b)(?=[^\n]*(?:\bP1\b|\bexact\b|\bpinned\b))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)'
+    flags: 'i'
+    target: last_message
+  - name: shadowed-row-listed
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bgithub\b)(?=[^\n]*shadowed-by:\s*`?local)'
+    flags: 'i'
+    target: last_message
+  - name: shadowed-row-not-scored
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bgithub\b)(?=[^\n]*(?:\bproject\b|@latest|floating-tag))(?![^\n]*\b(?:not\s+scored|no\s+findings|isn''t\s+scored|is\s+not\s+scored|not\s+evaluated|unscored|would\s+FAIL)\b)(?=[^\n]*\bFAIL\b)'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: mailer-p3-unverified
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bmailer\b)(?=[^\n]*(?:\bP3\b|\bprovenance\b|\bpublisher\b))(?=[^\n]*\bunverified\b)'
+    flags: 'i'
+    target: last_message
+  - name: fail-before-warn
+    type: regex
+    pattern: '(?:#{1,6}\s*|\*\*)Findings\b[^\n]*\n(?:(?!#{1,6}\s)(?![^\n]*\bWARN)[^\n]*\n)*?[^\n]*\|\s*\**FAIL\b'
+    target: last_message
+  - name: coverage-not-read
+    type: regex
+    pattern: '\bnot\s+read\b[\s\S]{0,400}?\bclaude\.ai\s+connectors\b'
+    flags: 'i'
+    target: last_message
+  - name: coverage-not-evaluated
+    type: regex
+    pattern: '\bnot\s+evaluated\b[\s\S]{0,400}?\ballowedMcpServers\b'
+    flags: 'i'
+    target: last_message
+  - name: no-inventory-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?audit-posture/scripts/inventory\.sh\b'
+    min: 0
+    max: 0
+    arm: 'both'

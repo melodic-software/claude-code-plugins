@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: payments_charge_card",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "payments server: 1 tool",
+      "why": "tool not named"
+    }
+  ]
+}

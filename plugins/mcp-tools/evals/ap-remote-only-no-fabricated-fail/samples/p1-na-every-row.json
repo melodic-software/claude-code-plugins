@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| docs | P1 Floating version | n/a | remote |\n| tracker | P1 Floating version | n/a | remote |\n| events | P1 Floating version | n/a | remote |",
+      "why": "three rows"
+    },
+    {
+      "answer": "P1 is n/a for all three remote servers.",
+      "why": "one line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| docs | P1 Floating version | n/a | remote |\n| tracker | P1 Floating version | n/a | remote |",
+      "why": "events missing"
+    },
+    {
+      "answer": "| events | P1 Floating version | WARN | |",
+      "why": "warn"
+    }
+  ]
+}

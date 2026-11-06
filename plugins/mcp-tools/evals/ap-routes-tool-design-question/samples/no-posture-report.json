@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Posture (P1-P5) is a different question; for descriptions use /mcp-tools:audit.",
+      "why": "mentions P1-P5 without a report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# MCP Posture Audit\n\n**Date:** 2026-11-05",
+      "why": "posture report header"
+    },
+    {
+      "answer": "| example | P1 Floating version | PASS | Exact version |",
+      "why": "posture findings row"
+    }
+  ]
+}

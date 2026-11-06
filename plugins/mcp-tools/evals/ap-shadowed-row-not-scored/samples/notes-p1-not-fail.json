@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| notes | P1 Floating version | WARN | |",
+      "why": "warn"
+    },
+    {
+      "answer": "notes P1 is not FAIL on a container launcher",
+      "why": "negated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| notes | P1 Floating version | FAIL | |",
+      "why": "fail cell"
+    },
+    {
+      "answer": "notes P1 FAIL",
+      "why": "prose"
+    }
+  ]
+}

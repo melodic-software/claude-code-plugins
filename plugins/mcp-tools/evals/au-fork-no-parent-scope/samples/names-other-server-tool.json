@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: inventory_list_items",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Audited only the payments server, as you asked.",
+      "why": "narrowed to payments"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: ApprovePayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | string constructor overload |\n",
+      "why": "section"
+    },
+    {
+      "answer": "ApprovePayout fails C18: [McpMeta(\"...\", \"true\")] serializes a string.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: CancelPayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | |\n\n#### Tool: ApprovePayout\n\n| C18 requiresUserInteraction is JSON `true` | OPINION | PASS | |\n",
+      "why": "swapped attribution"
+    },
+    {
+      "answer": "ApprovePayout: C6 FAIL",
+      "why": "other criterion"
+    }
+  ]
+}

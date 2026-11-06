@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Overall:** 15 pass, 0 warn, 0 fail, 1 info",
+      "why": "template line"
+    },
+    {
+      "answer": "Overall: 16 passes, 0 warnings, and 0 fails, 0 info",
+      "why": "prose counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Overall:** 14 pass, 1 warn, 1 fail, 0 info",
+      "why": "a fail counted"
+    },
+    {
+      "answer": "Overall it looks good.",
+      "why": "no counts"
+    }
+  ]
+}

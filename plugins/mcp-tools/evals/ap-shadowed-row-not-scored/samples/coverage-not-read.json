@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "## Coverage\n\n- Not read: MDM/registry/plist policy; server-managed settings; claude.ai connectors",
+      "why": "carried"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Coverage\n\n- Not read: none",
+      "why": "dropped"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: au-resource-out-of-scope
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: list-snippets-scored
+    type: regex
+    pattern: '(?:^|\n)(?:#{1,6}|\*\*)[^\n]*\blist_snippets\b[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?\|\s*C\d{1,2}\b[^\n]*\|\s*\**(?:PASS|WARN|FAIL|info)\**\s*\||(?:^|\n)(?=[^\n]*\blist_snippets\b)(?=[^\n]*\bC\d{1,2}\b)(?=[^\n]*\b(?:PASS|WARN|FAIL)\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-resource-findings
+    type: regex
+    pattern: '(?:^|\n)#{1,6}[^\n]*(?:\bresource\b|snippet://|Tool:\W*snippet\b(?!s))[^\n]*\n(?:(?!#{1,6}\s|\*\*`)[^\n]*\n){0,40}?\|\s*C\d{1,2}\b[^\n]*\|\s*\**(?:PASS|WARN|FAIL|info)\**\s*\||(?:^|\n)(?=[^\n]*(?:snippet://|\bsnippet\s+resource\b|\bresource\s+`?snippet\b))(?=[^\n]*\bC\d{1,2}\b)(?=[^\n]*\|\s*\**(?:PASS|WARN|FAIL)\**\s*\|)'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: says-resources-out-of-scope
+    type: regex
+    pattern: '\bresources?\b[^\n.]{0,80}?\b(?:out\s+of\s+(?:the\s+)?(?:audit''s\s+)?scope|not\s+(?:\w+\s+){0,2}?(?:evaluated|audited|scored|checked|covered|in\s+scope|part\s+of)|(?:are|is|were|was)\s+(?:\w+\s+)?(?:excluded|skipped)|outside)\b|\b(?:only\s+(?:evaluates|audits|scores|checks|covers|looks\s+at)\s+(?:MCP\s+)?tools|tools\s+only|only\s+tools)\b|\b(?:doesn''t|does\s+not)\s+(?:evaluate|audit|score|check|cover)\s+(?:MCP\s+)?resources\b'
+    flags: 'i'
+    target: last_message
+  - name: resource-not-claimed-audited
+    type: regex
+    pattern: '\b(?<![Nn]o )(?<![Nn]o MCP )(?<!\b0 )(?<!\b0 MCP )(?<![Zz]ero )(?<![Zz]ero MCP )(?<![Nn]one of )(?<![Nn]one of the )(?:the\s+)?(?:snippet\s+)?resources?\s+(?:(?:is|are|was|were)\s+(?:also\s+)?)?(?:audited|evaluated|scored|passes|passed)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

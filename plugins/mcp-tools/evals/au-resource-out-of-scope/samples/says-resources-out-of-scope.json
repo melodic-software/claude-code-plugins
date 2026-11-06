@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Resources are out of scope for this audit: it evaluates tools only.",
+      "why": "plain"
+    },
+    {
+      "answer": "The audit does not evaluate MCP resources, so the snippet template is skipped.",
+      "why": "does not evaluate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I audited the tools and the resources.",
+      "why": "no scope statement"
+    },
+    {
+      "answer": "Here is the report including the resources you asked for.",
+      "why": "echoes the request"
+    }
+  ]
+}

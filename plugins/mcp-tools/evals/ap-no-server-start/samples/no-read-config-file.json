@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/plugins/mcp-tools/skills/audit-posture/reference/checklist.md"
+          }
+        }
+      ],
+      "why": "the checklist"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/configs/services.mcp.json"
+          }
+        }
+      ],
+      "why": "config file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-home/.claude.json"
+          }
+        }
+      ],
+      "why": "user config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/etc/claude-code/managed-mcp.json"
+          }
+        }
+      ],
+      "why": "managed config"
+    }
+  ]
+}
