@@ -83,7 +83,8 @@ the next run has no filed item to read back.
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 | `--unattended` | **Unattended** | The caller declares that nobody is present (a loop, a routine, a lane rule). No scanned code runs, every survivor is `verified-by-reading`, and Step 7 routes as unattended. Composable with any mode. |
 
-`lanes` and `filing_posture` resolve from `docs/conventions/bugs.yaml`, the team layer. Keys,
+`lanes` resolves from `docs/conventions/bugs.yaml`, the team layer, and `filing_posture` from
+`docs/conventions/work-items.yaml` (Filing posture in the reference). Keys,
 layers, and merge semantics live only in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). When no layer
 declares lanes, use the bundled generic default lanes in [`context/lenses.md`](context/lenses.md).
@@ -230,7 +231,7 @@ the cursor advance.
 
 ### Step 1. Resolve scope
 
-Resolve the mode, lane globs, and `filing_posture` from the config cascade. Enumerate the file list
+Resolve the mode, lane globs, and `filing_posture` per the reference. Enumerate the file list
 and drop test suites (`*.test.*`, `test_*`, `*.Tests.ps1`): hunters read a test to learn a unit's
 contract and never hunt the test itself. Over ~40 files, narrow to the highest-signal subset
 (recently changed, highest fan-in, most branch-dense) and say in the report that you sampled.
@@ -322,9 +323,10 @@ Under `--dry-run`, skip persistence.
 
 ### Step 6. `--track` filing (explicit only)
 
-**Posture gate first.** Resolve `filing_posture` per
-[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) (bundled default
-`manual-only`). On `manual-only`, file nothing: print "filing skipped: filing_posture is manual-only
+**Posture gate first.** Resolve `filing_posture` per the Filing posture section of
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md): `docs/conventions/work-items.yaml`
+first, then for one release the deprecated bugs layers with their notice, else the default
+`manual-only`. On `manual-only`, file nothing: print "filing skipped: filing_posture is manual-only
 (<layer, or bundled default>); report-only" and stop at the report. Only `allowed` continues.
 
 Apply the Step 7 ladder: on an interactive run file only the findings it routes to the tracker; on

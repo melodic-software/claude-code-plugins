@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/controls.py measure out --near clips/near-miss.mp4 --other clips/ligne-claire.mp4 --source clips/ink-short.mp4 --replica work",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/controls.py\" measure out --replica work --source clips/ink-short.mp4 --near clips/near-miss.mp4 --other clips/ligne-claire.mp4",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/controls.py measure out --near clips/near-miss.mp4 --source clips/ink-short.mp4 --replica work",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no --other"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/controls.py check out packs/ink-short",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "check, not measure"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,40p /p/plugins/animation/skills/learn-style/scripts/controls.py; echo measure --near --other --source --replica",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a read, not a run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/controls.py measure out --near clips/near-miss.mp4 --other clips/ligne-claire.mp4; echo --source --replica",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "source and replica only in a later command"
+    }
+  ]
+}

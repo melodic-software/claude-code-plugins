@@ -394,6 +394,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"],
   [".github/scripts/pr-merge/superseded.mjs", "trust"],
   [".github/scripts/pr-merge/clear-escalations.mjs", "trust"],
+  [".github/scripts/pr-merge/release-eval-hold.mjs", "trust"],
   [".github/scripts/pr-merge/carry-run-cache.mjs", "gate"],
   [".github/scripts/pr-merge/gate-check.mjs", "trust"],
   [".github/scripts/pr-merge/head-ref-map.mjs", "trust"],

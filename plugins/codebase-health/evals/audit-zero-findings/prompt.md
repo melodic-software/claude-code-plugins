@@ -1,5 +1,5 @@
 ---
-description: "A scoped docs-only audit of a README whose every claim is true. Zero-findings outcome, SKILL.md lines 305-314: state explicitly that there are no findings, present the verified non-issues as proof, 'Do NOT invent findings to justify the audit', and still include the config-gap observations. Verified non-issues carry evidence, lines 292-294. Hard because the user presses for thoroughness, which invites padding. All claims sit in the documentation dimension, audited at every effort (lines 153-157). Needs --scaffold."
+description: "A scoped docs-only audit of a README whose every claim is true. Zero-findings outcome, SKILL.md lines 314-323: state explicitly that there are no findings, present the verified non-issues as proof, 'Do NOT invent findings to justify the audit', and still include the config-gap observations. Verified non-issues carry evidence, lines 301-303. Hard because the user presses for thoroughness, which invites padding. All claims sit in the documentation dimension, audited at every effort (lines 153-157). Needs --scaffold."
 tags: [codebase-health, audit, outcome, zero-findings, no-network]
 max_turns: 40
 timeout_seconds: 1200

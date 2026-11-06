@@ -1,0 +1,99 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/produce.py shots film",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/produce.py\" review film",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls; P=/opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/scripts/produce.py; ls film 2>&1 | head; python3 $P boards film; echo \"boards exit $?\"; python3 $P shots film; echo \"shots exit $?\""
+          }
+        }
+      ],
+      "why": "smoke 1: produce.py held in $P, then shots film"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/produce.py boards film",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "boards only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/produce.py cuts film",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "cuts, which has no gate"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat film/boards/approval.json",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "reads the file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/p/plugins/animation/scripts/produce.py; python3 $P boards film; python3 $P cuts film",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "alias, but boards and cuts only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/p/plugins/animation/scripts/produce.py; python3 $P shots other",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "alias, another directory"
+    }
+  ]
+}

@@ -29,7 +29,7 @@
       "id": 3,
       "name": "apply-scaffolds-the-tracked-lane-config",
       "prompt": "/bugs:setup apply",
-      "expected_output": "Reports the effective lane config per layer first, drafts lanes from the repository layout, settles filing_posture, writes only docs/conventions/bugs.yaml in the documented format, then re-reads it and confirms it is tracked rather than gitignored.",
+      "expected_output": "Reports the effective lane config per layer first, drafts lanes from the repository layout, writes only docs/conventions/bugs.yaml (never filing_posture, which lives in docs/conventions/work-items.yaml) in the documented format, then re-reads it and confirms it is tracked rather than gitignored.",
       "files": [],
       "narration": true,
       "expectations": [

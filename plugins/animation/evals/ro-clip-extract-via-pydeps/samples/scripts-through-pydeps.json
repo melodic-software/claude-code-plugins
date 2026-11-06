@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/extract.py roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/skills/rotoscope/scripts/extract.py --help",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,30p /p/plugins/animation/skills/rotoscope/scripts/measure.py",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/skills/rotoscope/scripts/extract.py roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bare extract"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd roto && python3 -u \"$R/measure.py\" ink-short",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bare measure after cd"
+    }
+  ]
+}

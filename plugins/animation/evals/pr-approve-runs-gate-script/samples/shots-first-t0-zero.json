@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "{\"fps\": 12, \"size\": [768, 576], \"shots\": [\n  {\"id\": \"s1\", \"t0\": 0, \"t1\": 4, \"scene\": \"scenes/s1.js\", \"pack\": \"woodcut-ink\"}\n]}"
+    },
+    {
+      "answer": "{\"shots\":[{\"t0\":0.0,\"t1\":4,\"id\":\"s1\"}],\"fps\":12}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"shots\": [{\"id\": \"s1\", \"t0\": 0.5, \"t1\": 4}]}",
+      "why": "first shot starts late"
+    },
+    {
+      "answer": "{\"shots\": [{\"id\": \"s1\", \"t0\": 2, \"t1\": 4}, {\"id\": \"s0\", \"t0\": 0, \"t1\": 2}]}",
+      "why": "zero is not the first shot"
+    }
+  ]
+}

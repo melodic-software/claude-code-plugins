@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/render.py scenes/harbor.js frames/harbor --fps 24 --encode mp4 --playwright-core '${user_config.playwright_core}'",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/render.py\" \"scenes/harbor.js\" out/harbor --encode mp4 --fps 24",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/render.py scenes/harbor.js frames/harbor --fps 24",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no --encode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/render.py scenes/harbor.js frames/harbor --fps 24; ffmpeg -i frames/harbor/%04d.png --encode mp4 x",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "encode outside the render call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node render.js scenes/harbor.js --encode mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "not render.py"
+    }
+  ]
+}

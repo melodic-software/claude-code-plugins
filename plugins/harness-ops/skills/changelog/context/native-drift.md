@@ -132,8 +132,11 @@ installed and a tracker binding resolves; never call a provider CLI directly. Ot
 **Who approves.** The run is interactive unless its caller declares it unattended (a loop, a
 routine, or a lane directive that authorizes tracker filing). Interactive: print the count and the
 list (kind, key, title), then file on one confirmation for the batch, which is `track add`'s
-authorization gate for model-initiated filing. Unattended: print the count and file without
-asking, with the AI disclaimer `track add` and the dogfood contract require.
+authorization gate for model-initiated filing. Unattended: first read `filing_posture` from
+`docs/conventions/work-items.yaml` (absent: `manual-only`). On `manual-only`, file nothing: print
+"filing skipped: filing_posture is manual-only; report-only" and list the items as unfiled. On
+`allowed`, print the count and file without asking, with the AI disclaimer `track add` and the
+dogfood contract require.
 
 **Batch cap.** When `overflow` is set, a run never files the individual items without a person's
 confirmation, whether or not it is unattended. Interactive: say the batch exceeds the cap, print
@@ -145,6 +148,6 @@ as unfiled.
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| `work-items` defines no filing-posture key, so the only filing gate is `track add`'s authorization gate (`filing_posture` belongs to the `bugs` plugin and governs `/bugs:scan` alone) | `git grep filing_posture` hits only `plugins/bugs/`, the bugs team files (`docs/conventions/bugs.yaml`), docs describing them, and this file; the authorization gate `/work-items:track add` documents | 2026-10-25 | `work-items` gains a filing-posture or autonomy key; this step then reads it and never exceeds it |
+| `work-items` owns `filing_posture` (default `manual-only`), so an unattended run of this step files only when it resolves to `allowed`; an interactive run keeps `track add`'s authorization gate | `filing_posture` in `plugins/work-items/schemas/work-items.schema.json`; the authorization gate `/work-items:track add` documents | 2026-11-06 | `work-items` renames or drops `filing_posture`, or gains another autonomy key; this step then reads it and never exceeds it |
 | `gh issue list` lists only open issues unless `--state all` is passed, and stops at 30 unless `--limit` is raised | `gh issue list --help`: "By default, this only lists open issues"; `-s, --state` default `open`; `-L, --limit` default 30 | 2026-09-30 | `gh issue list --help` changes the `--state` or `--limit` default |
 | `track add` adds its own default labels (`category:general` when the repo defines it, `type: <type>` on a non-org repo) besides the floor and any requested label | The flags and label-building rules `/work-items:track add` documents | 2026-09-30 | `track add` changes its default-label rules |

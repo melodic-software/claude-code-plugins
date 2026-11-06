@@ -1,6 +1,6 @@
 # Resolve plugin settings through one four-layer cascade and a bound convention home
 
-- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below)
+- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below); the D100 floor is narrowed by [ADR 0089](0089-narrow-d100-to-pull-requests-tidied-in-their-own-run.md)
 - Date: 2026-10-18
 - Supersedes: [ADR 0061](0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)
   for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
