@@ -7,7 +7,7 @@ items.
 ## Purpose
 
 Untriaged intake is the toil addressed: new tracker items sit with no class, component,
-type, or routing, until a human finds the time, and the queue rots while they wait. The
+type, or routing, until a human finds the time, and the queue goes stale in the meantime. The
 sweep does the recurring semantic pass (classify, route, suggest fields, flag ambiguity) so
 human attention lands only where judgment beyond the sweep's is needed.
 
