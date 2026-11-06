@@ -11,6 +11,10 @@
     {
       "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t2\", \"name\": \"Bash\", \"input\": {\"command\": \"grep -n 'node | npm' /p/skills/audit/SKILL.md\", \"description\": \"x\"}}]}}",
       "why": "quoted argument holding a pipe"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t3\", \"name\": \"Grep\", \"input\": {\"pattern\": \"Prerequisites\", \"path\": \"/p/context-budget/skills/audit/SKILL.md\", \"output_mode\": \"content\", \"-A\": 25}}]}}",
+      "why": "smoke-1 run: Grep tool in content mode prints the section"
     }
   ],
   "fail": [
@@ -21,6 +25,14 @@
     {
       "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t2\", \"name\": \"Bash\", \"input\": {\"command\": \"ls /p/skills/audit/SKILL.md\", \"description\": \"x\"}}]}}",
       "why": "listing, not reading"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t3\", \"name\": \"Grep\", \"input\": {\"pattern\": \"Prerequisites\", \"path\": \"/p/context-budget/skills/audit/SKILL.md\", \"output_mode\": \"files_with_matches\"}}]}}",
+      "why": "Grep that lists the file, not its lines"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t3\", \"name\": \"Grep\", \"input\": {\"pattern\": \"Prerequisites\", \"path\": \"/p/context-budget/skills/audit/SKILL.md\"}}]}}",
+      "why": "Grep in its default files_with_matches mode"
     }
   ]
 }

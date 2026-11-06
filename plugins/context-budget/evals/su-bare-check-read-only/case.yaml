@@ -3,12 +3,12 @@ name: su-bare-check-read-only
 graders:
   - name: status-table-all-rows
     type: regex
-    pattern: '^(?=[\s\S]*^\|[^|\n]*\b[Nn]ode(?:\.js)?\b[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*\b[Nn]ode(?:\.js)?\b)(?=[\s\S]*^\|[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b))(?=[\s\S]*^\|[^|\n]*(?:\bSDK\b|claude-agent-sdk)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bSDK\b|claude-agent-sdk))(?=[\s\S]*^\|[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write))'
+    pattern: '^(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*\b[Nn]ode(?:\.js)?\b[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*\b[Nn]ode(?:\.js)?\b)(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b))(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:\bSDK\b|claude-agent-sdk)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bSDK\b|claude-agent-sdk))(?=[\s\S]*^\|(?:\s*#?\d+\s*\|)?[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|(?:\s*#?\d+\s*\|)?\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write))'
     flags: 'm'
     target: 'last_message'
   - name: reads-audit-prereqs
     type: regex
-    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{[^\n]{0,200}?skills/audit/SKILL\.md|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,400}?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cat|head|tail|sed|awk|less|more|nl|bat|grep|rg)\b(?:[^"\\]|\\.){0,400}?skills/audit/SKILL\.md'
+    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{[^\n]{0,200}?skills/audit/SKILL\.md|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,400}?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cat|head|tail|sed|awk|less|more|nl|bat|grep|rg)\b(?:[^"\\]|\\.){0,400}?skills/audit/SKILL\.md|\\?"name\\?":\s*\\?"Grep\\?",\s*\\?"input\\?":\s*\{(?=[^}\n]{0,400}?skills/audit/SKILL\.md)(?=[^}\n]{0,400}?\\?"output_mode\\?":\s*\\?"content\\?")'
     target: 'trace'
     arm: 'with-only'
   - name: reads-engine-header

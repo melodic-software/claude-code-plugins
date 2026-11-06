@@ -13,7 +13,7 @@ graders:
     target: 'last_message'
   - name: headline-unchanged
     type: regex
-    pattern: '\b(?:headline|context[- ]usage|context[- ]window (?:total|figure|usage))\b[^\n.]{0,120}\b(?:does(?:n''t|n’t| not) (?:move|change|drop|budge)|won''t (?:move|change)|won’t (?:move|change)|will not (?:move|change)|unchanged|stays? (?:the same|put|flat)|no change)|\b(?:unchanged|no change|does(?:n''t|n’t| not) (?:move|change))\b[^\n.]{0,120}\b(?:headline|context[- ]usage)\b'
+    pattern: '\b(?:headline|context[- ]usage|context[- ]window (?:total|figure|usage))\b[^\n.]{0,120}\b(?:do(?:es)?(?:n''t|n’t| not) (?:move|change|drop|budge)|won''t (?:move|change)|won’t (?:move|change)|will not (?:move|change)|unchanged|stays? (?:the same|put|flat)|no change)|\b(?:unchanged|no change|does(?:n''t|n’t| not) (?:move|change))\b[^\n.]{0,120}\b(?:headline|context[- ]usage)\b'
     flags: 'i'
     target: 'last_message'
   - name: no-deferred-free
