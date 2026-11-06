@@ -2273,7 +2273,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read # check out main for the report script
-      pull-requests: write # find the pull request that merged the pushed head and comment the report on it
+      pull-requests: write # find the pull requests that merged the pushed range and comment the report on it
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:

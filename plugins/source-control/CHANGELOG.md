@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.3.1] - 2026-11-06
+
+### Fixed
+
+- The landed-work engine behind `/source-control:worktree cleanup` and the daily worktree reap no longer discards its base patch-id set when the base holds an empty commit, such as an empty squash merge. Such a commit has no patch to hash; it is now excused once `git diff-tree` shows its diff is empty, so every worktree stops rebuilding the base set and falling through to the merged-PR read. A failed merged-PR read now names gh's own error in its reason.
+
+## [8.3.0] - 2026-11-06
+
+### Added
+
+- The pr-merge lane posts the verification evidence comment (`<!-- evidence-verification -->`) after a passing verifier verdict and before the merge, on both merge paths: the `merge-pr` gate (`babysit_merge.py` `unattended_enqueue`, after the pin and before the enqueue) and the `enable-auto-merge` arm, through the new `babysit_evidence_comment.py post`. The comment links the head's `pr-capture-<pr>-<head>` artifact and its expiry date, and uploads no file. The gate takes the artifact only when a successful `pr-verify-capture.yml` run on main for that head uploaded it. With no such artifact it posts nothing. A failed read or write also posts nothing. In every one of those cases the merge goes on.
+
+## [8.2.5] - 2026-11-06
+
+### Fixed
+
+- The pr-merge lane writes no reasons comment, cleared comment or risk escalation on a pull request whose author App is in `adoption.self-merging-apps`, an App that enqueues and merges its own pull requests; its risk score still holds the lane's own merge.
+
 ## [8.2.4] - 2026-11-06
 
 ### Changed

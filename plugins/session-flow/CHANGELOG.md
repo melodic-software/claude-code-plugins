@@ -1,5 +1,18 @@
 # Changelog: session-flow plugin
 
+## [7.2.1] - 2026-11-06
+
+### Fixed
+
+- `/session-flow:workflow` Stage 10 and pre-PR step 2 are done only after a fresh-context reviewer returns, with the self-review as the floor; under the `verification` levels `light` and `off` the self-review alone closes them and the report notes the skip. Stage 11 takes its outcome verdict from a fresh-context verifier.
+- `/session-flow:retro` session mode under `retro_lenses: 1` reads the `verification` level: at `standard` and `strict` one fresh-context subagent runs the analysis and proposes the scores from the transcript, so the session no longer scores itself; at `light` and `off` it runs inline and notes the skip.
+
+## [7.2.0] - 2026-11-06
+
+### Added
+
+- A `verification` level and per-skill `verification_skills` in `docs/conventions/session-flow.yaml`, read from the default branch by `lib/read-verification.sh`. `/session-flow:orchestrate` skips imperative 3 verifier under `light` and `off` in a primed session, and `/session-flow:workflow pre-pr` step 2 never dispatches the fresh-context reviewer under `light` and `off` and always does under `strict`.
+
 ## [7.1.0] - 2026-11-05
 
 ### Added

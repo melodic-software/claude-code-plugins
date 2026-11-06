@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: au-deferred-only-saving
+graders:
+  - name: deltas-separate
+    type: regex
+    pattern: '^(?=[\s\S]*\bprefix[\s\S]{0,200}?(?<![\d,.])0(?![\d,]|\.\d))(?=[\s\S]*\bdeferred[\s\S]{0,200}?\b3,?000\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: deferred-is-request-weight
+    type: regex
+    pattern: '\b(?:request weight|every request|each request|per[- ]request|request[- ]side|sent (?:with|on|in) every|ships? (?:with|in|on) every)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: headline-unchanged
+    type: regex
+    pattern: '\b(?:headline|context[- ]usage|context[- ]window (?:total|figure|usage))\b[^\n.]{0,120}\b(?:do(?:es)?(?:n''t|n’t| not) (?:move|change|drop|budge)|won''t (?:move|change)|won’t (?:move|change)|will not (?:move|change)|unchanged|stays? (?:the same|put|flat)|no change)|\b(?:unchanged|no change|does(?:n''t|n’t| not) (?:move|change))\b[^\n.]{0,120}\b(?:headline|context[- ]usage)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-deferred-free
+    type: regex
+    pattern: '(?:^|[.!?;\n])(?:(?!n[''’]t\b|\bnot\b|\bnever\b)[^.!?;\n])*?\b(?:already (?:saved|handled|free)|cost[- ]free|free of charge)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

@@ -141,7 +141,7 @@ deterministically belong to those tools, not to a judgment corrector.
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit):
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result):
 
 - a new pattern, idiom, or structure standing beside an existing one that
   already solves the same thing, with no stated reason for the second way;

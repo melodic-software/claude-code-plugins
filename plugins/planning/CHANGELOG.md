@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.12.1] - 2026-11-06
+
+### Fixed
+
+- make an unattended plan run read the problem-confirmation rule
+
+  Before writing `### Problem`, an unattended /planning:plan run now
+  reads the "Unattended" and "Pre-confirmed" sections of
+  context/problem-framing.md, and judges a label or comment that claims
+  the problem is confirmed only by their checks. Before this, the file
+  was linked once with no trigger, and no kept eval run read it.
+
+## [2.12.0] - 2026-11-06
+
+### Added
+
+- A `verification` level and per-skill `verification_skills` in `docs/conventions/planning.yaml`, read from the default branch by `lib/read-verification.sh`. `/planning:plan` Step 3 dispatches no plan-reviewer under `light` and `off`; `plan_stress_test` still decides whether the step runs.
+
 ## [2.11.0] - 2026-11-05
 
 ### Added

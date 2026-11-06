@@ -185,16 +185,29 @@ What the list lets through, because it is a heuristic:
 - **Other databases on the server.** The allow-list refuses a `database` argument outside it, but
   a three-part name such as `other.dbo.t` is stopped only by what `other` lets the principal do.
   Check the principal's access in every database on the server, system databases included.
-- **Lock hold before the row cap fires.** The measurement shows a capped read returning promptly
-  with no transaction left open, for a fast consumer and no writer. How long a slow or paused
-  consumer holds locks before the cap fires was not measured.
+- **Lock hold before the row cap fires.** The server process reads the rows itself and cancels the
+  request at the row past `rowCap`; the client receives one finished result and cannot pause the
+  stream. The request timeout ends a read that runs longer.
 - **Load per registration.** Each registration runs one process per client session, and each
   process holds at most two connections, so a session with three registrations can hold six. The
-  measurement blocked no request with up to 2 processes and a few briefly at 8.
+  measurement's topology tables record, per process count, which sessions waited on which.
 - **Locking reads on SQL Server.** `READ_COMMITTED_SNAPSHOT` is off by default on SQL Server, so a
-  `READ COMMITTED` read takes shared locks until its statement ends and the lock timeout, the
-  request timeout and the row cap bound how long it blocks a writer. Azure SQL Database turns it on
-  by default and reads row versions instead.
+  `READ COMMITTED` read takes shared locks, releasing each row lock before it reads the next row.
+  The guarantee is bounded blocking, not none: the lock timeout ends the read's own lock waits,
+  and the request timeout, plus the time the server takes to act on the cancel, ends the read and
+  any wait it causes another session. It rests on the executor running each read in autocommit
+  with `XACT_ABORT ON` and implicit transactions off, since a cancel does not end an explicit
+  transaction; the measurement's forced timeouts and its `XACT_ABORT` rows show a cancelled read
+  leaving no transaction open. A read can still escalate to a table lock: escalation starts at 5,000 locks taken
+  by one statement on one table reference, and a read-committed bookmark lookup that uses
+  `PREFETCH` can run part of a query at repeatable read
+  ([locking guide](https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide),
+  [lock escalation](https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/performance/resolve-blocking-problems-caused-lock-escalation)).
+  Azure SQL Database turns `READ_COMMITTED_SNAPSHOT` on by default and reads row versions instead,
+  so reads take no row or page locks. A team that wants that on SQL Server turns the option on for
+  the database itself: the row versions live in `tempdb` (or the database, under accelerated
+  database recovery), each row can grow by up to 14 bytes, and the `ALTER DATABASE` needs no other
+  open connection in the database.
 - **Entra tokens.** Whether a connection that stays busy past its token's expiry keeps working is
   not verified.
 - **Not covered.** Windows integrated and Kerberos authentication. Azure SQL Managed Instance and
