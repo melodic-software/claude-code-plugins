@@ -3645,11 +3645,11 @@ The merge job's candidate listing goes through `.github/scripts/pr-merge/retry-c
 within 60 s of waits in all. Without `--read` a command runs once, so a write is never repeated.
 Each try reads `gh pr list` and the open count, and passes only when the two agree.
 A listing that reaches its limit of 1000 may be cut short whatever the count says, and another try
-reads the same, so it ends the job red with no retry. A listing still unknown after that ends the
+reads the same, so it is not tried again and is unknown at once. A listing still unknown ends the
 step green with a `::notice::` hold: every step that needs the listing waits on the step's `listed`
 output, so the job lists, gates, merges, files, dequeues, re-fires and clears nothing, and the next
-scheduled run lists again. A failed read and a past-budget rate stop leave this job green. The
-re-fire and escalation-clear steps wait on `listed` too, so they skip on a red listing as well.
+scheduled run lists again. A failed read, a past-budget rate stop and a full listing leave this job
+green. The re-fire and escalation-clear steps wait on `listed` too.
 
 A held run still does two things. It writes the `pr-merge-summary` artifact with `listing_held`,
 `listing_held_reason` and no verdicts, so readers can aggregate holds and signal 12 can count them.
