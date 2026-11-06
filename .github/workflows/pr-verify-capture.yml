@@ -466,7 +466,7 @@ jobs:
         env:
           CONFIG: .base/docs/conventions/pr-pipeline.yaml
         run: |
-          yq -o=json -I=0 '.merge."verify-capture".proxy | {"tokenCap": ."token-cap", "models": .models, "maxTokensCeiling": ."max-tokens-ceiling", "maxBodyBytes": ."max-body-bytes", "maxInFlight": ."max-in-flight", "maxCountTokensRequests": ."max-count-tokens-requests", "maxPreflightRequests": ."max-preflight-requests", "upstreamTimeoutMs": ."upstream-timeout-ms", "betas": .betas, "bodyKeys": ."body-keys", "blockTypes": ."block-types", "socketMode": "660"}' "$CONFIG" |
+          yq -o=json -I=0 '.merge."verify-capture".proxy | {"tokenCap": ."token-cap", "driverTokenCap": ."driver-token-cap", "models": .models, "maxTokensCeiling": ."max-tokens-ceiling", "maxBodyBytes": ."max-body-bytes", "maxInFlight": ."max-in-flight", "maxCountTokensRequests": ."max-count-tokens-requests", "maxPreflightRequests": ."max-preflight-requests", "upstreamTimeoutMs": ."upstream-timeout-ms", "betas": .betas, "bodyKeys": ."body-keys", "blockTypes": ."block-types", "socketMode": "660"}' "$CONFIG" |
             sudo tee /opt/ccd/key-proxy/config.json >/dev/null
           sudo install -m 0644 -o root -g root .base/.github/scripts/pr-verify/key-proxy.mjs /opt/ccd/key-proxy/key-proxy.mjs
           main=$(yq '.merge."verify-capture".proxy."driven-model"' "$CONFIG")
@@ -1291,9 +1291,10 @@ jobs:
 
       # What each listener spent through the key proxy, the driven session's
       # socket and the driver legs' loopback port, for setting
-      # pr-pipeline.yaml's token-cap from measured runs. The log is the
-      # proxy's own, which the runner's user cannot write; only numbers jq
-      # computes from it are printed, never a line of it.
+      # pr-pipeline.yaml's token-cap and driver-token-cap from measured
+      # runs. The log is the proxy's own, which the runner's user cannot
+      # write; only numbers jq computes from it are printed, never a line
+      # of it.
       - name: Report the key proxy's usage
         if: always() && steps.proxy.outcome != 'skipped'
         continue-on-error: true

@@ -24,7 +24,8 @@
 // line holding the loopback listener's client key, which must differ from it.
 //
 // Config (JSON, read from the base branch by the workflow, never the head):
-//   tokenCap               per-job token budget (input, cache and output tokens)
+//   tokenCap               per-job token budget (input, cache and output tokens) of the socket
+//   driverTokenCap         the same budget for the --listen loopback listener
 //   models                 model ids the driven session may use
 //   maxTokensCeiling       largest max_tokens a /v1/messages request may ask for
 //   maxBodyBytes           largest request body accepted
@@ -134,6 +135,7 @@ export function loadConfig(raw, upstreamOverride) {
   if (c.socketMode !== undefined && !/^[0-7]{3,4}$/.test(String(c.socketMode))) throw new Error("config socketMode must be an octal string");
   return Object.freeze({
     tokenCap: positiveInt("tokenCap"),
+    driverTokenCap: positiveInt("driverTokenCap"),
     models: nonEmpty("models"),
     maxTokensCeiling: positiveInt("maxTokensCeiling"),
     maxBodyBytes: positiveInt("maxBodyBytes"),
@@ -671,10 +673,11 @@ async function main(argv) {
   const servers = [server];
   if (port !== undefined) {
     const loopbackLog = (entry) => write({ listener: "loopback", ...entry });
-    const loopback = createProxy({ key, config, log: loopbackLog, clientKey, relayPreflightErrors: true }).server;
+    const loopbackConfig = { ...config, tokenCap: config.driverTokenCap };
+    const loopback = createProxy({ key, config: loopbackConfig, log: loopbackLog, clientKey, relayPreflightErrors: true }).server;
     await new Promise((resolve, reject) => loopback.once("error", reject).listen(Number(port), "127.0.0.1", resolve));
     servers.push(loopback);
-    loopbackLog({ listening: `127.0.0.1:${port}`, models: config.models, tokenCap: config.tokenCap });
+    loopbackLog({ listening: `127.0.0.1:${port}`, models: config.models, tokenCap: loopbackConfig.tokenCap });
   }
   let open = servers.length;
   const stop = () => servers.forEach((s) => s.close(() => { open -= 1; if (open === 0) process.exit(0); }));
