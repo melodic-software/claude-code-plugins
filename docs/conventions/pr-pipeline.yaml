@@ -930,6 +930,15 @@ models:
       # One rung up, for fix-ci's retry after it escalated only unfixed or
       # not-reproducible checks.
       escalate-to: code-xhigh
+    # code-fix's worker for a release's plugin edits, with the turns one
+    # release takes: run 42275404281 spent 76 turns on 2.1.319 (134 core
+    # items) before the plan; 150 runs about 45 minutes at its pace, inside
+    # the leg's 70.
+    apply-changelog:
+      role: worker
+      workload: code
+      effort-role: verifier
+      max-turns: 150
     # The rung above Opus high: Opus at effort xhigh, for a high-Complexity
     # issue and fix-ci's one retry. The rung above it is Fable, which no
     # profile names: it stays off, owner-gated pending a per-week Fable
@@ -975,8 +984,8 @@ models:
     summarize-reuse: summary
     # An issue's code change, on run-claude-cli, which needs a model alias.
     resolve-issue: code-fix
-    # A release's plugin edits, on run-claude-cli, as resolve-issue's.
-    apply-changelog: code-fix
+    # A release's plugin edits, on run-claude-cli.
+    apply-changelog: apply-changelog
     # pr-unblock's read-only judge of a finding address-feedback disputed: at
     # least the review lanes' model, so a weaker model never overrules the
     # reviewer.
