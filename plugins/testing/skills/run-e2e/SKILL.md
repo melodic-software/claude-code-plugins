@@ -275,8 +275,8 @@ resolves to, held in memory and never written to any file, and the generic crede
 hub is the file `affected.json`'s `control_skill` names on the drive route, and the hub Step 2 reads
 on own driving; with `trusted-root=`, never the checkout's. The Mask in effect is the hub's own
 `## Mask`, or, when that holds only the hand-off line, its target's, found as that post-check finds
-it: resolved from the project root of the hub copy read, inside `trusted-root=<dir>` when given,
-never from the checkout under test. Each `values:` source resolves on its own, and a `cli/` source
+it: resolved from the project root of the hub copy read, so inside `trusted-root=<dir>` when given
+and never from the checkout under test then. Each `values:` source resolves on its own, and a `cli/` source
 that prints exactly one `none: <reason>` line and exits 0 resolves with no values, as that
 post-check accepts it. With no control skill, a Mask in effect with no `values:` line, or every
 source resolving to `none:`, the generic pattern alone scans it; a hand-off is never read as a hub
