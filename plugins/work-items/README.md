@@ -223,6 +223,24 @@ when it resolves `true`, autonomous lanes start each tracker item and comment
 they create with the AI disclaimer. The key, its layers and the prefix are
 stated once in [`reference/ai-disclaimer.md`](reference/ai-disclaimer.md).
 
+`bug_path.fix_gate` lives only in the repository file and is read from the
+default branch, so a branch cannot loosen it. It holds the seven conditions a
+bug item passes, in full mode, before `/work-items:work` dispatches a fix:
+`confirmed_repro`, `evidence_reviewed`, `no_fix_artifact`, `no_human_claim`
+and `root_cause_evidenced` are floors, always on (a `false` is named and
+ignored); `before_after_runnable` (default `true`) may be turned off;
+`budget_minutes` (default 90) and `scope` (path prefixes, default the paths the
+root cause names) bound the fix. A failing condition stops the run with no fix
+and no pull request, naming the condition. The work skill's "Fix gate (bugs)"
+sub-step says how it is read.
+
+```yaml
+bug_path:
+  fix_gate:
+    before_after_runnable: false
+    budget_minutes: 45
+```
+
 `triage_cluster` lives only in the repository file and sets how
 `/work-items:triage` clusters items that share a signature under one parent, the
 only member that can get `agent-ready`. `signatures` lists which shared
@@ -268,22 +286,42 @@ The work skill's "Selection Priority" section says how it is read.
 `bug_path.mode` also lives only in the repository file. With `full`, the
 default, `/work-items:work` runs a bug item through to a fix and a draft pull
 request. With `investigate`, it stops after the root cause: it opens no branch,
-writes no fix and opens no pull request. Instead it posts one marker comment on
-the item with the outcome, the reproduction evidence, the ranked causes and the
-access that was missing. CI mode (`--issue <n> --ci`) does not read the key and
-runs a bug item through to a fix. The work skill's "Investigate mode" section
-says how it is read.
+writes no fix and opens no pull request. Both modes keep one report comment on
+the item, edited in place: a status line, the outcome, the reproduction
+evidence, the ranked causes, a test-gap line, an instruction to the fixing
+agent, the access that was missing and the quoted report. CI mode
+(`--issue <n> --ci`) does not read the key and runs a bug item through to a
+fix. The work skill's "Bug report" and "Investigate mode" sections say how it
+is read.
 
 ```yaml
 bug_path:
   mode: investigate
 ```
 
+`verification` and `verification_skills.<skill>` (`off`, `light`, `standard`
+or `strict`, default `standard`) also live only in the repository file, and are
+read from the default branch through `lib/read-verification.sh`, so a branch
+cannot lower them. `/work-items:work` reads them for the bug path's capture
+check: at `standard` and `strict` a fresh-context subagent confirms each
+reproduction capture shows the named broken state; `light` and `off` dispatch
+none and record `verification: skipped (<level>)`. A skill entry beats the
+plugin value
+([verification level](../../docs/contracts/verification-level/README.md)).
+
 `delivery_deploy_signal` also lives only in the repository file. It sets what
 `/work-items:measure-delivery` counts as a deployment, and its one value, the
 default, is `merge-to-default-branch`: each commit on the default branch's
 first-parent history is a deployment, and one a later commit reverts is a
 failed deployment.
+
+`filing_posture` also lives only in the repository file: the team policy for a
+scanner's explicit filing argument, such as `/bugs:scan --track`. With
+`manual-only`, the default, the scanner files nothing and says why, and a
+standing autonomous lane must not file into the tracker. `allowed` lets the
+explicit argument file. Neither value makes a bare invocation file. The key
+used to live in `docs/conventions/bugs.yaml`; `/bugs:scan` still reads it there
+for one release, with a notice, when this file does not set it.
 
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `<home>/work-items.yaml` (including

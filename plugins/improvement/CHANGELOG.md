@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7] - 2026-11-06
+
+### Fixed
+
+- The `dead-import-exportRowsToCsv` grader in both `already-built-disconnected-scan` eval cases no longer requires the answer to name `csv-exporter.js`. An answer that names `exportRowsToCsv` as imported in `routes.js` and never called now passes, and a new pass sample uses that wording. The `-behavior-present` variant's description now says that its prompt carries the scan hint, so in a two-arm run the without-arm already scores at the ceiling and the case measures no gain. ([#13789](https://github.com/melodic-software/claude-code-plugins/issues/13789))
+
 ## [0.4.6] - 2026-11-06
 
 ### Changed

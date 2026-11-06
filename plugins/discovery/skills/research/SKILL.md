@@ -59,6 +59,7 @@ Agent({
   description: "Verify research: <topic>",
   prompt: "Target: <the index= path the artifact gate printed>
            Rows: 4, 7, 12, 14
+           Corroborators: <research_corroborators>
            Claims: <under Evidence use: internal, the claim IDs a stated decision cites>"
 })
 ```
@@ -78,7 +79,7 @@ Each criterion is binary. **Any FAIL returns to the named phase (a verifier-owne
 | 1 | Every claim row has ≥1 Tier 0/1 source whose URL/command was captured THIS turn | run | Phase 2. Fetch the primary directly |
 | 2 | No claim row's sources are ALL Tier-2 secondary | run | Phase 2. Get a primary |
 | 3 | Every Phase 2/3 query traces to a numbered gap/conflict in a written analysis block | run | re-run the phase chained to the list |
-| 4 | Every accepted claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool, as in the discipline file's "Single-publisher facts"; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists (for a paper's reports-claim, the reason also names the paper's publisher and the product it owns that the paper measured, per the discipline file's "A paper's reported result can be a content claim"); a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
+| 4 | Every accepted claim has ≥`research_corroborators` (default 2) INDEPENDENT `current` corroborators (not 2 cites of one upstream pool, as in the discipline file's "Single-publisher facts"; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists (for a paper's reports-claim, the reason also names the paper's publisher and the product it owns that the paper measured, per the discipline file's "A paper's reported result can be a content claim"); a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
 | 5 | The Phase 2 falsification query ran and is recorded | run | Phase 2. Run it |
 | 6 | Recency gate satisfied for every tool/library/API claim: the LATEST upstream changelog/release was fetched THIS turn and cross-checked against the claim. Read the confirmed-latest release and the verdict off the fetch log's changelog entry, an absent verdict or an `invalidated` one FAILs, and `unresolved` passes only as an enumerated Gap, never under an accepted claim. Windows, and what a major bump invalidates: the discipline file's "Recency gate" | run | Phase 2. Fetch changelog |
 | 7 | Every accepted claim is HIGH confidence, or `HIGH (single source)` under row 4's flag, including a paper's reports-claim whose `single_source:` reason names the paper's publisher and the product it owns that the paper measured; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up (one rework round), or list as a Gap |
@@ -106,8 +107,8 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 2. **Queries scale to open questions: the floor is a starting point, not a target.** Phase 1 opens with ≥3 queries to seed the evidence base; Phase 2 and Phase 3 each run **one query per unresolved gap/conflict** surfaced by the prior phase's written analysis (≥3, no upper cap). A run that stops at the floor while numbered gaps remain has not finished the phase
 3. **3 distinct tool types minimum per phase**. One search engine plus one synthesis tool does not meet it; mix in direct fetches, doc-MCP servers, `gh api`, or documentation agents your environment provides
 4. **4+ distinct tool types across the topic**. Phases cannot share the same 3 tools end-to-end. Cross-phase tool diversity is the consensus-driving mechanism
-5. **Source-tier ratio per claim**. Every accepted claim has ≥1 Tier 0/1 (primary source captured this turn) PLUS ≥2 independent corroborators that cover the claim's target version (a `historical` source is recorded, never counted), however authoritative the primary (a canonical doc can be stale). Three synthesis-tool citations of three blogs = 1 Tier 2 source, NOT 3. Track diversity per claim. This is criterion 4's floor; acceptance also needs HIGH (criterion 7). The one exception to the floor: the discipline file's "Single-source first-party content claims"
-6. **Recency gate, first-party docs lag releases**, one query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. A major version bump invalidates prior docs, first-party included; treat any doc-vs-changelog lag as a conflict to resolve, not a closed answer. The 30/14/90-day staleness windows: the discipline file's "Recency gate"
+5. **Source-tier ratio per claim**. Every accepted claim has ≥1 Tier 0/1 (primary source captured this turn) PLUS ≥`research_corroborators` (default 2) independent corroborators that cover the claim's target version (a `historical` source is recorded, never counted), however authoritative the primary (a canonical doc can be stale). Three synthesis-tool citations of three blogs = 1 Tier 2 source, NOT 3. Track diversity per claim. This is criterion 4's floor; acceptance also needs HIGH (criterion 7). The one exception to the floor: the discipline file's "Single-source first-party content claims"
+6. **Recency gate, first-party docs lag releases**, one query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. A major version bump invalidates prior docs, first-party included; treat any doc-vs-changelog lag as a conflict to resolve, not a closed answer. The 14/30/90-day default staleness windows: the discipline file's "Recency gate"
 7. **One falsification query in Phase 2**. Phase 2 includes exactly one query that attempts to falsify the leading hypothesis from Phase 1; without it Phase 2 confirms Phase 1 by default
 8. **Broad-topic auto-detect → doubled minimums**, when the topic involves 2+ vendors / 2+ tools / 3+ proper-noun products / comparison ("X vs Y") / migration ("X replaces Y") → 6+ queries per phase, 12+ total, 5+ tool types, 4+ Tier 0/1 sources per claim
 9. **Phases chain through a WRITTEN analysis**. Phase 2 consumes the gap/conflict/leading-hypothesis list emitted at the end of Phase 1; each Phase 2 query maps to a named entry in it. Phase 3 chains the same way off the Phase 1+2 list. A query not traceable to a prior-phase gap is unchained, the written list IS the broad→deep link, intent is not
@@ -175,9 +176,22 @@ into its slice (the parent authors none of it; on the by-value rung it only pers
 write files, so this session writes it from the sweep result; on the multi-topic path each topic's
 researcher writes its own sub-slice index and this session writes only the slice-root synthesis.
 
+## Tunable defaults
+
+Four numbers in the disciplines are settings (key contract: `${CLAUDE_PLUGIN_ROOT}/reference/config.md`). Resolve each lowest layer first, a later one winning: the default, then the `userConfig` value, then the key in `docs/conventions/discovery.yaml` at the project root, read with the Read tool.
+
+| Key | Default | `userConfig` value | Sets |
+|---|---|---|---|
+| `research_corroborators` | 2 | `${user_config.research_corroborators}` | corroborators per accepted claim (discipline 5, row 4) |
+| `research_recency_active_days` | 14 | `${user_config.research_recency_active_days}` | recency window, very active project |
+| `research_recency_standard_days` | 30 | `${user_config.research_recency_standard_days}` | recency window, standard library, tool, CLI or API |
+| `research_recency_guide_days` | 90 | `${user_config.research_recency_guide_days}` | recency window, tool- or vendor-specific architecture guide |
+
+A literal unexpanded token is unset. A value that is not a whole number of 1 or more is named with its file or `userConfig`, key and value, and that layer is dropped: a valid higher layer still wins, else the default. Report one line, e.g. `research config: corroborators 2 (default); recency 14/30/90 days (default)`, naming the layer behind any other value. A dispatched researcher takes the envelope's `Research config:` line; without it, it resolves the keys as above. The key sets the base floor only: discipline 8's doubled minimum and the single-source exception stand, each claim keeps one primary, and HIGH still needs three Tier 0/1 pools (criterion 7).
+
 ## Pre-dispatch envelope and baseline
 
-Resolve these before dispatching. The envelope is six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:` and `Evidence use:` (`publish` when the output will be quoted outside this session, such as a pull-request reply, an issue, or a document for a third party; else `internal`), written into the dispatch prompt as the labeled lines below, not as prose the agent has to parse:
+Resolve these before dispatching. The envelope is six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:`, `Research config:` ("Tunable defaults") and `Evidence use:` (`publish` when the output will be quoted outside this session, such as a pull-request reply, an issue, or a document for a third party; else `internal`), written into the dispatch prompt as the labeled lines below, not as prose the agent has to parse:
 
 ```text
 Topic: <the resolved topic>
@@ -189,6 +203,7 @@ Turn budget: <turns of gathering before the agent writes and hands back; at or b
 Capability flags: nested spawning <available|unavailable>
 Source breadth: <low|medium|high|xhigh|max>
 Evidence use: <internal|publish>
+Research config: corroborators=<n> recency=<active>/<standard>/<guide>
 ```
 
 At `Budget: low` the parent contract's "`Budget:` vocabulary" sets the `Turn budget:` value. `Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
@@ -266,7 +281,7 @@ Present research findings as, and if invoked standalone present them directly, w
 2. **Evidence table**. `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`. A source whose `standing:` is `historical` carries the label historical in its Sources cell, and a flagged claim's Confidence cell reads `HIGH (single source)`
 3. **Fetch log**, the written record criteria 6 and 9 are graded against, so it is WRITTEN, not recalled. One entry per fetch PER CLAIM: `Claim | URL or command | artifact-ladder rung | tool used | outcome`, and each accepted claim carries the entry for the rung it came from AND one for every rung above it. **The outcome vocabulary is a parsed schema, not free text**. Five values, three of which look interchangeable and are not, plus the composite changelog entry criterion 6 grades. Write it to the spec in `${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md` ("The fetch log")
 4. **Conflicts**. Disagreements between sources (flagged explicitly; primary wins over blog consensus)
-5. **Gaps**. Claims below HIGH (criterion 7; `HIGH (single source)` under row 4's flag counts) or below the criterion-4 floor of ≥1 primary + 2 independent corroborators (or a holding `single source` flag), flagged for follow-up; a single-publisher claim is listed under its label (the discipline file's "Single-publisher facts"). A gap asserting absence names the sources checked AND the sources left unchecked, never a bare "not found"
+5. **Gaps**. Claims below HIGH (criterion 7; `HIGH (single source)` under row 4's flag counts) or below the criterion-4 floor of ≥1 primary + `research_corroborators` independent corroborators (or a holding `single source` flag), flagged for follow-up; a single-publisher claim is listed under its label (the discipline file's "Single-publisher facts"). A gap asserting absence names the sources checked AND the sources left unchecked, never a bare "not found"
 6. **Recency status**. Primary-source age per tool/library claim
 7. **Project fit**. How findings align with the consuming project's conventions and stated direction
 8. **Outcome gate result**. Pass, or which criterion failed and what was re-run, plus effort and any skipped phases

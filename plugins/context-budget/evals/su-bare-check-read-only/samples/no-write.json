@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/a.json"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/settings.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "wrote a file"
+    }
+  ]
+}

@@ -21,6 +21,30 @@
       "default": "auto",
       "description": "What /discovery:explore replies with after it writes EXPLORE.md. auto: explain for a person asking how something works, change-prep otherwise. change-prep: the handoff summary for the next stage. explain: a walkthrough with file:line citations."
     },
+    "research_corroborators": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 2,
+      "description": "Independent current corroborators /discovery:research needs per accepted claim beside its one primary (discipline 5, outcome-gate row 4). The base floor only: the broad-topic minimum and the single-source exception are unchanged."
+    },
+    "research_recency_active_days": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 14,
+      "description": "Recency window in days for a very active project (weekly releases, breaking changes, security-sensitive) in /discovery:research's recency gate."
+    },
+    "research_recency_standard_days": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30,
+      "description": "Recency window in days for a standard library, tool, CLI or API in /discovery:research's recency gate."
+    },
+    "research_recency_guide_days": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 90,
+      "description": "Recency window in days for a tool- or vendor-specific architecture guide in /discovery:research's recency gate."
+    },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],
       "default": "standard",

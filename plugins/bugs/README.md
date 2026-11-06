@@ -115,8 +115,10 @@ live (as of 2026-11-03; recheck trigger: that section changes when an option is 
 where its value is stored).
 
 **Team, the tracked `docs/conventions/bugs.yaml`**, which `/bugs:scan` reads for its lanes
-(`lanes`) and its filing policy (`filing_posture`), checked against
-[`schemas/bugs.schema.json`](schemas/bugs.schema.json). A `## Gotchas` section in the prose file
+(`lanes`), checked against
+[`schemas/bugs.schema.json`](schemas/bugs.schema.json). Its filing policy (`filing_posture`) lives in
+the work-items team file, `docs/conventions/work-items.yaml`; for one release `/bugs:scan` still
+reads a `filing_posture` left in `docs/conventions/bugs.yaml`, with a notice to move it. A `## Gotchas` section in the prose file
 beside it, `docs/conventions/bugs.md` (and in the user-global and personal override layers),
 concatenates after the bundled gotchas when
 `/bugs:scan` or `/bugs:write` loads. Repo-specific lines stay in the layer; a line that is not
