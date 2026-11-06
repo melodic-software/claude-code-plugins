@@ -157,9 +157,14 @@ MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin wizard --skill generate` and
    copy its line into what you show at step 3
    ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
-   Under `light`, and `off`, which acts as `light` here, dispatch no subagent and never run the
-   list yourself in its place: tell the user at step 3 `verification: skipped (<level>)` and that
-   the script was not independently checked. Step 1 and the step 3 gate run at every level.
+   At every level, check the secret-capturing library mechanically before the subagent runs:
+   `diff <(sed -n '1,/^# STAGES:/p' "${CLAUDE_SKILL_DIR}/template.sh") <(sed -n '1,/^# STAGES:/p' <script>)`
+   must print nothing; any output is a fix, never a finding to approve. Under `light`, and `off`,
+   which acts as `light` here, the secrets items still go to the fresh-context subagent: send it
+   only the first two items (each value saved to its named destination, and the `set_secret` /
+   `set_var` names). Skip the structure, count, `confirm` and banner items, never check them
+   yourself in their place, and tell the user at step 3 `verification: skipped (<level>)` for
+   those. Step 1 and the step 3 gate run at every level.
 3. **Stop the line. Human approval gate.** Show the user the whole `STAGES` block, everything below
    the marker, and wait for their explicit approval. Until it arrives, do NOT run `chmod +x` and do
    NOT give the user a command to run. The order is fixed, not advisory: the person is about to type

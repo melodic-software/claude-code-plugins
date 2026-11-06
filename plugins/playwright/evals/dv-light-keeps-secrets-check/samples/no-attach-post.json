@@ -25,6 +25,17 @@
         }
       ],
       "why": "a read, no post"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr comment 12 --body \"Demo held: the secrets check has not passed\""
+          }
+        }
+      ],
+      "why": "a comment with no attachment"
     }
   ],
   "fail": [
@@ -49,6 +60,28 @@
         }
       ],
       "why": "posted, other spacing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr comment 12 --body \"Demo: the login flow\" --attach work/demo.mp4"
+          }
+        }
+      ],
+      "why": "posting.md:47 form, a quoted body before --attach"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mise exec gh@2.102.0 -- gh pr comment 12 --body \"Demo: the login flow\" --attach work/demo.mp4"
+          }
+        }
+      ],
+      "why": "posting.md:55 mise form"
     }
   ]
 }

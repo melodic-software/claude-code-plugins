@@ -107,4 +107,4 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/harness-ops:changelog` | the local verifier of repo-side facts, in `diff` and in `apply`'s re-check of saved rows: `light` marks those rows `unverified` |
 | `/playwright:demo-video` | the step 8 independent frame review, items 1-6 (quality); item 7, the secrets check that gates posting, runs at every level |
 | `/writing:be-concise` | the fresh-context semantic diff; `strict` runs it on every rewrite, whatever its size |
-| `/wizard:generate` | the Phase 3 step 2 fresh-context read of the script: `light` tells the user at the approval gate it was not independently checked |
+| `/wizard:generate` | the Phase 3 step 2 fresh-context read of the script, non-secrets items only; the library diff against `template.sh` and the destination and secret-name items run at every level |
