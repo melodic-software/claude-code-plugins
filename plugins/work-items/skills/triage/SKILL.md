@@ -237,7 +237,8 @@ machine and changes no label but that one.
 1. **List** open issues carrying the label (adapter: "List items", label filter), after the
    lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
-   - `provenance: untrusted` or `provenance: signal`;
+   - `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) or
+     `provenance: signal`;
    - an escalation marker from a
      [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);
    - issue dimensions that human-gated it (a split size or an uncertainty mode other than `run`);

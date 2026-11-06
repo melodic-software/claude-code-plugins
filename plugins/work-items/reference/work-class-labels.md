@@ -29,10 +29,12 @@ provisions it.
 |-------|-------|-------------|
 | `work-class: untrusted-provenance` | C5 | The legacy name of `provenance: untrusted`, with the same meaning. |
 
-Writers apply only `provenance: untrusted`. The work-items skills no longer read the legacy name,
-except the provenance-removal hold, which still asks who last removed it
-([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate", and the
-attended queue's matching rule in [`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md)). These readers
+Writers apply only `provenance: untrusted`. While the frontier floor below still holds the legacy
+name, the work-items rules that keep a floored item routable read it too: the provenance-removal
+hold ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate"), the
+attended queue's flip and floor rules
+([`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md)), and triage's human-gated
+sweep skip list and pairing ban. These readers
 still hold an item that carries it: the autonomous frontier's human floor
 (`WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` in
 [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)) and the
