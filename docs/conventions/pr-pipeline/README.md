@@ -78,6 +78,31 @@ no renumbering.
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
 into `intake`.
 
+### Refine before review
+
+A PR's path, in order: build, refine, review, fix, verify, merge. Build is `work` or `pre-ready`;
+review is the AI review lanes; fix is `unblock` (fixing CI, addressing review feedback); verify and
+merge are their stages.
+
+`pr-refine.yml` runs the Refine passes. Its `plan` job lists the PR's changed files and picks each
+activity with `stage: refine` whose `applies-when` `paths` match a changed file that no
+`paths-ignore` glob matches, so a changelog fragment alone (`.changes/**`) starts no `fix-docs`.
+Adding a pass is an activity entry with `stage: refine`, its globs, an `order` and a `group`, and
+its jobs in `pr-refine.yml`. The plan runs passes in batches, one batch after another: in `order`, a
+pass joins the batch before it when it is not `serial`, shares that batch's `group`, and matched
+none of the batch's files; otherwise it starts a new batch. A PR that matches no pass ends the run
+at the plan, every later job skipped and no model turn. Each job has a `timeout-minutes`, its own
+or its reusable workflow's input.
+
+#### Signals
+
+| Signal | Means |
+|---|---|
+| A push to a branch | Work in progress. |
+| A non-draft PR | The author is done. |
+| A `refine-pass` notice per pass in `pr-refine`'s `record-passes` job: `pass=<name> files=<n> outcome=<pushed\|none\|superseded\|failed> seconds=<n>` | What each pass did, and how long since the plan started. A failed pass also logs a `refine-failed` warning, which [signal 13](#the-monitoring-lane) counts as a `pr-refine` hold. |
+| Refine complete | Being decided in [#13717](https://github.com/melodic-software/claude-code-plugins/issues/13717): the signal review starts on. |
+
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
@@ -973,7 +998,9 @@ order inside a lane comes from config:
 - Read slots run in parallel, each after the slots named in its `needs:`.
 - A slot may replace its activity's `applies-when` or set `enabled: false`.
 
-`refine` runs its steps in list order, format last, because earlier steps change whitespace.
+`refine` runs its passes in the plan's batches, by `order` and `group`
+([Refine before review](#refine-before-review)); a format pass takes the highest `order` and
+`group: serial`, because earlier passes change whitespace.
 `verify` runs on the refined commit; a push during `unblock` makes earlier verify results stale,
 and verify reruns on the new head. `refine` does not rerun on `unblock` pushes.
 
@@ -3369,7 +3396,7 @@ findings listed by key. Its scripts and tests are in
 | 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `stop-resolved` skip since: its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
 | 11 post-merge unreadable | each of the newest 4 post-merge reports (`pr-merge-post-merge-report`, kept by `post-merge-dispatch` in a trusted scheduled or manual `pr-merge` run on `main`) has exit code 3: the post-merge check could not read lane merges, so merges hold with only a warning; the issue names the newest report's reason, each monitoring run prints it as an `::error` while it holds, and it only notifies and clears on a readable report. A run that kept no report neither counts nor resets; no report within 70 minutes leaves the signal unread | `post-merge-unreadable` |
 | 12 listing held | each of the newest 4 `pr-merge-summary` artifacts of trusted scheduled or manual `pr-merge` runs on `main` has `listing_held: true`: the merge job could not list the open pull requests, so it gated nothing while its runs stayed green; the issue names the newest summary's `listing_held_reason`, and it only notifies and clears on a sweep that listed. A run that kept no summary neither counts nor resets. The 4 must be unbroken: a fault that lets one sweep in 4 list never fires, and that sweep does gate. A 4-of-8 rule would read 8 summaries on every monitoring run in place of 1 | `listing-held` |
-| 13 lane holds | one lane has `monitor.lane-holds.threshold` held runs or more (default 4) over the last `monitor.lane-holds.window-hours` (default 24). A held run is a green run of this repository's head, on an event that runs the default branch's code, whose hold job succeeded with a hold notice: work-resolve-issue's `report-outcome / run` job naming a fault stop whose retries were all faults, work-unblock's `label-unblocked` job naming a listing it could not read, and pr-refine's `fix-docs-handoff` or `fix-docs-subscription-handoff` job naming a `fix-docs` read that failed. Each monitoring run reads the newest 6 green runs per lane that completed in its window, or since the time the last run read through when that is earlier, and carries the held runs it has found to the next run in its `monitor-signals-jobs` artifact, with the span it read them over. An issue held that often is one of its lane's held runs, and the finding names each issue held more than once. It only notifies, adds no stop and no cap, and clears once the count drops below the threshold. A rule that was not read leaves the signal unread, and so does a span shorter than the window: the span starts again when a monitoring run finds no carry, or one that read through a time more than 6 hours before its window, and after a failed read | `lane-hold:work-resolve-issue`, `lane-hold:work-unblock`, `lane-hold:pr-refine` |
+| 13 lane holds | one lane has `monitor.lane-holds.threshold` held runs or more (default 4) over the last `monitor.lane-holds.window-hours` (default 24). A held run is a green run of this repository's head, on an event that runs the default branch's code, whose hold job succeeded with a hold notice: work-resolve-issue's `report-outcome / run` job naming a fault stop whose retries were all faults, work-unblock's `label-unblocked` job naming a listing it could not read, pr-refine's `fix-docs-handoff` or `fix-docs-subscription-handoff` job naming a `fix-docs` read that failed, and, on a green or red pr-refine run, its `record-passes` job's `refine-failed` warning naming a Refine pass that failed. Each monitoring run reads the newest 6 green runs per lane that completed in its window, or since the time the last run read through when that is earlier, and carries the held runs it has found to the next run in its `monitor-signals-jobs` artifact, with the span it read them over. An issue held that often is one of its lane's held runs, and the finding names each issue held more than once. It only notifies, adds no stop and no cap, and clears once the count drops below the threshold. A rule that was not read leaves the signal unread, and so does a span shorter than the window: the span starts again when a monitoring run finds no carry, or one that read through a time more than 6 hours before its window, and after a failed read | `lane-hold:work-resolve-issue`, `lane-hold:work-unblock`, `lane-hold:pr-refine` |
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line
 `<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state

@@ -9,7 +9,7 @@ import { parseDocument } from "yaml";
 
 import { checkDimensions, dimensionBudget, issueDimensions, parsePin, splitChildDims } from "./dimensions.mjs";
 import { checkStatus } from "./issue-status.mjs";
-import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
+import { MissingFact, appliesAll, factsFor, matchedPaths } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
 const CONFIG_BASENAME = "pr-pipeline.yaml";
@@ -612,7 +612,7 @@ function codeownersGlobs(text) {
 // what it is asked to fix. Sorted, without duplicates.
 export function changedPathTargets({
   paths,
-  predicatePaths,
+  predicate,
   edits,
   codeowners,
 }) {
@@ -623,12 +623,8 @@ export function changedPathTargets({
       posix.matchesGlob(path.toLowerCase(), glob),
     ) ||
       owned.some((glob) => posix.matchesGlob(path, glob)));
-  const kept = paths.filter(
-    (path) =>
-      isSafePath(path) &&
-      (predicatePaths === undefined ||
-        predicatePaths.some((glob) => posix.matchesGlob(path, glob))) &&
-      !notTargeted(path),
+  const kept = matchedPaths(predicate, paths).filter(
+    (path) => isSafePath(path) && !notTargeted(path),
   );
   return [...new Set(kept)].sort();
 }
@@ -842,14 +838,11 @@ function resolveSlot(
     const ancestors =
       predicate === undefined ? predicates : predicates.slice(0, -1);
     targets = changedPathTargets({
-      paths: facts.changedTargets.filter((path) =>
-        ancestors.every(
-          (outer) =>
-            outer.paths === undefined ||
-            outer.paths.some((glob) => posix.matchesGlob(path, glob)),
-        ),
+      paths: ancestors.reduce(
+        (kept, outer) => matchedPaths(outer, kept),
+        facts.changedTargets,
       ),
-      predicatePaths: predicate?.paths,
+      predicate,
       edits: activity.effect !== "read" || activity["applied-by"]?.patch !== undefined,
       codeowners,
     });

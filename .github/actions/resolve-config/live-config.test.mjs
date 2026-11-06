@@ -7,9 +7,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 
 import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
+import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
 import { resolve, resolveGrant } from "./resolve.mjs";
@@ -719,6 +720,41 @@ test("live config: fix-docs applies to a Markdown change and waits on do-not-mer
     skipReason("pr-refine", "fix-docs", { labels: ["do-not-merge"] }),
     "awaiting-human",
   );
+});
+
+// The issue's rule (#13717): a changelog fragment alone does not qualify.
+test("live config: fix-docs skips a PR whose only Markdown is a changelog fragment, and the planner agrees", () => {
+  const fragmentOnly = { changedPaths: [".changes/pr-pipeline/x.md", "src/a.js"], changedTargets: [".changes/pr-pipeline/x.md", "src/a.js"] };
+  assert.equal(skipReason("pr-refine", "fix-docs", fragmentOnly), "not-applicable-paths");
+  const withDoc = { changedPaths: [".changes/pr-pipeline/x.md", "docs/guide.md"], changedTargets: [".changes/pr-pipeline/x.md", "docs/guide.md"] };
+  const slot = selected("pr-refine", "fix-docs", withDoc);
+  assert.equal(slot.applies, true);
+  assert.deepEqual(slot["changed-paths"], ["docs/guide.md"]);
+  const { activities } = parse(FILES.config);
+  assert.deepEqual(planPasses({ activities, changedPaths: fragmentOnly.changedPaths }).batches, []);
+  assert.deepEqual(planPasses({ activities, changedPaths: withDoc.changedPaths }).batches, [["fix-docs"]]);
+});
+
+// A Refine pass names its stage, order and group together, or the schema
+// refuses the config.
+test("live config: a Refine pass missing its order or group, or one off the refine stage, is refused", () => {
+  const edited = (edit) => {
+    const doc = parse(FILES.config);
+    edit(doc.activities["fix-docs"]);
+    return { ...FILES, config: stringify(doc) };
+  };
+  const run = (files) => resolve(files, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+  assert.equal(run(edited(() => {})).selected.applies, true, "the unedited copy resolves");
+  for (const [why, edit] of [
+    ["no order", (a) => delete a.order],
+    ["no group", (a) => delete a.group],
+    ["no stage", (a) => delete a.stage],
+    ["another stage", (a) => (a.stage = "verify")],
+    ["a fractional order", (a) => (a.order = 1.5)],
+    ["an empty paths-ignore", (a) => (a["applies-when"]["paths-ignore"] = [])],
+  ]) {
+    assert.throws(() => run(edited(edit)), /schema|invalid/i, why);
+  }
 });
 
 test("live config: CI fix-docs is off, fix-docs-per-run 0 (#7576, D100)", () => {

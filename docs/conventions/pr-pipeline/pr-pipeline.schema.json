@@ -537,6 +537,12 @@
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
         },
+        "paths-ignore": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Changed paths these globs match never count toward paths. The predicate matches when at least one changed path matches paths (any path when paths is absent) and none of these."
+        },
         "labels": {
           "type": "array",
           "minItems": 1,
@@ -666,7 +672,10 @@
         "tidy": ["skill"],
         "applied-by": ["skill"],
         "permission-mode": ["skill"],
-        "checkout": ["script"]
+        "checkout": ["script"],
+        "stage": ["order", "group"],
+        "order": ["stage"],
+        "group": ["stage"]
       },
       "dependentSchemas": {
         "applied-by": {
@@ -725,6 +734,20 @@
         }
       ],
       "properties": {
+        "stage": {
+          "const": "refine",
+          "description": "Makes the activity a Refine pass: pr-refine.yml's plan job runs it on a PR whose changed files match its applies-when paths and paths-ignore (README.md, Refine before review). Needs order and group."
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "A Refine pass's place: passes run in ascending order, and a tie keeps the activities' order in this file."
+        },
+        "group": {
+          "type": "string",
+          "pattern": "^(serial|[a-z][a-z0-9]*(-[a-z0-9]+)*)$",
+          "description": "serial: the pass runs alone. Any other name: the pass runs alongside the passes before it in order that share the name, while none of them matched a file it matched."
+        },
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
           "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
