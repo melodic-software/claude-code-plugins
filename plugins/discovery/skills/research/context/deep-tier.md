@@ -78,7 +78,8 @@ Agent({
            Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
            Capability flags: nested spawning <available|unavailable>
            Source breadth: <low|medium|high|xhigh|max, resolved from this session's caller effort; write high if the substitution is a literal placeholder>
-           Evidence use: <publish if the output will be quoted outside this session (a PR reply, an issue, a document for a third party), else internal>"
+           Evidence use: <publish if the output will be quoted outside this session (a PR reply, an issue, a document for a third party), else internal>
+           Research config: corroborators=<n> recency=<active>/<standard>/<guide>, resolved per SKILL.md "Tunable defaults""
 })
 ```
 
