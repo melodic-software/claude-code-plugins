@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Rows taken: src/reminders.ts 1-18.\nPass 3 edits and proposals:\n- src/reminders.ts:7 Version-suffixed name: `loadInvoiceEmailsV2` carries a V2 suffix; take the plain name and update the caller. Proposal: tidy-diff renames nothing.\n- src/reminders.ts:8 Debug leftover: `console.log(\"entering loadInvoiceEmailsV2\")`. Proposal: removing a log changes output.\n- src/reminders.ts:9 Cast that silences the compiler: `as unknown as Invoice[]`; parse the payload at the boundary. Proposal.\n- src/reminders.ts:11 Condition padding: `options.includePaid === true` and `invoice.paid === false` on booleans. Proposal.\n- src/reminders.ts:12 Check against an impossible state: `invoice.customer?.email ?? \"\"` on a field the type guarantees. Proposal.\n- src/reminders.ts:5 Speculative flexibility: `LoadOptions` has one caller passing `{ includePaid: false }`. Proposal.\n- src/reminders.ts:12 Duplicate helper: reused `normalizeEmail` from src/strings.ts in place of the inline trim and lowercase (pass 1 rule, same behavior).",
+      "why": "all seven named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rows taken: src/reminders.ts 1-18.\nPass 3 edits and proposals:\n- src/reminders.ts:8 Debug leftover: `console.log(\"entering loadInvoiceEmailsV2\")`. Proposal: removing a log changes output.\n- src/reminders.ts:9 Cast that silences the compiler: `as unknown as Invoice[]`; parse the payload at the boundary. Proposal.\n- src/reminders.ts:11 Condition padding: `options.includePaid === true` and `invoice.paid === false` on booleans. Proposal.\n- src/reminders.ts:12 Check against an impossible state: `invoice.customer?.email ?? \"\"` on a field the type guarantees. Proposal.\n- src/reminders.ts:5 Speculative flexibility: `LoadOptions` has one caller passing `{ includePaid: false }`. Proposal.\n- src/reminders.ts:12 Duplicate helper: reused `normalizeEmail` from src/strings.ts in place of the inline trim and lowercase (pass 1 rule, same behavior).",
+      "why": "version-suffix not named"
+    }
+  ]
+}
