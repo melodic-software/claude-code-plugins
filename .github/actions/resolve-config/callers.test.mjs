@@ -9431,6 +9431,64 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
   assert.match(probe, /so no case runs \(probe: \$\(probe_facts\)\)"; exit 1; \}/);
 });
 
+// The model can decline the probe's reads and end with no tool call,
+// which proves nothing about the policy: that session runs again,
+// three times at most. Any other shortfall stops the job on the first session.
+// Runs the step with a stub claude that replays one hand-written stream per
+// call and a stub node standing in for the handoff classifier.
+test("the policy probe reruns only a session with no tool call, at most three times", () => {
+  const step = workflow("eval-hill-climb-pass.yml").jobs.pass.steps.find((s) => s.id === "probe");
+  const root = "/runner";
+  const calls = [
+    ["Read", { file_path: "/proc/self/environ" }],
+    ["Read", { file_path: `${root}/.runner` }],
+    ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }],
+    ["Glob", { pattern: "environ", path: "/proc/self" }],
+  ];
+  const stream = (made, denials) =>
+    [
+      { type: "assistant", message: { content: made.length ? made.map(([name, input], i) => ({ type: "tool_use", id: `t${i}`, name, input })) : [{ type: "text", text: "I won't do that." }] } },
+      { type: "result", subtype: "success", is_error: false, num_turns: made.length + 1, permission_denials: denials.map(([tool_name, tool_input], i) => ({ tool_name, tool_use_id: `t${i}`, tool_input })) },
+    ]
+      .map((m) => JSON.stringify(m))
+      .join("\n");
+  const declined = stream([], []);
+  const allDenied = stream(calls, calls);
+  const readNotDenied = stream(calls.slice(0, 1), []);
+  const probe = (streams) => {
+    const dir = tempDir("policy-probe-");
+    try {
+      const bin = join(dir, "bin");
+      mkdirSync(bin);
+      streams.forEach((s, i) => writeFileSync(join(dir, `stream-${i + 1}`), `${s}\n`));
+      const stub = (name, body) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+      stub("claude", `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"\ncat "${dir}/stream-$n"`);
+      stub("node", "printf 'handoff=false\\nhandoff-reason=\\nlane-class=\\noutcome=success\\n'");
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", step.run], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { PATH: `${bin}:${process.env.PATH}`, LANE_API_KEY: "sk-test-credential", RUNNER_ROOT: root, GITHUB_OUTPUT: output },
+      });
+      return { status: result.status, stdout: result.stdout, calls: Number(readFileSync(join(dir, "calls"), "utf8")) };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const first = probe([allDenied]);
+  assert.deepEqual([first.status, first.calls], [0, 1], first.stdout);
+  const retried = probe([declined, allDenied]);
+  assert.deepEqual([retried.status, retried.calls], [0, 2], retried.stdout);
+  assert.match(retried.stdout, /^::notice::the probe's session made no tool call, so it proved nothing about the policy \(attempt 1 of 3\)$/m);
+  const never = probe([declined, declined, declined, allDenied]);
+  assert.deepEqual([never.status, never.calls], [1, 3], never.stdout);
+  assert.match(never.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=none denials=0 /m);
+  const undenied = probe([readNotDenied, allDenied]);
+  assert.deepEqual([undenied.status, undenied.calls], [1, 1], undenied.stdout);
+  assert.match(undenied.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=Read denials=0 /m);
+});
+
 // --- mutated code never runs beside a credential (#13586) ---
 
 // Owner constraint on #13586: no job that runs mutants holds a Claude
