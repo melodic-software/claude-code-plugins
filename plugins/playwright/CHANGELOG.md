@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.0] - 2026-11-06
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `<home>/playwright.yaml`, read from the default branch by `lib/read-verification.sh` and validated by the new `schemas/playwright.schema.json`. Under `light` and `off`, `/playwright:demo-video` step 8 skips the quality part of the independent frame review, records `verification: skipped (<level>)` and reports the video as not independently judged for quality. The fresh-context check for secrets and personal data in the frames still runs at every level and still gates posting.
+
 ## [1.0.8] - 2026-11-06
 
 ### Changed
