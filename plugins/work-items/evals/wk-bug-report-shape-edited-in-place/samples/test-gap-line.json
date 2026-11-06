@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "5. **Test gap**: tests/test_export.py only builds rows that set tz, so no test exports a CSV-imported row.",
+      "why": "bold test-gap part"
+    },
+    {
+      "answer": "Test-gap: no test covers rows without a tz field.",
+      "why": "hyphenated label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Cause: src/widget/export.py line 41 reads row['tz'] with no default.",
+      "why": "cause only, no test-gap line"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}
