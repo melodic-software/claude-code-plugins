@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.25.1] - 2026-11-06
+
+### Fixed
+
+- The shared re-anchor method's step 2: on load-bearing work a clean self-audit is confirmed by a fresh-context subagent before the report calls it clean, governed by the `verification` level like step 3; under `light` and `off` the report says "clean (self-audit only)" with the skip token. The eight correctors that point at step 2 name the confirmation, and `/discipline:sweep-all` batched forks return "clean (unconfirmed)" for the main thread to confirm.
+
 ## [0.25.0] - 2026-11-06
 
 ### Added

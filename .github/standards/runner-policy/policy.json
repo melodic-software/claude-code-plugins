@@ -166,7 +166,8 @@
         "pr-number",
         "head-sha",
         "base-sha",
-        "event-action"
+        "event-action",
+        "dispatcher-actor-ids"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",

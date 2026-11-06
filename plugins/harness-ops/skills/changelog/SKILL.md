@@ -98,7 +98,8 @@ replaces every question in Phases 3 to 5 with the evidence rule in
 [context/ci-mode.md](context/ci-mode.md): only a verified, cited `correct` row confined to one owner
 plugin and not security-relevant is committed, on a local branch per owner plugin; every other row
 becomes a handoff. It asks nothing, pushes nothing, opens no PR, files nothing and never moves the
-read marker. It writes `ci-plan.json` for the calling workflow and ends with `ci-plan: <path>` and
+read marker. It writes `ci-plan.json` for the calling workflow, rewriting it as each step finishes so a
+stopped run still publishes what it finished, and ends with `ci-plan: <path>` and
 `status: <stopped|planned>`. Where the phases below say to ask, confirm or file, `--ci` follows that
 file instead.
 
@@ -131,7 +132,7 @@ work fans out by release cluster with no Workflow script; see "Fan-out shape" th
 For rows needing enrichment (correct rows with behavioral changes, adopt rows with unclear scope):
 
 1. Spawn **parallel research subagents**. One per feature cluster, each receiving the explorers' questions (use a Claude Code documentation-focused agent type when available)
-2. Instruct each subagent to ground every claim in the page itself (a docs page through `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --out <dir> <slug>`, a changelog entry or GitHub issue by `curl`) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it. A local verifier then checks the repo-side facts
+2. Instruct each subagent to ground every claim in the page itself (a docs page through `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --out <dir> <slug>`, a changelog entry or GitHub issue by `curl`) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it. A local verifier then checks the repo-side facts. Before dispatching it, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin harness-ops --skill changelog` and copy its line into the output ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). Under `light`, and `off`, which acts as `light` here, dispatch no local verifier, here or in `apply`'s re-check of saved rows, and never check those facts yourself in its place: mark each row it would have checked `unverified` and write `verification: skipped (<level>)`
 
 3. Research targets per item type:
    - New frontmatter field → exact syntax, interaction with existing fields, docs gap
@@ -236,7 +237,7 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 Its fetch command writes this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put
 that path in place of the placeholder before running it.
 
-- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (the plugin's `fetch-docs.sh` writes the `.md` to a file; slice releases locally with the plugin's `changelog-releases.sh --blocks`) and display a version, a range, or the newest release. No edits
+- **`fetch`**. Read the raw changelog through the plugin's `fetch-changelog.sh`, which picks the source and writes the `.md` to a file; slice releases locally with the plugin's `changelog-releases.sh --blocks`) and display a version, a range, or the newest release. No edits
 - **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the scope gate. Emits decision rows grouped by owner surface, each with its lens and required sentence, plus a docs-lag section, and saves its working set for `apply`. Answers "is this range worth an `apply`?"
 - **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 

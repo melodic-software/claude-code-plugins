@@ -3,6 +3,16 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.8] - 2026-11-06
+
+### Fixed
+
+- gate pressure-test's performance hand-off
+
+  A performance-target fork hands off to /performance:goal only when the
+  performance plugin is installed; otherwise the timing is recorded as
+  unqualified and the user is asked.
+
 ## [0.24.7] - 2026-11-04
 
 ### Changed

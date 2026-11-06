@@ -17,11 +17,13 @@ name: pr-verify-capture
 # pr-pipeline.yaml it stops after the kill switch with a note. The token
 # reads only and the job can only read the cache.
 #
-# Credential separation (owner decisions Q11 and Q6 option A): the
-# capture job holds only pr-verify's API key. It gives the key to two
-# processes: run-claude-cli's driver legs, and, before the runner is
-# isolated, the key proxy (.github/scripts/pr-verify/key-proxy.mjs), started
-# as its own OS user with the key on stdin. The pull request's plugin code
+# Credential separation (owner decisions Q11, Q6 option A, Q7 (a) and
+# Q9 (c)): the capture job holds only pr-verify's API key, and gives it to
+# one process: the key proxy (.github/scripts/pr-verify/key-proxy.mjs),
+# started before the runner is isolated as its own OS user with the key on
+# stdin. run-claude-cli's driver legs hold a per-run client key instead and
+# reach the API only through the proxy's loopback port, which refuses any
+# request without that client key. The pull request's plugin code
 # never runs beside either: the driver asks the launch broker
 # (control-claude-code's broker.mjs) to start the driven Claude Code inside
 # a sibling sandbox, a bubblewrap sandbox with no network, its own process
@@ -31,7 +33,7 @@ name: pr-verify-capture
 # sandbox's dummy one, up to a per-job token cap. Before any pull request
 # code is checked out, two probes run capture-probe.mjs: one inside the
 # sibling sandbox, which must also miss a sentinel credential planted
-# outside it, and one as a Bash child of a driver leg holding the key, under
+# outside it, and one as a Bash child of a driver leg, under
 # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB. If either can read a credential, the
 # job token or the runtime token in any process environment or credential
 # file it can reach, or cannot show its scan works, the job fails and no
@@ -348,23 +350,6 @@ jobs:
         with:
           tokens: github-token
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated. The
-      # action's default pins, plus two env values head code could otherwise
-      # set mid-session through a settings file it writes (~/.claude or the
-      # head's .claude): the subprocess scrub, and TLS verification, so a
-      # proxy a head settings file names sees only a tunnel to the API.
-      - name: Apply the Claude managed settings
-        if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
-        with:
-          settings: >-
-            {"apiKeyHelper": "", "allowManagedHooksOnly": true,
-            "env": {"ANTHROPIC_BASE_URL": "https://api.anthropic.com",
-            "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
-            "NODE_TLS_REJECT_UNAUTHORIZED": "1"},
-            "permissions": {"disableBypassPermissionsMode": "disable"}}
-
       # The key proxy runs as its own OS user, so once sudo is gone nothing
       # the runner's user starts can read its memory or environment. Its
       # primary group is the runner's, which reaches its 0660 socket. Root
@@ -463,8 +448,10 @@ jobs:
       # default tools), and allow plugin hooks: no allowManagedHooksOnly, and no
       # apiKeyHelper, since the broker hands the driver a dummy key. No scrub:
       # its nested bwrap cannot start in the sibling sandbox, and the sandbox
-      # holds only the dummy key.
+      # holds only the dummy key. The driver legs' managed settings read the
+      # same version, small model and ceiling from its outputs.
       - name: Write the driven settings and the proxy config
+        id: driven
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 1
         env:
@@ -478,16 +465,68 @@ jobs:
           ceiling=$(yq '.merge."verify-capture".proxy."max-tokens-ceiling"' "$CONFIG")
           jq -n --arg main "$main" --arg small "$small" --arg ceiling "$ceiling" '{model: $main, env: {ANTHROPIC_BASE_URL: "http://127.0.0.1:47100", ANTHROPIC_DEFAULT_HAIKU_MODEL: $small, CLAUDE_CODE_MAX_OUTPUT_TOKENS: $ceiling, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"}, permissions: {disableBypassPermissionsMode: "disable", defaultMode: "default", allow: ["Bash"]}}' |
             sudo tee /opt/ccd/driven-etc/managed-settings.json >/dev/null
+          version=$(yq '.merge."verify-capture".proxy."claude-code-version"' "$CONFIG")
+          if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && $small =~ ^[a-z0-9.-]+$ && $ceiling =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::pr-pipeline.yaml's claude-code-version, driven-small-model or max-tokens-ceiling is malformed"
+            exit 1
+          fi
+          {
+            echo "claude-code-version=$version"
+            echo "small-model=$small"
+            echo "ceiling=$ceiling"
+          } >>"$GITHUB_OUTPUT"
 
-      # The real key's one stop outside a driver leg: stdin of the key proxy,
-      # started as ccd-proxy with an empty environment before the runner is
-      # isolated, so no later step, the sandbox or pull request code can read
-      # it in a process, an argument or a file. printf is a shell builtin, so
-      # the key is no process's argument. The proxy's log, in its own 0750
-      # directory, holds request paths and token counts, never the key. A
-      # watcher beside it, with no access to the key, ends it once
-      # /run/ccd-stop/stop exists ("Stop the key proxy"). The readiness check
-      # asks a path the proxy refuses, spending nothing.
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated. They
+      # send both driver legs to the key proxy's loopback port, which
+      # run-claude-cli allows only on an api-key leg (loopback-base-url), and
+      # pin env values head code could otherwise set mid-session through a
+      # settings file it writes (~/.claude or the head's .claude): the
+      # subprocess scrub; TLS verification; NO_PROXY for the loopback, so a
+      # proxy a head settings file names never sees the plaintext hop; and,
+      # as for the driven session, no nonessential traffic, max_tokens at the
+      # proxy's ceiling and the small model on the proxy's list. Measured on
+      # Claude Code 2.1.318 with the driver leg's argv: without the
+      # nonessential-traffic switch it sends two betas the proxy refuses and
+      # a HEAD /api/hello, and without the output cap max_tokens 128000. The
+      # file is the machine's one, so the probe leg runs through the proxy
+      # too (run-claude-cli managed-settings.cjs checks it on every leg).
+      - name: Apply the Claude managed settings
+        if: steps.credential.outputs.present == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@4aba9be6cc58c88c132308d417ebe136dd054296 # 4aba9be 2026-11-06
+        with:
+          loopback-base-url: http://127.0.0.1:47101
+          settings: >-
+            {"apiKeyHelper": "", "allowManagedHooksOnly": true,
+            "env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:47101",
+            "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+            "NODE_TLS_REJECT_UNAUTHORIZED": "1",
+            "NO_PROXY": "127.0.0.1", "no_proxy": "127.0.0.1",
+            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "${{ steps.driven.outputs.ceiling }}",
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": "${{ steps.driven.outputs.small-model }}"},
+            "permissions": {"disableBypassPermissionsMode": "disable"}}
+
+      # The real key's one stop: stdin of the key proxy, started as ccd-proxy
+      # with an empty environment before the runner is isolated, so no later
+      # step, driver leg, the sandbox or pull request code can read it in a
+      # process, an argument or a file. printf is a shell builtin, so neither
+      # key is any process's argument. Its second stdin line is the driver
+      # legs' client key, made here per run and masked: the one key the
+      # proxy's loopback port 47101 admits (any process on the runner can
+      # reach the port; key-proxy.mjs), handed to the legs as this step's
+      # output. The real key's SHA-256 is an output too, for "Check the
+      # driver legs hold no real key". The loopback listener has its own
+      # token budget, the same cap's size, so the driver legs' requests do not
+      # draw on the driven session's budget or the reverse; the job can spend
+      # up to twice the cap in all, and any runner-user process, a leg's Bash
+      # child included, can reach the 0660 socket (our decision; the usage
+      # step reports each listener's spend for sizing it). The proxy's log, in its
+      # own 0750 directory, holds request paths and token counts, never a
+      # key. A watcher beside it, with no access to the key, ends it once
+      # /run/ccd-stop/stop exists ("Stop the key proxy"). The readiness
+      # checks ask a path the proxy refuses, spending nothing: the socket
+      # answers 404, and the port 401 without the client key and 404 with it.
       - name: Start the key proxy
         id: proxy
         if: steps.credential.outputs.present == 'true'
@@ -495,7 +534,10 @@ jobs:
         env:
           PROXY_KEY: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
         run: |
-          printf '%s' "$PROXY_KEY" | env -u PROXY_KEY sudo -n -u ccd-proxy -- /usr/bin/setsid -f /bin/sh -c '(while kill -0 $$ 2>/dev/null; do if [ -e /run/ccd-stop/stop ]; then kill $$; sleep 5; kill -9 $$; exit 0; fi; sleep 1; done) </dev/null >/dev/null 2>&1 & exec /usr/bin/env -i PATH=/usr/bin:/bin /opt/ccd/bin/node /opt/ccd/key-proxy/key-proxy.mjs --socket /run/ccd-proxy/proxy.sock --config /opt/ccd/key-proxy/config.json 2>>/run/ccd-proxy/proxy.log >&2'
+          client="ccd-outer-$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+          echo "::add-mask::$client"
+          real_sha=$(printf '%s' "$PROXY_KEY" | sha256sum | cut -d' ' -f1)
+          printf '%s\n%s\n' "$PROXY_KEY" "$client" | env -u PROXY_KEY sudo -n -u ccd-proxy -- /usr/bin/setsid -f /bin/sh -c '(while kill -0 $$ 2>/dev/null; do if [ -e /run/ccd-stop/stop ]; then kill $$; sleep 5; kill -9 $$; exit 0; fi; sleep 1; done) </dev/null >/dev/null 2>&1 & exec /usr/bin/env -i PATH=/usr/bin:/bin /opt/ccd/bin/node /opt/ccd/key-proxy/key-proxy.mjs --socket /run/ccd-proxy/proxy.sock --config /opt/ccd/key-proxy/config.json --listen 47101 2>>/run/ccd-proxy/proxy.log >&2'
           unset PROXY_KEY
           sock=/run/ccd-proxy/proxy.sock
           for _ in $(seq 30); do
@@ -511,6 +553,21 @@ jobs:
             echo "::error::the key proxy did not answer (${code:-none})"
             exit 1
           fi
+          # curl reads the client key's header from stdin (--config -), never its argv.
+          for _ in $(seq 10); do
+            bare=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:47101/v1/models) || true
+            [ "$bare" = 401 ] && break
+            sleep 0.5
+          done
+          keyed=$(printf 'header = "x-api-key: %s"\n' "$client" | curl -s -o /dev/null -w '%{http_code}' --max-time 5 --config - http://127.0.0.1:47101/v1/models) || true
+          if [ "$bare" != 401 ] || [ "$keyed" != 404 ]; then
+            echo "::error::the key proxy's loopback port did not refuse a request without the client key and admit one with it (${bare:-none}, ${keyed:-none})"
+            exit 1
+          fi
+          {
+            echo "client-key=$client"
+            echo "real-key-sha256=$real_sha"
+          } >>"$GITHUB_OUTPUT"
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -705,10 +762,66 @@ jobs:
             echo 'Do nothing else.'
           } >"$PROMPT_FILE"
 
+      # Before either driver leg, with sudo gone so nothing can change it: the
+      # legs' managed settings send them to the proxy's loopback port and no
+      # value in them, nor in any process environment the runner's user can
+      # read, hashes to the real key's SHA-256; and the client key the legs
+      # get is not the real key. The client key in this step's own
+      # environment is the canary that shows the environment scan reads
+      # values. Only counts are printed, never a value. The runner worker,
+      # a runner-user process, holds the job's secrets in memory, so Yama's
+      # ptrace_scope must be at least 1, which keeps its descendants from
+      # attaching to it; the value read is printed for the run record.
+      - name: Check the driver legs hold no real key
+        if: steps.credential.outputs.present == 'true'
+        timeout-minutes: 1
+        env:
+          REAL_SHA: ${{ steps.proxy.outputs.real-key-sha256 }}
+          CLIENT_KEY: ${{ steps.proxy.outputs.client-key }}
+        run: |
+          # shellcheck disable=SC2016 # JavaScript template literals, not shell
+          node --input-type=module -e '
+            import { createHash } from "node:crypto";
+            import { readdirSync, readFileSync } from "node:fs";
+            const sha = (v) => createHash("sha256").update(v, "latin1").digest("hex");
+            const fail = (why) => { console.log(`::error::${why}; no driver leg runs`); process.exit(1); };
+            const { REAL_SHA: real, CLIENT_KEY: client } = process.env;
+            if (!/^[0-9a-f]{64}$/.test(real ?? "") || !/^ccd-outer-[0-9a-f]{64}$/.test(client ?? "")) fail("the key proxy gave no key hash or client key");
+            if (sha(client) === real) fail("the client key is the real key");
+            const settings = JSON.parse(readFileSync("/etc/claude-code/managed-settings.json", "utf8"));
+            if (settings.env?.ANTHROPIC_BASE_URL !== "http://127.0.0.1:47101") fail("the managed settings do not send the legs to the key proxy");
+            const strings = [];
+            const walk = (v) => (typeof v === "string" ? strings.push(v) : v && typeof v === "object" && Object.values(v).forEach(walk));
+            walk(settings);
+            if (strings.some((s) => sha(s) === real)) fail("the managed settings hold the real key");
+            let ptrace = "unreadable";
+            try { ptrace = readFileSync("/proc/sys/kernel/yama/ptrace_scope", "utf8").trim(); } catch {}
+            console.log(`kernel.yama.ptrace_scope=${ptrace}`);
+            if (!/^[0-9]+$/.test(ptrace) || Number(ptrace) < 1) fail(`kernel.yama.ptrace_scope is ${ptrace}, not at least 1, so a runner-user process could read the memory of the runner worker`);
+            let read = 0, values = 0, canary = false, hits = 0;
+            for (const pid of readdirSync("/proc").filter((n) => /^[0-9]+$/.test(n))) {
+              let raw;
+              try { raw = readFileSync(`/proc/${pid}/environ`, "latin1"); } catch { continue; }
+              read += 1;
+              for (const entry of raw.split("\0")) {
+                const at = entry.indexOf("=");
+                if (at < 0) continue;
+                const h = sha(entry.slice(at + 1));
+                values += 1;
+                if (h === real) hits += 1;
+                if (h === sha(client)) canary = true;
+              }
+            }
+            if (!canary) fail("the environment scan did not see its canary");
+            if (hits > 0) fail(`${hits} process environment values hold the real key`);
+            console.log(`::notice::the driver legs hold no real key: ${strings.length} managed-settings values and ${values} values in ${read} process environments checked`);
+          '
+
       # The reach probe, before any pull request code, under the driver's
       # own file-tool fence (the same deny rules as "Capture the change", and
       # the same Write and Grep tools with its edit allowances): a Bash child
-      # of a leg on the job's credential, where the app under test will run,
+      # of a driver leg on the proxy's client key and port and the driver's
+      # Claude Code version, where the driver commands will run,
       # and five Read calls, a Write and a Grep the fence must refuse. continue-on-error lets a
       # handoff end the job green; "Check the probe" fails the job on any
       # other probe failure, so no head code runs unprobed.
@@ -717,7 +830,7 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@4aba9be6cc58c88c132308d417ebe136dd054296 # 4aba9be 2026-11-06
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -725,7 +838,9 @@ jobs:
           role: pr-verify
           prompt-file: ${{ runner.temp }}/pr-verify-capture-probe.md
           preamble: You run unattended; do only what you are told.
-          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
+          api-key: ${{ steps.proxy.outputs.client-key }}
+          loopback-base-url: http://127.0.0.1:47101
+          cli-version: ${{ steps.driven.outputs.claude-code-version }}
           model: ${{ steps.models.outputs.model }}
           max-turns: "10"
           permission-mode: dontAsk
@@ -936,12 +1051,31 @@ jobs:
           } >"$PROMPT_FILE"
           printf '%s\n' '{"type":"object","properties":{"summary":{"type":"string"}},"required":["summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
-      # The driver: Claude Code on the job's credential, with main's
-      # plugins, starting the app under test through Bash. The credential
-      # reaches the CLI alone (run-claude-cli's api-key or
-      # subscription-token); nothing in this step's, the job's or the
+      # The driver: Claude Code with main's plugins, starting the app under
+      # test through the driver's Bash commands. It holds no real key: its
+      # api-key is the key proxy's per-run client key, and its managed
+      # settings send every request to the proxy's loopback port, the only
+      # place the real key is ("Start the key proxy"; "Check the driver legs
+      # hold no real key" shows it). The client key reaches the CLI alone
+      # (run-claude-cli's api-key); nothing in this step's, the job's or the
       # file's env carries a credential. A timeout or failure leaves the
       # capture blocked (the collect step), never a failed run.
+      # Bash fence: dontAsk denies every command no allow rule names, beyond
+      # Claude Code's built-in read-only commands
+      # (https://code.claude.com/docs/en/permissions#read-only-commands, as
+      # of 2026-11-06; recheck when that list changes). The rules name only
+      # main's driver, by its absolute path, one rule per verb the control
+      # skill uses, its `## Mask` values source exactly as drive's mask
+      # post-check runs it, the git commands run-e2e and drive run on the head, and
+      # the other commands those skills name: main's testing config and
+      # browser-driver scripts, `claude plugin list --json`, cmp (it only
+      # reads), and the default branch's ls-remote and fetch, each exact,
+      # since `fetch *` or `ls-remote *` would admit --upload-pack, which
+      # runs a program. Every path is absolute: the leg runs from the head
+      # checkout, where a relative .base/ or head path names files the pull
+      # request controls. The skills name absolute paths already, since
+      # run-claude-cli resolves each plugin-dirs entry to one. A head copy
+      # of the driver or a script matches none of them.
       # File-tool fence: --restricted confines the file tools to the working
       # directories (the workspace and add-dirs); dontAsk denies any edit no
       # allow rule names, so the file tools write only in the head and the
@@ -959,7 +1093,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 16
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@4aba9be6cc58c88c132308d417ebe136dd054296 # 4aba9be 2026-11-06
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CCD_RUNTIME_DIR: /home/runner/.ccd  # machine-path:allow
@@ -971,7 +1105,9 @@ jobs:
           preamble: >-
             You run unattended; no one can answer a question. Never quote a
             credential.
-          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
+          api-key: ${{ steps.proxy.outputs.client-key }}
+          loopback-base-url: http://127.0.0.1:47101
+          cli-version: ${{ steps.driven.outputs.claude-code-version }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -986,7 +1122,30 @@ jobs:
             Skill
             Agent
           allowed-tools: |
-            Bash
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs ready *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs screenshot *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs record *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs log *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/cli/account.mjs)
+            Bash(git -C ${{ github.workspace }}/head branch --show-current)
+            Bash(git -C ${{ github.workspace }}/head status --porcelain)
+            Bash(git -C ${{ github.workspace }}/head status --porcelain --untracked-files=all --ignored)
+            Bash(git -C ${{ github.workspace }}/head diff HEAD)
+            Bash(git -C ${{ github.workspace }}/head diff --name-only ${{ steps.pr.outputs.base-sha }}...HEAD)
+            Bash(git -C ${{ github.workspace }}/head rev-parse --show-toplevel)
+            Bash(git -C ${{ github.workspace }}/head worktree list --porcelain)
+            Bash(git -C ${{ github.workspace }}/head ls-remote --symref origin HEAD)
+            Bash(git -C ${{ github.workspace }}/head fetch origin main)
+            Bash(git -C ${{ github.workspace }}/head fetch origin 'main')
+            Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh e2e *)
+            Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh" e2e *)
+            Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh --user *)
+            Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh" --user *)
+            Bash(claude plugin list --json)
+            Bash(cmp *)
             Skill(testing:run-e2e *)
             Skill(app-control:drive *)
             Agent
@@ -1102,7 +1261,8 @@ jobs:
             exit 1
           fi
 
-      # What the driven session spent through the key proxy, for setting
+      # What each listener spent through the key proxy, the driven session's
+      # socket and the driver legs' loopback port, for setting
       # pr-pipeline.yaml's token-cap from measured runs. The log is the
       # proxy's own, which the runner's user cannot write; only numbers jq
       # computes from it are printed, never a line of it.
@@ -1117,11 +1277,12 @@ jobs:
             exit 0
           fi
           jq -R -s -r '
-            [split("\n")[] | fromjson? | select(type == "object" and (.status | type) == "number")] as $r
+            [split("\n")[] | fromjson? | select(type == "object" and (.status | type) == "number")] | group_by(.listener)[]
+            | . as $r
             | ([$r[] | .used | numbers] | add // 0) as $used
             | ([$r[] | .committed | numbers] | max // 0) as $committed
             | ([$r | group_by(.status)[] | "\(.[0].status):\(length)"] | join(" ")) as $statuses
-            | "::notice::key proxy: \($r | length) requests, \($used) tokens used, \($committed) committed; by status \($statuses)"' "$log"
+            | "::notice::key proxy \($r[0].listener | tostring | gsub("[^a-z]"; "")): \($r | length) requests, \($used) tokens used, \($committed) committed; by status \($statuses)"' "$log"
 
       # The upload: run-e2e's e2e-summary.json from the run directory the
       # prompt names, and the files its publishable list names, each a

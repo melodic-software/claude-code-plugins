@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "skills/work/SKILL.md"
+          }
+        }
+      ],
+      "why": "a Read call only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "capture check",
+            "prompt": "Confirm each capture shows the named broken state: exit 1 printing upstream 502."
+          }
+        }
+      ],
+      "why": "the capture-check subagent was dispatched"
+    }
+  ]
+}

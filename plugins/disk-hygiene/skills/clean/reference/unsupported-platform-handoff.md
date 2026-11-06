@@ -16,8 +16,10 @@ improvised from the engine steps.
 ## The Windows lane: one handoff-apply per tier
 
 It needs the same execution request as the manual lane below, and the same tier narrowing: show
-one tier's exact paths from the §3 report. Then run one `handoff-apply` for that tier, one inline
-`--path` per approved path:
+one tier's exact paths from the §3 report, as a list, not a question. The manual lane's approval
+step does not apply here: do not ask the user to approve the list (outside the no-prompt modes
+below). Run one `handoff-apply` for
+that tier, one inline `--path` per path shown:
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
@@ -31,9 +33,9 @@ The guard answers this command with a hook `ask` whose prompt lists the tier, th
 path. That prompt is the tier's removal question at the
 [confirmation gate](../SKILL.md#confirmation-gate), so ask nothing separately before it. Confirm it
 only when it names exactly the tier and paths you just showed; a declined prompt runs nothing.
-Whether a hook `ask` prompts in the session's mode: see the pointer in
-[the PowerShell guard lane](#the-powershell-guard-lane). Where it would not prompt, ask the gate's
-removal question first.
+In Manual and auto mode, ask nothing before it. Only in `dontAsk`, or a `-p` run with no prompt
+tool, ask the gate's removal question first. Pointer and recheck: [the PowerShell guard
+lane](#the-powershell-guard-lane).
 
 The engine then removes nothing at all when `--tier` ranks above the lowest `confidence_ceiling`
 among any path's hints, or any path has no hint (exit 2, no report), and when any path's volume
@@ -252,7 +254,7 @@ confirm prompt.
   fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
   [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
-  live. **As of**: 2026-10-11. **Recheck trigger**: a section changes whether either kind of `ask`
+  live. **As of**: 2026-11-06. **Recheck trigger**: a section changes whether either kind of `ask`
   prompts in a mode.
 
 Engine invocations from PowerShell stay hard-denied.

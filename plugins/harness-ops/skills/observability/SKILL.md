@@ -81,7 +81,9 @@ This skill reads **your** captured telemetry and ops signals.
 
 OTEL query and retention helpers live in `otel/` (private backends) with stable entry points in
 `scripts/`. Machine provisioning owns the Collector configuration and all long-running service
-and dashboard lifecycle.
+and dashboard lifecycle. A full wipe of the OTEL store is provisioning's documented reset, in its
+[otel-store-reset runbook](https://github.com/melodic-software/provisioning/blob/main/runbooks/otel-store-reset.md);
+`clean` stays the age and size prune.
 
 ## Arguments
 

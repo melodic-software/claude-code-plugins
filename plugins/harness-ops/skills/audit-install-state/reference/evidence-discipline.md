@@ -84,7 +84,8 @@ into one report ships every one of them.
 So the review stage is a dispatch, not a re-read: hand the findings to a **fresh-context** reviewer
 subagent that did not produce them. A reviewer carrying the producing agent's context inherits the
 producing agent's blind spot, which is exactly the failure mode this section documents. If this skill
-is run across several agents, that delegation is not optional. What works:
+is run across several agents, that delegation is not optional at the `standard` verification level;
+SKILL.md Phase 6 reads the level and says what `strict`, `light` and `off` change. What works:
 
 - lanes broadcast findings other lanes depend on mid-flight, not only at the end;
 - a receiving lane **verifies before adopting** rather than propagating;

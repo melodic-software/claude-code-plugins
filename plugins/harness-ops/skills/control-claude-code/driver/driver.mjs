@@ -512,6 +512,40 @@ export function request(session, verb, args = {}, deadlineMs = (args.timeout ?? 
   });
 }
 
+const PING_MS = 5000;
+
+/** The sessions under the runtime directory whose holder answers. */
+async function liveSessions(platform = process.platform) {
+  const dir = privateDir(runtimeDir(platform), { create: false });
+  const suffix = platform === 'win32' ? '.pipe' : '.sock';
+  const names = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(suffix)).map((f) => f.slice(0, -suffix.length)) : [];
+  const live = [];
+  for (const name of names.filter((n) => SESSION.test(n))) {
+    if (await request(name, 'ping', {}, PING_MS).then(() => true, () => false)) live.push(name);
+  }
+  return live;
+}
+
+/**
+ * The account lines of `session`, else of the one session running, from its holder, which reads
+ * `claude auth status` in that session's own launch environment. Fails with no session or several,
+ * and on any reply but the KEY_AUTH_NONE line alone or one-line values.
+ */
+export async function drivenAccount(session) {
+  if (session === undefined) {
+    const live = await liveSessions();
+    if (live.length !== 1) throw new Error(live.length ? `${live.length} sessions are running (${live.join(', ')}); pass --session <name>` : 'no session is running; launch one first');
+    [session] = live;
+  }
+  const lines = await request(session, 'account');
+  const value = (l) => typeof l === 'string' && l.trim() !== '' && !/[\r\n]/.test(l) && !l.startsWith('none:');
+  const none = Array.isArray(lines) && lines.length === 1 && lines[0] === KEY_AUTH_NONE;
+  if (!none && !(Array.isArray(lines) && lines.length && lines.every(value))) {
+    throw new Error('the session holder answered with something other than account lines; use nothing it wrote');
+  }
+  return lines;
+}
+
 // ---- config and changed plugins ----
 
 const CONFIG_DIR = join(HERE, '..', 'config');
@@ -585,11 +619,10 @@ export function readMasks(text) {
 }
 
 /**
- * The signed-in account's email and organization name from `claude auth status`, run in
- * `env`: the session's launch environment, else an attended launch's. The output is never
- * echoed, so no value reaches a log or an error message.
+ * The parsed `claude auth status --json`, run in `env`, the session's launch environment.
+ * The output is never echoed, so no value reaches a log or an error message.
  */
-export function accountValues(env = buildLaunch({ pluginDir: '.' }, process.env).env) {
+export function authStatus(env) {
   const run = spawnSync('claude', ['auth', 'status', '--json'], {
     env,
     encoding: 'utf8',
@@ -597,15 +630,36 @@ export function accountValues(env = buildLaunch({ pluginDir: '.' }, process.env)
     shell: process.platform === 'win32',
   });
   if (run.error) throw new Error('claude auth status did not run; cannot read the signed-in account to mask it');
-  let status;
   try {
-    status = JSON.parse(run.stdout);
+    return JSON.parse(run.stdout);
   } catch {
     throw new Error('claude auth status printed no JSON; cannot read the signed-in account to mask it');
   }
+}
+
+/** The email and organization name an auth status names, without duplicates or blanks. */
+export function statusValues(status) {
   const values = [status?.email, status?.orgName].filter((v) => typeof v === 'string' && v.trim());
   return [...new Set(values)];
 }
+
+export const KEY_AUTH_NONE = 'none: API-key auth has no signed-in account';
+
+/**
+ * The lines `cli/account.mjs` prints for a session: its email and organization name, else the
+ * KEY_AUTH_NONE line when the session runs on the ANTHROPIC_API_KEY its launch kept and the status
+ * names no account. Any other status is an error, so the post-check never reads "nothing to hide"
+ * from a session whose sign-in it cannot see.
+ */
+export function accountLines(status, keySource) {
+  const values = statusValues(status);
+  if (values.length) return values;
+  if (status?.authMethod === 'api_key' && keySource === 'ANTHROPIC_API_KEY') return [KEY_AUTH_NONE];
+  throw new Error('claude auth status names no email or organization');
+}
+
+/** The session holder's auth status, read once per session in its launch environment. */
+const sessionStatus = (ctx) => (ctx.status ??= authStatus(ctx.env));
 
 const unitsOf = (cell) => cell.char.length;
 
@@ -725,7 +779,7 @@ async function openMirror(ctx, size) {
 
 /** The live screen, masked. */
 async function maskedFrame(t, ctx) {
-  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8')), values: accountValues(ctx.env) };
+  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8')), values: statusValues(sessionStatus(ctx)) };
   const size = await t.getSize();
   const { rows, text } = maskCells(await t.cells(0, 0, size.cols, size.rows), ctx.mask.masks, ctx.mask.values);
   return { size, text, draw: renderFrame(rows) };
@@ -770,6 +824,7 @@ const RECORD_STOPPED = 'recording stopped';
 
 const HANDLERS = {
   ping: async () => 'pong',
+  account: async (_t, _args, ctx) => accountLines(sessionStatus(ctx), ctx.keySource),
   'wait-for': async (t, { text, timeout }) => {
     await t.getByText(text).first().wait({ state: 'visible', timeout });
     return `seen: ${text}`;
@@ -853,7 +908,7 @@ async function serve(opts) {
   for (const name of Object.keys(process.env)) if (!(name in launch.env)) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
-  const ctx = { TuiTest, env: launch.env };
+  const ctx = { TuiTest, env: launch.env, keySource: launch.keySource };
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
   // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
   // still shows the environment the holder started with, which #8651's isolation probe covers.

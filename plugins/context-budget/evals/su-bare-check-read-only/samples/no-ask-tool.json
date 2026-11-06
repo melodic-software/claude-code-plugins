@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no ask"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "AskUserQuestion",
+          "input": {
+            "questions": [
+              {
+                "question": "Which action?"
+              }
+            ]
+          }
+        }
+      ],
+      "why": "asked"
+    }
+  ]
+}
