@@ -4167,8 +4167,10 @@ jobs:
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's six, the lanes-hold step's eight (in the merge
+    # 15 s of gh_read retry sleeps for every read, never past gh_read's
+    # deadline: the hold-lift step's two reads, the runner tail, the hold
+    # reason, the lanes pull, the review-lane step's six, the lanes-hold
+    # step's eight (in the merge
     # queue 50 s more for its pass record's download, a cold read's listing
     # more, and the verdict reader's reads more, about 73 with pr-merge's carried
     # reads and about 860 without them, measured 2026-10-25, up to the cold-read
