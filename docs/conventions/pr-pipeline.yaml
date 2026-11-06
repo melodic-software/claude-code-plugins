@@ -1603,6 +1603,8 @@ merge:
         class: trust
       - glob: ".github/scripts/pr-merge/clear-escalations.mjs"
         class: trust
+      - glob: ".github/scripts/pr-merge/release-eval-hold.mjs"
+        class: trust
       - glob: ".github/scripts/pr-merge/carry-run-cache.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge/gate-check.mjs"
