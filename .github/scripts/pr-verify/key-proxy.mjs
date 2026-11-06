@@ -462,6 +462,21 @@ export function createProxy({ key, config, log = () => {} }) {
     req.on("end", async () => {
       if (tooLarge) return refuseTooLarge();
       const ctx = { method: req.method, path, query, headers: req.headers, raw: Buffer.concat(chunks), config, budget, state, preflight };
+      try {
+        await handle(ctx);
+      } catch (err) {
+        // A throw here (a body that passes the checks but breaks re-serialization, or a bug in a
+        // check) must not end the process the whole capture job depends on. Nothing went upstream
+        // on this path, so the reservation is released (our decision).
+        ctx.reservation?.settle(0);
+        ctx.release?.();
+        if (!clientGone && !res.headersSent) sendRefusal(res, refuse(400, "invalid_request_error", "the proxy could not process this request"));
+        else if (!res.writableEnded) res.destroy();
+        done(400, { refused: "proxy_error", error: String(err?.name ?? "Error"), committed: budget.committed });
+      }
+    });
+
+    async function handle(ctx) {
       const refusal = await runChecks(ctx);
       if (refusal) {
         ctx.release?.();
@@ -479,7 +494,7 @@ export function createProxy({ key, config, log = () => {} }) {
         return;
       }
       forward(res, ctx, done);
-    });
+    }
   });
 
   function forward(res, ctx, done) {

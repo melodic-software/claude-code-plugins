@@ -686,6 +686,20 @@ test("an oversized body still uploading in chunks is drained to its end, with no
   assert.equal(up.seen.length + up.counts.length, 0);
 });
 
+test("a body that breaks re-serialization gets a 400 and the proxy keeps serving", async () => {
+  const up = await stubUpstream(okJson());
+  const { socket } = await startProxy(up, { maxBodyBytes: 1_000_000 });
+  // tool_use input is not walked, so 50000 nested arrays pass the checks and then overflow the
+  // stack when the proxy re-serializes the body. Written by hand: JSON.stringify would overflow here.
+  const deep = "[".repeat(50000) + "]".repeat(50000);
+  const raw = `{"model":"model-main","max_tokens":100,"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Write","input":{"a":${deep}}}]}]}`;
+  const bad = await call(socket, { body: Buffer.from(raw) });
+  assertRefused(bad, 400, "invalid_request_error");
+  const next = await call(socket, { body: message() });
+  assert.equal(next.status, 200);
+  assert.equal(up.seen.length, 1);
+});
+
 test("past the cap the refusal is a 429 spend limit with x-should-retry false", async () => {
   const up = await stubUpstream(okJson({ input_tokens: 450, output_tokens: 450 }), { countTokens: 10 });
   // The first request commits 900; the second reserves 10 + 100 more.
