@@ -1,0 +1,64 @@
+schema_version: "1.1"
+name: setup-apply-keeps-existing
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-existing
+    type: regex
+    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{\s*\\?"file_path\\?":\s*\\?"(?:[^"\\]|\\.)*?\.claude/codebase-health\.md\\?"|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,800}?\b(?:cat|head|tail|sed(?![ \t]+-\w*i)|awk|less|more|nl|bat)\b(?:[^"\\;|&]|\\[^n])*?\.claude/codebase-health\.md\b|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,800}?\bfor\s+\w+\s+in\s+[^;"]*?\.claude/codebase-health\.md\b[^;"]*;\s*do\b(?:[^"\\]|\\.){0,200}?\b(?:cat|head|tail|sed(?![ \t]+-\w*i)|awk|less|more|nl|bat)\b'
+    target: trace
+    arm: 'both'
+  - name: summarizes-baseline
+    type: regex
+    pattern: '^(?=[\s\S]*\bapi-contracts\b)(?=[\s\S]*\bdocumentation\b)'
+    flags: 'i'
+    target: last_message
+  - name: proposes-against-baseline
+    type: llm
+    criteria: 'The reply treats the existing .claude/codebase-health.md as the baseline: it summarizes what the file holds now (its documentation and api-contracts dimensions) and proposes changes against it, such as fixing or dropping the docs/**/*.md glob that matches no files, while keeping the api-contracts dimension unless the user confirms removing it. It fails if it presents a fresh config that replaces the file wholesale, drops api-contracts without asking, or says it already wrote or overwrote the file.'
+    focus: last_message
+  - name: no-config-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?codebase-health(?:\.local)?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?codebase-health(?:\.local)?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: config-kept
+    type: regex
+    pattern: '^## api-contracts$'
+    flags: 'm'
+    target: { source: file, path: .claude/codebase-health.md }
+  - name: existing-dimensions-intact
+    type: regex
+    pattern: '^(?=[\s\S]*^## documentation\n\n\*\*primary-sources:\*\*\n\n- `docs/\*\*/\*\.md`\n- `README\.md`\n\n\*\*verification-sources:\*\*\n\n- `package\.json`\n- `src/\*\*/\*\.js`\n)(?=[\s\S]*^## api-contracts\n\n\*\*primary-sources:\*\*\n\n- `contracts/\*\.yaml`\n\n\*\*verification-sources:\*\*\n\n- `src/\*\*/\*\.js`\n\n\*\*example-claims:\*\*\n\n- claim: "The OpenAPI info\.version matches package\.json version"\n  - verify-via: "Read contracts/ledger\.openapi\.yaml info\.version and package\.json version"\n)'
+    flags: 'm'
+    target: { source: file, path: .claude/codebase-health.md }
+  - name: no-plugin-dir-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:/codebase-health/|/plugins/data/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-plugin-dir-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:/codebase-health/|/plugins/data/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-plugin-dir-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>{1,2}\s*|\btee\s+(?:-a\s+)?|\bsed\s+-i\S*\s+(?:[^"\\]|\\.)*?)(?:\\\"|'')?(?:\$\{?CLAUDE_PLUGIN_(?:ROOT|DATA)\b|[^\s\"\\;&|<>'']*?(?:/codebase-health/|/plugins/data/))'
+    min: 0
+    max: 0
+    arm: 'both'
