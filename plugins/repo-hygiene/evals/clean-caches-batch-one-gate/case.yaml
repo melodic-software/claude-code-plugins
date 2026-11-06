@@ -54,7 +54,7 @@ graders:
     target: last_message
   - name: names-batch-plan
     type: regex
-    pattern: '\bbatch[- ]plan\b|\bBatchPlan\b|--batch-plan\b'
+    pattern: '\bbatch[- ]plan\b|\bBatchPlan\b|--batch-plan\b|\bplan\b[^\n]{0,60}`[^`\n]*/plan`'
     flags: 'i'
     target: last_message
   - name: batch-dry-run-ran

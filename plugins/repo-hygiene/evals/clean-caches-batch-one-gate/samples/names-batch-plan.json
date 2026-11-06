@@ -5,11 +5,17 @@
     },
     {
       "answer": "I will apply the same batch plan."
+    },
+    {
+      "answer": "The plan is saved at `/data/clean-batch/caches-712072483/run.9PtuHD/plan`."
     }
   ],
   "fail": [
     {
       "answer": "I will apply the caches tier."
+    },
+    {
+      "answer": "The plan is to clear the caches in `repos/orders-portal`."
     },
     {
       "answer": ""

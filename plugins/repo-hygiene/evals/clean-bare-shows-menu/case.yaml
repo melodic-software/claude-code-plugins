@@ -14,10 +14,9 @@ graders:
     flags: 'i'
     target: last_message
   - name: names-scan-fallback
-    type: regex
-    pattern: '\bscan\b[^\n]{0,100}\b(?:safest|fallback|default)\b|\b(?:safest|fallback|default|if (?:you(?:''re| are) )?unsure|when in doubt|not sure)\b[^\n]{0,100}\bscan\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: 'Identifies `scan` as the safest fallback when intent stays unclear. A reply that only lists scan as one row of the action table without singling it out fails.'
+    focus: last_message
   - name: no-tier-run
     type: tool_used
     tool: 'Bash'

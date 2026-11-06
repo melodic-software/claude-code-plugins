@@ -87,7 +87,9 @@ Install nothing, and run no mutating tier.
      arms it once `/repo-hygiene:clean` is invoked and keeps it armed for the rest of that session,
      so a session that never invoked the skill has no guard and nothing is wrong with that.
    - Report the effective `${user_config.clean_destructive_guard_enabled}` (an unexpanded token or
-     an empty value means the manifest default `true`). The rendered value is injected when this
+     an empty value means the manifest default `true`). Read it from this text as rendered; never
+     echo it through Bash, where an unexpanded token is invalid shell syntax and the call is
+     refused. The rendered value is injected when this
      skill loads, so a change made now is observed only in a **fresh session**.
    - The option is **user-scoped**: plugin option values are read from user, `--settings`, and
      managed settings only, never from a project's `.claude/settings.json`. So there is no
