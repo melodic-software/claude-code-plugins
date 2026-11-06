@@ -1268,8 +1268,11 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
   assert.equal(input(block, "TREE_SHA"), "${{ github.event.workflow_run.head_commit.tree_id }}");
   const run = /^ {8}run: \|\n((?: {10}.*\n|\n)+)/m.exec(`${block}\n`)[1].replace(/^ {10}/gm, "");
   assert.doesNotMatch(run, /\$\{\{/);
-  // Its reads go through the api-budget gh wrapper, so they are counted.
+  // Its reads go through the api-budget gh wrapper, so they are counted, and
+  // through retry_call; a helper that does not load runs the review.
   assert.match(run, /\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true\n/);
+  assert.match(run, /\{ \. \.base\/\.github\/scripts\/pr-merge\/rate-stop\.bash && \. \.base\/\.github\/scripts\/pr-merge\/retry-call\.bash; \} 2>\/dev\/null \|\| true\n/);
+  assert.deepEqual(run.match(/^ *gh api .*/gm).map((line) => line.trim()), ['gh api "$@" >"$file"'], "every read goes through try_read api_into");
   // The record title the gate reads as counts is the one this step reads.
   const gh = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", import.meta.url), "utf8");
   assert.ok(gh.includes(`MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\\d{1,6}) critical=(\\d{1,6})")`));
@@ -1315,27 +1318,35 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     const has = (sha) => spawnSync("git", ["-C", path.join(dir, ".base"), "cat-file", "-e", `${sha}^{commit}`], { env: gitEnv }).status === 0;
     assert.ok(!has(CHANGED) && !has(OLD), "the checkout holds the tip alone");
     symlinkSync(new URL("../../../plugins/source-control", import.meta.url).pathname, path.join(dir, ".base", "plugins", "source-control"));
+    // The real api-budget, rate-stop and retry-call helpers.
+    symlinkSync(new URL("../../actions", import.meta.url).pathname, path.join(dir, ".base", ".github", "actions"));
+    symlinkSync(new URL("../pr-merge", import.meta.url).pathname, path.join(dir, ".base", ".github", "scripts", "pr-merge"));
     const bin = path.join(dir, "bin");
     const fixtures = path.join(dir, "fixtures");
     mkdirSync(bin);
-    // Answers `gh api <url> [--jq <filter>]` from a fixture file named after
-    // the url; a url with no fixture fails as a failed read does.
+    // Answers `gh api [-i] <url>` from a fixture file named after the url (a
+    // body with no header block, which the wrapper passes on whole); a url
+    // with no fixture fails as a failed read does. The first GH_FAIL calls to
+    // a url holding GH_FAIL_URL fail as a 502.
     writeFileSync(
       path.join(bin, "gh"),
-      '#!/bin/bash\necho "$*" >>"$GH_LOG"\nf="$GH_FIXTURES/$(printf %s "$2" | tr -c "A-Za-z0-9" _)"\n[ -f "$f" ] || exit 1\nif [ "$3" = --jq ]; then jq -c "$4" "$f"; else cat "$f"; fi\n',
+      '#!/bin/bash\necho "$*" >>"$GH_LOG"\n[ "$2" = -i ] && set -- "$1" "${@:3}"\nif [ -n "$GH_FAIL_URL" ] && [[ $2 == *"$GH_FAIL_URL"* ]] && [ "$(grep -cF -- "$GH_FAIL_URL" "$GH_LOG")" -le "${GH_FAIL:-0}" ]; then echo "HTTP 502: Bad Gateway" >&2; exit 1; fi\nf="$GH_FIXTURES/$(printf %s "$2" | tr -c "A-Za-z0-9" _)"\n[ -f "$f" ] || exit 1\ncat "$f"\n',
     );
+    writeFileSync(path.join(bin, "sleep"), '#!/bin/bash\necho "$1" >>"$SLEEP_LOG"\n');
     chmodSync(path.join(bin, "gh"), 0o755);
+    chmodSync(path.join(bin, "sleep"), 0o755);
     const key = (url) => url.replace(/[^A-Za-z0-9]/g, "_");
     const lanes = ["claude-review", "claude-security-review"];
     const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", event = "workflow_run", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml" } = {}) => {
       rmSync(fixtures, { recursive: true, force: true });
       mkdirSync(fixtures);
       lanes.forEach((lane, i) => {
-        if (missing.includes(lane)) return;
         const name = `pr-review-main-${lane}-${PR}-${TREE}`;
         const artifact = 100 + i;
         const runId = 200 + i;
         const at = (url, body) => writeFileSync(path.join(fixtures, key(url)), typeof body === "string" ? body : JSON.stringify(body));
+        // A lane with no verdict lists no artifact for the tree.
+        if (missing.includes(lane)) return at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: 0, artifacts: [] });
         at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: total, artifacts: [{ id: artifact, name, expired: false, workflow_run: { id: runId } }] });
         at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: workflow, event, head_branch: branch, head_sha: main, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
         const verdict = path.join(dir, "verdict.json");
@@ -1348,21 +1359,51 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     const runWith = (env = {}) => {
       const out = path.join(dir, "out");
       const log = path.join(dir, "gh.log");
-      writeFileSync(out, "");
-      writeFileSync(log, "");
+      const sleeps = path.join(dir, "sleep.log");
+      for (const file of [out, log, sleeps]) writeFileSync(file, "");
+      rmSync(path.join(dir, "tmp"), { recursive: true, force: true });
+      mkdirSync(path.join(dir, "tmp"));
       const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, GH_FIXTURES: fixtures, PR_NUMBER: String(PR), HEAD_SHA: SHA_A, TREE_SHA: TREE, DIR: path.join(dir, "work"), ...env },
+        env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: path.join(dir, "tmp"), GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, SLEEP_LOG: sleeps, GH_FIXTURES: fixtures, GH_FAIL_URL: "", GH_FAIL: "0", PR_NUMBER: String(PR), HEAD_SHA: SHA_A, TREE_SHA: TREE, DIR: path.join(dir, "work"), ...env },
       });
       assert.equal(result.status, 0, result.stderr + result.stdout);
-      return { out: readFileSync(out, "utf8"), calls: readFileSync(log, "utf8").split("\n").filter(Boolean) };
+      const lines = (file) => readFileSync(file, "utf8").split("\n").filter(Boolean);
+      return { out: readFileSync(out, "utf8"), stdout: result.stdout, calls: lines(log), sleeps: lines(sleeps) };
     };
     write();
     const judged = runWith();
     assert.equal(judged.out, "judged=true\n");
-    // Per lane: the listing, the run, the zip and the head's check runs.
+    // Per lane: the listing, the run, the zip and the head's check runs, each
+    // sent once through the counting wrapper, with no wait.
     assert.equal(judged.calls.length, 8, judged.calls.join("\n"));
+    assert.ok(judged.calls.every((call) => call.startsWith("api -i repos/o/r/")), judged.calls.join("\n"));
+    assert.equal(judged.sleeps.length, 0);
+    // Each read is sent again after a failure. At every one of the four
+    // reads, one failure then an answer: one more call, one jittered wait,
+    // and the head is still judged. Three failures: no fourth send, a notice
+    // naming the read, no later read, and the review runs.
+    const READS = [
+      ["the claude-review verdict listing", "actions/artifacts?name=pr-review-main-claude-review-", 1],
+      ["run 200", "actions/runs/200", 2],
+      ["artifact 100", "actions/artifacts/100/zip", 3],
+      ["the claude-review check runs", "check-runs?check_name=pr-review-main%3A%20claude-review&", 4],
+    ];
+    for (const [what, url, at] of READS) {
+      const again = runWith({ GH_FAIL_URL: url, GH_FAIL: "1" });
+      assert.equal(again.out, "judged=true\n", what);
+      assert.equal(again.calls.length, 9, `${what}\n${again.calls.join("\n")}`);
+      assert.equal(again.calls.filter((call) => call.includes(url)).length, 2, what);
+      assert.equal(again.sleeps.length, 1, what);
+      const unread = runWith({ GH_FAIL_URL: url, GH_FAIL: "9" });
+      assert.equal(unread.out, "", what);
+      assert.equal(unread.calls.length, at + 2, `${what}\n${unread.calls.join("\n")}`);
+      assert.ok(unread.calls.slice(at - 1).every((call) => call.includes(url)), what);
+      assert.equal(unread.sleeps.length, 2, what);
+      assert.ok(unread.stdout.split("\n").includes(`::notice::${what} did not read (failed 3 times); the review runs`), `${what}\n${unread.stdout}`);
+      assert.doesNotMatch(unread.stdout, /::warning::/, what);
+    }
     // A run that did not succeed, a verdict for another head of the tree, a
     // record whose counts differ, a lane with no verdict, a
     // listing past one page: no output, so the review runs.
@@ -1419,15 +1460,24 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       write({ main });
       assert.equal(runWith().out, "", main);
     }
+    // The fetch of a commit main does not have is sent 3 times, then the
+    // review runs with a notice.
+    write({ main: "d".repeat(40) });
+    const unfetched = runWith();
+    assert.equal(unfetched.sleeps.length, 2);
+    assert.ok(unfetched.stdout.split("\n").includes(`::notice::main commit ${"d".repeat(40)} did not read (failed 3 times); the review runs`), unfetched.stdout);
     // No verdict for the first lane: one listing read and no more.
     write({ missing: ["claude-review"] });
     const none = runWith();
     assert.equal(none.out, "");
     assert.equal(none.calls.length, 1, none.calls.join("\n"));
-    // A failed read: no output, and the step stays green.
+    // A read that keeps failing: 3 sends, no output, and the step stays green.
     write();
     rmSync(path.join(fixtures, key(`repos/o/r/actions/runs/201`)));
-    assert.equal(runWith().out, "");
+    const failed = runWith();
+    assert.equal(failed.out, "");
+    assert.equal(failed.calls.filter((call) => call.endsWith("actions/runs/201")).length, 3, failed.calls.join("\n"));
+    assert.ok(failed.stdout.split("\n").includes("::notice::run 201 did not read (failed 3 times); the review runs"), failed.stdout);
     // No tree in the event, or a malformed number: no read at all.
     for (const env of [{ TREE_SHA: "" }, { PR_NUMBER: "7; x" }]) {
       const bad = runWith(env);
