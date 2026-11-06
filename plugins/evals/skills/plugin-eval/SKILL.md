@@ -388,10 +388,6 @@ its second-model run; otherwise `do not promote`, followed by the first conditio
 A no-loss two-version compare ships a cut only after a detection control, the before text with the
 changed rule removed, scores clearly lower on the same cases and model; otherwise report it as
 unable to detect a loss: [reading-results.md, Detection control](reference/reading-results.md#detection-control).
-When that compare is VALID, shows no loss and is posted to a pull request a repository holds for it,
-end the comment with the repository's release record for the head it ran, if it has one (in this
-marketplace, `<!-- eval-pair verdict=no-loss validity=VALID head=<sha> -->`:
-[Cross-lane PR hold](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#cross-lane-pr-hold)).
 
 ## Calibrating a judge
 
