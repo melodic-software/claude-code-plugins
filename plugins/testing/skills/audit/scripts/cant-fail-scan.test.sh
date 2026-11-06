@@ -1325,16 +1325,26 @@ corpus_files=(
   bash-bats/good/bats-parsed-args-count.bats.fixture
   bash-bats/good/bats-repaired-oracles.bats.fixture
   bash-harness/bad/bracket-status-dropped.test.sh.fixture
+  bash-harness/bad/bracket-then-exit-zero.test.sh.fixture
+  bash-harness/bad/check-helper-never-exits.test.sh.fixture
   bash-harness/bad/deploy-source-text.test.sh.fixture
+  bash-harness/bad/exec-redirect-only.test.sh.fixture
   bash-harness/bad/prints-only.test.sh.fixture
+  bash-harness/bad/rc-accumulator-not-exited.test.sh.fixture
+  bash-harness/bad/rc-captured-unchecked.test.sh.fixture
   bash-harness/bad/retry-limit-restated.test.sh.fixture
   bash-harness/bad/sort-against-itself.test.sh.fixture
+  bash-harness/good/bracket-then-bare-exit.test.sh.fixture
+  bash-harness/good/check-helper-guard-exit.test.sh.fixture
+  bash-harness/good/exec-delegation.test.sh.fixture
   bash-harness/good/fail-and-exit.test.sh.fixture
   bash-harness/good/failure-counter-arith-exit.test.sh.fixture
   bash-harness/good/failure-counter.test.sh.fixture
+  bash-harness/good/node-check-guard-exit.test.sh.fixture
   bash-harness/good/node-driver-heredoc.test.sh.fixture
   bash-harness/good/pwsh-selftest.test.sh.fixture
   bash-harness/good/python-in-variable.test.sh.fixture
+  bash-harness/good/rc-accumulator.test.sh.fixture
   bash-harness/good/repaired-oracles.test.sh.fixture
   bash-harness/good/sort-against-literal.test.sh.fixture
   bash-harness/good/sources-test-harness.test.sh.fixture
