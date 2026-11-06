@@ -114,8 +114,11 @@ dated measurement and how to re-measure it). When a script can do the job, run t
 - **Multi-turn versus one open pipe.** The pipe keeps context in one process while the connection
   stays open; per-turn `--resume` survives a disconnect. `--resume` ids belong to the lane that
   made them, so resume against the same row. `--session-id` picks the id up front, so nothing
-  parses the first turn's output; take a UUID from `/proc/sys/kernel/random/uuid` where `uuidgen`
-  is missing.
+  parses the first turn's output. Generate no id in this session: a command you hand over keeps
+  `<uuid>` for whoever runs it to fill, and a turn you run yourself can start with
+  `--output-format json` and resume with the `session_id` it returns (see "Parse the JSON" in
+  [Gotchas](#gotchas)). Say with the handed-over commands that the id exists only on that lane's
+  machine and account, so every follow-up goes to the same row.
 - **Background sessions** need a trusted working directory; anywhere else the start fails with a
   workspace-not-trusted error and exit 1 (for its wording and fix, fetch
   [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)

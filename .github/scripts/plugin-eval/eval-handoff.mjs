@@ -17,6 +17,12 @@
 //   fallback leg      never
 // A run whose `error` is null ended normally and is not judged; the suite's
 // exit code is not read, since a case below --threshold also exits 1.
+// A results file marked partial with reason auth_failed ("your credential was
+// rejected before or at the first run", plugin-evals' exit-code table) is a
+// refused credential with no status to read, so it hands off as a 401 does
+// when no stream already has; its runs may hold no trace a classifier can
+// judge. The suite's other partial reasons, cost_ceiling and interrupted, are
+// not the credential's stop.
 //
 // Env: LEG (key, subscription or fallback), FALLBACK_READY, CI_WORKFLOWS,
 // RESULTS (the --json results, one path per line; a missing one is skipped),
@@ -95,6 +101,19 @@ export function judgeLegStreams(streams, options, launcher) {
   return { handoff: false, reason: "", laneClass };
 }
 
+// A suite the credential stopped before its runs finished.
+function authFailed(result) {
+  return result?.partial === true && result.partialReason === "auth_failed";
+}
+
+// The streams' verdict, overruled by a suite that ended auth_failed unless a
+// stream already handed off.
+export function withPartials(verdict, results, { leg, fallbackReady }) {
+  if (verdict.handoff || !results.some(authFailed)) return verdict;
+  const reason = handoffReason(leg, "auth", REFUSED_STATUSES[0], { fallbackReady });
+  return { handoff: reason !== "", reason, laneClass: "auth" };
+}
+
 function readJson(path) {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
@@ -140,16 +159,19 @@ function main(env) {
   }
   let seconds = null;
   let cost = null;
+  const results = [];
   const add = (sum, value) => (typeof value === "number" && value >= 0 ? (sum ?? 0) + value : sum);
   for (const file of (env.RESULTS ?? "").split("\n").filter(Boolean)) {
     const result = readJson(file);
+    results.push(result);
     seconds = add(seconds, result?.durationSeconds);
     cost = add(cost, result?.costUsd);
     for (const trace of erroredTraces(result, dirname(file))) {
       if (existsSync(trace)) streams.push({ text: readFileSync(trace, "utf8"), exitCode: 1 });
     }
   }
-  const verdict = judgeLegStreams(streams, { leg, fallbackReady: env.FALLBACK_READY === "true" }, { judgeLeg, linesToMessages, isCreditStop });
+  const options = { leg, fallbackReady: env.FALLBACK_READY === "true" };
+  const verdict = withPartials(judgeLegStreams(streams, options, { judgeLeg, linesToMessages, isCreditStop }), results, options);
   if (env.LEG_RESULT) {
     const message = {
       type: "result",
