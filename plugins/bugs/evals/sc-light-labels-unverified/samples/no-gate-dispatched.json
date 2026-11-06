@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain"
+          }
+        }
+      ],
+      "why": "a Bash call only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify",
+            "prompt": "Refute this candidate: construct the input path or it dies."
+          }
+        }
+      ],
+      "why": "the verifier was dispatched"
+    }
+  ]
+}

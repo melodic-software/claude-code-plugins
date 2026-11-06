@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "clean-common.sh guards every deletion with `git ls-files --error-unmatch`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The library checks tracked files with git ls-files.",
+      "why": "no flag, no file"
+    },
+    {
+      "answer": "git ls-files --error-unmatch guards deletion.",
+      "why": "library not named"
+    }
+  ]
+}

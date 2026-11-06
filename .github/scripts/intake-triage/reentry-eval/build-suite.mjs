@@ -9,6 +9,7 @@
 //   node build-suite.mjs --reusable <intake-triage.yml> --sha <commit> --out <dir> [--no-instructions]
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -129,6 +130,8 @@ export async function compose(script, env) {
     ]),
   ];
   const github = {
+    // The script meters API budget through request hooks; the stub makes no requests.
+    hook: { after: () => {}, error: () => {} },
     rest: { issues: { listLabelsForRepo: "listLabelsForRepo" } },
     paginate: async () => labels.map((name) => ({ name })),
     graphql: async () => ({
@@ -166,11 +169,16 @@ export async function compose(script, env) {
 
 // One case's workspace: the issue files the reusable's fetch step writes, in
 // its shape, under WORKDIR, and AGENTS.md at the root the prompt points to.
+// The body is the case's own body.md when it has one, else the shared one.
 function workspace(caseDir, out) {
   const meta = JSON.parse(readFileSync(join(caseDir, "issue.json"), "utf8"));
   const dir = join(out, WORKDIR);
   mkdirSync(dir, { recursive: true });
-  cpSync(join(caseDir, "..", "_issue", "body.md"), join(dir, "body.md"));
+  const ownBody = join(caseDir, "body.md");
+  cpSync(
+    existsSync(ownBody) ? ownBody : join(caseDir, "..", "_issue", "body.md"),
+    join(dir, "body.md"),
+  );
   const comments = meta.comments.map((comment, i) => {
     cpSync(join(caseDir, comment.file), join(dir, `comment-${i + 1}.md`));
     return {

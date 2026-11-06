@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "| ghq | INFO | absent, never FAIL |",
+      "why": "names FAIL in prose"
+    },
+    {
+      "answer": "ghq is INFO, not FAIL.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| ghq | FAIL | absent |"
+    },
+    {
+      "answer": "| FAIL | ghq absent |"
+    },
+    {
+      "answer": "ghq: FAIL"
+    }
+  ]
+}

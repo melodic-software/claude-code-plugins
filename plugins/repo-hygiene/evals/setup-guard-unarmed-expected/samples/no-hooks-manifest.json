@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "The plugin ships no plugin-level hooks manifest (hooks/hooks.json)."
+    },
+    {
+      "answer": "There is no hooks.json in this plugin."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hooks.json manifest registers the guard.",
+      "why": "claims a manifest"
+    },
+    {
+      "answer": "The guard is a hook.",
+      "why": "silent on the manifest"
+    }
+  ]
+}

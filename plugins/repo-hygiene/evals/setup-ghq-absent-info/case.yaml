@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: setup-ghq-absent-info
+graders:
+  - name: ghq-info
+    type: regex
+    pattern: '\bghq\b[^\n]{0,160}\bINFO\b|\bINFO\b[^\n]{0,160}\bghq\b'
+    target: last_message
+  - name: ghq-not-fail
+    type: regex
+    pattern: '\bghq\b[^\n]*\|[ \t]*\**FAIL\**[ \t]*(?:\||$)|(?:^|\|)[ \t]*\**FAIL\**[ \t]*\|[^\n]*\bghq\b|\bghq\b[^\n|]{0,40}:[ \t]*\**FAIL\b'
+    flags: 'm'
+    match: not_contains
+    target: last_message
+  - name: names-repo-inputs
+    type: regex
+    pattern: '^(?=[\s\S]*--repo\b)(?=[\s\S]*--repos-from\b)'
+    target: last_message
+  - name: only-ghq-unavailable
+    type: llm
+    criteria: 'States that only the ghq-derived enumeration is unavailable. A reply that says the batch actions are broken or unusable without ghq fails.'
+    focus: last_message
+  - name: empty-list-expected
+    type: regex
+    pattern: '\bexpected\b|\bnot (?:a |the )?(?:bug|defect)\b|\b(?:isn''t|is not|not) broken\b|\bnothing is (?:wrong|broken)\b|\bworking as (?:intended|designed)\b|\bby design\b'
+    flags: 'i'
+    target: last_message
+  - name: no-batch-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:bash|sh)(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?)?(?:clean-batch|git-tree-reset-batch)\.sh(?![\w.-])(?!(?:(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?:\s|\\\\\\n)--?h(?:elp)?(?![\w-]))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-clean-skill
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:repo-hygiene:)?clean"'
+    min: 0
+    max: 0
+    arm: 'both'

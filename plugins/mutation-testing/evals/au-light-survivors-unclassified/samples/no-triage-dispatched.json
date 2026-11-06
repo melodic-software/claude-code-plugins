@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain"
+          }
+        }
+      ],
+      "why": "a Bash call only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify",
+            "prompt": "Triage these surviving mutants: productive, equivalent or arid."
+          }
+        }
+      ],
+      "why": "the verifier was dispatched"
+    }
+  ]
+}

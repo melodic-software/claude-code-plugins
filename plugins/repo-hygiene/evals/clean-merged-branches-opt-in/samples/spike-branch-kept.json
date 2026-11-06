@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "0000 4283 Fabrikam Fixture\tcommit: Try paging the order list\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| guard | INFO | unarmed: expected in a fresh session |"
+    },
+    {
+      "answer": "INFO: nothing is wrong."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is expected.",
+      "why": "no INFO"
+    },
+    {
+      "answer": "INFO: guard unarmed.",
+      "why": "not called expected"
+    }
+  ]
+}

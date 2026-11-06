@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "See the marketplace's plugin-reconfiguration convention."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "See the docs for claude plugin configure."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

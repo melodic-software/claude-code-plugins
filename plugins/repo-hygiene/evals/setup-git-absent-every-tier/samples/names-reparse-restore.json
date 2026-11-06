@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Restoring a tracked file deleted by reparse-point traversal during a tree clean also needs git."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "tree needs git for reset --hard.",
+      "why": "no reparse-point restore"
+    },
+    {
+      "answer": "Reparse points are followed carefully.",
+      "why": "no restore"
+    }
+  ]
+}

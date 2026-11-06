@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.8] - 2026-11-06
+
+### Fixed
+
+- `/instruction-placement:audit` reads its context files with the Read tool, one per call, instead of concatenating them through Bash `cat`.
+
 ## [1.0.7] - 2026-11-04
 
 ### Changed

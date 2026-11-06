@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "PORTAL_THEME=dark\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PORTAL_THEME=light\n",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}
