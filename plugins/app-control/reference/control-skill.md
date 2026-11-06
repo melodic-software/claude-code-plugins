@@ -235,13 +235,14 @@ The driving tool's `## Mask`.
 ```
 
 The target is the hub named on the hub's `Driving tool:` line: the first code span on that line, or
-on the lines that continue it up to the next blank line, that holds a relative path ending in `.md`,
-resolved against the root the index `sources` resolve against ([Hub](#hub)). Its real path must sit
-inside that root, and under drive's `--trusted-root <dir>` inside `<dir>`'s real path, so a checkout
-under test cannot supply its own masks or values source. The target's `## Mask` is then the one in
-effect, and its `values:` sources resolve against the target's own `config/` and `cli/`. A target
-that is missing, sits outside the root, has no `## Mask`, or hands off again cannot be read, and
-every capture of the run is unchecked.
+on the lines that continue it up to the next blank line, that holds a relative path ending in `.md`.
+It resolves against the copy of the hub drive read, never the checkout under test: the project
+directory holding that hub's `.claude/`, or, for a plugin hub, the repository its folder sits in.
+Its real path must sit inside that directory, and under drive's `--trusted-root <dir>` inside
+`<dir>`'s real path, so a checkout under test cannot supply its own masks or values source. The
+target's `## Mask` is then the one in effect, and its `values:` sources resolve against the
+target's own `config/` and `cli/`. A target that is missing, sits outside that directory, has no
+`## Mask`, or hands off again cannot be read, and every capture of the run is `not-checked`.
 
 The mask lines are for the Capture commands, which apply them ([Writing the Capture
 section](#writing-the-capture-section)). Drive's post-check does not read them: it scans each
