@@ -626,8 +626,8 @@ activities:
     # The labeled issue; the hourly sweep takes none and lists open issues.
     inputs: [issue]
   apply-verdict:
-    # After intake triage, writes its verdict as the lanes App: the work-class
-    # label, the Size, Complexity and Uncertainty issue fields, and
+    # After intake triage, writes its verdict as the lanes App: the Size,
+    # Complexity and Uncertainty issue fields (never a work-class label), and
     # `status: ready` or `status: needs-decision`, read from the lane comment
     # the triage run posted, with a blocked-by edge for each open issue its
     # `Blocked by:` line or the issue body's own `Blocked by` and
