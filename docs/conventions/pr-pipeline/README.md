@@ -78,35 +78,6 @@ no renumbering.
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
 into `intake`.
 
-### Refine before review
-
-A PR's path, in order: build, refine, review, fix, verify, merge. Build is `work` or `pre-ready`;
-review is the AI review lanes; fix is `unblock` (fixing CI, addressing review feedback); verify and
-merge are their stages.
-
-`pr-refine.yml` runs the Refine passes. Its `plan` job lists the PR's changed files and picks each
-activity with `stage: refine` whose `applies-when` `paths` match a changed file that no
-`paths-ignore` glob matches, so a changelog fragment alone (`.changes/**`) starts no `fix-docs`.
-Adding a pass is an activity entry with `stage: refine`, its globs, an `order` and a `group`, and
-its jobs in `pr-refine.yml`. The plan runs passes in batches, one batch after another: in `order`, a
-pass joins the batch before it when it is not `serial`, shares that batch's `group`, and matched
-none of the batch's files; otherwise it starts a new batch. A PR that matches no pass ends the run
-at the plan, every later job skipped and no model turn. The plan reads the lane's slots as the
-runner's config reader expands them, so a disabled slot or a slot's own `applies-when` counts, and
-a pass taking `changed-paths` needs a file left after instruction surfaces and owned paths are
-dropped. A changed-files list the plan cannot read holds: no pass runs and `fix-docs-head-held`
-logs a `PR head hold` notice; a plan that fails logs `refine-failed` for `pass=plan`. Each job has
-a `timeout-minutes`, its own or its reusable workflow's input.
-
-#### Signals
-
-| Signal | Means |
-|---|---|
-| A push to a branch | Work in progress. |
-| A non-draft PR | The author is done. |
-| A `refine-pass` notice per pass in `pr-refine`'s `record-passes` job: `pass=<name> files=<n> outcome=<pushed\|none\|superseded\|failed> seconds=<n>` | What each pass did, and how long since the plan started. A failed pass also logs a `refine-failed` warning, which [signal 13](#the-monitoring-lane) counts as a `pr-refine` hold. |
-| Refine complete | Being decided in [#13717](https://github.com/melodic-software/claude-code-plugins/issues/13717): the signal review starts on. |
-
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
@@ -159,6 +130,35 @@ Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the
 The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
 Converting a PR back to draft
 cancels every running pipeline lane for it.
+
+### Refine before review
+
+A PR's path, in order: build, refine, review, fix, verify, merge. Build is `work` or `pre-ready`;
+review is the AI review lanes; fix is `unblock` (fixing CI, addressing review feedback); verify and
+merge are their stages.
+
+`pr-refine.yml` runs the Refine passes. Its `plan` job lists the PR's changed files and picks each
+activity with `stage: refine` whose `applies-when` `paths` match a changed file that no
+`paths-ignore` glob matches, so a changelog fragment alone (`.changes/**`) starts no `fix-docs`.
+Adding a pass is an activity entry with `stage: refine`, its globs, an `order` and a `group`, and
+its jobs in `pr-refine.yml`. The plan runs passes in batches, one batch after another: in `order`, a
+pass joins the batch before it when it is not `serial`, shares that batch's `group`, and matched
+none of the batch's files; otherwise it starts a new batch. A PR that matches no pass ends the run
+at the plan, every later job skipped and no model turn. The plan reads the lane's slots as the
+runner's config reader expands them, so a disabled slot or a slot's own `applies-when` counts, and
+a pass taking `changed-paths` needs a file left after instruction surfaces and owned paths are
+dropped. A changed-files list the plan cannot read holds: no pass runs and `fix-docs-head-held`
+logs a `PR head hold` notice; a plan that fails logs `refine-failed` for `pass=plan`. Each job has
+a `timeout-minutes`, its own or its reusable workflow's input.
+
+#### Signals
+
+| Signal | Means |
+|---|---|
+| A push to a branch | Work in progress. |
+| A non-draft PR | The author is done. |
+| A `refine-pass` notice per pass in `pr-refine`'s `record-passes` job: `pass=<name> files=<n> outcome=<pushed\|none\|superseded\|failed> seconds=<n>` | What each pass did, and how long since the plan started. A failed pass also logs a `refine-failed` warning, which [signal 13](#the-monitoring-lane) counts as a `pr-refine` hold. |
+| Refine complete | Being decided in [#13717](https://github.com/melodic-software/claude-code-plugins/issues/13717): the signal review starts on. |
 
 ## Lanes
 

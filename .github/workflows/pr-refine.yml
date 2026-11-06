@@ -130,7 +130,8 @@ jobs:
   plan:
     needs: dispatcher-current
     if: >-
-      inputs.pr-number != ''
+      inputs.pr-number != '' && inputs.activity == 'fix-docs'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
       && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

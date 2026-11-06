@@ -21,6 +21,14 @@ test("a failed or cancelled job fails the pass, named by job and result; a pass 
   assert.deepEqual(passOutcome({ results: null }), { outcome: "failed", reason: "unwired" });
 });
 
+test("a fallback that succeeded recovers the failures before it, not a failure after it", () => {
+  const RECOVERED = { "fix-docs-head": "success", "fix-docs": "success", "fix-docs-subscription": "failure", "fix-docs-fallback": "success", "apply-docs-patch": "success" };
+  assert.deepEqual(passOutcome({ results: RECOVERED, pushedCommit: "a".repeat(40) }), { outcome: "pushed", reason: null });
+  assert.deepEqual(passOutcome({ results: RECOVERED }), { outcome: "none", reason: null });
+  assert.deepEqual(passOutcome({ results: { ...RECOVERED, "apply-docs-patch": "failure" } }), { outcome: "failed", reason: "apply-docs-patch-failure" });
+  assert.deepEqual(passOutcome({ results: { ...RECOVERED, "fix-docs-fallback": "failure" } }), { outcome: "failed", reason: "fix-docs-subscription-failure" });
+});
+
 test("each planned pass emits one record, and a failed one also a refine-failed warning", () => {
   const wiring = (pass) => (pass === "fix-docs" ? { results: OK, pushedCommit: "b".repeat(40) } : { results: { "lint-code": "failure" } });
   assert.deepEqual(passRecords({ passes: ["fix-docs", "lint-code"], files: { "fix-docs": 3, "lint-code": 1 }, seconds: 42, wiring }), [

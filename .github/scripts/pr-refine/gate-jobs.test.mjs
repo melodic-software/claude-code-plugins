@@ -109,6 +109,9 @@ test("the plan job waits on a current dispatcher, and fix-docs-head on the plan'
   assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.dispatcher-current.outputs.stale": "false" }), true);
   assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.dispatcher-current.outputs.stale": "true" }), false);
   assert.equal(evaluate(plan.gate, { ...DISPATCH, "inputs.pr-number": "" }), false);
+  // A dispatch fix-docs-head could never start plans nothing, so no hold or record follows it.
+  assert.equal(evaluate(plan.gate, { ...DISPATCH, "inputs.activity": "apply-patch" }), false);
+  assert.equal(evaluate(plan.gate, { ...DISPATCH, "github.event.sender.id": 2 }), false);
   const head = gateOf(block.get("fix-docs-head"));
   assert.ok(head.needs.includes("plan"));
   const starts = (planned) => evaluate(head.gate, { ...DISPATCH, "needs.plan.outputs.fix-docs": planned });

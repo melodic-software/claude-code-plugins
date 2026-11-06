@@ -7,12 +7,15 @@ import { pathToFileURL } from "node:url";
 
 const FAILED = new Set(["failure", "cancelled"]);
 
-// One pass's outcome from its jobs' results ({ job: result }), and its push
-// job's pushed commit and skip reason; null results mean the workflow has no
-// jobs for the pass.
+// One pass's outcome from its jobs' results ({ job: result }, in run order),
+// and its push job's pushed commit and skip reason; null results mean the
+// workflow has no jobs for the pass. A `*-fallback` job that succeeded
+// recovers the failures of the jobs before it.
 export function passOutcome({ results, pushedCommit = "", skipReason = "" }) {
   if (results === null) return { outcome: "failed", reason: "unwired" };
-  const failed = Object.entries(results).find(([, result]) => FAILED.has(result));
+  const jobs = Object.entries(results);
+  const recovered = jobs.findLastIndex(([job, result]) => job.endsWith("-fallback") && result === "success");
+  const failed = jobs.slice(recovered + 1).find(([, result]) => FAILED.has(result));
   if (failed) return { outcome: "failed", reason: `${failed[0]}-${failed[1]}` };
   if (pushedCommit !== "") return { outcome: "pushed", reason: null };
   if (skipReason === "superseded-sha") return { outcome: "superseded", reason: null };
