@@ -432,8 +432,10 @@ const HOLD_NOTICES = [
   { title: "label-unblocked", pattern: /^#(\d+): (?:.*\bstatus (\d{3})\b)?.*; holding, and the next sweep reads it again$/, hold: (m) => ({ item: `#${m[1]}`, reason: `read fault${m[2] ? ` HTTP ${m[2]}` : ""}` }) },
   // handoff-evidence.sh: a fix-docs read that failed.
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
-  // pr-refine.yml fix-docs-head-held: the PR head could not be read.
+  // pr-refine.yml fix-docs-head-held: the PR head, or its human-gated hold
+  // (lane-hold.mjs), could not be read.
   { title: "PR head hold", pattern: /^the head of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR head unread" }) },
+  { title: "PR head hold", pattern: /^the human-gated hold of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR hold unread" }) },
   // check-wip-cap.mjs, or pick-slot's step when the check did not finish: the
   // pause could not be read, so the run started no work. A fixed reason per
   // cause, and no item, since the hold is the lane's, not one issue's.

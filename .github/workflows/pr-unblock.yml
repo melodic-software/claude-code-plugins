@@ -48,8 +48,10 @@ name: pr-unblock
 # Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
 run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it: the select jobs stop on a failed read
-# before any model turn, and their red result is what dispatch.mjs retries.
+# API_BUDGET_HOLD (outage posture element 2): only the two human-gated hold
+# steps set it, since lane-hold.mjs holds green on a fault and starts nothing.
+# The select jobs' other reads stop red before any model turn, and that red
+# result is what dispatch.mjs retries.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -302,7 +304,10 @@ jobs:
           applied-by-supported: patch
 
       # The human-gated label holds the PR unless another lane's escalation
-      # put it on; do-not-merge stays with the slot's labels-absent.
+      # put it on; do-not-merge stays with the slot's labels-absent. A GitHub
+      # fault on its reads holds green with a notice and no held output
+      # (lane-hold.mjs): proceed stays empty, no check posts, and the next
+      # dispatcher tick sends the head again.
       - name: Check the human-gated hold
         id: hold
         if: steps.slot.outputs.applies == 'true'
@@ -311,6 +316,9 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: resolve-conflicts
+          # A rate limit past the guard's budget refuses the read with a
+          # notice, and the step holds.
+          API_BUDGET_HOLD: "1"
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
 
       # The base every merge of this round uses: the default branch tip now,
@@ -1018,6 +1026,8 @@ jobs:
       # The human-gated label holds the PR unless pr-merge's shared-copy
       # refusal at this head put it on; with no such refusal
       # (lane-escalated false) there is nothing for the activity to answer.
+      # A GitHub fault on its reads holds green with no held output, as in
+      # resolve-conflicts-select: no check posts, and the next tick sends it.
       - name: Check the human-gated hold
         id: hold
         if: steps.slot.outputs.applies == 'true'
@@ -1026,6 +1036,9 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: sync-shared-copies
+          # A rate limit past the guard's budget refuses the read with a
+          # notice, and the step holds.
+          API_BUDGET_HOLD: "1"
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
 
       - name: Pin the base
@@ -1184,7 +1197,8 @@ jobs:
   # Every select outcome posts the sync-shared-copies check on the head the
   # select job read, so dispatch.mjs sends a head once: no-model-turn when it
   # proceeded (apply-shared-copies pushes the merge), else the skip reason, else
-  # the refusal's own skip (escalation-routes.mjs stopSkip). A select job that
+  # the refusal's own skip (escalation-routes.mjs stopSkip). A select job whose
+  # hold read held on a fault posts nothing. A select job that
   # failed after reading the head posts failure, which dispatch.mjs retries
   # until limit-stops-per-head failures stand on the head, as it does
   # resolve-conflicts's. A kill-switch stop reads no head, and nothing is

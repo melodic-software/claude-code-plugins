@@ -618,12 +618,16 @@ test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per 
   assert.ok(HOLD_LANES.find((l) => l.lane === "work-resolve-issue").jobs.includes("pick-slot"));
 });
 
-test("signal 13: pr-refine's unread PR head hold parses to the PR and a fixed reason", () => {
+test("signal 13: pr-refine's unread PR head or hold parses to the PR and a fixed reason", () => {
   // fix-docs-head-held's step, read from the workflow itself, so producer and
   // parser are one contract.
   const workflow = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8");
-  const step = /echo "(::notice title=PR head hold::[^"]*)"/.exec(workflow)[1].replace("$PR_NUMBER", "7");
+  const template = /echo "(::notice title=PR head hold::[^"]*)"/.exec(workflow)[1].replace("$PR_NUMBER", "7");
+  const step = template.replace("$what", "head");
   assert.deepEqual(parseHold(...annotation(step)), { item: "#7", reason: "PR head unread" });
+  // lane-hold.mjs's fault hold: the step names the hold, not the head.
+  assert.match(workflow, /\[\[ \$HOLD_UNREAD != true \]\] \|\| what="human-gated hold"/);
+  assert.deepEqual(parseHold(...annotation(template.replace("$what", "human-gated hold"))), { item: "#7", reason: "PR hold unread" });
   assert.equal(parseHold("PR head hold", "no PR head SHA read for #7; fix-docs does not run"), null);
   assert.equal(parseHold("Handoff evidence hold", annotation(step)[1]), null);
   assert.ok(HOLD_LANES.find((l) => l.lane === "pr-refine").jobs.includes("fix-docs-head-held"));

@@ -86,7 +86,7 @@ no try yields a SHA (`.github/workflows/pr-verify.yml:144`).
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
 | 1 | met | `.github/workflows/pr-refine.yml:184`, `.github/workflows/pr-run-activity-read.yml:3827`, `.github/scripts/pr-unblock/read-pr-head.bash:32` (lines at the later change below) | Part 2 gave `handoff-evidence.sh` full-jitter waits. Both PR head reads, fix-docs-head's and the read runner's report job's, read a transient fault once more after a full-jitter wait and never a rate limit. The tip step's `git ls-remote` gets 3 tries with full jitter, as in every workflow. |
-| 2 | gap | `.github/workflows/pr-refine.yml:184`, `.github/workflows/pr-refine.yml:223`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:197` (lines at the later change below) | A head fix-docs-head cannot read holds green with a notice and starts nothing, and the dispatcher counts the held run toward `limit-stops-per-head`. Part 2 holds the `fix-docs` handoff reads. What is left is a script: a failed `lane-hold.mjs` read still ends fix-docs-head red (see Remaining). |
+| 2 | met | `.github/workflows/pr-refine.yml:184`, `.github/workflows/pr-refine.yml:223`, `.github/scripts/pr-unblock/lane-hold.mjs:82`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:197` (lines at the later change below) | A head fix-docs-head cannot read, or a human-gated hold whose reads meet a GitHub fault, holds green with a notice and starts nothing, and the dispatcher counts the held run toward `limit-stops-per-head`. Part 2 holds the `fix-docs` handoff reads (see Remaining). |
 | 3 | gap | `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:178`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs:258` | The dispatcher counts any completed run, including a red outage run, as done, so the next tick never re-dispatches it. |
 | 4 | met | `.github/actions/report-check-run/decide.mjs:105`, `.github/workflows/pr-run-activity-read.yml:3880` (lines at the later change below) | `decide.mjs` still posts `failure` for a run with no verdict, kept on evidence as the retry signal (see Remaining). No workflow step files or demotes on an incomplete read: with `post-decline: false` the report job posts no check on a run whose run job set no head, and fix-docs-head's hold files nothing. |
 | 5 | met | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-unblock-dispatch.yml:184` | The lane's only automatic starter skips the whole dispatch while the status page lists an outage. That is a stop, and the page starts nothing. |
@@ -526,8 +526,8 @@ head. `pr-unblock-dispatch.yml` needed nothing: its dispatch step holds a refuse
   `HOLD_LANES`). `fix-docs-dispatch.mjs` `heldHead` reads that job's conclusion, which no head code
   can write, and counts the run as it counts a handoff hold, so the PR is dispatched again until
   `limit-stops-per-head` runs went red or held. A person's hold also ends the run green with
-  fix-docs skipped, but has no such job, so it still ends the PR. A bad `pr-number` and a failed
-  `lane-hold.mjs` read still end red.
+  fix-docs skipped, but has no such job, so it still ends the PR. A bad `pr-number` still ends red,
+  and so does a `lane-hold.mjs` read refused for a reason other than a fault (the change below).
 - **pr-refine, element 4.** Nothing to change: no workflow step files or demotes on an incomplete
   read. A cancelled run whose report-time head read fails still posts `failure` on the gated head,
   but the cancel itself (a timeout, since `cancel-in-progress` is false) is the evidence, and for
@@ -637,13 +637,34 @@ change's head, not `222d8023`.
   (`:917-926`). A cancelled enable-auto-merge run leaves a CANCELLED check on the PR that woke it
   (`:2240`). gate-check's runs wait in line so that none is cancelled onto a PR head (`:3164-3166`).
 
+A later part 2 change held `lane-hold.mjs` green on a read fault, with tests. Its pr-refine row 2
+cites its head.
+
+- **pr-refine and pr-unblock, element 2: the human-gated hold.** When the pull, timeline or review
+  read meets a GitHub fault (a 5xx or 429, a rate-guard stop under the step's `API_BUDGET_HOLD`
+  opt-in, or no answer), `lane-hold.mjs` logs one notice, writes `unread=true` and neither `held`
+  nor `lane-escalated`, and exits 0 (`.github/scripts/pr-unblock/lane-hold.mjs:82`). Before, the
+  pull or timeline read ended the step red, and a failed review read held the PR as a person's
+  hold, which for fix-docs ended the PR. Any other refused read, a 403 or 404 among them, still ends
+  red, and a review read refused that way still holds for a person. Each caller proceeds only on
+  `held` `false` and posts its skip only on `held` `true`, so a fault hold runs and posts nothing:
+  - pr-refine's `fix-docs-head` passes the hold's `unread` on, so only `fix-docs-head-held` starts.
+    Its `PR head hold` notice names the hold (`the human-gated hold of #N could not be read`), and
+    signal 13 counts it with the fixed reason `PR hold unread` (`signals.mjs` `HOLD_NOTICES`).
+    `fix-docs-dispatch.mjs` `heldHead` counts the run toward `limit-stops-per-head`, as it counts an
+    unread head.
+  - pr-unblock's `resolve-conflicts-select` and `sync-shared-copies-select` decide nothing (empty
+    `proceed`), so no check lands on the head and the next dispatcher tick sends it again. The
+    dispatcher reads the same hold first (`dispatch.mjs` `prHold`) and skips a PR whose reads fail,
+    so an outage sends nothing. For sync-shared-copies this replaces the failure check a red select
+    posted, which counted toward the head's cap.
+
 The other script rows below are still open.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
 | work-unblock | 3 | kept | `.github/scripts/work-unblock/label-unblocked.mjs` keeps its breaker-trip records: they are the lane's own comments, read from GitHub each run, and bound kill-switch re-fires that start a lane run or a model turn (see above); they gate no cron tick, so the next sweep is still the probe |
 | pr-refine | 4 | kept | `.github/actions/report-check-run/decide.mjs` keeps posting failure on no verdict: it is the retry signal `fix-docs-dispatch.mjs:188-199` and pr-unblock's `fix-ci-unreported` read (see above); part 2 fixed elements 1, 2 and 3 in `handoff-evidence.sh` and `fix-docs-dispatch.mjs`, and the later pr-refine change above the workflow's elements 1, 2 and 4 |
-| pr-refine | 2 | script | `.github/scripts/pr-unblock/lane-hold.mjs` (a failed label or timeline read ends fix-docs-head red, a run the dispatcher counts; pr-unblock's `resolve-conflicts-select` shares the script) |
 | pr-review, pr-review-security, pr-verify, pr-require-checks | 3 | kept | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` keeps its one-time re-run record, the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`), and its status-page idle, a stop element 5 allows |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
 | pr-review, pr-review-security | 6 | larger | `.github/workflows/pr-review-main.yml` and `.github/artifact-retention.json`: one job reads the trusted PR text per run, gated as the legs are (upstream status included), and uploads it under its own retention family after a leak scan, with a sha256 job output; each leg uses it only when the hash, its main commit, PR number, head and run attempt match, else reads its own; the later legs get `needs` edges to that job, which must not turn the run red |

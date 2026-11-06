@@ -6,17 +6,30 @@
 // held=true|false, and lane-escalated=true when the label is on and the
 // activity works past it, which lets the write runner push past it too.
 //
+// A read that meets a GitHub fault (readFault) leaves the hold unknown, so the
+// step holds (outage posture element 2): one notice, `unread=true` and neither
+// held nor lane-escalated, and exit 0. Each caller proceeds only on
+// held=false and posts its skip only on held=true, so nothing after it runs
+// and nothing lands on the head: pr-refine.yml's fix-docs-head-held marks the
+// run, and the next dispatcher tick sends the PR again. Any other error, a 404
+// or a 403 among them, still ends the step red.
+//
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, PR_NUMBER,
 // APP_SENDER_ID, ACTIVITY, TRACKER_CONFIG (default .base/.work-item-tracker.json).
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { isFault } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi, humanGatedLabelFrom, need, positive } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 
 const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
+// A GitHub fault: isFault, or a 5xx or 429 from createGitHubApi, whose errors
+// carry the status on a plain Error. What the read found is unknown, not wrong.
+export const readFault = (error) => isFault(error) || error?.status >= 500 || error?.status === 429;
 
 export async function main(env, { api, log = (line) => console.log(line) } = {}) {
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "APP_SENDER_ID", "ACTIVITY"]);
@@ -36,17 +49,42 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       // Each answer's rate-limit reading, for the job-end api-budget notice.
       fetch: rateLimitLatch.guard(globalThis.fetch),
     });
-  const pull = await client.getPull(pr);
-  const { held, laneEscalated, why } = await prHold({
-    labels: (pull.labels ?? []).map((label) => label?.name),
-    holdLabels: [],
-    gateLabel,
-    head: pull.head?.sha,
-    activity: env.ACTIVITY,
-    appId,
-    readTimeline: () => client.listTimeline(pr),
-    readReviews: reviewReader(client, pr),
-  });
+  // prHold reads a failed review read as a person's hold; a fault there is
+  // kept here, so it holds the step instead.
+  let fault = false;
+  const readReviews = reviewReader(client, pr);
+  let result;
+  try {
+    const pull = await client.getPull(pr);
+    result = await prHold({
+      labels: (pull.labels ?? []).map((label) => label?.name),
+      holdLabels: [],
+      gateLabel,
+      head: pull.head?.sha,
+      activity: env.ACTIVITY,
+      appId,
+      readTimeline: () => client.listTimeline(pr),
+      readReviews: async (since) => {
+        try {
+          return await readReviews(since);
+        } catch (error) {
+          fault = readFault(error);
+          throw error;
+        }
+      },
+    });
+  } catch (error) {
+    if (!readFault(error)) {
+      throw error;
+    }
+    fault = true;
+  }
+  if (fault) {
+    appendFileSync(env.GITHUB_OUTPUT, "unread=true\n");
+    log(`::notice::#${pr}: the human-gated hold for ${env.ACTIVITY} could not be read (a GitHub fault); ${env.ACTIVITY} does not run, and the next dispatcher tick sends the PR again`);
+    return 0;
+  }
+  const { held, laneEscalated, why } = result;
   appendFileSync(env.GITHUB_OUTPUT, `held=${held}\nlane-escalated=${laneEscalated}\n`);
   log(held ? `#${pr} ${why}` : `#${pr} not held for ${env.ACTIVITY}${laneEscalated ? ` (another lane's escalation put ${gateLabel} on)` : ""}`);
   return 0;
