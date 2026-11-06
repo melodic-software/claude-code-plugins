@@ -158,6 +158,7 @@ import babysit_dependabot as dependabot
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
+import babysit_evidence_comment as evidence_comment
 import babysit_risk
 import babysit_run_cache as run_cache
 import babysit_verify_evidence as verify_evidence
@@ -4428,8 +4429,13 @@ def unattended_writes(
     except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
         report["errors"].append(f"dequeue: {exc}")
     # A stopped path (demoted, capped off, switched off) merges nothing, so a
-    # reasons comment would only say so on every pull request.
-    if not stopped and risk is not None and babysit_risk.holds(risk):
+    # reasons comment would only say so on every pull request. Nor does one
+    # whose author App merges it itself (`adoption.self-merging-apps`): the
+    # score holds only this lane's merge, so a comment or label is noise.
+    config = inputs.get("config")
+    author = json_object(json_object(inputs.get("pr")).get("user")).get("id")
+    quiet = stopped or (config is not None and author in config.self_merging_apps)
+    if not quiet and risk is not None and babysit_risk.holds(risk):
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         body = risk_comment_body(risk, head)
         try:
@@ -4442,7 +4448,6 @@ def unattended_writes(
             # An earlier run's reasons comment saying the same thing at this
             # head for long enough means the refusal persisted: escalate it.
             # A shorter stand may be a review still running at the head.
-            config = inputs.get("config")
             minutes = (
                 config.risk_escalation_minutes
                 if config is not None
@@ -4495,7 +4500,7 @@ def unattended_writes(
     # A score that no longer holds ends the refusal at this head: the identity's refusal
     # comment naming it says so once, from comments already read. An
     # escalated one stays beside the label it explains.
-    elif not stopped and risk is not None and inputs.get("comments") is not None:
+    elif not quiet and risk is not None and inputs.get("comments") is not None:
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
         text = _normalized((prior or {}).get("body"))
@@ -4532,7 +4537,6 @@ def unattended_writes(
     # A lanes App pull request the verifier refuses for good closes for a
     # fresh attempt at its issue (`verify_evidence.capped_close`, which judges
     # it again and leaves a held one alone); no person's label.
-    config = inputs.get("config")
     if (
         not stopped
         and verify.get("refusal") in verify_evidence.VERIFY_FINAL
@@ -4736,8 +4740,10 @@ def unattended_enqueue(
 
     Only a merge-queue base; an armed auto-merge is disarmed and refused; the
     kill switch and the opt-in label are read again; the pin comment is
-    posted before the enqueue and the enqueue goes nowhere without it; after
-    the enqueue the queue is
+    posted before the enqueue and the enqueue goes nowhere without it; under
+    a passing verifier verdict the evidence comment follows the pin when the
+    head has a capture artifact (`babysit_evidence_comment`); after the
+    enqueue the queue is
     re-read and, when the identity entries enqueued earlier and the unverified
     lane merges already fill `merge.max-in-flight`, this one dequeues itself.
     In the pr-merge lane the kill switch "read again" is the value the
@@ -4985,6 +4991,27 @@ def unattended_enqueue(
     if proc.returncode != 0:
         return hold(f"the pin comment could not be posted ({proc.stderr.strip()})")
     step["pinned"] = True
+    # The verifier passed this head: its evidence comment goes up before the
+    # enqueue. No capture, or a failed read or write, posts nothing and the
+    # enqueue goes on, since the verdict is the gate and the comment its record.
+    reader = inputs.get("verify_reader")
+    if reader is not None:
+        token = reader.actions_token
+        step["evidenceComment"] = evidence_comment.post(
+            repo,
+            number,
+            pin,
+            (lambda args: gh_json(args, {"GH_TOKEN": token})) if token else gh_json,
+            lambda body: upsert_marker_comment(
+                repo,
+                number,
+                identity,
+                body,
+                inputs.get("comments"),
+                marker=evidence_comment.MARKER,
+            ),
+            os.environ.get("GITHUB_SERVER_URL") or "https://github.com",
+        )
     result["action"] = "enqueue"
     record = async_merge(repo, number, sha=pin, merge_action="merge_queue", method=None)
     result["merge"] = record

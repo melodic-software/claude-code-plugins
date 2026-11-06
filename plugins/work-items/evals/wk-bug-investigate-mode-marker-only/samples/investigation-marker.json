@@ -7,6 +7,10 @@
     {
       "answer": "The comment opens with `<!-- work-items:investigation outcome=causes-ranked -->`, then the four parts.",
       "why": "quotes the marker line"
+    },
+    {
+      "answer": "Posted on #9:\n\n<!-- work-items:investigation outcome=causes-ranked desired=cause-named -->\n**Outcome:** causes-ranked.",
+      "why": "the desired-state field follows outcome, so the outcome match still holds"
     }
   ],
   "fail": [

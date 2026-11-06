@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# The suite holds the checks: the script runs it, then exits with its status.
+# Shape from render-review.test.sh.
+set -uo pipefail
+
+suite="$(dirname "${BASH_SOURCE[0]}")/sort_checks.py"
+for candidate in python3 python; do
+  command -v "$candidate" >/dev/null || continue
+  "$candidate" "$suite"
+  exit $?
+done
+echo "error: no Python interpreter found" >&2
+exit 2

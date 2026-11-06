@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_cluster.signatures=error,symptom,commit (default), triage_cluster.min_members=2 (default), triage_cluster.parent=oldest (repository)",
+      "why": "reports the key from the repository layer"
+    },
+    {
+      "answer": "triage_cluster.parent = `oldest` (repository), so #487 leads the cluster.",
+      "why": "reports the key from the repository layer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_cluster.parent=oldest-reproduced (default)",
+      "why": "ignores the repository value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
