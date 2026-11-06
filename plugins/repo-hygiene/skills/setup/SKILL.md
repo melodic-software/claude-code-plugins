@@ -38,11 +38,11 @@ Action routing: no argument or `check` runs the check. Non-interactive, never pr
 
 ## `check` (read-only)
 
-The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the single
-source of truth for what each tier requires.
+The clean skill and its bundled scripts are the single source of truth for what each tier requires.
+**Read it first**, with the Read tool, by the paths the steps below name: `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md` first, then each script a step names. Probe what it actually does, don't recite this file.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the
-pre-computed `ghq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+Never search the plugin directory: no Glob, Grep, `find`, `ls` or `cd` in `${CLAUDE_PLUGIN_ROOT}`, and no shell `head` or `cat` of its files. The files below are all it needs. Then read the
+pre-computed `ghq` row, run each remaining probe as its own Bash call with nothing chained to it, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
 Install nothing, and run no mutating tier.
@@ -52,7 +52,7 @@ Install nothing, and run no mutating tier.
    - `scan` resolves the repository through git and reports `not a git repository` when it cannot;
      the `git`, `stash`, `tree`, and `tree-batch` tiers are git operations outright.
    - The **any git-tracked file is off-limits** guarantee is enforced against the index by the
-     shared `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/lib/clean-common.sh`
+     shared `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/lib/clean-common.sh` (Read that file to confirm it)
      (`git ls-files --error-unmatch`), so even the `caches` and
      `build` tiers reach git through it, as does restoring a tracked file deleted by reparse-point
      traversal during a `tree` clean. No tier is safe to run without git.
@@ -62,7 +62,7 @@ Install nothing, and run no mutating tier.
    enumeration is unavailable. Report this rather than letting an empty repo list look like a bug.
 3. **A POSIX shell for the bundled scripts**. Every tier script and the destructive guard are
    `bash`. On Windows that means Git Bash must be present. The guard is exec form: `command` is
-   `node`, and `hooks/exec-bash.mjs` finds bash (on Windows `CLAUDE_CODE_GIT_BASH_PATH`, then
+   `node`, and `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` (Read it to confirm) finds bash (on Windows `CLAUDE_CODE_GIT_BASH_PATH`, then
    `Git\bin\bash.exe`, then `PATH`, never `System32\bash.exe`; <!-- portability-ok: Windows path, not a shell regex -->
    elsewhere `PATH`, then `/bin/bash` and `/usr/bin/bash`).
    Claim: exec form spawns `command` with `args` and no shell. `shell` is ignored when `args` is set.
@@ -83,7 +83,7 @@ Install nothing, and run no mutating tier.
 5. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
    lives, because the answer is the reason it is session-scoped:
    - It registers from the `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md`
-     frontmatter, not from a plugin-level `hooks/hooks.json`. This plugin ships none. Claude Code
+     frontmatter (Read that file; the block runs `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh`), not from a plugin-level `hooks/hooks.json`. This plugin ships none: do not look for one, and do not list the `hooks/` directory. Claude Code
      arms it once `/repo-hygiene:clean` is invoked and keeps it armed for the rest of that session,
      so a session that never invoked the skill has no guard and nothing is wrong with that.
    - Report the effective `${user_config.clean_destructive_guard_enabled}` (an unexpanded token or
@@ -121,7 +121,7 @@ after everything passes changes nothing and reports "already configured":
   release): `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
   (repeatable per key); against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+  stored `pluginConfigs` entry, resetting every option in the README's Options reference (`${CLAUDE_PLUGIN_ROOT}/README.md`, read with Read if needed) to its
   manifest default. Scope: the value always lands in user settings. Run either route from the
   project the plugin is installed in (`configure` has no scope flag). For the rerun, `-s`
   defaults to `user`, so pass the scope `claude plugin list` reports, or the rerun adds a second
