@@ -415,7 +415,7 @@ export const HOLD_LANES = [
   // hour over the default cap of 6, and a peak of 51; 20 covers every hour
   // but that one, whose rest later runs read, at 2 calls a run.
   { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
-  { lane: "pr-refine", workflow: "pr-refine.yml", jobs: ["fix-docs-handoff", "fix-docs-subscription-handoff"], area: "PR refine lane (pr-refine fix-docs)" },
+  { lane: "pr-refine", workflow: "pr-refine.yml", jobs: ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff"], area: "PR refine lane (pr-refine fix-docs)" },
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
   // windows over it, at 2 calls a run (one jobs read, one annotations read).
@@ -432,6 +432,8 @@ const HOLD_NOTICES = [
   { title: "label-unblocked", pattern: /^#(\d+): (?:.*\bstatus (\d{3})\b)?.*; holding, and the next sweep reads it again$/, hold: (m) => ({ item: `#${m[1]}`, reason: `read fault${m[2] ? ` HTTP ${m[2]}` : ""}` }) },
   // handoff-evidence.sh: a fix-docs read that failed.
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
+  // pr-refine.yml fix-docs-head-held: the PR head could not be read.
+  { title: "PR head hold", pattern: /^the head of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR head unread" }) },
   // check-wip-cap.mjs, or pick-slot's step when the check did not finish: the
   // pause could not be read, so the run started no work. A fixed reason per
   // cause, and no item, since the hold is the lane's, not one issue's.
